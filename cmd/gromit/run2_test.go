@@ -6,8 +6,10 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"reflect"
 	"sync"
 	"testing"
+	"unsafe"
 
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/events"
@@ -138,6 +140,42 @@ func TestRun2WiresEmitterToSpecLoop(t *testing.T) {
 	}
 }
 
+func TestRun2WiresStageOptions(t *testing.T) {
+	specsDir, cleanup := setupRun2TestEnv(t)
+	defer cleanup()
+
+	readySpec := writeSpecFile(t, specsDir, "ready-stage", map[string]string{"id": "ready-stage", "accepted": "true"})
+
+	stubSubscribers := startRun2SubscribersFn
+	startRun2SubscribersFn = func(ctx context.Context, emitter *events.Emitter, output io.Writer, logsDir string) (*sync.WaitGroup, error) {
+		return &sync.WaitGroup{}, nil
+	}
+	defer func() { startRun2SubscribersFn = stubSubscribers }()
+
+	stubLoop := newSpecLoopFn
+	newSpecLoopFn = func(adapters adapter.AdapterSet, cfg *config.Config, gate loop.DependencyGate, opts ...loop.SpecLoopOption) (specLoop, error) {
+		specLoopPtr := &loop.SpecLoop{}
+		for _, opt := range opts {
+			opt(specLoopPtr)
+		}
+		if fieldIsNil(specLoopPtr, "decomposeStage") {
+			t.Fatalf("expected decompose stage option, got nil")
+		}
+		if fieldIsNil(specLoopPtr, "beadRunner") {
+			t.Fatalf("expected bead loop option, got nil")
+		}
+		return &fakeSpecLoop{}, nil
+	}
+	defer func() { newSpecLoopFn = stubLoop }()
+
+	run2Cmd.SetOut(io.Discard)
+	run2Cmd.SetErr(io.Discard)
+
+	if err := run2Cmd.RunE(run2Cmd, []string{readySpec}); err != nil {
+		t.Fatalf("unexpected run error: %v", err)
+	}
+}
+
 func setupRun2TestEnv(t *testing.T) (string, func()) {
 	t.Helper()
 
@@ -209,4 +247,21 @@ func (f *fakeSpecLoop) Run(ctx context.Context, specID string) error {
 	f.called = true
 	f.runSpecID = specID
 	return nil
+}
+
+func fieldIsNil(specLoop *loop.SpecLoop, fieldName string) bool {
+	value := reflect.ValueOf(specLoop).Elem().FieldByName(fieldName)
+	if !value.IsValid() {
+		return true
+	}
+	value = reflect.NewAt(value.Type(), unsafe.Pointer(value.UnsafeAddr())).Elem()
+	if !value.IsValid() {
+		return true
+	}
+	switch value.Kind() {
+	case reflect.Interface, reflect.Ptr, reflect.Map, reflect.Slice, reflect.Func, reflect.Chan:
+		return value.IsNil()
+	default:
+		return false
+	}
 }
