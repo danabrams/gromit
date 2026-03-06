@@ -70,6 +70,76 @@ func TestIntegration_SpecLoopFailureHitsGenerationCap(t *testing.T) {
 	}
 }
 
+// TestIntegration_SpecLoopRemediationAppliesGapAnalysis ensures the remediation loop runs after the first\n+// failed accept and that 2-3 remediation beads complete before acceptance succeeds.
+func TestIntegration_SpecLoopRemediationAppliesGapAnalysis(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	specID := "spec-integration-remediate"
+
+	emitter := events.NewEmitter()
+	ch := emitter.Subscribe()
+	t.Cleanup(func() {
+		emitter.Unsubscribe(ch)
+	})
+
+	git := newFakeGitAdapter(t)
+	git.gapAnalysisContent = "gap analysis leads to remediation"
+	llm := newFakeLLMAdapter()
+	taskTracker := newFakeTaskTrackerAdapter()
+	presenter := newFakePresenterAdapter(t)
+	accept := newScriptedAcceptStage(
+		stagepkg.Result{Decision: stagepkg.DecisionFail},
+		stagepkg.Result{Decision: stagepkg.DecisionProceed},
+	)
+
+	remediation := newIntegrationRemediationRunner(t, emitter, integrationRemediationConfig{
+		stages: []StageSpec{
+			{Stage: &successStage{name: "bead-1"}, Retry: stagepkg.RetryConfig{MaxRetries: 0}},
+			{Stage: &successStage{name: "bead-2"}, Retry: stagepkg.RetryConfig{MaxRetries: 0}},
+			{Stage: &successStage{name: "bead-3"}, Retry: stagepkg.RetryConfig{MaxRetries: 0}},
+		},
+		generationCap: -1,
+	})
+
+	adapters := adapter.AdapterSet{
+		Git:         git,
+		LLM:         llm,
+		TaskTracker: taskTracker,
+		Presenter:   presenter,
+	}
+
+	loopInstance, err := NewSpecLoop(adapters, &config.Config{}, noopDependencyGate{}, WithEmitter(emitter), WithAcceptStage(accept), WithRemediationRunner(remediation))
+	if err != nil {
+		t.Fatalf("create spec loop: %v", err)
+	}
+
+	if err := loopInstance.Run(ctx, specID); err != nil {
+		t.Fatalf("run spec loop: %v", err)
+	}
+
+	runnerImpl, ok := remediation.(*integrationRemediationRunner)
+	if !ok {
+		t.Fatalf("remediation runner type = %T, want *integrationRemediationRunner", remediation)
+	}
+	if runnerImpl.calls != 1 {
+		t.Fatalf("remediation calls = %d, want 1", runnerImpl.calls)
+	}
+
+	if accept.calls != 2 {
+		t.Fatalf("accept calls = %d, want 2", accept.calls)
+	}
+
+	if !presenter.lastSummary.Success {
+		t.Fatalf("presenter summary success = %v, want true", presenter.lastSummary.Success)
+	}
+
+	requireEventSequence(t, ch, []string{
+		"*events.SpecStartedEvent",
+		"*events.SpecCompletedEvent",
+	})
+}
+
 type integrationRemediationConfig struct {
 	stages        []StageSpec
 	generationCap int
