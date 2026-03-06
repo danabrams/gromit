@@ -28,8 +28,11 @@ func (p *PromptAssembler) Assemble() string {
 	}
 
 	var builder strings.Builder
-	for idx, layer := range layers {
-		if idx > 0 {
+	for _, layer := range layers {
+		if layer.content == "" {
+			continue
+		}
+		if builder.Len() > 0 {
 			builder.WriteString("\n\n")
 		}
 		builder.WriteString("=== ")
