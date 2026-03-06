@@ -2,6 +2,7 @@ package dep
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -55,6 +56,32 @@ func TestNext_DetectsCycles(t *testing.T) {
 	}
 	if err.Error() == "" {
 		t.Errorf("error message should not be empty")
+	}
+}
+
+func TestNext_CycleErrorReportsCyclePath(t *testing.T) {
+	r := NewResolver()
+	r.Add("bead1", []string{"bead2"})
+	r.Add("bead2", []string{"bead3"})
+	r.Add("bead3", []string{"bead1"})
+
+	_, err := r.Next(nil)
+	if err == nil {
+		t.Fatalf("expected cycle detection error, got nil")
+	}
+
+	cycleErr, ok := err.(*CycleError)
+	if !ok {
+		t.Fatalf("expected *CycleError, got %T", err)
+	}
+
+	wantPath := []string{"bead1", "bead2", "bead3", "bead1"}
+	if !reflect.DeepEqual(cycleErr.Path, wantPath) {
+		t.Fatalf("expected cycle path %v, got %v", wantPath, cycleErr.Path)
+	}
+
+	if !strings.Contains(err.Error(), "cycle detected") {
+		t.Fatalf("unexpected error message: %v", err)
 	}
 }
 
