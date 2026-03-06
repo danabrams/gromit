@@ -295,6 +295,49 @@ func TestBeadLoopPopulatesIterationOnStageRequests(t *testing.T) {
 	}
 }
 
+func TestBeadLoopStopsWhenStopChannelCloses(t *testing.T) {
+	t.Parallel()
+
+	stopCh := make(chan struct{})
+	gate := &closingStage{name: "gate", stopCh: stopCh}
+	build := &decisionStage{name: "build", decision: stage.DecisionProceed}
+	validate := &decisionStage{name: "validate", decision: stage.DecisionProceed}
+	review := &decisionStage{name: "review", decision: stage.DecisionProceed}
+	epilogue := &decisionStage{name: "epilogue", decision: stage.DecisionProceed}
+
+	config := BeadLoopConfig{
+		Gate:     gate,
+		Build:    build,
+		Validate: validate,
+		Review:   review,
+		Epilogue: epilogue,
+	}
+
+	loop, err := NewBeadLoop(config)
+	if err != nil {
+		t.Fatalf("NewBeadLoop: %v", err)
+	}
+
+	beads := []*bead.Bead{
+		{ID: "first"},
+		{ID: "second"},
+	}
+
+	if err := loop.Run(context.Background(), beads, stopCh); err != nil {
+		t.Fatalf("Run failed: %v", err)
+	}
+
+	if gate.runCount != 1 {
+		t.Fatalf("gate run count = %d, want 1", gate.runCount)
+	}
+	if build.runCount != 1 {
+		t.Fatalf("build run count = %d, want 1", build.runCount)
+	}
+	if review.runCount != 1 {
+		t.Fatalf("review run count = %d, want 1", review.runCount)
+	}
+}
+
 func collectLifecycleEvents(ch chan event.TypedEvent, expected int) []event.TypedEvent {
 	collected := make([]event.TypedEvent, 0, expected)
 	for len(collected) < expected {
@@ -382,6 +425,22 @@ func (s *capturingStage) Run(ctx context.Context, req *stage.Request) (*stage.Re
 		s.requests = append(s.requests, *req)
 	} else {
 		s.requests = append(s.requests, stage.Request{})
+	}
+	return &stage.Result{Decision: stage.DecisionProceed}, nil
+}
+
+type closingStage struct {
+	name     string
+	stopCh   chan struct{}
+	runCount int
+}
+
+func (s *closingStage) Name() string { return s.name }
+
+func (s *closingStage) Run(ctx context.Context, req *stage.Request) (*stage.Result, error) {
+	s.runCount++
+	if s.runCount == 1 && s.stopCh != nil {
+		close(s.stopCh)
 	}
 	return &stage.Result{Decision: stage.DecisionProceed}, nil
 }
