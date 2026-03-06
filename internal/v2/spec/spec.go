@@ -1,7 +1,9 @@
 package spec
 
 import (
+	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -18,6 +20,12 @@ type Spec struct {
 	ArchitectureDirection string
 	TestStrategy          string
 	Body                  string
+}
+
+// ReadySpec describes a spec whose dependencies are satisfied and is not yet accepted.
+type ReadySpec struct {
+	ID   string
+	Path string
 }
 
 // SpecDependenciesError reports that dependencies are blocking execution.
@@ -107,6 +115,55 @@ func (s *Spec) CheckDependencies(specsDir string) error {
 
 	sort.Strings(blockers)
 	return &SpecDependenciesError{SpecID: s.ID, Blocking: blockers}
+}
+
+// ListReady returns specs whose dependencies are satisfied and are not yet accepted.
+func ListReady(specsDir string) ([]ReadySpec, error) {
+	if strings.TrimSpace(specsDir) == "" {
+		return nil, fmt.Errorf("specs dir required")
+	}
+	entries, err := os.ReadDir(specsDir)
+	if err != nil {
+		return nil, fmt.Errorf("reading specs dir: %w", err)
+	}
+
+	ready := make([]ReadySpec, 0, len(entries))
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		if strings.ToLower(filepath.Ext(entry.Name())) != ".md" {
+			continue
+		}
+
+		path := filepath.Join(specsDir, entry.Name())
+		specEntry, err := Load(path)
+		if err != nil {
+			return nil, err
+		}
+		if specEntry.Accepted {
+			continue
+		}
+
+		if err := specEntry.CheckDependencies(specsDir); err != nil {
+			var depErr *SpecDependenciesError
+			if errors.As(err, &depErr) {
+				continue
+			}
+			return nil, err
+		}
+
+		ready = append(ready, ReadySpec{
+			ID:   specEntry.ID,
+			Path: path,
+		})
+	}
+
+	sort.Slice(ready, func(i, j int) bool {
+		return ready[i].ID < ready[j].ID
+	})
+
+	return ready, nil
 }
 
 func parseID(front map[string]interface{}, path string) string {
