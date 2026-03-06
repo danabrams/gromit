@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -87,6 +88,89 @@ func TestSpecLoopHappyPathUsesAdaptersAndEmitsEvents(t *testing.T) {
 	}
 }
 
+func TestSpecLoopFailurePathPreservesWorktreeAndEmitsEvents(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	specID := "spec-loop-failure"
+
+	emitter := events.NewEmitter()
+	ch := emitter.Subscribe()
+	t.Cleanup(func() {
+		emitter.Unsubscribe(ch)
+	})
+
+	recorder := newRecordingStageRecorder()
+
+	git := newFakeGitAdapter(t)
+	gapContent := "  missing validation coverage  "
+	git.gapAnalysisContent = gapContent
+	llm := newFakeLLMAdapter()
+	taskTracker := newFakeTaskTrackerAdapter()
+	presenter := newFakePresenterAdapter(t)
+	runnerErr := errors.New("generation cap reached")
+	runner := &fakeRemediationRunner{err: runnerErr}
+
+	adapters := adapter.AdapterSet{
+		Git:         git,
+		LLM:         llm,
+		TaskTracker: taskTracker,
+		Presenter:   presenter,
+	}
+
+	loopInstance, err := NewSpecLoop(adapters, &config.Config{}, noopDependencyGate{}, WithStageRecorder(recorder), WithEmitter(emitter), WithRemediationRunner(runner))
+	if err != nil {
+		t.Fatalf("create spec loop: %v", err)
+	}
+
+	if err := loopInstance.Run(ctx, specID); err == nil {
+		t.Fatal("expected Run to return an error")
+	}
+
+	if runner.calls != 1 {
+		t.Fatalf("remediation runs = %d, want 1", runner.calls)
+	}
+
+	wantStages := []string{"plan", "decompose", "gate", "build", "validate", "review", "epilogue", "accept", "gap-analysis", "decompose", "bead-loop", "present"}
+	if got := recorder.stageNames(); !reflect.DeepEqual(got, wantStages) {
+		t.Fatalf("stages = %v, want %v", got, wantStages)
+	}
+
+	if presenter.lastSummary.Success {
+		t.Fatalf("presenter summary success = true, want false")
+	}
+	if !strings.Contains(presenter.lastSummary.FailureSummary, runnerErr.Error()) {
+		t.Fatalf("failure summary missing runner error: %q", presenter.lastSummary.FailureSummary)
+	}
+	trimmedGap := strings.TrimSpace(gapContent)
+	if len(presenter.lastSummary.RemainingWork) != 1 || presenter.lastSummary.RemainingWork[0] != trimmedGap {
+		t.Fatalf("remaining work = %v, want [%q]", presenter.lastSummary.RemainingWork, trimmedGap)
+	}
+
+	if _, err := os.Stat(git.lastWorktree); err != nil {
+		t.Fatalf("worktree removed after failure: %v", err)
+	}
+
+	received := collectEvents(t, ch, 3)
+	if _, ok := received[0].(*events.SpecStartedEvent); !ok {
+		t.Fatalf("first event = %T, want *events.SpecStartedEvent", received[0])
+	}
+	andon, ok := received[1].(*events.AndonTriggeredEvent)
+	if !ok {
+		t.Fatalf("second event = %T, want *events.AndonTriggeredEvent", received[1])
+	}
+	if andon.SpecID != specID {
+		t.Fatalf("andon event spec = %s, want %s", andon.SpecID, specID)
+	}
+	failed, ok := received[2].(*events.SpecFailedEvent)
+	if !ok {
+		t.Fatalf("third event = %T, want *events.SpecFailedEvent", received[2])
+	}
+	if failed.SpecID != specID {
+		t.Fatalf("spec failed event spec = %s, want %s", failed.SpecID, specID)
+	}
+}
+
 func requireStageSequence(t *testing.T, recorder *recordingStageRecorder) {
 	t.Helper()
 	if got := recorder.stageNames(); !reflect.DeepEqual(got, StageSequence) {
@@ -137,7 +221,8 @@ func (r *recordingStageRecorder) stageNames() []string {
 
 type fakeGitAdapter struct {
 	t           *testing.T
-	lastWorktree string
+	lastWorktree     string
+	gapAnalysisContent string
 }
 
 func newFakeGitAdapter(t *testing.T) *fakeGitAdapter {
@@ -149,6 +234,12 @@ func (f *fakeGitAdapter) Checkout(ctx context.Context, specID string) (string, e
 	worktree := filepath.Join(f.t.TempDir(), specID)
 	if err := os.MkdirAll(worktree, 0o755); err != nil {
 		f.t.Fatalf("mkdir worktree: %v", err)
+	}
+	if f.gapAnalysisContent != "" {
+		path := filepath.Join(worktree, "gap-analysis.md")
+		if err := os.WriteFile(path, []byte(f.gapAnalysisContent), 0o644); err != nil {
+			f.t.Fatalf("write gap analysis: %v", err)
+		}
 	}
 	f.lastWorktree = worktree
 	return worktree, nil
@@ -212,4 +303,14 @@ type noopDependencyGate struct{}
 
 func (noopDependencyGate) EnsureSpecReady(ctx context.Context, specID string) error {
 	return nil
+}
+
+type fakeRemediationRunner struct {
+	calls int
+	err   error
+}
+
+func (f *fakeRemediationRunner) Run(_ context.Context, _ string) error {
+	f.calls++
+	return f.err
 }
