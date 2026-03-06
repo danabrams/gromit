@@ -2,6 +2,7 @@ package loop
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -327,6 +328,48 @@ func TestMaxRetriesExhaustedReturnsError(t *testing.T) {
 	// Verify the stage was actually retried (ran 2 times: initial + 1 retry)
 	if alwaysFailingStage.runCount != 2 {
 		t.Fatalf("stage should have been run 2 times (initial + 1 retry), got %d", alwaysFailingStage.runCount)
+	}
+}
+
+func TestMaxRetriesExhaustionRunsEpilogueFailurePath(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+
+	criticalStage := &failingStage{
+		name:      "critical",
+		failUntil: 1,
+	}
+	epilogueStage := &trackingStage{name: "epilogue"}
+
+	beadLoop, err := NewBeadLoop([]StageSpec{
+		{
+			Stage: criticalStage,
+			Retry: stage.RetryConfig{MaxRetries: 0},
+		},
+		{
+			Stage: epilogueStage,
+			Retry: stage.RetryConfig{MaxRetries: 0},
+		},
+	})
+	if err != nil {
+		t.Fatalf("construct bead loop: %v", err)
+	}
+
+	req := stage.Request{
+		Bead: stage.BeadInfo{ID: "test-bead"},
+	}
+
+	_, err = beadLoop.Run(ctx, req)
+	if err == nil {
+		t.Fatalf("expected error when max retries exhausted, got nil")
+	}
+	if !errors.Is(err, ErrMaxRetriesExceeded) {
+		t.Fatalf("error should wrap %q, got %v", ErrMaxRetriesExceeded, err)
+	}
+
+	if epilogueStage.runCount != 1 {
+		t.Fatalf("epilogue stage should run once after failure, got %d", epilogueStage.runCount)
 	}
 }
 
@@ -847,10 +890,10 @@ func (s *orderTrackingStage) Run(ctx context.Context, req *stage.Request) (*stag
 
 // retryContextCheckingStage verifies RetryContext is populated correctly
 type retryContextCheckingStage struct {
-	name              string
-	capturedContexts  *[]*stage.RetryContext
-	shouldFail        bool
-	runCount          int
+	name             string
+	capturedContexts *[]*stage.RetryContext
+	shouldFail       bool
+	runCount         int
 }
 
 func (s *retryContextCheckingStage) Name() string {
