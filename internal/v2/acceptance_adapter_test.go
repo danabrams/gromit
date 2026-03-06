@@ -119,7 +119,7 @@ func newAdapterSet() loop.AdapterSet {
 
 func assertStagePackagesAvoidAdapterImports(t *testing.T) {
 	t.Helper()
-	stagePath := filepath.Join("..", "..", "stages")
+	stagePath := stagePackageRoot()
 	const adapterPrefix = "github.com/danabrams/gromit/internal/v2/adapter"
 
 	info, err := os.Stat(stagePath)
@@ -209,6 +209,10 @@ func TestStagePackageRoot(t *testing.T) {
 	if got := stagePackageRoot(); got != want {
 		t.Fatalf("expected stage package root %s, got %s", want, got)
 	}
+}
+
+func stagePackageRoot() string {
+	return filepath.Join("..", "..", "stage")
 }
 
 type fakeGitAdapter struct{}
