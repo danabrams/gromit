@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/events"
 	"github.com/danabrams/gromit/internal/events/cli"
@@ -86,7 +87,11 @@ func run2(cmd *cobra.Command, args []string) error {
 	gromitDir := resolveGromitDir(cfg)
 	worktreesDir := filepath.Join(gromitDir, "spec-worktrees")
 
-	trackerAdapter := tasktracker.NewBDAdapter(nil)
+	beadClient, err := bead.NewClient()
+	if err != nil {
+		return fmt.Errorf("create bd client: %w", err)
+	}
+	trackerAdapter := tasktracker.NewBDAdapter(beadClient)
 	adapters := adapter.AdapterSet{
 		Git:         gitadapter.NewExecGitAdapter(worktreesDir),
 		LLM:         llmAdapter,
