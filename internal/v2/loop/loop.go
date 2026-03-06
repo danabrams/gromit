@@ -2,6 +2,7 @@ package loop
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -31,6 +32,10 @@ type StageRecorder interface {
 	RecordStage(name string)
 }
 
+type remediationRunner interface {
+	Run(ctx context.Context, specID string) error
+}
+
 // SpecLoopOption configures optional behavior when constructing a SpecLoop.
 type SpecLoopOption func(*SpecLoop)
 
@@ -45,6 +50,13 @@ func WithStageRecorder(recorder StageRecorder) SpecLoopOption {
 func WithEmitter(emitter *events.Emitter) SpecLoopOption {
 	return func(s *SpecLoop) {
 		s.emitter = emitter
+	}
+}
+
+// WithRemediationRunner sets the runner the spec loop should invoke when acceptance fails.
+func WithRemediationRunner(r remediationRunner) SpecLoopOption {
+	return func(s *SpecLoop) {
+		s.remediationRunner = r
 	}
 }
 
@@ -63,6 +75,8 @@ type SpecLoop struct {
 	gate     DependencyGate
 	recorder StageRecorder
 	emitter  *events.Emitter
+	remediationRunner remediationRunner
+	gapAnalysisFilename string
 }
 
 // NewSpecLoop constructs a spec loop backed by the provided adapters and configuration.
@@ -85,7 +99,7 @@ func NewSpecLoop(adapters adapter.AdapterSet, cfg *config.Config, gate Dependenc
 	if gate == nil {
 		return nil, fmt.Errorf("dependency gate required")
 	}
-	loopInstance := &SpecLoop{adapters: adapters, cfg: cfg, gate: gate}
+	loopInstance := &SpecLoop{adapters: adapters, cfg: cfg, gate: gate, gapAnalysisFilename: "gap-analysis.md"}
 	for _, opt := range opts {
 		opt(loopInstance)
 	}
@@ -142,11 +156,17 @@ func (s *SpecLoop) Run(ctx context.Context, specID string) error {
 		IntegrationBranch: integrationBranch,
 		Plan:              plan,
 		Worktree:          worktree,
-		Success:           true,
 	}
-	s.recordStage("present")
-	if err := s.adapters.Presenter.PresentSummary(ctx, specID, summary); err != nil {
-		return fmt.Errorf("present summary: %w", err)
+
+	if s.remediationRunner != nil {
+		if err := s.remediationRunner.Run(ctx, specID); err != nil {
+			return s.handleFailure(ctx, specID, summary, err)
+		}
+	}
+
+	summary.Success = true
+	if err := s.presentSummary(ctx, specID, summary); err != nil {
+		return err
 	}
 
 	if err := os.RemoveAll(worktree); err != nil {
@@ -156,6 +176,58 @@ func (s *SpecLoop) Run(ctx context.Context, specID string) error {
 	s.emit(&events.SpecCompletedEvent{SpecID: specID, Worktree: worktree, Success: true})
 
 	return nil
+}
+
+func (s *SpecLoop) handleFailure(ctx context.Context, specID string, base presentation.PresentationSummary, failure error) error {
+	s.recordStage("gap-analysis")
+	gapSummary, err := s.readGapAnalysis(base.Worktree)
+	if err != nil {
+		return fmt.Errorf("read gap analysis: %w", err)
+	}
+	s.recordStage("decompose")
+	s.recordStage("bead-loop")
+
+	reason := fmt.Sprintf("spec %s remediation halted: %s", specID, failure.Error())
+	s.emit(&events.AndonTriggeredEvent{SpecID: specID, Reason: reason})
+	s.emit(&events.SpecFailedEvent{SpecID: specID, Worktree: base.Worktree, FailureReason: reason})
+
+	summary := base
+	summary.Success = false
+	summary.RemainingWork = nil
+	summary.FailureSummary = reason
+	if gapSummary != "" {
+		summary.FailureSummary = fmt.Sprintf("%s\n\nGap analysis:\n%s", reason, gapSummary)
+		summary.RemainingWork = []string{gapSummary}
+	}
+
+	if err := s.presentSummary(ctx, specID, summary); err != nil {
+		return fmt.Errorf("present failure summary: %w", err)
+	}
+
+	return fmt.Errorf("accept failure: %w", failure)
+}
+
+func (s *SpecLoop) presentSummary(ctx context.Context, specID string, summary presentation.PresentationSummary) error {
+	s.recordStage("present")
+	if err := s.adapters.Presenter.PresentSummary(ctx, specID, summary); err != nil {
+		return fmt.Errorf("present summary: %w", err)
+	}
+	return nil
+}
+
+func (s *SpecLoop) readGapAnalysis(worktree string) (string, error) {
+	if strings.TrimSpace(worktree) == "" {
+		return "", nil
+	}
+	path := filepath.Join(worktree, s.gapAnalysisFilename)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return "", nil
+		}
+		return "", err
+	}
+	return strings.TrimSpace(string(data)), nil
 }
 
 func (s *SpecLoop) writePlanFile(worktree, plan string) error {

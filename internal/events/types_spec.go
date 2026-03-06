@@ -23,3 +23,15 @@ type SpecCompletedEvent struct {
 func (e *SpecCompletedEvent) EventType() string {
 	return "spec_completed"
 }
+
+// SpecFailedEvent is emitted when a spec run cannot be remediated.
+type SpecFailedEvent struct {
+	SpecID        string
+	Worktree      string
+	FailureReason string
+	TimeMixin
+}
+
+func (e *SpecFailedEvent) EventType() string {
+	return "spec_failed"
+}
