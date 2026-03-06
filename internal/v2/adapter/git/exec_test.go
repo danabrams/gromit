@@ -14,14 +14,14 @@ func TestExecGitCreateWorktree(t *testing.T) {
 	ctx := context.Background()
 
 	repoDir := t.TempDir()
-	runGitCommand(t, repoDir, "init")
-	runGitCommand(t, repoDir, "config", "user.email", "tester@example.com")
-	runGitCommand(t, repoDir, "config", "user.name", "Test User")
+	runGitBinary(t, repoDir, "init")
+	runGitBinary(t, repoDir, "config", "user.email", "tester@example.com")
+	runGitBinary(t, repoDir, "config", "user.name", "Test User")
 	if err := os.WriteFile(filepath.Join(repoDir, "base.txt"), []byte("base\n"), 0o644); err != nil {
 		t.Fatalf("writing base file: %v", err)
 	}
-	runGitCommand(t, repoDir, "add", "base.txt")
-	runGitCommand(t, repoDir, "commit", "-m", "initial")
+	runGitBinary(t, repoDir, "add", "base.txt")
+	runGitBinary(t, repoDir, "commit", "-m", "initial")
 
 	worktreesRoot := t.TempDir()
 	adapter := NewExecGit(repoDir)
@@ -45,10 +45,10 @@ func TestExecGitRemoveWorktree(t *testing.T) {
 	ctx := context.Background()
 
 	repoDir := t.TempDir()
-	runGitCommand(t, repoDir, "init")
-	runGitCommand(t, repoDir, "config", "user.email", "tester@example.com")
-	runGitCommand(t, repoDir, "config", "user.name", "Test User")
-	runGitCommand(t, repoDir, "commit", "--allow-empty", "-m", "initial")
+	runGitBinary(t, repoDir, "init")
+	runGitBinary(t, repoDir, "config", "user.email", "tester@example.com")
+	runGitBinary(t, repoDir, "config", "user.name", "Test User")
+	runGitBinary(t, repoDir, "commit", "--allow-empty", "-m", "initial")
 
 	worktreesRoot := t.TempDir()
 	adapter := NewExecGit(repoDir)
@@ -75,10 +75,10 @@ func TestExecGitCommit(t *testing.T) {
 	ctx := context.Background()
 
 	repoDir := t.TempDir()
-	runGitCommand(t, repoDir, "init")
-	runGitCommand(t, repoDir, "config", "user.email", "tester@example.com")
-	runGitCommand(t, repoDir, "config", "user.name", "Test User")
-	runGitCommand(t, repoDir, "commit", "--allow-empty", "-m", "initial")
+	runGitBinary(t, repoDir, "init")
+	runGitBinary(t, repoDir, "config", "user.email", "tester@example.com")
+	runGitBinary(t, repoDir, "config", "user.name", "Test User")
+	runGitBinary(t, repoDir, "commit", "--allow-empty", "-m", "initial")
 
 	worktreesRoot := t.TempDir()
 	adapter := NewExecGit(repoDir)
@@ -107,13 +107,13 @@ func TestExecGitCommit(t *testing.T) {
 		t.Fatalf("expected non-empty commit hash")
 	}
 
-	got := runGitCommandOutput(t, resp.Worktree, "rev-parse", "HEAD")
+	got := runGitBinaryOutput(t, resp.Worktree, "rev-parse", "HEAD")
 	if commitResp.CommitHash != got {
 		t.Fatalf("commit hash mismatch: %q vs %q", commitResp.CommitHash, got)
 	}
 }
 
-func runGitCommand(t *testing.T, dir string, args ...string) {
+func runGitBinary(t *testing.T, dir string, args ...string) {
 	t.Helper()
 	cmd := exec.Command("git", args...)
 	cmd.Dir = dir
@@ -122,7 +122,7 @@ func runGitCommand(t *testing.T, dir string, args ...string) {
 	}
 }
 
-func runGitCommandOutput(t *testing.T, dir string, args ...string) string {
+func runGitBinaryOutput(t *testing.T, dir string, args ...string) string {
 	t.Helper()
 	cmd := exec.Command("git", args...)
 	cmd.Dir = dir

@@ -76,3 +76,41 @@ func (g *ExecGit) RemoveWorktree(ctx context.Context, req RemoveWorktreeRequest)
 
 	return RemoveWorktreeResponse{Removed: true}, nil
 }
+
+// Commit stages all changes in the worktree and records a commit with the provided message.
+func (g *ExecGit) Commit(ctx context.Context, req CommitRequest) (CommitResponse, error) {
+	worktree := strings.TrimSpace(req.Worktree)
+	if worktree == "" {
+		return CommitResponse{}, fmt.Errorf("worktree required")
+	}
+
+	message := strings.TrimSpace(req.Message)
+	if message == "" {
+		return CommitResponse{}, fmt.Errorf("commit message required")
+	}
+
+	if _, err := runGitCommand(ctx, worktree, "add", "-A"); err != nil {
+		return CommitResponse{}, fmt.Errorf("git add: %w", err)
+	}
+
+	args := []string{"commit", "-m", message}
+	if req.Amend {
+		args = append(args, "--amend")
+	}
+	if _, err := runGitCommand(ctx, worktree, args...); err != nil {
+		return CommitResponse{}, fmt.Errorf("git commit: %w", err)
+	}
+
+	out, err := runGitCommand(ctx, worktree, "rev-parse", "HEAD")
+	if err != nil {
+		return CommitResponse{}, fmt.Errorf("git rev-parse: %w", err)
+	}
+
+	return CommitResponse{CommitHash: strings.TrimSpace(string(out))}, nil
+}
+
+func runGitCommand(ctx context.Context, dir string, args ...string) ([]byte, error) {
+	cmd := exec.CommandContext(ctx, "git", args...)
+	cmd.Dir = dir
+	return cmd.CombinedOutput()
+}
