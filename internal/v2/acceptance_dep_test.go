@@ -185,6 +185,26 @@ func (f *fatalGitAdapter) Checkout(context.Context, string) (string, error) {
 	return "", nil
 }
 
+func (f *fatalGitAdapter) Diff(context.Context, string) (string, error) {
+	f.t.Fatalf("git diff should not run when dependencies block")
+	return "", nil
+}
+
+func (f *fatalGitAdapter) Commit(context.Context, string, string) (string, error) {
+	f.t.Fatalf("git commit should not run when dependencies block")
+	return "", nil
+}
+
+func (f *fatalGitAdapter) RemoveWorktree(context.Context, string) error {
+	f.t.Fatalf("remove worktree should not run when dependencies block")
+	return nil
+}
+
+func (f *fatalGitAdapter) Status(context.Context, string) (string, error) {
+	f.t.Fatalf("status should not run when dependencies block")
+	return "", nil
+}
+
 type fatalLLMAdapter struct {
 	t *testing.T
 }

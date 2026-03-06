@@ -12,10 +12,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/v2/adapter"
 	"github.com/danabrams/gromit/internal/v2/event"
 	"github.com/danabrams/gromit/internal/v2/loop"
+	stageaccept "github.com/danabrams/gromit/internal/v2/stage/accept"
+	"github.com/danabrams/gromit/internal/v2/presentation"
 	"github.com/danabrams/gromit/internal/v2/stage"
 )
 
@@ -38,7 +41,15 @@ func TestSpecLoopExecutesCanonicalStageChain(t *testing.T) {
 	cfg := &config.Config{}
 	gate := newDependencyGate()
 
-	specLoop, err := loop.NewSpecLoop(adapters, cfg, gate, loop.WithStageRecorder(recorder))
+	specLoop, err := loop.NewSpecLoop(
+		adapters,
+		cfg,
+		gate,
+		loop.WithStageRecorder(recorder),
+		loop.WithDecomposeStage(newFakeDecomposeStage(specID)),
+		loop.WithBeadLoop(newFakeBeadRunner()),
+		loop.WithAcceptStage(newFakeAcceptStage()),
+	)
 	if err != nil {
 		t.Fatalf("NewSpecLoop error = %v", err)
 	}
@@ -169,6 +180,63 @@ func newStageResult(evt event.TypedEvent) stage.Result {
 		},
 		Events: []event.TypedEvent{evt},
 	}
+}
+
+type fakeDecomposeStage struct {
+	producedBeads []*bead.Bead
+}
+
+func newFakeDecomposeStage(specID string) *fakeDecomposeStage {
+	return &fakeDecomposeStage{
+		producedBeads: []*bead.Bead{
+			{ID: specID + "-bead"},
+		},
+	}
+}
+
+func (f *fakeDecomposeStage) Name() string { return "decompose" }
+
+func (f *fakeDecomposeStage) Run(ctx context.Context, req *stage.Request) (*stage.Result, error) {
+	return &stage.Result{
+		Decision:  stage.DecisionProceed,
+		Artifacts: &stage.DecomposeArtifacts{Beads: append([]*bead.Bead(nil), f.producedBeads...)},
+	}, nil
+}
+
+type acceptanceFakeBeadRunner struct{}
+
+func newFakeBeadRunner() *acceptanceFakeBeadRunner {
+	return &acceptanceFakeBeadRunner{}
+}
+
+func (f *acceptanceFakeBeadRunner) Run(ctx context.Context, beads []*bead.Bead, stopCh <-chan struct{}) error {
+	_ = ctx
+	_ = beads
+	_ = stopCh
+	return nil
+}
+
+type fakeAcceptStage struct {
+	results []presentation.AcceptanceResult
+}
+
+func newFakeAcceptStage() *fakeAcceptStage {
+	return &fakeAcceptStage{
+		results: []presentation.AcceptanceResult{
+			{Title: "criterion", Description: "desc"},
+		},
+	}
+}
+
+func (f *fakeAcceptStage) Name() string { return "accept" }
+
+func (f *fakeAcceptStage) Run(ctx context.Context, req *stage.Request) (*stage.Result, error) {
+	return &stage.Result{
+		Decision: stage.DecisionProceed,
+		Artifacts: &stageaccept.AcceptArtifacts{
+			Results: append([]presentation.AcceptanceResult(nil), f.results...),
+		},
+	}, nil
 }
 
 // fake adapters
