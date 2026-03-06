@@ -3,6 +3,8 @@ package event
 import "sync"
 
 // subscriber invokes its handler sequentially as events arrive.
+const subscriberBufferSize = 16
+
 type subscriber struct {
 	fn func(Event)
 	ch chan Event
@@ -36,7 +38,7 @@ func NewEmitter() *Emitter {
 func (e *Emitter) Subscribe(fn func(Event)) {
 	sub := &subscriber{
 		fn: fn,
-		ch: make(chan Event),
+		ch: make(chan Event, subscriberBufferSize),
 	}
 
 	e.mu.Lock()
@@ -50,7 +52,10 @@ func (e *Emitter) Subscribe(fn func(Event)) {
 func (e *Emitter) Emit(evt Event) {
 	e.mu.RLock()
 	for sub := range e.subscribers {
-		sub.ch <- evt
+		select {
+		case sub.ch <- evt:
+		default:
+		}
 	}
 	e.mu.RUnlock()
 }
