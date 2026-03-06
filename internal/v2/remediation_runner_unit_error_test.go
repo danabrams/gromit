@@ -23,3 +23,7 @@ func TestRemediationRunnerRunMissingAcceptStage(t *testing.T) {
 func runnerForSpecIDValidation() *RemediationRunner {
 	return NewRemediationRunner(RemediationRunnerConfig{})
 }
+
+func runnerForAcceptStageValidation() *RemediationRunner {
+	return NewRemediationRunner(RemediationRunnerConfig{AcceptStage: nil})
+}
