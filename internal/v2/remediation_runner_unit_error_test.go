@@ -47,7 +47,7 @@ func TestRemediationRunnerRunMissingBeadRunner(t *testing.T) {
 
 func TestRemediationRunnerRunMissingDecomposeStage(t *testing.T) {
 	accept := &unitTestStage{
-		name: "accept",
+		name:   "accept",
 		result: &stage.Result{Decision: stage.DecisionFail},
 	}
 
@@ -59,11 +59,11 @@ func TestRemediationRunnerRunMissingDecomposeStage(t *testing.T) {
 
 func TestRemediationRunnerRunUnexpectedDecomposeArtifactsUnit(t *testing.T) {
 	accept := &unitTestStage{
-		name: "accept",
+		name:   "accept",
 		result: &stage.Result{Decision: stage.DecisionFail},
 	}
 	decompose := &unitTestStage{
-		name: "decompose",
+		name:   "decompose",
 		result: &stage.Result{Artifacts: "invalid"},
 	}
 
@@ -100,9 +100,9 @@ func runnerForMissingDecomposeStage(accept stage.Stage) *RemediationRunner {
 func runnerForUnexpectedArtifacts(accept, decompose stage.Stage) *RemediationRunner {
 	return NewRemediationRunner(RemediationRunnerConfig{
 		AcceptStage:    accept,
-		DecomposeStage:  decompose,
-		BeadRunner:      &unitTestBeadRunner{},
-		GenerationCap:   1,
+		DecomposeStage: decompose,
+		BeadRunner:     &unitTestBeadRunner{},
+		GenerationCap:  1,
 	})
 }
 

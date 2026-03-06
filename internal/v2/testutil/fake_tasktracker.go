@@ -12,10 +12,10 @@ import (
 
 // FakeTaskTracker keeps beads in memory and tracks dependency relationships.
 type FakeTaskTracker struct {
-	mu          sync.Mutex
-	beads       map[string]*tasktracker.Bead
-	order       []string
-	nextID      int
+	mu     sync.Mutex
+	beads  map[string]*tasktracker.Bead
+	order  []string
+	nextID int
 }
 
 // NewFakeTaskTracker constructs a tracker seeded with no beads.

@@ -1,7 +1,6 @@
 package testutil
 
 import (
-	"github.com/danabrams/gromit/internal/analytics"
 	"bufio"
 	"context"
 	"encoding/json"
@@ -12,6 +11,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/danabrams/gromit/internal/analytics"
 	"github.com/danabrams/gromit/internal/logger"
 )
 
