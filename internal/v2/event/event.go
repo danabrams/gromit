@@ -32,6 +32,8 @@ const (
 	EventTypeScope                = "scope"
 	EventTypeTelemetry            = "telemetry"
 	EventTypeGenerationCapReached = "generation_cap_reached"
+	EventTypeTriageStarted        = "triage.started"
+	EventTypeTriageCompleted      = "triage.completed"
 )
 
 // SpecStartedEvent marks the beginning of a spec execution.
@@ -190,3 +192,25 @@ type GenerationCapReachedEvent struct {
 }
 
 func (GenerationCapReachedEvent) EventType() string { return EventTypeGenerationCapReached }
+
+// TriageStartedEvent marks the beginning of a triage classification.
+type TriageStartedEvent struct {
+	Event
+	BeadID    string `json:"bead_id,omitempty"`
+	BeadTitle string `json:"bead_title,omitempty"`
+	Iteration int    `json:"iteration,omitempty"`
+}
+
+func (TriageStartedEvent) EventType() string { return EventTypeTriageStarted }
+
+// TriageCompletedEvent records the outcome of a triage classification.
+type TriageCompletedEvent struct {
+	Event
+	BeadID    string `json:"bead_id,omitempty"`
+	BeadTitle string `json:"bead_title,omitempty"`
+	Iteration int    `json:"iteration,omitempty"`
+	Category  string `json:"category,omitempty"`
+	Reasoning string `json:"reasoning,omitempty"`
+}
+
+func (TriageCompletedEvent) EventType() string { return EventTypeTriageCompleted }

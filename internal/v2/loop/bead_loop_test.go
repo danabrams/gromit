@@ -18,6 +18,7 @@ import (
 	"github.com/danabrams/gromit/internal/v2/stage"
 	stagedesc "github.com/danabrams/gromit/internal/v2/stage/names"
 	reviewstage "github.com/danabrams/gromit/internal/v2/stage/review"
+	"github.com/danabrams/gromit/internal/v2/stage/triage"
 	stagevalidate "github.com/danabrams/gromit/internal/v2/stage/validate"
 )
 
@@ -896,6 +897,161 @@ func (s *scriptedReviewStage) Run(ctx context.Context, req *stage.Request) (*sta
 	return s.result, nil
 }
 
+// mockGitCommitter records Status and Commit calls for testing.
+type mockGitCommitter struct {
+	statusOutput string
+	statusErr    error
+	commitHash   string
+	commitErr    error
+	statusCalls  int
+	commitCalls  []string // commit messages
+}
+
+func (m *mockGitCommitter) Status(ctx context.Context, worktree string) (string, error) {
+	m.statusCalls++
+	return m.statusOutput, m.statusErr
+}
+
+func (m *mockGitCommitter) Commit(ctx context.Context, worktree, message string) (string, error) {
+	m.commitCalls = append(m.commitCalls, message)
+	return m.commitHash, m.commitErr
+}
+
+func TestBeadLoopCommitsBetweenReviewAndEpilogue(t *testing.T) {
+	t.Parallel()
+
+	order := []string{}
+	git := &mockGitCommitter{statusOutput: " M file.go\n", commitHash: "abc123"}
+
+	reviewStage := &recordingStage{
+		name: "review",
+		hook: func(beadID string) { order = append(order, "review:"+beadID) },
+	}
+	epilogueStage := &recordingStage{
+		name: "epilogue",
+		hook: func(beadID string) {
+			// At the time epilogue runs, git.Commit should have already been called
+			if len(git.commitCalls) == 0 {
+				t.Error("epilogue ran before git commit")
+			}
+			order = append(order, "epilogue:"+beadID)
+		},
+	}
+
+	cfg := BeadLoopConfig{
+		Gate:     newRecordingStage("gate", &order),
+		Build:    newRecordingStage("build", &order),
+		Validate: newRecordingStage("validate", &order),
+		Review:   reviewStage,
+		Epilogue: epilogueStage,
+		Git:      git,
+	}
+	loop, err := NewBeadLoop(cfg)
+	if err != nil {
+		t.Fatalf("NewBeadLoop: %v", err)
+	}
+
+	beads := []*bead.Bead{{ID: "bead-1", Title: "Do something"}}
+	if _, err := loop.Run(context.Background(), beads, nil); err != nil {
+		t.Fatalf("Run failed: %v", err)
+	}
+
+	if git.statusCalls != 1 {
+		t.Fatalf("git.Status called %d times, want 1", git.statusCalls)
+	}
+	if len(git.commitCalls) != 1 {
+		t.Fatalf("git.Commit called %d times, want 1", len(git.commitCalls))
+	}
+	wantMsg := "[gromit] bead bead-1: Do something"
+	if git.commitCalls[0] != wantMsg {
+		t.Fatalf("commit message = %q, want %q", git.commitCalls[0], wantMsg)
+	}
+}
+
+func TestBeadLoopSkipsCommitWhenNoChanges(t *testing.T) {
+	t.Parallel()
+
+	git := &mockGitCommitter{statusOutput: ""}
+
+	cfg := BeadLoopConfig{
+		Gate:     newNoopStage("gate"),
+		Build:    newNoopStage("build"),
+		Validate: newNoopStage("validate"),
+		Review:   newNoopStage("review"),
+		Epilogue: newNoopStage("epilogue"),
+		Git:      git,
+	}
+	loop, err := NewBeadLoop(cfg)
+	if err != nil {
+		t.Fatalf("NewBeadLoop: %v", err)
+	}
+
+	beads := []*bead.Bead{{ID: "clean-bead"}}
+	if _, err := loop.Run(context.Background(), beads, nil); err != nil {
+		t.Fatalf("Run failed: %v", err)
+	}
+
+	if git.statusCalls != 1 {
+		t.Fatalf("git.Status called %d times, want 1", git.statusCalls)
+	}
+	if len(git.commitCalls) != 0 {
+		t.Fatalf("git.Commit should not be called when no changes, got %d calls", len(git.commitCalls))
+	}
+}
+
+func TestBeadLoopCommitFailureIsStageFailure(t *testing.T) {
+	t.Parallel()
+
+	git := &mockGitCommitter{
+		statusOutput: " M file.go\n",
+		commitErr:    fmt.Errorf("commit failed: index locked"),
+	}
+
+	cfg := BeadLoopConfig{
+		Gate:     newNoopStage("gate"),
+		Build:    newNoopStage("build"),
+		Validate: newNoopStage("validate"),
+		Review:   newNoopStage("review"),
+		Epilogue: newNoopStage("epilogue"),
+		Git:      git,
+	}
+	loop, err := NewBeadLoop(cfg)
+	if err != nil {
+		t.Fatalf("NewBeadLoop: %v", err)
+	}
+
+	beads := []*bead.Bead{{ID: "fail-commit"}}
+	_, err = loop.Run(context.Background(), beads, nil)
+	if err == nil {
+		t.Fatal("expected error from commit failure, got nil")
+	}
+	if !strings.Contains(err.Error(), "git commit") {
+		t.Fatalf("error should mention git commit, got: %v", err)
+	}
+}
+
+func TestBeadLoopNoGitAdapterSkipsCommit(t *testing.T) {
+	t.Parallel()
+
+	cfg := BeadLoopConfig{
+		Gate:     newNoopStage("gate"),
+		Build:    newNoopStage("build"),
+		Validate: newNoopStage("validate"),
+		Review:   newNoopStage("review"),
+		Epilogue: newNoopStage("epilogue"),
+		// Git is nil — no GitCommitter provided
+	}
+	loop, err := NewBeadLoop(cfg)
+	if err != nil {
+		t.Fatalf("NewBeadLoop: %v", err)
+	}
+
+	beads := []*bead.Bead{{ID: "no-git"}}
+	if _, err := loop.Run(context.Background(), beads, nil); err != nil {
+		t.Fatalf("Run should succeed without git adapter, got: %v", err)
+	}
+}
+
 func waitForGenerationCapEvent(t *testing.T, ch <-chan event.TypedEvent) {
 	t.Helper()
 	timer := time.NewTimer(200 * time.Millisecond)
@@ -910,4 +1066,360 @@ func waitForGenerationCapEvent(t *testing.T, ch <-chan event.TypedEvent) {
 			t.Fatal("expected GenerationCapReached event to be emitted")
 		}
 	}
+}
+
+// fakeTriageStage implements stage.Stage and returns a configured triage result.
+type fakeTriageStage struct {
+	name      string
+	category  triage.Category
+	reasoning string
+	runCount  int
+	requests  []stage.Request
+}
+
+func (s *fakeTriageStage) Name() string { return s.name }
+
+func (s *fakeTriageStage) Run(_ context.Context, req *stage.Request) (*stage.Result, error) {
+	s.runCount++
+	if req != nil {
+		s.requests = append(s.requests, *req)
+	}
+	return &stage.Result{
+		Decision: stage.DecisionProceed,
+		Artifacts: &triage.TriageArtifacts{
+			Category:  s.category,
+			Reasoning: s.reasoning,
+		},
+	}, nil
+}
+
+// fakeBeadLoopDecomposeStage implements stage.Stage and returns configured sub-beads.
+type fakeBeadLoopDecomposeStage struct {
+	name     string
+	beads    []*bead.Bead
+	runCount int
+	requests []stage.Request
+}
+
+func (s *fakeBeadLoopDecomposeStage) Name() string { return s.name }
+
+func (s *fakeBeadLoopDecomposeStage) Run(_ context.Context, req *stage.Request) (*stage.Result, error) {
+	s.runCount++
+	if req != nil {
+		s.requests = append(s.requests, *req)
+	}
+	return &stage.Result{
+		Decision: stage.DecisionProceed,
+		Artifacts: &stage.DecomposeArtifacts{
+			Beads: s.beads,
+		},
+	}, nil
+}
+
+func TestBeadLoopTriageDecomposeSplitsAndRunsSubBeads(t *testing.T) {
+	t.Parallel()
+
+	order := []string{}
+	buildAttempt := 0
+	build := &recordingStage{
+		name: "build",
+		hook: func(beadID string) {
+			buildAttempt++
+			order = append(order, fmt.Sprintf("build:%s:%d", beadID, buildAttempt))
+		},
+	}
+	// Make build fail for the parent bead only
+	parentBuild := &retryStage{
+		name:      "build",
+		failTimes: 1, // fails first time
+		hook: func(beadID string, attempt int) {
+			order = append(order, fmt.Sprintf("build:%s:%d", beadID, attempt))
+		},
+	}
+	// Use a scripted build that fails for parent, succeeds for children
+	scriptedBuild := &scriptedBuildStage{
+		name:     "build",
+		failIDs:  map[string]bool{"parent": true},
+		order:    &order,
+		attempts: map[string]int{},
+	}
+	_ = build // unused, use scriptedBuild instead
+	_ = parentBuild
+
+	subBeads := []*bead.Bead{
+		{ID: "sub-1", Labels: []string{generation.Format(1)}},
+		{ID: "sub-2", Labels: []string{generation.Format(1)}, DependsOn: []bead.Dependency{{ID: "sub-1"}}},
+	}
+
+	triageStage := &fakeTriageStage{
+		name:      "triage",
+		category:  triage.CategoryDecompose,
+		reasoning: "too complex, split it",
+	}
+	decomposeStage := &fakeBeadLoopDecomposeStage{
+		name:  "decompose",
+		beads: subBeads,
+	}
+
+	cfg := BeadLoopConfig{
+		Gate:      newNoopStage("gate"),
+		Build:     scriptedBuild,
+		Validate:  newNoopStage("validate"),
+		Review:    newNoopStage("review"),
+		Epilogue:  newNoopStage("epilogue"),
+		Triage:    triageStage,
+		Decompose: decomposeStage,
+	}
+
+	loop, err := NewBeadLoop(cfg)
+	if err != nil {
+		t.Fatalf("NewBeadLoop: %v", err)
+	}
+
+	beads := []*bead.Bead{{ID: "parent", Labels: []string{generation.Format(0)}}}
+	_, err = loop.Run(context.Background(), beads, nil)
+	if err != nil {
+		t.Fatalf("Run failed: %v", err)
+	}
+
+	if triageStage.runCount != 1 {
+		t.Fatalf("triage run count = %d, want 1", triageStage.runCount)
+	}
+	if decomposeStage.runCount != 1 {
+		t.Fatalf("decompose run count = %d, want 1", decomposeStage.runCount)
+	}
+	// Sub-beads should have been processed
+	if scriptedBuild.attempts["sub-1"] == 0 || scriptedBuild.attempts["sub-2"] == 0 {
+		t.Fatalf("sub-beads not processed: attempts = %v", scriptedBuild.attempts)
+	}
+}
+
+func TestBeadLoopTriageRetryDoesNotCountAgainstRetryLimit(t *testing.T) {
+	t.Parallel()
+
+	triageCallCount := 0
+	// Build that fails twice then succeeds
+	buildStage := &retryStage{
+		name:      "build",
+		failTimes: 2,
+	}
+	buildStage.retryConfig = stage.RetryConfig{MaxRetries: 0} // no normal retries
+
+	// Triage returns retry on first call, then we won't need it
+	triageStage := &fakeTriageStage{
+		name:      "triage",
+		category:  triage.CategoryRetry,
+		reasoning: "transient error",
+	}
+
+	cfg := BeadLoopConfig{
+		Gate:     newNoopStage("gate"),
+		Build:    buildStage,
+		Validate: newNoopStage("validate"),
+		Review:   newNoopStage("review"),
+		Epilogue: newNoopStage("epilogue"),
+		Triage:   triageStage,
+	}
+
+	loop, err := NewBeadLoop(cfg)
+	if err != nil {
+		t.Fatalf("NewBeadLoop: %v", err)
+	}
+
+	beads := []*bead.Bead{{ID: "retry-bead"}}
+	_, err = loop.Run(context.Background(), beads, nil)
+	if err != nil {
+		t.Fatalf("Run failed: %v", err)
+	}
+
+	_ = triageCallCount
+	// Build was configured with MaxRetries=0, but triage said retry,
+	// so it should have run 3 times total (2 failures + 1 success)
+	if buildStage.runCount != 3 {
+		t.Fatalf("build run count = %d, want 3", buildStage.runCount)
+	}
+	// Triage should have been called twice (once per failure)
+	if triageStage.runCount != 2 {
+		t.Fatalf("triage run count = %d, want 2", triageStage.runCount)
+	}
+}
+
+func TestBeadLoopTriageUnclearSpecReturnsError(t *testing.T) {
+	t.Parallel()
+
+	buildStage := &decisionStage{name: "build", decision: stage.DecisionFail}
+	triageStage := &fakeTriageStage{
+		name:      "triage",
+		category:  triage.CategoryUnclearSpec,
+		reasoning: "acceptance criteria are ambiguous",
+	}
+
+	cfg := BeadLoopConfig{
+		Gate:     newNoopStage("gate"),
+		Build:    buildStage,
+		Validate: newNoopStage("validate"),
+		Review:   newNoopStage("review"),
+		Epilogue: newNoopStage("epilogue"),
+		Triage:   triageStage,
+	}
+
+	loop, err := NewBeadLoop(cfg)
+	if err != nil {
+		t.Fatalf("NewBeadLoop: %v", err)
+	}
+
+	_, err = loop.Run(context.Background(), []*bead.Bead{{ID: "unclear"}}, nil)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "spec unclear") {
+		t.Fatalf("error should mention spec unclear, got: %v", err)
+	}
+	if !strings.Contains(err.Error(), "acceptance criteria are ambiguous") {
+		t.Fatalf("error should contain reasoning, got: %v", err)
+	}
+}
+
+func TestBeadLoopTriageUnsafeReturnsError(t *testing.T) {
+	t.Parallel()
+
+	buildStage := &decisionStage{name: "build", decision: stage.DecisionFail}
+	triageStage := &fakeTriageStage{
+		name:      "triage",
+		category:  triage.CategoryUnsafe,
+		reasoning: "modifies production database",
+	}
+
+	cfg := BeadLoopConfig{
+		Gate:     newNoopStage("gate"),
+		Build:    buildStage,
+		Validate: newNoopStage("validate"),
+		Review:   newNoopStage("review"),
+		Epilogue: newNoopStage("epilogue"),
+		Triage:   triageStage,
+	}
+
+	loop, err := NewBeadLoop(cfg)
+	if err != nil {
+		t.Fatalf("NewBeadLoop: %v", err)
+	}
+
+	_, err = loop.Run(context.Background(), []*bead.Bead{{ID: "dangerous"}}, nil)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "unsafe operation") {
+		t.Fatalf("error should mention unsafe operation, got: %v", err)
+	}
+	if !strings.Contains(err.Error(), "modifies production database") {
+		t.Fatalf("error should contain reasoning, got: %v", err)
+	}
+}
+
+func TestBeadLoopTriageNotConfiguredFallsBackToExistingBehavior(t *testing.T) {
+	t.Parallel()
+
+	buildStage := &decisionStage{name: "build", decision: stage.DecisionFail}
+	epilogueStage := &decisionStage{name: "epilogue", decision: stage.DecisionProceed}
+
+	cfg := BeadLoopConfig{
+		Gate:     newNoopStage("gate"),
+		Build:    buildStage,
+		Validate: newNoopStage("validate"),
+		Review:   newNoopStage("review"),
+		Epilogue: epilogueStage,
+		// Triage is nil — not configured
+	}
+
+	loop, err := NewBeadLoop(cfg)
+	if err != nil {
+		t.Fatalf("NewBeadLoop: %v", err)
+	}
+
+	_, err = loop.Run(context.Background(), []*bead.Bead{{ID: "no-triage"}}, nil)
+	if err == nil {
+		t.Fatal("expected error from build failure, got nil")
+	}
+	if !strings.Contains(err.Error(), "bead no-triage failed") {
+		t.Fatalf("error should report bead failure, got: %v", err)
+	}
+	// Epilogue should have been called with retry context (existing behavior)
+	if len(epilogueStage.requests) != 1 {
+		t.Fatalf("epilogue run count = %d, want 1", len(epilogueStage.requests))
+	}
+}
+
+func TestBeadLoopTriageDecomposeRespectsGenerationCap(t *testing.T) {
+	t.Parallel()
+
+	emitter := event.NewEmitter()
+	ch := make(chan event.TypedEvent, 32)
+	emitter.Subscribe(func(evt event.TypedEvent) {
+		select {
+		case ch <- evt:
+		default:
+		}
+	})
+
+	buildStage := &decisionStage{name: "build", decision: stage.DecisionFail}
+	triageStage := &fakeTriageStage{
+		name:      "triage",
+		category:  triage.CategoryDecompose,
+		reasoning: "needs splitting",
+	}
+	// Sub-beads at generation 3, which is at the cap
+	decomposeStage := &fakeBeadLoopDecomposeStage{
+		name: "decompose",
+		beads: []*bead.Bead{
+			{ID: "sub-at-cap", Labels: []string{generation.Format(3)}},
+		},
+	}
+
+	cfg := BeadLoopConfig{
+		Gate:            newNoopStage("gate"),
+		Build:           buildStage,
+		Validate:        newNoopStage("validate"),
+		Review:          newNoopStage("review"),
+		Epilogue:        newNoopStage("epilogue"),
+		Triage:                     triageStage,
+		Decompose:                  decomposeStage,
+		Emitter:                    emitter,
+		DecompositionGenerationCap: 3,
+		StartGeneration:            0,
+	}
+
+	loop, err := NewBeadLoop(cfg)
+	if err != nil {
+		t.Fatalf("NewBeadLoop: %v", err)
+	}
+
+	beads := []*bead.Bead{{ID: "parent", Labels: []string{generation.Format(2)}}}
+	_, err = loop.Run(context.Background(), beads, nil)
+	if !errors.Is(err, ErrGenerationCapReached) {
+		t.Fatalf("Run error = %v, want ErrGenerationCapReached", err)
+	}
+
+	waitForGenerationCapEvent(t, ch)
+}
+
+// scriptedBuildStage fails for specific bead IDs, succeeds for others.
+type scriptedBuildStage struct {
+	name     string
+	failIDs  map[string]bool
+	order    *[]string
+	attempts map[string]int
+}
+
+func (s *scriptedBuildStage) Name() string { return s.name }
+
+func (s *scriptedBuildStage) Run(_ context.Context, req *stage.Request) (*stage.Result, error) {
+	id := req.Bead.ID
+	s.attempts[id]++
+	if s.order != nil {
+		*s.order = append(*s.order, fmt.Sprintf("build:%s:%d", id, s.attempts[id]))
+	}
+	if s.failIDs[id] {
+		return &stage.Result{Decision: stage.DecisionFail}, nil
+	}
+	return &stage.Result{Decision: stage.DecisionProceed}, nil
 }

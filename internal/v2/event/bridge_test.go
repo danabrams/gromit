@@ -27,6 +27,18 @@ func TestLegacyEventsFromTyped(t *testing.T) {
 			wantType: "*events.SpecStartedEvent",
 		},
 		{
+			name: "generation cap reached",
+			typed: &GenerationCapReachedEvent{
+				Event:         Event{Timestamp: now},
+				GenerationCap: 3,
+			},
+			wantType: "*events.GenerationCapReachedEvent",
+			check: func(evt events.Event) bool {
+				gcEvt, ok := evt.(*events.GenerationCapReachedEvent)
+				return ok && gcEvt.GenerationCap == 3
+			},
+		},
+		{
 			name: "stage started logs",
 			typed: &StageStartedEvent{
 				Event:     Event{Timestamp: now},

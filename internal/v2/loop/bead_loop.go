@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"strconv"
 	"strings"
 	"time"
@@ -17,7 +18,14 @@ import (
 	v2review "github.com/danabrams/gromit/internal/v2/review"
 	"github.com/danabrams/gromit/internal/v2/stage"
 	reviewstage "github.com/danabrams/gromit/internal/v2/stage/review"
+	"github.com/danabrams/gromit/internal/v2/stage/triage"
 )
+
+// GitCommitter abstracts git status and commit operations for the bead loop.
+type GitCommitter interface {
+	Status(ctx context.Context, worktree string) (string, error)
+	Commit(ctx context.Context, worktree, message string) (string, error)
+}
 
 // BeadLoopConfig holds the stages required to process each bead.
 type BeadLoopConfig struct {
@@ -26,10 +34,14 @@ type BeadLoopConfig struct {
 	Validate        stage.Stage
 	Review          stage.Stage
 	Epilogue        stage.Stage
-	Emitter         *event.Emitter
-	LegacyEmitter   *events.Emitter
-	GenerationCap   int
-	StartGeneration int
+	Triage                   stage.Stage // optional triage stage for failure categorization
+	Decompose                stage.Stage // optional decompose stage for bead splitting
+	Emitter                  *event.Emitter
+	LegacyEmitter            *events.Emitter
+	GenerationCap            int // generation cap for review-created beads
+	DecompositionGenerationCap int // generation cap for triage-decomposed beads (separate from review)
+	StartGeneration          int
+	Git                      GitCommitter
 }
 
 // BeadLoopResult captures metadata produced by a bead loop execution.
@@ -44,11 +56,19 @@ type BeadLoop struct {
 	validate           stage.Stage
 	review             stage.Stage
 	epilogue           stage.Stage
-	emitter            *event.Emitter
-	generationCap      int
-	startGeneration    int
-	worktree           string
-	outOfScopeFindings []v2review.Finding
+	triage                   stage.Stage
+	decompose                stage.Stage
+	emitter                  *event.Emitter
+	generationCap            int
+	decompositionGenerationCap int
+	startGeneration          int
+	worktree                 string
+	outOfScopeFindings       []v2review.Finding
+	git                      GitCommitter
+	// run-scoped state for in-loop decomposition
+	resolver *dep.Resolver
+	beadMap  map[string]*bead.Bead
+	completed []string
 }
 
 var ErrGenerationCapReached = errors.New("generation cap reached")
@@ -76,9 +96,13 @@ func NewBeadLoop(config BeadLoopConfig) (*BeadLoop, error) {
 		validate:        config.Validate,
 		review:          config.Review,
 		epilogue:        config.Epilogue,
-		emitter:         config.Emitter,
-		generationCap:   config.GenerationCap,
-		startGeneration: config.StartGeneration,
+		triage:                   config.Triage,
+		decompose:                config.Decompose,
+		emitter:                  config.Emitter,
+		generationCap:            config.GenerationCap,
+		decompositionGenerationCap: config.DecompositionGenerationCap,
+		startGeneration:          config.StartGeneration,
+		git:                      config.Git,
 	}
 	if config.Emitter != nil && config.LegacyEmitter != nil {
 		event.BridgeTypedToLegacy(config.Emitter, config.LegacyEmitter)
@@ -108,8 +132,9 @@ func (b *BeadLoop) Run(ctx context.Context, beads []*bead.Bead, stopCh <-chan st
 		}
 	}
 
-	resolver := dep.NewResolver()
-	beadMap := make(map[string]*bead.Bead, len(beads))
+	b.resolver = dep.NewResolver()
+	b.beadMap = make(map[string]*bead.Bead, len(beads))
+	b.completed = nil
 
 	for _, beadItem := range beads {
 		if beadItem == nil {
@@ -119,11 +144,10 @@ func (b *BeadLoop) Run(ctx context.Context, beads []*bead.Bead, stopCh <-chan st
 		if id == "" {
 			continue
 		}
-		beadMap[id] = beadItem
-		resolver.Add(id, collectDependencies(beadItem))
+		b.beadMap[id] = beadItem
+		b.resolver.Add(id, collectDependencies(beadItem))
 	}
 
-	var completed []string
 	iteration := 1
 runLoop:
 	for {
@@ -141,14 +165,14 @@ runLoop:
 			default:
 			}
 		}
-		next, err := resolver.Next(completed)
+		next, err := b.resolver.Next(b.completed)
 		if err != nil {
 			return BeadLoopResult{}, fmt.Errorf("resolve bead: %w", err)
 		}
 		if next == "" {
 			break
 		}
-		beadItem, ok := beadMap[next]
+		beadItem, ok := b.beadMap[next]
 		if !ok {
 			return BeadLoopResult{}, fmt.Errorf("bead %q missing from input list", next)
 		}
@@ -157,11 +181,11 @@ runLoop:
 			return BeadLoopResult{}, fmt.Errorf("budget check before bead %s: %w", beadItem.ID, err)
 		}
 		b.emitBeadStarted(beadItem, iteration)
-		if err := b.processBead(ctx, beadItem, iteration, &highestGeneration, generationLimit); err != nil {
+		if err := b.processBead(ctx, beadItem, iteration, &highestGeneration, generationLimit, stopCh); err != nil {
 			return BeadLoopResult{}, err
 		}
 		b.emitBeadCompleted(beadItem, iteration, true, 0)
-		completed = append(completed, next)
+		b.completed = append(b.completed, next)
 		iteration++
 	}
 	return BeadLoopResult{
@@ -176,7 +200,7 @@ type stageEntry struct {
 	retryConfig stage.RetryConfig
 }
 
-func (b *BeadLoop) processBead(ctx context.Context, beadItem *bead.Bead, iteration int, highestGen *int, generationLimit int) error {
+func (b *BeadLoop) processBead(ctx context.Context, beadItem *bead.Bead, iteration int, highestGen *int, generationLimit int, stopCh <-chan struct{}) error {
 	stages := []stageEntry{
 		{
 			stage: b.gate,
@@ -230,9 +254,13 @@ func (b *BeadLoop) processBead(ctx context.Context, beadItem *bead.Bead, iterati
 	}
 
 	for idx := range stages {
-		if err := b.runStageEntry(ctx, beadItem, iteration, stages, nameToIndex, idx, highestGen, generationLimit); err != nil {
+		if err := b.runStageEntry(ctx, beadItem, iteration, stages, nameToIndex, idx, highestGen, generationLimit, stopCh); err != nil {
 			return err
 		}
+	}
+
+	if err := b.commitBeadWork(ctx, beadItem); err != nil {
+		return fmt.Errorf("git commit after bead %s: %w", beadItem.ID, err)
 	}
 
 	if err := b.runEpilogue(ctx, beadItem, iteration, nil); err != nil {
@@ -241,7 +269,30 @@ func (b *BeadLoop) processBead(ctx context.Context, beadItem *bead.Bead, iterati
 	return nil
 }
 
-func (b *BeadLoop) runStageEntry(ctx context.Context, beadItem *bead.Bead, iteration int, entries []stageEntry, nameIndex map[string]int, idx int, highestGen *int, generationLimit int) error {
+// commitBeadWork commits any uncommitted changes after the review stage completes.
+// This ensures bead work survives crashes. Only commits if there are actual changes.
+func (b *BeadLoop) commitBeadWork(ctx context.Context, beadItem *bead.Bead) error {
+	if b.git == nil {
+		return nil
+	}
+	worktree := b.worktree
+	status, err := b.git.Status(ctx, worktree)
+	if err != nil {
+		return fmt.Errorf("git status: %w", err)
+	}
+	if strings.TrimSpace(status) == "" {
+		return nil
+	}
+	title := beadItem.Title
+	if title == "" {
+		title = beadItem.ID
+	}
+	message := fmt.Sprintf("[gromit] bead %s: %s", beadItem.ID, title)
+	_, err = b.git.Commit(ctx, worktree, message)
+	return err
+}
+
+func (b *BeadLoop) runStageEntry(ctx context.Context, beadItem *bead.Bead, iteration int, entries []stageEntry, nameIndex map[string]int, idx int, highestGen *int, generationLimit int, stopCh <-chan struct{}) error {
 	entry := entries[idx]
 	if entry.stage == nil {
 		return nil
@@ -290,6 +341,28 @@ func (b *BeadLoop) runStageEntry(ctx context.Context, beadItem *bead.Bead, itera
 
 		priorFailures = append(priorFailures, reason)
 
+		// When the build stage fails and triage is configured, run triage
+		// to decide how to proceed instead of falling through to the
+		// normal retry/fail path.
+		if entry.stage == b.build && b.triage != nil {
+			triageResult, triageErr := b.runTriage(ctx, beadItem, iteration, reason)
+			if triageErr != nil {
+				return fmt.Errorf("triage: %w", triageErr)
+			}
+			switch triageResult.Category {
+			case triage.CategoryDecompose:
+				return b.decomposeAndRunSubBeads(ctx, beadItem, iteration, highestGen)
+			case triage.CategoryRetry:
+				// Don't count against retry limit, just continue the loop
+				attempt++
+				continue
+			case triage.CategoryUnclearSpec:
+				return fmt.Errorf("triage: spec unclear for bead %s: %s", beadItem.ID, triageResult.Reasoning)
+			case triage.CategoryUnsafe:
+				return fmt.Errorf("triage: unsafe operation for bead %s: %s", beadItem.ID, triageResult.Reasoning)
+			}
+		}
+
 		if retriesRemaining <= 0 {
 			return b.failWithReason(ctx, beadItem, iteration, reason, stageRetryContext(attempt, priorFailures))
 		}
@@ -303,19 +376,24 @@ func (b *BeadLoop) runStageEntry(ctx context.Context, beadItem *bead.Bead, itera
 		attempt++
 		b.emitStageRetrying(stageName, beadItem.ID, attempt, reason)
 
-		if err := b.runRetryWithStages(ctx, beadItem, iteration, entries, nameIndex, entry.retryConfig.RetryWith, idx, highestGen, generationLimit); err != nil {
+		if err := b.runRetryWithStages(ctx, beadItem, iteration, entries, nameIndex, entry.retryConfig.RetryWith, idx, highestGen, generationLimit, stopCh); err != nil {
 			return err
 		}
 	}
 }
 
-func (b *BeadLoop) runRetryWithStages(ctx context.Context, beadItem *bead.Bead, iteration int, entries []stageEntry, nameIndex map[string]int, retryWith []string, currentIdx int, highestGen *int, generationLimit int) error {
+func (b *BeadLoop) runRetryWithStages(ctx context.Context, beadItem *bead.Bead, iteration int, entries []stageEntry, nameIndex map[string]int, retryWith []string, currentIdx int, highestGen *int, generationLimit int, stopCh <-chan struct{}) error {
 	for _, retryName := range retryWith {
 		idx, ok := nameIndex[retryName]
-		if !ok || idx == currentIdx || idx >= currentIdx {
+		if !ok {
+			log.Printf("retry-with stage %q not found in stage index, skipping", retryName)
 			continue
 		}
-		if err := b.runStageEntry(ctx, beadItem, iteration, entries, nameIndex, idx, highestGen, generationLimit); err != nil {
+		if idx >= currentIdx {
+			log.Printf("retry-with stage %q (index %d) is not before current stage (index %d), skipping", retryName, idx, currentIdx)
+			continue
+		}
+		if err := b.runStageEntry(ctx, beadItem, iteration, entries, nameIndex, idx, highestGen, generationLimit, stopCh); err != nil {
 			return err
 		}
 	}
@@ -627,5 +705,117 @@ func (b *BeadLoop) emitGenerationCapReached(highestGeneration int) {
 		},
 		GenerationCap:     b.generationCap,
 		HighestGeneration: highestGeneration,
+	})
+}
+
+// runTriage runs the triage stage to categorize a build failure.
+func (b *BeadLoop) runTriage(ctx context.Context, beadItem *bead.Bead, iteration int, failureReason string) (*triage.TriageArtifacts, error) {
+	req := b.stageRequest(beadItem, iteration, &stage.RetryContext{
+		Attempt:       1,
+		PriorFailures: []string{failureReason},
+	})
+	b.emitTriageStarted(beadItem.ID, beadItem.Title, iteration)
+	res, err := b.runStage(ctx, b.triage, req)
+	if err != nil {
+		return nil, err
+	}
+	artifacts, ok := res.Artifacts.(*triage.TriageArtifacts)
+	if !ok {
+		return nil, fmt.Errorf("triage stage returned unexpected artifacts type %T", res.Artifacts)
+	}
+	b.emitTriageCompleted(beadItem.ID, beadItem.Title, iteration, string(artifacts.Category), artifacts.Reasoning)
+	return artifacts, nil
+}
+
+// decomposeAndRunSubBeads runs the decompose stage on the failing bead and
+// splices the resulting sub-beads into the current loop's dependency graph.
+// Dependents of the original bead are rewired to depend on all sub-beads.
+// The original bead is marked completed (replaced) and the main loop
+// picks up the sub-beads naturally via resolver.Next().
+func (b *BeadLoop) decomposeAndRunSubBeads(ctx context.Context, beadItem *bead.Bead, iteration int, highestGen *int) error {
+	if b.decompose == nil {
+		return fmt.Errorf("decompose stage required for triage decomposition")
+	}
+	req := b.stageRequest(beadItem, iteration, nil)
+	req.Remediation = true
+	res, err := b.runStage(ctx, b.decompose, req)
+	if err != nil {
+		return fmt.Errorf("decompose: %w", err)
+	}
+	artifacts, ok := res.Artifacts.(*stage.DecomposeArtifacts)
+	if !ok {
+		return fmt.Errorf("decompose stage returned unexpected artifacts type %T", res.Artifacts)
+	}
+	if len(artifacts.Beads) == 0 {
+		return fmt.Errorf("decomposition produced no sub-beads")
+	}
+
+	// Check decomposition generation cap on sub-beads
+	decompLimit := 0
+	if b.decompositionGenerationCap > 0 {
+		decompLimit = b.startGeneration + b.decompositionGenerationCap
+	}
+	subBeadIDs := make([]string, 0, len(artifacts.Beads))
+	for _, subBead := range artifacts.Beads {
+		if subBead == nil {
+			continue
+		}
+		gen := generation.Current(subBead.Labels)
+		if gen > *highestGen {
+			*highestGen = gen
+		}
+		if decompLimit > 0 && gen >= decompLimit {
+			b.emitGenerationCapReached(gen)
+			return ErrGenerationCapReached
+		}
+		id := strings.TrimSpace(subBead.ID)
+		if id == "" {
+			continue
+		}
+		subBeadIDs = append(subBeadIDs, id)
+		b.beadMap[id] = subBead
+		b.resolver.Add(id, collectDependencies(subBead))
+	}
+
+	// Rewire: any bead that depended on the original now depends on all sub-beads
+	b.resolver.ReplaceDependency(beadItem.ID, subBeadIDs)
+
+	// Mark the original bead as completed (it has been replaced by sub-beads)
+	b.completed = append(b.completed, beadItem.ID)
+
+	return nil
+}
+
+func (b *BeadLoop) emitTriageStarted(beadID, beadTitle string, iteration int) {
+	if b.emitter == nil {
+		return
+	}
+	b.emitter.Emit(event.TriageStartedEvent{
+		Event: event.Event{
+			SchemaVersion: event.SchemaVersion,
+			Timestamp:     time.Now(),
+			Type:          event.EventTypeTriageStarted,
+		},
+		BeadID:    beadID,
+		BeadTitle: beadTitle,
+		Iteration: iteration,
+	})
+}
+
+func (b *BeadLoop) emitTriageCompleted(beadID, beadTitle string, iteration int, category, reasoning string) {
+	if b.emitter == nil {
+		return
+	}
+	b.emitter.Emit(event.TriageCompletedEvent{
+		Event: event.Event{
+			SchemaVersion: event.SchemaVersion,
+			Timestamp:     time.Now(),
+			Type:          event.EventTypeTriageCompleted,
+		},
+		BeadID:    beadID,
+		BeadTitle: beadTitle,
+		Iteration: iteration,
+		Category:  category,
+		Reasoning: reasoning,
 	})
 }

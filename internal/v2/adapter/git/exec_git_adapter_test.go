@@ -8,6 +8,15 @@ import (
 	"testing"
 )
 
+func runGitBinary(t *testing.T, dir string, args ...string) {
+	t.Helper()
+	cmd := exec.Command("git", args...)
+	cmd.Dir = dir
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git %v failed: %v\n%s", args, err, out)
+	}
+}
+
 // initTestRepo creates a bare-minimum git repo with one commit and returns
 // the repo root path. The caller's CWD is intentionally NOT changed, so
 // tests verify that ExecGitAdapter uses repoRoot (cmd.Dir) rather than CWD.

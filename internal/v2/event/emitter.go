@@ -14,14 +14,18 @@ type subscriber struct {
 	done   chan struct{}
 }
 
-func newSubscriber(fn func(TypedEvent)) *subscriber {
+func newSubscriber(fn func(TypedEvent), wg *sync.WaitGroup) *subscriber {
 	sub := &subscriber{
 		fn:     fn,
 		notify: make(chan struct{}, 1),
 		done:   make(chan struct{}),
 	}
 
-	go sub.run()
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		sub.run()
+	}()
 	return sub
 }
 
@@ -29,13 +33,27 @@ func (s *subscriber) run() {
 	for {
 		select {
 		case <-s.done:
+			s.drain()
 			return
 		default:
 		}
 		evt, ok := s.next()
 		if !ok {
+			s.drain()
 			return
 		}
+		s.dispatch(evt)
+	}
+}
+
+// drain processes any events remaining in the queue after the done channel is closed.
+func (s *subscriber) drain() {
+	s.mu.Lock()
+	remaining := append([]TypedEvent(nil), s.queue...)
+	s.queue = nil
+	s.mu.Unlock()
+
+	for _, evt := range remaining {
 		s.dispatch(evt)
 	}
 }
@@ -89,6 +107,7 @@ type Emitter struct {
 	subscribers map[*subscriber]struct{}
 	done        chan struct{}
 	closeOnce   sync.Once
+	wg          sync.WaitGroup
 }
 
 // NewEmitter returns a fresh Emitter.
@@ -101,7 +120,7 @@ func NewEmitter() *Emitter {
 
 // Subscribe registers fn to receive emitted events.
 func (e *Emitter) Subscribe(fn func(TypedEvent)) {
-	sub := newSubscriber(fn)
+	sub := newSubscriber(fn, &e.wg)
 
 	e.mu.Lock()
 	e.subscribers[sub] = struct{}{}
@@ -117,10 +136,9 @@ func (e *Emitter) Emit(evt TypedEvent) {
 	e.mu.RUnlock()
 }
 
-// Close closes the emitter and all subscriber goroutines.
-// It is safe to call Close multiple times; only the first call has any effect.
-// Queued events that have not yet been dispatched may be dropped
-// (fire-and-forget semantics).
+// Close closes the emitter and waits for all subscriber goroutines to finish
+// processing queued events. It is safe to call Close multiple times; only the
+// first call has any effect.
 func (e *Emitter) Close() {
 	e.closeOnce.Do(func() {
 		e.mu.Lock()
@@ -128,5 +146,6 @@ func (e *Emitter) Close() {
 			close(sub.done)
 		}
 		e.mu.Unlock()
+		e.wg.Wait()
 	})
 }

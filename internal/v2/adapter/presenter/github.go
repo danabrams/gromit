@@ -66,7 +66,25 @@ func (g *GitHubPresenter) PresentSummary(ctx context.Context, specID string, sum
 	}
 	defer os.Remove(bodyFile) // best effort cleanup
 
-	args := []string{
+	// Check if a PR already exists for this branch.
+	_, viewErr := g.runner.Run(ctx, g.ghCmd, "pr", "view", head, "--json", "url")
+	if viewErr == nil {
+		// PR exists — update it.
+		editArgs := []string{
+			"pr",
+			"edit",
+			head,
+			"--title", title,
+			"--body-file", bodyFile,
+		}
+		if _, err := g.runner.Run(ctx, g.ghCmd, editArgs...); err != nil {
+			return fmt.Errorf("edit pr: %w", err)
+		}
+		return nil
+	}
+
+	// No existing PR — create one.
+	createArgs := []string{
 		"pr",
 		"create",
 		"--head", head,
@@ -74,7 +92,7 @@ func (g *GitHubPresenter) PresentSummary(ctx context.Context, specID string, sum
 		"--title", title,
 		"--body-file", bodyFile,
 	}
-	if _, err := g.runner.Run(ctx, g.ghCmd, args...); err != nil {
+	if _, err := g.runner.Run(ctx, g.ghCmd, createArgs...); err != nil {
 		return fmt.Errorf("create pr: %w", err)
 	}
 	return nil

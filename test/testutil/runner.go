@@ -12,7 +12,6 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/danabrams/gromit/internal/analytics"
 	"github.com/danabrams/gromit/internal/logger"
 )
 

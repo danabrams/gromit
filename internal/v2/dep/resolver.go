@@ -68,7 +68,49 @@ func (r *Resolver) Next(completed []string) (string, error) {
 		}
 	}
 
+	// All pending beads have unsatisfied dependencies. Identify which
+	// dependencies were never registered — these can never be satisfied.
+	var unsatisfiable []string
+	for _, beadID := range order {
+		for _, dep := range r.beads[beadID] {
+			if _, done := completedSet[dep]; done {
+				continue
+			}
+			if _, registered := r.beads[dep]; !registered {
+				unsatisfiable = append(unsatisfiable, fmt.Sprintf("%s->%s", beadID, dep))
+			}
+		}
+	}
+	if len(unsatisfiable) > 0 {
+		return "", fmt.Errorf("beads have unsatisfiable dependencies (unregistered): %s", strings.Join(unsatisfiable, ", "))
+	}
+
 	return "", nil
+}
+
+// ReplaceDependency rewires the dependency graph so that every bead which
+// depended on oldID now depends on all of newIDs instead. The old dependency
+// is removed. This is used when a bead is decomposed into sub-beads: the
+// dependents of the original bead should wait for all sub-beads to complete.
+func (r *Resolver) ReplaceDependency(oldID string, newIDs []string) {
+	if oldID == "" || len(newIDs) == 0 {
+		return
+	}
+	for beadID, deps := range r.beads {
+		replaced := false
+		var updated []string
+		for _, dep := range deps {
+			if dep == oldID {
+				replaced = true
+				continue
+			}
+			updated = append(updated, dep)
+		}
+		if replaced {
+			updated = append(updated, newIDs...)
+			r.beads[beadID] = normalizeDependencies(updated)
+		}
+	}
 }
 
 func normalizeDependencies(dependsOn []string) []string {

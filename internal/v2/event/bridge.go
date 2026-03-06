@@ -65,6 +65,10 @@ func legacyEventsFromTyped(evt TypedEvent) []events.Event {
 		return legacyTelemetry(e)
 	case TelemetryEvent:
 		return legacyTelemetry(&e)
+	case *GenerationCapReachedEvent:
+		return legacyGenerationCapReached(e)
+	case GenerationCapReachedEvent:
+		return legacyGenerationCapReached(&e)
 	default:
 		return nil
 	}
@@ -213,6 +217,13 @@ func convertValidationEvent(e *ValidationEvent) []events.Event {
 		Output:    output,
 		Duration:  e.Duration,
 		TimeMixin: toTimeMixin(e.Timestamp),
+	}}
+}
+
+func legacyGenerationCapReached(e *GenerationCapReachedEvent) []events.Event {
+	return []events.Event{&events.GenerationCapReachedEvent{
+		GenerationCap: e.GenerationCap,
+		TimeMixin:     toTimeMixin(e.Timestamp),
 	}}
 }
 

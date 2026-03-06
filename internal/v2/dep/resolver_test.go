@@ -133,6 +133,41 @@ func TestNext_DeterministicOrderingWhenMultipleBeadsEligible(t *testing.T) {
 	}
 }
 
+func TestNext_UnregisteredDependencyReturnsError(t *testing.T) {
+	r := NewResolver()
+	r.Add("bead1", []string{"phantom"})
+
+	// "phantom" was never Add()-ed, so bead1's dependency can never be satisfied
+	_, err := r.Next(nil)
+	if err == nil {
+		t.Fatal("expected error for unregistered dependency, got nil")
+	}
+	if !strings.Contains(err.Error(), "unsatisfiable") {
+		t.Fatalf("error should mention unsatisfiable, got: %v", err)
+	}
+	if !strings.Contains(err.Error(), "phantom") {
+		t.Fatalf("error should mention the unregistered dep 'phantom', got: %v", err)
+	}
+}
+
+func TestNext_BeadDependingOnNeverAddedBeadReturnsError(t *testing.T) {
+	r := NewResolver()
+	r.Add("bead1", nil)
+	r.Add("bead2", []string{"bead1", "never-added"})
+
+	// Complete bead1 so bead2 becomes the only pending bead
+	_, err := r.Next([]string{"bead1"})
+	if err == nil {
+		t.Fatal("expected error for dependency on never-added bead, got nil")
+	}
+	if !strings.Contains(err.Error(), "unsatisfiable") {
+		t.Fatalf("error should mention unsatisfiable, got: %v", err)
+	}
+	if !strings.Contains(err.Error(), "never-added") {
+		t.Fatalf("error should mention 'never-added', got: %v", err)
+	}
+}
+
 func TestNext_TieBreakingUsesAlphabeticalOrder(t *testing.T) {
 	r := NewResolver()
 	r.Add("zebra", nil)
@@ -154,5 +189,66 @@ func TestNext_TieBreakingUsesAlphabeticalOrder(t *testing.T) {
 	want := []string{"apple", "middle", "zebra"}
 	if !reflect.DeepEqual(collected, want) {
 		t.Fatalf("expected alphabetical ordering %v, got %v", want, collected)
+	}
+}
+
+func TestReplaceDependency_RewiresDownstreamBeads(t *testing.T) {
+	r := NewResolver()
+	r.Add("a", nil)
+	r.Add("b", []string{"a"})
+	r.Add("c", []string{"b"})
+
+	// Decompose "b" into "b1" and "b2"
+	r.Add("b1", []string{"a"})
+	r.Add("b2", []string{"a"})
+	r.ReplaceDependency("b", []string{"b1", "b2"})
+
+	// Complete "a", then "b" (it was decomposed, marked completed)
+	completed := []string{"a", "b"}
+
+	// b1 and b2 should be available (both depend on completed "a")
+	next, err := r.Next(completed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if next != "b1" && next != "b2" {
+		t.Fatalf("expected b1 or b2, got %s", next)
+	}
+	completed = append(completed, next)
+
+	next2, err := r.Next(completed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if next2 == next || (next2 != "b1" && next2 != "b2") {
+		t.Fatalf("expected the other sub-bead, got %s", next2)
+	}
+	completed = append(completed, next2)
+
+	// Now c should be available (depends on b1 and b2, both completed)
+	next3, err := r.Next(completed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if next3 != "c" {
+		t.Fatalf("expected c after sub-beads complete, got %s", next3)
+	}
+}
+
+func TestReplaceDependency_NoOpForEmptyArgs(t *testing.T) {
+	r := NewResolver()
+	r.Add("a", nil)
+	r.Add("b", []string{"a"})
+
+	// Empty oldID and empty newIDs should not modify anything
+	r.ReplaceDependency("", []string{"x"})
+	r.ReplaceDependency("a", nil)
+
+	next, err := r.Next(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if next != "a" {
+		t.Fatalf("expected a, got %s", next)
 	}
 }

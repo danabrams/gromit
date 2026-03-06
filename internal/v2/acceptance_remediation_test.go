@@ -12,6 +12,7 @@ import (
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/events"
 	"github.com/danabrams/gromit/internal/v2/presentation"
+	"github.com/danabrams/gromit/internal/v2/remediation"
 	"github.com/danabrams/gromit/internal/v2/stage"
 )
 
@@ -27,7 +28,7 @@ func TestRemediationCycleTriggersGapAnalysis(t *testing.T) {
 	}
 	beadLoop := &fakeBeadRunner{order: &order}
 
-	runner := NewRemediationRunner(RemediationRunnerConfig{
+	runner := remediation.NewRemediationRunner(remediation.RemediationRunnerConfig{
 		AcceptStage:    accept,
 		GapStage:       gap,
 		DecomposeStage: decompose,
@@ -62,7 +63,7 @@ func TestGenerationCapStopsRemediation(t *testing.T) {
 	presenter := &spyPresenter{}
 	cleaner := &spyWorktreeCleaner{}
 
-	runner := NewRemediationRunner(RemediationRunnerConfig{
+	runner := remediation.NewRemediationRunner(remediation.RemediationRunnerConfig{
 		AcceptStage:     accept,
 		GapStage:        gap,
 		DecomposeStage:  decompose,

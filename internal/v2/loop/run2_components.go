@@ -13,7 +13,7 @@ import (
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/events"
-	v2remediation "github.com/danabrams/gromit/internal/v2"
+	v2remediation "github.com/danabrams/gromit/internal/v2/remediation"
 	"github.com/danabrams/gromit/internal/v2/adapter"
 	"github.com/danabrams/gromit/internal/v2/adapter/llm"
 	"github.com/danabrams/gromit/internal/v2/event"
@@ -22,6 +22,7 @@ import (
 	buildstage "github.com/danabrams/gromit/internal/v2/stage/build"
 	decomposestage "github.com/danabrams/gromit/internal/v2/stage/decompose"
 	epiloguestage "github.com/danabrams/gromit/internal/v2/stage/epilogue"
+	triagestage "github.com/danabrams/gromit/internal/v2/stage/triage"
 	gatestage "github.com/danabrams/gromit/internal/v2/stage/gate"
 	planstage "github.com/danabrams/gromit/internal/v2/stage/plan"
 	present "github.com/danabrams/gromit/internal/v2/stage/present"
@@ -118,6 +119,12 @@ func NewRun2LoopComponents(cfg *config.Config, adapters adapter.AdapterSet, lega
 	}
 	reviewStage = reviewStage.WithEmitter(legacyEmitter)
 
+	triageStage, err := triagestage.New(cfg, adapters.LLM)
+	if err != nil {
+		cleanup()
+		return nil, err
+	}
+
 	epilogueStage, err := epiloguestage.New(cfg, adapters.TaskTracker)
 	if err != nil {
 		cleanup()
@@ -130,8 +137,11 @@ func NewRun2LoopComponents(cfg *config.Config, adapters adapter.AdapterSet, lega
 		Validate:      validateStage,
 		Review:        reviewStage,
 		Epilogue:      epilogueStage,
+		Triage:        triageStage,
+		Decompose:     decomposeStage,
 		Emitter:       typedEmitter,
 		LegacyEmitter: legacyEmitter,
+		Git:           adapters.Git,
 	})
 	if err != nil {
 		cleanup()

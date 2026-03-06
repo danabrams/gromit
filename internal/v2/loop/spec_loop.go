@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -482,12 +483,11 @@ func (s *SpecLoop) cleanupWorktree(_ context.Context, specID, worktree string, s
 	if !success {
 		status, err := git.Status(cleanupCtx, trimmed)
 		if err != nil {
-			return fmt.Errorf("git status: %w", err)
-		}
-		if strings.TrimSpace(status) != "" {
+			log.Printf("git status during cleanup of spec %s: %v", specID, err)
+		} else if strings.TrimSpace(status) != "" {
 			message := fmt.Sprintf("[gromit: partial work] spec %s", specID)
 			if _, err := git.Commit(cleanupCtx, trimmed, message); err != nil {
-				return fmt.Errorf("commit partial work: %w", err)
+				log.Printf("commit partial work for spec %s: %v", specID, err)
 			}
 		}
 	}

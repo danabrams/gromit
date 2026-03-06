@@ -254,6 +254,14 @@ func TestNewRun2LoopComponentsWiring(t *testing.T) {
 	if components.Emitter == nil {
 		t.Error("Emitter is nil")
 	}
+
+	// Verify triage and decompose stages are wired into the bead loop.
+	if components.BeadLoop.triage == nil {
+		t.Error("BeadLoop.triage is nil")
+	}
+	if components.BeadLoop.decompose == nil {
+		t.Error("BeadLoop.decompose is nil")
+	}
 }
 
 func TestLoadMethodologyFragmentsReturnsFuncZeroOnMissingFiles(t *testing.T) {

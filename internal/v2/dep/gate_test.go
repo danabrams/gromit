@@ -24,7 +24,8 @@ func createTestSpecsDir(t *testing.T) string {
 }
 
 // writeTestSpecFile writes a spec markdown file with YAML frontmatter.
-func writeTestSpecFile(t *testing.T, specsDir, id, stage string, depends []string) {
+// When accepted is true, the frontmatter includes "accepted: true".
+func writeTestSpecFile(t *testing.T, specsDir, id string, accepted bool, depends []string) {
 	t.Helper()
 	var sb strings.Builder
 	sb.WriteString("---\n")
@@ -35,8 +36,8 @@ func writeTestSpecFile(t *testing.T, specsDir, id, stage string, depends []strin
 			sb.WriteString(fmt.Sprintf("  - %s\n", dep))
 		}
 	}
-	if stage != "" {
-		sb.WriteString(fmt.Sprintf("stage: %s\n", stage))
+	if accepted {
+		sb.WriteString("accepted: true\n")
 	}
 	sb.WriteString("---\n")
 	sb.WriteString("# spec body\n")
@@ -74,7 +75,7 @@ func TestNewSpecDependencyGate_ValidDir_Succeeds(t *testing.T) {
 func TestEnsureSpecReady_NoDependencies_Succeeds(t *testing.T) {
 	t.Parallel()
 	specsDir := createTestSpecsDir(t)
-	writeTestSpecFile(t, specsDir, "standalone", "", nil)
+	writeTestSpecFile(t, specsDir, "standalone", false, nil)
 
 	gate, err := NewSpecDependencyGate(specsDir)
 	if err != nil {
@@ -89,8 +90,8 @@ func TestEnsureSpecReady_NoDependencies_Succeeds(t *testing.T) {
 func TestEnsureSpecReady_AllDependenciesSatisfied_Succeeds(t *testing.T) {
 	t.Parallel()
 	specsDir := createTestSpecsDir(t)
-	writeTestSpecFile(t, specsDir, "parent", "done", nil)
-	writeTestSpecFile(t, specsDir, "child", "", []string{"parent"})
+	writeTestSpecFile(t, specsDir, "parent", true, nil)
+	writeTestSpecFile(t, specsDir, "child", false, []string{"parent"})
 
 	gate, err := NewSpecDependencyGate(specsDir)
 	if err != nil {
@@ -105,8 +106,8 @@ func TestEnsureSpecReady_AllDependenciesSatisfied_Succeeds(t *testing.T) {
 func TestEnsureSpecReady_UnsatisfiedDependency_ReturnsErrorWithBlockingIDs(t *testing.T) {
 	t.Parallel()
 	specsDir := createTestSpecsDir(t)
-	writeTestSpecFile(t, specsDir, "prereq", "", nil) // not done
-	writeTestSpecFile(t, specsDir, "child", "", []string{"prereq"})
+	writeTestSpecFile(t, specsDir, "prereq", false, nil) // not accepted
+	writeTestSpecFile(t, specsDir, "child", false, []string{"prereq"})
 
 	gate, err := NewSpecDependencyGate(specsDir)
 	if err != nil {
@@ -136,9 +137,9 @@ func TestEnsureSpecReady_UnsatisfiedDependency_ReturnsErrorWithBlockingIDs(t *te
 func TestEnsureSpecReady_MultipleDependencies_MixedSatisfaction(t *testing.T) {
 	t.Parallel()
 	specsDir := createTestSpecsDir(t)
-	writeTestSpecFile(t, specsDir, "done-dep", "done", nil)
-	writeTestSpecFile(t, specsDir, "pending-dep", "", nil) // not done
-	writeTestSpecFile(t, specsDir, "child", "", []string{"done-dep", "pending-dep"})
+	writeTestSpecFile(t, specsDir, "done-dep", true, nil)
+	writeTestSpecFile(t, specsDir, "pending-dep", false, nil) // not accepted
+	writeTestSpecFile(t, specsDir, "child", false, []string{"done-dep", "pending-dep"})
 
 	gate, err := NewSpecDependencyGate(specsDir)
 	if err != nil {
@@ -164,7 +165,7 @@ func TestEnsureSpecReady_MultipleDependencies_MixedSatisfaction(t *testing.T) {
 func TestEnsureSpecReady_DependencyOnNonExistentSpec_ReturnsErrorWithBlockingID(t *testing.T) {
 	t.Parallel()
 	specsDir := createTestSpecsDir(t)
-	writeTestSpecFile(t, specsDir, "child", "", []string{"ghost"})
+	writeTestSpecFile(t, specsDir, "child", false, []string{"ghost"})
 
 	gate, err := NewSpecDependencyGate(specsDir)
 	if err != nil {
@@ -207,11 +208,11 @@ func TestEnsureSpecReady_SpecNotFound_ReturnsError(t *testing.T) {
 func TestListReady_MixOfReadyAndBlocked(t *testing.T) {
 	t.Parallel()
 	specsDir := createTestSpecsDir(t)
-	writeTestSpecFile(t, specsDir, "done-parent", "done", nil)
-	writeTestSpecFile(t, specsDir, "child-ready", "", []string{"done-parent"})
-	writeTestSpecFile(t, specsDir, "pending", "", nil)
-	writeTestSpecFile(t, specsDir, "blocked-child", "", []string{"pending"})
-	writeTestSpecFile(t, specsDir, "independent", "", nil)
+	writeTestSpecFile(t, specsDir, "done-parent", true, nil)
+	writeTestSpecFile(t, specsDir, "child-ready", false, []string{"done-parent"})
+	writeTestSpecFile(t, specsDir, "pending", false, nil)
+	writeTestSpecFile(t, specsDir, "blocked-child", false, []string{"pending"})
+	writeTestSpecFile(t, specsDir, "independent", false, nil)
 
 	gate, err := NewSpecDependencyGate(specsDir)
 	if err != nil {
@@ -242,11 +243,11 @@ func TestListReady_MixOfReadyAndBlocked(t *testing.T) {
 	}
 }
 
-func TestListReady_ExcludesDoneSpecs(t *testing.T) {
+func TestListReady_ExcludesAcceptedSpecs(t *testing.T) {
 	t.Parallel()
 	specsDir := createTestSpecsDir(t)
-	writeTestSpecFile(t, specsDir, "finished", "done", nil)
-	writeTestSpecFile(t, specsDir, "in-progress", "", nil)
+	writeTestSpecFile(t, specsDir, "finished", true, nil)
+	writeTestSpecFile(t, specsDir, "in-progress", false, nil)
 
 	gate, err := NewSpecDependencyGate(specsDir)
 	if err != nil {
@@ -260,7 +261,7 @@ func TestListReady_ExcludesDoneSpecs(t *testing.T) {
 
 	for _, id := range ready {
 		if id == "finished" {
-			t.Fatalf("ListReady() should exclude done specs, but returned %q", id)
+			t.Fatalf("ListReady() should exclude accepted specs, but returned %q", id)
 		}
 	}
 
@@ -291,9 +292,9 @@ func TestListReady_EmptySpecsDirectory(t *testing.T) {
 func TestListReady_ResultIsSorted(t *testing.T) {
 	t.Parallel()
 	specsDir := createTestSpecsDir(t)
-	writeTestSpecFile(t, specsDir, "zebra", "", nil)
-	writeTestSpecFile(t, specsDir, "alpha", "", nil)
-	writeTestSpecFile(t, specsDir, "middle", "", nil)
+	writeTestSpecFile(t, specsDir, "zebra", false, nil)
+	writeTestSpecFile(t, specsDir, "alpha", false, nil)
+	writeTestSpecFile(t, specsDir, "middle", false, nil)
 
 	gate, err := NewSpecDependencyGate(specsDir)
 	if err != nil {
@@ -319,7 +320,7 @@ func TestListReady_ResultIsSorted(t *testing.T) {
 func TestListReady_IgnoresNonMarkdownFiles(t *testing.T) {
 	t.Parallel()
 	specsDir := createTestSpecsDir(t)
-	writeTestSpecFile(t, specsDir, "real-spec", "", nil)
+	writeTestSpecFile(t, specsDir, "real-spec", false, nil)
 
 	// Write a non-markdown file that should be ignored.
 	nonMDPath := filepath.Join(specsDir, "notes.txt")
@@ -378,8 +379,8 @@ func TestEnsureSpecReady_MalformedFrontmatter_ReturnsError(t *testing.T) {
 func TestEnsureSpecReady_DuplicateDependencies_DeduplicatesBlockers(t *testing.T) {
 	t.Parallel()
 	specsDir := createTestSpecsDir(t)
-	writeTestSpecFile(t, specsDir, "dep-a", "", nil) // not done
-	writeTestSpecFile(t, specsDir, "child", "", []string{"dep-a", "dep-a", "dep-a"})
+	writeTestSpecFile(t, specsDir, "dep-a", false, nil) // not accepted
+	writeTestSpecFile(t, specsDir, "child", false, []string{"dep-a", "dep-a", "dep-a"})
 
 	gate, err := NewSpecDependencyGate(specsDir)
 	if err != nil {
@@ -408,14 +409,14 @@ func TestEnsureSpecReady_DuplicateDependencies_DeduplicatesBlockers(t *testing.T
 func TestEnsureSpecReady_SpecIsDone_StillSucceeds(t *testing.T) {
 	t.Parallel()
 	specsDir := createTestSpecsDir(t)
-	writeTestSpecFile(t, specsDir, "done-spec", "done", nil)
+	writeTestSpecFile(t, specsDir, "done-spec", true, nil)
 
 	gate, err := NewSpecDependencyGate(specsDir)
 	if err != nil {
 		t.Fatalf("new gate: %v", err)
 	}
 
-	// EnsureSpecReady checks deps, not stage — a done spec with no deps should pass.
+	// EnsureSpecReady checks deps, not acceptance — an accepted spec with no deps should pass.
 	if err := gate.EnsureSpecReady(context.Background(), "done-spec"); err != nil {
 		t.Fatalf("EnsureSpecReady() = %v, want nil (done spec with no deps)", err)
 	}
@@ -451,7 +452,7 @@ func TestListReady_MalformedSpecFile_ReturnsError(t *testing.T) {
 	specsDir := createTestSpecsDir(t)
 
 	// Write a valid spec and a malformed one.
-	writeTestSpecFile(t, specsDir, "good", "", nil)
+	writeTestSpecFile(t, specsDir, "good", false, nil)
 	path := filepath.Join(specsDir, "bad.md")
 	if err := os.WriteFile(path, []byte("---\nid: bad\nno closing delimiter"), 0o644); err != nil {
 		t.Fatalf("writing malformed spec: %v", err)
@@ -471,7 +472,7 @@ func TestListReady_MalformedSpecFile_ReturnsError(t *testing.T) {
 func TestListReady_IgnoresSubdirectories(t *testing.T) {
 	t.Parallel()
 	specsDir := createTestSpecsDir(t)
-	writeTestSpecFile(t, specsDir, "real", "", nil)
+	writeTestSpecFile(t, specsDir, "real", false, nil)
 
 	// Create a subdirectory — should be skipped.
 	subDir := filepath.Join(specsDir, "subdir")
@@ -494,11 +495,11 @@ func TestListReady_IgnoresSubdirectories(t *testing.T) {
 	}
 }
 
-func TestListReady_AllSpecsDone_ReturnsEmpty(t *testing.T) {
+func TestListReady_AllSpecsAccepted_ReturnsEmpty(t *testing.T) {
 	t.Parallel()
 	specsDir := createTestSpecsDir(t)
-	writeTestSpecFile(t, specsDir, "a", "done", nil)
-	writeTestSpecFile(t, specsDir, "b", "done", nil)
+	writeTestSpecFile(t, specsDir, "a", true, nil)
+	writeTestSpecFile(t, specsDir, "b", true, nil)
 
 	gate, err := NewSpecDependencyGate(specsDir)
 	if err != nil {
@@ -519,9 +520,9 @@ func TestListReady_ChainedDependencies_OnlyLeafReady(t *testing.T) {
 	t.Parallel()
 	specsDir := createTestSpecsDir(t)
 	// Chain: c depends on b, b depends on a. Only a has no deps.
-	writeTestSpecFile(t, specsDir, "a", "", nil)
-	writeTestSpecFile(t, specsDir, "b", "", []string{"a"})
-	writeTestSpecFile(t, specsDir, "c", "", []string{"b"})
+	writeTestSpecFile(t, specsDir, "a", false, nil)
+	writeTestSpecFile(t, specsDir, "b", false, []string{"a"})
+	writeTestSpecFile(t, specsDir, "c", false, []string{"b"})
 
 	gate, err := NewSpecDependencyGate(specsDir)
 	if err != nil {
@@ -580,8 +581,8 @@ func TestBlockingDependencies_EmptyDependsOn_ReturnsNil(t *testing.T) {
 func TestBlockingDependencies_AllDone_ReturnsEmpty(t *testing.T) {
 	t.Parallel()
 	specsDir := createTestSpecsDir(t)
-	writeTestSpecFile(t, specsDir, "dep-x", "done", nil)
-	writeTestSpecFile(t, specsDir, "dep-y", "done", nil)
+	writeTestSpecFile(t, specsDir, "dep-x", true, nil)
+	writeTestSpecFile(t, specsDir, "dep-y", true, nil)
 
 	gate, err := NewSpecDependencyGate(specsDir)
 	if err != nil {
@@ -620,7 +621,7 @@ func TestBlockingDependencies_MissingDepFile_TreatedAsBlocker(t *testing.T) {
 func TestBlockingDependencies_DuplicateDeps_Deduplicated(t *testing.T) {
 	t.Parallel()
 	specsDir := createTestSpecsDir(t)
-	writeTestSpecFile(t, specsDir, "dep", "", nil) // not done
+	writeTestSpecFile(t, specsDir, "dep", false, nil) // not accepted
 
 	gate, err := NewSpecDependencyGate(specsDir)
 	if err != nil {
@@ -659,9 +660,9 @@ func TestBlockingDependencies_WhitespaceOnlyDeps_Skipped(t *testing.T) {
 func TestBlockingDependencies_ResultIsSorted(t *testing.T) {
 	t.Parallel()
 	specsDir := createTestSpecsDir(t)
-	writeTestSpecFile(t, specsDir, "zzz", "", nil) // not done
-	writeTestSpecFile(t, specsDir, "aaa", "", nil) // not done
-	writeTestSpecFile(t, specsDir, "mmm", "", nil) // not done
+	writeTestSpecFile(t, specsDir, "zzz", false, nil) // not accepted
+	writeTestSpecFile(t, specsDir, "aaa", false, nil) // not accepted
+	writeTestSpecFile(t, specsDir, "mmm", false, nil) // not accepted
 
 	gate, err := NewSpecDependencyGate(specsDir)
 	if err != nil {

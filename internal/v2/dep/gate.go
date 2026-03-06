@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/danabrams/gromit/internal/frontmatter"
-	"github.com/danabrams/gromit/internal/specflow"
 )
 
 type SpecDependencyGate struct {
@@ -62,7 +61,7 @@ func (s *SpecDependencyGate) ListReady(ctx context.Context) ([]string, error) {
 		if err != nil {
 			return nil, err
 		}
-		if meta.Stage == specflow.StageDone {
+		if meta.Accepted {
 			continue
 		}
 		blockers, _ := s.blockingDependencies(meta)
@@ -119,7 +118,7 @@ func (s *SpecDependencyGate) blockingDependencies(meta *specMetadata) ([]string,
 			blockers = append(blockers, dep)
 			continue
 		}
-		if depMeta.Stage != specflow.StageDone {
+		if !depMeta.Accepted {
 			blockers = append(blockers, depMeta.ID)
 		}
 	}

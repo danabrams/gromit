@@ -108,18 +108,21 @@ func run2(cmd *cobra.Command, args []string) error {
 	logsDir := resolveMainRepoLogsDirFn(gromitDir)
 	wg, err := startRun2SubscribersFn(ctx, emitter, cmd.ErrOrStderr(), logsDir)
 	if err != nil {
-		emitter.Close()
 		return fmt.Errorf("starting subscribers: %w", err)
 	}
+	components, err := loop.NewRun2LoopComponents(cfg, adapters, emitter, cmd.ErrOrStderr())
+	if err != nil {
+		emitter.Close()
+		wg.Wait()
+		return fmt.Errorf("preparing run loop components: %w", err)
+	}
 	defer func() {
+		// Close typed emitter first to stop subscriber goroutines from
+		// producing new events, then close the legacy emitter.
+		components.Emitter.Close()
 		emitter.Close()
 		wg.Wait()
 	}()
-	components, err := loop.NewRun2LoopComponents(cfg, adapters, emitter, cmd.ErrOrStderr())
-	if err != nil {
-		return fmt.Errorf("preparing run loop components: %w", err)
-	}
-	defer components.Emitter.Close()
 
 	baseOpts := []loop.SpecLoopOption{
 		newSpecLoopEmitterFn(emitter),

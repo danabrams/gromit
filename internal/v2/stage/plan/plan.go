@@ -99,7 +99,7 @@ func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Resul
 	}
 
 	planText := resp.Output
-	planPath, err := writePlanFile(req.Config, planText)
+	planPath, err := writePlanFile(req.Config, req.Worktree, planText)
 	if err != nil {
 		return nil, err
 	}
@@ -130,12 +130,22 @@ func specFilePath(cfg *config.Config, specID string) (string, error) {
 	return filepath.Join(specDir, specName), nil
 }
 
-func writePlanFile(cfg *config.Config, plan string) (string, error) {
+func writePlanFile(cfg *config.Config, worktree string, plan string) (string, error) {
+	root := strings.TrimSpace(worktree)
+	if root == "" {
+		root = cfg.ProjectRoot
+	}
+	if root == "" {
+		root = "."
+	}
+
 	gromitDir := cfg.Paths.GromitDir
 	if gromitDir == "" {
 		gromitDir = defaultGromitDir
 	}
-	gromitDir = resolvePath(cfg, gromitDir)
+	if !filepath.IsAbs(gromitDir) {
+		gromitDir = filepath.Join(root, gromitDir)
+	}
 
 	planDir := filepath.Join(gromitDir, planDirName)
 	if err := os.MkdirAll(planDir, 0o755); err != nil {

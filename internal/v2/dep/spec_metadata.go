@@ -2,13 +2,11 @@ package dep
 
 import (
 	"strings"
-
-	"github.com/danabrams/gromit/internal/specflow"
 )
 
 type specMetadata struct {
 	ID        string
-	Stage     specflow.Stage
+	Accepted  bool
 	DependsOn []string
 }
 
@@ -19,11 +17,20 @@ func parseSpecMetadata(specID string, frontmatter map[string]interface{}) *specM
 	} else {
 		data.ID = specID
 	}
-	if v, ok := frontmatter["stage"].(string); ok {
-		data.Stage = specflow.Stage(strings.TrimSpace(v))
-	}
+	data.Accepted = parseAccepted(frontmatter["accepted"])
 	data.DependsOn = parseDependsOn(frontmatter["depends_on"])
 	return &data
+}
+
+func parseAccepted(raw interface{}) bool {
+	switch v := raw.(type) {
+	case bool:
+		return v
+	case string:
+		lower := strings.TrimSpace(strings.ToLower(v))
+		return lower == "true" || lower == "yes" || lower == "1"
+	}
+	return false
 }
 
 func parseDependsOn(raw interface{}) []string {
