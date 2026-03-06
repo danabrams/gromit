@@ -17,9 +17,9 @@ import (
 	"github.com/danabrams/gromit/internal/v2/adapter"
 	"github.com/danabrams/gromit/internal/v2/event"
 	"github.com/danabrams/gromit/internal/v2/loop"
-	stageaccept "github.com/danabrams/gromit/internal/v2/stage/accept"
 	"github.com/danabrams/gromit/internal/v2/presentation"
 	"github.com/danabrams/gromit/internal/v2/stage"
+	stageaccept "github.com/danabrams/gromit/internal/v2/stage/accept"
 )
 
 func TestSpecLoopExecutesCanonicalStageChain(t *testing.T) {
