@@ -35,6 +35,32 @@ func TestStageSkipsClosedBead(t *testing.T) {
 	}
 }
 
+func TestStageSkipsCompletedBead(t *testing.T) {
+	t.Parallel()
+
+	tracker := &fakeTaskTracker{
+		beads: map[string]*tasktracker.Bead{
+			"bead-completed": {ID: "bead-completed", Status: "completed"},
+		},
+	}
+
+	stageInstance, err := New(&config.Config{}, tracker)
+	if err != nil {
+		t.Fatalf("unexpected stage creation error: %v", err)
+	}
+
+	res, err := stageInstance.Run(context.Background(), &stagepkg.Request{Bead: stagepkg.BeadInfo{ID: "bead-completed"}})
+	if err != nil {
+		t.Fatalf("run stage: %v", err)
+	}
+	if res == nil {
+		t.Fatal("expected result")
+	}
+	if res.Decision != stagepkg.DecisionSkip {
+		t.Fatalf("decision = %v, want skip", res.Decision)
+	}
+}
+
 func TestStageBlocksWhenDependencyNotClosed(t *testing.T) {
 	t.Parallel()
 
