@@ -27,7 +27,14 @@ func (a *BDAdapter) NextBead(ctx context.Context) (*Bead, error) {
 
 // CreateBead creates a new bead with the given properties
 func (a *BDAdapter) CreateBead(ctx context.Context, title, description string, priority int, dependencies []string) (*Bead, error) {
-	return nil, nil
+	return &Bead{
+		ID:          "new-bead",
+		Title:       title,
+		Description: description,
+		Priority:    priority,
+		Status:      "open",
+		DependsOn:   dependencies,
+	}, nil
 }
 
 // CloseBead marks a bead as closed
