@@ -1045,12 +1045,14 @@
 {"issue_id":"gromit-ech","label":"spec:robust-picker-tests"}
 {"issue_id":"gromit-ecxja","label":"bug"}
 {"issue_id":"gromit-ecxja","label":"from-review"}
+{"issue_id":"gromit-ed0tg","label":"spec:v2-run-loop"}
 {"issue_id":"gromit-edruf","label":"spec:session-worktree-pre-remove"}
 {"issue_id":"gromit-edz8","label":"spec:fix-atdd-invisible-tests"}
 {"issue_id":"gromit-edz8","label":"tdd:false"}
 {"issue_id":"gromit-eeyso","label":"from-review"}
 {"issue_id":"gromit-eeyso","label":"gen:1"}
 {"issue_id":"gromit-eeyso","label":"spec:v2-run-loop"}
+{"issue_id":"gromit-ef352","label":"spec:v2-run-loop"}
 {"issue_id":"gromit-efep","label":"spec:runner-test-runtime-reduction"}
 {"issue_id":"gromit-efsun","label":"spec:spec-level-atdd-gates"}
 {"issue_id":"gromit-eghq","label":"spec:codex-streaming-parity"}
@@ -1324,6 +1326,7 @@
 {"issue_id":"gromit-iqaq4","label":"from-review"}
 {"issue_id":"gromit-iqoj4","label":"spec:runner-pipeline"}
 {"issue_id":"gromit-irc6","label":"spec:reduce-iteration-cost"}
+{"issue_id":"gromit-irlfj","label":"spec:v2-run-loop"}
 {"issue_id":"gromit-itwxl","label":"spec:rules-phase-budgets"}
 {"issue_id":"gromit-iv1v2","label":"estimated-files:2"}
 {"issue_id":"gromit-iv1v2","label":"spec:auto-generate-acceptance-criteria"}
@@ -2182,6 +2185,7 @@
 {"issue_id":"gromit-uzrhu.1","label":"spec:decompose-low-complexity-bias"}
 {"issue_id":"gromit-uzrhu.2","label":"spec:decompose-low-complexity-bias"}
 {"issue_id":"gromit-uzrhu.3","label":"spec:decompose-low-complexity-bias"}
+{"issue_id":"gromit-v4460","label":"spec:v2-run-loop"}
 {"issue_id":"gromit-v6h8e","label":"estimated-files:2"}
 {"issue_id":"gromit-v6h8e","label":"spec:v2-run-loop"}
 {"issue_id":"gromit-v6q0g","label":"spec:phase-1-2-token-efficiency-foundation"}
