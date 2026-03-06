@@ -148,6 +148,105 @@ func TestBeadLoopShortCircuitsToFailurePath(t *testing.T) {
 	}
 }
 
+func TestBeadLoopRetryWithRunsBuildBeforeRetryAndReportsAttempt(t *testing.T) {
+	t.Parallel()
+
+	order := []string{}
+	emitter := event.NewEmitter()
+	ch := make(chan event.TypedEvent, 16)
+	emitter.Subscribe(func(evt event.TypedEvent) {
+		select {
+		case ch <- evt:
+		default:
+		}
+	})
+
+	gate := newRecordingStage("gate", &order)
+	build := newRecordingStage("build", &order)
+	validate := newRetryStage("validate", 1, func(beadID string) {
+		order = append(order, "retry-validate:"+beadID)
+	})
+	validate.retryConfig = stage.RetryConfig{
+		MaxRetries: 1,
+		RetryWith:  []string{"build"},
+	}
+	review := newRecordingStage("review", &order)
+	epilogue := newRecordingStage("epilogue", &order)
+
+	config := BeadLoopConfig{
+		Gate:     gate,
+		Build:    build,
+		Validate: validate,
+		Review:   review,
+		Epilogue: epilogue,
+		Emitter:  emitter,
+	}
+	loop, err := NewBeadLoop(config)
+	if err != nil {
+		t.Fatalf("NewBeadLoop: %v", err)
+	}
+
+	beads := []*bead.Bead{{ID: "retry"}}
+	if err := loop.Run(context.Background(), beads, nil); err != nil {
+		t.Fatalf("Run failed: %v", err)
+	}
+
+	expected := []string{
+		"gate:retry",
+		"build:retry",
+		"validate:retry",
+		"retry-validate:retry",
+		"build:retry",
+		"validate:retry",
+		"review:retry",
+		"epilogue:retry",
+	}
+	if len(order) != len(expected) {
+		t.Fatalf("order = %v, want %v", order, expected)
+	}
+	for i, want := range expected {
+		if order[i] != want {
+			t.Fatalf("order[%d] = %s, want %s", i, order[i], want)
+		}
+	}
+
+	if len(validate.requests) != 2 {
+		t.Fatalf("validate invoked %d times, want 2", len(validate.requests))
+	}
+	retryCtx := validate.requests[1].RetryContext
+	if retryCtx == nil {
+		t.Fatalf("expected retry context on second validate attempt")
+	}
+	if retryCtx.Attempt != 2 {
+		t.Fatalf("retry attempt = %d, want 2", retryCtx.Attempt)
+	}
+	if len(retryCtx.PriorFailures) != 1 {
+		t.Fatalf("prior failures = %d, want 1", len(retryCtx.PriorFailures))
+	}
+	if retryCtx.PriorFailures[0] != "validate returned fail" {
+		t.Fatalf("unexpected prior failure reason: %s", retryCtx.PriorFailures[0])
+	}
+
+	var retryEvt event.StageRetryingEvent
+	found := false
+	timer := time.NewTimer(500 * time.Millisecond)
+	defer timer.Stop()
+	for !found {
+		select {
+		case evt := <-ch:
+			if e, ok := evt.(event.StageRetryingEvent); ok {
+				retryEvt = e
+				found = true
+			}
+		case <-timer.C:
+			t.Fatal("missing StageRetrying event")
+		}
+	}
+	if retryEvt.StageName != "validate" || retryEvt.Attempt != 2 {
+		t.Fatalf("retry event = %#v, want stage=validate attempt=2", retryEvt)
+	}
+}
+
 func TestBeadLoopEmitsLifecycleEvents(t *testing.T) {
 	t.Parallel()
 
@@ -456,6 +555,37 @@ func (s *recordingStage) Name() string {
 func (s *recordingStage) Run(ctx context.Context, req *stage.Request) (*stage.Result, error) {
 	if s.hook != nil {
 		s.hook(req.Bead.ID)
+	}
+	return &stage.Result{Decision: stage.DecisionProceed}, nil
+}
+
+type retryStage struct {
+	name        string
+	failTimes   int
+	runCount    int
+	hook        func(string)
+	retryConfig stage.RetryConfig
+	requests    []stage.Request
+}
+
+func newRetryStage(name string, failTimes int, hook func(string)) *retryStage {
+	return &retryStage{name: name, failTimes: failTimes, hook: hook}
+}
+
+func (s *retryStage) Name() string { return s.name }
+
+func (s *retryStage) RetryConfig() stage.RetryConfig { return s.retryConfig }
+
+func (s *retryStage) Run(ctx context.Context, req *stage.Request) (*stage.Result, error) {
+	if s.hook != nil {
+		s.hook(req.Bead.ID)
+	}
+	if req != nil {
+		s.requests = append(s.requests, *req)
+	}
+	s.runCount++
+	if s.runCount <= s.failTimes {
+		return &stage.Result{Decision: stage.DecisionFail}, nil
 	}
 	return &stage.Result{Decision: stage.DecisionProceed}, nil
 }
