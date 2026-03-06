@@ -2,6 +2,7 @@ package loop
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -13,8 +14,9 @@ import (
 	"github.com/danabrams/gromit/internal/v2/adapter"
 	"github.com/danabrams/gromit/internal/v2/presentation"
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
-	planstage "github.com/danabrams/gromit/internal/v2/stage/plan"
 	stageaccept "github.com/danabrams/gromit/internal/v2/stage/accept"
+	planstage "github.com/danabrams/gromit/internal/v2/stage/plan"
+	present "github.com/danabrams/gromit/internal/v2/stage/present"
 )
 
 func TestSpecLoopHappyPathExecutesPipeline(t *testing.T) {
@@ -22,6 +24,7 @@ func TestSpecLoopHappyPathExecutesPipeline(t *testing.T) {
 
 	ctx := context.Background()
 	specID := "spec-loop-happy"
+	cfg := &config.Config{}
 
 	emitter := events.NewEmitter()
 	ch := emitter.Subscribe()
@@ -35,6 +38,8 @@ func TestSpecLoopHappyPathExecutesPipeline(t *testing.T) {
 	llm := newFakeLLMAdapter()
 	taskTracker := newFakeTaskTrackerAdapter()
 	presenter := newFakePresenterAdapter(t)
+	planStage := newFakePlanStage(specID)
+	presentStage, summaryCtx := newPresentStageForTest(t, cfg, presenter)
 
 	adapters := adapter.AdapterSet{
 		Git:         git,
@@ -47,9 +52,11 @@ func TestSpecLoopHappyPathExecutesPipeline(t *testing.T) {
 	beadRunner := newFakeBeadRunner()
 	accept := newFakeAcceptStage()
 
-	loopInstance, err := NewSpecLoop(adapters, &config.Config{}, noopDependencyGate{},
+	loopInstance, err := NewSpecLoop(adapters, cfg, noopDependencyGate{},
 		WithStageRecorder(recorder),
 		WithEmitter(emitter),
+		WithPlanStage(planStage),
+		WithPresentStage(presentStage, summaryCtx),
 		WithDecomposeStage(decompose),
 		WithBeadLoop(beadRunner),
 		WithAcceptStage(accept),
@@ -102,27 +109,6 @@ func TestSpecLoopHappyPathExecutesPipeline(t *testing.T) {
 	}
 }
 
-func TestSpecLoopPersistsPlanInGromitDir(t *testing.T) {
-	t.Parallel()
-
-	worktree := t.TempDir()
-	cfg := &config.Config{}
-	loopInstance := &SpecLoop{cfg: cfg}
-	plan := "persisted plan"
-	if err := loopInstance.writePlanFile(worktree, plan); err != nil {
-		t.Fatalf("write plan: %v", err)
-	}
-
-	planPath := filepath.Join(worktree, ".gromit", "v2", "plan.md")
-	data, err := os.ReadFile(planPath)
-	if err != nil {
-		t.Fatalf("read plan file: %v", err)
-	}
-	if string(data) != plan {
-		t.Fatalf("plan file = %q, want %q", string(data), plan)
-	}
-}
-
 func TestSpecLoopUsesPlanStage(t *testing.T) {
 	t.Parallel()
 
@@ -141,8 +127,11 @@ func TestSpecLoopUsesPlanStage(t *testing.T) {
 		Presenter:   presenter,
 	}
 
+	presentStage := newFakePresentStage()
+	summaryCtx := &present.SummaryContext{}
 	loopInstance, err := NewSpecLoop(adapters, &config.Config{}, noopDependencyGate{},
 		WithPlanStage(planStage),
+		WithPresentStage(presentStage, summaryCtx),
 		WithDecomposeStage(newFakeDecomposeStage(specID)),
 		WithBeadLoop(newFakeBeadRunner()),
 		WithAcceptStage(newFakeAcceptStage()),
@@ -191,8 +180,13 @@ func TestSpecLoopProvidesStageRequestToAcceptStage(t *testing.T) {
 		Presenter:   presenter,
 	}
 
+	planStage := newFakePlanStage(specID)
+	presentStage := newFakePresentStage()
+	summaryCtx := &present.SummaryContext{}
 	loopInstance, err := NewSpecLoop(adapters, cfg, noopDependencyGate{},
 		WithStageRecorder(recorder),
+		WithPlanStage(planStage),
+		WithPresentStage(presentStage, summaryCtx),
 		WithDecomposeStage(newFakeDecomposeStage(specID)),
 		WithBeadLoop(newFakeBeadRunner()),
 		WithAcceptStage(accept),
@@ -243,8 +237,13 @@ func TestSpecLoopFailureEmitsCompletionAndCleansWorktree(t *testing.T) {
 		Presenter:   presenter,
 	}
 
+	planStage := newFakePlanStage(specID)
+	presentStage := newFakePresentStage()
+	summaryCtx := &present.SummaryContext{}
 	loopInstance, err := NewSpecLoop(adapters, &config.Config{}, noopDependencyGate{},
 		WithEmitter(emitter),
+		WithPlanStage(planStage),
+		WithPresentStage(presentStage, summaryCtx),
 		WithDecomposeStage(newFakeDecomposeStage(specID)),
 		WithBeadLoop(newFakeBeadRunner()),
 		WithAcceptStage(newScriptedAcceptStage(stagepkg.Result{Decision: stagepkg.DecisionFail})),
@@ -283,12 +282,17 @@ func TestSpecLoopPassesStopChannelToBeadRunner(t *testing.T) {
 	defer close(stopCh)
 
 	beadRunner := newFakeBeadRunner()
+	planStage := newFakePlanStage(specID)
+	presentStage := newFakePresentStage()
+	summaryCtx := &present.SummaryContext{}
 	loopInstance, err := NewSpecLoop(adapter.AdapterSet{
 		Git:         newFakeGitAdapter(t),
 		LLM:         newFakeLLMAdapter(),
 		TaskTracker: newFakeTaskTrackerAdapter(),
 		Presenter:   newFakePresenterAdapter(t),
 	}, &config.Config{}, noopDependencyGate{},
+		WithPlanStage(planStage),
+		WithPresentStage(presentStage, summaryCtx),
 		WithDecomposeStage(newFakeDecomposeStage(specID)),
 		WithBeadLoop(beadRunner),
 		WithAcceptStage(newFakeAcceptStage()),
@@ -382,13 +386,45 @@ func (f *fakePlanStage) Name() string { return "plan" }
 func (f *fakePlanStage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Result, error) {
 	f.called = true
 	f.lastRequest = req
+	planPath := filepath.Join(req.Worktree, ".gromit", "v2", "plan.md")
+	if err := os.MkdirAll(filepath.Dir(planPath), 0o755); err != nil {
+		return nil, fmt.Errorf("create plan directory: %w", err)
+	}
+	if err := os.WriteFile(planPath, []byte(f.plan), 0o644); err != nil {
+		return nil, fmt.Errorf("write plan file: %w", err)
+	}
 	return &stagepkg.Result{
 		Decision: stagepkg.DecisionProceed,
 		Artifacts: &planstage.PlanArtifacts{
 			SpecID: req.Bead.ID,
 			Plan:   f.plan,
-			Path:   filepath.Join(req.Worktree, ".gromit", "v2", "plan.md"),
+			Path:   planPath,
 			Model:  "opus",
 		},
 	}, nil
+}
+
+type fakePresentStage struct {
+	called bool
+}
+
+func newFakePresentStage() *fakePresentStage {
+	return &fakePresentStage{}
+}
+
+func (f *fakePresentStage) Name() string { return "present" }
+
+func (f *fakePresentStage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Result, error) {
+	f.called = true
+	return &stagepkg.Result{Decision: stagepkg.DecisionProceed}, nil
+}
+
+func newPresentStageForTest(t *testing.T, cfg *config.Config, presenter adapter.PresenterAdapter) (stagepkg.Stage, *present.SummaryContext) {
+	t.Helper()
+	summaryCtx := &present.SummaryContext{}
+	stage, err := present.New(cfg, presenter, summaryCtx)
+	if err != nil {
+		t.Fatalf("create present stage: %v", err)
+	}
+	return stage, summaryCtx
 }

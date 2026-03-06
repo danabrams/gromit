@@ -12,6 +12,7 @@ import (
 	"github.com/danabrams/gromit/internal/v2/adapter"
 	gitadapter "github.com/danabrams/gromit/internal/v2/adapter/git"
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
+	present "github.com/danabrams/gromit/internal/v2/stage/present"
 )
 
 func TestSpecLoopFailureCommitsPartialWorkAndRemovesWorktree(t *testing.T) {
@@ -52,7 +53,12 @@ func TestSpecLoopFailureCommitsPartialWorkAndRemovesWorktree(t *testing.T) {
 		Presenter:   newFakePresenterAdapter(t),
 	}
 
+	planStage := newFakePlanStage(specID)
+	presentStage := newFakePresentStage()
+	summaryCtx := &present.SummaryContext{}
 	loopInstance, err := NewSpecLoop(adapters, &config.Config{}, noopDependencyGate{},
+		WithPlanStage(planStage),
+		WithPresentStage(presentStage, summaryCtx),
 		WithDecomposeStage(newFakeDecomposeStage(specID)),
 		WithBeadLoop(newFakeBeadRunner()),
 		WithAcceptStage(newScriptedAcceptStage(stagepkg.Result{Decision: stagepkg.DecisionFail})),

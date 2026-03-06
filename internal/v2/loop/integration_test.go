@@ -19,6 +19,7 @@ func TestIntegration_SpecLoopHappyPathCompletes(t *testing.T) {
 
 	ctx := context.Background()
 	specID := "spec-integration-happy"
+	cfg := &config.Config{}
 
 	emitter := events.NewEmitter()
 	ch := emitter.Subscribe()
@@ -32,6 +33,8 @@ func TestIntegration_SpecLoopHappyPathCompletes(t *testing.T) {
 	presenter := newFakePresenterAdapter(t)
 	accept := newScriptedAcceptStage(stagepkg.Result{Decision: stagepkg.DecisionProceed})
 	decompose, beadLoop := newIntegrationLoopComponents(t, specID)
+	planStage := newFakePlanStage(specID)
+	presentStage, summaryCtx := newPresentStageForTest(t, cfg, presenter)
 
 	adapters := adapter.AdapterSet{
 		Git:         git,
@@ -40,8 +43,10 @@ func TestIntegration_SpecLoopHappyPathCompletes(t *testing.T) {
 		Presenter:   presenter,
 	}
 
-	loopInstance, err := NewSpecLoop(adapters, &config.Config{}, noopDependencyGate{},
+	loopInstance, err := NewSpecLoop(adapters, cfg, noopDependencyGate{},
 		WithEmitter(emitter),
+		WithPlanStage(planStage),
+		WithPresentStage(presentStage, summaryCtx),
 		WithAcceptStage(accept),
 		WithDecomposeStage(decompose),
 		WithBeadLoop(beadLoop),
@@ -70,6 +75,7 @@ func TestIntegration_SpecLoopFailureHitsGenerationCap(t *testing.T) {
 
 	ctx := context.Background()
 	specID := "spec-integration-failure-gen-cap"
+	cfg := &config.Config{}
 
 	emitter := events.NewEmitter()
 	ch := emitter.Subscribe()
@@ -84,6 +90,8 @@ func TestIntegration_SpecLoopFailureHitsGenerationCap(t *testing.T) {
 	presenter := newFakePresenterAdapter(t)
 	accept := newScriptedAcceptStage(stagepkg.Result{Decision: stagepkg.DecisionFail})
 	decompose, beadLoop := newIntegrationLoopComponents(t, specID)
+	planStage := newFakePlanStage(specID)
+	presentStage, summaryCtx := newPresentStageForTest(t, cfg, presenter)
 
 	remediation := newIntegrationRemediationRunner(t, emitter, integrationRemediationConfig{
 		generationCap: 0,
@@ -97,8 +105,10 @@ func TestIntegration_SpecLoopFailureHitsGenerationCap(t *testing.T) {
 		Presenter:   presenter,
 	}
 
-	loopInstance, err := NewSpecLoop(adapters, &config.Config{}, noopDependencyGate{},
+	loopInstance, err := NewSpecLoop(adapters, cfg, noopDependencyGate{},
 		WithEmitter(emitter),
+		WithPlanStage(planStage),
+		WithPresentStage(presentStage, summaryCtx),
 		WithAcceptStage(accept),
 		WithRemediationRunner(remediation),
 		WithDecomposeStage(decompose),
@@ -131,6 +141,7 @@ func TestIntegration_SpecLoopRemediationAppliesGapAnalysis(t *testing.T) {
 
 	ctx := context.Background()
 	specID := "spec-integration-remediate"
+	cfg := &config.Config{}
 
 	emitter := events.NewEmitter()
 	ch := emitter.Subscribe()
@@ -153,6 +164,8 @@ func TestIntegration_SpecLoopRemediationAppliesGapAnalysis(t *testing.T) {
 		generationCap: -1,
 	})
 
+	planStage := newFakePlanStage(specID)
+	presentStage, summaryCtx := newPresentStageForTest(t, cfg, presenter)
 	adapters := adapter.AdapterSet{
 		Git:         git,
 		LLM:         llm,
@@ -160,8 +173,10 @@ func TestIntegration_SpecLoopRemediationAppliesGapAnalysis(t *testing.T) {
 		Presenter:   presenter,
 	}
 
-	loopInstance, err := NewSpecLoop(adapters, &config.Config{}, noopDependencyGate{},
+	loopInstance, err := NewSpecLoop(adapters, cfg, noopDependencyGate{},
 		WithEmitter(emitter),
+		WithPlanStage(planStage),
+		WithPresentStage(presentStage, summaryCtx),
 		WithAcceptStage(accept),
 		WithRemediationRunner(remediation),
 		WithDecomposeStage(decompose),

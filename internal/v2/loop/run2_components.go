@@ -15,6 +15,8 @@ import (
 	decomposestage "github.com/danabrams/gromit/internal/v2/stage/decompose"
 	epiloguestage "github.com/danabrams/gromit/internal/v2/stage/epilogue"
 	gatestage "github.com/danabrams/gromit/internal/v2/stage/gate"
+	planstage "github.com/danabrams/gromit/internal/v2/stage/plan"
+	present "github.com/danabrams/gromit/internal/v2/stage/present"
 	reviewstage "github.com/danabrams/gromit/internal/v2/stage/review"
 	stagevalidate "github.com/danabrams/gromit/internal/v2/stage/validate"
 )
@@ -24,48 +26,70 @@ type Run2LoopEmitter interface {
 	Close()
 }
 
+// Run2LoopComponents groups the stages and bead loop used by the Run2 command.
+type Run2LoopComponents struct {
+	PlanStage             stagepkg.Stage
+	PresentStage          stagepkg.Stage
+	PresentSummaryContext *present.SummaryContext
+	DecomposeStage        stagepkg.Stage
+	BeadLoop              *BeadLoop
+	Emitter               Run2LoopEmitter
+}
+
 // NewRun2LoopComponents builds the stages and bead loop that power the Run2 command.
-func NewRun2LoopComponents(cfg *config.Config, adapters adapter.AdapterSet, taskTracker tasktracker.TaskTracker, provider llm.LLMProvider, legacyEmitter *events.Emitter, output io.Writer) (stagepkg.Stage, *BeadLoop, Run2LoopEmitter, error) {
+func NewRun2LoopComponents(cfg *config.Config, adapters adapter.AdapterSet, taskTracker tasktracker.TaskTracker, provider llm.LLMProvider, legacyEmitter *events.Emitter, output io.Writer) (*Run2LoopComponents, error) {
 	typedEmitter := event.NewEmitter()
 	cleanup := func() {
 		typedEmitter.Close()
 	}
 
+	planStage, err := planstage.New(cfg, provider, "", "", "")
+	if err != nil {
+		cleanup()
+		return nil, err
+	}
+	summaryCtx := &present.SummaryContext{}
+	presentStage, err := present.New(cfg, adapters.Presenter, summaryCtx)
+	if err != nil {
+		cleanup()
+		return nil, err
+	}
+
 	decomposeStage, err := decomposestage.New(cfg, provider, taskTracker)
 	if err != nil {
 		cleanup()
-		return nil, nil, nil, err
+		return nil, err
 	}
 
 	gateStage, err := gatestage.New(cfg, taskTracker)
 	if err != nil {
 		cleanup()
-		return nil, nil, nil, err
+		return nil, err
 	}
 
 	buildStage, err := buildstage.New(cfg, provider, "", "", buildstage.PromptFragments{}, output)
 	if err != nil {
 		cleanup()
-		return nil, nil, nil, err
+		return nil, err
 	}
 
 	validateStage, err := stagevalidate.New(cfg, &noopValidationRunner{})
 	if err != nil {
 		cleanup()
-		return nil, nil, nil, err
+		return nil, err
 	}
 
 	reviewStage, err := reviewstage.New(cfg, adapters.Git, provider, taskTracker, "", "", "")
 	if err != nil {
 		cleanup()
-		return nil, nil, nil, err
+		return nil, err
 	}
 	reviewStage = reviewStage.WithEmitter(legacyEmitter)
 
 	epilogueStage, err := epiloguestage.New(cfg, taskTracker)
 	if err != nil {
 		cleanup()
-		return nil, nil, nil, err
+		return nil, err
 	}
 
 	beadLoop, err := NewBeadLoop(BeadLoopConfig{
@@ -79,10 +103,17 @@ func NewRun2LoopComponents(cfg *config.Config, adapters adapter.AdapterSet, task
 	})
 	if err != nil {
 		cleanup()
-		return nil, nil, nil, err
+		return nil, err
 	}
 
-	return decomposeStage, beadLoop, typedEmitter, nil
+	return &Run2LoopComponents{
+		PlanStage:             planStage,
+		PresentStage:          presentStage,
+		PresentSummaryContext: summaryCtx,
+		DecomposeStage:        decomposeStage,
+		BeadLoop:              beadLoop,
+		Emitter:               typedEmitter,
+	}, nil
 }
 
 type noopValidationRunner struct{}

@@ -15,6 +15,8 @@ import (
 	"github.com/danabrams/gromit/internal/v2/presentation"
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
 	stageaccept "github.com/danabrams/gromit/internal/v2/stage/accept"
+	planstage "github.com/danabrams/gromit/internal/v2/stage/plan"
+	present "github.com/danabrams/gromit/internal/v2/stage/present"
 )
 
 const (
@@ -94,6 +96,21 @@ func WithBeadLoop(runner BeadRunner) SpecLoopOption {
 	}
 }
 
+// WithPlanStage configures the plan stage the loop should execute.
+func WithPlanStage(stage stagepkg.Stage) SpecLoopOption {
+	return func(s *SpecLoop) {
+		s.planStage = stage
+	}
+}
+
+// WithPresentStage injects the presentation stage and context used by the loop.
+func WithPresentStage(stage stagepkg.Stage, ctx *present.SummaryContext) SpecLoopOption {
+	return func(s *SpecLoop) {
+		s.presentStage = stage
+		s.presentSummaryContext = ctx
+	}
+}
+
 // AdapterSet alias exposes the adapter basket consumed by the run loop.
 type AdapterSet = adapter.AdapterSet
 
@@ -104,16 +121,19 @@ type DependencyGate interface {
 
 // SpecLoop orchestrates the adapters that drive a single spec iteration.
 type SpecLoop struct {
-	adapters            adapter.AdapterSet
-	cfg                 *config.Config
-	gate                DependencyGate
-	recorder            StageRecorder
-	acceptStage         stagepkg.Stage
-	emitter             *events.Emitter
-	remediationRunner   remediationRunner
-	gapAnalysisFilename string
-	decomposeStage      stagepkg.Stage
-	beadRunner          BeadRunner
+	adapters              adapter.AdapterSet
+	cfg                   *config.Config
+	gate                  DependencyGate
+	recorder              StageRecorder
+	acceptStage           stagepkg.Stage
+	emitter               *events.Emitter
+	remediationRunner     remediationRunner
+	gapAnalysisFilename   string
+	decomposeStage        stagepkg.Stage
+	beadRunner            BeadRunner
+	planStage             stagepkg.Stage
+	presentStage          stagepkg.Stage
+	presentSummaryContext *present.SummaryContext
 }
 
 // NewSpecLoop constructs a spec loop backed by the provided adapters and configuration.
@@ -162,16 +182,20 @@ func (s *SpecLoop) Run(ctx context.Context, specID string, stopCh <-chan struct{
 
 	req := s.specStageRequest(specID, worktree)
 
+	var plan string
 	s.recordStage("plan")
-	plan, err := s.adapters.LLM.GeneratePlan(ctx, specID)
+	planRes, err := s.runPlanStage(ctx, req)
 	if err != nil {
-		return fmt.Errorf("generate plan: %w", err)
+		return fmt.Errorf("plan stage: %w", err)
 	}
-
-	if err := s.writePlanFile(worktree, plan); err != nil {
-		return fmt.Errorf("persist plan: %w", err)
+	if planRes == nil || planRes.Artifacts == nil {
+		return fmt.Errorf("plan stage returned no artifacts")
 	}
-
+	planArtifacts, ok := planRes.Artifacts.(*planstage.PlanArtifacts)
+	if !ok {
+		return fmt.Errorf("unexpected artifacts type from plan stage: %T", planRes.Artifacts)
+	}
+	plan = planArtifacts.Plan
 	if err := s.adapters.TaskTracker.RecordPlan(ctx, specID, plan); err != nil {
 		return fmt.Errorf("record plan: %w", err)
 	}
@@ -225,6 +249,17 @@ func (s *SpecLoop) runDecompose(ctx context.Context, req stagepkg.Request) ([]*b
 		return nil, fmt.Errorf("unexpected artifacts type from decompose stage")
 	}
 	return append([]*bead.Bead(nil), artifacts.Beads...), nil
+}
+
+func (s *SpecLoop) runPlanStage(ctx context.Context, req stagepkg.Request) (*stagepkg.Result, error) {
+	if s.planStage == nil {
+		return nil, fmt.Errorf("plan stage required")
+	}
+	res, err := s.planStage.Run(ctx, &req)
+	if err != nil {
+		return nil, err
+	}
+	return res, nil
 }
 
 func (s *SpecLoop) recordBeadStages() {
@@ -398,10 +433,37 @@ func (s *SpecLoop) cleanupWorktree(ctx context.Context, specID, worktree string,
 
 func (s *SpecLoop) presentSummary(ctx context.Context, specID string, summary presentation.PresentationSummary) error {
 	s.recordStage("present")
-	if err := s.adapters.Presenter.PresentSummary(ctx, specID, summary); err != nil {
-		return fmt.Errorf("present summary: %w", err)
+	if s.presentStage == nil || s.presentSummaryContext == nil {
+		return fmt.Errorf("present stage required")
+	}
+	s.populatePresentationContext(summary)
+	req := s.specStageRequest(specID, summary.Worktree)
+	res, err := s.presentStage.Run(ctx, &req)
+	if err != nil {
+		return err
+	}
+	if res != nil && res.Decision == stagepkg.DecisionFail {
+		return fmt.Errorf("present stage failed")
 	}
 	return nil
+}
+
+func (s *SpecLoop) populatePresentationContext(summary presentation.PresentationSummary) {
+	ctx := s.presentSummaryContext
+	if ctx == nil {
+		return
+	}
+	ctx.Plan = summary.Plan
+	ctx.Worktree = summary.Worktree
+	ctx.BeadSummaries = summary.BeadSummaries
+	ctx.Success = summary.Success
+	ctx.AcceptanceResults = summary.AcceptanceResults
+	ctx.OutOfScopeFindings = summary.OutOfScopeFindings
+	ctx.FailureSummary = summary.FailureSummary
+	ctx.RemainingWork = summary.RemainingWork
+	ctx.BranchLink = summary.BranchLink
+	ctx.DiffLink = summary.DiffLink
+	ctx.IntegrationBranch = summary.IntegrationBranch
 }
 
 func (s *SpecLoop) readGapAnalysis(worktree string) (string, error) {
@@ -421,26 +483,6 @@ func (s *SpecLoop) readGapAnalysis(worktree string) (string, error) {
 		return "", err
 	}
 	return strings.TrimSpace(string(data)), nil
-}
-
-func (s *SpecLoop) writePlanFile(worktree, plan string) error {
-	trimmed := strings.TrimSpace(worktree)
-	if trimmed == "" {
-		return fmt.Errorf("worktree required for plan persistence")
-	}
-	gromitDir := s.cfg.Paths.GromitDir
-	if gromitDir == "" {
-		gromitDir = defaultGromitDir
-	}
-	planDir := filepath.Join(trimmed, gromitDir, v2DirName)
-	if err := os.MkdirAll(planDir, 0o755); err != nil {
-		return fmt.Errorf("create plan directory: %w", err)
-	}
-	path := filepath.Join(planDir, "plan.md")
-	if err := os.WriteFile(path, []byte(plan), 0o644); err != nil {
-		return fmt.Errorf("write plan file: %w", err)
-	}
-	return nil
 }
 
 func (s *SpecLoop) recordStage(name string) {

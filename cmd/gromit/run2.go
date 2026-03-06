@@ -117,16 +117,18 @@ func run2(cmd *cobra.Command, args []string) error {
 		wg.Wait()
 	}()
 	provider := newRun2LLMProvider(cfg)
-	decomposeStage, beadLoop, typedLoopEmitter, err := loop.NewRun2LoopComponents(cfg, adapters, trackerAdapter, provider, emitter, cmd.ErrOrStderr())
+	components, err := loop.NewRun2LoopComponents(cfg, adapters, trackerAdapter, provider, emitter, cmd.ErrOrStderr())
 	if err != nil {
 		return fmt.Errorf("preparing run loop components: %w", err)
 	}
-	defer typedLoopEmitter.Close()
+	defer components.Emitter.Close()
 
 	baseOpts := []loop.SpecLoopOption{
 		newSpecLoopEmitterFn(emitter),
-		loop.WithDecomposeStage(decomposeStage),
-		loop.WithBeadLoop(beadLoop),
+		loop.WithPlanStage(components.PlanStage),
+		loop.WithPresentStage(components.PresentStage, components.PresentSummaryContext),
+		loop.WithDecomposeStage(components.DecomposeStage),
+		loop.WithBeadLoop(components.BeadLoop),
 	}
 	for _, specFile := range specFiles {
 		if err := specFile.CheckDependencies(specsDir); err != nil {
