@@ -62,6 +62,48 @@ func TestSpecLoopExecutesCanonicalStageChain(t *testing.T) {
 	verifyPlanFileJustInTime(t, git.lastWorktree, specID, recorder)
 }
 
+func TestSpecLoopRunsWithStages(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	specID := "acceptance-stage"
+
+	recorder := newRecordingStageRecorder()
+
+	git := newRecordingGitAdapter(t)
+	adapters := adapter.AdapterSet{
+		Git:         git,
+		LLM:         &fakeLLMAdapter{},
+		TaskTracker: &fakeTaskTrackerAdapter{},
+		Presenter:   &fakePresenterAdapter{},
+	}
+
+	cfg := &config.Config{}
+	gate := newDependencyGate()
+
+	planStage := newAcceptancePlanStage(specID + "-plan")
+	presentStage, summaryCtx := newAcceptancePresentStage()
+
+	specLoop, err := loop.NewSpecLoop(
+		adapters,
+		cfg,
+		gate,
+		loop.WithStageRecorder(recorder),
+		loop.WithPlanStage(planStage),
+		loop.WithPresentStage(presentStage, summaryCtx),
+		loop.WithDecomposeStage(newFakeDecomposeStage(specID)),
+		loop.WithBeadLoop(newFakeBeadRunner()),
+		loop.WithAcceptStage(newFakeAcceptStage()),
+	)
+	if err != nil {
+		t.Fatalf("NewSpecLoop error = %v", err)
+	}
+
+	if err := specLoop.Run(ctx, specID, nil); err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+}
+
 func TestStageResultCarriesDecisionArtifactsEvents(t *testing.T) {
 	t.Parallel()
 
