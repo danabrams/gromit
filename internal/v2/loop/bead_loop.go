@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/danabrams/gromit/internal/bead"
+	"github.com/danabrams/gromit/internal/events"
 	"github.com/danabrams/gromit/internal/queue"
 	"github.com/danabrams/gromit/internal/v2/dep"
 	"github.com/danabrams/gromit/internal/v2/event"
@@ -15,12 +16,13 @@ import (
 
 // BeadLoopConfig holds the stages required to process each bead.
 type BeadLoopConfig struct {
-	Gate     stage.Stage
-	Build    stage.Stage
-	Validate stage.Stage
-	Review   stage.Stage
-	Epilogue stage.Stage
-	Emitter  *event.Emitter
+	Gate          stage.Stage
+	Build         stage.Stage
+	Validate      stage.Stage
+	Review        stage.Stage
+	Epilogue      stage.Stage
+	Emitter       *event.Emitter
+	LegacyEmitter *events.Emitter
 }
 
 // BeadLoop orchestrates the per-bead execution pipeline.
@@ -50,14 +52,18 @@ func NewBeadLoop(config BeadLoopConfig) (*BeadLoop, error) {
 	if config.Epilogue == nil {
 		return nil, fmt.Errorf("epilogue stage required")
 	}
-	return &BeadLoop{
+	loop := &BeadLoop{
 		gate:     config.Gate,
 		build:    config.Build,
 		validate: config.Validate,
 		review:   config.Review,
 		epilogue: config.Epilogue,
 		emitter:  config.Emitter,
-	}, nil
+	}
+	if config.Emitter != nil && config.LegacyEmitter != nil {
+		event.BridgeTypedToLegacy(config.Emitter, config.LegacyEmitter)
+	}
+	return loop, nil
 }
 
 // Run processes the provided beads through the stage pipeline.

@@ -198,6 +198,13 @@ func TestBeadLoopBridgesToLegacyEmitter(t *testing.T) {
 	t.Parallel()
 
 	typed := event.NewEmitter()
+	typedEvents := make(chan event.TypedEvent, 8)
+	typed.Subscribe(func(evt event.TypedEvent) {
+		select {
+		case typedEvents <- evt:
+		default:
+		}
+	})
 	legacy := events.NewEmitter()
 	ch := legacy.Subscribe()
 	defer legacy.Unsubscribe(ch)
@@ -222,6 +229,14 @@ func TestBeadLoopBridgesToLegacyEmitter(t *testing.T) {
 		t.Fatalf("Run failed: %v", err)
 	}
 
+	select {
+	case evt := <-typedEvents:
+		if _, ok := evt.(event.BeadStartedEvent); !ok {
+			t.Fatalf("typed event type = %T, want event.BeadStartedEvent", evt)
+		}
+	case <-time.After(250 * time.Millisecond):
+		t.Fatal("expected typed emitter to emit events")
+	}
 	select {
 	case evt := <-ch:
 		if _, ok := evt.(*events.IterationStartEvent); !ok {
