@@ -47,6 +47,27 @@ var allowedCommandInternalImports = map[string]struct{}{
 	"github.com/danabrams/gromit/internal/worktree":         {},
 }
 
+func TestAllowedCommandInternalImportsIncludesRun2Dependencies(t *testing.T) {
+	t.Helper()
+	for _, pkg := range []string{
+		"github.com/danabrams/gromit/internal/events",
+		"github.com/danabrams/gromit/internal/events/cli",
+		"github.com/danabrams/gromit/internal/events/stream",
+		"github.com/danabrams/gromit/internal/v2/adapter",
+		"github.com/danabrams/gromit/internal/v2/adapter/git",
+		"github.com/danabrams/gromit/internal/v2/adapter/llm",
+		"github.com/danabrams/gromit/internal/v2/adapter/presenter",
+		"github.com/danabrams/gromit/internal/v2/adapter/tasktracker",
+		"github.com/danabrams/gromit/internal/v2/dep",
+		"github.com/danabrams/gromit/internal/v2/loop",
+		"github.com/danabrams/gromit/internal/v2/spec",
+	} {
+		if _, ok := allowedCommandInternalImports[pkg]; !ok {
+			t.Fatalf("allowed command imports missing %q", pkg)
+		}
+	}
+}
+
 func assertCommandFilesOnlyImportAllowedInternalPackages(t *testing.T) {
 	t.Helper()
 	violations, err := findForbiddenCommandInternalImports()
