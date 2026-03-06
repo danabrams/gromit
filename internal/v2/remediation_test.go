@@ -50,6 +50,44 @@ func TestRemediationRunnerRun_requiresValidDecomposeArtifacts(t *testing.T) {
 	}
 }
 
+func TestRemediationRunnerUsesDefaultGenerationCapWhenZero(t *testing.T) {
+	ctx := context.Background()
+
+	failuresRemaining := 3
+	accept := &testStage{
+		name: "accept",
+		run: func(ctx context.Context, _ *stage.Request) (*stage.StageResult, error) {
+			if failuresRemaining > 0 {
+				failuresRemaining--
+				return &stage.StageResult{Decision: stage.DecisionFail}, nil
+			}
+			return &stage.StageResult{Decision: stage.DecisionProceed}, nil
+		},
+	}
+
+	decomposeCalls := 0
+	decompose := &testStage{
+		name: "decompose",
+		run: func(ctx context.Context, _ *stage.Request) (*stage.StageResult, error) {
+			decomposeCalls++
+			return &stage.StageResult{
+				Artifacts: &stage.DecomposeArtifacts{
+					Beads: []*bead.Bead{{ID: "generated"}},
+				},
+			}, nil
+		},
+	}
+
+	runner := newRunnerForRemediationCycle(accept, decompose, &testBeadRunner{}, 0)
+	if err := runner.Run(ctx, "spec-id"); err != nil {
+		t.Fatalf("remediation run failed: %v", err)
+	}
+
+	if decomposeCalls != 3 {
+		t.Fatalf("decompose calls = %d, want 3", decomposeCalls)
+	}
+}
+
 func newRunnerForSpecValidation() *RemediationRunner {
 	return NewRemediationRunner(RemediationRunnerConfig{})
 }
