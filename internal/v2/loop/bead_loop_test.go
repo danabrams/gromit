@@ -3,8 +3,10 @@ package loop
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/danabrams/gromit/internal/bead"
+	"github.com/danabrams/gromit/internal/events"
 	"github.com/danabrams/gromit/internal/v2/event"
 	"github.com/danabrams/gromit/internal/v2/stage"
 )
@@ -189,6 +191,44 @@ func TestBeadLoopEmitsLifecycleEvents(t *testing.T) {
 	}
 	if !completed.Success {
 		t.Fatalf("expected success completion event, got %#v", completed)
+	}
+}
+
+func TestBeadLoopBridgesToLegacyEmitter(t *testing.T) {
+	t.Parallel()
+
+	typed := event.NewEmitter()
+	legacy := events.NewEmitter()
+	ch := legacy.Subscribe()
+	defer legacy.Unsubscribe(ch)
+
+	config := BeadLoopConfig{
+		Gate:          newNoopStage("gate"),
+		Build:         newNoopStage("build"),
+		Validate:      newNoopStage("validate"),
+		Review:        newNoopStage("review"),
+		Epilogue:      newNoopStage("epilogue"),
+		Emitter:       typed,
+		LegacyEmitter: legacy,
+	}
+
+	beads := []*bead.Bead{{ID: "bridge-bead"}}
+	loop, err := NewBeadLoop(config)
+	if err != nil {
+		t.Fatalf("NewBeadLoop: %v", err)
+	}
+
+	if err := loop.Run(context.Background(), beads); err != nil {
+		t.Fatalf("Run failed: %v", err)
+	}
+
+	select {
+	case evt := <-ch:
+		if _, ok := evt.(*events.IterationStartEvent); !ok {
+			t.Fatalf("legacy event type = %T, want *events.IterationStartEvent", evt)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for legacy event")
 	}
 }
 
