@@ -260,3 +260,24 @@ func (g *recordingGitAdapter) Checkout(_ context.Context, specID string) (string
 	g.lastWorktree = worktree
 	return worktree, nil
 }
+
+func (g *recordingGitAdapter) Diff(_ context.Context, worktree string) (string, error) {
+	_ = worktree
+	return "", nil
+}
+
+func (g *recordingGitAdapter) Commit(_ context.Context, worktree, message string) (string, error) {
+	_ = worktree
+	_ = message
+	return "commit-hash", nil
+}
+
+func (g *recordingGitAdapter) RemoveWorktree(_ context.Context, worktree string) error {
+	_ = worktree
+	return nil
+}
+
+func (g *recordingGitAdapter) Status(_ context.Context, worktree string) (string, error) {
+	_ = worktree
+	return "clean", nil
+}
