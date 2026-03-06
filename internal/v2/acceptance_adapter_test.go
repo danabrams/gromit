@@ -203,6 +203,14 @@ func assertLoopImportsConfigPackage(t *testing.T) {
 	}
 }
 
+func TestStagePackageRoot(t *testing.T) {
+	t.Helper()
+	want := filepath.Join("..", "..", "stage")
+	if got := stagePackageRoot(); got != want {
+		t.Fatalf("expected stage package root %s, got %s", want, got)
+	}
+}
+
 type fakeGitAdapter struct{}
 
 func (fakeGitAdapter) Checkout(_ context.Context, specID string) (string, error) {
