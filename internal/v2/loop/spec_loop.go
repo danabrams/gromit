@@ -200,9 +200,6 @@ func (s *SpecLoop) Run(ctx context.Context, specID string, stopCh <-chan struct{
 		return fmt.Errorf("unexpected artifacts type from plan stage: %T", planRes.Artifacts)
 	}
 	plan = planArtifacts.Plan
-	if err := s.adapters.TaskTracker.RecordPlan(ctx, specID, plan); err != nil {
-		return fmt.Errorf("record plan: %w", err)
-	}
 
 	if err := s.ctxErr(ctx); err != nil {
 		return err

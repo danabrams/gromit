@@ -223,11 +223,6 @@ type fatalTaskTrackerAdapter struct {
 	t *testing.T
 }
 
-func (f *fatalTaskTrackerAdapter) RecordPlan(context.Context, string, string) error {
-	f.t.Fatalf("task tracker should not run when dependencies block")
-	return nil
-}
-
 type fatalPresenterAdapter struct {
 	t *testing.T
 }

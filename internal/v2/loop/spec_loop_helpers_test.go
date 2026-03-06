@@ -128,19 +128,10 @@ func (f *fakeLLMAdapter) planFor(specID string) string {
 	return specID + "-plan"
 }
 
-type fakeTaskTrackerAdapter struct {
-	lastSpecID string
-	lastPlan   string
-}
+type fakeTaskTrackerAdapter struct{}
 
 func newFakeTaskTrackerAdapter() *fakeTaskTrackerAdapter {
 	return &fakeTaskTrackerAdapter{}
-}
-
-func (f *fakeTaskTrackerAdapter) RecordPlan(ctx context.Context, specID, plan string) error {
-	f.lastSpecID = specID
-	f.lastPlan = plan
-	return nil
 }
 
 type fakePresenterAdapter struct {

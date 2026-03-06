@@ -178,10 +178,6 @@ func TestSpecLoopHappyPathExecutesPipeline(t *testing.T) {
 		t.Fatalf("run spec loop: %v", err)
 	}
 
-	if taskTracker.lastPlan != llm.planFor(specID) {
-		t.Fatalf("plan recorded = %q, want %q", taskTracker.lastPlan, llm.planFor(specID))
-	}
-
 	if !beadRunner.ran {
 		t.Fatalf("expected bead loop to run")
 	}
@@ -261,9 +257,6 @@ func TestSpecLoopUsesPlanStage(t *testing.T) {
 	}
 	if planStage.lastRequest.Worktree != git.lastWorktree {
 		t.Fatalf("plan request worktree = %q, want %q", planStage.lastRequest.Worktree, git.lastWorktree)
-	}
-	if taskTracker.lastPlan != planStage.plan {
-		t.Fatalf("plan recorded = %q, want %q", taskTracker.lastPlan, planStage.plan)
 	}
 }
 

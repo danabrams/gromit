@@ -117,14 +117,6 @@ func (a *BDAdapter) QueryBeads(ctx context.Context, req QueryBeadsRequest) (*Que
 	return response, nil
 }
 
-// RecordPlan persists the generated plan for the spec.
-func (a *BDAdapter) RecordPlan(ctx context.Context, specID, plan string) error {
-	_ = ctx
-	_ = specID
-	_ = plan
-	return nil
-}
-
 func convertBead(b *bead.Bead) *Bead {
 	if b == nil {
 		return nil

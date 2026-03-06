@@ -20,9 +20,8 @@ type LLMAdapter interface {
 	GeneratePlan(ctx context.Context, specID string) (plan string, err error)
 }
 
-// TaskTrackerAdapter records the generated plan into the task tracker.
+// TaskTrackerAdapter provides task-tracker operations for the run loop.
 type TaskTrackerAdapter interface {
-	RecordPlan(ctx context.Context, specID, plan string) error
 }
 
 // PresenterAdapter surfaces completed specs to product owners.

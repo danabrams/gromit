@@ -16,13 +16,6 @@ type FakeTaskTracker struct {
 	beads       map[string]*tasktracker.Bead
 	order       []string
 	nextID      int
-	PlanRecords []PlanRecord
-}
-
-// PlanRecord captures the spec plan recorded via RecordPlan.
-type PlanRecord struct {
-	SpecID string
-	Plan   string
 }
 
 // NewFakeTaskTracker constructs a tracker seeded with no beads.
@@ -121,15 +114,6 @@ func (f *FakeTaskTracker) QueryBeads(_ context.Context, req tasktracker.QueryBea
 		filtered = append(filtered, *cloneBead(bead))
 	}
 	return &tasktracker.QueryBeadsResponse{Beads: filtered}, nil
-}
-
-// RecordPlan captures the computed plan for later inspection.
-func (f *FakeTaskTracker) RecordPlan(_ context.Context, specID, plan string) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-
-	f.PlanRecords = append(f.PlanRecords, PlanRecord{SpecID: specID, Plan: plan})
-	return nil
 }
 
 func (f *FakeTaskTracker) hasPendingDependencies(bead *tasktracker.Bead) bool {

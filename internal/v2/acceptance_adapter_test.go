@@ -250,12 +250,6 @@ func (fakeLLMAdapter) GeneratePlan(_ context.Context, specID string) (string, er
 
 type fakeTaskTrackerAdapter struct{}
 
-func (fakeTaskTrackerAdapter) RecordPlan(_ context.Context, specID, plan string) error {
-	_ = specID
-	_ = plan
-	return nil
-}
-
 type fakePresenterAdapter struct{}
 
 func (fakePresenterAdapter) PresentSummary(_ context.Context, specID string, summary presentation.PresentationSummary) error {
