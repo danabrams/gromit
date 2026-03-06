@@ -278,9 +278,9 @@ func TestCapHitDetectsWhenGenerationThresholdExceeded(t *testing.T) {
 	}
 
 	// StartGeneration = 0, cap = 3, threshold = 3
-	// Current generation 2 < 3, so CapHit should be false
-	if result.CapHit {
-		t.Fatalf("CapHit = true, want false for generation 2")
+	// Cap was already hit, so CapHit should remain true even though generation decreases
+	if !result.CapHit {
+		t.Fatalf("CapHit = false, want true after cap already hit")
 	}
 }
 

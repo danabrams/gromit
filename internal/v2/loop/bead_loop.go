@@ -28,6 +28,7 @@ type BeadLoop struct {
 	GenerationCap       int
 	startGeneration     int
 	startGenInitialized bool
+	capReached          bool
 	Emitter             *events.Emitter
 }
 
@@ -63,12 +64,15 @@ func (b *BeadLoop) Run(ctx context.Context, req stage.Request) (*BeadLoopResult,
 		StartGeneration: b.startGeneration,
 	}
 
-	// Check if generation cap is reached
+	// Check if generation cap is reached and persist the flag once triggered
 	capThreshold := b.startGeneration + b.GenerationCap
-	if currentGen >= capThreshold {
-		result.CapHit = true
+	if currentGen >= capThreshold && !b.capReached {
+		b.capReached = true
 		b.emitGenerationCapReached()
-		return result, nil
+	}
+
+	if b.capReached {
+		result.CapHit = true
 	}
 
 	for _, spec := range b.stages {
