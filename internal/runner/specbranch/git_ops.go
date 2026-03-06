@@ -166,6 +166,60 @@ func removeStaleWorktree(ctx context.Context, repoDir, worktreePath string) (att
 	return true, nil
 }
 
+// isMainWorktree returns true if candidatePath is the main (non-linked) worktree
+// for the repository that repoDir belongs to. This is determined by comparing the
+// candidate path to the parent of the git common directory.
+func isMainWorktree(ctx context.Context, repoDir, candidatePath string) bool {
+	output, err := runGitCommandWithOutput(ctx, repoDir, "rev-parse", "--git-common-dir")
+	if err != nil {
+		return false
+	}
+	commonDir := strings.TrimSpace(output.stdout)
+	if !filepath.IsAbs(commonDir) {
+		commonDir = filepath.Join(repoDir, commonDir)
+	}
+	mainDir, err := filepath.Abs(filepath.Dir(commonDir))
+	if err != nil {
+		return false
+	}
+	absCandidate, err := filepath.Abs(candidatePath)
+	if err != nil {
+		return false
+	}
+	return mainDir == absCandidate
+}
+
+// detachWorktreeHead detaches HEAD in the given worktree directory so that the
+// branch it currently holds is released for checkout elsewhere. This is used when
+// a non-stale worktree (e.g. the main repo) holds a spec branch that a session
+// worktree needs. Returns (true, nil) on success, (true, err) on failure, or
+// (false, nil) if the path doesn't appear to be a valid git worktree.
+//
+// If a plain detach fails (e.g. due to dirty tracked files), falls back to
+// stash-detach-pop so the worktree's uncommitted changes are preserved.
+func detachWorktreeHead(ctx context.Context, worktreePath string) (attempted bool, err error) {
+	if _, statErr := os.Stat(filepath.Join(worktreePath, ".git")); statErr != nil {
+		return false, nil
+	}
+	_, err = runGitCommandWithOutput(ctx, worktreePath, "checkout", "--detach")
+	if err == nil {
+		return true, nil
+	}
+
+	// Fallback: stash dirty files, detach, then restore.
+	_, stashErr := runGitCommandWithOutput(ctx, worktreePath, "stash", "push", "-m", "gromit-detach-auto")
+	if stashErr != nil {
+		return true, fmt.Errorf("detach HEAD in worktree %s: %w (stash also failed: %v)", worktreePath, err, stashErr)
+	}
+	_, detachErr := runGitCommandWithOutput(ctx, worktreePath, "checkout", "--detach")
+	// Best-effort restore of stashed changes regardless of detach outcome.
+	_, _ = runGitCommandWithOutput(ctx, worktreePath, "stash", "pop")
+	if detachErr != nil {
+		return true, fmt.Errorf("detach HEAD in worktree %s after stash: %w", worktreePath, detachErr)
+	}
+	return true, nil
+}
+
 // chmodWritableRecursive makes all files and directories under root writable by
 // the owner. This is needed because Go module caches (and similar) use read-only
 // permissions that prevent os.RemoveAll from succeeding.
@@ -251,6 +305,8 @@ func (g *GitOps) CreateOrCheckoutSpecBranch(ctx context.Context, specBranchName 
 	}
 
 	// If the branch is held by a stale gromit worktree, try to remove it and retry.
+	// If held by a non-stale worktree (e.g. the main repo), detach that worktree's
+	// HEAD to release the branch, then retry.
 	if worktreePath, ok := parseWorktreeConflictPath(checkoutCombined); ok {
 		if attempted, removeErr := removeStaleWorktree(ctx, g.repoDir, worktreePath); attempted {
 			if removeErr != nil {
@@ -268,6 +324,28 @@ func (g *GitOps) CreateOrCheckoutSpecBranch(ctx context.Context, specBranchName 
 				)
 			}
 			return nil
+		}
+
+		// If the main repo worktree holds the branch (common when a session
+		// worktree needs the spec branch), detach the main repo's HEAD to
+		// release it. Detaching is safe: it only changes the symbolic ref,
+		// not the working tree files. We only do this for the main worktree,
+		// not for arbitrary user-created worktrees.
+		if isMainWorktree(ctx, g.repoDir, worktreePath) {
+			released, releaseErr := detachWorktreeHead(ctx, worktreePath)
+			if released && releaseErr == nil {
+				retryOutput, retryErr := runGitCommandWithOutput(ctx, g.repoDir, "checkout", specBranchName)
+				if retryErr == nil {
+					return nil
+				}
+				checkoutOutput = retryOutput
+				checkoutErr = retryErr
+			} else if released && releaseErr != nil {
+				return fmt.Errorf(
+					"failed to checkout spec branch %s: branch held by main worktree %s, release failed: %w",
+					specBranchName, worktreePath, releaseErr,
+				)
+			}
 		}
 	}
 
