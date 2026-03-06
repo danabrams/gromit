@@ -36,6 +36,10 @@ var run2Cmd = &cobra.Command{
 	RunE:  run2,
 }
 
+func init() {
+	run2Cmd.Flags().String("epic", "", "Run specs scoped to the specified epic")
+}
+
 var (
 	newSpecLoopFn = func(adapters adapter.AdapterSet, cfg *config.Config, gate loop.DependencyGate, opts ...loop.SpecLoopOption) (specLoop, error) {
 		loopInstance, err := loop.NewSpecLoop(adapters, cfg, gate, opts...)

@@ -176,6 +176,52 @@ func TestRun2WiresStageOptions(t *testing.T) {
 	}
 }
 
+func TestRun2EpicFlagRunsAllSpecs(t *testing.T) {
+	specsDir, cleanup := setupRun2TestEnv(t)
+	defer cleanup()
+
+	alpha := writeSpecFile(t, specsDir, "alpha", map[string]string{"id": "alpha", "epic": "suite"})
+	beta := writeSpecFile(t, specsDir, "beta", map[string]string{"id": "beta", "epic": "suite"})
+	_ = beta
+	writeSpecFile(t, specsDir, "other", map[string]string{"id": "other", "epic": "different"})
+
+	if err := run2Cmd.Flags().Set("epic", "suite"); err != nil {
+		t.Fatalf("setting epic flag: %v", err)
+	}
+	defer func() {
+		if err := run2Cmd.Flags().Set("epic", ""); err != nil {
+			t.Fatalf("resetting epic flag: %v", err)
+		}
+	}()
+
+	stubSubscribers := startRun2SubscribersFn
+	startRun2SubscribersFn = func(ctx context.Context, emitter *events.Emitter, output io.Writer, logsDir string) (*sync.WaitGroup, error) {
+		return &sync.WaitGroup{}, nil
+	}
+	defer func() { startRun2SubscribersFn = stubSubscribers }()
+
+	var executed []string
+	stubLoop := newSpecLoopFn
+	newSpecLoopFn = func(adapters adapter.AdapterSet, cfg *config.Config, gate loop.DependencyGate, opts ...loop.SpecLoopOption) (specLoop, error) {
+		return &recordingSpecLoop{recorded: &executed}, nil
+	}
+	defer func() { newSpecLoopFn = stubLoop }()
+
+	run2Cmd.SetOut(io.Discard)
+	run2Cmd.SetErr(io.Discard)
+
+	if err := run2Cmd.RunE(run2Cmd, []string{alpha}); err != nil {
+		t.Fatalf("unexpected run error: %v", err)
+	}
+
+	if len(executed) != 2 {
+		t.Fatalf("executed specs = %d, want %d", len(executed), 2)
+	}
+	if executed[0] != "alpha" || executed[1] != "beta" {
+		t.Fatalf("executed order = %v, want [alpha beta]", executed)
+	}
+}
+
 func setupRun2TestEnv(t *testing.T) (string, func()) {
 	t.Helper()
 
@@ -248,6 +294,18 @@ func (f *fakeSpecLoop) Run(ctx context.Context, specID string, stopCh <-chan str
 	f.called = true
 	f.runSpecID = specID
 	f.stopCh = stopCh
+	return nil
+}
+
+type recordingSpecLoop struct {
+	recorded *[]string
+}
+
+func (r *recordingSpecLoop) Run(ctx context.Context, specID string, stopCh <-chan struct{}) error {
+	if r == nil || r.recorded == nil {
+		return nil
+	}
+	*r.recorded = append(*r.recorded, specID)
 	return nil
 }
 
