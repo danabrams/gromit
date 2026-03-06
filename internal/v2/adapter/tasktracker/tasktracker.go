@@ -16,18 +16,24 @@ type Bead struct {
 	Dependents []string // IDs of beads depending on this
 }
 
-// NextBeadRequest defines filters used to select the next bead.
-type NextBeadRequest struct {
+// TaskTrackerNextBeadRequest defines filters used to select the next bead.
+type TaskTrackerNextBeadRequest struct {
 	Labels []string
 }
 
-// NextBeadResponse wraps the bead that should be worked on next.
-type NextBeadResponse struct {
+// TaskTrackerNextBeadResponse wraps the bead that should be worked on next.
+type TaskTrackerNextBeadResponse struct {
 	Bead *Bead
 }
 
-// CreateBeadRequest carries the properties for a new bead.
-type CreateBeadRequest struct {
+// NextBeadRequest is retained for backwards compatibility with existing callers.
+type NextBeadRequest = TaskTrackerNextBeadRequest
+
+// NextBeadResponse is retained for backwards compatibility with existing callers.
+type NextBeadResponse = TaskTrackerNextBeadResponse
+
+// TaskTrackerCreateBeadRequest carries the properties for a new bead.
+type TaskTrackerCreateBeadRequest struct {
 	Title        string
 	Description  string
 	Priority     int
@@ -35,48 +41,66 @@ type CreateBeadRequest struct {
 	Dependencies []string
 }
 
-// CreateBeadResponse returns the bead that was created.
-type CreateBeadResponse struct {
+// TaskTrackerCreateBeadResponse returns the bead that was created.
+type TaskTrackerCreateBeadResponse struct {
 	Bead *Bead
 }
 
-// CloseBeadRequest identifies which bead should be closed.
-type CloseBeadRequest struct {
+// CreateBeadRequest is retained for backwards compatibility with existing callers.
+type CreateBeadRequest = TaskTrackerCreateBeadRequest
+
+// CreateBeadResponse is retained for backwards compatibility with existing callers.
+type CreateBeadResponse = TaskTrackerCreateBeadResponse
+
+// TaskTrackerCloseBeadRequest identifies which bead should be closed.
+type TaskTrackerCloseBeadRequest struct {
 	BeadID string
 }
 
-// CloseBeadResponse reports whether the bead was closed.
-type CloseBeadResponse struct {
+// TaskTrackerCloseBeadResponse reports whether the bead was closed.
+type TaskTrackerCloseBeadResponse struct {
 	Closed bool
 }
 
-// QueryBeadsRequest filters the bead set.
-type QueryBeadsRequest struct {
+// CloseBeadRequest is retained for backwards compatibility with existing callers.
+type CloseBeadRequest = TaskTrackerCloseBeadRequest
+
+// CloseBeadResponse is retained for backwards compatibility with existing callers.
+type CloseBeadResponse = TaskTrackerCloseBeadResponse
+
+// TaskTrackerQueryBeadsRequest filters the bead set.
+type TaskTrackerQueryBeadsRequest struct {
 	Labels []string
 	Status string
 	Parent string
 }
 
-// QueryBeadsResponse returns beads that match the filters.
-type QueryBeadsResponse struct {
+// TaskTrackerQueryBeadsResponse returns beads that match the filters.
+type TaskTrackerQueryBeadsResponse struct {
 	Beads []Bead
 }
+
+// QueryBeadsRequest is retained for backwards compatibility with existing callers.
+type QueryBeadsRequest = TaskTrackerQueryBeadsRequest
+
+// QueryBeadsResponse is retained for backwards compatibility with existing callers.
+type QueryBeadsResponse = TaskTrackerQueryBeadsResponse
 
 // TaskTracker provides operations for querying and managing tasks via bd
 type TaskTracker interface {
 	// NextBead returns the next open bead with dependency information
-	NextBead(ctx context.Context, req NextBeadRequest) (*NextBeadResponse, error)
+	NextBead(ctx context.Context, req TaskTrackerNextBeadRequest) (*TaskTrackerNextBeadResponse, error)
 
 	// ShowBead returns metadata for the specified bead.
 	ShowBead(ctx context.Context, beadID string) (*Bead, error)
 
 	// CreateBead creates a new bead with the given properties
 	// It automatically adds a gen:N label and declares dependencies
-	CreateBead(ctx context.Context, req CreateBeadRequest) (*CreateBeadResponse, error)
+	CreateBead(ctx context.Context, req TaskTrackerCreateBeadRequest) (*TaskTrackerCreateBeadResponse, error)
 
 	// CloseBead marks a bead as closed
-	CloseBead(ctx context.Context, req CloseBeadRequest) (*CloseBeadResponse, error)
+	CloseBead(ctx context.Context, req TaskTrackerCloseBeadRequest) (*TaskTrackerCloseBeadResponse, error)
 
 	// QueryBeads filters beads by labels, status, and parent
-	QueryBeads(ctx context.Context, req QueryBeadsRequest) (*QueryBeadsResponse, error)
+	QueryBeads(ctx context.Context, req TaskTrackerQueryBeadsRequest) (*TaskTrackerQueryBeadsResponse, error)
 }
