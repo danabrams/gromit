@@ -2,6 +2,7 @@ package loop
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/events"
@@ -284,6 +285,58 @@ func TestCapHitDetectsWhenGenerationThresholdExceeded(t *testing.T) {
 	}
 }
 
+func TestEmitsStageRetryingEvent(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	emitter := events.NewEmitter()
+	eventChan := emitter.Subscribe()
+
+	testStage := &failingStage{
+		name:      "test",
+		failUntil: 1,
+	}
+
+	beadLoop, err := NewBeadLoop([]StageSpec{
+		{
+			Stage: testStage,
+			Retry: stage.RetryConfig{MaxRetries: 1},
+		},
+	})
+	if err != nil {
+		t.Fatalf("construct bead loop: %v", err)
+	}
+
+	beadLoop.Emitter = emitter
+
+	req := stage.Request{
+		Bead: stage.BeadInfo{
+			ID:     "test-bead",
+			Labels: []string{"gen:0"},
+		},
+	}
+
+	_, err = beadLoop.Run(ctx, req)
+	if err != nil {
+		t.Fatalf("run bead loop: %v", err)
+	}
+
+	// Check that StageRetrying event was emitted
+	var foundEvent bool
+	select {
+	case evt := <-eventChan:
+		if _, ok := evt.(*events.StageRetryingEvent); ok {
+			foundEvent = true
+		}
+	default:
+		// No event emitted
+	}
+
+	if !foundEvent {
+		t.Fatalf("expected StageRetryingEvent to be emitted, but it was not")
+	}
+}
+
 func TestCapHitPersistsAfterThreshold(t *testing.T) {
 	t.Parallel()
 
@@ -468,5 +521,24 @@ func (s *trackingStage) Name() string {
 
 func (s *trackingStage) Run(ctx context.Context, req *stage.Request) (*stage.Result, error) {
 	s.runCount++
+	return &stage.Result{Decision: stage.DecisionProceed}, nil
+}
+
+// failingStage fails on first attempt, succeeds on retry
+type failingStage struct {
+	name      string
+	runCount  int
+	failUntil int
+}
+
+func (s *failingStage) Name() string {
+	return s.name
+}
+
+func (s *failingStage) Run(ctx context.Context, req *stage.Request) (*stage.Result, error) {
+	s.runCount++
+	if s.runCount <= s.failUntil {
+		return nil, fmt.Errorf("stage failed")
+	}
 	return &stage.Result{Decision: stage.DecisionProceed}, nil
 }
