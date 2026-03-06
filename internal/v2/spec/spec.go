@@ -15,6 +15,7 @@ import (
 type Spec struct {
 	ID                    string
 	Path                  string
+	Epic                  string
 	DependsOn             []string
 	Accepted              bool
 	ArchitectureDirection string
@@ -69,6 +70,7 @@ func Load(path string) (*Spec, error) {
 	return &Spec{
 		ID:                    specID,
 		Path:                  path,
+		Epic:                  parseEpic(front),
 		DependsOn:             parseDependencies(front),
 		Accepted:              parseAccepted(front["accepted"]),
 		ArchitectureDirection: extractSection(body, "Architecture Direction"),
@@ -214,6 +216,20 @@ func parseDepends(raw interface{}) []string {
 	}
 
 	return deps
+}
+
+func parseEpic(front map[string]interface{}) string {
+	if front == nil {
+		return ""
+	}
+	value, ok := front["epic"]
+	if !ok {
+		return ""
+	}
+	if str, ok := value.(string); ok {
+		return strings.TrimSpace(str)
+	}
+	return ""
 }
 
 func parseAccepted(raw interface{}) bool {
