@@ -168,6 +168,38 @@ func TestEmitterFansOutEvents(t *testing.T) {
 	}
 }
 
+func TestEmitterFansOutAllEventsDespiteSlowSubscriber(t *testing.T) {
+	emitter := NewEmitter()
+	const totalEvents = 64
+	started := make(chan struct{})
+	release := make(chan struct{})
+	processed := make(chan struct{}, totalEvents)
+	var once sync.Once
+
+	emitter.Subscribe(func(Event) {
+		once.Do(func() { close(started) })
+		<-release
+		processed <- struct{}{}
+	})
+
+	emitter.Emit(Event{Type: "slow-handshake"})
+	<-started
+
+	for i := 0; i < totalEvents-1; i++ {
+		emitter.Emit(Event{Type: "slow"})
+	}
+
+	close(release)
+
+	for i := 0; i < totalEvents; i++ {
+		select {
+		case <-processed:
+		case <-time.After(time.Second):
+			t.Fatalf("event %d never processed", i)
+		}
+	}
+}
+
 func TestEmitterIsolatesSlowAndPanicSubscribers(t *testing.T) {
 	emitter := NewEmitter()
 
