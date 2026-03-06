@@ -1,54 +1,56 @@
 package git
 
-import (
-	"context"
-	"fmt"
-	"os"
-	"os/exec"
-	"path/filepath"
-	"strings"
+import "context"
 
-	"github.com/danabrams/gromit/internal/v2/adapter"
-)
-
-var _ adapter.GitAdapter = (*ExecGitAdapter)(nil)
-
-// ExecGitAdapter implements GitAdapter using exec.Command("git", ...).
-type ExecGitAdapter struct {
-	worktreesDir string
+// CreateWorktreeRequest describes the inputs required to make a new worktree.
+type CreateWorktreeRequest struct {
+	SpecID       string
+	Reference    string
+	WorktreeRoot string
 }
 
-// NewExecGitAdapter returns an ExecGitAdapter that creates worktrees under worktreesDir.
-func NewExecGitAdapter(worktreesDir string) *ExecGitAdapter {
-	return &ExecGitAdapter{worktreesDir: worktreesDir}
+// CreateWorktreeResponse describes the created worktree path.
+type CreateWorktreeResponse struct {
+	Worktree string
 }
 
-// Checkout creates a git worktree for the given specID and returns its path.
-func (a *ExecGitAdapter) Checkout(ctx context.Context, specID string) (string, error) {
-	wtPath := filepath.Join(a.worktreesDir, specID)
-	if err := os.MkdirAll(filepath.Dir(wtPath), 0o755); err != nil {
-		return "", fmt.Errorf("creating worktrees dir: %w", err)
-	}
-
-	cmd := exec.CommandContext(ctx, "git", "worktree", "add", wtPath, "HEAD")
-	if out, err := cmd.CombinedOutput(); err != nil {
-		return "", fmt.Errorf("git worktree add: %s: %w", out, err)
-	}
-
-	return wtPath, nil
+// RemoveWorktreeRequest describes a request to remove an existing worktree.
+type RemoveWorktreeRequest struct {
+	Worktree string
+	Force    bool
 }
 
-// Diff returns the current diff for the provided worktree.
-func (a *ExecGitAdapter) Diff(ctx context.Context, worktree string) (string, error) {
-	if strings.TrimSpace(worktree) == "" {
-		return "", fmt.Errorf("worktree required")
-	}
-	cmd := exec.CommandContext(ctx, "git", "diff", "HEAD")
-	cmd.Dir = worktree
+// RemoveWorktreeResponse communicates whether the removal happened.
+type RemoveWorktreeResponse struct {
+	Removed bool
+}
 
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return "", fmt.Errorf("git diff: %s: %w", out, err)
-	}
-	return string(out), nil
+// CommitRequest describes the inputs to commit work within a worktree.
+type CommitRequest struct {
+	Worktree string
+	Message  string
+	Amend    bool
+}
+
+// CommitResponse reports the resulting commit hash.
+type CommitResponse struct {
+	CommitHash string
+}
+
+// DiffRequest describes the worktree to diff.
+type DiffRequest struct {
+	Worktree string
+}
+
+// DiffResponse carries the diff output.
+type DiffResponse struct {
+	Diff string
+}
+
+// Git describes higher-level git operations for the run loop.
+type Git interface {
+	CreateWorktree(ctx context.Context, req CreateWorktreeRequest) (CreateWorktreeResponse, error)
+	RemoveWorktree(ctx context.Context, req RemoveWorktreeRequest) (RemoveWorktreeResponse, error)
+	Commit(ctx context.Context, req CommitRequest) (CommitResponse, error)
+	Diff(ctx context.Context, req DiffRequest) (DiffResponse, error)
 }
