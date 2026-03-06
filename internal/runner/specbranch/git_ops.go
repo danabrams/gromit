@@ -194,13 +194,28 @@ func isMainWorktree(ctx context.Context, repoDir, candidatePath string) bool {
 // a non-stale worktree (e.g. the main repo) holds a spec branch that a session
 // worktree needs. Returns (true, nil) on success, (true, err) on failure, or
 // (false, nil) if the path doesn't appear to be a valid git worktree.
+//
+// If a plain detach fails (e.g. due to dirty tracked files), falls back to
+// stash-detach-pop so the worktree's uncommitted changes are preserved.
 func detachWorktreeHead(ctx context.Context, worktreePath string) (attempted bool, err error) {
 	if _, statErr := os.Stat(filepath.Join(worktreePath, ".git")); statErr != nil {
 		return false, nil
 	}
 	_, err = runGitCommandWithOutput(ctx, worktreePath, "checkout", "--detach")
-	if err != nil {
-		return true, fmt.Errorf("detach HEAD in worktree %s: %w", worktreePath, err)
+	if err == nil {
+		return true, nil
+	}
+
+	// Fallback: stash dirty files, detach, then restore.
+	_, stashErr := runGitCommandWithOutput(ctx, worktreePath, "stash", "push", "-m", "gromit-detach-auto")
+	if stashErr != nil {
+		return true, fmt.Errorf("detach HEAD in worktree %s: %w (stash also failed: %v)", worktreePath, err, stashErr)
+	}
+	_, detachErr := runGitCommandWithOutput(ctx, worktreePath, "checkout", "--detach")
+	// Best-effort restore of stashed changes regardless of detach outcome.
+	_, _ = runGitCommandWithOutput(ctx, worktreePath, "stash", "pop")
+	if detachErr != nil {
+		return true, fmt.Errorf("detach HEAD in worktree %s after stash: %w", worktreePath, detachErr)
 	}
 	return true, nil
 }
@@ -317,13 +332,19 @@ func (g *GitOps) CreateOrCheckoutSpecBranch(ctx context.Context, specBranchName 
 		// not the working tree files. We only do this for the main worktree,
 		// not for arbitrary user-created worktrees.
 		if isMainWorktree(ctx, g.repoDir, worktreePath) {
-			if released, releaseErr := detachWorktreeHead(ctx, worktreePath); released && releaseErr == nil {
+			released, releaseErr := detachWorktreeHead(ctx, worktreePath)
+			if released && releaseErr == nil {
 				retryOutput, retryErr := runGitCommandWithOutput(ctx, g.repoDir, "checkout", specBranchName)
 				if retryErr == nil {
 					return nil
 				}
 				checkoutOutput = retryOutput
 				checkoutErr = retryErr
+			} else if released && releaseErr != nil {
+				return fmt.Errorf(
+					"failed to checkout spec branch %s: branch held by main worktree %s, release failed: %w",
+					specBranchName, worktreePath, releaseErr,
+				)
 			}
 		}
 	}
