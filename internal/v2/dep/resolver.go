@@ -2,6 +2,7 @@ package dep
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 )
 
@@ -138,6 +139,7 @@ func (r *Resolver) topologicalOrder(pending, completed map[string]struct{}) ([]s
 			queue = append(queue, beadID)
 		}
 	}
+	sort.Strings(queue)
 
 	order := make([]string, 0, len(pending))
 	for len(queue) > 0 {
@@ -150,6 +152,7 @@ func (r *Resolver) topologicalOrder(pending, completed map[string]struct{}) ([]s
 				queue = append(queue, dependent)
 			}
 		}
+		sort.Strings(queue)
 	}
 
 	if len(order) != len(pending) {

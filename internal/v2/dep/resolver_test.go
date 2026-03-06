@@ -133,7 +133,7 @@ func TestNext_DeterministicOrderingWhenMultipleBeadsEligible(t *testing.T) {
 	}
 }
 
-func TestNext_RespectsAdditionOrderTieBreaking(t *testing.T) {
+func TestNext_TieBreakingUsesAlphabeticalOrder(t *testing.T) {
 	r := NewResolver()
 	r.Add("zebra", nil)
 	r.Add("apple", nil)
@@ -151,8 +151,8 @@ func TestNext_RespectsAdditionOrderTieBreaking(t *testing.T) {
 		collected = append(collected, next)
 	}
 
-	want := []string{"zebra", "apple", "middle"}
+	want := []string{"apple", "middle", "zebra"}
 	if !reflect.DeepEqual(collected, want) {
-		t.Fatalf("expected %v, got %v", want, collected)
+		t.Fatalf("expected alphabetical ordering %v, got %v", want, collected)
 	}
 }
