@@ -180,6 +180,47 @@ func TestCloseBead_UsesBdCloseCommand(t *testing.T) {
 	}
 }
 
+func TestQueryBeads_FiltersByLabelsAndParent(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	var recordedArgs []string
+	client := &bead.Client{
+		RunFn: func(args ...string) (string, error) {
+			recordedArgs = append(recordedArgs, args...)
+			if len(args) == 0 || args[0] != "list" {
+				return "", fmt.Errorf("unexpected command: %v", args)
+			}
+			return `[
+				{"id": "keep", "title": "Keep", "status": "open", "parent": "parent-1", "labels": ["alpha"], "depends_on": [], "blocked_by": []},
+				{"id": "skip", "title": "Skip", "status": "open", "parent": "parent-2", "labels": ["beta"], "depends_on": [], "blocked_by": []}
+			]`, nil
+		},
+	}
+
+	adapter := NewBDAdapter(client)
+	resp, err := adapter.QueryBeads(ctx, QueryBeadsRequest{
+		Status: "open",
+		Labels: []string{"alpha"},
+		Parent: "parent-1",
+	})
+	if err != nil {
+		t.Fatalf("QueryBeads failed: %v", err)
+	}
+	if resp == nil || len(resp.Beads) != 1 {
+		t.Fatalf("unexpected result: %+v", resp)
+	}
+	if resp.Beads[0].ID != "keep" {
+		t.Fatalf("unexpected bead returned: %s", resp.Beads[0].ID)
+	}
+	if !containsString(recordedArgs, "--status") {
+		t.Fatalf("status flag missing: %v", recordedArgs)
+	}
+	if !containsString(recordedArgs, "open") {
+		t.Fatalf("status value missing: %v", recordedArgs)
+	}
+}
+
 func containsString(list []string, value string) bool {
 	for _, item := range list {
 		if item == value {
