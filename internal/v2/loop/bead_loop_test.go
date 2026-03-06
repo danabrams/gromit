@@ -352,6 +352,81 @@ func TestCapHitPersistsAfterThreshold(t *testing.T) {
 	}
 }
 
+func TestGenerationCapSkipsReviewAndDecomposeStages(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+
+	otherStage := &trackingStage{name: "gate"}
+	decomposeStage := &trackingStage{name: "decompose"}
+	reviewStage := &trackingStage{name: "review"}
+
+	beadLoop, err := NewBeadLoop([]StageSpec{
+		{
+			Stage: otherStage,
+			Retry: stage.RetryConfig{MaxRetries: 0},
+		},
+		{
+			Stage: decomposeStage,
+			Retry: stage.RetryConfig{MaxRetries: 0},
+		},
+		{
+			Stage: reviewStage,
+			Retry: stage.RetryConfig{MaxRetries: 0},
+		},
+	})
+	if err != nil {
+		t.Fatalf("construct bead loop: %v", err)
+	}
+
+	beadLoop.GenerationCap = 1
+
+	// Run once to establish start generation and ensure every stage executes initially
+	req := stage.Request{
+		Bead: stage.BeadInfo{
+			ID:     "first-bead",
+			Labels: []string{"gen:0"},
+		},
+	}
+
+	result, err := beadLoop.Run(ctx, req)
+	if err != nil {
+		t.Fatalf("run bead loop: %v", err)
+	}
+	if result.CapHit {
+		t.Fatalf("CapHit = true, want false before threshold")
+	}
+	if otherStage.runCount != 1 || decomposeStage.runCount != 1 || reviewStage.runCount != 1 {
+		t.Fatalf("expected each stage to run once before cap (got other=%d, decompose=%d, review=%d)",
+			otherStage.runCount, decomposeStage.runCount, reviewStage.runCount)
+	}
+
+	// Trigger the cap with a generation 1 bead
+	req = stage.Request{
+		Bead: stage.BeadInfo{
+			ID:     "second-bead",
+			Labels: []string{"gen:1"},
+		},
+	}
+
+	result, err = beadLoop.Run(ctx, req)
+	if err != nil {
+		t.Fatalf("run bead loop: %v", err)
+	}
+	if !result.CapHit {
+		t.Fatalf("CapHit = false, want true after cap reached")
+	}
+	if otherStage.runCount != 2 {
+		t.Fatalf("expected non-blocked stage to run twice, got %d", otherStage.runCount)
+	}
+	if decomposeStage.runCount != 1 {
+		t.Fatalf("expected decompose stage to be skipped after cap, got %d", decomposeStage.runCount)
+	}
+	if reviewStage.runCount != 1 {
+		t.Fatalf("expected review stage to be skipped after cap, got %d", reviewStage.runCount)
+	}
+}
+
 // successStage is a test stage that always succeeds
 type successStage struct {
 	name string
@@ -378,5 +453,20 @@ func (s *capHitTestStage) Name() string {
 func (s *capHitTestStage) Run(ctx context.Context, req *stage.Request) (*stage.Result, error) {
 	// This stage would normally enqueue new beads at nextGeneration
 	// For now, just return success
+	return &stage.Result{Decision: stage.DecisionProceed}, nil
+}
+
+// trackingStage counts how many times Run() is executed for assertions.
+type trackingStage struct {
+	name     string
+	runCount int
+}
+
+func (s *trackingStage) Name() string {
+	return s.name
+}
+
+func (s *trackingStage) Run(ctx context.Context, req *stage.Request) (*stage.Result, error) {
+	s.runCount++
 	return &stage.Result{Decision: stage.DecisionProceed}, nil
 }
