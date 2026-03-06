@@ -3,14 +3,18 @@ package loop
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/events"
 	"github.com/danabrams/gromit/internal/v2/adapter"
+	"github.com/danabrams/gromit/internal/v2/adapter/llm"
 	"github.com/danabrams/gromit/internal/v2/generation"
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
+	"github.com/danabrams/gromit/internal/v2/testutil"
 )
 
 // TestIntegration_SpecLoopHappyPathCompletes exercises a clean run where multiple beads\n+// (represented by the successive stages in the spec loop) all succeed, acceptance returns\n+// proceed immediately, and the summary is presented once.
@@ -308,4 +312,85 @@ func newIntegrationLoopComponents(t *testing.T, specID string) (*fakeDecomposeSt
 		t.Fatalf("create bead loop: %v", err)
 	}
 	return decompose, beadLoop
+}
+
+type integrationGitAdapter struct {
+	*testutil.FakeGit
+	t                  *testing.T
+	gapAnalysisContent string
+}
+
+func newIntegrationGitAdapter(t *testing.T) *integrationGitAdapter {
+	t.Helper()
+	git := testutil.NewFakeGit()
+	git.WorktreeRoot = t.TempDir()
+	return &integrationGitAdapter{FakeGit: git, t: t}
+}
+
+func (g *integrationGitAdapter) Checkout(ctx context.Context, specID string) (string, error) {
+	g.t.Helper()
+	worktree, err := g.FakeGit.Checkout(ctx, specID)
+	if err != nil {
+		return "", err
+	}
+	if g.gapAnalysisContent == "" {
+		return worktree, nil
+	}
+	gromitPath := filepath.Join(worktree, ".gromit", "v2")
+	if err := os.MkdirAll(gromitPath, 0o755); err != nil {
+		g.t.Fatalf("create gromit dir: %v", err)
+	}
+	path := filepath.Join(gromitPath, "gap-analysis.md")
+	if err := os.WriteFile(path, []byte(g.gapAnalysisContent), 0o644); err != nil {
+		g.t.Fatalf("write gap analysis: %v", err)
+	}
+	return worktree, nil
+}
+
+type integrationLLMAdapter struct {
+	fake *testutil.FakeLLM
+}
+
+func newIntegrationLLMAdapter() *integrationLLMAdapter {
+	fake := testutil.NewFakeLLM()
+	fake.SetResponse("", &llm.LLMResponse{Output: "plan", Success: true})
+	return &integrationLLMAdapter{fake: fake}
+}
+
+func (a *integrationLLMAdapter) GeneratePlan(ctx context.Context, specID string) (string, error) {
+	resp, err := a.fake.Invoke(ctx, llm.InvokeRequest{Prompt: specID})
+	if err != nil {
+		return "", fmt.Errorf("invoke fake llm: %w", err)
+	}
+	if resp == nil || !resp.Success {
+		return "", fmt.Errorf("fake llm response unsuccessful")
+	}
+	return fmt.Sprintf("%s-plan", specID), nil
+}
+
+func (a *integrationLLMAdapter) Fake() *testutil.FakeLLM {
+	return a.fake
+}
+
+func newIntegrationTaskTrackerAdapter() *testutil.FakeTaskTracker {
+	return testutil.NewFakeTaskTracker()
+}
+
+func newIntegrationPresenterAdapter(t *testing.T) *testutil.FakePresenter {
+	t.Helper()
+	return testutil.NewFakePresenter()
+}
+
+func assertPresenterSuccess(t *testing.T, presenter *testutil.FakePresenter, want bool) {
+	t.Helper()
+	if presenter == nil {
+		t.Fatalf("presenter is nil")
+	}
+	if len(presenter.Calls) == 0 {
+		t.Fatalf("presenter had no calls")
+	}
+	got := presenter.Calls[len(presenter.Calls)-1].Summary.Success
+	if got != want {
+		t.Fatalf("presenter summary success = %v, want %v", got, want)
+	}
 }
