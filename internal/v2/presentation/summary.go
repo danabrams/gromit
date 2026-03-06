@@ -15,6 +15,13 @@ type AcceptanceResult struct {
 	Description string
 }
 
+// BeadSummary describes the work completed by a bead invocation.
+type BeadSummary struct {
+	ID          string
+	Title       string
+	Description string
+}
+
 // PresentationSummary captures the data required to render a presentation to a product owner.
 type PresentationSummary struct {
 	SpecName           string
@@ -22,11 +29,14 @@ type PresentationSummary struct {
 	IntegrationBranch  string
 	Plan               string
 	Worktree           string
+	BeadSummaries      []BeadSummary
 	Success            bool
 	AcceptanceResults  []AcceptanceResult
 	OutOfScopeFindings []v2review.Finding
 	FailureSummary     string
 	RemainingWork      []string
+	BranchLink         string
+	DiffLink           string
 }
 
 // SpecBranchName returns the canonical spec branch for the provided spec.
