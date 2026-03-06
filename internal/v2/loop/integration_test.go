@@ -12,6 +12,52 @@ import (
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
 )
 
+// TestIntegration_SpecLoopHappyPathCompletes exercises a clean run where multiple beads\n+// (represented by the successive stages in the spec loop) all succeed, acceptance returns\n+// proceed immediately, and the summary is presented once.
+func TestIntegration_SpecLoopHappyPathCompletes(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	specID := "spec-integration-happy"
+
+	emitter := events.NewEmitter()
+	ch := emitter.Subscribe()
+	t.Cleanup(func() {
+		emitter.Unsubscribe(ch)
+	})
+
+	git := newFakeGitAdapter(t)
+	llm := newFakeLLMAdapter()
+	taskTracker := newFakeTaskTrackerAdapter()
+	presenter := newFakePresenterAdapter(t)
+	accept := newScriptedAcceptStage(stagepkg.Result{Decision: stagepkg.DecisionProceed})
+
+	adapters := adapter.AdapterSet{
+		Git:         git,
+		LLM:         llm,
+		TaskTracker: taskTracker,
+		Presenter:   presenter,
+	}
+
+	loopInstance, err := NewSpecLoop(adapters, &config.Config{}, noopDependencyGate{}, WithEmitter(emitter), WithAcceptStage(accept))
+	if err != nil {
+		t.Fatalf("create spec loop: %v", err)
+	}
+
+	if err := loopInstance.Run(ctx, specID); err != nil {
+		t.Fatalf("run spec loop: %v", err)
+	}
+
+	if accept.calls != 1 {
+		t.Fatalf("accept calls = %d, want 1", accept.calls)
+	}
+
+	requireHappyPathEvents(t, ch)
+
+	if !presenter.lastSummary.Success {
+		t.Fatalf("presenter summary success = %v, want true", presenter.lastSummary.Success)
+	}
+}
+
 func TestIntegration_SpecLoopFailureHitsGenerationCap(t *testing.T) {
 	t.Parallel()
 
