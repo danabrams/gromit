@@ -59,6 +59,10 @@ func newRunnerForRemediationCycle(accept stage.Stage, decompose stage.Stage, bea
 	})
 }
 
+func newRunnerForDecomposeFailure(accept stage.Stage, generationCap int) *RemediationRunner {
+	return newRunnerForRemediationCycle(accept, nil, &testBeadRunner{}, generationCap)
+}
+
 func newDecisionFailStage() stage.Stage {
 	return &testStage{
 		name: "decision-fail",
