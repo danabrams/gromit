@@ -131,6 +131,26 @@ Shared orchestrator/runtime path ownership must include telemetry completeness e
 
 *Newly observed — needs validation across more tasks.*
 
+### 2026-03-06 | Acceptance Tests Must Compile in CI Even Behind Build Tags | process
+*Related to: gromit-66q3q, spec:v2-run-loop review*
+
+Acceptance tests behind `//go:build acceptance` tags can silently rot because they're never compiled in normal `go test`. When adapter interfaces change (e.g., adding a Diff method to GitAdapter) or type signatures change (e.g., StageResult.Events from []events.Event to []event.TypedEvent), tagged tests break without anyone noticing. Either run acceptance tests in CI with the build tag, or add a lightweight compile-only check (`go build -tags=acceptance ./...`).
+
+### 2026-03-06 | Worktree Preservation Must Not Hold Branch Checkout | reliability
+*Related to: gromit-w3d0z, debug-20260304-081500, debug-20260304-194500, spec:v2-run-loop review*
+
+Preserving a git worktree directory on failure creates a stale checkout that blocks future operations on that branch. The safe pattern: commit partial work, `git worktree remove` (not `os.RemoveAll`), preserve the branch ref. The branch holds all the debugging value; the worktree directory is the landmine. This is the same class of bug as the session-worktree-holds-branch issues from early March.
+
+### 2026-03-06 | Stage Interface Uniformity Must Be Verified by the Loop, Not Just by Compilation | architecture
+*Related to: gromit-28ywc, spec:v2-run-loop review*
+
+Having stages implement a uniform interface is necessary but not sufficient. If the loop bypasses the interface (calling adapters directly instead of stage.Run()), the uniformity is cosmetic. The v2 spec loop had Plan and Present stages that compiled and passed unit tests but were dead code — the loop called adapter methods directly. Acceptance tests should verify stages are invoked through Run(), not just that they exist.
+
+### 2026-03-06 | Remediation Loops Should Be Self-Healing to the Generation Cap | architecture
+*Related to: gromit-04de9, spec:v2-run-loop review*
+
+Single-shot remediation (try once, fail) defeats the purpose of an autonomous system. The loop should exhaust its own ability to fix — Accept→gap→Decompose→BeadLoop→Accept — repeating until success or generation cap. The generation cap is the safety valve; the loop's job is to not involve humans unless it has to. Design for antifragility: the system gets stronger from failures within a run, not weaker.
+
 ### 2026-03-05 | V2 Cutover Deletes V1 Runner and Pipeline — Review Findings Must Target Surviving Packages | architecture
 *Related to: review-1772740826510950000*
 
