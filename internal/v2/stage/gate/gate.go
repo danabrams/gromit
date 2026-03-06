@@ -72,7 +72,14 @@ func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Resul
 }
 
 func isClosed(status string) bool {
-	return strings.EqualFold(status, tracker.StatusClosed)
+	normalized := strings.TrimSpace(status)
+	if normalized == "" {
+		return false
+	}
+	if strings.EqualFold(normalized, tracker.StatusClosed) {
+		return true
+	}
+	return strings.EqualFold(normalized, "completed")
 }
 
 func (s *Stage) hasPendingDependencies(ctx context.Context, b *tasktracker.Bead) (bool, error) {
