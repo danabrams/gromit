@@ -2,6 +2,7 @@ package loop
 
 import (
 	"context"
+	"os"
 	"reflect"
 	"testing"
 
@@ -146,6 +147,61 @@ func TestSpecLoopProvidesStageRequestToAcceptStage(t *testing.T) {
 	}
 	if accept.lastRequest.Config != cfg {
 		t.Fatalf("accept request config = %p, want %p", accept.lastRequest.Config, cfg)
+	}
+}
+
+func TestSpecLoopFailureEmitsCompletionAndCleansWorktree(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	specID := "spec-loop-failure"
+
+	emitter := events.NewEmitter()
+	ch := emitter.Subscribe()
+	t.Cleanup(func() {
+		emitter.Unsubscribe(ch)
+	})
+
+	git := newFakeGitAdapter(t)
+	llm := newFakeLLMAdapter()
+	taskTracker := newFakeTaskTrackerAdapter()
+	presenter := newFakePresenterAdapter(t)
+
+	adapters := adapter.AdapterSet{
+		Git:         git,
+		LLM:         llm,
+		TaskTracker: taskTracker,
+		Presenter:   presenter,
+	}
+
+	loopInstance, err := NewSpecLoop(adapters, &config.Config{}, noopDependencyGate{},
+		WithEmitter(emitter),
+		WithDecomposeStage(newFakeDecomposeStage(specID)),
+		WithBeadLoop(newFakeBeadRunner()),
+		WithAcceptStage(newScriptedAcceptStage(stagepkg.Result{Decision: stagepkg.DecisionFail})),
+	)
+	if err != nil {
+		t.Fatalf("create spec loop: %v", err)
+	}
+
+	if err := loopInstance.Run(ctx, specID); err == nil {
+		t.Fatal("expected failure from accept stage")
+	}
+
+	collected := collectEvents(t, ch, 4)
+	completed, ok := collected[len(collected)-1].(*events.SpecCompletedEvent)
+	if !ok {
+		t.Fatalf("last event = %T, want *events.SpecCompletedEvent", collected[len(collected)-1])
+	}
+	if completed.Success {
+		t.Fatalf("completion success = %v, want false", completed.Success)
+	}
+	if completed.FailureReason == "" {
+		t.Fatalf("expected failure reason, got none")
+	}
+
+	if _, statErr := os.Stat(git.lastWorktree); !os.IsNotExist(statErr) {
+		t.Fatalf("worktree %q should be removed, stat error = %v", git.lastWorktree, statErr)
 	}
 }
 
