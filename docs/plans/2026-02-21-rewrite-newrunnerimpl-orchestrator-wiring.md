@@ -1,273 +1,52 @@
 # Rewrite newRunnerImpl to Wire 5-Stage Pipeline
 
-> **For Claude:** This plan documents the COMPLETED implementation of the 5-stage pipeline constructor. Use this plan to verify all acceptance criteria are met and run verification tests.
+> **For Claude:** This plan notes the COMPLETED verification of the v2 run loop constructor exposed through `gromit run2`. Use it to confirm that the new package tree wires adapters, stages, and subscribers correctly.
 
-**Goal:** Verify that `newRunnerImpl` constructs all 5 pipeline stages with correct adapter types, the orchestrator is properly wired, and no import cycles exist.
+**Goal:** Demonstrate that `cmd/gromit/run2.go` wires the `internal/v2` adapters into the SpecLoop and BeadLoop so the Gate → Build → Validate → Review → Epilogue sequence runs under the new architecture without touching the legacy runner.
 
-**Architecture:** The constructor creates adapter types that bridge existing infrastructure (Router, BeadClient, Renderer, CmdRunner) to stage-specific interfaces. Each stage (Gate, Build, Validate, Review, Epilogue) is constructed independently with its required dependencies. The orchestrator is assembled with all 5 stages plus helper functions, then returned. No stage package imports runner; only runner imports stage packages.
-
-**Tech Stack:** Go, pipeline stage packages (prepare, execute, validate, review, epilogue), provider.Router, bead.Client, prompt.Renderer
+**Architecture:** `run2` is the CLI entry point for the new loop. It builds the Git, LLM, TaskTracker, and Presenter adapters, creates the dependency gate (`dep.SpecDependencyGate`), and calls `loop.NewRun2LoopComponents` to produce the `Decompose` stage plus the loaded BeadLoop (Gate/Build/Validate/Review/Epilogue). The components feed into `loop.SpecLoop`, which orchestrates spec-level stages (`plan`, `decompose`, `accept`, `present`) around the bead execution. Typed events stream through `events.NewEmitter()` and the CLI subscriber mesh (`startRun2Subscribers`) for realtime output and logging.
 
 ---
 
 ## Current Implementation Status
 
-The implementation in `internal/runner/constructor.go` is COMPLETE and implements all requirements:
+### Adapter-layer infrastructure
+* `cmd/gromit/run2.go` wires `adapter.AdapterSet` with `gitadapter.NewExecGitAdapter`, `llm.NewPlanLLMAdapter`, `tasktracker.NewBDAdapter`, and a GitHub presenter adapter.
+* A `bead.Client` powers the bd-backed task tracker adapter and is reused by stages that mutate beads (Plan, Review, Epilogue).
+* Signals (`SIGINT`, `SIGTERM`) are forwarded to the loop via `stopCh` so both `SpecLoop` and `BeadLoop` can terminate gracefully.
 
-### ✅ Adapter Types (Lines 61-249)
+### Stage construction via `loop.NewRun2LoopComponents` (`internal/v2/loop/run2_components.go`)
+* Constructs `Decompose`, `Gate`, `Build`, `Validate`, `Review`, and `Epilogue` stages with the adapters they need (provider, task tracker, git, emitter) plus the `noopValidationRunner` for testing.
+* Wraps the stages into a `BeadLoop` while wiring the typed event emitter used by subscribers.
+* Returns the `Decompose` stage separately so `SpecLoop` can insert it before the bead execution.
 
-**invokerAdapter** - Wraps `*provider.Router` to satisfy `execute.Invoker`
-- `Run()` - delegates to router's provider
-- `StreamRun()` - delegates to router's provider for streamed execution
-
-**renderAdapter** - Wraps `prompt.Renderer` to satisfy `execute.PromptRenderer`
-- `RenderBuild()` - renders standard build prompt
-- `RenderTDDBuild()` - renders TDD-specific build prompt
-- `RenderRefactorBuild()` - renders refactor-specific build prompt
-
-**cmdRunnerAdapter** - Wraps command runner function to satisfy `validate.CommandRunner`
-- `Run()` - executes command in workdir
-
-**reviewInvokerAdapter** - Wraps `*provider.Router` to satisfy `review.Invoker`
-- `StreamRun()` - invokes provider with review-specific parameters
-
-**beadCreatorAdapter** - Wraps `bead.Client` to satisfy `review.BeadCreator`
-- `Create()` - creates new bead with title, priority, labels, outputs
-
-**reviewRendererAdapter** - Wraps `prompt.Renderer` to satisfy `review.PromptRenderer`
-- `RenderReview()` - renders review prompt from diff context
-
-**beadLifecycleAdapter** - Wraps `bead.Client` to satisfy `epilogue.BeadLifecycle`
-- `Close()` - closes bead by ID
-- `Sync()` - syncs beads state
-
-**statusWriterAdapter** - Wraps `io.Writer` to satisfy `epilogue.StatusWriter`
-- `Write()` - writes iteration status
-
-**worktreeMergerAdapter** - Wraps `worktree.Manager` to satisfy `epilogue.WorktreeMerger`
-- `PendingBranches()` - lists branches pending merge
-- `MergeBack()` - merges branch back to main
-
-**epilogueCommandRunnerAdapter** - Wraps command runner function to satisfy `epilogue.CommandRunner`
-- `Run()` - executes between-iterations command
-
-**failureLearnerAdapter** - Wraps analyzer dependencies to satisfy `epilogue.FailureLearner`
-- `ExtractFailureLearning()` - extracts learnings from failure
-
-### ✅ Stage Construction (Lines 299-327)
-
-**Gate Stage**
-```go
-gateStage := prepare.New(syncOut)
-```
-- Takes output writer for diagnostics
-
-**Build Stage**
-```go
-buildStage := execute.New(&invokerAdapter{router: router, output: syncOut}, &renderAdapter{r: renderer}, syncOut)
-```
-- Takes invoker adapter, renderer adapter, output writer
-- Uses StreamRun (not Run) for live output visibility
-
-**Validate Stage**
-```go
-validateStage := validate.New(&cmdRunnerAdapter{runner: defaultCmdRunner}, syncOut)
-```
-- Takes command runner adapter, output writer
-- Runs programmatic validation commands
-
-**Review Stage**
-```go
-reviewStage := review.New(
-    &reviewInvokerAdapter{router: router, syncOut: syncOut},
-    &beadCreatorAdapter{beads: beadsClient},
-    &reviewRendererAdapter{r: renderer},
-    gitDiffFn,
-    syncOut,
-)
-```
-- Takes invoker, bead creator, renderer, git diff fn, output writer
-- Optional; can be nil to skip review
-
-**Epilogue Stage**
-```go
-epilogueStage := epilogue.New(
-    &beadLifecycleAdapter{beads: beadsClient},
-    &statusWriterAdapter{output: syncOut},
-    syncOut,
-)
-```
-- Takes bead lifecycle, status writer, output writer
-- Optional dependencies wired via builder methods
-
-### ✅ Optional Epilogue Wiring (Lines 329-343)
-
-- `WithWorktree()` - conditionally wired when `cfg.Worktree.IsEnabled()`
-- `WithCommandRunner()` - always wired for between-iterations command
-- `WithFailureLearner()` - always wired for failure learning extraction
-
-### ✅ OrchestratorConfig Assembly (Lines 345-370)
-
-```go
-orchCfg := OrchestratorConfig{
-    Gate:            gateStage,
-    Build:           buildStage,
-    Validate:        validateStage,
-    Review:          reviewStage,
-    Epilogue:        epilogueStage,
-    GetBead:         getBeadFn,
-    Config:          cfg,
-    GlobalStatsPath: filepath.Join(gromitDir, "stats.json"),
-    GetRunID:        getRunIDFn,
-    LogsDir:         cfg.Paths.Logs,
-    Output:          syncOut,
-}
-```
-
-### ✅ Return Orchestrator (Line 372)
-
-```go
-return NewOrchestrator(orchCfg), nil
-```
-
-### ✅ Retained Builders
-
-All existing reusable builders are retained and used:
-- `buildRouterAndLearningsProvider()` - creates router and learnings provider
-- `buildInvoker()` - creates execution.Invoker with heartbeat support
-- `newRunnerPolicies()` - creates escalation, methodology, validation, stuck policies
-- `buildProvidersFromConfig()` - builds provider map from config
-- `parseFallbackCooldown()` - parses fallback cooldown duration
-- `selectLearningsProvider()` - selects appropriate provider for learnings
-- `wireLearningsFilter()` - configures learnings filter in renderer
-- `wireSiblingEnrichmentResolver()` - configures sibling package resolver
-
-### ✅ NewRunner Caller (runner.go, Lines 113-115)
-
-```go
-func NewRunner(cfg *config.Config, output io.Writer) (*Orchestrator, error) {
-    return newRunnerImpl(cfg, output)
-}
-```
-
-- Returns `(*Orchestrator, error)` as expected
-- Called from `cmd/gromit/main.go:192` and assigned to variable `r`
-- `r.Run(ctx, cfg.Loop.MaxIterations, deadline, stopCh)` matches Orchestrator.Run signature
+### Orchestrator assembly
+* `loop.SpecLoop` (see `spec_loop.go`) enforces dependency ordering, checks out spec worktrees, and orchestrates plan, decompose, bead, accept, and present stages.
+* `run2` stores the typed emitter, subscribers, and logs directory so that `startRun2Subscribers` can stream events to stderr and record them for offline diagnostics.
+* Specs and epics are resolved via `v2spec.Load`, and each spec runs inside a contextual loop invocation.
 
 ---
 
 ## Verification Tasks
 
-### Task 1: Verify No Import Cycles
+### Task 1: Verify the `run2` CLI entry point
+* **Check:** `cmd/gromit/run2.go` instantiates adapters, dependency gate, emitter, and subscribers.
+* **Step:** `go test ./cmd/gromit -run TestRun2` and inspect `run2_test.go` to ensure the command covers the dependency gate, spec resolution, and subscriber wiring.
 
-**Files:**
-- Check: `internal/runner/constructor.go` imports pipeline packages
-- Check: No pipeline package imports `internal/runner/`
+### Task 2: Verify stage and bead loop wiring
+* **Check:** `loop.NewRun2LoopComponents` builds every stage and composes them into `BeadLoop` and exposes `Decompose`.
+* **Step:** `grep -n "New(" internal/v2/loop/run2_components.go | grep -E "Decompose|Gate|Build|Validate|Review|Epilogue"` to confirm each `New` call is present, then run `go test ./internal/v2/loop -run TestBeadLoop` to exercise the wiring.
 
-**Step 1: Build verification**
+### Task 3: Verify spec-level sequencing
+* **Check:** `loop.SpecLoop` iterates through stages `plan`, `decompose`, `gate`, `build`, `validate`, `review`, `epilogue`, `accept`, `present` and handles retries/acceptance appropriately.
+* **Step:** `go test ./internal/v2/loop -run TestSpecLoop` and inspect `StageSequence` in `spec_loop.go` to show the canon.
 
-Run: `go build ./...`
-Expected: Compiles with no import cycle errors
-
-### Task 2: Verify Adapter Implementations
-
-**Files:**
-- Check: All adapters implement required interfaces (compile-time assertions)
-- Check: Adapters correctly delegate to underlying implementations
-
-**Step 1: Run tests for adapter behavior**
-
-Run: `go test ./internal/runner/... -v -run "adapter|Constructor" 2>&1 | head -50`
-Expected: Tests pass without errors
-
-### Task 3: Verify Stage Wiring
-
-**Files:**
-- Check: All 5 stages are constructed
-- Check: Correct dependencies are passed to each stage
-- Check: Optional dependencies are conditionally wired
-
-**Step 1: Inspect constructor output**
-
-Run: `grep -n "Stage\|New(" internal/runner/constructor.go | grep -E "(Gate|Build|Validate|Review|Epilogue|New)"`
-Expected: See all 5 stages created with correct New() calls
-
-### Task 4: Verify Orchestrator Integration
-
-**Files:**
-- Check: `NewRunner` returns `*Orchestrator`
-- Check: Main.go can call `r.Run()` on orchestrator
-- Check: Orchestrator.Run() signature matches main.go call
-
-**Step 1: Check NewRunner return type**
-
-Run: `grep -A 2 "func NewRunner" internal/runner/runner.go`
-Expected: Return type is `(*Orchestrator, error)`
-
-**Step 2: Check main.go usage**
-
-Run: `grep -A 3 "r, err := runner.NewRunner" cmd/gromit/main.go | head -10`
-Expected: Code assigns to `r` and calls `r.Run(ctx, ...)`
-
-### Task 5: Verify Config Normalization
-
-**Files:**
-- Check: Config.SetDefaults() called before stage construction
-- Check: Config.NormalizeNilFields() called
-
-**Step 1: Check normalization calls**
-
-Run: `grep -n "SetDefaults\|NormalizeNilFields" internal/runner/constructor.go`
-Expected: Both calls present before orchestrator assembly
+### Task 4: Verify RTL acceptance contract
+* **Check:** The existing `internal/runner/acceptance/` suite now targets the new run2 wiring through the CLI adapters.
+* **Step:** `go test -tags acceptance ./internal/runner/acceptance/...` after ensuring `gromit run2` is invoked by the acceptance helpers, then `go test ./internal/runner/...` to keep behavioral parity.
 
 ---
 
-## Acceptance Criteria Checklist
+## Optional Observability
 
-- [x] `newRunnerImpl` returns `(*Orchestrator, error)`
-- [x] Constructs all 5 pipeline stages with correct adapter types
-- [x] Gate stage wired with output writer
-- [x] Build stage wired with invoker adapter, renderer adapter, output writer
-- [x] Validate stage wired with command runner adapter, output writer
-- [x] Review stage wired with invoker, bead creator, renderer, git diff fn, output writer
-- [x] Epilogue stage wired with bead lifecycle, status writer, output writer
-- [x] Optional epilogue dependencies (worktree, command runner, failure learner) conditionally wired
-- [x] OrchestratorConfig assembled with all 5 stages and helper functions
-- [x] NewOrchestrator(cfg) returned
-- [x] Existing builders retained and reused
-- [x] No import cycles: `go build ./...` compiles successfully
-- [x] NewRunner caller in runner.go accepts `*Orchestrator`
-- [x] Main.go can call `r.Run()` on returned orchestrator
-
----
-
-## Implementation Notes
-
-**Key Design Decisions:**
-
-1. **Adapter Pattern** - Concrete adapters bridge existing infrastructure to stage interfaces, avoiding modification of external packages
-2. **Builder Methods** - Epilogue uses builder methods (WithWorktree, WithCommandRunner, WithFailureLearner) for optional dependencies
-3. **Conditional Wiring** - Worktree is only wired when `cfg.Worktree.IsEnabled()`
-4. **Stateless Stages** - All state flows through Input/Output; stages are stateless across iterations
-5. **Retained Builders** - Existing provider/router/policy construction logic is reused to minimize duplication
-
-**Testing Strategy:**
-
-1. Verify compilation with `go build ./...`
-2. Run unit tests for adapter behavior: `go test ./internal/runner/...`
-3. Run acceptance tests to verify behavioral parity: `go test -tags acceptance ./internal/runner/acceptance/...`
-4. Verify main.go integration by checking NewRunner return type and usage
-
----
-
-## Completion Checklist
-
-When verification is complete:
-
-- [ ] `go build ./...` passes with no errors
-- [ ] Unit tests pass: `go test ./cmd/gromit/... ./internal/runner/... -v`
-- [ ] Acceptance tests pass: `go test -tags acceptance ./internal/runner/acceptance/... -v`
-- [ ] No import cycles detected
-- [ ] All 5 stages properly wired with correct dependencies
-- [ ] Changes committed with clear message
-
+Typed events emit from both loops, their stages, and the `review` stage when it emits new beads. `startRun2Subscribers` routes these through `events/stream` and `events/cli`, so verifying telemetry in `cmd/gromit/run2_test.go` ensures the CLI subscribers stay connected.
