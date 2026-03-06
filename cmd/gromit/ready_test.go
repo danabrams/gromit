@@ -19,9 +19,7 @@ func TestReadyCmd_ListsEligibleSpecs(t *testing.T) {
 	writeSpec(t, specsDir, "ready-child", false, []string{"dep"})
 
 	writeConfig(t, tmpDir, specsDir)
-	if err := os.Chdir(tmpDir); err != nil {
-		t.Fatalf("failed to chdir to tmp: %v", err)
-	}
+	t.Chdir(tmpDir)
 
 	stdout, stderr, exitCode := runGromitCobra(t, "ready")
 	if exitCode != 0 {

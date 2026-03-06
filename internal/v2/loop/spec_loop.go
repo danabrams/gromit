@@ -13,8 +13,8 @@ import (
 	"github.com/danabrams/gromit/internal/events"
 	"github.com/danabrams/gromit/internal/v2/adapter"
 	"github.com/danabrams/gromit/internal/v2/presentation"
-	stageaccept "github.com/danabrams/gromit/internal/v2/stage/accept"
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
+	stageaccept "github.com/danabrams/gromit/internal/v2/stage/accept"
 )
 
 const (

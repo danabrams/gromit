@@ -8,16 +8,16 @@ import (
 
 // InvokeRequest carries the prompt and model for a non-streaming invocation.
 type InvokeRequest struct {
-	Prompt string
-	Model  string
+	Prompt   string
+	Model    string
 	Metadata map[string]string
 }
 
 // StreamInvokeRequest carries the prompt, model, and output writer for streaming invocations.
 type StreamInvokeRequest struct {
-	Prompt string
-	Model  string
-	Output io.Writer
+	Prompt   string
+	Model    string
+	Output   io.Writer
 	Metadata map[string]string
 }
 

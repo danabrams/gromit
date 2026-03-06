@@ -291,10 +291,7 @@ cat
 `
 	testBinary := createTempShellScript(t, tmpDir, "helper-script", scriptContent)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-
-	stdout, stderr, exitCode, err := RunGromitHelperProcessWithStdin(ctx, testBinary, "", os.Environ(), "stdin payload\n", "debug", "test")
+	stdout, stderr, exitCode, err := RunGromitHelperProcessWithStdin(context.Background(), testBinary, "", os.Environ(), "stdin payload\n", "debug", "test")
 	if err != nil {
 		t.Fatalf("RunGromitHelperProcessWithStdin() error = %v", err)
 	}

@@ -114,11 +114,11 @@ func (s *spyPresenter) PresentSummary(ctx context.Context, specID string, summar
 
 func TestPresentStageTrimsLinks(t *testing.T) {
 	ctx := &SummaryContext{
-		Plan:               "plan details",
-		Worktree:           "/tmp/worktree",
-		BranchLink:         "\nhttps://example.com/branch\n",
-		DiffLink:           "  https://example.com/diff  ",
-		IntegrationBranch:  "integration-main",
+		Plan:              "plan details",
+		Worktree:          "/tmp/worktree",
+		BranchLink:        "\nhttps://example.com/branch\n",
+		DiffLink:          "  https://example.com/diff  ",
+		IntegrationBranch: "integration-main",
 	}
 	presenter := &spyPresenter{}
 	stageInstance, err := New(nil, presenter, ctx)

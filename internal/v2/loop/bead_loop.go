@@ -225,7 +225,7 @@ func stageDecision(res *stage.Result) stage.Decision {
 func (b *BeadLoop) stageRequest(beadItem *bead.Bead, iteration int, retryCtx *stage.RetryContext) stage.Request {
 	labels := copyLabels(beadItem.Labels)
 	return stage.Request{
-		Bead: stage.BeadInfo{ID: beadItem.ID, Labels: labels},
+		Bead:         stage.BeadInfo{ID: beadItem.ID, Labels: labels},
 		Iteration:    iteration,
 		RetryContext: retryCtx,
 	}

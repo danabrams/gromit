@@ -247,8 +247,8 @@ func newFakeAcceptStage() *fakeAcceptStage {
 }
 
 type fakeAcceptStage struct {
-	results []presentation.AcceptanceResult
-	called  bool
+	results     []presentation.AcceptanceResult
+	called      bool
 	lastRequest *stagepkg.Request
 }
 

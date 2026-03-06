@@ -69,7 +69,7 @@ func TestAllEventTypesImplementEvent(t *testing.T) {
 		runStartEvent, runCompleteEvent, iterStartEvent, iterCompleteEvent,
 		beadCompleteEvent, beadFailedEvent, beadStuckEvent, beadUnstickedEvent, beadSkippedEvent,
 		buildStartEvent, buildCompleteEvent, validationStartEvent, validationPassEvent,
-	validationFailEvent, reviewStartEvent, reviewCompleteEvent, reviewFindingEvent,
+		validationFailEvent, reviewStartEvent, reviewCompleteEvent, reviewFindingEvent,
 		analysisStartEvent, analysisCompleteEvent, retroStartEvent, retroCompleteEvent,
 		heartbeatEvent, modelSelectedEvent, escalationEvent, stallDetectedEvent, scopeCheckEvent,
 		decomposeStartEvent, subBeadCreatedEvent, decomposeCompleteEvent,

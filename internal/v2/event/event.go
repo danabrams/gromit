@@ -18,19 +18,19 @@ type Event struct {
 }
 
 const (
-	EventTypeSpecStarted     = "spec.started"
-	EventTypeSpecCompleted   = "spec.completed"
-	EventTypeSpecFailed      = "spec.failed"
-	EventTypeBeadStarted     = "bead.started"
-	EventTypeBeadCompleted   = "bead.completed"
-	EventTypeStageStarted    = "stage.started"
-	EventTypeStageCompleted  = "stage.completed"
-	EventTypeStageFailed     = "stage.failed"
-	EventTypeStageRetrying   = "stage.retrying"
-	EventTypeValidation      = "validation"
-	EventTypeReview          = "review"
-	EventTypeScope           = "scope"
-	EventTypeTelemetry       = "telemetry"
+	EventTypeSpecStarted    = "spec.started"
+	EventTypeSpecCompleted  = "spec.completed"
+	EventTypeSpecFailed     = "spec.failed"
+	EventTypeBeadStarted    = "bead.started"
+	EventTypeBeadCompleted  = "bead.completed"
+	EventTypeStageStarted   = "stage.started"
+	EventTypeStageCompleted = "stage.completed"
+	EventTypeStageFailed    = "stage.failed"
+	EventTypeStageRetrying  = "stage.retrying"
+	EventTypeValidation     = "validation"
+	EventTypeReview         = "review"
+	EventTypeScope          = "scope"
+	EventTypeTelemetry      = "telemetry"
 )
 
 // SpecStartedEvent marks the beginning of a spec execution.

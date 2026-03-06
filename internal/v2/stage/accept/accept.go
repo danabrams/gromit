@@ -10,20 +10,20 @@ import (
 
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/coverage"
-	v2prompt "github.com/danabrams/gromit/internal/v2/prompt"
 	"github.com/danabrams/gromit/internal/v2/adapter"
 	"github.com/danabrams/gromit/internal/v2/adapter/llm"
 	"github.com/danabrams/gromit/internal/v2/presentation"
+	v2prompt "github.com/danabrams/gromit/internal/v2/prompt"
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
 	stagesdesc "github.com/danabrams/gromit/internal/v2/stages/accept"
 )
 
 const (
-	defaultGromitDir   = ".gromit"
-	v2DirName          = "v2"
-	gapFileName        = "gap-analysis.md"
-	defaultSpecsDir    = ".gromit/specs"
-	defaultPromptBase  = "You are evaluating a single acceptance criterion. Use the provided diff and criterion text to determine whether the implementation satisfies the criterion. Respond with a JSON object containing \"pass\" (true/false) and \"summary\" (explain your reasoning). Output only the JSON object."
+	defaultGromitDir  = ".gromit"
+	v2DirName         = "v2"
+	gapFileName       = "gap-analysis.md"
+	defaultSpecsDir   = ".gromit/specs"
+	defaultPromptBase = "You are evaluating a single acceptance criterion. Use the provided diff and criterion text to determine whether the implementation satisfies the criterion. Respond with a JSON object containing \"pass\" (true/false) and \"summary\" (explain your reasoning). Output only the JSON object."
 )
 
 // AcceptArtifacts captures acceptance evaluation results produced by the stage.
