@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"testing"
+
+	"github.com/danabrams/gromit/internal/v2/stage"
 )
 
 func TestRemediationRunnerRun_requiresSpecID(t *testing.T) {
@@ -24,4 +26,8 @@ func TestRemediationRunnerRun_requiresAcceptStage(t *testing.T) {
 
 func newRunnerForSpecValidation() *RemediationRunner {
 	return NewRemediationRunner(RemediationRunnerConfig{})
+}
+
+func newRunnerWithAcceptStage(stage stage.Stage) *RemediationRunner {
+	return NewRemediationRunner(RemediationRunnerConfig{AcceptStage: stage})
 }
