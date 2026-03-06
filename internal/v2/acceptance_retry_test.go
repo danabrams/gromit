@@ -48,7 +48,8 @@ func TestValidateRetryRunsBuildBeforeRetry(t *testing.T) {
 	}
 
 	req := stage.Request{Bead: stage.BeadInfo{ID: "retry-test"}}
-	if err := beadLoop.Run(ctx, req); err != nil {
+	_, err = beadLoop.Run(ctx, req)
+	if err != nil {
 		t.Fatalf("run bead loop: %v", err)
 	}
 
@@ -95,7 +96,8 @@ func TestMaxRetriesExhaustionHaltsLoop(t *testing.T) {
 		t.Fatalf("construct bead loop: %v", err)
 	}
 
-	if err := beadLoop.Run(ctx, stage.Request{Bead: stage.BeadInfo{ID: "max-retries"}}); err == nil || !errors.Is(err, loop.ErrMaxRetriesExceeded) {
+	_, err = beadLoop.Run(ctx, stage.Request{Bead: stage.BeadInfo{ID: "max-retries"}})
+	if err == nil || !errors.Is(err, loop.ErrMaxRetriesExceeded) {
 		t.Fatalf("run bead loop = %v", err)
 	}
 
@@ -132,7 +134,8 @@ func TestRetryContextCarriesPriorFailures(t *testing.T) {
 		t.Fatalf("construct bead loop: %v", err)
 	}
 
-	if err := beadLoop.Run(ctx, stage.Request{Bead: stage.BeadInfo{ID: "retry-context"}}); err != nil {
+	_, err = beadLoop.Run(ctx, stage.Request{Bead: stage.BeadInfo{ID: "retry-context"}})
+	if err != nil {
 		t.Fatalf("run bead loop: %v", err)
 	}
 

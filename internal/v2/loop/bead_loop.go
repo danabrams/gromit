@@ -5,10 +5,15 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/danabrams/gromit/internal/v2/generation"
 	"github.com/danabrams/gromit/internal/v2/stage"
 )
 
 var ErrMaxRetriesExceeded = errors.New("max retries exceeded")
+
+type BeadLoopResult struct {
+	StartGeneration int
+}
 
 type StageSpec struct {
 	Stage stage.Stage
@@ -38,14 +43,17 @@ func NewBeadLoop(stages []StageSpec) (*BeadLoop, error) {
 	return &BeadLoop{stages: stages, stageIndex: index}, nil
 }
 
-func (b *BeadLoop) Run(ctx context.Context, req stage.Request) error {
+func (b *BeadLoop) Run(ctx context.Context, req stage.Request) (*BeadLoopResult, error) {
 	state := newLoopState()
+	result := &BeadLoopResult{
+		StartGeneration: generation.Current(req.Bead.Labels),
+	}
 	for _, spec := range b.stages {
 		if err := b.runStage(ctx, req, spec, state, req.RetryContext); err != nil {
-			return err
+			return result, err
 		}
 	}
-	return nil
+	return result, nil
 }
 
 type loopState struct {
