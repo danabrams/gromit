@@ -69,7 +69,7 @@ func Load(path string) (*Spec, error) {
 	return &Spec{
 		ID:                    specID,
 		Path:                  path,
-		DependsOn:             parseDepends(front["depends_on"]),
+		DependsOn:             parseDependencies(front),
 		Accepted:              parseAccepted(front["accepted"]),
 		ArchitectureDirection: extractSection(body, "Architecture Direction"),
 		TestStrategy:          extractSection(body, "Test Strategy"),
@@ -164,6 +164,15 @@ func ListReady(specsDir string) ([]ReadySpec, error) {
 	})
 
 	return ready, nil
+}
+
+func parseDependencies(front map[string]interface{}) []string {
+	if front == nil {
+		return nil
+	}
+	deps := parseDepends(front["dependencies"])
+	deps = append(deps, parseDepends(front["depends_on"])...)
+	return deps
 }
 
 func parseID(front map[string]interface{}, path string) string {
