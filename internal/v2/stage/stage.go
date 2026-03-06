@@ -2,6 +2,7 @@ package stage
 
 import (
 	"context"
+	"time"
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
@@ -23,6 +24,7 @@ type Request struct {
 	Worktree     string
 	Remediation  bool
 	RetryContext *RetryContext
+	Telemetry    *LLMCostSummary
 }
 
 // Result reports the outcome of a stage invocation.
@@ -79,4 +81,13 @@ type RetryContext struct {
 type RetryConfig struct {
 	MaxRetries int
 	RetryWith  []string
+}
+
+// LLMCostSummary captures telemetry about the LLM invocation that drove the iteration.
+type LLMCostSummary struct {
+	Model        string
+	Duration     time.Duration
+	InputTokens  int
+	OutputTokens int
+	CostUSD      float64
 }

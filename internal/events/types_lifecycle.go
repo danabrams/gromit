@@ -52,9 +52,13 @@ func (e *IterationCompleteEvent) EventType() string {
 
 // BeadCompleteEvent is emitted when a bead is closed as done.
 type BeadCompleteEvent struct {
-	BeadID    string
-	BeadTitle string
-	Duration  time.Duration
+	BeadID       string
+	BeadTitle    string
+	Duration     time.Duration
+	Model        string
+	CostUSD      float64
+	InputTokens  int
+	OutputTokens int
 	TimeMixin
 }
 
