@@ -88,6 +88,56 @@ func TestRun2InvokesSpecLoopWhenReady(t *testing.T) {
 	}
 }
 
+func TestRun2WiresEmitterToSpecLoop(t *testing.T) {
+	specsDir, cleanup := setupRun2TestEnv(t)
+	defer cleanup()
+
+	readySpec := writeSpecFile(t, specsDir, "ready-emitter", map[string]string{"id": "ready-emitter", "accepted": "true"})
+
+	var subscriberEmitter *events.Emitter
+	stubSubscribers := startRun2SubscribersFn
+	startRun2SubscribersFn = func(ctx context.Context, emitter *events.Emitter, output io.Writer, logsDir string) (*sync.WaitGroup, error) {
+		subscriberEmitter = emitter
+		return &sync.WaitGroup{}, nil
+	}
+	defer func() { startRun2SubscribersFn = stubSubscribers }()
+
+	var specLoopEmitter *events.Emitter
+	stubEmitterFn := newSpecLoopEmitterFn
+	newSpecLoopEmitterFn = func(emitter *events.Emitter) loop.SpecLoopOption {
+		specLoopEmitter = emitter
+		return loop.WithEmitter(emitter)
+	}
+	defer func() { newSpecLoopEmitterFn = stubEmitterFn }()
+
+	stubLoop := newSpecLoopFn
+	var stub fakeSpecLoop
+	newSpecLoopFn = func(adapters adapter.AdapterSet, cfg *config.Config, gate loop.DependencyGate, opts ...loop.SpecLoopOption) (specLoop, error) {
+		return &stub, nil
+	}
+	defer func() { newSpecLoopFn = stubLoop }()
+
+	run2Cmd.SetOut(io.Discard)
+	run2Cmd.SetErr(io.Discard)
+
+	if err := run2Cmd.RunE(run2Cmd, []string{readySpec}); err != nil {
+		t.Fatalf("unexpected run error: %v", err)
+	}
+
+	if !stub.called {
+		t.Fatal("expected spec loop to run")
+	}
+	if subscriberEmitter == nil {
+		t.Fatal("startRun2Subscribers never received emitter")
+	}
+	if specLoopEmitter == nil {
+		t.Fatal("spec loop emitter option never invoked")
+	}
+	if subscriberEmitter != specLoopEmitter {
+		t.Fatalf("emitter mismatch: subscriber=%p specloop=%p", subscriberEmitter, specLoopEmitter)
+	}
+}
+
 func setupRun2TestEnv(t *testing.T) (string, func()) {
 	t.Helper()
 
