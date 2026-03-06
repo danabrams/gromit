@@ -15,6 +15,7 @@ import (
 	"github.com/danabrams/gromit/internal/events"
 	"github.com/danabrams/gromit/internal/v2/adapter"
 	"github.com/danabrams/gromit/internal/v2/presentation"
+	v2review "github.com/danabrams/gromit/internal/v2/review"
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
 	stageaccept "github.com/danabrams/gromit/internal/v2/stage/accept"
 	planstage "github.com/danabrams/gromit/internal/v2/stage/plan"
@@ -211,6 +212,31 @@ func TestSpecLoopHappyPathExecutesPipeline(t *testing.T) {
 	}
 	if len(summary.AcceptanceResults) != len(accept.results) {
 		t.Fatalf("acceptance results count = %d", len(summary.AcceptanceResults))
+	}
+}
+
+func TestBuildSuccessSummaryIncludesOutOfScopeFindings(t *testing.T) {
+	t.Parallel()
+
+	loopInstance := &SpecLoop{cfg: &config.Config{}}
+	outOfScope := []v2review.Finding{
+		{
+			Title:         "Audit drift",
+			Description:   "Audit guidance drift is outside current acceptance criteria",
+			AffectedFiles: []string{"README.md"},
+		},
+	}
+
+	summary := loopInstance.buildSuccessSummary("spec-id", "worktree", "plan", nil, nil, outOfScope)
+
+	if len(summary.OutOfScopeFindings) != 1 {
+		t.Fatalf("expected 1 out-of-scope finding, got %d", len(summary.OutOfScopeFindings))
+	}
+	if summary.OutOfScopeFindings[0].Title != outOfScope[0].Title {
+		t.Fatalf("title = %q, want %q", summary.OutOfScopeFindings[0].Title, outOfScope[0].Title)
+	}
+	if summary.OutOfScopeFindings[0].AffectedFiles[0] != "README.md" {
+		t.Fatalf("affected files = %v", summary.OutOfScopeFindings[0].AffectedFiles)
 	}
 }
 
