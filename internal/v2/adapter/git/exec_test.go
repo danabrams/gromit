@@ -47,3 +47,33 @@ func runGitCommand(t *testing.T, dir string, args ...string) {
         t.Fatalf("git %v failed: %v\n%s", args, err, out)
     }
 }
+
+func TestExecGitRemoveWorktree(t *testing.T) {
+	t.Helper()
+	ctx := context.Background()
+
+	repoDir := t.TempDir()
+	runGitCommand(t, repoDir, "init")
+	runGitCommand(t, repoDir, "config", "user.email", "tester@example.com")
+	runGitCommand(t, repoDir, "config", "user.name", "Test User")
+	runGitCommand(t, repoDir, "commit", "--allow-empty", "-m", "initial")
+
+	worktreesRoot := t.TempDir()
+	adapter := NewExecGit(repoDir)
+
+	resp, err := adapter.CreateWorktree(ctx, CreateWorktreeRequest{
+		SpecID:       "spec-remove",
+		WorktreeRoot: worktreesRoot,
+	})
+	if err != nil {
+		t.Fatalf("CreateWorktree failed: %v", err)
+	}
+
+	if _, err := adapter.RemoveWorktree(ctx, RemoveWorktreeRequest{Worktree: resp.Worktree}); err != nil {
+		t.Fatalf("RemoveWorktree failed: %v", err)
+	}
+
+	if _, err := os.Stat(resp.Worktree); !os.IsNotExist(err) {
+		t.Fatalf("expected worktree removed, stat error %v", err)
+	}
+}
