@@ -112,11 +112,12 @@ func TestIntegration_SpecLoopFailureHitsGenerationCap(t *testing.T) {
 		t.Fatal("expected Run to return an error")
 	}
 
-	assertEventTypeOrder(t, collectEvents(t, ch, 4), []string{
+	assertEventTypeOrder(t, collectEvents(t, ch, 5), []string{
 		"*events.SpecStartedEvent",
 		"*events.GenerationCapReachedEvent",
 		"*events.AndonTriggeredEvent",
 		"*events.SpecFailedEvent",
+		"*events.SpecCompletedEvent",
 	})
 
 	if presenter.lastSummary.Success {

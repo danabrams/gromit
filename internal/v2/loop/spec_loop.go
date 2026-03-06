@@ -200,8 +200,8 @@ func (s *SpecLoop) Run(ctx context.Context, specID string) error {
 		return err
 	}
 
-	if err := os.RemoveAll(worktree); err != nil {
-		return fmt.Errorf("cleanup worktree: %w", err)
+	if err := s.cleanupWorktree(worktree); err != nil {
+		return err
 	}
 
 	s.emit(&events.SpecCompletedEvent{SpecID: specID, Worktree: worktree, Success: true})
@@ -355,7 +355,28 @@ func (s *SpecLoop) handleFailure(ctx context.Context, specID string, base presen
 		return fmt.Errorf("present failure summary: %w", err)
 	}
 
+	if err := s.cleanupWorktree(base.Worktree); err != nil {
+		return err
+	}
+
+	s.emit(&events.SpecCompletedEvent{
+		SpecID:        specID,
+		Worktree:      base.Worktree,
+		Success:       false,
+		FailureReason: reason,
+	})
+
 	return fmt.Errorf("accept failure: %w", failure)
+}
+
+func (s *SpecLoop) cleanupWorktree(worktree string) error {
+	if strings.TrimSpace(worktree) == "" {
+		return nil
+	}
+	if err := os.RemoveAll(worktree); err != nil {
+		return fmt.Errorf("cleanup worktree: %w", err)
+	}
+	return nil
 }
 
 func (s *SpecLoop) presentSummary(ctx context.Context, specID string, summary presentation.PresentationSummary) error {
