@@ -73,6 +73,14 @@ func runnerForMissingBeadRunner(accept, decompose stage.Stage) *RemediationRunne
 	})
 }
 
+func runnerForMissingDecomposeStage(accept stage.Stage) *RemediationRunner {
+	return NewRemediationRunner(RemediationRunnerConfig{
+		AcceptStage:   accept,
+		BeadRunner:    &unitTestBeadRunner{},
+		GenerationCap: 1,
+	})
+}
+
 type unitTestStage struct {
 	name   string
 	result *stage.Result
@@ -88,4 +96,10 @@ func (s *unitTestStage) Run(ctx context.Context, req *stage.Request) (*stage.Res
 		return nil, s.err
 	}
 	return s.result, nil
+}
+
+type unitTestBeadRunner struct{}
+
+func (unitTestBeadRunner) Run(context.Context, []*bead.Bead) error {
+	return nil
 }
