@@ -18,7 +18,6 @@ import (
 	"github.com/danabrams/gromit/internal/events"
 	"github.com/danabrams/gromit/internal/events/cli"
 	"github.com/danabrams/gromit/internal/events/stream"
-	v2remediation "github.com/danabrams/gromit/internal/v2"
 	"github.com/danabrams/gromit/internal/v2/adapter"
 	gitadapter "github.com/danabrams/gromit/internal/v2/adapter/git"
 	llm "github.com/danabrams/gromit/internal/v2/adapter/llm"
@@ -27,7 +26,6 @@ import (
 	"github.com/danabrams/gromit/internal/v2/dep"
 	"github.com/danabrams/gromit/internal/v2/loop"
 	v2spec "github.com/danabrams/gromit/internal/v2/spec"
-	acceptstage "github.com/danabrams/gromit/internal/v2/stage/accept"
 	"github.com/spf13/cobra"
 )
 
@@ -59,17 +57,6 @@ var (
 
 type specLoop interface {
 	Run(ctx context.Context, specID string, stopCh <-chan struct{}) error
-}
-
-type remediationBeadRunner struct {
-	loop *loop.BeadLoop
-}
-
-func (r remediationBeadRunner) Run(ctx context.Context, beads []*bead.Bead) error {
-	if r.loop == nil {
-		return fmt.Errorf("bead loop required")
-	}
-	return r.loop.Run(ctx, beads, nil)
 }
 
 func run2(cmd *cobra.Command, args []string) error {
@@ -136,27 +123,14 @@ func run2(cmd *cobra.Command, args []string) error {
 	}
 	defer components.Emitter.Close()
 
-	acceptStage, err := acceptstage.New(cfg, adapters.Git, provider, "", "", "")
-	if err != nil {
-		return fmt.Errorf("create accept stage: %w", err)
-	}
-	remediationRunner := v2remediation.NewRemediationRunner(v2remediation.RemediationRunnerConfig{
-		AcceptStage:    acceptStage,
-		DecomposeStage: components.DecomposeStage,
-		BeadRunner:     &remediationBeadRunner{loop: components.BeadLoop},
-		GenerationCap:  v2remediation.DefaultGenerationCap,
-		Emitter:        emitter,
-		Presenter:      adapters.Presenter,
-	})
-
 	baseOpts := []loop.SpecLoopOption{
 		newSpecLoopEmitterFn(emitter),
 		loop.WithPlanStage(components.PlanStage),
 		loop.WithPresentStage(components.PresentStage, components.PresentSummaryContext),
 		loop.WithDecomposeStage(components.DecomposeStage),
 		loop.WithBeadLoop(components.BeadLoop),
-		loop.WithAcceptStage(acceptStage),
-		loop.WithRemediationRunner(remediationRunner),
+		loop.WithAcceptStage(components.AcceptStage),
+		loop.WithRemediationRunner(components.RemediationRunner),
 	}
 	for _, specFile := range specFiles {
 		if err := specFile.CheckDependencies(specsDir); err != nil {

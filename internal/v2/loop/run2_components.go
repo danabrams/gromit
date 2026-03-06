@@ -10,13 +10,16 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/events"
+	v2remediation "github.com/danabrams/gromit/internal/v2"
 	"github.com/danabrams/gromit/internal/v2/adapter"
 	"github.com/danabrams/gromit/internal/v2/adapter/llm"
 	"github.com/danabrams/gromit/internal/v2/adapter/tasktracker"
 	"github.com/danabrams/gromit/internal/v2/event"
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
+	acceptstage "github.com/danabrams/gromit/internal/v2/stage/accept"
 	buildstage "github.com/danabrams/gromit/internal/v2/stage/build"
 	decomposestage "github.com/danabrams/gromit/internal/v2/stage/decompose"
 	epiloguestage "github.com/danabrams/gromit/internal/v2/stage/epilogue"
@@ -39,6 +42,8 @@ type Run2LoopComponents struct {
 	PresentSummaryContext *present.SummaryContext
 	DecomposeStage        stagepkg.Stage
 	BeadLoop              *BeadLoop
+	AcceptStage           stagepkg.Stage
+	RemediationRunner     remediationRunner
 	Emitter               Run2LoopEmitter
 }
 
@@ -131,14 +136,42 @@ func NewRun2LoopComponents(cfg *config.Config, adapters adapter.AdapterSet, task
 		return nil, err
 	}
 
+	acceptStage, err := acceptstage.New(cfg, adapters.Git, provider, "", "", "")
+	if err != nil {
+		cleanup()
+		return nil, err
+	}
+
+	remediationRunner := v2remediation.NewRemediationRunner(v2remediation.RemediationRunnerConfig{
+		AcceptStage:    acceptStage,
+		DecomposeStage: decomposeStage,
+		BeadRunner:     &remediationBeadRunner{loop: beadLoop},
+		GenerationCap:  v2remediation.DefaultGenerationCap,
+		Emitter:        legacyEmitter,
+		Presenter:      adapters.Presenter,
+	})
+
 	return &Run2LoopComponents{
 		PlanStage:             planStage,
 		PresentStage:          presentStage,
 		PresentSummaryContext: summaryCtx,
 		DecomposeStage:        decomposeStage,
 		BeadLoop:              beadLoop,
+		AcceptStage:           acceptStage,
+		RemediationRunner:     remediationRunner,
 		Emitter:               typedEmitter,
 	}, nil
+}
+
+type remediationBeadRunner struct {
+	loop *BeadLoop
+}
+
+func (r remediationBeadRunner) Run(ctx context.Context, beads []*bead.Bead) error {
+	if r.loop == nil {
+		return fmt.Errorf("bead loop required")
+	}
+	return r.loop.Run(ctx, beads, nil)
 }
 
 type noopValidationRunner struct{}
