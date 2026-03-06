@@ -2,6 +2,7 @@ package loop
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -13,6 +14,7 @@ import (
 	"github.com/danabrams/gromit/internal/v2/event"
 	"github.com/danabrams/gromit/internal/v2/generation"
 	"github.com/danabrams/gromit/internal/v2/stage"
+	reviewstage "github.com/danabrams/gromit/internal/v2/stage/review"
 )
 
 // BeadLoopConfig holds the stages required to process each bead.
@@ -30,15 +32,17 @@ type BeadLoopConfig struct {
 
 // BeadLoop orchestrates the per-bead execution pipeline.
 type BeadLoop struct {
-	gate              stage.Stage
-	build             stage.Stage
-	validate          stage.Stage
-	review            stage.Stage
-	epilogue          stage.Stage
-	emitter           *event.Emitter
-	generationCap     int
-	startGeneration   int
+	gate            stage.Stage
+	build           stage.Stage
+	validate        stage.Stage
+	review          stage.Stage
+	epilogue        stage.Stage
+	emitter         *event.Emitter
+	generationCap   int
+	startGeneration int
 }
+
+var ErrGenerationCapReached = errors.New("generation cap reached")
 
 // NewBeadLoop constructs a BeadLoop tagged with the provided stages.
 func NewBeadLoop(config BeadLoopConfig) (*BeadLoop, error) {
@@ -75,12 +79,14 @@ func NewBeadLoop(config BeadLoopConfig) (*BeadLoop, error) {
 
 // Run processes the provided beads through the stage pipeline.
 func (b *BeadLoop) Run(ctx context.Context, beads []*bead.Bead, stopCh <-chan struct{}) error {
-	// Check generation cap before processing any beads
+	highestGeneration := 0
+	generationLimit := 0
 	if b.generationCap > 0 {
-		highestGen := b.findHighestGeneration(beads)
-		if highestGen >= b.startGeneration+b.generationCap-1 {
-			b.emitGenerationCapReached(highestGen)
-			return fmt.Errorf("generation cap reached")
+		generationLimit = b.startGeneration + b.generationCap
+		highestGeneration = b.findHighestGeneration(beads)
+		if highestGeneration >= generationLimit {
+			b.emitGenerationCapReached(highestGeneration)
+			return ErrGenerationCapReached
 		}
 	}
 
@@ -122,7 +128,7 @@ runLoop:
 			return fmt.Errorf("bead %q missing from input list", next)
 		}
 		b.emitBeadStarted(beadItem, iteration)
-		if err := b.processBead(ctx, beadItem, iteration); err != nil {
+		if err := b.processBead(ctx, beadItem, iteration, &highestGeneration, generationLimit); err != nil {
 			return err
 		}
 		b.emitBeadCompleted(beadItem, iteration, true, 0)
@@ -132,7 +138,7 @@ runLoop:
 	return nil
 }
 
-func (b *BeadLoop) processBead(ctx context.Context, beadItem *bead.Bead, iteration int) error {
+func (b *BeadLoop) processBead(ctx context.Context, beadItem *bead.Bead, iteration int, highestGen *int, generationLimit int) error {
 	stages := []struct {
 		stage       stage.Stage
 		shouldFail  func(*stage.Result) bool
@@ -198,6 +204,9 @@ func (b *BeadLoop) processBead(ctx context.Context, beadItem *bead.Bead, iterati
 		}
 
 		b.emitStageCompleted(stageName, beadItem.ID, iteration, true, duration)
+		if entry.stage == b.review && b.handleGenerationCapFromReview(res, highestGen, generationLimit) {
+			return ErrGenerationCapReached
+		}
 	}
 
 	if err := b.runEpilogue(ctx, beadItem, iteration, nil); err != nil {
@@ -384,6 +393,31 @@ func (b *BeadLoop) findHighestGeneration(beads []*bead.Bead) int {
 		}
 	}
 	return maxGen
+}
+
+func (b *BeadLoop) handleGenerationCapFromReview(res *stage.Result, highestGen *int, generationLimit int) bool {
+	if generationLimit <= 0 || highestGen == nil || res == nil || res.Artifacts == nil {
+		return false
+	}
+	artifacts, ok := res.Artifacts.(*reviewstage.ReviewArtifacts)
+	if !ok {
+		return false
+	}
+	maxGen := *highestGen
+	for _, created := range artifacts.CreatedBeads {
+		if created == nil {
+			continue
+		}
+		if gen := generation.Current(created.Labels); gen > maxGen {
+			maxGen = gen
+		}
+	}
+	*highestGen = maxGen
+	if maxGen >= generationLimit {
+		b.emitGenerationCapReached(maxGen)
+		return true
+	}
+	return false
 }
 
 func (b *BeadLoop) emitGenerationCapReached(highestGeneration int) {

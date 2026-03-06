@@ -323,32 +323,18 @@ func TestBeadLoopEnforcesGenerationCap(t *testing.T) {
 		t.Fatalf("NewBeadLoop: %v", err)
 	}
 
-	// Beads at generation 2, which means next generation would be 3 (at cap)
+	// Beads at generation 3 (start 0 + cap 3), which triggers the cap immediately
 	beads := []*bead.Bead{
-		{ID: "bead-at-gen-2", Labels: []string{"gen:2"}},
+		{ID: "bead-at-gen-3", Labels: []string{generation.Format(3)}},
 	}
 
 	err = loop.Run(context.Background(), beads, nil)
-	if err == nil {
-		t.Fatal("expected Run to return error when generation cap reached")
+	if !errors.Is(err, ErrGenerationCapReached) {
+		t.Fatalf("Run error = %v, want ErrGenerationCapReached", err)
 	}
 
 	// Check that GenerationCapReached event was emitted
-	var foundEvent bool
-	for i := 0; i < 2; i++ {
-		select {
-		case evt := <-ch:
-			if _, ok := evt.(event.GenerationCapReachedEvent); ok {
-				foundEvent = true
-				break
-			}
-		case <-time.After(100 * time.Millisecond):
-			break
-		}
-	}
-	if !foundEvent {
-		t.Fatal("expected GenerationCapReached event to be emitted")
-	}
+	waitForGenerationCapEvent(t, ch)
 }
 
 func TestBeadLoopStopsWhenReviewCreatesBeadsAtGenerationCap(t *testing.T) {
@@ -394,21 +380,7 @@ func TestBeadLoopStopsWhenReviewCreatesBeadsAtGenerationCap(t *testing.T) {
 		t.Fatalf("Run error = %v, want ErrGenerationCapReached", err)
 	}
 
-	var foundEvent bool
-	for i := 0; i < 2; i++ {
-		select {
-		case evt := <-ch:
-			if _, ok := evt.(event.GenerationCapReachedEvent); ok {
-				foundEvent = true
-				break
-			}
-		case <-time.After(100 * time.Millisecond):
-			break
-		}
-	}
-	if !foundEvent {
-		t.Fatal("expected GenerationCapReached event to be emitted")
-	}
+	waitForGenerationCapEvent(t, ch)
 }
 
 func TestBeadLoopStopsWhenStopChannelCloses(t *testing.T) {
@@ -562,8 +534,8 @@ func (s *closingStage) Run(ctx context.Context, req *stage.Request) (*stage.Resu
 }
 
 type scriptedReviewStage struct {
-	name   string
-	result *stage.Result
+	name     string
+	result   *stage.Result
 	runCount int
 }
 
@@ -572,4 +544,20 @@ func (s *scriptedReviewStage) Name() string { return s.name }
 func (s *scriptedReviewStage) Run(ctx context.Context, req *stage.Request) (*stage.Result, error) {
 	s.runCount++
 	return s.result, nil
+}
+
+func waitForGenerationCapEvent(t *testing.T, ch <-chan event.TypedEvent) {
+	t.Helper()
+	timer := time.NewTimer(200 * time.Millisecond)
+	defer timer.Stop()
+	for {
+		select {
+		case evt := <-ch:
+			if _, ok := evt.(event.GenerationCapReachedEvent); ok {
+				return
+			}
+		case <-timer.C:
+			t.Fatal("expected GenerationCapReached event to be emitted")
+		}
+	}
 }
