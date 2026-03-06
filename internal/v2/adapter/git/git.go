@@ -2,57 +2,83 @@ package git
 
 import "context"
 
-// CreateWorktreeRequest describes the inputs required to make a new worktree.
-type CreateWorktreeRequest struct {
+// GitCreateWorktreeRequest describes the inputs required to make a new worktree.
+type GitCreateWorktreeRequest struct {
 	SpecID       string
 	Reference    string
 	WorktreeRoot string
 }
 
-// CreateWorktreeResponse describes the created worktree path.
-type CreateWorktreeResponse struct {
+// GitCreateWorktreeResponse describes the created worktree path.
+type GitCreateWorktreeResponse struct {
 	Worktree string
 }
 
+// CreateWorktreeRequest is retained for backwards compatibility with existing callers.
+type CreateWorktreeRequest = GitCreateWorktreeRequest
+
+// CreateWorktreeResponse is retained for backwards compatibility with existing callers.
+type CreateWorktreeResponse = GitCreateWorktreeResponse
+
 // RemoveWorktreeRequest describes a request to remove an existing worktree.
-type RemoveWorktreeRequest struct {
+type GitRemoveWorktreeRequest struct {
 	Worktree string
 	Force    bool
 }
 
-// RemoveWorktreeResponse communicates whether the removal happened.
-type RemoveWorktreeResponse struct {
+// GitRemoveWorktreeResponse communicates whether the removal happened.
+type GitRemoveWorktreeResponse struct {
 	Removed bool
 }
 
+// RemoveWorktreeRequest is retained for backwards compatibility with existing callers.
+type RemoveWorktreeRequest = GitRemoveWorktreeRequest
+
+// RemoveWorktreeResponse is retained for backwards compatibility with existing callers.
+type RemoveWorktreeResponse = GitRemoveWorktreeResponse
+
 // CommitRequest describes the inputs to commit work within a worktree.
-type CommitRequest struct {
+// GitCommitRequest describes the inputs to commit work within a worktree.
+type GitCommitRequest struct {
 	Worktree string
 	Message  string
 	Amend    bool
 }
 
-// CommitResponse reports the resulting commit hash.
-type CommitResponse struct {
+// GitCommitResponse reports the resulting commit hash.
+type GitCommitResponse struct {
 	CommitHash string
 }
 
+// CommitRequest is retained for backwards compatibility with existing callers.
+type CommitRequest = GitCommitRequest
+
+// CommitResponse is retained for backwards compatibility with existing callers.
+type CommitResponse = GitCommitResponse
+
 // DiffRequest describes the worktree to diff.
-type DiffRequest struct {
+// GitDiffRequest describes the worktree to diff.
+type GitDiffRequest struct {
 	Worktree string
 	Base     string
 }
 
-// DiffResponse carries the diff output.
-type DiffResponse struct {
+// GitDiffResponse carries the diff output.
+type GitDiffResponse struct {
 	Diff    string
 	Summary string
 }
 
+// DiffRequest is retained for backwards compatibility with existing callers.
+type DiffRequest = GitDiffRequest
+
+// DiffResponse is retained for backwards compatibility with existing callers.
+type DiffResponse = GitDiffResponse
+
 // Git describes higher-level git operations for the run loop.
 type Git interface {
-	CreateWorktree(ctx context.Context, req CreateWorktreeRequest) (CreateWorktreeResponse, error)
-	RemoveWorktree(ctx context.Context, req RemoveWorktreeRequest) (RemoveWorktreeResponse, error)
-	Commit(ctx context.Context, req CommitRequest) (CommitResponse, error)
-	Diff(ctx context.Context, req DiffRequest) (DiffResponse, error)
+	CreateWorktree(ctx context.Context, req GitCreateWorktreeRequest) (GitCreateWorktreeResponse, error)
+	RemoveWorktree(ctx context.Context, req GitRemoveWorktreeRequest) (GitRemoveWorktreeResponse, error)
+	Commit(ctx context.Context, req GitCommitRequest) (GitCommitResponse, error)
+	Diff(ctx context.Context, req GitDiffRequest) (GitDiffResponse, error)
 }
