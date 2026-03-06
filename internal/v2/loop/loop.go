@@ -201,7 +201,18 @@ func (s *SpecLoop) ensureAcceptance(ctx context.Context, specID string) error {
 	if s.remediationRunner == nil {
 		return fmt.Errorf("accept failed")
 	}
-	return s.remediationRunner.Run(ctx, specID)
+	if err := s.remediationRunner.Run(ctx, specID); err != nil {
+		return err
+	}
+	// Retry accept after successful remediation
+	failed, err = s.runAcceptStage(ctx, specID)
+	if err != nil {
+		return err
+	}
+	if !failed {
+		return nil
+	}
+	return fmt.Errorf("accept failed after remediation")
 }
 
 func (s *SpecLoop) runAcceptStage(ctx context.Context, specID string) (bool, error) {

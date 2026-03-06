@@ -192,7 +192,8 @@ func TestSpecLoopInvokesRemediationWhenAcceptFails(t *testing.T) {
 	llm := newFakeLLMAdapter()
 	taskTracker := newFakeTaskTrackerAdapter()
 	presenter := newFakePresenterAdapter(t)
-	accept := newScriptedAcceptStage(stagepkg.Result{Decision: stagepkg.DecisionFail})
+	// Accept fails first, then succeeds after remediation
+	accept := newScriptedAcceptStage(stagepkg.Result{Decision: stagepkg.DecisionFail}, stagepkg.Result{Decision: stagepkg.DecisionProceed})
 	runner := &fakeRemediationRunner{}
 
 	adapters := adapter.AdapterSet{
@@ -211,8 +212,8 @@ func TestSpecLoopInvokesRemediationWhenAcceptFails(t *testing.T) {
 		t.Fatalf("run spec loop: %v", err)
 	}
 
-	if accept.calls != 1 {
-		t.Fatalf("accept runs = %d, want 1", accept.calls)
+	if accept.calls != 2 {
+		t.Fatalf("accept runs = %d, want 2", accept.calls)
 	}
 	if runner.calls != 1 {
 		t.Fatalf("remediation runs = %d, want 1", runner.calls)
