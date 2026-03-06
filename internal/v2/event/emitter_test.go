@@ -2,6 +2,7 @@ package event
 
 import (
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -34,6 +35,64 @@ func TestEmitterDoesNotBlockOnSlowSubscriber(t *testing.T) {
 	}
 
 	close(slowBlock)
+}
+
+func TestEmitterProcessesSubscriberEventsSequentially(t *testing.T) {
+	emitter := NewEmitter()
+
+	var (
+		calls        int32
+		active       atomic.Bool
+		firstStarted = make(chan struct{})
+		releaseFirst = make(chan struct{})
+		secondDone   = make(chan struct{})
+		concurrent   = make(chan struct{}, 1)
+		firstOnce    sync.Once
+		releaseOnce  sync.Once
+		secondOnce   sync.Once
+	)
+
+	defer releaseOnce.Do(func() { close(releaseFirst) })
+
+	emitter.Subscribe(func(Event) {
+		idx := atomic.AddInt32(&calls, 1)
+		if idx == 1 {
+			active.Store(true)
+			firstOnce.Do(func() { close(firstStarted) })
+			<-releaseFirst
+			active.Store(false)
+			return
+		}
+
+		if active.Load() {
+			select {
+			case concurrent <- struct{}{}:
+			default:
+			}
+		}
+
+		secondOnce.Do(func() { close(secondDone) })
+	})
+
+	go emitter.Emit(Event{Type: "first"})
+	<-firstStarted
+
+	go emitter.Emit(Event{Type: "second"})
+
+	select {
+	case <-concurrent:
+		t.Fatal("subscriber ran concurrently")
+	case <-time.After(100 * time.Millisecond):
+		// no concurrency detected yet
+	}
+
+	releaseOnce.Do(func() { close(releaseFirst) })
+
+	select {
+	case <-secondDone:
+	case <-time.After(time.Second):
+		t.Fatal("second subscriber never finished")
+	}
 }
 
 func TestEmitterFansOutEvents(t *testing.T) {
