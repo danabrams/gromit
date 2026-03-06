@@ -148,17 +148,29 @@ func (b *BeadLoop) processBead(ctx context.Context, beadItem *bead.Bead, iterati
 	}
 
 	for _, entry := range stages {
+		stageName := stageName(entry.stage)
 		req := b.stageRequest(beadItem, iteration, nil)
+		b.emitStageStarted(stageName, beadItem.ID, iteration)
+		start := time.Now()
 		res, err := b.runStage(ctx, entry.stage, req)
+		duration := time.Since(start)
+
 		if err != nil {
+			b.emitStageCompleted(stageName, beadItem.ID, iteration, false, duration)
+			b.emitStageFailed(stageName, beadItem.ID, iteration, err.Error())
 			return b.failWithReason(ctx, beadItem, iteration, err.Error())
 		}
 		if entry.shouldFail != nil && entry.shouldFail(res) {
-			return b.failWithReason(ctx, beadItem, iteration, entry.failMessage(res))
+			reason := entry.failMessage(res)
+			b.emitStageCompleted(stageName, beadItem.ID, iteration, false, duration)
+			b.emitStageFailed(stageName, beadItem.ID, iteration, reason)
+			return b.failWithReason(ctx, beadItem, iteration, reason)
 		}
+
+		b.emitStageCompleted(stageName, beadItem.ID, iteration, true, duration)
 	}
 
-	if _, err := b.runStage(ctx, b.epilogue, b.stageRequest(beadItem, iteration, nil)); err != nil {
+	if err := b.runEpilogue(ctx, beadItem, iteration, nil); err != nil {
 		return err
 	}
 	return nil
@@ -180,11 +192,27 @@ func (b *BeadLoop) failWithReason(ctx context.Context, beadItem *bead.Bead, iter
 		Attempt:       1,
 		PriorFailures: []string{reason},
 	}
-	if _, err := b.runStage(ctx, b.epilogue, b.stageRequest(beadItem, iteration, retryCtx)); err != nil {
+	if err := b.runEpilogue(ctx, beadItem, iteration, retryCtx); err != nil {
 		return fmt.Errorf("epilogue failure: %w", err)
 	}
 	b.emitBeadCompleted(beadItem, iteration, false, 1)
 	return fmt.Errorf("bead %s failed: %s", beadItem.ID, reason)
+}
+
+func (b *BeadLoop) runEpilogue(ctx context.Context, beadItem *bead.Bead, iteration int, retryCtx *stage.RetryContext) error {
+	stageName := stageName(b.epilogue)
+	req := b.stageRequest(beadItem, iteration, retryCtx)
+	b.emitStageStarted(stageName, beadItem.ID, iteration)
+	start := time.Now()
+	_, err := b.runStage(ctx, b.epilogue, req)
+	duration := time.Since(start)
+	if err != nil {
+		b.emitStageCompleted(stageName, beadItem.ID, iteration, false, duration)
+		b.emitStageFailed(stageName, beadItem.ID, iteration, err.Error())
+		return err
+	}
+	b.emitStageCompleted(stageName, beadItem.ID, iteration, true, duration)
+	return nil
 }
 
 func stageDecision(res *stage.Result) stage.Decision {
@@ -254,4 +282,62 @@ func (b *BeadLoop) emitBeadCompleted(beadItem *bead.Bead, iteration int, success
 		Success:      success,
 		RetryAttempt: retryAttempt,
 	})
+}
+
+func (b *BeadLoop) emitStageStarted(stageName, beadID string, iteration int) {
+	if b.emitter == nil {
+		return
+	}
+	b.emitter.Emit(event.StageStartedEvent{
+		Event: event.Event{
+			SchemaVersion: event.SchemaVersion,
+			Timestamp:     time.Now(),
+			Type:          event.EventTypeStageStarted,
+		},
+		StageName: stageName,
+		BeadID:    beadID,
+		Iteration: iteration,
+	})
+}
+
+func (b *BeadLoop) emitStageCompleted(stageName, beadID string, iteration int, success bool, duration time.Duration) {
+	if b.emitter == nil {
+		return
+	}
+	b.emitter.Emit(event.StageCompletedEvent{
+		Event: event.Event{
+			SchemaVersion: event.SchemaVersion,
+			Timestamp:     time.Now(),
+			Type:          event.EventTypeStageCompleted,
+		},
+		StageName: stageName,
+		BeadID:    beadID,
+		Iteration: iteration,
+		Success:   success,
+		Duration:  duration,
+	})
+}
+
+func (b *BeadLoop) emitStageFailed(stageName, beadID string, iteration int, reason string) {
+	if b.emitter == nil {
+		return
+	}
+	b.emitter.Emit(event.StageFailedEvent{
+		Event: event.Event{
+			SchemaVersion: event.SchemaVersion,
+			Timestamp:     time.Now(),
+			Type:          event.EventTypeStageFailed,
+		},
+		StageName: stageName,
+		BeadID:    beadID,
+		Iteration: iteration,
+		Error:     reason,
+	})
+}
+
+func stageName(st stage.Stage) string {
+	if st == nil {
+		return ""
+	}
+	return st.Name()
 }

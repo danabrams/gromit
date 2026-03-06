@@ -170,18 +170,22 @@ func TestBeadLoopEmitsLifecycleEvents(t *testing.T) {
 		t.Fatalf("Run failed: %v", err)
 	}
 
-	events := collectLifecycleEvents(ch, 2)
-	started, ok := events[0].(event.BeadStartedEvent)
+	startedEvt := <-ch
+	started, ok := startedEvt.(event.BeadStartedEvent)
 	if !ok {
-		t.Fatalf("first event type = %T, want event.BeadStartedEvent", events[0])
+		t.Fatalf("first event type = %T, want event.BeadStartedEvent", startedEvt)
 	}
 	if started.BeadID != "event-bead" || started.BeadTitle != "Eventful" {
 		t.Fatalf("unexpected started event: %#v", started)
 	}
 
-	completed, ok := events[1].(event.BeadCompletedEvent)
-	if !ok {
-		t.Fatalf("second event type = %T, want event.BeadCompletedEvent", events[1])
+	var completed event.BeadCompletedEvent
+	for {
+		next := <-ch
+		if evt, ok := next.(event.BeadCompletedEvent); ok {
+			completed = evt
+			break
+		}
 	}
 	if !completed.Success {
 		t.Fatalf("expected success completion event, got %#v", completed)
