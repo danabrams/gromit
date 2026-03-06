@@ -19,6 +19,12 @@ type Stage struct {
 	tracker tasktracker.TaskTracker
 }
 
+// EpilogueArtifacts exposes outcome metadata for downstream consumers.
+type EpilogueArtifacts struct {
+	Success       bool
+	FailureReason string
+}
+
 // New constructs an epilogue stage backed by the provided adapter set.
 func New(cfg *config.Config, tracker tasktracker.TaskTracker) (*Stage, error) {
 	if cfg == nil {
@@ -54,7 +60,11 @@ func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Resul
 	if isFailurePath(req) {
 		return &stagepkg.Result{
 			Decision: stagepkg.DecisionProceed,
-			Events:   []events.Event{s.failureEvent(req)},
+			Artifacts: &EpilogueArtifacts{
+				Success:       false,
+				FailureReason: failureSummary(req),
+			},
+			Events: []events.Event{s.failureEvent(req)},
 		}, nil
 	}
 
@@ -64,7 +74,10 @@ func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Resul
 
 	return &stagepkg.Result{
 		Decision: stagepkg.DecisionProceed,
-		Events:   []events.Event{s.successEvent(req)},
+		Artifacts: &EpilogueArtifacts{
+			Success: true,
+		},
+		Events: []events.Event{s.successEvent(req)},
 	}, nil
 }
 
