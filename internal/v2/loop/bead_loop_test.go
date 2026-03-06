@@ -3,16 +3,19 @@ package loop
 import (
 	"context"
 	"errors"
+	"reflect"
 	"testing"
 	"time"
 
 	"github.com/danabrams/gromit/internal/bead"
+	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/events"
 	"github.com/danabrams/gromit/internal/v2/adapter/tasktracker"
 	"github.com/danabrams/gromit/internal/v2/event"
 	"github.com/danabrams/gromit/internal/v2/generation"
 	"github.com/danabrams/gromit/internal/v2/stage"
 	reviewstage "github.com/danabrams/gromit/internal/v2/stage/review"
+	stagevalidate "github.com/danabrams/gromit/internal/v2/stage/validate"
 )
 
 func TestBeadLoopRunsStagesInOrder(t *testing.T) {
@@ -247,6 +250,48 @@ func TestBeadLoopRetryWithRunsBuildBeforeRetryAndReportsAttempt(t *testing.T) {
 	}
 	if retryEvt.StageName != "validate" || retryEvt.Attempt != 2 {
 		t.Fatalf("retry event = %#v, want stage=validate attempt=2", retryEvt)
+	}
+}
+
+func TestBeadLoopValidateRetriesBuildOnFailure(t *testing.T) {
+	t.Parallel()
+
+	cfg := &config.Config{}
+	cfg.SetDefaults()
+	cfg.Validation.Commands = []string{"validate"}
+	cfg.Validation.MaxValidationRetries = 1
+
+	runner := &failingValidationRunner{failures: 1}
+	validateStage, err := stagevalidate.New(cfg, runner)
+	if err != nil {
+		t.Fatalf("stagevalidate.New: %v", err)
+	}
+
+	order := []string{}
+	config := BeadLoopConfig{
+		Gate:     newRecordingStage("gate", &order),
+		Build:    newRecordingStage("build", &order),
+		Validate: validateStage,
+		Review:   newRecordingStage("review", &order),
+		Epilogue: newRecordingStage("epilogue", &order),
+	}
+	loop, err := NewBeadLoop(config)
+	if err != nil {
+		t.Fatalf("NewBeadLoop: %v", err)
+	}
+
+	beads := []*bead.Bead{{ID: "spec"}}
+	if err := loop.Run(context.Background(), beads, nil); err != nil {
+		t.Fatalf("Run failed: %v", err)
+	}
+
+	if runner.runCount != 2 {
+		t.Fatalf("validation runner run count = %d, want 2", runner.runCount)
+	}
+
+	expected := []string{"gate:spec", "build:spec", "build:spec", "review:spec", "epilogue:spec"}
+	if !reflect.DeepEqual(order, expected) {
+		t.Fatalf("order = %v, want %v", order, expected)
 	}
 }
 
@@ -634,6 +679,19 @@ func (s *retryStage) Run(ctx context.Context, req *stage.Request) (*stage.Result
 		return &stage.Result{Decision: stage.DecisionFail}, nil
 	}
 	return &stage.Result{Decision: stage.DecisionProceed}, nil
+}
+
+type failingValidationRunner struct {
+	failures int
+	runCount int
+}
+
+func (r *failingValidationRunner) Run(ctx context.Context, command string) error {
+	r.runCount++
+	if r.runCount <= r.failures {
+		return errors.New("validation failure")
+	}
+	return nil
 }
 
 type noopStage struct {
