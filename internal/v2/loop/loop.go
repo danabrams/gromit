@@ -15,6 +15,11 @@ import (
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
 )
 
+const (
+	defaultGromitDir = ".gromit"
+	v2DirName        = "v2"
+)
+
 // StageSequence lists the canonical stages the spec loop emits.
 var StageSequence = []string{
 	"plan",
@@ -258,7 +263,11 @@ func (s *SpecLoop) readGapAnalysis(worktree string) (string, error) {
 	if strings.TrimSpace(worktree) == "" {
 		return "", nil
 	}
-	path := filepath.Join(worktree, s.gapAnalysisFilename)
+	gromitDir := s.cfg.Paths.GromitDir
+	if gromitDir == "" {
+		gromitDir = defaultGromitDir
+	}
+	path := filepath.Join(worktree, gromitDir, v2DirName, s.gapAnalysisFilename)
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
