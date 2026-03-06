@@ -45,6 +45,18 @@ func TestRemediationRunnerRunMissingBeadRunner(t *testing.T) {
 	}
 }
 
+func TestRemediationRunnerRunMissingDecomposeStage(t *testing.T) {
+	accept := &unitTestStage{
+		name: "accept",
+		result: &stage.Result{Decision: stage.DecisionFail},
+	}
+
+	runner := runnerForMissingDecomposeStage(accept)
+	if err := runner.Run(context.Background(), "spec"); !errors.Is(err, ErrDecomposeStageRequired) {
+		t.Fatalf("expected ErrDecomposeStageRequired, got %v", err)
+	}
+}
+
 func runnerForSpecIDValidation() *RemediationRunner {
 	return NewRemediationRunner(RemediationRunnerConfig{})
 }
