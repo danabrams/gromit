@@ -88,6 +88,7 @@ type Emitter struct {
 	mu          sync.RWMutex
 	subscribers map[*subscriber]struct{}
 	done        chan struct{}
+	closeOnce   sync.Once
 }
 
 // NewEmitter returns a fresh Emitter.
@@ -117,10 +118,15 @@ func (e *Emitter) Emit(evt TypedEvent) {
 }
 
 // Close closes the emitter and all subscriber goroutines.
+// It is safe to call Close multiple times; only the first call has any effect.
+// Queued events that have not yet been dispatched may be dropped
+// (fire-and-forget semantics).
 func (e *Emitter) Close() {
-	e.mu.Lock()
-	for sub := range e.subscribers {
-		close(sub.done)
-	}
-	e.mu.Unlock()
+	e.closeOnce.Do(func() {
+		e.mu.Lock()
+		for sub := range e.subscribers {
+			close(sub.done)
+		}
+		e.mu.Unlock()
+	})
 }

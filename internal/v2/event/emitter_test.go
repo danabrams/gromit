@@ -337,6 +337,15 @@ func TestEmitterCloseReleasesBlockingSubscriberGoroutines(t *testing.T) {
 	waitForGoroutines(t, baseline)
 }
 
+func TestEmitterCloseIsIdempotent(t *testing.T) {
+	emitter := NewEmitter()
+
+	emitter.Subscribe(func(TypedEvent) {})
+
+	emitter.Close()
+	emitter.Close() // second call must not panic
+}
+
 func waitForGoroutines(t *testing.T, target int) {
 	deadline := time.Now().Add(time.Second)
 	for time.Now().Before(deadline) {

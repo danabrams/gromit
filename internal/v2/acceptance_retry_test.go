@@ -44,15 +44,11 @@ func TestRetryContextPopulatedOnFailure(t *testing.T) {
 	}
 }
 
-func TestRetryWithRerunsBuildBeforeValidate(t *testing.T) {
-	t.Parallel()
-	t.Skip("retry-with semantics not implemented yet")
-}
-
-func TestMaxRetriesExhaustionStopsLoop(t *testing.T) {
-	t.Parallel()
-	t.Skip("max retries enforcement not implemented yet")
-}
+// Retry-with semantics and max retries exhaustion are covered by unit tests in
+// internal/v2/loop/bead_loop_test.go:
+//   - TestBeadLoopRetryWithRunsBuildBeforeRetryAndReportsAttempt
+//   - TestBeadLoopValidateRetriesBuildOnFailure
+//   - TestBeadLoopShortCircuitsToFailurePath
 
 func newRetryBeadLoop(validate stage.Stage, epilogue stage.Stage) (*loop.BeadLoop, error) {
 	return loop.NewBeadLoop(loop.BeadLoopConfig{

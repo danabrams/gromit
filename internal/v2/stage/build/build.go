@@ -280,46 +280,6 @@ func (s *Stage) invokeWithEscalation(ctx context.Context, prompt, initialModel s
 	}
 }
 
-func (s *Stage) buildStartEvent(req *stagepkg.Request, model string, cfg *config.Config) events.Event {
-	attempt := 1
-	if req != nil && req.RetryContext != nil {
-		attempt += req.RetryContext.Attempt
-	}
-	maxAttempts := 1
-	if cfg != nil && cfg.Escalation.Enabled && len(cfg.Escalation.Chain) > 0 {
-		maxAttempts = len(cfg.Escalation.Chain)
-	}
-	return &events.BuildStartEvent{
-		BeadID:      req.Bead.ID,
-		Model:       model,
-		Attempt:     attempt,
-		MaxAttempts: maxAttempts,
-		TimeMixin:   events.TimeMixin{Time: time.Now()},
-	}
-}
-
-func (s *Stage) buildCompleteEvent(req *stagepkg.Request, resp *llm.LLMResponse) events.Event {
-	duration := time.Duration(0)
-	tokens := 0
-	cost := 0.0
-	success := false
-	if resp != nil {
-		duration = resp.Duration
-		tokens = resp.Tokens
-		cost = resp.CostUSD
-		success = resp.Success
-	}
-	return &events.BuildCompleteEvent{
-		BeadID:    req.Bead.ID,
-		Success:   success,
-		Duration:  duration,
-		Cost:      cost,
-		TokensIn:  tokens,
-		TokensOut: 0,
-		TimeMixin: events.TimeMixin{Time: time.Now()},
-	}
-}
-
 // WithEmitter attaches an emitter for downstream consumers.
 func (s *Stage) WithEmitter(emitter *events.Emitter) *Stage {
 	s.EmitterMixin.SetEmitter(emitter)

@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/bead"
@@ -19,6 +20,113 @@ import (
 	planstage "github.com/danabrams/gromit/internal/v2/stage/plan"
 	present "github.com/danabrams/gromit/internal/v2/stage/present"
 )
+
+func TestNewSpecLoopValidation(t *testing.T) {
+	t.Parallel()
+
+	validAdapters := func(tb testing.TB) adapter.AdapterSet {
+		return adapter.AdapterSet{
+			Git:         newFakeGitAdapter(tb.(*testing.T)),
+			LLM:         newFakeLLMAdapter(),
+			TaskTracker: newFakeTaskTrackerAdapter(),
+			Presenter:   newFakePresenterAdapter(tb.(*testing.T)),
+		}
+	}
+
+	cases := []struct {
+		name      string
+		cfg       *config.Config
+		adapters  func(testing.TB) adapter.AdapterSet
+		gate      DependencyGate
+		wantField string
+	}{
+		{
+			name:      "nil config",
+			cfg:       nil,
+			adapters:  func(tb testing.TB) adapter.AdapterSet { return validAdapters(tb) },
+			gate:      noopDependencyGate{},
+			wantField: "config",
+		},
+		{
+			name: "nil git adapter",
+			cfg:  &config.Config{},
+			adapters: func(tb testing.TB) adapter.AdapterSet {
+				a := validAdapters(tb)
+				a.Git = nil
+				return a
+			},
+			gate:      noopDependencyGate{},
+			wantField: "git",
+		},
+		{
+			name: "nil llm adapter",
+			cfg:  &config.Config{},
+			adapters: func(tb testing.TB) adapter.AdapterSet {
+				a := validAdapters(tb)
+				a.LLM = nil
+				return a
+			},
+			gate:      noopDependencyGate{},
+			wantField: "llm",
+		},
+		{
+			name: "nil task tracker adapter",
+			cfg:  &config.Config{},
+			adapters: func(tb testing.TB) adapter.AdapterSet {
+				a := validAdapters(tb)
+				a.TaskTracker = nil
+				return a
+			},
+			gate:      noopDependencyGate{},
+			wantField: "task tracker",
+		},
+		{
+			name: "nil presenter adapter",
+			cfg:  &config.Config{},
+			adapters: func(tb testing.TB) adapter.AdapterSet {
+				a := validAdapters(tb)
+				a.Presenter = nil
+				return a
+			},
+			gate:      noopDependencyGate{},
+			wantField: "presenter",
+		},
+		{
+			name:      "nil dependency gate",
+			cfg:       &config.Config{},
+			adapters:  func(tb testing.TB) adapter.AdapterSet { return validAdapters(tb) },
+			gate:      nil,
+			wantField: "dependency gate",
+		},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			adapters := tc.adapters(t)
+			_, err := NewSpecLoop(adapters, tc.cfg, tc.gate)
+			if err == nil {
+				t.Fatalf("expected error for %s, got nil", tc.name)
+			}
+			if !strings.Contains(err.Error(), tc.wantField) {
+				t.Fatalf("error %q should mention %q", err.Error(), tc.wantField)
+			}
+		})
+	}
+
+	t.Run("valid config succeeds", func(t *testing.T) {
+		t.Parallel()
+		adapters := validAdapters(t)
+		loop, err := NewSpecLoop(adapters, &config.Config{}, noopDependencyGate{})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if loop == nil {
+			t.Fatal("expected non-nil loop")
+		}
+	})
+}
 
 func TestSpecLoopHappyPathExecutesPipeline(t *testing.T) {
 	t.Parallel()

@@ -3,7 +3,9 @@ package loop
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -303,6 +305,62 @@ func TestBeadLoopValidateRetriesBuildOnFailure(t *testing.T) {
 	}
 	if !reflect.DeepEqual(order, expected) {
 		t.Fatalf("order = %v, want %v", order, expected)
+	}
+}
+
+func TestBeadLoopStageErrorPropagation(t *testing.T) {
+	t.Parallel()
+
+	stageErr := fmt.Errorf("infrastructure failure")
+
+	cases := []struct {
+		name       string
+		errStage   string
+		wantSubstr string
+	}{
+		{name: "gate error", errStage: "gate", wantSubstr: "gate"},
+		{name: "build error", errStage: "build", wantSubstr: "build"},
+		{name: "validate error", errStage: "validate", wantSubstr: "validate"},
+		{name: "review error", errStage: "review", wantSubstr: "review"},
+		{name: "epilogue error", errStage: "epilogue", wantSubstr: "epilogue"},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			makeStage := func(name string) stage.Stage {
+				if name == tc.errStage {
+					return &decisionStage{name: name, err: stageErr}
+				}
+				return newNoopStage(name)
+			}
+
+			cfg := BeadLoopConfig{
+				Gate:     makeStage("gate"),
+				Build:    makeStage("build"),
+				Validate: makeStage("validate"),
+				Review:   makeStage("review"),
+				Epilogue: makeStage("epilogue"),
+			}
+
+			loop, err := NewBeadLoop(cfg)
+			if err != nil {
+				t.Fatalf("NewBeadLoop: %v", err)
+			}
+
+			err = loop.Run(context.Background(), []*bead.Bead{{ID: "err-bead"}}, nil)
+			if err == nil {
+				t.Fatal("expected error from Run, got nil")
+			}
+			if !strings.Contains(err.Error(), tc.wantSubstr) {
+				t.Fatalf("error %q should mention %q", err.Error(), tc.wantSubstr)
+			}
+			if !errors.Is(err, stageErr) && !strings.Contains(err.Error(), stageErr.Error()) {
+				t.Fatalf("error %q should contain original error %q", err.Error(), stageErr.Error())
+			}
+		})
 	}
 }
 

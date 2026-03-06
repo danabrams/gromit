@@ -35,7 +35,6 @@ type RemoveWorktreeRequest = GitRemoveWorktreeRequest
 // RemoveWorktreeResponse is retained for backwards compatibility with existing callers.
 type RemoveWorktreeResponse = GitRemoveWorktreeResponse
 
-// CommitRequest describes the inputs to commit work within a worktree.
 // GitCommitRequest describes the inputs to commit work within a worktree.
 type GitCommitRequest struct {
 	Worktree string
@@ -54,7 +53,6 @@ type CommitRequest = GitCommitRequest
 // CommitResponse is retained for backwards compatibility with existing callers.
 type CommitResponse = GitCommitResponse
 
-// DiffRequest describes the worktree to diff.
 // GitDiffRequest describes the worktree to diff.
 type GitDiffRequest struct {
 	Worktree string
