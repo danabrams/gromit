@@ -179,6 +179,30 @@ func TestRunUsesGapAnalysisWhenRemediation(t *testing.T) {
 	}
 }
 
+func TestNormalizeMaxValidationRetries(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name  string
+		input int
+		want  int
+	}{
+		{name: "negative returns zero", input: -3, want: 0},
+		{name: "zero stays zero", input: 0, want: 0},
+		{name: "positive preserved", input: 5, want: 5},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := normalizeMaxValidationRetries(tc.input); got != tc.want {
+				t.Fatalf("normalizeMaxValidationRetries(%d) = %d, want %d", tc.input, got, tc.want)
+			}
+		})
+	}
+}
+
 func contains(slice []string, value string) bool {
 	for _, item := range slice {
 		if item == value {
