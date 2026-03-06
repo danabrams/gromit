@@ -256,6 +256,10 @@ func (f *fakeTracker) NextBead(ctx context.Context) (*tasktracker.Bead, error) {
 	return nil, nil
 }
 
+func (f *fakeTracker) ShowBead(context.Context, string) (*tasktracker.Bead, error) {
+	return nil, nil
+}
+
 func (f *fakeTracker) CreateBead(ctx context.Context, title, description string, priority int, labels, dependencies []string) (*tasktracker.Bead, error) {
 	f.nextID++
 	id := fmt.Sprintf("bead-%d", f.nextID)

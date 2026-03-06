@@ -21,6 +21,9 @@ type TaskTracker interface {
 	// NextBead returns the next open bead with dependency information
 	NextBead(ctx context.Context) (*Bead, error)
 
+	// ShowBead returns metadata for the specified bead.
+	ShowBead(ctx context.Context, beadID string) (*Bead, error)
+
 	// CreateBead creates a new bead with the given properties
 	// It automatically adds a gen:N label and declares dependencies
 	CreateBead(ctx context.Context, title, description string, priority int, labels, dependencies []string) (*Bead, error)

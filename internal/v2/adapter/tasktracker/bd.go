@@ -25,6 +25,11 @@ func (a *BDAdapter) NextBead(ctx context.Context) (*Bead, error) {
 	}, nil
 }
 
+// ShowBead returns a placeholder bead for the requested ID.
+func (a *BDAdapter) ShowBead(ctx context.Context, beadID string) (*Bead, error) {
+	return &Bead{ID: beadID, Status: "open"}, nil
+}
+
 // CreateBead creates a new bead with the given properties
 func (a *BDAdapter) CreateBead(ctx context.Context, title, description string, priority int, labels, dependencies []string) (*Bead, error) {
 	return &Bead{

@@ -91,6 +91,9 @@ type fakeTracker struct {
 }
 
 func (f *fakeTracker) NextBead(context.Context) (*tasktracker.Bead, error) { return nil, nil }
+func (f *fakeTracker) ShowBead(context.Context, string) (*tasktracker.Bead, error) {
+	return nil, nil
+}
 func (f *fakeTracker) CreateBead(ctx context.Context, title, description string, priority int, labels, dependencies []string) (*tasktracker.Bead, error) {
 	bead := &tasktracker.Bead{
 		ID:          fmt.Sprintf("bead-%d", len(f.created)+1),
