@@ -3,6 +3,7 @@ package tasktracker
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/bead"
@@ -46,6 +47,58 @@ func TestNextBead_ReturnsBeadFromClient(t *testing.T) {
 	}
 	if !containsString(resp.Bead.BlockedBy, "dep") {
 		t.Fatalf("missing blocked_by: %v", resp.Bead.BlockedBy)
+	}
+}
+
+func TestCreateBead_UsesBdCreateCommand(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	var recordedArgs []string
+	client := &bead.Client{
+		RunFn: func(args ...string) (string, error) {
+			recordedArgs = append(recordedArgs, args...)
+			if len(args) == 0 || args[0] != "create" {
+				return "", fmt.Errorf("unexpected command: %v", args)
+			}
+			return `{
+				"id": "created-bead",
+				"title": "Created",
+				"description": "desc",
+				"priority": 1,
+				"status": "open",
+				"labels": ["alpha"],
+				"depends_on": [{"id": "dep-1"}],
+				"blocked_by": []
+			}`, nil
+		},
+	}
+
+	adapter := NewBDAdapter(client)
+	resp, err := adapter.CreateBead(ctx, CreateBeadRequest{
+		Title:        "Created",
+		Description:  "desc",
+		Priority:     1,
+		Labels:       []string{"alpha"},
+		Dependencies: []string{"dep-1"},
+	})
+	if err != nil {
+		t.Fatalf("CreateBead failed: %v", err)
+	}
+	if resp == nil || resp.Bead == nil {
+		t.Fatal("CreateBead returned nil bead")
+	}
+	if resp.Bead.ID != "created-bead" {
+		t.Fatalf("unexpected bead ID: %s", resp.Bead.ID)
+	}
+	if !containsString(recordedArgs, "--deps") || !containsString(recordedArgs, "dep-1") {
+		t.Fatalf("deps flags missing from args: %v", recordedArgs)
+	}
+	if !containsString(recordedArgs, "--label") || !containsString(recordedArgs, "alpha") {
+		t.Fatalf("labels missing from args: %v", recordedArgs)
+	}
+	if !strings.Contains(strings.Join(recordedArgs, " "), "--body-file") {
+		t.Fatalf("expected --body-file in args: %v", recordedArgs)
 	}
 }
 
