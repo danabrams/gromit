@@ -1,8 +1,11 @@
 package loop
 
 import (
+	"bytes"
 	"context"
+	"fmt"
 	"io"
+	"os/exec"
 
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/events"
@@ -119,5 +122,32 @@ func NewRun2LoopComponents(cfg *config.Config, adapters adapter.AdapterSet, task
 type noopValidationRunner struct{}
 
 func (noopValidationRunner) Run(ctx context.Context, command string) error {
+	return nil
+}
+
+// CommandValidationRunner executes shell commands and returns errors on failure.
+type CommandValidationRunner struct {
+	workDir string
+}
+
+// NewCommandValidationRunner creates a validation runner that executes shell commands.
+func NewCommandValidationRunner(workDir string) *CommandValidationRunner {
+	return &CommandValidationRunner{workDir: workDir}
+}
+
+// Run executes the command and returns an error if it fails.
+func (c *CommandValidationRunner) Run(ctx context.Context, command string) error {
+	cmd := exec.CommandContext(ctx, "sh", "-c", command)
+	cmd.Dir = c.workDir
+	cmd.Stdin = bytes.NewReader(nil)
+
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("validation command failed: %w", err)
+	}
+
 	return nil
 }
