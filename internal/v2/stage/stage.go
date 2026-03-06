@@ -12,11 +12,11 @@ import (
 // Stage defines a single beam within the run loop.
 type Stage interface {
 	Name() string
-	Run(context.Context, *Request) (*Result, error)
+	Run(context.Context, *StageRequest) (*StageResult, error)
 }
 
-// Request captures metadata the loop passes to each stage during execution.
-type Request struct {
+// StageRequest captures metadata the loop passes to each stage during execution.
+type StageRequest struct {
 	Bead         BeadInfo
 	Model        string
 	Iteration    int
@@ -27,12 +27,18 @@ type Request struct {
 	Telemetry    *LLMCostSummary
 }
 
-// Result reports the outcome of a stage invocation.
-type Result struct {
+// StageResult reports the outcome of a stage invocation.
+type StageResult struct {
 	Decision  Decision
 	Artifacts any
 	Events    []events.Event
 }
+
+// Request is the legacy stage request type.
+type Request = StageRequest
+
+// Result is the legacy stage result type.
+type Result = StageResult
 
 // DecomposeArtifacts packages the beads created by the decompose stage.
 type DecomposeArtifacts struct {
