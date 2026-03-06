@@ -248,32 +248,19 @@ func (s *Stage) writer() io.Writer {
 }
 
 func (s *Stage) invokeWithEscalation(ctx context.Context, prompt, initialModel string) (*llm.LLMResponse, string, error) {
-	model := initialModel
-	for {
-		resp, err := s.llm.StreamInvoke(ctx, llm.StreamInvokeRequest{Prompt: prompt, Model: model, Output: s.writer()})
-		if err == nil && resp != nil && resp.Success {
-			return resp, model, nil
-		}
-
-		var reason error
-		if err != nil {
-			reason = err
-		} else if resp == nil {
-			reason = fmt.Errorf("provider returned nil response")
-		} else if !resp.Success {
-			reason = fmt.Errorf("provider reported unsuccessful result")
-		}
-
-		if !s.cfg.Escalation.Enabled {
-			return resp, model, reason
-		}
-
-		nextModel := s.cfg.NextEscalationModel(model)
-		if nextModel == "" {
-			return resp, model, reason
-		}
-		model = nextModel
+	resp, err := s.llm.StreamInvoke(ctx, llm.StreamInvokeRequest{Prompt: prompt, Model: initialModel, Output: s.writer()})
+	if err == nil && resp != nil && resp.Success {
+		return resp, initialModel, nil
 	}
+	var reason error
+	if err != nil {
+		reason = err
+	} else if resp == nil {
+		reason = fmt.Errorf("provider returned nil response")
+	} else if !resp.Success {
+		reason = fmt.Errorf("provider reported unsuccessful result")
+	}
+	return resp, initialModel, reason
 }
 
 func (s *Stage) buildStartEvent(req *stagepkg.Request, model string, cfg *config.Config) events.Event {

@@ -128,6 +128,55 @@ func TestBuildStageRunIncludesPriorFailuresAndEmitsEvents(t *testing.T) {
 	}
 }
 
+func TestBuildStageEscalatesModelOnFailure(t *testing.T) {
+	cfg := &config.Config{
+		Escalation: config.EscalationConfig{Enabled: true, Chain: []string{"haiku", "sonnet"}},
+	}
+	fragments := PromptFragments{Standard: "standard"}
+	responses := []*llm.LLMResponse{
+		{Success: false, Output: "first fail", Tokens: 10},
+		{Success: true, Output: "second success", Tokens: 42, Duration: 1500 * time.Millisecond, CostUSD: 0.33},
+	}
+	adapter := &sequencedLLM{responses: responses}
+
+	stageInstance, err := New(cfg, adapter, "base", "project", fragments, io.Discard)
+	if err != nil {
+		t.Fatalf("unexpected constructor error: %v", err)
+	}
+
+	req := &stagepkg.Request{
+		Bead:   stagepkg.BeadInfo{ID: "escalate-bead"},
+		Model:  "haiku",
+		Config: cfg,
+	}
+
+	res, err := stageInstance.Run(context.Background(), req)
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+
+	if len(adapter.models) != 2 {
+		t.Fatalf("expected 2 streamed invocations, got %d", len(adapter.models))
+	}
+	if want := "haiku"; adapter.models[0] != want {
+		t.Fatalf("first model = %q, want %q", adapter.models[0], want)
+	}
+	if want := "sonnet"; adapter.models[1] != want {
+		t.Fatalf("second model = %q, want %q", adapter.models[1], want)
+	}
+
+	artifacts, ok := res.Artifacts.(*BuildArtifacts)
+	if !ok {
+		t.Fatalf("artifacts type = %T", res.Artifacts)
+	}
+	if artifacts.Model != "sonnet" {
+		t.Fatalf("artifact model = %q, want sonnet", artifacts.Model)
+	}
+	if artifacts.Output != "second success" {
+		t.Fatalf("artifact output = %q", artifacts.Output)
+	}
+}
+
 type noopLLM struct{}
 
 func (noopLLM) Invoke(_ context.Context, _ llm.InvokeRequest) (*llm.LLMResponse, error) {
@@ -154,4 +203,28 @@ func (c *capturingLLM) StreamInvoke(_ context.Context, req llm.StreamInvokeReque
 	c.lastPrompt = req.Prompt
 	c.lastModel = req.Model
 	return c.response, nil
+}
+
+type sequencedLLM struct {
+	responses []*llm.LLMResponse
+	models    []string
+}
+
+func (s *sequencedLLM) Invoke(_ context.Context, _ llm.InvokeRequest) (*llm.LLMResponse, error) {
+	if len(s.responses) == 0 {
+		return &llm.LLMResponse{Success: true}, nil
+	}
+	return s.responses[0], nil
+}
+
+func (s *sequencedLLM) StreamInvoke(_ context.Context, req llm.StreamInvokeRequest) (*llm.LLMResponse, error) {
+	idx := len(s.models)
+	s.models = append(s.models, req.Model)
+	if idx >= len(s.responses) {
+		idx = len(s.responses) - 1
+	}
+	if idx < 0 {
+		idx = 0
+	}
+	return s.responses[idx], nil
 }
