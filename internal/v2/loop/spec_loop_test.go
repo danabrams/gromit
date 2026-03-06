@@ -2,6 +2,7 @@ package loop
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -155,6 +156,58 @@ func TestSpecLoopUsesPlanStage(t *testing.T) {
 	}
 	if taskTracker.lastPlan != planStage.plan {
 		t.Fatalf("plan recorded = %q, want %q", taskTracker.lastPlan, planStage.plan)
+	}
+}
+
+func TestSpecLoopStopsWhenContextCanceledBeforeBeadLoop(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	specID := "spec-loop-context"
+	cfg := &config.Config{}
+
+	recorder := newRecordingStageRecorder()
+
+	git := newFakeGitAdapter(t)
+	llm := newFakeLLMAdapter()
+	taskTracker := newFakeTaskTrackerAdapter()
+	presenter := newFakePresenterAdapter(t)
+	planStage := newFakePlanStage(specID)
+	presentStage, summaryCtx := newPresentStageForTest(t, cfg, presenter)
+
+	adapters := adapter.AdapterSet{
+		Git:         git,
+		LLM:         llm,
+		TaskTracker: taskTracker,
+		Presenter:   presenter,
+	}
+
+	decompose := newFakeDecomposeStage(specID)
+	decompose.onRun = cancel
+	beadRunner := newFakeBeadRunner()
+	accept := newFakeAcceptStage()
+
+	loopInstance, err := NewSpecLoop(adapters, cfg, noopDependencyGate{},
+		WithStageRecorder(recorder),
+		WithPlanStage(planStage),
+		WithPresentStage(presentStage, summaryCtx),
+		WithDecomposeStage(decompose),
+		WithBeadLoop(beadRunner),
+		WithAcceptStage(accept),
+	)
+	if err != nil {
+		t.Fatalf("create spec loop: %v", err)
+	}
+
+	err = loopInstance.Run(ctx, specID, nil)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("run error = %v, want context canceled", err)
+	}
+
+	if beadRunner.ran {
+		t.Fatalf("expected bead loop not to run after context cancellation")
 	}
 }
 
@@ -351,12 +404,16 @@ func newFakeDecomposeStage(specID string) *fakeDecomposeStage {
 type fakeDecomposeStage struct {
 	producedBeads []*bead.Bead
 	called        bool
+	onRun         func()
 }
 
 func (f *fakeDecomposeStage) Name() string { return "decompose" }
 
 func (f *fakeDecomposeStage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Result, error) {
 	f.called = true
+	if f.onRun != nil {
+		f.onRun()
+	}
 	return &stagepkg.Result{
 		Decision:  stagepkg.DecisionProceed,
 		Artifacts: &stagepkg.DecomposeArtifacts{Beads: append([]*bead.Bead(nil), f.producedBeads...)},
