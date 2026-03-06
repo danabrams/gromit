@@ -200,7 +200,7 @@ func (s *SpecLoop) Run(ctx context.Context, specID string, stopCh <-chan struct{
 		return err
 	}
 
-	if err := s.cleanupWorktree(worktree); err != nil {
+	if err := s.cleanupWorktree(ctx, specID, worktree, true); err != nil {
 		return err
 	}
 
@@ -355,7 +355,7 @@ func (s *SpecLoop) handleFailure(ctx context.Context, specID string, base presen
 		return fmt.Errorf("present failure summary: %w", err)
 	}
 
-	if err := s.cleanupWorktree(base.Worktree); err != nil {
+	if err := s.cleanupWorktree(ctx, specID, base.Worktree, false); err != nil {
 		return err
 	}
 
@@ -369,12 +369,29 @@ func (s *SpecLoop) handleFailure(ctx context.Context, specID string, base presen
 	return fmt.Errorf("accept failure: %w", failure)
 }
 
-func (s *SpecLoop) cleanupWorktree(worktree string) error {
-	if strings.TrimSpace(worktree) == "" {
+func (s *SpecLoop) cleanupWorktree(ctx context.Context, specID, worktree string, success bool) error {
+	trimmed := strings.TrimSpace(worktree)
+	if trimmed == "" {
 		return nil
 	}
-	if err := os.RemoveAll(worktree); err != nil {
-		return fmt.Errorf("cleanup worktree: %w", err)
+	git := s.adapters.Git
+	if git == nil {
+		return fmt.Errorf("git adapter required for cleanup")
+	}
+	if !success {
+		status, err := git.Status(ctx, trimmed)
+		if err != nil {
+			return fmt.Errorf("git status: %w", err)
+		}
+		if strings.TrimSpace(status) != "" {
+			message := fmt.Sprintf("[gromit: partial work] spec %s", specID)
+			if _, err := git.Commit(ctx, trimmed, message); err != nil {
+				return fmt.Errorf("commit partial work: %w", err)
+			}
+		}
+	}
+	if err := git.RemoveWorktree(ctx, trimmed); err != nil {
+		return fmt.Errorf("remove worktree: %w", err)
 	}
 	return nil
 }

@@ -66,6 +66,9 @@ type fakeGitAdapter struct {
 	t                  *testing.T
 	lastWorktree       string
 	gapAnalysisContent string
+	commitMessages     []string
+	removedWorktrees   []string
+	statusCalls        []string
 }
 
 func newFakeGitAdapter(t *testing.T) *fakeGitAdapter {
@@ -93,6 +96,21 @@ func (f *fakeGitAdapter) Checkout(ctx context.Context, specID string) (string, e
 }
 
 func (f *fakeGitAdapter) Diff(context.Context, string) (string, error) {
+	return "", nil
+}
+
+func (f *fakeGitAdapter) Commit(_ context.Context, worktree, message string) (string, error) {
+	f.commitMessages = append(f.commitMessages, message)
+	return "fake-commit", nil
+}
+
+func (f *fakeGitAdapter) RemoveWorktree(_ context.Context, worktree string) error {
+	f.removedWorktrees = append(f.removedWorktrees, worktree)
+	return os.RemoveAll(worktree)
+}
+
+func (f *fakeGitAdapter) Status(_ context.Context, worktree string) (string, error) {
+	f.statusCalls = append(f.statusCalls, worktree)
 	return "", nil
 }
 

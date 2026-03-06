@@ -211,3 +211,19 @@ func (f *fakeGitAdapter) Diff(ctx context.Context, worktree string) (string, err
 	f.lastWorktree = worktree
 	return f.diff, nil
 }
+
+func (f *fakeGitAdapter) Commit(ctx context.Context, worktree, message string) (string, error) {
+	f.lastWorktree = worktree
+	_ = message
+	return "fake", nil
+}
+
+func (f *fakeGitAdapter) RemoveWorktree(ctx context.Context, worktree string) error {
+	f.lastWorktree = worktree
+	return nil
+}
+
+func (f *fakeGitAdapter) Status(_ context.Context, worktree string) (string, error) {
+	f.lastWorktree = worktree
+	return "", nil
+}

@@ -52,3 +52,49 @@ func (a *ExecGitAdapter) Diff(ctx context.Context, worktree string) (string, err
 	}
 	return string(out), nil
 }
+
+func (a *ExecGitAdapter) Commit(ctx context.Context, worktree, message string) (string, error) {
+	trimmed := strings.TrimSpace(worktree)
+	if trimmed == "" {
+		return "", fmt.Errorf("worktree required")
+	}
+	msg := strings.TrimSpace(message)
+	if msg == "" {
+		return "", fmt.Errorf("commit message required")
+	}
+	if out, err := runGitCommand(ctx, trimmed, "add", "-A"); err != nil {
+		return "", fmt.Errorf("git add: %s: %w", out, err)
+	}
+	if out, err := runGitCommand(ctx, trimmed, "commit", "-m", msg); err != nil {
+		return "", fmt.Errorf("git commit: %s: %w", out, err)
+	}
+	out, err := runGitCommand(ctx, trimmed, "rev-parse", "HEAD")
+	if err != nil {
+		return "", fmt.Errorf("git rev-parse: %s: %w", out, err)
+	}
+	return strings.TrimSpace(string(out)), nil
+}
+
+func (a *ExecGitAdapter) RemoveWorktree(ctx context.Context, worktree string) error {
+	trimmed := strings.TrimSpace(worktree)
+	if trimmed == "" {
+		return fmt.Errorf("worktree required")
+	}
+	cmd := exec.CommandContext(ctx, "git", "worktree", "remove", trimmed)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("git worktree remove: %s: %w", out, err)
+	}
+	return nil
+}
+
+func (a *ExecGitAdapter) Status(ctx context.Context, worktree string) (string, error) {
+	trimmed := strings.TrimSpace(worktree)
+	if trimmed == "" {
+		return "", fmt.Errorf("worktree required")
+	}
+	out, err := runGitCommand(ctx, trimmed, "status", "--porcelain")
+	if err != nil {
+		return "", fmt.Errorf("git status --porcelain: %s: %w", out, err)
+	}
+	return string(out), nil
+}

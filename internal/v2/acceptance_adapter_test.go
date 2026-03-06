@@ -187,6 +187,27 @@ func (fakeGitAdapter) Checkout(_ context.Context, specID string) (string, error)
 	return "/tmp/" + specID, nil
 }
 
+func (fakeGitAdapter) Diff(_ context.Context, worktree string) (string, error) {
+	_ = worktree
+	return "", nil
+}
+
+func (fakeGitAdapter) Commit(_ context.Context, worktree, message string) (string, error) {
+	_ = worktree
+	_ = message
+	return "", nil
+}
+
+func (fakeGitAdapter) RemoveWorktree(_ context.Context, worktree string) error {
+	_ = worktree
+	return nil
+}
+
+func (fakeGitAdapter) Status(_ context.Context, worktree string) (string, error) {
+	_ = worktree
+	return "", nil
+}
+
 type fakeLLMAdapter struct{}
 
 func (fakeLLMAdapter) GeneratePlan(_ context.Context, specID string) (string, error) {

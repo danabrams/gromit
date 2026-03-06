@@ -136,6 +136,22 @@ func (f *fakeGitAdapter) Diff(_ context.Context, worktree string) (string, error
 	return f.diff, nil
 }
 
+func (f *fakeGitAdapter) Commit(_ context.Context, worktree, message string) (string, error) {
+	f.lastWorktree = worktree
+	_ = message
+	return "fake-commit", nil
+}
+
+func (f *fakeGitAdapter) RemoveWorktree(_ context.Context, worktree string) error {
+	f.lastWorktree = worktree
+	return nil
+}
+
+func (f *fakeGitAdapter) Status(_ context.Context, worktree string) (string, error) {
+	f.lastWorktree = worktree
+	return "", nil
+}
+
 func TestStageIncludesDiffAndAcceptanceCriteriaInPrompt(t *testing.T) {
 	temp := t.TempDir()
 	specsDir := filepath.Join(temp, ".gromit", "specs")

@@ -39,9 +39,14 @@ func TestSpecLoopFailureCommitsPartialWorkAndRemovesWorktree(t *testing.T) {
 
 	specID := "spec-loop-worktree-cleanup"
 	worktreesDir := filepath.Join(repoRoot, ".gromit", "spec-worktrees")
+	gitAdapter := &recordingGitAdapter{
+		ExecGitAdapter: gitadapter.NewExecGitAdapter(worktreesDir),
+		t:              t,
+		specID:         specID,
+	}
 
 	adapters := adapter.AdapterSet{
-		Git:         gitadapter.NewExecGitAdapter(worktreesDir),
+		Git:         gitAdapter,
 		LLM:         newFakeLLMAdapter(),
 		TaskTracker: newFakeTaskTrackerAdapter(),
 		Presenter:   newFakePresenterAdapter(t),
@@ -60,9 +65,9 @@ func TestSpecLoopFailureCommitsPartialWorkAndRemovesWorktree(t *testing.T) {
 		t.Fatal("expected accept failure")
 	}
 
-	commitMsg := gitCommand(t, repoRoot, "log", "-1", "--pretty=%B")
-	if !strings.Contains(commitMsg, "[gromit: partial work]") {
-		t.Fatalf("commit missing partial work marker, log=%q", commitMsg)
+	pattern := "[gromit: partial work] spec " + specID
+	if !strings.Contains(strings.TrimSpace(gitAdapter.lastCommitLog), pattern) {
+		t.Fatalf("expected partial work commit, log=%q", gitAdapter.lastCommitLog)
 	}
 
 	worktreePath := filepath.Join(worktreesDir, specID)
@@ -98,4 +103,17 @@ func worktreeRegistered(t *testing.T, repoRoot, worktree string) bool {
 	t.Helper()
 	out := gitCommand(t, repoRoot, "worktree", "list", "--porcelain")
 	return strings.Contains(out, worktree)
+}
+
+type recordingGitAdapter struct {
+	*gitadapter.ExecGitAdapter
+	t             *testing.T
+	specID        string
+	lastCommitLog string
+}
+
+func (r *recordingGitAdapter) RemoveWorktree(ctx context.Context, worktree string) error {
+	r.t.Helper()
+	r.lastCommitLog = gitCommand(r.t, worktree, "log", "-1", "--pretty=%B")
+	return r.ExecGitAdapter.RemoveWorktree(ctx, worktree)
 }

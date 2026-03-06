@@ -15,6 +15,10 @@ type FakeGit struct {
 	CheckoutCalls       []string
 	DiffCalls           []string
 	CreateWorktreeCalls []string
+	CommitCalls         []string
+	CommitMessages      []string
+	RemoveWorktreeCalls []string
+	StatusCalls         []string
 }
 
 // NewFakeGit returns a fake Git adapter with defaults.
@@ -49,6 +53,28 @@ func (f *FakeGit) CreateIsolatedWorktree(_ context.Context, specID string) (stri
 	f.CreateWorktreeCalls = append(f.CreateWorktreeCalls, specID)
 	worktree := filepath.Join(f.baseRoot(), specID)
 	return worktree, nil
+}
+
+func (f *FakeGit) Commit(_ context.Context, worktree, message string) (string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.CommitCalls = append(f.CommitCalls, worktree)
+	f.CommitMessages = append(f.CommitMessages, message)
+	return "fake-commit", nil
+}
+
+func (f *FakeGit) RemoveWorktree(_ context.Context, worktree string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.RemoveWorktreeCalls = append(f.RemoveWorktreeCalls, worktree)
+	return nil
+}
+
+func (f *FakeGit) Status(_ context.Context, worktree string) (string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.StatusCalls = append(f.StatusCalls, worktree)
+	return "", nil
 }
 
 func (f *FakeGit) baseRoot() string {
