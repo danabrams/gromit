@@ -87,12 +87,13 @@ func TestNext_CycleErrorReportsCyclePath(t *testing.T) {
 
 func TestNext_DeterministicOrderingWhenMultipleBeadsEligible(t *testing.T) {
 	r := NewResolver()
-	// Add beads in random order
+	// Add beads in random order to verify deterministic selection.
 	r.Add("zebra", nil)
 	r.Add("apple", nil)
 	r.Add("middle", nil)
 
-	// All three have no dependencies, should return in sorted order
+	// All three have no dependencies; the resolver should pick the alphabetically
+	// smallest eligible bead first.
 	results := []string{}
 	for len(results) < 3 {
 		next, err := r.Next(results)
@@ -105,7 +106,12 @@ func TestNext_DeterministicOrderingWhenMultipleBeadsEligible(t *testing.T) {
 		results = append(results, next)
 	}
 
-	// Run multiple times to ensure consistency
+	want := []string{"apple", "middle", "zebra"}
+	if !reflect.DeepEqual(results, want) {
+		t.Fatalf("expected deterministic alphabetical order %v, got %v", want, results)
+	}
+
+	// Repeat multiple times to make sure the ordering stays consistent.
 	for trial := 0; trial < 3; trial++ {
 		r2 := NewResolver()
 		r2.Add("zebra", nil)
@@ -121,14 +127,8 @@ func TestNext_DeterministicOrderingWhenMultipleBeadsEligible(t *testing.T) {
 			results2 = append(results2, next)
 		}
 
-		// Should match first run
-		if len(results) != len(results2) {
-			t.Fatalf("Trial %d: length mismatch", trial)
-		}
-		for i, expected := range results {
-			if results2[i] != expected {
-				t.Errorf("Trial %d: expected %s at position %d, got %s", trial, expected, i, results2[i])
-			}
+		if !reflect.DeepEqual(results2, want) {
+			t.Fatalf("Trial %d: expected ordering %v, got %v", trial, want, results2)
 		}
 	}
 }
