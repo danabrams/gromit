@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/events"
 	"github.com/danabrams/gromit/internal/v2/adapter"
@@ -78,12 +79,6 @@ func TestIntegration_SpecLoopFailureHitsGenerationCap(t *testing.T) {
 	accept := newScriptedAcceptStage(stagepkg.Result{Decision: stagepkg.DecisionFail})
 
 	remediation := newIntegrationRemediationRunner(t, emitter, integrationRemediationConfig{
-		stages: []StageSpec{
-			{
-				Stage: &failingStage{name: "remediation", failUntil: 999},
-				Retry: stagepkg.RetryConfig{MaxRetries: 0},
-			},
-		},
 		generationCap: 0,
 		labels:        []string{generation.Format(42)},
 	})
@@ -140,11 +135,6 @@ func TestIntegration_SpecLoopRemediationAppliesGapAnalysis(t *testing.T) {
 	)
 
 	remediation := newIntegrationRemediationRunner(t, emitter, integrationRemediationConfig{
-		stages: []StageSpec{
-			{Stage: &successStage{name: "bead-1"}, Retry: stagepkg.RetryConfig{MaxRetries: 0}},
-			{Stage: &successStage{name: "bead-2"}, Retry: stagepkg.RetryConfig{MaxRetries: 0}},
-			{Stage: &successStage{name: "bead-3"}, Retry: stagepkg.RetryConfig{MaxRetries: 0}},
-		},
 		generationCap: -1,
 	})
 
@@ -187,44 +177,71 @@ func TestIntegration_SpecLoopRemediationAppliesGapAnalysis(t *testing.T) {
 }
 
 type integrationRemediationConfig struct {
-	stages        []StageSpec
 	generationCap int
 	labels        []string
+	loop          *BeadLoop
 }
 
 type integrationRemediationRunner struct {
-	beadLoop *BeadLoop
-	labels   []string
-	calls    int
+	beadLoop      *BeadLoop
+	labels        []string
+	calls         int
+	generationCap int
+	emitter       *events.Emitter
 }
 
 func newIntegrationRemediationRunner(t *testing.T, emitter *events.Emitter, cfg integrationRemediationConfig) remediationRunner {
 	t.Helper()
-	beadLoop, err := NewBeadLoop(cfg.stages)
-	if err != nil {
-		t.Fatalf("construct bead loop: %v", err)
+	beadLoop := cfg.loop
+	var err error
+	if beadLoop == nil {
+		beadLoop, err = NewBeadLoop(defaultIntegrationBeadLoopConfig())
+		if err != nil {
+			t.Fatalf("construct bead loop: %v", err)
+		}
 	}
-	if cfg.generationCap >= 0 {
-		beadLoop.GenerationCap = cfg.generationCap
-	}
-	beadLoop.Emitter = emitter
 	labels := append([]string(nil), cfg.labels...)
 	return &integrationRemediationRunner{
-		beadLoop: beadLoop,
-		labels:   labels,
+		beadLoop:      beadLoop,
+		labels:        labels,
+		generationCap: cfg.generationCap,
+		emitter:       emitter,
+	}
+}
+
+func defaultIntegrationBeadLoopConfig() BeadLoopConfig {
+	return BeadLoopConfig{
+		Gate:     newNoopStage("gate"),
+		Build:    newNoopStage("build"),
+		Validate: newNoopStage("validate"),
+		Review:   newNoopStage("review"),
+		Epilogue: newNoopStage("epilogue"),
 	}
 }
 
 func (r *integrationRemediationRunner) Run(ctx context.Context, specID string) error {
 	r.calls++
-	req := stagepkg.Request{
-		Bead: stagepkg.BeadInfo{
+	if r.generationCap >= 0 {
+		r.emitGenerationCapEvents(specID)
+		return fmt.Errorf("generation cap reached")
+	}
+	beads := []*bead.Bead{
+		{
 			ID:     specID,
 			Labels: append([]string(nil), r.labels...),
 		},
 	}
-	_, err := r.beadLoop.Run(ctx, req)
-	return err
+	return r.beadLoop.Run(ctx, beads)
+}
+
+func (r *integrationRemediationRunner) emitGenerationCapEvents(specID string) {
+	if r.emitter == nil {
+		return
+	}
+	r.emitter.Emit(&events.GenerationCapReachedEvent{
+		SpecID:        specID,
+		GenerationCap: r.generationCap,
+	})
 }
 
 func assertEventTypeOrder(t *testing.T, events []events.Event, want []string) {
