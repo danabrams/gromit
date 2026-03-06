@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/danabrams/gromit/internal/events"
 	"github.com/danabrams/gromit/internal/v2/stage"
 )
 
@@ -135,6 +136,72 @@ func TestGenerationCapReachedMarksCapHit(t *testing.T) {
 	// Generation 5 is not >= start (5) + cap (3), so CapHit should be false
 	if result.CapHit {
 		t.Fatalf("CapHit = true, want false for generation 5 with start=5, cap=3")
+	}
+}
+
+func TestEmitsGenerationCapReachedEventWhenCapHit(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	emitter := events.NewEmitter()
+	eventChan := emitter.Subscribe()
+
+	successStage := &successStage{
+		name: "test",
+	}
+
+	beadLoop, err := NewBeadLoop([]StageSpec{
+		{
+			Stage: successStage,
+			Retry: stage.RetryConfig{MaxRetries: 0},
+		},
+	})
+	if err != nil {
+		t.Fatalf("construct bead loop: %v", err)
+	}
+
+	beadLoop.GenerationCap = 3
+	beadLoop.Emitter = emitter
+
+	// First run with generation 0
+	req := stage.Request{
+		Bead: stage.BeadInfo{
+			ID:     "test-bead",
+			Labels: []string{"gen:0"},
+		},
+	}
+
+	_, err = beadLoop.Run(ctx, req)
+	if err != nil {
+		t.Fatalf("run bead loop: %v", err)
+	}
+
+	// Second run with generation 3 (cap threshold reached)
+	req = stage.Request{
+		Bead: stage.BeadInfo{
+			ID:     "test-bead-2",
+			Labels: []string{"gen:3"},
+		},
+	}
+
+	_, err = beadLoop.Run(ctx, req)
+	if err != nil {
+		t.Fatalf("run bead loop: %v", err)
+	}
+
+	// Check that GenerationCapReachedEvent was emitted
+	var foundEvent bool
+	select {
+	case evt := <-eventChan:
+		if _, ok := evt.(*events.GenerationCapReachedEvent); ok {
+			foundEvent = true
+		}
+	default:
+		// No event emitted
+	}
+
+	if !foundEvent {
+		t.Fatalf("expected GenerationCapReachedEvent to be emitted, but it was not")
 	}
 }
 

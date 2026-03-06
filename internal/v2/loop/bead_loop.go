@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/danabrams/gromit/internal/events"
 	"github.com/danabrams/gromit/internal/v2/generation"
 	"github.com/danabrams/gromit/internal/v2/stage"
 )
@@ -22,11 +23,12 @@ type StageSpec struct {
 }
 
 type BeadLoop struct {
-	stages            []StageSpec
-	stageIndex        map[string]int
-	GenerationCap     int
-	startGeneration   int
+	stages              []StageSpec
+	stageIndex          map[string]int
+	GenerationCap       int
+	startGeneration     int
 	startGenInitialized bool
+	Emitter             *events.Emitter
 }
 
 func NewBeadLoop(stages []StageSpec) (*BeadLoop, error) {
@@ -65,6 +67,7 @@ func (b *BeadLoop) Run(ctx context.Context, req stage.Request) (*BeadLoopResult,
 	capThreshold := b.startGeneration + b.GenerationCap
 	if currentGen >= capThreshold {
 		result.CapHit = true
+		b.emitGenerationCapReached()
 		return result, nil
 	}
 
@@ -132,5 +135,11 @@ func newRetryContext(history []string, attempt int) *stage.RetryContext {
 	return &stage.RetryContext{
 		Attempt:       attempt,
 		PriorFailures: append([]string(nil), history...),
+	}
+}
+
+func (b *BeadLoop) emitGenerationCapReached() {
+	if b.Emitter != nil {
+		b.Emitter.Emit(&events.GenerationCapReachedEvent{})
 	}
 }
