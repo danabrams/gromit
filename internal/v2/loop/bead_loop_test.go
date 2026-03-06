@@ -3,6 +3,7 @@ package loop
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/events"
@@ -285,6 +286,174 @@ func TestCapHitDetectsWhenGenerationThresholdExceeded(t *testing.T) {
 	}
 }
 
+func TestMaxRetriesExhaustedReturnsError(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+
+	// Create a stage that always fails
+	alwaysFailingStage := &failingStage{
+		name:      "test",
+		failUntil: 999, // Fails forever
+	}
+
+	beadLoop, err := NewBeadLoop([]StageSpec{
+		{
+			Stage: alwaysFailingStage,
+			Retry: stage.RetryConfig{MaxRetries: 1},
+		},
+	})
+	if err != nil {
+		t.Fatalf("construct bead loop: %v", err)
+	}
+
+	req := stage.Request{
+		Bead: stage.BeadInfo{
+			ID:     "test-bead",
+			Labels: []string{"gen:0"},
+		},
+	}
+
+	_, err = beadLoop.Run(ctx, req)
+	if err == nil {
+		t.Fatalf("expected error when max retries exhausted, got nil")
+	}
+
+	// Verify the error is about max retries being exceeded
+	if !strings.Contains(err.Error(), "max retries exceeded") {
+		t.Fatalf("error should contain %q, got %q", "max retries exceeded", err.Error())
+	}
+
+	// Verify the stage was actually retried (ran 2 times: initial + 1 retry)
+	if alwaysFailingStage.runCount != 2 {
+		t.Fatalf("stage should have been run 2 times (initial + 1 retry), got %d", alwaysFailingStage.runCount)
+	}
+}
+
+func TestRetryContextPopulatedWithPriorFailures(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	capturedContexts := []*stage.RetryContext{}
+
+	mainStage := &retryContextCheckingStage{
+		name:             "main",
+		capturedContexts: &capturedContexts,
+		shouldFail:       true,
+	}
+
+	beadLoop, err := NewBeadLoop([]StageSpec{
+		{
+			Stage: mainStage,
+			Retry: stage.RetryConfig{MaxRetries: 1},
+		},
+	})
+	if err != nil {
+		t.Fatalf("construct bead loop: %v", err)
+	}
+
+	req := stage.Request{
+		Bead: stage.BeadInfo{
+			ID:     "test-bead",
+			Labels: []string{"gen:0"},
+		},
+	}
+
+	_, err = beadLoop.Run(ctx, req)
+	if err != nil {
+		t.Fatalf("run bead loop: %v", err)
+	}
+
+	// Should have captured 2 contexts: one nil on first run, one with failure info on retry
+	if len(capturedContexts) != 2 {
+		t.Fatalf("captured contexts length = %d, want 2. Contexts: %v", len(capturedContexts), capturedContexts)
+	}
+
+	// First run should have nil context (initial request)
+	if capturedContexts[0] != nil {
+		t.Fatalf("first context should be nil, got %v", capturedContexts[0])
+	}
+
+	// Second run (retry) should have context with attempt=1 and prior failures
+	retryCtx := capturedContexts[1]
+	if retryCtx == nil {
+		t.Fatalf("retry context should not be nil")
+	}
+	if retryCtx.Attempt != 1 {
+		t.Fatalf("retry context attempt = %d, want 1", retryCtx.Attempt)
+	}
+	if len(retryCtx.PriorFailures) == 0 {
+		t.Fatalf("retry context PriorFailures should not be empty")
+	}
+	if !contains(retryCtx.PriorFailures, "main failed: stage failed") {
+		t.Fatalf("PriorFailures should contain 'main failed: stage failed', got %v", retryCtx.PriorFailures)
+	}
+}
+
+func contains(slice []string, item string) bool {
+	for _, s := range slice {
+		if s == item {
+			return true
+		}
+	}
+	return false
+}
+
+func TestRetryWithStagesExecutedBeforeFailedStage(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	runOrder := []string{}
+
+	fixStage := &orderTrackingStage{
+		name:     "fix",
+		runOrder: &runOrder,
+	}
+	mainStage := &orderTrackingStage{
+		name:       "main",
+		runOrder:   &runOrder,
+		shouldFail: true,
+	}
+
+	beadLoop, err := NewBeadLoop([]StageSpec{
+		{
+			Stage: fixStage,
+			Retry: stage.RetryConfig{MaxRetries: 0},
+		},
+		{
+			Stage: mainStage,
+			Retry: stage.RetryConfig{MaxRetries: 1, RetryWith: []string{"fix"}},
+		},
+	})
+	if err != nil {
+		t.Fatalf("construct bead loop: %v", err)
+	}
+
+	req := stage.Request{
+		Bead: stage.BeadInfo{
+			ID:     "test-bead",
+			Labels: []string{"gen:0"},
+		},
+	}
+
+	_, err = beadLoop.Run(ctx, req)
+	if err != nil {
+		t.Fatalf("run bead loop: %v", err)
+	}
+
+	// Expected order: fix, main (1st), fix, main (2nd)
+	expected := []string{"fix", "main", "fix", "main"}
+	if len(runOrder) != len(expected) {
+		t.Fatalf("run order length = %d, want %d. Got: %v", len(runOrder), len(expected), runOrder)
+	}
+
+	for i, name := range expected {
+		if runOrder[i] != name {
+			t.Fatalf("stage order mismatch at position %d: got %s, want %s. Full order: %v", i, runOrder[i], name, runOrder)
+		}
+	}
+}
+
 func TestEmitsStageRetryingEvent(t *testing.T) {
 	t.Parallel()
 
@@ -538,6 +707,48 @@ func (s *failingStage) Name() string {
 func (s *failingStage) Run(ctx context.Context, req *stage.Request) (*stage.Result, error) {
 	s.runCount++
 	if s.runCount <= s.failUntil {
+		return nil, fmt.Errorf("stage failed")
+	}
+	return &stage.Result{Decision: stage.DecisionProceed}, nil
+}
+
+// orderTrackingStage tracks the order in which stages are executed
+type orderTrackingStage struct {
+	name       string
+	runOrder   *[]string
+	shouldFail bool
+	runCount   int
+}
+
+func (s *orderTrackingStage) Name() string {
+	return s.name
+}
+
+func (s *orderTrackingStage) Run(ctx context.Context, req *stage.Request) (*stage.Result, error) {
+	s.runCount++
+	*s.runOrder = append(*s.runOrder, s.name)
+	if s.shouldFail && s.runCount == 1 {
+		return nil, fmt.Errorf("stage failed")
+	}
+	return &stage.Result{Decision: stage.DecisionProceed}, nil
+}
+
+// retryContextCheckingStage verifies RetryContext is populated correctly
+type retryContextCheckingStage struct {
+	name              string
+	capturedContexts  *[]*stage.RetryContext
+	shouldFail        bool
+	runCount          int
+}
+
+func (s *retryContextCheckingStage) Name() string {
+	return s.name
+}
+
+func (s *retryContextCheckingStage) Run(ctx context.Context, req *stage.Request) (*stage.Result, error) {
+	s.runCount++
+	*s.capturedContexts = append(*s.capturedContexts, req.RetryContext)
+	if s.shouldFail && s.runCount == 1 {
 		return nil, fmt.Errorf("stage failed")
 	}
 	return &stage.Result{Decision: stage.DecisionProceed}, nil
