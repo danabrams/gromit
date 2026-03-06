@@ -66,6 +66,12 @@ func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Resul
 		return &stagepkg.Result{Decision: stagepkg.DecisionBlock}, nil
 	}
 
+	if pending, err := s.hasPendingDependencies(ctx, b); err != nil {
+		return nil, err
+	} else if pending {
+		return &stagepkg.Result{Decision: stagepkg.DecisionBlock}, nil
+	}
+
 	return &stagepkg.Result{Decision: stagepkg.DecisionProceed}, nil
 }
 
@@ -78,4 +84,24 @@ func hasBlockingDependencies(b *tasktracker.Bead) bool {
 		return false
 	}
 	return len(b.BlockedBy) > 0
+}
+
+func (s *Stage) hasPendingDependencies(ctx context.Context, b *tasktracker.Bead) (bool, error) {
+	if b == nil {
+		return false, nil
+	}
+
+	for _, depID := range b.DependsOn {
+		if trimmed := strings.TrimSpace(depID); trimmed != "" {
+			dep, err := s.tracker.ShowBead(ctx, trimmed)
+			if err != nil {
+				return false, fmt.Errorf("gate: show dependency %s: %w", trimmed, err)
+			}
+			if dep != nil && !isClosed(dep.Status) {
+				return true, nil
+			}
+		}
+	}
+
+	return false, nil
 }
