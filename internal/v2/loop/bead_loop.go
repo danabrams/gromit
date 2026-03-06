@@ -4,10 +4,12 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/queue"
 	"github.com/danabrams/gromit/internal/v2/dep"
+	"github.com/danabrams/gromit/internal/v2/event"
 	"github.com/danabrams/gromit/internal/v2/stage"
 )
 
@@ -18,6 +20,7 @@ type BeadLoopConfig struct {
 	Validate stage.Stage
 	Review   stage.Stage
 	Epilogue stage.Stage
+	Emitter  *event.Emitter
 }
 
 // BeadLoop orchestrates the per-bead execution pipeline.
@@ -27,6 +30,7 @@ type BeadLoop struct {
 	validate stage.Stage
 	review   stage.Stage
 	epilogue stage.Stage
+	emitter  *event.Emitter
 }
 
 // NewBeadLoop constructs a BeadLoop tagged with the provided stages.
@@ -52,6 +56,7 @@ func NewBeadLoop(config BeadLoopConfig) (*BeadLoop, error) {
 		validate: config.Validate,
 		review:   config.Review,
 		epilogue: config.Epilogue,
+		emitter:  config.Emitter,
 	}, nil
 }
 
@@ -73,6 +78,7 @@ func (b *BeadLoop) Run(ctx context.Context, beads []*bead.Bead) error {
 	}
 
 	var completed []string
+	iteration := 1
 	for {
 		next, err := resolver.Next(completed)
 		if err != nil {
@@ -85,15 +91,18 @@ func (b *BeadLoop) Run(ctx context.Context, beads []*bead.Bead) error {
 		if !ok {
 			return fmt.Errorf("bead %q missing from input list", next)
 		}
-		if err := b.processBead(ctx, beadItem); err != nil {
+		b.emitBeadStarted(beadItem, iteration)
+		if err := b.processBead(ctx, beadItem, iteration); err != nil {
 			return err
 		}
+		b.emitBeadCompleted(beadItem, iteration, true, 0)
 		completed = append(completed, next)
+		iteration++
 	}
 	return nil
 }
 
-func (b *BeadLoop) processBead(ctx context.Context, beadItem *bead.Bead) error {
+func (b *BeadLoop) processBead(ctx context.Context, beadItem *bead.Bead, iteration int) error {
 	stages := []struct {
 		stage       stage.Stage
 		shouldFail  func(*stage.Result) bool
@@ -142,10 +151,10 @@ func (b *BeadLoop) processBead(ctx context.Context, beadItem *bead.Bead) error {
 		req := b.stageRequest(beadItem)
 		res, err := b.runStage(ctx, entry.stage, req)
 		if err != nil {
-			return b.failWithReason(ctx, beadItem, err.Error())
+			return b.failWithReason(ctx, beadItem, iteration, err.Error())
 		}
 		if entry.shouldFail != nil && entry.shouldFail(res) {
-			return b.failWithReason(ctx, beadItem, entry.failMessage(res))
+			return b.failWithReason(ctx, beadItem, iteration, entry.failMessage(res))
 		}
 	}
 
@@ -166,7 +175,7 @@ func (b *BeadLoop) runStage(ctx context.Context, staged stage.Stage, req stage.R
 	return res, nil
 }
 
-func (b *BeadLoop) failWithReason(ctx context.Context, beadItem *bead.Bead, reason string) error {
+func (b *BeadLoop) failWithReason(ctx context.Context, beadItem *bead.Bead, iteration int, reason string) error {
 	failReq := b.stageRequest(beadItem)
 	failReq.RetryContext = &stage.RetryContext{
 		Attempt:       1,
@@ -175,6 +184,7 @@ func (b *BeadLoop) failWithReason(ctx context.Context, beadItem *bead.Bead, reas
 	if _, err := b.runStage(ctx, b.epilogue, failReq); err != nil {
 		return fmt.Errorf("epilogue failure: %w", err)
 	}
+	b.emitBeadCompleted(beadItem, iteration, false, 1)
 	return fmt.Errorf("bead %s failed: %s", beadItem.ID, reason)
 }
 
@@ -209,4 +219,38 @@ func collectDependencies(b *bead.Bead) []string {
 	deps = append(deps, queue.DependencyIDs(b.Dependencies)...)
 	deps = append(deps, queue.DependencyIDs(b.BlockedBy)...)
 	return deps
+}
+
+func (b *BeadLoop) emitBeadStarted(beadItem *bead.Bead, iteration int) {
+	if b.emitter == nil || beadItem == nil {
+		return
+	}
+	b.emitter.Emit(event.BeadStartedEvent{
+		Event: event.Event{
+			SchemaVersion: event.SchemaVersion,
+			Timestamp:     time.Now(),
+			Type:          event.EventTypeBeadStarted,
+		},
+		BeadID:    beadItem.ID,
+		BeadTitle: beadItem.Title,
+		Iteration: iteration,
+	})
+}
+
+func (b *BeadLoop) emitBeadCompleted(beadItem *bead.Bead, iteration int, success bool, retryAttempt int) {
+	if b.emitter == nil || beadItem == nil {
+		return
+	}
+	b.emitter.Emit(event.BeadCompletedEvent{
+		Event: event.Event{
+			SchemaVersion: event.SchemaVersion,
+			Timestamp:     time.Now(),
+			Type:          event.EventTypeBeadCompleted,
+		},
+		BeadID:       beadItem.ID,
+		BeadTitle:    beadItem.Title,
+		Iteration:    iteration,
+		Success:      success,
+		RetryAttempt: retryAttempt,
+	})
 }

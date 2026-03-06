@@ -3,14 +3,14 @@ package event
 import "sync"
 
 type subscriber struct {
-	fn func(Event)
+	fn func(TypedEvent)
 
 	mu     sync.Mutex
-	queue  []Event
+	queue  []TypedEvent
 	notify chan struct{}
 }
 
-func newSubscriber(fn func(Event)) *subscriber {
+func newSubscriber(fn func(TypedEvent)) *subscriber {
 	sub := &subscriber{
 		fn:     fn,
 		notify: make(chan struct{}, 1),
@@ -27,7 +27,7 @@ func (s *subscriber) run() {
 	}
 }
 
-func (s *subscriber) next() Event {
+func (s *subscriber) next() TypedEvent {
 	s.mu.Lock()
 	for len(s.queue) == 0 {
 		s.mu.Unlock()
@@ -36,14 +36,14 @@ func (s *subscriber) next() Event {
 	}
 
 	evt := s.queue[0]
-	s.queue[0] = Event{}
+	s.queue[0] = nil
 	s.queue = s.queue[1:]
 	s.mu.Unlock()
 
 	return evt
 }
 
-func (s *subscriber) enqueue(evt Event) {
+func (s *subscriber) enqueue(evt TypedEvent) {
 	s.mu.Lock()
 	s.queue = append(s.queue, evt)
 	s.mu.Unlock()
@@ -54,7 +54,7 @@ func (s *subscriber) enqueue(evt Event) {
 	}
 }
 
-func (s *subscriber) dispatch(evt Event) {
+func (s *subscriber) dispatch(evt TypedEvent) {
 	defer func() {
 		recover()
 	}()
@@ -76,7 +76,7 @@ func NewEmitter() *Emitter {
 }
 
 // Subscribe registers fn to receive emitted events.
-func (e *Emitter) Subscribe(fn func(Event)) {
+func (e *Emitter) Subscribe(fn func(TypedEvent)) {
 	sub := newSubscriber(fn)
 
 	e.mu.Lock()
@@ -85,7 +85,7 @@ func (e *Emitter) Subscribe(fn func(Event)) {
 }
 
 // Emit delivers evt to all subscribers without waiting for them to complete.
-func (e *Emitter) Emit(evt Event) {
+func (e *Emitter) Emit(evt TypedEvent) {
 	e.mu.RLock()
 	for sub := range e.subscribers {
 		sub.enqueue(evt)

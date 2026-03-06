@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/danabrams/gromit/internal/bead"
+	"github.com/danabrams/gromit/internal/v2/event"
 	"github.com/danabrams/gromit/internal/v2/stage"
 )
 
@@ -139,6 +140,60 @@ func TestBeadLoopShortCircuitsToFailurePath(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestBeadLoopEmitsLifecycleEvents(t *testing.T) {
+	t.Parallel()
+
+	emitter := event.NewEmitter()
+	ch := make(chan event.TypedEvent, 4)
+	emitter.Subscribe(func(evt event.TypedEvent) {
+		ch <- evt
+	})
+
+	config := BeadLoopConfig{
+		Gate:     newRecordingStage("gate", nil),
+		Build:    newRecordingStage("build", nil),
+		Validate: newRecordingStage("validate", nil),
+		Review:   newRecordingStage("review", nil),
+		Epilogue: newRecordingStage("epilogue", nil),
+		Emitter:  emitter,
+	}
+
+	loop, err := NewBeadLoop(config)
+	if err != nil {
+		t.Fatalf("NewBeadLoop: %v", err)
+	}
+
+	beads := []*bead.Bead{{ID: "event-bead", Title: "Eventful"}}
+	if err := loop.Run(context.Background(), beads); err != nil {
+		t.Fatalf("Run failed: %v", err)
+	}
+
+	events := collectLifecycleEvents(ch, 2)
+	started, ok := events[0].(event.BeadStartedEvent)
+	if !ok {
+		t.Fatalf("first event type = %T, want event.BeadStartedEvent", events[0])
+	}
+	if started.BeadID != "event-bead" || started.BeadTitle != "Eventful" {
+		t.Fatalf("unexpected started event: %#v", started)
+	}
+
+	completed, ok := events[1].(event.BeadCompletedEvent)
+	if !ok {
+		t.Fatalf("second event type = %T, want event.BeadCompletedEvent", events[1])
+	}
+	if !completed.Success {
+		t.Fatalf("expected success completion event, got %#v", completed)
+	}
+}
+
+func collectLifecycleEvents(ch chan event.TypedEvent, expected int) []event.TypedEvent {
+	collected := make([]event.TypedEvent, 0, expected)
+	for len(collected) < expected {
+		collected = append(collected, <-ch)
+	}
+	return collected
 }
 
 func newRecordingStage(name string, order *[]string) stage.Stage {

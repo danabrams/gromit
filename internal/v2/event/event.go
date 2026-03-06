@@ -5,6 +5,11 @@ import "time"
 // SchemaVersion describes the current event schema.
 const SchemaVersion = 1
 
+// TypedEvent defines the interface every event implements.
+type TypedEvent interface {
+	EventType() string
+}
+
 // Event captures the common metadata every typed event exposes.
 type Event struct {
 	SchemaVersion int       `json:"schema_version"`
@@ -12,12 +17,30 @@ type Event struct {
 	Type          string    `json:"type"`
 }
 
+const (
+	EventTypeSpecStarted     = "spec.started"
+	EventTypeSpecCompleted   = "spec.completed"
+	EventTypeSpecFailed      = "spec.failed"
+	EventTypeBeadStarted     = "bead.started"
+	EventTypeBeadCompleted   = "bead.completed"
+	EventTypeStageStarted    = "stage.started"
+	EventTypeStageCompleted  = "stage.completed"
+	EventTypeStageFailed     = "stage.failed"
+	EventTypeStageRetrying   = "stage.retrying"
+	EventTypeValidation      = "validation"
+	EventTypeReview          = "review"
+	EventTypeScope           = "scope"
+	EventTypeTelemetry       = "telemetry"
+)
+
 // SpecStartedEvent marks the beginning of a spec execution.
 type SpecStartedEvent struct {
 	Event
 	SpecID   string `json:"spec_id,omitempty"`
 	Worktree string `json:"worktree,omitempty"`
 }
+
+func (SpecStartedEvent) EventType() string { return EventTypeSpecStarted }
 
 // SpecCompletedEvent marks the end of a spec execution.
 type SpecCompletedEvent struct {
@@ -28,6 +51,8 @@ type SpecCompletedEvent struct {
 	FailureReason string `json:"failure_reason,omitempty"`
 }
 
+func (SpecCompletedEvent) EventType() string { return EventTypeSpecCompleted }
+
 // SpecFailedEvent reports a spec execution that could not be remediated.
 type SpecFailedEvent struct {
 	Event
@@ -36,6 +61,8 @@ type SpecFailedEvent struct {
 	FailureReason string `json:"failure_reason,omitempty"`
 }
 
+func (SpecFailedEvent) EventType() string { return EventTypeSpecFailed }
+
 // BeadStartedEvent records when a bead execution begins.
 type BeadStartedEvent struct {
 	Event
@@ -43,6 +70,8 @@ type BeadStartedEvent struct {
 	BeadTitle string `json:"bead_title,omitempty"`
 	Iteration int    `json:"iteration,omitempty"`
 }
+
+func (BeadStartedEvent) EventType() string { return EventTypeBeadStarted }
 
 // BeadCompletedEvent captures the outcome of a bead.
 type BeadCompletedEvent struct {
@@ -54,6 +83,8 @@ type BeadCompletedEvent struct {
 	RetryAttempt int    `json:"retry_attempt,omitempty"`
 }
 
+func (BeadCompletedEvent) EventType() string { return EventTypeBeadCompleted }
+
 // StageStartedEvent marks the start of a stage execution.
 type StageStartedEvent struct {
 	Event
@@ -61,6 +92,8 @@ type StageStartedEvent struct {
 	BeadID    string `json:"bead_id,omitempty"`
 	Iteration int    `json:"iteration,omitempty"`
 }
+
+func (StageStartedEvent) EventType() string { return EventTypeStageStarted }
 
 // StageCompletedEvent reports the completion of a stage.
 type StageCompletedEvent struct {
@@ -72,6 +105,8 @@ type StageCompletedEvent struct {
 	Duration  time.Duration `json:"duration,omitempty"`
 }
 
+func (StageCompletedEvent) EventType() string { return EventTypeStageCompleted }
+
 // StageFailedEvent reports a stage failure.
 type StageFailedEvent struct {
 	Event
@@ -81,6 +116,8 @@ type StageFailedEvent struct {
 	Error     string `json:"error,omitempty"`
 }
 
+func (StageFailedEvent) EventType() string { return EventTypeStageFailed }
+
 // StageRetryingEvent records when a stage is retried.
 type StageRetryingEvent struct {
 	Event
@@ -89,6 +126,8 @@ type StageRetryingEvent struct {
 	Attempt   int    `json:"attempt,omitempty"`
 	Reason    string `json:"reason,omitempty"`
 }
+
+func (StageRetryingEvent) EventType() string { return EventTypeStageRetrying }
 
 // ValidationEvent summarizes a validation execution.
 type ValidationEvent struct {
@@ -102,6 +141,8 @@ type ValidationEvent struct {
 	Details       string        `json:"details,omitempty"`
 }
 
+func (ValidationEvent) EventType() string { return EventTypeValidation }
+
 // ReviewEvent records the outcome of a review invocation.
 type ReviewEvent struct {
 	Event
@@ -112,6 +153,8 @@ type ReviewEvent struct {
 	Notes      string   `json:"notes,omitempty"`
 }
 
+func (ReviewEvent) EventType() string { return EventTypeReview }
+
 // ScopeEvent captures the result of a scope check.
 type ScopeEvent struct {
 	Event
@@ -120,6 +163,8 @@ type ScopeEvent struct {
 	Approved   bool   `json:"approved"`
 	Reason     string `json:"reason,omitempty"`
 }
+
+func (ScopeEvent) EventType() string { return EventTypeScope }
 
 // TelemetryEvent holds aggregated telemetry for a stage execution.
 type TelemetryEvent struct {
@@ -133,3 +178,5 @@ type TelemetryEvent struct {
 	CostUSD      float64       `json:"cost_usd,omitempty"`
 	Category     string        `json:"category,omitempty"`
 }
+
+func (TelemetryEvent) EventType() string { return EventTypeTelemetry }
