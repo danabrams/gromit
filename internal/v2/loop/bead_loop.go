@@ -148,7 +148,7 @@ func (b *BeadLoop) processBead(ctx context.Context, beadItem *bead.Bead, iterati
 	}
 
 	for _, entry := range stages {
-		req := b.stageRequest(beadItem)
+		req := b.stageRequest(beadItem, iteration, nil)
 		res, err := b.runStage(ctx, entry.stage, req)
 		if err != nil {
 			return b.failWithReason(ctx, beadItem, iteration, err.Error())
@@ -158,7 +158,7 @@ func (b *BeadLoop) processBead(ctx context.Context, beadItem *bead.Bead, iterati
 		}
 	}
 
-	if _, err := b.runStage(ctx, b.epilogue, b.stageRequest(beadItem)); err != nil {
+	if _, err := b.runStage(ctx, b.epilogue, b.stageRequest(beadItem, iteration, nil)); err != nil {
 		return err
 	}
 	return nil
@@ -176,12 +176,11 @@ func (b *BeadLoop) runStage(ctx context.Context, staged stage.Stage, req stage.R
 }
 
 func (b *BeadLoop) failWithReason(ctx context.Context, beadItem *bead.Bead, iteration int, reason string) error {
-	failReq := b.stageRequest(beadItem)
-	failReq.RetryContext = &stage.RetryContext{
+	retryCtx := &stage.RetryContext{
 		Attempt:       1,
 		PriorFailures: []string{reason},
 	}
-	if _, err := b.runStage(ctx, b.epilogue, failReq); err != nil {
+	if _, err := b.runStage(ctx, b.epilogue, b.stageRequest(beadItem, iteration, retryCtx)); err != nil {
 		return fmt.Errorf("epilogue failure: %w", err)
 	}
 	b.emitBeadCompleted(beadItem, iteration, false, 1)
@@ -195,10 +194,12 @@ func stageDecision(res *stage.Result) stage.Decision {
 	return res.Decision
 }
 
-func (b *BeadLoop) stageRequest(beadItem *bead.Bead) stage.Request {
+func (b *BeadLoop) stageRequest(beadItem *bead.Bead, iteration int, retryCtx *stage.RetryContext) stage.Request {
 	labels := copyLabels(beadItem.Labels)
 	return stage.Request{
 		Bead: stage.BeadInfo{ID: beadItem.ID, Labels: labels},
+		Iteration:    iteration,
+		RetryContext: retryCtx,
 	}
 }
 
