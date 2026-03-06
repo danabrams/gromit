@@ -104,3 +104,4 @@ func TestNext_DeterministicOrderingWhenMultipleBeadsEligible(t *testing.T) {
 		}
 	}
 }
+
