@@ -32,16 +32,25 @@ func (s *subscriber) run() {
 			return
 		default:
 		}
-		evt := s.next()
+		evt, ok := s.next()
+		if !ok {
+			return
+		}
 		s.dispatch(evt)
 	}
 }
 
-func (s *subscriber) next() TypedEvent {
+func (s *subscriber) next() (TypedEvent, bool) {
 	s.mu.Lock()
 	for len(s.queue) == 0 {
 		s.mu.Unlock()
-		<-s.notify
+
+		select {
+		case <-s.notify:
+		case <-s.done:
+			return nil, false
+		}
+
 		s.mu.Lock()
 	}
 
@@ -50,7 +59,7 @@ func (s *subscriber) next() TypedEvent {
 	s.queue = s.queue[1:]
 	s.mu.Unlock()
 
-	return evt
+	return evt, true
 }
 
 func (s *subscriber) enqueue(evt TypedEvent) {
