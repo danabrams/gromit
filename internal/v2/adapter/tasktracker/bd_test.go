@@ -102,6 +102,52 @@ func TestCreateBead_UsesBdCreateCommand(t *testing.T) {
 	}
 }
 
+func TestShowBead_UsesBdShowCommand(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	var recordedArgs []string
+	client := &bead.Client{
+		RunFn: func(args ...string) (string, error) {
+			recordedArgs = append(recordedArgs, args...)
+			if len(args) < 3 || args[0] != "show" {
+				return "", fmt.Errorf("unexpected command: %v", args)
+			}
+			return `{
+				"id": "shown-bead",
+				"title": "Shown",
+				"description": "desc",
+				"priority": 2,
+				"status": "open",
+				"labels": ["alpha"],
+				"blocked_by": [{"id": "back"}],
+				"depends_on": [{"id": "front"}]
+			}`, nil
+		},
+	}
+
+	adapter := NewBDAdapter(client)
+	resp, err := adapter.ShowBead(ctx, "shown-bead")
+	if err != nil {
+		t.Fatalf("ShowBead failed: %v", err)
+	}
+	if resp == nil {
+		t.Fatal("ShowBead returned nil bead")
+	}
+	if resp.ID != "shown-bead" {
+		t.Fatalf("unexpected bead ID: %s", resp.ID)
+	}
+	if !containsString(resp.DependsOn, "front") {
+		t.Fatalf("missing depends_on: %v", resp.DependsOn)
+	}
+	if !containsString(resp.BlockedBy, "back") {
+		t.Fatalf("missing blocked_by: %v", resp.BlockedBy)
+	}
+	if !containsString(recordedArgs, "shown-bead") || !containsString(recordedArgs, "--json") {
+		t.Fatalf("unexpected show args: %v", recordedArgs)
+	}
+}
+
 func containsString(list []string, value string) bool {
 	for _, item := range list {
 		if item == value {
