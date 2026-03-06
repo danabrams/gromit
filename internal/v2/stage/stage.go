@@ -3,6 +3,7 @@ package stage
 import (
 	"context"
 
+	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/events"
 )
@@ -19,6 +20,8 @@ type Request struct {
 	Model        string
 	Iteration    int
 	Config       *config.Config
+	Worktree     string
+	Remediation  bool
 	RetryContext *RetryContext
 }
 
@@ -27,6 +30,11 @@ type Result struct {
 	Decision  Decision
 	Artifacts any
 	Events    []events.Event
+}
+
+// DecomposeArtifacts packages the beads created by the decompose stage.
+type DecomposeArtifacts struct {
+	Beads []*bead.Bead
 }
 
 // Decision describes how the loop should proceed after a stage runs.

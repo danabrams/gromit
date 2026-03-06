@@ -23,7 +23,7 @@ type TaskTracker interface {
 
 	// CreateBead creates a new bead with the given properties
 	// It automatically adds a gen:N label and declares dependencies
-	CreateBead(ctx context.Context, title, description string, priority int, dependencies []string) (*Bead, error)
+	CreateBead(ctx context.Context, title, description string, priority int, labels, dependencies []string) (*Bead, error)
 
 	// CloseBead marks a bead as closed
 	CloseBead(ctx context.Context, beadID string) error

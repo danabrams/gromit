@@ -175,7 +175,7 @@ func (r *recordingDecomposeStage) Run(ctx context.Context, req *stage.Request) (
 	if r.order != nil {
 		*r.order = append(*r.order, "decompose")
 	}
-	return &stage.Result{Artifacts: &DecomposeArtifacts{Beads: r.beads}}, nil
+	return &stage.Result{Artifacts: &stage.DecomposeArtifacts{Beads: r.beads}}, nil
 }
 
 var _ stage.Stage = (*recordingDecomposeStage)(nil)

@@ -24,7 +24,7 @@ func TestCreateBead_CreatesBeadWithTitleDescriptionAndPriority(t *testing.T) {
 	ctx := context.Background()
 	adapter := NewBDAdapter(nil)
 
-	bead, err := adapter.CreateBead(ctx, "Test Title", "Test Description", 1, []string{"dep1"})
+	bead, err := adapter.CreateBead(ctx, "Test Title", "Test Description", 1, nil, []string{"dep1"})
 	if err != nil {
 		t.Fatalf("CreateBead failed: %v", err)
 	}

@@ -100,7 +100,7 @@ func TestRunCreatesBeadsFromPlan(t *testing.T) {
 		t.Fatalf("decision = %v, want proceed", res.Decision)
 	}
 
-	artifacts, ok := res.Artifacts.(*DecomposeArtifacts)
+	artifacts, ok := res.Artifacts.(*stagepkg.DecomposeArtifacts)
 	if !ok {
 		t.Fatalf("artifacts type = %T", res.Artifacts)
 	}
@@ -163,14 +163,14 @@ func (f *fakeTracker) NextBead(ctx context.Context) (*tasktracker.Bead, error) {
 	return nil, nil
 }
 
-func (f *fakeTracker) CreateBead(ctx context.Context, title, description string, priority int, dependencies []string) (*tasktracker.Bead, error) {
+func (f *fakeTracker) CreateBead(ctx context.Context, title, description string, priority int, labels, dependencies []string) (*tasktracker.Bead, error) {
 	f.nextID++
 	id := fmt.Sprintf("bead-%d", f.nextID)
 	call := createCall{
 		Title:        title,
 		Description:  description,
 		Priority:     priority,
-		Labels:       append([]string(nil), dependencies...),
+		Labels:       append([]string(nil), labels...),
 		Dependencies: append([]string(nil), dependencies...),
 	}
 	f.calls = append(f.calls, call)

@@ -45,11 +45,6 @@ func NewRemediationRunner(cfg RemediationRunnerConfig) *RemediationRunner {
 	return &RemediationRunner{cfg: cfg}
 }
 
-// DecomposeArtifacts holds artifacts emitted by the decompose stage.
-type DecomposeArtifacts struct {
-	Beads []*bead.Bead
-}
-
 // Run executes the remediation cycle for the provided spec.
 func (r *RemediationRunner) Run(ctx context.Context, specID string) error {
 	if specID == "" {
@@ -170,7 +165,7 @@ func (r *RemediationRunner) decompose(ctx context.Context, req *stage.Request) (
 		return nil, fmt.Errorf("decompose stage returned no artifacts")
 	}
 
-	artifacts, ok := res.Artifacts.(*DecomposeArtifacts)
+	artifacts, ok := res.Artifacts.(*stage.DecomposeArtifacts)
 	if !ok {
 		return nil, fmt.Errorf("unexpected artifacts type from decompose stage")
 	}
