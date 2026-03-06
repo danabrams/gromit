@@ -13,6 +13,14 @@ func TestPresenterInterface(t *testing.T) {
 	}
 }
 
+func TestPresentResponseIncludesPublishedURL(t *testing.T) {
+	const publishedURL = "https://example.com/pr/1"
+	resp := PresentResponse{Destination: "gh", Message: "ok", PublishedURL: publishedURL}
+	if resp.PublishedURL != publishedURL {
+		t.Fatalf("PublishedURL mismatch: got %q want %q", resp.PublishedURL, publishedURL)
+	}
+}
+
 type dummyPresenter struct{}
 
 func (dummyPresenter) Present(_ context.Context, _ PresentRequest) (PresentResponse, error) {
