@@ -245,3 +245,11 @@ func requireEventSequence(t *testing.T, ch chan events.Event, want []string) {
 	events := collectEvents(t, ch, len(want))
 	assertEventTypeOrder(t, events, want)
 }
+
+func requireHappyPathEvents(t *testing.T, ch chan events.Event) {
+	t.Helper()
+	requireEventSequence(t, ch, []string{
+		"*events.SpecStartedEvent",
+		"*events.SpecCompletedEvent",
+	})
+}
