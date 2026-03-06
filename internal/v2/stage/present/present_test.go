@@ -2,6 +2,7 @@ package present
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/v2/adapter"
@@ -71,6 +72,33 @@ func TestPresentStageCallsPresenter(t *testing.T) {
 }
 
 var _ adapter.PresenterAdapter = (*spyPresenter)(nil)
+
+func TestPresentStageHandlesPresenterError(t *testing.T) {
+	presenter := &spyPresenter{err: errors.New("boom")}
+	ctx := &SummaryContext{
+		Plan:              "plan details",
+		Worktree:          "/tmp/worktree",
+		Success:           false,
+		FailureSummary:    "oops",
+		RemainingWork:     []string{"todo"},
+		IntegrationBranch: "integration-main",
+	}
+	stageInstance, err := New(nil, presenter, ctx)
+	if err != nil {
+		t.Fatalf("unexpected error creating stage: %v", err)
+	}
+
+	res, err := stageInstance.Run(context.Background(), &stage.Request{Bead: stage.BeadInfo{ID: "spec-error"}})
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if res == nil || res.Decision != stage.DecisionFail {
+		t.Fatalf("unexpected decision on presenter failure: %#v", res)
+	}
+	if presenter.lastSpec != "spec-error" {
+		t.Fatalf("presenter not invoked on failure")
+	}
+}
 
 type spyPresenter struct {
 	lastSpec    string
