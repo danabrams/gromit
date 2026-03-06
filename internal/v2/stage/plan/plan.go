@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/v2/adapter/llm"
 	"github.com/danabrams/gromit/internal/v2/prompt"
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
 	stagesplan "github.com/danabrams/gromit/internal/v2/stages/plan"
@@ -21,14 +22,10 @@ const (
 	modelOpus        = "opus"
 )
 
-type LLM interface {
-	Invoke(ctx context.Context, prompt, model string) (string, error)
-}
-
 // Stage produces the initial implementation plan for a spec.
 type Stage struct {
 	name     string
-	llm      LLM
+	llm      llm.LLMProvider
 	base     string
 	project  string
 	fragment string
@@ -45,18 +42,18 @@ type PlanArtifacts struct {
 }
 
 // New constructs a plan stage backed by the provided configuration.
-func New(cfg *config.Config, llm LLM, base, project, fragment string) (*Stage, error) {
+func New(cfg *config.Config, provider llm.LLMProvider, base, project, fragment string) (*Stage, error) {
 	if cfg == nil {
 		return nil, fmt.Errorf("config required")
 	}
-	if llm == nil {
+	if provider == nil {
 		return nil, fmt.Errorf("llm provider required")
 	}
 
 	name := stagesplan.Describe(cfg)
 	return &Stage{
 		name:     name,
-		llm:      llm,
+		llm:      provider,
 		base:     base,
 		project:  project,
 		fragment: fragment,
@@ -90,11 +87,18 @@ func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Resul
 	}
 
 	promptPayload := prompt.NewPromptAssembler(s.base, s.project, string(specData), s.fragment).Assemble()
-	planText, err := s.llm.Invoke(ctx, promptPayload, modelOpus)
+	resp, err := s.llm.Invoke(ctx, llm.InvokeRequest{Prompt: promptPayload, Model: modelOpus})
 	if err != nil {
 		return nil, fmt.Errorf("invoke llm: %w", err)
 	}
+	if resp == nil {
+		return nil, fmt.Errorf("invoke llm: provider returned nil response")
+	}
+	if !resp.Success {
+		return nil, fmt.Errorf("invoke llm: provider reported unsuccessful invocation")
+	}
 
+	planText := resp.Output
 	planPath, err := writePlanFile(req.Config, planText)
 	if err != nil {
 		return nil, err

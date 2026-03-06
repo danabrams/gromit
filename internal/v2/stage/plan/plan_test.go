@@ -40,7 +40,12 @@ func TestStageWritesPlanAndInvokesLLM(t *testing.T) {
 	baseLayer := "base"
 	projectLayer := "project"
 	fragmentLayer := "fragment"
-	fake := &fakeLLM{response: "planned!"}
+	fake := &fakeLLMProvider{
+		response: &llm.LLMInvokeResponse{
+			Success: true,
+			Output:  "planned!",
+		},
+	}
 
 	stageInstance, err := New(cfg, fake, baseLayer, projectLayer, fragmentLayer)
 	if err != nil {
@@ -65,7 +70,7 @@ func TestStageWritesPlanAndInvokesLLM(t *testing.T) {
 		t.Fatalf("unexpected artifacts type: %T", res.Artifacts)
 	}
 
-	expectedPlan := fake.response
+	expectedPlan := fake.response.Output
 	if artifacts.Plan != expectedPlan {
 		t.Fatalf("plan mismatch: got %q want %q", artifacts.Plan, expectedPlan)
 	}
@@ -84,28 +89,12 @@ func TestStageWritesPlanAndInvokesLLM(t *testing.T) {
 	}
 
 	expectedPrompt := prompt.NewPromptAssembler(baseLayer, projectLayer, specContent, fragmentLayer).Assemble()
-	if fake.lastPrompt != expectedPrompt {
-		t.Fatalf("prompt mismatch: got %q want %q", fake.lastPrompt, expectedPrompt)
+	if fake.lastRequest.Prompt != expectedPrompt {
+		t.Fatalf("prompt mismatch: got %q want %q", fake.lastRequest.Prompt, expectedPrompt)
 	}
-	if fake.lastModel != "opus" {
-		t.Fatalf("model mismatch: got %q want opus", fake.lastModel)
+	if fake.lastRequest.Model != "opus" {
+		t.Fatalf("model mismatch: got %q want opus", fake.lastRequest.Model)
 	}
-}
-
-type fakeLLM struct {
-	response   string
-	lastPrompt string
-	lastModel  string
-}
-
-func (f *fakeLLM) Invoke(_ context.Context, prompt, model string) (string, error) {
-	f.lastPrompt = prompt
-	f.lastModel = model
-	return f.response, nil
-}
-
-func (f *fakeLLM) StreamInvoke(context.Context, llm.StreamInvokeRequest) (*llm.LLMResponse, error) {
-	panic("not implemented")
 }
 
 func TestStageUsesLLMProvider(t *testing.T) {
