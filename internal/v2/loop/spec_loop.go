@@ -276,27 +276,21 @@ func (s *SpecLoop) runBeadLoop(ctx context.Context, beads []*bead.Bead, stopCh <
 }
 
 func (s *SpecLoop) ensureAcceptance(ctx context.Context, req *stagepkg.Request, specID string) (*stagepkg.Result, error) {
-	res, err := s.runAcceptStage(ctx, req)
-	if err != nil {
-		return nil, err
+	for {
+		res, err := s.runAcceptStage(ctx, req)
+		if err != nil {
+			return res, err
+		}
+		if !s.acceptFailed(res) {
+			return res, nil
+		}
+		if s.remediationRunner == nil {
+			return res, fmt.Errorf("accept failed")
+		}
+		if err := s.remediationRunner.Run(ctx, specID); err != nil {
+			return res, err
+		}
 	}
-	if !s.acceptFailed(res) {
-		return res, nil
-	}
-	if s.remediationRunner == nil {
-		return res, fmt.Errorf("accept failed")
-	}
-	if err := s.remediationRunner.Run(ctx, specID); err != nil {
-		return res, err
-	}
-	res, err = s.runAcceptStage(ctx, req)
-	if err != nil {
-		return res, err
-	}
-	if !s.acceptFailed(res) {
-		return res, nil
-	}
-	return res, fmt.Errorf("accept failed after remediation")
 }
 
 func (s *SpecLoop) runAcceptStage(ctx context.Context, req *stagepkg.Request) (*stagepkg.Result, error) {
