@@ -178,6 +178,8 @@ type fatalGitAdapter struct {
 	t *testing.T
 }
 
+var _ adapter.GitAdapter = (*fatalGitAdapter)(nil)
+
 func (f *fatalGitAdapter) Checkout(context.Context, string) (string, error) {
 	f.t.Fatalf("git adapter should not run when dependencies block")
 	return "", nil

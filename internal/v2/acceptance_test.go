@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/danabrams/gromit/internal/config"
-	"github.com/danabrams/gromit/internal/events"
 	"github.com/danabrams/gromit/internal/v2/adapter"
 	"github.com/danabrams/gromit/internal/v2/event"
 	"github.com/danabrams/gromit/internal/v2/loop"
@@ -55,7 +54,7 @@ func TestSpecLoopExecutesCanonicalStageChain(t *testing.T) {
 func TestStageResultCarriesDecisionArtifactsEvents(t *testing.T) {
 	t.Parallel()
 
-	evt := sampleStageEvent("info", "ok")
+	evt := sampleStageEvent("plan", "spec-acceptance")
 	res := newStageResult(evt)
 
 	if res.Decision != stage.DecisionProceed {
@@ -64,8 +63,13 @@ func TestStageResultCarriesDecisionArtifactsEvents(t *testing.T) {
 	if _, ok := res.Artifacts.(map[string]string); !ok {
 		t.Fatalf("expected artifacts to survive type assertion")
 	}
-	if len(res.Events) != 1 || res.Events[0] != evt {
+	if len(res.Events) != 1 {
 		t.Fatalf("events preserved = %v", res.Events)
+	}
+
+	got := res.Events[0]
+	if got.EventType() != evt.EventType() {
+		t.Fatalf("event types differ: got %s want %s", got.EventType(), evt.EventType())
 	}
 }
 
@@ -144,11 +148,20 @@ func verifyPlanFileJustInTime(t *testing.T, worktree, specID string, recorder *f
 	}
 }
 
-func sampleStageEvent(level, message string) events.Event {
-	return &events.LogEvent{Level: level, Message: message}
+func sampleStageEvent(stageName, beadID string) event.TypedEvent {
+	return &event.StageStartedEvent{
+		Event: event.Event{
+			SchemaVersion: event.SchemaVersion,
+			Timestamp:     time.Now(),
+			Type:          event.EventTypeStageStarted,
+		},
+		StageName: stageName,
+		BeadID:    beadID,
+		Iteration: 1,
+	}
 }
 
-func newStageResult(evt events.Event) stage.Result {
+func newStageResult(evt event.TypedEvent) stage.Result {
 	return stage.Result{
 		Decision: stage.DecisionProceed,
 		Artifacts: map[string]string{
@@ -164,6 +177,8 @@ type recordingGitAdapter struct {
 	t            *testing.T
 	lastWorktree string
 }
+
+var _ adapter.GitAdapter = (*recordingGitAdapter)(nil)
 
 func newRecordingGitAdapter(t *testing.T) *recordingGitAdapter {
 	return &recordingGitAdapter{t: t}
