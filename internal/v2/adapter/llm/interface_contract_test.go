@@ -1,13 +1,13 @@
 package llm
 
 import (
-    "context"
-    "testing"
+	"context"
+	"testing"
 )
 
 func TestLLMProviderContract(t *testing.T) {
-    var _ interface {
-        Invoke(context.Context, LLMInvokeRequest) (*LLMInvokeResponse, error)
-        StreamInvoke(context.Context, LLMStreamInvokeRequest) (*LLMStreamInvokeResponse, error)
-    } = (LLMProvider)(nil)
+	var _ interface {
+		Invoke(context.Context, LLMInvokeRequest) (*LLMInvokeResponse, error)
+		StreamInvoke(context.Context, LLMStreamInvokeRequest) (*LLMStreamInvokeResponse, error)
+	} = (LLMProvider)(nil)
 }
