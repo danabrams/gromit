@@ -42,6 +42,8 @@ var (
 	ErrUnexpectedDecomposeArtifacts = errors.New("unexpected artifacts type from decompose stage")
 )
 
+const DefaultGenerationCap = 3
+
 // RemediationRunner drives the accept-gap-decompose-bead loop cycle.
 type RemediationRunner struct {
 	cfg             RemediationRunnerConfig
@@ -118,20 +120,24 @@ func (r *RemediationRunner) executeRemediation(ctx context.Context, req *stage.R
 	return nil
 }
 
-func (r *RemediationRunner) canRemediate() bool {
-	cap := r.cfg.GenerationCap
-	if cap <= 0 {
-		return false
+func (r *RemediationRunner) generationCap() int {
+	if cap := r.cfg.GenerationCap; cap > 0 {
+		return cap
 	}
-	return r.generationCount < cap
+	return DefaultGenerationCap
+}
+
+func (r *RemediationRunner) canRemediate() bool {
+	return r.generationCount < r.generationCap()
 }
 
 func (r *RemediationRunner) handleGenerationCap(ctx context.Context, specID string) error {
+	cap := r.generationCap()
 	reason := "generation cap reached"
 	if emitter := r.cfg.Emitter; emitter != nil {
 		emitter.Emit(&events.GenerationCapReachedEvent{
 			SpecID:        specID,
-			GenerationCap: r.cfg.GenerationCap,
+			GenerationCap: cap,
 		})
 		emitter.Emit(&events.AndonTriggeredEvent{
 			SpecID: specID,

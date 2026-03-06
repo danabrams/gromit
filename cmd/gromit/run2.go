@@ -144,7 +144,7 @@ func run2(cmd *cobra.Command, args []string) error {
 		AcceptStage:    acceptStage,
 		DecomposeStage: components.DecomposeStage,
 		BeadRunner:     &remediationBeadRunner{loop: components.BeadLoop},
-		GenerationCap:  3,
+		GenerationCap:  v2remediation.DefaultGenerationCap,
 		Emitter:        emitter,
 		Presenter:      adapters.Presenter,
 	})
