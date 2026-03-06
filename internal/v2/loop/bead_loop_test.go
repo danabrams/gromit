@@ -284,6 +284,74 @@ func TestCapHitDetectsWhenGenerationThresholdExceeded(t *testing.T) {
 	}
 }
 
+func TestCapHitPersistsAfterThreshold(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+
+	successStage := &successStage{name: "test"}
+
+	beadLoop, err := NewBeadLoop([]StageSpec{
+		{
+			Stage: successStage,
+			Retry: stage.RetryConfig{MaxRetries: 0},
+		},
+	})
+	if err != nil {
+		t.Fatalf("construct bead loop: %v", err)
+	}
+
+	beadLoop.GenerationCap = 3
+
+	// First run to record start generation at 0
+	req := stage.Request{
+		Bead: stage.BeadInfo{
+			ID:     "test-bead",
+			Labels: []string{"gen:0"},
+		},
+	}
+
+	result, err := beadLoop.Run(ctx, req)
+	if err != nil {
+		t.Fatalf("run bead loop: %v", err)
+	}
+	if result.CapHit {
+		t.Fatalf("CapHit = true, want false before threshold")
+	}
+
+	// Trigger cap by reaching generation 3
+	req = stage.Request{
+		Bead: stage.BeadInfo{
+			ID:     "test-bead-2",
+			Labels: []string{"gen:3"},
+		},
+	}
+
+	result, err = beadLoop.Run(ctx, req)
+	if err != nil {
+		t.Fatalf("run bead loop: %v", err)
+	}
+	if !result.CapHit {
+		t.Fatalf("CapHit = false, want true after threshold")
+	}
+
+	// Even though generation decreases, CapHit should stay true
+	req = stage.Request{
+		Bead: stage.BeadInfo{
+			ID:     "test-bead-3",
+			Labels: []string{"gen:2"},
+		},
+	}
+
+	result, err = beadLoop.Run(ctx, req)
+	if err != nil {
+		t.Fatalf("run bead loop: %v", err)
+	}
+	if !result.CapHit {
+		t.Fatalf("CapHit = false, want true after cap already hit")
+	}
+}
+
 // successStage is a test stage that always succeeds
 type successStage struct {
 	name string
