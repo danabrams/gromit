@@ -79,8 +79,8 @@ func (s *Stage) buildPresentation(req *stagepkg.Request) presentation.Presentati
 		OutOfScopeFindings: cloneFindings(s.ctx.OutOfScopeFindings),
 		FailureSummary:     s.ctx.FailureSummary,
 		RemainingWork:      cloneStrings(s.ctx.RemainingWork),
-		BranchLink:         s.ctx.BranchLink,
-		DiffLink:           s.ctx.DiffLink,
+		BranchLink:         trimLink(s.ctx.BranchLink),
+		DiffLink:           trimLink(s.ctx.DiffLink),
 	}
 }
 
@@ -137,4 +137,8 @@ func cloneBeadSummaries(src []presentation.BeadSummary) []presentation.BeadSumma
 	dst := make([]presentation.BeadSummary, len(src))
 	copy(dst, src)
 	return dst
+}
+
+func trimLink(src string) string {
+	return strings.TrimSpace(src)
 }
