@@ -497,6 +497,42 @@ func TestEnsureAcceptanceRetriesRemediationUntilSuccess(t *testing.T) {
 	}
 }
 
+func TestEnsureAcceptanceStopsAfterMaxRetries(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	specID := "spec-loop-ensure-acceptance-max-retries"
+
+	failures := make([]stagepkg.Result, maxAcceptanceRetries+1)
+	for i := range failures {
+		failures[i].Decision = stagepkg.DecisionFail
+	}
+	accept := newScriptedAcceptStage(failures...)
+	runner := &fakeRemediationRunner{}
+	s := &SpecLoop{
+		acceptStage:       accept,
+		remediationRunner: runner,
+	}
+
+	req := stagepkg.Request{Bead: stagepkg.BeadInfo{ID: specID}}
+	res, err := s.ensureAcceptance(ctx, &req, specID)
+	if err == nil {
+		t.Fatalf("ensure acceptance succeeded unexpectedly")
+	}
+	if !errors.Is(err, ErrAcceptanceRetriesExceeded) {
+		t.Fatalf("expected error %v, got %v", ErrAcceptanceRetriesExceeded, err)
+	}
+	if res == nil || res.Decision != stagepkg.DecisionFail {
+		t.Fatalf("accept decision = %v, want fail", res)
+	}
+	if accept.calls != maxAcceptanceRetries+1 {
+		t.Fatalf("accept stage calls = %d, want %d", accept.calls, maxAcceptanceRetries+1)
+	}
+	if runner.calls != maxAcceptanceRetries {
+		t.Fatalf("remediation runner calls = %d, want %d", runner.calls, maxAcceptanceRetries)
+	}
+}
+
 func newFakeDecomposeStage(specID string) *fakeDecomposeStage {
 	beads := []*bead.Bead{{ID: specID + "-bead"}}
 	return &fakeDecomposeStage{producedBeads: beads}
