@@ -17,7 +17,7 @@ import (
 
 func TestStageSkipsWhenReviewDisabled(t *testing.T) {
 	cfg := &config.Config{Review: config.ReviewConfig{Enabled: false, Tier: "sonnet"}}
-	stage, err := review.New(cfg, func(context.Context, string) (string, error) { return "", nil }, &fakeLLM{}, &fakeTracker{}, "", "", "")
+	stage, err := review.New(cfg, &fakeGitAdapter{}, &fakeLLM{}, &fakeTracker{}, "", "", "")
 	if err != nil {
 		t.Fatalf("unexpected error creating stage: %v", err)
 	}
@@ -29,6 +29,43 @@ func TestStageSkipsWhenReviewDisabled(t *testing.T) {
 	}
 	if res == nil || res.Decision != stagepkg.DecisionProceed {
 		t.Fatalf("unexpected decision: %#v", res)
+	}
+}
+
+func TestStageUsesGitAdapterDiff(t *testing.T) {
+	diffText := "diff --git a/foo b/foo"
+	git := &fakeGitAdapter{diff: diffText}
+	llmStub := &fakeLLM{
+		response: &llm.LLMResponse{
+			Success: true,
+			Output:  `{"passed": true, "fixes_applied": [], "beads_to_create": [], "backlog_items": [], "summary": "ok"}`,
+		},
+	}
+	cfg := &config.Config{Review: config.ReviewConfig{Enabled: true, Tier: "sonnet"}}
+	stage, err := review.New(cfg, git, llmStub, &fakeTracker{}, "base", "project", "fragment")
+	if err != nil {
+		t.Fatalf("unexpected error creating stage: %v", err)
+	}
+
+	worktree := t.TempDir()
+	req := &stagepkg.Request{
+		Bead:    stagepkg.BeadInfo{ID: "spec-1"},
+		Worktree: worktree,
+		Config:  cfg,
+	}
+
+	if _, err := stage.Run(context.Background(), req); err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+
+	if git.diffCalls != 1 {
+		t.Fatalf("expected git diff called once, got %d", git.diffCalls)
+	}
+	if git.lastWorktree != worktree {
+		t.Fatalf("diff called with worktree %q, want %q", git.lastWorktree, worktree)
+	}
+	if !strings.Contains(llmStub.lastPrompt, diffText) {
+		t.Fatalf("prompt missing diff: %q", llmStub.lastPrompt)
 	}
 }
 
@@ -69,6 +106,26 @@ func (f *fakeTracker) CreateBead(ctx context.Context, title, description string,
 func (f *fakeTracker) CloseBead(context.Context, string) error { return nil }
 func (f *fakeTracker) QueryBeads(context.Context, []string, string, string) ([]tasktracker.Bead, error) {
 	return nil, nil
+}
+
+type fakeGitAdapter struct {
+	diff        string
+	diffErr     error
+	lastWorktree string
+	diffCalls   int
+}
+
+func (f *fakeGitAdapter) Checkout(context.Context, string) (string, error) {
+	return "", nil
+}
+
+func (f *fakeGitAdapter) Diff(_ context.Context, worktree string) (string, error) {
+	f.diffCalls++
+	f.lastWorktree = worktree
+	if f.diffErr != nil {
+		return "", f.diffErr
+	}
+	return f.diff, nil
 }
 
 func TestStageIncludesDiffAndAcceptanceCriteriaInPrompt(t *testing.T) {
