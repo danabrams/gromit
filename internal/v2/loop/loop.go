@@ -12,6 +12,7 @@ import (
 	"github.com/danabrams/gromit/internal/events"
 	"github.com/danabrams/gromit/internal/v2/adapter"
 	"github.com/danabrams/gromit/internal/v2/presentation"
+	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
 )
 
 // StageSequence lists the canonical stages the spec loop emits.
@@ -60,6 +61,13 @@ func WithRemediationRunner(r remediationRunner) SpecLoopOption {
 	}
 }
 
+// WithAcceptStage configures the accept stage the loop should evaluate.
+func WithAcceptStage(stage stagepkg.Stage) SpecLoopOption {
+	return func(s *SpecLoop) {
+		s.acceptStage = stage
+	}
+}
+
 // AdapterSet alias exposes the adapter basket consumed by the run loop.
 type AdapterSet = adapter.AdapterSet
 
@@ -70,12 +78,13 @@ type DependencyGate interface {
 
 // SpecLoop orchestrates the adapters that drive a single spec iteration.
 type SpecLoop struct {
-	adapters adapter.AdapterSet
-	cfg      *config.Config
-	gate     DependencyGate
-	recorder StageRecorder
-	emitter  *events.Emitter
-	remediationRunner remediationRunner
+	adapters            adapter.AdapterSet
+	cfg                 *config.Config
+	gate                DependencyGate
+	recorder            StageRecorder
+	acceptStage         stagepkg.Stage
+	emitter             *events.Emitter
+	remediationRunner   remediationRunner
 	gapAnalysisFilename string
 }
 
@@ -158,10 +167,8 @@ func (s *SpecLoop) Run(ctx context.Context, specID string) error {
 		Worktree:          worktree,
 	}
 
-	if s.remediationRunner != nil {
-		if err := s.remediationRunner.Run(ctx, specID); err != nil {
-			return s.handleFailure(ctx, specID, summary, err)
-		}
+	if err := s.ensureAcceptance(ctx, specID); err != nil {
+		return s.handleFailure(ctx, specID, summary, err)
 	}
 
 	summary.Success = true
@@ -176,6 +183,38 @@ func (s *SpecLoop) Run(ctx context.Context, specID string) error {
 	s.emit(&events.SpecCompletedEvent{SpecID: specID, Worktree: worktree, Success: true})
 
 	return nil
+}
+
+func (s *SpecLoop) ensureAcceptance(ctx context.Context, specID string) error {
+	failed, err := s.runAcceptStage(ctx, specID)
+	if err != nil {
+		return err
+	}
+	if !failed {
+		return nil
+	}
+	if s.remediationRunner == nil {
+		return fmt.Errorf("accept failed")
+	}
+	return s.remediationRunner.Run(ctx, specID)
+}
+
+func (s *SpecLoop) runAcceptStage(ctx context.Context, specID string) (bool, error) {
+	if s.acceptStage == nil {
+		return false, nil
+	}
+	req := &stagepkg.Request{
+		Bead:   stagepkg.BeadInfo{ID: specID},
+		Config: s.cfg,
+	}
+	res, err := s.acceptStage.Run(ctx, req)
+	if err != nil {
+		return true, err
+	}
+	if res != nil && res.Decision == stagepkg.DecisionFail {
+		return true, nil
+	}
+	return false, nil
 }
 
 func (s *SpecLoop) handleFailure(ctx context.Context, specID string, base presentation.PresentationSummary, failure error) error {

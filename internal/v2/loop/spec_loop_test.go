@@ -274,8 +274,8 @@ func (r *recordingStageRecorder) stageNames() []string {
 }
 
 type fakeGitAdapter struct {
-	t           *testing.T
-	lastWorktree     string
+	t                  *testing.T
+	lastWorktree       string
 	gapAnalysisContent string
 }
 
@@ -329,8 +329,8 @@ func (f *fakeTaskTrackerAdapter) RecordPlan(ctx context.Context, specID, plan st
 }
 
 type fakePresenterAdapter struct {
-	t             *testing.T
-	lastSummary   presentation.PresentationSummary
+	t                *testing.T
+	lastSummary      presentation.PresentationSummary
 	planFileVerified bool
 }
 
