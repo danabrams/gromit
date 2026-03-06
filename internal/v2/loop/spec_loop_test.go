@@ -99,6 +99,56 @@ func TestSpecLoopHappyPathExecutesPipeline(t *testing.T) {
 	}
 }
 
+func TestSpecLoopProvidesStageRequestToAcceptStage(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	specID := "spec-loop-request"
+
+	recorder := newRecordingStageRecorder()
+
+	git := newFakeGitAdapter(t)
+	llm := newFakeLLMAdapter()
+	taskTracker := newFakeTaskTrackerAdapter()
+	presenter := newFakePresenterAdapter(t)
+	accept := newFakeAcceptStage()
+
+	cfg := &config.Config{}
+	adapters := adapter.AdapterSet{
+		Git:         git,
+		LLM:         llm,
+		TaskTracker: taskTracker,
+		Presenter:   presenter,
+	}
+
+	loopInstance, err := NewSpecLoop(adapters, cfg, noopDependencyGate{},
+		WithStageRecorder(recorder),
+		WithDecomposeStage(newFakeDecomposeStage(specID)),
+		WithBeadLoop(newFakeBeadRunner()),
+		WithAcceptStage(accept),
+	)
+	if err != nil {
+		t.Fatalf("create spec loop: %v", err)
+	}
+
+	if err := loopInstance.Run(ctx, specID); err != nil {
+		t.Fatalf("run spec loop: %v", err)
+	}
+
+	if accept.lastRequest == nil {
+		t.Fatal("accept stage did not receive a request")
+	}
+	if accept.lastRequest.Bead.ID != specID {
+		t.Fatalf("accept request bead = %q, want %q", accept.lastRequest.Bead.ID, specID)
+	}
+	if accept.lastRequest.Worktree != git.lastWorktree {
+		t.Fatalf("accept request worktree = %q, want %q", accept.lastRequest.Worktree, git.lastWorktree)
+	}
+	if accept.lastRequest.Config != cfg {
+		t.Fatalf("accept request config = %p, want %p", accept.lastRequest.Config, cfg)
+	}
+}
+
 func newFakeDecomposeStage(specID string) *fakeDecomposeStage {
 	beads := []*bead.Bead{{ID: specID + "-bead"}}
 	return &fakeDecomposeStage{producedBeads: beads}
@@ -143,12 +193,14 @@ func newFakeAcceptStage() *fakeAcceptStage {
 type fakeAcceptStage struct {
 	results []presentation.AcceptanceResult
 	called  bool
+	lastRequest *stagepkg.Request
 }
 
 func (f *fakeAcceptStage) Name() string { return "accept" }
 
 func (f *fakeAcceptStage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Result, error) {
 	f.called = true
+	f.lastRequest = req
 	return &stagepkg.Result{
 		Decision:  stagepkg.DecisionProceed,
 		Artifacts: &stageaccept.AcceptArtifacts{Results: append([]presentation.AcceptanceResult(nil), f.results...)},
