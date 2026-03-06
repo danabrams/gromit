@@ -109,6 +109,13 @@ func (b *BeadLoop) Run(ctx context.Context, beads []*bead.Bead, stopCh <-chan st
 	iteration := 1
 runLoop:
 	for {
+		if ctx != nil {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			default:
+			}
+		}
 		if stopCh != nil {
 			select {
 			case <-stopCh:
