@@ -27,10 +27,10 @@ func TestIntegration_SpecLoopHappyPathCompletes(t *testing.T) {
 		emitter.Unsubscribe(ch)
 	})
 
-	git := newFakeGitAdapter(t)
-	llm := newFakeLLMAdapter()
-	taskTracker := newFakeTaskTrackerAdapter()
-	presenter := newFakePresenterAdapter(t)
+	git := newIntegrationGitAdapter(t)
+	llm := newIntegrationLLMAdapter()
+	taskTracker := newIntegrationTaskTrackerAdapter()
+	presenter := newIntegrationPresenterAdapter(t)
 	accept := newScriptedAcceptStage(stagepkg.Result{Decision: stagepkg.DecisionProceed})
 	decompose, beadLoop := newIntegrationLoopComponents(t, specID)
 	planStage := newFakePlanStage(specID)
@@ -64,10 +64,7 @@ func TestIntegration_SpecLoopHappyPathCompletes(t *testing.T) {
 	}
 
 	requireHappyPathEvents(t, ch)
-
-	if !presenter.lastSummary.Success {
-		t.Fatalf("presenter summary success = %v, want true", presenter.lastSummary.Success)
-	}
+	assertPresenterSuccess(t, presenter, true)
 }
 
 func TestIntegration_SpecLoopFailureHitsGenerationCap(t *testing.T) {
@@ -83,11 +80,11 @@ func TestIntegration_SpecLoopFailureHitsGenerationCap(t *testing.T) {
 		emitter.Unsubscribe(ch)
 	})
 
-	git := newFakeGitAdapter(t)
+	git := newIntegrationGitAdapter(t)
 	git.gapAnalysisContent = "missing gap analysis"
-	llm := newFakeLLMAdapter()
-	taskTracker := newFakeTaskTrackerAdapter()
-	presenter := newFakePresenterAdapter(t)
+	llm := newIntegrationLLMAdapter()
+	taskTracker := newIntegrationTaskTrackerAdapter()
+	presenter := newIntegrationPresenterAdapter(t)
 	accept := newScriptedAcceptStage(stagepkg.Result{Decision: stagepkg.DecisionFail})
 	decompose, beadLoop := newIntegrationLoopComponents(t, specID)
 	planStage := newFakePlanStage(specID)
@@ -130,9 +127,7 @@ func TestIntegration_SpecLoopFailureHitsGenerationCap(t *testing.T) {
 		"*events.SpecCompletedEvent",
 	})
 
-	if presenter.lastSummary.Success {
-		t.Fatalf("presenter summary success = %v, want false", presenter.lastSummary.Success)
-	}
+	assertPresenterSuccess(t, presenter, false)
 }
 
 // TestIntegration_SpecLoopRemediationAppliesGapAnalysis ensures the remediation loop runs after the first\n+// failed accept and that 2-3 remediation beads complete before acceptance succeeds.
@@ -149,11 +144,11 @@ func TestIntegration_SpecLoopRemediationAppliesGapAnalysis(t *testing.T) {
 		emitter.Unsubscribe(ch)
 	})
 
-	git := newFakeGitAdapter(t)
+	git := newIntegrationGitAdapter(t)
 	git.gapAnalysisContent = "gap analysis leads to remediation"
-	llm := newFakeLLMAdapter()
-	taskTracker := newFakeTaskTrackerAdapter()
-	presenter := newFakePresenterAdapter(t)
+	llm := newIntegrationLLMAdapter()
+	taskTracker := newIntegrationTaskTrackerAdapter()
+	presenter := newIntegrationPresenterAdapter(t)
 	accept := newScriptedAcceptStage(
 		stagepkg.Result{Decision: stagepkg.DecisionFail},
 		stagepkg.Result{Decision: stagepkg.DecisionProceed},
@@ -202,9 +197,7 @@ func TestIntegration_SpecLoopRemediationAppliesGapAnalysis(t *testing.T) {
 		t.Fatalf("accept calls = %d, want 2", accept.calls)
 	}
 
-	if !presenter.lastSummary.Success {
-		t.Fatalf("presenter summary success = %v, want true", presenter.lastSummary.Success)
-	}
+	assertPresenterSuccess(t, presenter, true)
 
 	requireEventSequence(t, ch, []string{
 		"*events.SpecStartedEvent",
