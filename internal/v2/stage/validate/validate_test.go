@@ -73,24 +73,51 @@ func TestStageStopsAtFirstFailure(t *testing.T) {
 }
 
 type spyValidationRunner struct {
-	commands []string
+	commands  []string
+	worktrees []string
 }
 
-func (s *spyValidationRunner) Run(_ context.Context, command string) error {
+func (s *spyValidationRunner) Run(_ context.Context, command, worktree string) error {
 	s.commands = append(s.commands, command)
+	s.worktrees = append(s.worktrees, worktree)
 	return nil
 }
 
 type failingValidationRunner struct {
-	commands []string
-	failOn   string
-	failErr  error
+	commands  []string
+	worktrees []string
+	failOn    string
+	failErr   error
 }
 
-func (s *failingValidationRunner) Run(_ context.Context, command string) error {
+func (s *failingValidationRunner) Run(_ context.Context, command, worktree string) error {
 	s.commands = append(s.commands, command)
+	s.worktrees = append(s.worktrees, worktree)
 	if command == s.failOn {
 		return s.failErr
 	}
 	return nil
+}
+
+func TestStagePassesRequestWorktreeToRunner(t *testing.T) {
+	t.Parallel()
+
+	cfg := &config.Config{}
+	cfg.Validation.Commands = []string{"cmd"}
+
+	worktree := "/tmp/worktree"
+	runner := &spyValidationRunner{}
+	stage, err := New(cfg, runner)
+	if err != nil {
+		t.Fatalf("create stage: %v", err)
+	}
+
+	req := &stagepkg.Request{Config: cfg, Worktree: worktree}
+	if _, err := stage.Run(context.Background(), req); err != nil {
+		t.Fatalf("run stage: %v", err)
+	}
+
+	if len(runner.worktrees) != 1 || runner.worktrees[0] != worktree {
+		t.Fatalf("worktree passed = %q, want %q", runner.worktrees, worktree)
+	}
 }
