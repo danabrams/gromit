@@ -14,6 +14,14 @@ func TestRemediationRunnerRun_requiresSpecID(t *testing.T) {
 	}
 }
 
+func TestRemediationRunnerRun_requiresAcceptStage(t *testing.T) {
+	runner := newRunnerWithAcceptStage(nil)
+
+	if err := runner.Run(context.Background(), "spec-id"); !errors.Is(err, ErrAcceptStageRequired) {
+		t.Fatalf("expected ErrAcceptStageRequired, got %v", err)
+	}
+}
+
 func newRunnerForSpecValidation() *RemediationRunner {
 	return NewRemediationRunner(RemediationRunnerConfig{})
 }
