@@ -72,7 +72,11 @@ func (a *BDAdapter) CloseBead(ctx context.Context, req CloseBeadRequest) (*Close
 	if err != nil {
 		return nil, err
 	}
-	if err := client.Close(ctx, req.BeadID); err != nil {
+	id := normalizeString(req.BeadID)
+	if id == "" {
+		return nil, fmt.Errorf("bead ID is required")
+	}
+	if err := client.Close(ctx, id); err != nil {
 		return nil, err
 	}
 	return &CloseBeadResponse{Closed: true}, nil
