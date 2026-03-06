@@ -1,50 +1,80 @@
 package event
 
 import (
-    "sync"
-    "testing"
-    "time"
+	"sync"
+	"testing"
+	"time"
 )
 
+func TestEmitterDoesNotBlockOnSlowSubscriber(t *testing.T) {
+	emitter := NewEmitter()
+
+	slowStart := make(chan struct{})
+	slowBlock := make(chan struct{})
+
+	emitter.Subscribe(func(Event) {
+		close(slowStart)
+		<-slowBlock
+	})
+
+	emitDone := make(chan struct{})
+	go func() {
+		emitter.Emit(Event{Type: "slow"})
+		close(emitDone)
+	}()
+
+	<-slowStart
+
+	select {
+	case <-emitDone:
+		// success
+	case <-time.After(50 * time.Millisecond):
+		close(slowBlock)
+		t.Fatal("Emit blocked on slow subscriber")
+	}
+
+	close(slowBlock)
+}
+
 func TestEmitterFansOutEvents(t *testing.T) {
-    emitter := NewEmitter()
+	emitter := NewEmitter()
 
-    var wg sync.WaitGroup
-    wg.Add(2)
+	var wg sync.WaitGroup
+	wg.Add(2)
 
-    events := make(chan Event, 2)
-    emitter.Subscribe(func(evt Event) {
-        events <- evt
-        wg.Done()
-    })
-    emitter.Subscribe(func(evt Event) {
-        events <- evt
-        wg.Done()
-    })
+	events := make(chan Event, 2)
+	emitter.Subscribe(func(evt Event) {
+		events <- evt
+		wg.Done()
+	})
+	emitter.Subscribe(func(evt Event) {
+		events <- evt
+		wg.Done()
+	})
 
-    emitter.Emit(Event{Type: "test-event"})
+	emitter.Emit(Event{Type: "test-event"})
 
-    done := make(chan struct{})
-    go func() {
-        wg.Wait()
-        close(done)
-    }()
+	done := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
 
-    select {
-    case <-done:
-    case <-time.After(time.Second):
-        t.Fatal("timeout waiting for subscribers")
-    }
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for subscribers")
+	}
 
-    close(events)
-    count := 0
-    for range events {
-        count++
-    }
+	close(events)
+	count := 0
+	for range events {
+		count++
+	}
 
-    if count != 2 {
-        t.Fatalf("expected 2 events, got %d", count)
-    }
+	if count != 2 {
+		t.Fatalf("expected 2 events, got %d", count)
+	}
 }
 
 func TestEmitterIsolatesSlowAndPanicSubscribers(t *testing.T) {
