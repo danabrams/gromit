@@ -32,3 +32,21 @@ func TestPromptAssemblerAddsLayerMarkers(t *testing.T) {
 		lastIndex = idx
 	}
 }
+
+func TestPromptAssemblerSkipsEmptyLayers(t *testing.T) {
+	assembler := NewPromptAssembler("base layer", "", "instance layer", "")
+	output := assembler.Assemble()
+
+	if !strings.Contains(output, "=== BASE ===") {
+		t.Fatalf("base section missing")
+	}
+	if strings.Contains(output, "=== PROJECT ===") {
+		t.Fatalf("project section should be omitted when empty")
+	}
+	if !strings.Contains(output, "=== INSTANCE ===") {
+		t.Fatalf("instance section missing")
+	}
+	if strings.Contains(output, "=== FRAGMENT ===") {
+		t.Fatalf("fragment section should be omitted when empty")
+	}
+}
