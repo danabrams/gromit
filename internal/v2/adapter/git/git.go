@@ -1,7 +1,5 @@
 package git
 
-import "context"
-
 // GitCreateWorktreeRequest describes the inputs required to make a new worktree.
 type GitCreateWorktreeRequest struct {
 	SpecID       string
@@ -74,11 +72,3 @@ type DiffRequest = GitDiffRequest
 
 // DiffResponse is retained for backwards compatibility with existing callers.
 type DiffResponse = GitDiffResponse
-
-// Git describes higher-level git operations for the run loop.
-type Git interface {
-	CreateWorktree(ctx context.Context, req GitCreateWorktreeRequest) (GitCreateWorktreeResponse, error)
-	RemoveWorktree(ctx context.Context, req GitRemoveWorktreeRequest) (GitRemoveWorktreeResponse, error)
-	Commit(ctx context.Context, req GitCommitRequest) (GitCommitResponse, error)
-	Diff(ctx context.Context, req GitDiffRequest) (GitDiffResponse, error)
-}
