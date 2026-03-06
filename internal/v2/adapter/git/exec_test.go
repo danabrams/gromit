@@ -117,6 +117,47 @@ func TestExecGitCommit(t *testing.T) {
 	}
 }
 
+func TestExecGitDiff(t *testing.T) {
+	ctx := context.Background()
+	repoDir := t.TempDir()
+	runGitCommand(t, repoDir, "init")
+	runGitCommand(t, repoDir, "config", "user.email", "tester@example.com")
+	runGitCommand(t, repoDir, "config", "user.name", "Test User")
+	runGitCommand(t, repoDir, "commit", "--allow-empty", "-m", "initial")
+
+	worktreesRoot := t.TempDir()
+	adapter := NewExecGit(repoDir)
+
+	resp, err := adapter.CreateWorktree(ctx, CreateWorktreeRequest{
+		SpecID:       "spec-diff",
+		Reference:    "HEAD",
+		WorktreeRoot: worktreesRoot,
+	})
+	if err != nil {
+		t.Fatalf("CreateWorktree failed: %v", err)
+	}
+
+	if err := os.WriteFile(filepath.Join(resp.Worktree, "hello.txt"), []byte("diff me\n"), 0o644); err != nil {
+		t.Fatalf("writing file: %v", err)
+	}
+
+	diffResp, err := adapter.Diff(ctx, DiffRequest{
+		Worktree: resp.Worktree,
+		Base:     "HEAD",
+	})
+	if err != nil {
+		t.Fatalf("Diff failed: %v", err)
+	}
+
+	if !strings.Contains(diffResp.Diff, "hello.txt") {
+		t.Fatalf("diff missing file context: %q", diffResp.Diff)
+	}
+
+	if !strings.Contains(diffResp.Summary, "hello.txt") {
+		t.Fatalf("summary missing file stat: %q", diffResp.Summary)
+	}
+}
+
 func runGitCommandOutput(t *testing.T, dir string, args ...string) string {
 	t.Helper()
 	cmd := exec.Command("git", args...)
