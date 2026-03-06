@@ -34,7 +34,10 @@ type WorktreeCleaner interface {
 	Cleanup(ctx context.Context, specID string) error
 }
 
-var ErrSpecIDRequired = errors.New("spec ID required")
+var (
+	ErrSpecIDRequired      = errors.New("spec ID required")
+	ErrAcceptStageRequired = errors.New("accept stage required")
+)
 
 // RemediationRunner drives the accept-gap-decompose-bead loop cycle.
 type RemediationRunner struct {
@@ -53,7 +56,7 @@ func (r *RemediationRunner) Run(ctx context.Context, specID string) error {
 		return ErrSpecIDRequired
 	}
 	if r.cfg.AcceptStage == nil {
-		return fmt.Errorf("accept stage required")
+		return ErrAcceptStageRequired
 	}
 
 	reqTemplate := stage.Request{Bead: stage.BeadInfo{ID: specID}}
