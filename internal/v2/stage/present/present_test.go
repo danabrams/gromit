@@ -111,3 +111,29 @@ func (s *spyPresenter) PresentSummary(ctx context.Context, specID string, summar
 	s.lastSummary = summary
 	return s.err
 }
+
+func TestPresentStageTrimsLinks(t *testing.T) {
+	ctx := &SummaryContext{
+		Plan:               "plan details",
+		Worktree:           "/tmp/worktree",
+		BranchLink:         "\nhttps://example.com/branch\n",
+		DiffLink:           "  https://example.com/diff  ",
+		IntegrationBranch:  "integration-main",
+	}
+	presenter := &spyPresenter{}
+	stageInstance, err := New(nil, presenter, ctx)
+	if err != nil {
+		t.Fatalf("unexpected error creating stage: %v", err)
+	}
+
+	if _, err := stageInstance.Run(context.Background(), &stage.Request{Bead: stage.BeadInfo{ID: "spec-links"}}); err != nil {
+		t.Fatalf("run failed: %v", err)
+	}
+
+	if got, want := presenter.lastSummary.BranchLink, "https://example.com/branch"; got != want {
+		t.Fatalf("branch link = %q; want %q", got, want)
+	}
+	if got, want := presenter.lastSummary.DiffLink, "https://example.com/diff"; got != want {
+		t.Fatalf("diff link = %q; want %q", got, want)
+	}
+}
