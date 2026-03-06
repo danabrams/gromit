@@ -31,6 +31,7 @@ func TestIntegration_SpecLoopHappyPathCompletes(t *testing.T) {
 	taskTracker := newFakeTaskTrackerAdapter()
 	presenter := newFakePresenterAdapter(t)
 	accept := newScriptedAcceptStage(stagepkg.Result{Decision: stagepkg.DecisionProceed})
+	decompose, beadLoop := newIntegrationLoopComponents(t, specID)
 
 	adapters := adapter.AdapterSet{
 		Git:         git,
@@ -39,7 +40,12 @@ func TestIntegration_SpecLoopHappyPathCompletes(t *testing.T) {
 		Presenter:   presenter,
 	}
 
-	loopInstance, err := NewSpecLoop(adapters, &config.Config{}, noopDependencyGate{}, WithEmitter(emitter), WithAcceptStage(accept))
+	loopInstance, err := NewSpecLoop(adapters, &config.Config{}, noopDependencyGate{},
+		WithEmitter(emitter),
+		WithAcceptStage(accept),
+		WithDecomposeStage(decompose),
+		WithBeadLoop(beadLoop),
+	)
 	if err != nil {
 		t.Fatalf("create spec loop: %v", err)
 	}
@@ -77,6 +83,7 @@ func TestIntegration_SpecLoopFailureHitsGenerationCap(t *testing.T) {
 	taskTracker := newFakeTaskTrackerAdapter()
 	presenter := newFakePresenterAdapter(t)
 	accept := newScriptedAcceptStage(stagepkg.Result{Decision: stagepkg.DecisionFail})
+	decompose, beadLoop := newIntegrationLoopComponents(t, specID)
 
 	remediation := newIntegrationRemediationRunner(t, emitter, integrationRemediationConfig{
 		generationCap: 0,
@@ -90,7 +97,13 @@ func TestIntegration_SpecLoopFailureHitsGenerationCap(t *testing.T) {
 		Presenter:   presenter,
 	}
 
-	loopInstance, err := NewSpecLoop(adapters, &config.Config{}, noopDependencyGate{}, WithEmitter(emitter), WithAcceptStage(accept), WithRemediationRunner(remediation))
+	loopInstance, err := NewSpecLoop(adapters, &config.Config{}, noopDependencyGate{},
+		WithEmitter(emitter),
+		WithAcceptStage(accept),
+		WithRemediationRunner(remediation),
+		WithDecomposeStage(decompose),
+		WithBeadLoop(beadLoop),
+	)
 	if err != nil {
 		t.Fatalf("create spec loop: %v", err)
 	}
@@ -133,6 +146,7 @@ func TestIntegration_SpecLoopRemediationAppliesGapAnalysis(t *testing.T) {
 		stagepkg.Result{Decision: stagepkg.DecisionFail},
 		stagepkg.Result{Decision: stagepkg.DecisionProceed},
 	)
+	decompose, beadLoop := newIntegrationLoopComponents(t, specID)
 
 	remediation := newIntegrationRemediationRunner(t, emitter, integrationRemediationConfig{
 		generationCap: -1,
@@ -145,7 +159,13 @@ func TestIntegration_SpecLoopRemediationAppliesGapAnalysis(t *testing.T) {
 		Presenter:   presenter,
 	}
 
-	loopInstance, err := NewSpecLoop(adapters, &config.Config{}, noopDependencyGate{}, WithEmitter(emitter), WithAcceptStage(accept), WithRemediationRunner(remediation))
+	loopInstance, err := NewSpecLoop(adapters, &config.Config{}, noopDependencyGate{},
+		WithEmitter(emitter),
+		WithAcceptStage(accept),
+		WithRemediationRunner(remediation),
+		WithDecomposeStage(decompose),
+		WithBeadLoop(beadLoop),
+	)
 	if err != nil {
 		t.Fatalf("create spec loop: %v", err)
 	}
@@ -269,4 +289,14 @@ func requireHappyPathEvents(t *testing.T, ch chan events.Event) {
 		"*events.SpecStartedEvent",
 		"*events.SpecCompletedEvent",
 	})
+}
+
+func newIntegrationLoopComponents(t *testing.T, specID string) (*fakeDecomposeStage, *BeadLoop) {
+	t.Helper()
+	decompose := newFakeDecomposeStage(specID)
+	beadLoop, err := NewBeadLoop(defaultIntegrationBeadLoopConfig())
+	if err != nil {
+		t.Fatalf("create bead loop: %v", err)
+	}
+	return decompose, beadLoop
 }

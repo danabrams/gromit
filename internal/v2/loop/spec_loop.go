@@ -187,10 +187,12 @@ func (s *SpecLoop) Run(ctx context.Context, specID string) error {
 		return err
 	}
 
+	baseSummary := s.buildSuccessSummary(specID, worktree, plan, beads, nil)
+
 	s.recordStage("accept")
 	acceptRes, err := s.ensureAcceptance(ctx, &req, specID)
 	if err != nil {
-		return err
+		return s.handleFailure(ctx, specID, baseSummary, err)
 	}
 
 	summary := s.buildSuccessSummary(specID, worktree, plan, beads, acceptRes)
