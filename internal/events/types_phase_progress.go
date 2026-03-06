@@ -195,3 +195,15 @@ type ScopeCheckEvent struct {
 func (e *ScopeCheckEvent) EventType() string {
 	return "scope_check"
 }
+
+// StageRetryingEvent is emitted when a stage is being retried after failure.
+type StageRetryingEvent struct {
+	StageName string
+	Attempt   int
+	Reason    string
+	TimeMixin
+}
+
+func (e *StageRetryingEvent) EventType() string {
+	return "stage_retrying"
+}

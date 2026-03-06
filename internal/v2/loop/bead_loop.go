@@ -126,6 +126,8 @@ func (b *BeadLoop) handleFailure(ctx context.Context, baseReq stage.Request, spe
 
 	retryCtx := newRetryContext(state.failureHistory, retries)
 
+	b.emitStageRetrying(stageName, retries, failure.Error())
+
 	for _, rerun := range spec.Retry.RetryWith {
 		rerunIdx, ok := b.stageIndex[rerun]
 		if !ok {
@@ -149,6 +151,16 @@ func newRetryContext(history []string, attempt int) *stage.RetryContext {
 func (b *BeadLoop) emitGenerationCapReached() {
 	if b.Emitter != nil {
 		b.Emitter.Emit(&events.GenerationCapReachedEvent{})
+	}
+}
+
+func (b *BeadLoop) emitStageRetrying(stageName string, attempt int, reason string) {
+	if b.Emitter != nil {
+		b.Emitter.Emit(&events.StageRetryingEvent{
+			StageName: stageName,
+			Attempt:   attempt,
+			Reason:    reason,
+		})
 	}
 }
 
