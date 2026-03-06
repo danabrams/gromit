@@ -78,6 +78,29 @@ func TestRemediationRunnerRunDecomposeStageRequired(t *testing.T) {
 	}
 }
 
+func TestRemediationRunnerRunUnexpectedDecomposeArtifacts(t *testing.T) {
+	t.Parallel()
+
+	runner := NewRemediationRunner(RemediationRunnerConfig{
+		AcceptStage: &stubStage{
+			name: "accept",
+			result: &stage.Result{
+				Decision: stage.DecisionFail,
+			},
+		},
+		DecomposeStage: &stubStage{
+			name:   "decompose",
+			result: &stage.Result{Artifacts: "invalid"},
+		},
+		GenerationCap: 1,
+	})
+
+	err := runner.Run(context.Background(), "spec-id")
+	if !errors.Is(err, ErrUnexpectedDecomposeArtifacts) {
+		t.Fatalf("expected ErrUnexpectedDecomposeArtifacts, got %v", err)
+	}
+}
+
 type stubStage struct {
 	name   string
 	result *stage.Result
