@@ -295,6 +295,58 @@ func TestBeadLoopPopulatesIterationOnStageRequests(t *testing.T) {
 	}
 }
 
+func TestBeadLoopEnforcesGenerationCap(t *testing.T) {
+	t.Parallel()
+
+	emitter := event.NewEmitter()
+	ch := make(chan event.TypedEvent, 4)
+	emitter.Subscribe(func(evt event.TypedEvent) {
+		ch <- evt
+	})
+
+	config := BeadLoopConfig{
+		Gate:            newNoopStage("gate"),
+		Build:           newNoopStage("build"),
+		Validate:        newNoopStage("validate"),
+		Review:          newNoopStage("review"),
+		Epilogue:        newNoopStage("epilogue"),
+		Emitter:         emitter,
+		GenerationCap:   3,
+		StartGeneration: 0,
+	}
+	loop, err := NewBeadLoop(config)
+	if err != nil {
+		t.Fatalf("NewBeadLoop: %v", err)
+	}
+
+	// Beads at generation 2, which means next generation would be 3 (at cap)
+	beads := []*bead.Bead{
+		{ID: "bead-at-gen-2", Labels: []string{"gen:2"}},
+	}
+
+	err = loop.Run(context.Background(), beads, nil)
+	if err == nil {
+		t.Fatal("expected Run to return error when generation cap reached")
+	}
+
+	// Check that GenerationCapReached event was emitted
+	var foundEvent bool
+	for i := 0; i < 2; i++ {
+		select {
+		case evt := <-ch:
+			if _, ok := evt.(event.GenerationCapReachedEvent); ok {
+				foundEvent = true
+				break
+			}
+		case <-time.After(100 * time.Millisecond):
+			break
+		}
+	}
+	if !foundEvent {
+		t.Fatal("expected GenerationCapReached event to be emitted")
+	}
+}
+
 func TestBeadLoopStopsWhenStopChannelCloses(t *testing.T) {
 	t.Parallel()
 
