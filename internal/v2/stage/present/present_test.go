@@ -89,11 +89,11 @@ func TestPresentStageHandlesPresenterError(t *testing.T) {
 	}
 
 	res, err := stageInstance.Run(context.Background(), &stage.Request{Bead: stage.BeadInfo{ID: "spec-error"}})
-	if err != nil {
-		t.Fatalf("expected nil error, got %v", err)
+	if err == nil {
+		t.Fatalf("expected error, got nil")
 	}
-	if res == nil || res.Decision != stage.DecisionFail {
-		t.Fatalf("unexpected decision on presenter failure: %#v", res)
+	if res != nil {
+		t.Fatalf("expected nil result on presenter error, got %#v", res)
 	}
 	if presenter.lastSpec != "spec-error" {
 		t.Fatalf("presenter not invoked on failure")

@@ -369,6 +369,14 @@ func (a *integrationLLMAdapter) GeneratePlan(ctx context.Context, specID string)
 	return fmt.Sprintf("%s-plan", specID), nil
 }
 
+func (a *integrationLLMAdapter) Invoke(ctx context.Context, req llm.LLMInvokeRequest) (*llm.LLMInvokeResponse, error) {
+	return a.fake.Invoke(ctx, req)
+}
+
+func (a *integrationLLMAdapter) StreamInvoke(ctx context.Context, req llm.LLMStreamInvokeRequest) (*llm.LLMStreamInvokeResponse, error) {
+	return a.fake.StreamInvoke(ctx, req)
+}
+
 func (a *integrationLLMAdapter) Fake() *testutil.FakeLLM {
 	return a.fake
 }

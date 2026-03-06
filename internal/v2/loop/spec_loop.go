@@ -172,7 +172,7 @@ func NewSpecLoop(adapters adapter.AdapterSet, cfg *config.Config, gate Dependenc
 }
 
 // Run executes the configured adapters for the requested spec.
-func (s *SpecLoop) Run(ctx context.Context, specID string, stopCh <-chan struct{}) error {
+func (s *SpecLoop) Run(ctx context.Context, specID string, stopCh <-chan struct{}) (retErr error) {
 	if specID == "" {
 		return fmt.Errorf("spec ID required")
 	}
@@ -185,6 +185,17 @@ func (s *SpecLoop) Run(ctx context.Context, specID string, stopCh <-chan struct{
 	if err != nil {
 		return fmt.Errorf("checkout: %w", err)
 	}
+
+	var handleFailureCleaned bool
+	var succeeded bool
+	defer func() {
+		if handleFailureCleaned || succeeded {
+			return
+		}
+		if retErr != nil {
+			_ = s.adapters.Git.RemoveWorktree(ctx, worktree)
+		}
+	}()
 
 	s.emit(&events.SpecStartedEvent{SpecID: specID, Worktree: worktree})
 
@@ -238,6 +249,7 @@ func (s *SpecLoop) Run(ctx context.Context, specID string, stopCh <-chan struct{
 	s.recordStage("accept")
 	acceptRes, err := s.ensureAcceptance(ctx, &req, specID)
 	if err != nil {
+		handleFailureCleaned = true
 		return s.handleFailure(ctx, specID, baseSummary, err)
 	}
 
@@ -257,6 +269,7 @@ func (s *SpecLoop) Run(ctx context.Context, specID string, stopCh <-chan struct{
 
 	s.emit(&events.SpecCompletedEvent{SpecID: specID, Worktree: worktree, Success: true})
 
+	succeeded = true
 	return nil
 }
 

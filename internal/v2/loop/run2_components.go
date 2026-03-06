@@ -16,7 +16,6 @@ import (
 	v2remediation "github.com/danabrams/gromit/internal/v2"
 	"github.com/danabrams/gromit/internal/v2/adapter"
 	"github.com/danabrams/gromit/internal/v2/adapter/llm"
-	"github.com/danabrams/gromit/internal/v2/adapter/tasktracker"
 	"github.com/danabrams/gromit/internal/v2/event"
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
 	acceptstage "github.com/danabrams/gromit/internal/v2/stage/accept"
@@ -29,6 +28,9 @@ import (
 	reviewstage "github.com/danabrams/gromit/internal/v2/stage/review"
 	stagevalidate "github.com/danabrams/gromit/internal/v2/stage/validate"
 )
+
+// Compile-time check: PlanLLMAdapter must satisfy adapter.LLMAdapter.
+var _ adapter.LLMAdapter = (*llm.PlanLLMAdapter)(nil)
 
 // Run2LoopEmitter exposes the subset of event emitter behavior needed by Run2.
 type Run2LoopEmitter interface {
@@ -48,34 +50,10 @@ type Run2LoopComponents struct {
 }
 
 // NewRun2LoopComponents builds the stages and bead loop that power the Run2 command.
-func NewRun2LoopComponents(cfg *config.Config, adapters adapter.AdapterSet, taskTracker tasktracker.TaskTracker, provider llm.LLMProvider, legacyEmitter *events.Emitter, output io.Writer) (*Run2LoopComponents, error) {
+func NewRun2LoopComponents(cfg *config.Config, adapters adapter.AdapterSet, legacyEmitter *events.Emitter, output io.Writer) (*Run2LoopComponents, error) {
 	typedEmitter := event.NewEmitter()
 	cleanup := func() {
 		typedEmitter.Close()
-	}
-
-	planStage, err := planstage.New(cfg, provider, "", "", "")
-	if err != nil {
-		cleanup()
-		return nil, err
-	}
-	summaryCtx := &present.SummaryContext{}
-	presentStage, err := present.New(cfg, adapters.Presenter, summaryCtx)
-	if err != nil {
-		cleanup()
-		return nil, err
-	}
-
-	decomposeStage, err := decomposestage.New(cfg, provider, taskTracker)
-	if err != nil {
-		cleanup()
-		return nil, err
-	}
-
-	gateStage, err := gatestage.New(cfg, taskTracker)
-	if err != nil {
-		cleanup()
-		return nil, err
 	}
 
 	// Load prompt contexts and fragments from project root
@@ -97,7 +75,31 @@ func NewRun2LoopComponents(cfg *config.Config, adapters adapter.AdapterSet, task
 		return nil, err
 	}
 
-	buildStage, err := buildstage.New(cfg, provider, baseInstructions, projectContext, fragments, output)
+	planStage, err := planstage.New(cfg, adapters.LLM, baseInstructions, projectContext, fragments.Standard)
+	if err != nil {
+		cleanup()
+		return nil, err
+	}
+	summaryCtx := &present.SummaryContext{}
+	presentStage, err := present.New(cfg, adapters.Presenter, summaryCtx)
+	if err != nil {
+		cleanup()
+		return nil, err
+	}
+
+	decomposeStage, err := decomposestage.New(cfg, adapters.LLM, adapters.TaskTracker)
+	if err != nil {
+		cleanup()
+		return nil, err
+	}
+
+	gateStage, err := gatestage.New(cfg, adapters.TaskTracker)
+	if err != nil {
+		cleanup()
+		return nil, err
+	}
+
+	buildStage, err := buildstage.New(cfg, adapters.LLM, baseInstructions, projectContext, fragments, output)
 	if err != nil {
 		cleanup()
 		return nil, err
@@ -109,14 +111,14 @@ func NewRun2LoopComponents(cfg *config.Config, adapters adapter.AdapterSet, task
 		return nil, err
 	}
 
-	reviewStage, err := reviewstage.New(cfg, adapters.Git, provider, taskTracker, "", "", "")
+	reviewStage, err := reviewstage.New(cfg, adapters.Git, adapters.LLM, adapters.TaskTracker, baseInstructions, projectContext, fragments.Standard)
 	if err != nil {
 		cleanup()
 		return nil, err
 	}
 	reviewStage = reviewStage.WithEmitter(legacyEmitter)
 
-	epilogueStage, err := epiloguestage.New(cfg, taskTracker)
+	epilogueStage, err := epiloguestage.New(cfg, adapters.TaskTracker)
 	if err != nil {
 		cleanup()
 		return nil, err
@@ -136,7 +138,7 @@ func NewRun2LoopComponents(cfg *config.Config, adapters adapter.AdapterSet, task
 		return nil, err
 	}
 
-	acceptStage, err := acceptstage.New(cfg, adapters.Git, provider, "", "", "")
+	acceptStage, err := acceptstage.New(cfg, adapters.Git, adapters.LLM, baseInstructions, projectContext, fragments.Standard)
 	if err != nil {
 		cleanup()
 		return nil, err
@@ -210,7 +212,7 @@ func (c *CommandValidationRunner) Run(ctx context.Context, command, worktree str
 	cmd.Stderr = &stderr
 
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("validation command failed: %w", err)
+		return fmt.Errorf("validation command %q failed: %w\nstdout:\n%s\nstderr:\n%s", command, err, stdout.String(), stderr.String())
 	}
 
 	return nil

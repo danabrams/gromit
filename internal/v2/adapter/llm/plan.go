@@ -5,12 +5,10 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/danabrams/gromit/internal/config"
-	"github.com/danabrams/gromit/internal/v2/adapter"
 )
-
-var _ adapter.LLMAdapter = (*PlanLLMAdapter)(nil)
 
 // PlanLLMAdapter wraps an LLMProvider to implement the adapter.LLMAdapter interface
 // for plan generation.
@@ -26,14 +24,32 @@ func NewPlanLLMAdapter(cfg *config.Config, specsDir string) (*PlanLLMAdapter, er
 		return nil, fmt.Errorf("config is required")
 	}
 	binary := "claude"
-	if cfg.Claude.Binary != "" {
-		binary = cfg.Claude.Binary
+	if strings.TrimSpace(cfg.Claude.Binary) != "" {
+		binary = strings.TrimSpace(cfg.Claude.Binary)
 	}
-	provider := NewClaudeAdapter(binary, nil, 0)
+	flags := []string{}
+	if len(cfg.Claude.Flags) > 0 {
+		flags = append(flags, cfg.Claude.Flags...)
+	}
+	timeout := 15 * time.Minute
+	if cfg.Claude.Timeout > 0 {
+		timeout = time.Duration(cfg.Claude.Timeout) * time.Second
+	}
+	provider := NewClaudeAdapter(binary, flags, timeout)
 	return &PlanLLMAdapter{
 		provider: provider,
 		specsDir: filepath.Clean(specsDir),
 	}, nil
+}
+
+// Invoke delegates to the underlying LLMProvider.
+func (a *PlanLLMAdapter) Invoke(ctx context.Context, req LLMInvokeRequest) (*LLMInvokeResponse, error) {
+	return a.provider.Invoke(ctx, req)
+}
+
+// StreamInvoke delegates to the underlying LLMProvider.
+func (a *PlanLLMAdapter) StreamInvoke(ctx context.Context, req LLMStreamInvokeRequest) (*LLMStreamInvokeResponse, error) {
+	return a.provider.StreamInvoke(ctx, req)
 }
 
 // GeneratePlan invokes the LLM to produce a plan for the given spec.

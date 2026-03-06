@@ -11,7 +11,6 @@ import (
 	"strings"
 	"sync"
 	"syscall"
-	"time"
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
@@ -116,8 +115,7 @@ func run2(cmd *cobra.Command, args []string) error {
 		emitter.Close()
 		wg.Wait()
 	}()
-	provider := newRun2LLMProvider(cfg)
-	components, err := loop.NewRun2LoopComponents(cfg, adapters, trackerAdapter, provider, emitter, cmd.ErrOrStderr())
+	components, err := loop.NewRun2LoopComponents(cfg, adapters, emitter, cmd.ErrOrStderr())
 	if err != nil {
 		return fmt.Errorf("preparing run loop components: %w", err)
 	}
@@ -301,20 +299,4 @@ func (r *specLoopStageRecorder) RecordStage(name string) {
 		Level:   "info",
 		Message: fmt.Sprintf("spec %s: stage %s", r.specID, name),
 	})
-}
-
-func newRun2LLMProvider(cfg *config.Config) llm.LLMProvider {
-	binary := "claude"
-	if cfg != nil && strings.TrimSpace(cfg.Claude.Binary) != "" {
-		binary = strings.TrimSpace(cfg.Claude.Binary)
-	}
-	flags := []string{}
-	if cfg != nil && len(cfg.Claude.Flags) > 0 {
-		flags = append(flags, cfg.Claude.Flags...)
-	}
-	timeout := 15 * time.Minute
-	if cfg != nil && cfg.Claude.Timeout > 0 {
-		timeout = time.Duration(cfg.Claude.Timeout) * time.Second
-	}
-	return llm.NewClaudeAdapter(binary, flags, timeout)
 }

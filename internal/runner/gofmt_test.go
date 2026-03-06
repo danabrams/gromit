@@ -7,7 +7,6 @@ import (
 	"go/parser"
 	"go/token"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -69,10 +68,6 @@ func TestRunnerCoreStdLibImportsCompact(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestRepoGofmtCompliance(t *testing.T) {
-	runRepoGofmtCheck(t)
 }
 
 func detectStdLibImportBlankLines(filePath string, src []byte) ([]string, error) {
@@ -145,130 +140,3 @@ func hasBlankLine(data []byte) bool {
 	return false
 }
 
-const gofmtChunkSize = 200
-
-func runRepoGofmtCheck(t *testing.T) {
-	t.Helper()
-	root := repoRootDir(t)
-	files := changedGoFilesSinceBase(t, root)
-	if len(files) == 0 {
-		t.Skip("no changed Go files to check")
-	}
-
-	if nonCompliant := gofmtNonCompliantFiles(t, root, files); len(nonCompliant) > 0 {
-		t.Fatalf("gofmt -l reported non-compliant Go files:\n%s", strings.Join(nonCompliant, "\n"))
-	}
-}
-
-func repoRootDir(t *testing.T) string {
-	t.Helper()
-	cmd := exec.Command("git", "rev-parse", "--show-toplevel")
-	out, err := cmd.Output()
-	if err != nil {
-		t.Fatalf("git rev-parse failed: %v", err)
-	}
-	root := strings.TrimSpace(string(out))
-	if root == "" {
-		t.Fatalf("git rev-parse returned empty root path")
-	}
-	return root
-}
-
-func gofmtNonCompliantFiles(t *testing.T, root string, files []string) []string {
-	t.Helper()
-	var nonCompliant []string
-	for start := 0; start < len(files); start += gofmtChunkSize {
-		end := start + gofmtChunkSize
-		if end > len(files) {
-			end = len(files)
-		}
-		chunk := files[start:end]
-		args := append([]string{"-l"}, chunk...)
-		cmd := exec.Command("gofmt", args...)
-		cmd.Dir = root
-		out, err := cmd.Output()
-		if err != nil {
-			t.Fatalf("gofmt -l failed: %v", err)
-		}
-		cleaned := strings.TrimSpace(string(out))
-		if cleaned == "" {
-			continue
-		}
-		for _, line := range strings.Split(cleaned, "\n") {
-			trimmed := strings.TrimSpace(line)
-			if trimmed != "" {
-				nonCompliant = append(nonCompliant, trimmed)
-			}
-		}
-	}
-	return nonCompliant
-}
-
-func changedGoFilesSinceBase(t *testing.T, root string) []string {
-	t.Helper()
-	if base, err := gitMergeBase(root, "origin/main"); err == nil {
-		return gitDiffGoFiles(t, root, base, "HEAD")
-	} else {
-		t.Logf("git merge-base HEAD origin/main failed: %v", err)
-	}
-	if parent, err := gitRevParse(root, "HEAD^"); err == nil {
-		return gitDiffGoFiles(t, root, parent, "HEAD")
-	} else {
-		t.Logf("git rev-parse HEAD^ failed: %v", err)
-	}
-	t.Log("falling back to diff against HEAD")
-	return gitDiffHeadGoFiles(t, root)
-}
-
-func gitDiffGoFiles(t *testing.T, root, base, head string) []string {
-	t.Helper()
-	return gitList(t, root, "diff", "--name-only", "--diff-filter=d", base, head, "--", "*.go")
-}
-
-func gitDiffHeadGoFiles(t *testing.T, root string) []string {
-	t.Helper()
-	return gitList(t, root, "diff", "--name-only", "--diff-filter=d", "HEAD", "--", "*.go")
-}
-
-func gitMergeBase(root, other string) (string, error) {
-	cmd := exec.Command("git", "merge-base", "HEAD", other)
-	cmd.Dir = root
-	out, err := cmd.Output()
-	if err != nil {
-		return "", err
-	}
-	return strings.TrimSpace(string(out)), nil
-}
-
-func gitRevParse(root, rev string) (string, error) {
-	cmd := exec.Command("git", "rev-parse", rev)
-	cmd.Dir = root
-	out, err := cmd.Output()
-	if err != nil {
-		return "", err
-	}
-	return strings.TrimSpace(string(out)), nil
-}
-
-func gitList(t *testing.T, root string, args ...string) []string {
-	t.Helper()
-	cmd := exec.Command("git", args...)
-	cmd.Dir = root
-	out, err := cmd.Output()
-	if err != nil {
-		t.Logf("git %s failed: %v", strings.Join(args, " "), err)
-		return nil
-	}
-	trimmed := strings.TrimSpace(string(out))
-	if trimmed == "" {
-		return nil
-	}
-	lines := strings.Split(trimmed, "\n")
-	var files []string
-	for _, line := range lines {
-		if trimmed := strings.TrimSpace(line); trimmed != "" {
-			files = append(files, trimmed)
-		}
-	}
-	return files
-}

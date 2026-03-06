@@ -3,6 +3,7 @@ package present
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/danabrams/gromit/internal/config"
@@ -61,7 +62,7 @@ func (s *Stage) Name() string {
 func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Result, error) {
 	summary := s.buildPresentation(req)
 	if err := s.presenter.PresentSummary(ctx, beadID(req), summary); err != nil {
-		return &stagepkg.Result{Decision: stagepkg.DecisionFail}, nil
+		return nil, fmt.Errorf("present summary: %w", err)
 	}
 	return &stagepkg.Result{Decision: stagepkg.DecisionProceed}, nil
 }

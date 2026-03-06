@@ -2,6 +2,7 @@ package loop
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -10,6 +11,8 @@ import (
 	"time"
 
 	"github.com/danabrams/gromit/internal/events"
+	"github.com/danabrams/gromit/internal/v2/adapter/llm"
+	"github.com/danabrams/gromit/internal/v2/adapter/tasktracker"
 	"github.com/danabrams/gromit/internal/v2/presentation"
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
 )
@@ -120,8 +123,16 @@ func newFakeLLMAdapter() *fakeLLMAdapter {
 	return &fakeLLMAdapter{}
 }
 
-func (f *fakeLLMAdapter) GeneratePlan(ctx context.Context, specID string) (string, error) {
+func (f *fakeLLMAdapter) GeneratePlan(_ context.Context, specID string) (string, error) {
 	return specID + "-plan", nil
+}
+
+func (f *fakeLLMAdapter) Invoke(_ context.Context, req llm.LLMInvokeRequest) (*llm.LLMInvokeResponse, error) {
+	return &llm.LLMInvokeResponse{Success: true, Output: "fake-output"}, nil
+}
+
+func (f *fakeLLMAdapter) StreamInvoke(_ context.Context, req llm.LLMStreamInvokeRequest) (*llm.LLMStreamInvokeResponse, error) {
+	return &llm.LLMStreamInvokeResponse{Success: true, Output: "fake-output"}, nil
 }
 
 func (f *fakeLLMAdapter) planFor(specID string) string {
@@ -132,6 +143,26 @@ type fakeTaskTrackerAdapter struct{}
 
 func newFakeTaskTrackerAdapter() *fakeTaskTrackerAdapter {
 	return &fakeTaskTrackerAdapter{}
+}
+
+func (f *fakeTaskTrackerAdapter) NextBead(_ context.Context, _ tasktracker.TaskTrackerNextBeadRequest) (*tasktracker.TaskTrackerNextBeadResponse, error) {
+	return &tasktracker.TaskTrackerNextBeadResponse{}, nil
+}
+
+func (f *fakeTaskTrackerAdapter) ShowBead(_ context.Context, _ string) (*tasktracker.Bead, error) {
+	return nil, fmt.Errorf("bead not found")
+}
+
+func (f *fakeTaskTrackerAdapter) CreateBead(_ context.Context, _ tasktracker.TaskTrackerCreateBeadRequest) (*tasktracker.TaskTrackerCreateBeadResponse, error) {
+	return &tasktracker.TaskTrackerCreateBeadResponse{}, nil
+}
+
+func (f *fakeTaskTrackerAdapter) CloseBead(_ context.Context, _ tasktracker.TaskTrackerCloseBeadRequest) (*tasktracker.TaskTrackerCloseBeadResponse, error) {
+	return &tasktracker.TaskTrackerCloseBeadResponse{Closed: true}, nil
+}
+
+func (f *fakeTaskTrackerAdapter) QueryBeads(_ context.Context, _ tasktracker.TaskTrackerQueryBeadsRequest) (*tasktracker.TaskTrackerQueryBeadsResponse, error) {
+	return &tasktracker.TaskTrackerQueryBeadsResponse{}, nil
 }
 
 type fakePresenterAdapter struct {

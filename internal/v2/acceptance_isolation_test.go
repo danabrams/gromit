@@ -10,6 +10,8 @@ import (
 
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/v2/prompt"
+	"github.com/danabrams/gromit/internal/v2/stage"
+	stagevalidate "github.com/danabrams/gromit/internal/v2/stage/validate"
 )
 
 func TestSpecExecutionCreatesIsolatedWorktree(t *testing.T) {
@@ -51,11 +53,19 @@ func TestValidationUsesProjectConfiguration(t *testing.T) {
 	cfg := &config.Config{}
 	cfg.Validation.Commands = []string{"inspect", "lint"}
 
-	runner := &spyValidationRunner{}
-	stage := NewValidationStage(runner, cfg)
+	runner := &acceptanceSpyValidationRunner{}
+	vs, err := stagevalidate.New(cfg, runner)
+	if err != nil {
+		t.Fatalf("New() returned error: %v", err)
+	}
 
-	if err := stage.Run(ctx); err != nil {
+	req := &stage.Request{Worktree: "/tmp/worktree"}
+	result, err := vs.Run(ctx, req)
+	if err != nil {
 		t.Fatalf("validation failed: %v", err)
+	}
+	if result.Decision != stage.DecisionProceed {
+		t.Fatalf("expected DecisionProceed, got %v", result.Decision)
 	}
 
 	if got, want := runner.commands, cfg.Validation.Commands; len(got) != len(want) {
@@ -63,11 +73,11 @@ func TestValidationUsesProjectConfiguration(t *testing.T) {
 	}
 }
 
-type spyValidationRunner struct {
+type acceptanceSpyValidationRunner struct {
 	commands []string
 }
 
-func (s *spyValidationRunner) Run(ctx context.Context, command string) error {
+func (s *acceptanceSpyValidationRunner) Run(_ context.Context, command, worktree string) error {
 	s.commands = append(s.commands, command)
 	return nil
 }

@@ -71,8 +71,11 @@ var decisionStrings = map[Decision]string{
 
 // BeadInfo captures identifying metadata about the bead under execution.
 type BeadInfo struct {
-	ID     string
-	Labels []string
+	ID           string
+	Title        string
+	Priority     string
+	Labels       []string
+	Dependencies []string
 }
 
 // RetryContext carries prior failure information for retry attempts.
@@ -80,6 +83,10 @@ type RetryContext struct {
 	Attempt         int
 	PriorFailures   []string
 	EscalationLevel int
+
+	// Budget fields populated by Andon integration (not yet implemented)
+	TimeBudgetRemaining *float64
+	CostBudgetRemaining *float64
 }
 
 // RetryConfig defines retry behavior for a stage.

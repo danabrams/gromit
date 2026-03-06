@@ -4,10 +4,8 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/danabrams/gromit/internal/config"
-	"github.com/danabrams/gromit/internal/events"
 	"github.com/danabrams/gromit/internal/v2/adapter/tasktracker"
 	"github.com/danabrams/gromit/internal/v2/event"
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
@@ -84,37 +82,6 @@ func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Resul
 		},
 		Events: []event.TypedEvent{},
 	}, nil
-}
-
-func (s *Stage) successEvent(req *stagepkg.Request) events.Event {
-	summary := req.Telemetry
-	event := &events.BeadCompleteEvent{
-		BeadID:       req.Bead.ID,
-		Model:        req.Model,
-		Duration:     0,
-		InputTokens:  0,
-		OutputTokens: 0,
-		CostUSD:      0,
-		TimeMixin:    events.TimeMixin{Time: time.Now()},
-	}
-	if summary != nil {
-		if summary.Model != "" {
-			event.Model = summary.Model
-		}
-		event.Duration = summary.Duration
-		event.InputTokens = summary.InputTokens
-		event.OutputTokens = summary.OutputTokens
-		event.CostUSD = summary.CostUSD
-	}
-	return event
-}
-
-func (s *Stage) failureEvent(req *stagepkg.Request) events.Event {
-	return &events.BeadFailedEvent{
-		BeadID:    req.Bead.ID,
-		Error:     failureSummary(req),
-		TimeMixin: events.TimeMixin{Time: time.Now()},
-	}
 }
 
 func failureSummary(req *stagepkg.Request) string {

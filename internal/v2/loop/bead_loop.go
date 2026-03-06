@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -151,6 +152,10 @@ runLoop:
 		if !ok {
 			return BeadLoopResult{}, fmt.Errorf("bead %q missing from input list", next)
 		}
+		// TODO(andon-spec): budget policy integration — currently no-op, deferred to Andon spec
+		if err := b.checkBudget(ctx); err != nil {
+			return BeadLoopResult{}, fmt.Errorf("budget check before bead %s: %w", beadItem.ID, err)
+		}
 		b.emitBeadStarted(beadItem, iteration)
 		if err := b.processBead(ctx, beadItem, iteration, &highestGeneration, generationLimit); err != nil {
 			return BeadLoopResult{}, err
@@ -289,6 +294,11 @@ func (b *BeadLoop) runStageEntry(ctx context.Context, beadItem *bead.Bead, itera
 			return b.failWithReason(ctx, beadItem, iteration, reason, stageRetryContext(attempt, priorFailures))
 		}
 
+		// TODO(andon-spec): budget policy integration — currently no-op, deferred to Andon spec
+		if err := b.checkBudget(ctx); err != nil {
+			return fmt.Errorf("budget check before stage retry: %w", err)
+		}
+
 		retriesRemaining--
 		attempt++
 		b.emitStageRetrying(stageName, beadItem.ID, attempt, reason)
@@ -385,10 +395,26 @@ func stageDecision(res *stage.Result) stage.Decision {
 	return res.Decision
 }
 
+// checkBudget is a no-op stub for budget integration.
+// TODO(andon-spec): implement budget policy checks here.
+func (l *BeadLoop) checkBudget(ctx context.Context) error {
+	return nil
+}
+
 func (b *BeadLoop) stageRequest(beadItem *bead.Bead, iteration int, retryCtx *stage.RetryContext) stage.Request {
 	labels := copyLabels(beadItem.Labels)
+	deps := collectDependencies(beadItem)
+	if deps == nil {
+		deps = []string{}
+	}
 	return stage.Request{
-		Bead:         stage.BeadInfo{ID: beadItem.ID, Labels: labels},
+		Bead: stage.BeadInfo{
+			ID:           beadItem.ID,
+			Title:        beadItem.Title,
+			Priority:     strconv.Itoa(beadItem.Priority),
+			Labels:       labels,
+			Dependencies: deps,
+		},
 		Iteration:    iteration,
 		RetryContext: retryCtx,
 		Worktree:     b.worktree,
