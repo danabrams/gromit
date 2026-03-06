@@ -76,7 +76,7 @@ func NewRun2LoopComponents(cfg *config.Config, adapters adapter.AdapterSet, task
 		return nil, err
 	}
 
-	validateStage, err := stagevalidate.New(cfg, &noopValidationRunner{})
+	validateStage, err := stagevalidate.New(cfg, NewCommandValidationRunner("."))
 	if err != nil {
 		cleanup()
 		return nil, err
