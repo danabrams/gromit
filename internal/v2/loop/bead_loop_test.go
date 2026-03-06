@@ -76,6 +76,71 @@ func TestBeadLoopRunsBeadsInDependencyOrder(t *testing.T) {
 	}
 }
 
+func TestBeadLoopShortCircuitsToFailurePath(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name          string
+		gateDecision  stage.Decision
+		buildDecision stage.Decision
+	}{
+		{name: "gate skip", gateDecision: stage.DecisionSkip, buildDecision: stage.DecisionProceed},
+		{name: "build fail", gateDecision: stage.DecisionProceed, buildDecision: stage.DecisionFail},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			gate := &decisionStage{name: "gate", decision: tc.gateDecision}
+			build := &decisionStage{name: "build", decision: tc.buildDecision}
+			validate := &decisionStage{name: "validate", decision: stage.DecisionProceed}
+			review := &decisionStage{name: "review", decision: stage.DecisionProceed}
+			epilogue := &decisionStage{name: "epilogue", decision: stage.DecisionProceed}
+
+			config := BeadLoopConfig{
+				Gate:     gate,
+				Build:    build,
+				Validate: validate,
+				Review:   review,
+				Epilogue: epilogue,
+			}
+
+			loop, err := NewBeadLoop(config)
+			if err != nil {
+				t.Fatalf("NewBeadLoop: %v", err)
+			}
+
+			err = loop.Run(context.Background(), []*bead.Bead{{ID: "blocked"}})
+			if err == nil {
+				t.Fatalf("expected error for case %s", tc.name)
+			}
+
+			if gate.runCount != 1 {
+				t.Fatalf("gate run count = %d, want 1", gate.runCount)
+			}
+			if tc.gateDecision == stage.DecisionSkip {
+				if build.runCount != 0 || validate.runCount != 0 || review.runCount != 0 {
+					t.Fatalf("expected build/validate/review skipped, got %d/%d/%d", build.runCount, validate.runCount, review.runCount)
+				}
+			} else {
+				if build.runCount != 1 {
+					t.Fatalf("build run count = %d, want 1", build.runCount)
+				}
+				if validate.runCount != 0 || review.runCount != 0 {
+					t.Fatalf("validate/review should be skipped after failure, got %d/%d", validate.runCount, review.runCount)
+				}
+			}
+
+			if len(epilogue.requests) != 1 {
+				t.Fatalf("epilogue run count = %d, want 1", len(epilogue.requests))
+			}
+			if epilogue.requests[0].RetryContext == nil {
+				t.Fatalf("epilogue called without retry context")
+			}
+		})
+	}
+}
+
 func newRecordingStage(name string, order *[]string) stage.Stage {
 	hook := func(string) {}
 	if order != nil {
@@ -116,4 +181,25 @@ func (s *noopStage) Name() string {
 
 func (s *noopStage) Run(ctx context.Context, req *stage.Request) (*stage.Result, error) {
 	return &stage.Result{Decision: stage.DecisionProceed}, nil
+}
+
+type decisionStage struct {
+	name     string
+	decision stage.Decision
+	err      error
+	runCount int
+	requests []*stage.Request
+}
+
+func (s *decisionStage) Name() string {
+	return s.name
+}
+
+func (s *decisionStage) Run(ctx context.Context, req *stage.Request) (*stage.Result, error) {
+	s.runCount++
+	s.requests = append(s.requests, req)
+	if s.err != nil {
+		return nil, s.err
+	}
+	return &stage.Result{Decision: s.decision}, nil
 }

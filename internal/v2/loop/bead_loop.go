@@ -94,27 +94,95 @@ func (b *BeadLoop) Run(ctx context.Context, beads []*bead.Bead) error {
 }
 
 func (b *BeadLoop) processBead(ctx context.Context, beadItem *bead.Bead) error {
-	for _, staged := range []stage.Stage{b.gate, b.build, b.validate, b.review, b.epilogue} {
-		if err := b.runStage(ctx, staged, beadItem); err != nil {
-			return err
+	stages := []struct {
+		stage       stage.Stage
+		shouldFail  func(*stage.Result) bool
+		failMessage func(*stage.Result) string
+	}{
+		{
+			stage: b.gate,
+			shouldFail: func(res *stage.Result) bool {
+				decision := stageDecision(res)
+				return decision == stage.DecisionSkip || decision == stage.DecisionBlock || decision == stage.DecisionFail
+			},
+			failMessage: func(res *stage.Result) string {
+				return fmt.Sprintf("%s decided %s", b.gate.Name(), stageDecision(res))
+			},
+		},
+		{
+			stage: b.build,
+			shouldFail: func(res *stage.Result) bool {
+				return stageDecision(res) == stage.DecisionFail
+			},
+			failMessage: func(res *stage.Result) string {
+				return fmt.Sprintf("%s returned %s", b.build.Name(), stageDecision(res))
+			},
+		},
+		{
+			stage: b.validate,
+			shouldFail: func(res *stage.Result) bool {
+				return stageDecision(res) == stage.DecisionFail
+			},
+			failMessage: func(res *stage.Result) string {
+				return fmt.Sprintf("%s returned %s", b.validate.Name(), stageDecision(res))
+			},
+		},
+		{
+			stage: b.review,
+			shouldFail: func(res *stage.Result) bool {
+				return stageDecision(res) != stage.DecisionProceed
+			},
+			failMessage: func(res *stage.Result) string {
+				return fmt.Sprintf("%s returned %s", b.review.Name(), stageDecision(res))
+			},
+		},
+	}
+
+	for _, entry := range stages {
+		req := b.stageRequest(beadItem)
+		res, err := b.runStage(ctx, entry.stage, req)
+		if err != nil {
+			return b.failWithReason(ctx, beadItem, err.Error())
 		}
+		if entry.shouldFail != nil && entry.shouldFail(res) {
+			return b.failWithReason(ctx, beadItem, entry.failMessage(res))
+		}
+	}
+
+	if _, err := b.runStage(ctx, b.epilogue, b.stageRequest(beadItem)); err != nil {
+		return err
 	}
 	return nil
 }
 
-func (b *BeadLoop) runStage(ctx context.Context, staged stage.Stage, beadItem *bead.Bead) error {
+func (b *BeadLoop) runStage(ctx context.Context, staged stage.Stage, req stage.Request) (*stage.Result, error) {
 	if staged == nil {
-		return nil
+		return nil, nil
 	}
-	req := b.stageRequest(beadItem)
 	res, err := staged.Run(ctx, &req)
 	if err != nil {
-		return fmt.Errorf("stage %s: %w", staged.Name(), err)
+		return res, fmt.Errorf("stage %s: %w", staged.Name(), err)
 	}
-	if res != nil && res.Decision != stage.DecisionProceed {
-		return fmt.Errorf("stage %s returned %s", staged.Name(), res.Decision)
+	return res, nil
+}
+
+func (b *BeadLoop) failWithReason(ctx context.Context, beadItem *bead.Bead, reason string) error {
+	failReq := b.stageRequest(beadItem)
+	failReq.RetryContext = &stage.RetryContext{
+		Attempt:       1,
+		PriorFailures: []string{reason},
 	}
-	return nil
+	if _, err := b.runStage(ctx, b.epilogue, failReq); err != nil {
+		return fmt.Errorf("epilogue failure: %w", err)
+	}
+	return fmt.Errorf("bead %s failed: %s", beadItem.ID, reason)
+}
+
+func stageDecision(res *stage.Result) stage.Decision {
+	if res == nil {
+		return stage.DecisionProceed
+	}
+	return res.Decision
 }
 
 func (b *BeadLoop) stageRequest(beadItem *bead.Bead) stage.Request {
