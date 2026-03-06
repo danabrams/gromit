@@ -177,6 +177,51 @@ func TestBuildStageEscalatesModelOnFailure(t *testing.T) {
 	}
 }
 
+func TestBuildStageEscalationHonorsRequestConfig(t *testing.T) {
+	stageCfg := &config.Config{Escalation: config.EscalationConfig{Enabled: false}}
+	requestCfg := &config.Config{Escalation: config.EscalationConfig{Enabled: true, Chain: []string{"haiku", "sonnet"}}}
+	fragments := PromptFragments{Standard: "standard"}
+	responses := []*llm.LLMResponse{
+		{Success: false, Output: "first fail", Tokens: 10},
+		{Success: true, Output: "second success", Tokens: 42},
+	}
+	adapter := &sequencedLLM{responses: responses}
+
+	stageInstance, err := New(stageCfg, adapter, "base", "project", fragments, io.Discard)
+	if err != nil {
+		t.Fatalf("unexpected constructor error: %v", err)
+	}
+
+	req := &stagepkg.Request{
+		Bead:   stagepkg.BeadInfo{ID: "escalate-bead"},
+		Model:  "haiku",
+		Config: requestCfg,
+	}
+
+	res, err := stageInstance.Run(context.Background(), req)
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+
+	if len(adapter.models) != 2 {
+		t.Fatalf("expected 2 streamed invocations, got %d", len(adapter.models))
+	}
+	if adapter.models[0] != "haiku" {
+		t.Fatalf("first model = %q, want haiku", adapter.models[0])
+	}
+	if adapter.models[1] != "sonnet" {
+		t.Fatalf("second model = %q, want sonnet", adapter.models[1])
+	}
+
+	artifacts, ok := res.Artifacts.(*BuildArtifacts)
+	if !ok {
+		t.Fatalf("artifacts type = %T", res.Artifacts)
+	}
+	if artifacts.Model != "sonnet" {
+		t.Fatalf("artifact model = %q, want sonnet", artifacts.Model)
+	}
+}
+
 type noopLLM struct{}
 
 func (noopLLM) Invoke(_ context.Context, _ llm.InvokeRequest) (*llm.LLMResponse, error) {
