@@ -37,6 +37,38 @@ func TestEmitterDoesNotBlockOnSlowSubscriber(t *testing.T) {
 	close(slowBlock)
 }
 
+func TestEmitterBackpressureIsolation(t *testing.T) {
+	emitter := NewEmitter()
+
+	start := make(chan struct{})
+	block := make(chan struct{})
+	var release sync.Once
+
+	emitter.Subscribe(func(Event) {
+		close(start)
+		<-block
+	})
+
+	go emitter.Emit(Event{Type: "first"})
+	<-start
+
+	emitDone := make(chan struct{})
+	go func() {
+		emitter.Emit(Event{Type: "second"})
+		close(emitDone)
+	}()
+
+	defer release.Do(func() { close(block) })
+
+	select {
+	case <-emitDone:
+		// success
+	case <-time.After(50 * time.Millisecond):
+		release.Do(func() { close(block) })
+		t.Fatal("Emit blocked on slow subscriber despite isolation")
+	}
+}
+
 func TestEmitterProcessesSubscriberEventsSequentially(t *testing.T) {
 	emitter := NewEmitter()
 
