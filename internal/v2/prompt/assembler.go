@@ -29,7 +29,7 @@ func (p *PromptAssembler) Assemble() string {
 
 	var builder strings.Builder
 	for _, layer := range layers {
-		if layer.content == "" {
+		if strings.TrimSpace(layer.content) == "" {
 			continue
 		}
 		if builder.Len() > 0 {
