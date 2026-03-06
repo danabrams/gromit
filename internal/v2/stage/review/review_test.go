@@ -2,6 +2,7 @@ package review_test
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -48,11 +49,22 @@ func (f *fakeLLM) StreamInvoke(context.Context, llm.StreamInvokeRequest) (*llm.L
 	return &llm.LLMResponse{Success: true, Output: ""}, nil
 }
 
-type fakeTracker struct{}
+type fakeTracker struct {
+	created []*tasktracker.Bead
+}
 
 func (f *fakeTracker) NextBead(context.Context) (*tasktracker.Bead, error) { return nil, nil }
-func (f *fakeTracker) CreateBead(context.Context, string, string, int, []string, []string) (*tasktracker.Bead, error) {
-	return nil, nil
+func (f *fakeTracker) CreateBead(ctx context.Context, title, description string, priority int, labels, dependencies []string) (*tasktracker.Bead, error) {
+	bead := &tasktracker.Bead{
+		ID:          fmt.Sprintf("bead-%d", len(f.created)+1),
+		Title:       title,
+		Description: description,
+		Priority:    priority,
+		Labels:      append([]string(nil), labels...),
+		DependsOn:   append([]string(nil), dependencies...),
+	}
+	f.created = append(f.created, bead)
+	return bead, nil
 }
 func (f *fakeTracker) CloseBead(context.Context, string) error { return nil }
 func (f *fakeTracker) QueryBeads(context.Context, []string, string, string) ([]tasktracker.Bead, error) {
@@ -94,4 +106,56 @@ func TestStageIncludesDiffAndAcceptanceCriteriaInPrompt(t *testing.T) {
 	if !strings.Contains(llmStub.lastPrompt, "satisfy A") || !strings.Contains(llmStub.lastPrompt, "satisfy B") {
 		t.Fatalf("prompt missing acceptance criteria, got %q", llmStub.lastPrompt)
 	}
+}
+
+func TestReviewStageCreatesTaskTrackerBeads(t *testing.T) {
+	diff := "diff --git a/foo.go b/foo.go"
+	gitDiff := func(context.Context, string) (string, error) {
+		return diff, nil
+	}
+
+	response := `{
+        "passed": false,
+        "beads_to_create": [
+            {"title": "Fix bug", "description": "details", "priority": 2, "labels": ["bug"]}
+        ],
+        "backlog_items": [],
+        "fixes_applied": [],
+        "summary": "found issue"
+    }`
+	llmStub := &fakeLLM{response: &llm.LLMResponse{Success: true, Output: response}}
+	tracker := &fakeTracker{}
+	cfg := &config.Config{Review: config.ReviewConfig{Enabled: true, Tier: "sonnet"}}
+	stageInst, err := review.New(cfg, gitDiff, llmStub, tracker, "", "", "")
+	if err != nil {
+		t.Fatalf("create stage: %v", err)
+	}
+
+	req := &stagepkg.Request{Bead: stagepkg.BeadInfo{ID: "spec-1", Labels: []string{"gen:1"}}, Worktree: t.TempDir(), Config: cfg}
+	if _, err := stageInst.Run(context.Background(), req); err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+
+	if len(tracker.created) != 1 {
+		t.Fatalf("created %d beads, want 1", len(tracker.created))
+	}
+	created := tracker.created[0]
+	if !hasLabel(created.Labels, "from-review") {
+		t.Fatalf("labels missing from-review: %v", created.Labels)
+	}
+	if !hasLabel(created.Labels, "gen:2") {
+		t.Fatalf("labels missing gen:2: %v", created.Labels)
+	}
+	if len(created.DependsOn) != 1 || created.DependsOn[0] != "spec-1" {
+		t.Fatalf("unexpected dependencies = %v", created.DependsOn)
+	}
+}
+
+func hasLabel(labels []string, target string) bool {
+	for _, label := range labels {
+		if label == target {
+			return true
+		}
+	}
+	return false
 }
