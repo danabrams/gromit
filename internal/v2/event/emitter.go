@@ -1,6 +1,9 @@
 package event
 
-import "sync"
+import (
+	"log"
+	"sync"
+)
 
 type subscriber struct {
 	fn func(TypedEvent)
@@ -63,7 +66,9 @@ func (s *subscriber) enqueue(evt TypedEvent) {
 
 func (s *subscriber) dispatch(evt TypedEvent) {
 	defer func() {
-		recover()
+		if r := recover(); r != nil {
+			log.Printf("subscriber panic recovered: %v", r)
+		}
 	}()
 
 	s.fn(evt)

@@ -297,10 +297,17 @@ func TestEmitterLogsRecoveredSubscriberPanics(t *testing.T) {
 		t.Fatal("timed out waiting for event delivery")
 	}
 
-	logOutput := buf.String()
-	if !strings.Contains(logOutput, "subscriber panic recovered") || !strings.Contains(logOutput, "boom") {
-		t.Fatalf("expected panic log with subscriber panic, got %q", logOutput)
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		logOutput := buf.String()
+		if strings.Contains(logOutput, "subscriber panic recovered") && strings.Contains(logOutput, "boom") {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
+
+	logOutput := buf.String()
+	t.Fatalf("expected panic log with subscriber panic, got %q", logOutput)
 }
 
 func TestEmitterCloseStopsSubscriberGoroutines(t *testing.T) {
