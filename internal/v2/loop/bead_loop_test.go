@@ -454,6 +454,81 @@ func TestRetryWithStagesExecutedBeforeFailedStage(t *testing.T) {
 	}
 }
 
+func TestStageRetryingEventContainsCorrectRetryInfo(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	emitter := events.NewEmitter()
+	eventChan := emitter.Subscribe()
+
+	testStage := &failingStage{
+		name:      "critical",
+		failUntil: 2, // Fails on 1st and 2nd runs, succeeds on 3rd
+	}
+
+	beadLoop, err := NewBeadLoop([]StageSpec{
+		{
+			Stage: testStage,
+			Retry: stage.RetryConfig{MaxRetries: 2},
+		},
+	})
+	if err != nil {
+		t.Fatalf("construct bead loop: %v", err)
+	}
+
+	beadLoop.Emitter = emitter
+
+	req := stage.Request{
+		Bead: stage.BeadInfo{
+			ID:     "test-bead",
+			Labels: []string{"gen:0"},
+		},
+	}
+
+	_, err = beadLoop.Run(ctx, req)
+	if err != nil {
+		t.Fatalf("run bead loop: %v", err)
+	}
+
+	// Collect all StageRetrying events
+	var retryEvents []*events.StageRetryingEvent
+	for {
+		select {
+		case evt := <-eventChan:
+			if retryEvt, ok := evt.(*events.StageRetryingEvent); ok {
+				retryEvents = append(retryEvents, retryEvt)
+			}
+		default:
+			goto done
+		}
+	}
+done:
+
+	// Should have 2 StageRetrying events (for attempt 1 and 2)
+	if len(retryEvents) != 2 {
+		t.Fatalf("expected 2 StageRetrying events, got %d", len(retryEvents))
+	}
+
+	// Check first retry event
+	if retryEvents[0].StageName != "critical" {
+		t.Fatalf("first retry event StageName = %s, want critical", retryEvents[0].StageName)
+	}
+	if retryEvents[0].Attempt != 1 {
+		t.Fatalf("first retry event Attempt = %d, want 1", retryEvents[0].Attempt)
+	}
+	if !strings.Contains(retryEvents[0].Reason, "failed") {
+		t.Fatalf("first retry event Reason should contain 'failed', got %q", retryEvents[0].Reason)
+	}
+
+	// Check second retry event
+	if retryEvents[1].StageName != "critical" {
+		t.Fatalf("second retry event StageName = %s, want critical", retryEvents[1].StageName)
+	}
+	if retryEvents[1].Attempt != 2 {
+		t.Fatalf("second retry event Attempt = %d, want 2", retryEvents[1].Attempt)
+	}
+}
+
 func TestEmitsStageRetryingEvent(t *testing.T) {
 	t.Parallel()
 
