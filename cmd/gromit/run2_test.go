@@ -176,6 +176,39 @@ func TestRun2WiresStageOptions(t *testing.T) {
 	}
 }
 
+func TestRun2WiresRemediationRunner(t *testing.T) {
+	specsDir, cleanup := setupRun2TestEnv(t)
+	defer cleanup()
+
+	readySpec := writeSpecFile(t, specsDir, "ready-remediation", map[string]string{"id": "ready-remediation", "accepted": "true"})
+
+	stubSubscribers := startRun2SubscribersFn
+	startRun2SubscribersFn = func(ctx context.Context, emitter *events.Emitter, output io.Writer, logsDir string) (*sync.WaitGroup, error) {
+		return &sync.WaitGroup{}, nil
+	}
+	defer func() { startRun2SubscribersFn = stubSubscribers }()
+
+	stubLoop := newSpecLoopFn
+	newSpecLoopFn = func(adapters adapter.AdapterSet, cfg *config.Config, gate loop.DependencyGate, opts ...loop.SpecLoopOption) (specLoop, error) {
+		specLoopPtr := &loop.SpecLoop{}
+		for _, opt := range opts {
+			opt(specLoopPtr)
+		}
+		if fieldIsNil(specLoopPtr, "remediationRunner") {
+			t.Fatalf("expected remediation runner option to run")
+		}
+		return &fakeSpecLoop{}, nil
+	}
+	defer func() { newSpecLoopFn = stubLoop }()
+
+	run2Cmd.SetOut(io.Discard)
+	run2Cmd.SetErr(io.Discard)
+
+	if err := run2Cmd.RunE(run2Cmd, []string{readySpec}); err != nil {
+		t.Fatalf("unexpected run error: %v", err)
+	}
+}
+
 func TestRun2EpicFlagRunsAllSpecs(t *testing.T) {
 	specsDir, cleanup := setupRun2TestEnv(t)
 	defer cleanup()
