@@ -17,7 +17,11 @@ func TestExecGitCreateWorktree(t *testing.T) {
 	runGitCommand(t, repoDir, "init")
 	runGitCommand(t, repoDir, "config", "user.email", "tester@example.com")
 	runGitCommand(t, repoDir, "config", "user.name", "Test User")
-	runGitCommand(t, repoDir, "commit", "--allow-empty", "-m", "initial")
+	if err := os.WriteFile(filepath.Join(repoDir, "tracked.txt"), []byte("base\n"), 0o644); err != nil {
+		t.Fatalf("writing base file: %v", err)
+	}
+	runGitCommand(t, repoDir, "add", "tracked.txt")
+	runGitCommand(t, repoDir, "commit", "-m", "initial")
 
 	worktreesRoot := t.TempDir()
 	adapter := NewExecGit(repoDir)
@@ -123,7 +127,11 @@ func TestExecGitDiff(t *testing.T) {
 	runGitCommand(t, repoDir, "init")
 	runGitCommand(t, repoDir, "config", "user.email", "tester@example.com")
 	runGitCommand(t, repoDir, "config", "user.name", "Test User")
-	runGitCommand(t, repoDir, "commit", "--allow-empty", "-m", "initial")
+	if err := os.WriteFile(filepath.Join(repoDir, "tracked.txt"), []byte("base\n"), 0o644); err != nil {
+		t.Fatalf("writing base file: %v", err)
+	}
+	runGitCommand(t, repoDir, "add", "tracked.txt")
+	runGitCommand(t, repoDir, "commit", "-m", "initial")
 
 	worktreesRoot := t.TempDir()
 	adapter := NewExecGit(repoDir)
@@ -137,7 +145,7 @@ func TestExecGitDiff(t *testing.T) {
 		t.Fatalf("CreateWorktree failed: %v", err)
 	}
 
-	if err := os.WriteFile(filepath.Join(resp.Worktree, "hello.txt"), []byte("diff me\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(resp.Worktree, "tracked.txt"), []byte("updated\n"), 0o644); err != nil {
 		t.Fatalf("writing file: %v", err)
 	}
 
@@ -149,11 +157,11 @@ func TestExecGitDiff(t *testing.T) {
 		t.Fatalf("Diff failed: %v", err)
 	}
 
-	if !strings.Contains(diffResp.Diff, "hello.txt") {
+	if !strings.Contains(diffResp.Diff, "tracked.txt") {
 		t.Fatalf("diff missing file context: %q", diffResp.Diff)
 	}
 
-	if !strings.Contains(diffResp.Summary, "hello.txt") {
+	if !strings.Contains(diffResp.Summary, "tracked.txt") {
 		t.Fatalf("summary missing file stat: %q", diffResp.Summary)
 	}
 }

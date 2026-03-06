@@ -96,3 +96,32 @@ func (g *ExecGit) Commit(ctx context.Context, req CommitRequest) (CommitResponse
 
 	return CommitResponse{CommitHash: strings.TrimSpace(string(out))}, nil
 }
+
+func (g *ExecGit) Diff(ctx context.Context, req DiffRequest) (DiffResponse, error) {
+	worktree := strings.TrimSpace(req.Worktree)
+	if worktree == "" {
+		return DiffResponse{}, fmt.Errorf("worktree required")
+	}
+
+	base := strings.TrimSpace(req.Base)
+	if base == "" {
+		base = "HEAD"
+	}
+
+	diffCmd := exec.CommandContext(ctx, "git", "-C", worktree, "diff", base)
+	diffOut, err := diffCmd.CombinedOutput()
+	if err != nil {
+		return DiffResponse{}, fmt.Errorf("git diff: %s: %w", diffOut, err)
+	}
+
+	statCmd := exec.CommandContext(ctx, "git", "-C", worktree, "diff", "--stat", base)
+	statOut, err := statCmd.CombinedOutput()
+	if err != nil {
+		return DiffResponse{}, fmt.Errorf("git diff --stat: %s: %w", statOut, err)
+	}
+
+	return DiffResponse{
+		Diff:    string(diffOut),
+		Summary: strings.TrimSpace(string(statOut)),
+	}, nil
+}

@@ -40,6 +40,7 @@ type CommitResponse struct {
 // DiffRequest describes the worktree to diff.
 type DiffRequest struct {
 	Worktree string
+	Base     string
 }
 
 // DiffResponse carries the diff output.
