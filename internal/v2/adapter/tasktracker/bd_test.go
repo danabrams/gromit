@@ -148,6 +148,38 @@ func TestShowBead_UsesBdShowCommand(t *testing.T) {
 	}
 }
 
+func TestCloseBead_UsesBdCloseCommand(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	beadID := "close-me"
+	called := false
+	client := &bead.Client{
+		RunFn: func(args ...string) (string, error) {
+			if len(args) < 2 || args[0] != "close" {
+				return "", fmt.Errorf("unexpected command: %v", args)
+			}
+			if args[1] != beadID {
+				return "", fmt.Errorf("unexpected bead ID: %v", args)
+			}
+			called = true
+			return "", nil
+		},
+	}
+
+	adapter := NewBDAdapter(client)
+	resp, err := adapter.CloseBead(ctx, CloseBeadRequest{BeadID: beadID})
+	if err != nil {
+		t.Fatalf("CloseBead failed: %v", err)
+	}
+	if resp == nil || !resp.Closed {
+		t.Fatalf("unexpected response: %+v", resp)
+	}
+	if !called {
+		t.Fatal("bd close was not invoked")
+	}
+}
+
 func containsString(list []string, value string) bool {
 	for _, item := range list {
 		if item == value {
