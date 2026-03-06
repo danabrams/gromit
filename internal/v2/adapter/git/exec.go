@@ -63,3 +63,36 @@ func (g *ExecGit) RemoveWorktree(ctx context.Context, req RemoveWorktreeRequest)
 
 	return RemoveWorktreeResponse{Removed: true}, nil
 }
+
+func (g *ExecGit) Commit(ctx context.Context, req CommitRequest) (CommitResponse, error) {
+	worktree := strings.TrimSpace(req.Worktree)
+	if worktree == "" {
+		return CommitResponse{}, fmt.Errorf("worktree required")
+	}
+
+	if strings.TrimSpace(req.Message) == "" {
+		return CommitResponse{}, fmt.Errorf("commit message required")
+	}
+
+	addCmd := exec.CommandContext(ctx, "git", "-C", worktree, "add", "-A")
+	if out, err := addCmd.CombinedOutput(); err != nil {
+		return CommitResponse{}, fmt.Errorf("git add: %s: %w", out, err)
+	}
+
+	commitArgs := []string{"-C", worktree, "commit", "-m", req.Message}
+	if req.Amend {
+		commitArgs = append(commitArgs, "--amend")
+	}
+	commitCmd := exec.CommandContext(ctx, "git", commitArgs...)
+	if out, err := commitCmd.CombinedOutput(); err != nil {
+		return CommitResponse{}, fmt.Errorf("git commit: %s: %w", out, err)
+	}
+
+	revCmd := exec.CommandContext(ctx, "git", "-C", worktree, "rev-parse", "HEAD")
+	out, err := revCmd.CombinedOutput()
+	if err != nil {
+		return CommitResponse{}, fmt.Errorf("git rev-parse: %s: %w", out, err)
+	}
+
+	return CommitResponse{CommitHash: strings.TrimSpace(string(out))}, nil
+}
