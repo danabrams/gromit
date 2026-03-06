@@ -59,6 +59,25 @@ func TestRemediationRunnerRunBeadRunnerRequired(t *testing.T) {
 	}
 }
 
+func TestRemediationRunnerRunDecomposeStageRequired(t *testing.T) {
+	t.Parallel()
+
+	runner := NewRemediationRunner(RemediationRunnerConfig{
+		AcceptStage: &stubStage{
+			name: "accept",
+			result: &stage.Result{
+				Decision: stage.DecisionFail,
+			},
+		},
+		GenerationCap: 1,
+	})
+
+	err := runner.Run(context.Background(), "spec-id")
+	if !errors.Is(err, ErrDecomposeStageRequired) {
+		t.Fatalf("expected ErrDecomposeStageRequired, got %v", err)
+	}
+}
+
 type stubStage struct {
 	name   string
 	result *stage.Result
