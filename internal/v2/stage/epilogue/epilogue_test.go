@@ -2,6 +2,7 @@ package epilogue
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -74,6 +75,52 @@ func TestEpilogueStageSuccessClosesBeadAndEmitsCostEvent(t *testing.T) {
 	}
 	if completionEvent.CostUSD != telemetry.CostUSD {
 		t.Fatalf("cost = %v, want %v", completionEvent.CostUSD, telemetry.CostUSD)
+	}
+}
+
+func TestEpilogueStageFailureEmitsFailureEventWithoutClosing(t *testing.T) {
+	t.Parallel()
+
+	tracker := &fakeTracker{}
+	stageInstance, err := New(&config.Config{}, tracker)
+	if err != nil {
+		t.Fatalf("unexpected constructor error: %v", err)
+	}
+
+	priorFailures := []string{"build failed", "validate timed out"}
+	req := &stagepkg.Request{
+		Bead: stagepkg.BeadInfo{ID: "failure-bead"},
+		RetryContext: &stagepkg.RetryContext{
+			Attempt:       1,
+			PriorFailures: append([]string(nil), priorFailures...),
+		},
+	}
+
+	res, err := stageInstance.Run(context.Background(), req)
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+
+	if len(tracker.closeCalls) != 0 {
+		t.Fatalf("close called unexpectedly: %v", tracker.closeCalls)
+	}
+
+	if len(res.Events) != 1 {
+		t.Fatalf("events count = %d, want 1", len(res.Events))
+	}
+
+	failureEvent, ok := res.Events[0].(*events.BeadFailedEvent)
+	if !ok {
+		t.Fatalf("event type = %T, want *events.BeadFailedEvent", res.Events[0])
+	}
+
+	if failureEvent.BeadID != req.Bead.ID {
+		t.Fatalf("bead ID = %q, want %q", failureEvent.BeadID, req.Bead.ID)
+	}
+
+	expected := strings.Join(priorFailures, "; ")
+	if failureEvent.Error != expected {
+		t.Fatalf("error = %q, want %q", failureEvent.Error, expected)
 	}
 }
 
