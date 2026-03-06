@@ -15,6 +15,7 @@ import (
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/events"
 	"github.com/danabrams/gromit/internal/v2/adapter"
+	"github.com/danabrams/gromit/internal/v2/event"
 	"github.com/danabrams/gromit/internal/v2/loop"
 	"github.com/danabrams/gromit/internal/v2/stage"
 )
@@ -153,7 +154,7 @@ func newStageResult(evt events.Event) stage.Result {
 		Artifacts: map[string]string{
 			"phase": "acceptance",
 		},
-		Events: []events.Event{evt},
+		Events: []event.TypedEvent{evt},
 	}
 }
 
