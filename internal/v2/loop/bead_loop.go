@@ -13,6 +13,7 @@ var ErrMaxRetriesExceeded = errors.New("max retries exceeded")
 
 type BeadLoopResult struct {
 	StartGeneration int
+	CapHit          bool
 }
 
 type StageSpec struct {
@@ -21,9 +22,11 @@ type StageSpec struct {
 }
 
 type BeadLoop struct {
-	stages         []StageSpec
-	stageIndex     map[string]int
-	GenerationCap  int
+	stages            []StageSpec
+	stageIndex        map[string]int
+	GenerationCap     int
+	startGeneration   int
+	startGenInitialized bool
 }
 
 func NewBeadLoop(stages []StageSpec) (*BeadLoop, error) {
@@ -46,9 +49,25 @@ func NewBeadLoop(stages []StageSpec) (*BeadLoop, error) {
 
 func (b *BeadLoop) Run(ctx context.Context, req stage.Request) (*BeadLoopResult, error) {
 	state := newLoopState()
-	result := &BeadLoopResult{
-		StartGeneration: generation.Current(req.Bead.Labels),
+	currentGen := generation.Current(req.Bead.Labels)
+
+	// Initialize startGeneration on first call
+	if !b.startGenInitialized {
+		b.startGeneration = currentGen
+		b.startGenInitialized = true
 	}
+
+	result := &BeadLoopResult{
+		StartGeneration: b.startGeneration,
+	}
+
+	// Check if generation cap is reached
+	capThreshold := b.startGeneration + b.GenerationCap
+	if currentGen >= capThreshold {
+		result.CapHit = true
+		return result, nil
+	}
+
 	for _, spec := range b.stages {
 		if err := b.runStage(ctx, req, spec, state, req.RetryContext); err != nil {
 			return result, err
