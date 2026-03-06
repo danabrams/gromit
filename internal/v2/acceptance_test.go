@@ -30,13 +30,8 @@ func TestSpecLoopExecutesCanonicalStageChain(t *testing.T) {
 
 	recorder := newRecordingStageRecorder()
 
-	git := newRecordingGitAdapter(t)
-	adapters := adapter.AdapterSet{
-		Git:         git,
-		LLM:         &fakeLLMAdapter{},
-		TaskTracker: &fakeTaskTrackerAdapter{},
-		Presenter:   &fakePresenterAdapter{},
-	}
+	fixture := newAcceptanceAdapters(t)
+	adapters := fixture.AdapterSet()
 
 	cfg := &config.Config{}
 	gate := newDependencyGate()
@@ -64,7 +59,7 @@ func TestSpecLoopExecutesCanonicalStageChain(t *testing.T) {
 	}
 
 	requireCanonicalStageSequence(t, recorder)
-	verifyPlanFileJustInTime(t, git.lastWorktree, specID, recorder)
+	verifyPlanFileJustInTime(t, fixture.Worktree(specID), specID, recorder)
 }
 
 func TestSpecLoopRunsWithStages(t *testing.T) {
@@ -75,13 +70,8 @@ func TestSpecLoopRunsWithStages(t *testing.T) {
 
 	recorder := newRecordingStageRecorder()
 
-	git := newRecordingGitAdapter(t)
-	adapters := adapter.AdapterSet{
-		Git:         git,
-		LLM:         &fakeLLMAdapter{},
-		TaskTracker: &fakeTaskTrackerAdapter{},
-		Presenter:   &fakePresenterAdapter{},
-	}
+	fixture := newAcceptanceAdapters(t)
+	adapters := fixture.AdapterSet()
 
 	cfg := &config.Config{}
 	gate := newDependencyGate()

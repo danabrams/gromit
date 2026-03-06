@@ -40,13 +40,10 @@ func TestRun2BlocksSpecWhenDependenciesIncomplete(t *testing.T) {
 	planStage := newAcceptancePlanStage("child-plan")
 	presentStage, summaryCtx := newAcceptancePresentStage()
 
+	fixture := newAcceptanceAdapters(t)
+
 	loopInstance, err := loop.NewSpecLoop(
-		adapter.AdapterSet{
-			Git:         &fatalGitAdapter{t: t},
-			LLM:         &fatalLLMAdapter{t: t},
-			TaskTracker: &fatalTaskTrackerAdapter{t: t},
-			Presenter:   &fatalPresenterAdapter{t: t},
-		},
+		fixture.AdapterSet(),
 		cfg,
 		gate,
 		loop.WithPlanStage(planStage),
