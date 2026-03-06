@@ -50,3 +50,21 @@ func TestPromptAssemblerSkipsEmptyLayers(t *testing.T) {
 		t.Fatalf("fragment section should be omitted when empty")
 	}
 }
+
+func TestPromptAssemblerSkipsWhitespaceOnlyLayers(t *testing.T) {
+	assembler := NewPromptAssembler("base layer", "  \n\t", "instance layer", "fragment layer")
+	output := assembler.Assemble()
+
+	if strings.Contains(output, "=== PROJECT ===") {
+		t.Fatalf("project section should be omitted when it contains only whitespace")
+	}
+	if !strings.Contains(output, "=== BASE ===") {
+		t.Fatalf("base section missing")
+	}
+	if !strings.Contains(output, "=== INSTANCE ===") {
+		t.Fatalf("instance section missing")
+	}
+	if !strings.Contains(output, "=== FRAGMENT ===") {
+		t.Fatalf("fragment section missing")
+	}
+}
