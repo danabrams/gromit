@@ -14,10 +14,8 @@ import (
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
-	"github.com/danabrams/gromit/internal/v2/adapter"
 	"github.com/danabrams/gromit/internal/v2/dep"
 	"github.com/danabrams/gromit/internal/v2/loop"
-	"github.com/danabrams/gromit/internal/v2/presentation"
 )
 
 func TestRun2BlocksSpecWhenDependenciesIncomplete(t *testing.T) {
@@ -65,6 +63,16 @@ func TestRun2BlocksSpecWhenDependenciesIncomplete(t *testing.T) {
 
 	if got := blockingErr.BlockingIDs(); len(got) != 1 || got[0] != "prereq" {
 		t.Fatalf("blocking IDs = %v, want [prereq]", got)
+	}
+
+	if len(fixture.Git.CheckoutCalls) != 0 {
+		t.Fatalf("git checkout calls = %d, want 0", len(fixture.Git.CheckoutCalls))
+	}
+	if len(fixture.LLMFake().Calls) != 0 {
+		t.Fatalf("llm calls = %d, want 0", len(fixture.LLMFake().Calls))
+	}
+	if len(fixture.Presenter.Calls) != 0 {
+		t.Fatalf("presenter calls = %d, want 0", len(fixture.Presenter.Calls))
 	}
 }
 
@@ -174,57 +182,4 @@ func writeSpecFile(t *testing.T, specsDir, id, stage string, depends []string) {
 	if err := os.WriteFile(path, []byte(sb.String()), 0o644); err != nil {
 		t.Fatalf("writing spec file: %v", err)
 	}
-}
-
-type fatalGitAdapter struct {
-	t *testing.T
-}
-
-var _ adapter.GitAdapter = (*fatalGitAdapter)(nil)
-
-func (f *fatalGitAdapter) Checkout(context.Context, string) (string, error) {
-	f.t.Fatalf("git adapter should not run when dependencies block")
-	return "", nil
-}
-
-func (f *fatalGitAdapter) Diff(context.Context, string) (string, error) {
-	f.t.Fatalf("git diff should not run when dependencies block")
-	return "", nil
-}
-
-func (f *fatalGitAdapter) Commit(context.Context, string, string) (string, error) {
-	f.t.Fatalf("git commit should not run when dependencies block")
-	return "", nil
-}
-
-func (f *fatalGitAdapter) RemoveWorktree(context.Context, string) error {
-	f.t.Fatalf("remove worktree should not run when dependencies block")
-	return nil
-}
-
-func (f *fatalGitAdapter) Status(context.Context, string) (string, error) {
-	f.t.Fatalf("status should not run when dependencies block")
-	return "", nil
-}
-
-type fatalLLMAdapter struct {
-	t *testing.T
-}
-
-func (f *fatalLLMAdapter) GeneratePlan(context.Context, string) (string, error) {
-	f.t.Fatalf("LLM adapter should not run when dependencies block")
-	return "", nil
-}
-
-type fatalTaskTrackerAdapter struct {
-	t *testing.T
-}
-
-type fatalPresenterAdapter struct {
-	t *testing.T
-}
-
-func (f *fatalPresenterAdapter) PresentSummary(context.Context, string, presentation.PresentationSummary) error {
-	f.t.Fatalf("presenter should not run when dependencies block")
-	return nil
 }

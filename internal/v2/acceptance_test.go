@@ -14,7 +14,6 @@ import (
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
-	"github.com/danabrams/gromit/internal/v2/adapter"
 	"github.com/danabrams/gromit/internal/v2/event"
 	"github.com/danabrams/gromit/internal/v2/loop"
 	"github.com/danabrams/gromit/internal/v2/presentation"
@@ -274,47 +273,4 @@ func (f *fakeAcceptStage) Run(ctx context.Context, req *stage.Request) (*stage.R
 			Results: append([]presentation.AcceptanceResult(nil), f.results...),
 		},
 	}, nil
-}
-
-// fake adapters
-
-type recordingGitAdapter struct {
-	t            *testing.T
-	lastWorktree string
-}
-
-var _ adapter.GitAdapter = (*recordingGitAdapter)(nil)
-
-func newRecordingGitAdapter(t *testing.T) *recordingGitAdapter {
-	return &recordingGitAdapter{t: t}
-}
-
-func (g *recordingGitAdapter) Checkout(_ context.Context, specID string) (string, error) {
-	worktree := filepath.Join(g.t.TempDir(), specID)
-	if err := os.MkdirAll(worktree, 0o755); err != nil {
-		g.t.Fatalf("mkdir worktree: %v", err)
-	}
-	g.lastWorktree = worktree
-	return worktree, nil
-}
-
-func (g *recordingGitAdapter) Diff(_ context.Context, worktree string) (string, error) {
-	_ = worktree
-	return "", nil
-}
-
-func (g *recordingGitAdapter) Commit(_ context.Context, worktree, message string) (string, error) {
-	_ = worktree
-	_ = message
-	return "commit-hash", nil
-}
-
-func (g *recordingGitAdapter) RemoveWorktree(_ context.Context, worktree string) error {
-	_ = worktree
-	return nil
-}
-
-func (g *recordingGitAdapter) Status(_ context.Context, worktree string) (string, error) {
-	_ = worktree
-	return "clean", nil
 }

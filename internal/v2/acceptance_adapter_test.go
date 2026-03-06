@@ -16,7 +16,7 @@ import (
 
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/v2/loop"
-	"github.com/danabrams/gromit/internal/v2/presentation"
+	"github.com/danabrams/gromit/internal/v2/testutil"
 )
 
 func TestAdapterSwappability(t *testing.T) {
@@ -29,7 +29,7 @@ func TestAdapterSwappability(t *testing.T) {
 			planStage := newAcceptancePlanStage("spec-swap-plan")
 			presentStage, summaryCtx := newAcceptancePresentStage()
 			loopInstance, err := loop.NewSpecLoop(
-				swap.setup(newAdapterSet()),
+				swap.setup(t, newAdapterSet(t)),
 				&config.Config{},
 				newDependencyGate(),
 				loop.WithPlanStage(planStage),
@@ -50,7 +50,7 @@ func TestAdapterSwappability(t *testing.T) {
 	planStage := newAcceptancePlanStage("spec-base-plan")
 	presentStage, summaryCtx := newAcceptancePresentStage()
 	baseLoop, err := loop.NewSpecLoop(
-		newAdapterSet(),
+		newAdapterSet(t),
 		&config.Config{},
 		newDependencyGate(),
 		loop.WithPlanStage(planStage),
@@ -72,49 +72,50 @@ func TestAdapterSwappability(t *testing.T) {
 
 type adapterSwap struct {
 	name  string
-	setup func(loop.AdapterSet) loop.AdapterSet
+	setup func(*testing.T, loop.AdapterSet) loop.AdapterSet
 }
 
 func adapterSwaps() []adapterSwap {
 	return []adapterSwap{
 		{
 			name: "git",
-			setup: func(set loop.AdapterSet) loop.AdapterSet {
-				set.Git = &fakeGitAdapter{}
+			setup: func(t *testing.T, set loop.AdapterSet) loop.AdapterSet {
+				t.Helper()
+				git := testutil.NewFakeGit()
+				git.WorktreeRoot = t.TempDir()
+				set.Git = git
 				return set
 			},
 		},
 		{
 			name: "llm",
-			setup: func(set loop.AdapterSet) loop.AdapterSet {
-				set.LLM = &fakeLLMAdapter{}
+			setup: func(t *testing.T, set loop.AdapterSet) loop.AdapterSet {
+				t.Helper()
+				set.LLM = &acceptanceLLMAdapter{fake: createAcceptanceFakeLLM()}
 				return set
 			},
 		},
 		{
 			name: "task-tracker",
-			setup: func(set loop.AdapterSet) loop.AdapterSet {
-				set.TaskTracker = &fakeTaskTrackerAdapter{}
+			setup: func(t *testing.T, set loop.AdapterSet) loop.AdapterSet {
+				t.Helper()
+				set.TaskTracker = testutil.NewFakeTaskTracker()
 				return set
 			},
 		},
 		{
 			name: "presenter",
-			setup: func(set loop.AdapterSet) loop.AdapterSet {
-				set.Presenter = &fakePresenterAdapter{}
+			setup: func(t *testing.T, set loop.AdapterSet) loop.AdapterSet {
+				t.Helper()
+				set.Presenter = testutil.NewFakePresenter()
 				return set
 			},
 		},
 	}
 }
 
-func newAdapterSet() loop.AdapterSet {
-	return loop.AdapterSet{
-		Git:         &fakeGitAdapter{},
-		LLM:         &fakeLLMAdapter{},
-		TaskTracker: &fakeTaskTrackerAdapter{},
-		Presenter:   &fakePresenterAdapter{},
-	}
+func newAdapterSet(t *testing.T) loop.AdapterSet {
+	return newAcceptanceAdapters(t).AdapterSet()
 }
 
 func assertStagePackagesAvoidAdapterImports(t *testing.T) {
@@ -213,49 +214,6 @@ func TestStagePackageRoot(t *testing.T) {
 
 func stagePackageRoot() string {
 	return filepath.Join("..", "..", "stage")
-}
-
-type fakeGitAdapter struct{}
-
-func (fakeGitAdapter) Checkout(_ context.Context, specID string) (string, error) {
-	return "/tmp/" + specID, nil
-}
-
-func (fakeGitAdapter) Diff(_ context.Context, worktree string) (string, error) {
-	_ = worktree
-	return "", nil
-}
-
-func (fakeGitAdapter) Commit(_ context.Context, worktree, message string) (string, error) {
-	_ = worktree
-	_ = message
-	return "", nil
-}
-
-func (fakeGitAdapter) RemoveWorktree(_ context.Context, worktree string) error {
-	_ = worktree
-	return nil
-}
-
-func (fakeGitAdapter) Status(_ context.Context, worktree string) (string, error) {
-	_ = worktree
-	return "", nil
-}
-
-type fakeLLMAdapter struct{}
-
-func (fakeLLMAdapter) GeneratePlan(_ context.Context, specID string) (string, error) {
-	return specID + "-plan", nil
-}
-
-type fakeTaskTrackerAdapter struct{}
-
-type fakePresenterAdapter struct{}
-
-func (fakePresenterAdapter) PresentSummary(_ context.Context, specID string, summary presentation.PresentationSummary) error {
-	_ = specID
-	_ = summary
-	return nil
 }
 
 type noopDependencyGate struct{}
