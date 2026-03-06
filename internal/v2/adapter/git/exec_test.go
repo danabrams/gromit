@@ -113,6 +113,51 @@ func TestExecGitCommit(t *testing.T) {
 	}
 }
 
+func TestExecGitDiff(t *testing.T) {
+	t.Helper()
+	ctx := context.Background()
+
+	repoDir := t.TempDir()
+	runGitBinary(t, repoDir, "init")
+	runGitBinary(t, repoDir, "config", "user.email", "tester@example.com")
+	runGitBinary(t, repoDir, "config", "user.name", "Test User")
+	if err := os.WriteFile(filepath.Join(repoDir, "tracked.txt"), []byte("base\n"), 0o644); err != nil {
+		t.Fatalf("writing base file: %v", err)
+	}
+	runGitBinary(t, repoDir, "add", "tracked.txt")
+	runGitBinary(t, repoDir, "commit", "-m", "initial")
+
+	worktreesRoot := t.TempDir()
+	adapter := NewExecGit(repoDir)
+
+	resp, err := adapter.CreateWorktree(ctx, CreateWorktreeRequest{
+		SpecID:       "spec-diff",
+		WorktreeRoot: worktreesRoot,
+	})
+	if err != nil {
+		t.Fatalf("CreateWorktree failed: %v", err)
+	}
+
+	if err := os.WriteFile(filepath.Join(resp.Worktree, "tracked.txt"), []byte("updated\n"), 0o644); err != nil {
+		t.Fatalf("writing file: %v", err)
+	}
+
+	diffResp, err := adapter.Diff(ctx, DiffRequest{
+		Worktree: resp.Worktree,
+		Base:     "HEAD",
+	})
+	if err != nil {
+		t.Fatalf("Diff failed: %v", err)
+	}
+
+	if !strings.Contains(diffResp.Diff, "tracked.txt") {
+		t.Fatalf("diff missing file context: %q", diffResp.Diff)
+	}
+	if !strings.Contains(diffResp.Summary, "tracked.txt") {
+		t.Fatalf("summary missing tracked file: %q", diffResp.Summary)
+	}
+}
+
 func runGitBinary(t *testing.T, dir string, args ...string) {
 	t.Helper()
 	cmd := exec.Command("git", args...)
