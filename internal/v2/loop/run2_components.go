@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os/exec"
+	"strings"
 
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/events"
@@ -121,7 +122,7 @@ func NewRun2LoopComponents(cfg *config.Config, adapters adapter.AdapterSet, task
 
 type noopValidationRunner struct{}
 
-func (noopValidationRunner) Run(ctx context.Context, command string) error {
+func (noopValidationRunner) Run(ctx context.Context, command, worktree string) error {
 	return nil
 }
 
@@ -132,13 +133,21 @@ type CommandValidationRunner struct {
 
 // NewCommandValidationRunner creates a validation runner that executes shell commands.
 func NewCommandValidationRunner(workDir string) *CommandValidationRunner {
-	return &CommandValidationRunner{workDir: workDir}
+	trimmed := strings.TrimSpace(workDir)
+	if trimmed == "" {
+		trimmed = "."
+	}
+	return &CommandValidationRunner{workDir: trimmed}
 }
 
 // Run executes the command and returns an error if it fails.
-func (c *CommandValidationRunner) Run(ctx context.Context, command string) error {
+func (c *CommandValidationRunner) Run(ctx context.Context, command, worktree string) error {
 	cmd := exec.CommandContext(ctx, "sh", "-c", command)
-	cmd.Dir = c.workDir
+	dir := c.workDir
+	if trimmed := strings.TrimSpace(worktree); trimmed != "" {
+		dir = trimmed
+	}
+	cmd.Dir = dir
 	cmd.Stdin = bytes.NewReader(nil)
 
 	var stdout, stderr bytes.Buffer

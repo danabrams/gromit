@@ -3,6 +3,7 @@ package validate
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/danabrams/gromit/internal/config"
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
@@ -11,7 +12,7 @@ import (
 
 // ValidationRunner executes a single validation command.
 type ValidationRunner interface {
-	Run(ctx context.Context, command string) error
+	Run(ctx context.Context, command, worktree string) error
 }
 
 // ValidateArtifacts capture failure details when validation commands do not all succeed.
@@ -59,8 +60,9 @@ func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Resul
 
 	commands := cfg.EffectiveValidationCommands()
 	snapshot := append([]string(nil), commands...)
+	worktree := strings.TrimSpace(req.Worktree)
 	for _, cmd := range commands {
-		if err := s.runner.Run(ctx, cmd); err != nil {
+		if err := s.runner.Run(ctx, cmd, worktree); err != nil {
 			return &stagepkg.Result{
 				Decision: stagepkg.DecisionFail,
 				Artifacts: &ValidateArtifacts{

@@ -755,7 +755,7 @@ type failingValidationRunner struct {
 	runCount int
 }
 
-func (r *failingValidationRunner) Run(ctx context.Context, command string) error {
+func (r *failingValidationRunner) Run(ctx context.Context, command, worktree string) error {
 	r.runCount++
 	if r.runCount <= r.failures {
 		return errors.New("validation failure")
