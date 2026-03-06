@@ -73,7 +73,26 @@ func NewRun2LoopComponents(cfg *config.Config, adapters adapter.AdapterSet, task
 		return nil, err
 	}
 
-	buildStage, err := buildstage.New(cfg, provider, "", "", buildstage.PromptFragments{}, output)
+	// Load prompt contexts and fragments from project root
+	projectContext, err := loadProjectContext(cfg.ProjectRoot)
+	if err != nil {
+		cleanup()
+		return nil, err
+	}
+
+	baseInstructions, err := loadBaseInstructions(cfg.ProjectRoot)
+	if err != nil {
+		cleanup()
+		return nil, err
+	}
+
+	fragments, err := loadMethodologyFragments(cfg.ProjectRoot)
+	if err != nil {
+		cleanup()
+		return nil, err
+	}
+
+	buildStage, err := buildstage.New(cfg, provider, baseInstructions, projectContext, fragments, output)
 	if err != nil {
 		cleanup()
 		return nil, err
