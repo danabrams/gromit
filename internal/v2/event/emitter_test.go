@@ -337,6 +337,39 @@ func TestEmitterCloseReleasesBlockingSubscriberGoroutines(t *testing.T) {
 	waitForGoroutines(t, baseline)
 }
 
+// unknownEmitterEvent is a TypedEvent not recognized by any consumer.
+// It verifies that subscribers receiving unknown event types don't crash.
+type unknownEmitterEvent struct {
+	Event
+}
+
+func (unknownEmitterEvent) EventType() string { return "unknown.emitter.test" }
+
+func TestEmitterSubscriberHandlesUnknownEventGracefully(t *testing.T) {
+	emitter := NewEmitter()
+
+	received := make(chan TypedEvent, 2)
+	emitter.Subscribe(func(evt TypedEvent) {
+		received <- evt
+	})
+
+	// Emit an unknown event type; subscriber should receive it without crashing.
+	emitter.Emit(&unknownEmitterEvent{Event: Event{Type: "unknown"}})
+	// Follow with a known dummy event to confirm the subscriber is still alive.
+	emitter.Emit(dummyEvent{Event: Event{Type: "known"}})
+
+	for i := 0; i < 2; i++ {
+		select {
+		case evt := <-received:
+			if evt == nil {
+				t.Fatalf("received nil event at index %d", i)
+			}
+		case <-time.After(time.Second):
+			t.Fatalf("timed out waiting for event %d", i)
+		}
+	}
+}
+
 func TestEmitterCloseIsIdempotent(t *testing.T) {
 	emitter := NewEmitter()
 

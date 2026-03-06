@@ -62,6 +62,55 @@ func TestLegacyEventsFromTyped(t *testing.T) {
 	}
 }
 
+// unknownEvent is a test-only TypedEvent implementation that doesn't match
+// any known event type in the bridge switch. It verifies that consumers
+// handle unknown event types gracefully (ignore, don't crash).
+type unknownEvent struct {
+	Event
+}
+
+func (unknownEvent) EventType() string { return "unknown.test" }
+
+func TestLegacyEventsFromTyped_UnknownEventType(t *testing.T) {
+	evt := &unknownEvent{Event: Event{Timestamp: time.Now().UTC()}}
+	legacy := legacyEventsFromTyped(evt)
+	if legacy != nil {
+		t.Fatalf("expected nil for unknown event type, got %v", legacy)
+	}
+}
+
+func TestBridgeTypedToLegacy_UnknownEventDoesNotPanic(t *testing.T) {
+	typed := NewEmitter()
+	legacy := events.NewEmitter()
+	ch := legacy.Subscribe()
+	defer legacy.Unsubscribe(ch)
+
+	BridgeTypedToLegacy(typed, legacy)
+
+	// Emit an unknown event followed by a known event.
+	// The unknown event should be silently ignored; the known event should arrive.
+	typed.Emit(&unknownEvent{Event: Event{Timestamp: time.Now().UTC()}})
+	typed.Emit(&SpecStartedEvent{
+		Event:    Event{Timestamp: time.Now().UTC()},
+		SpecID:   "after-unknown",
+		Worktree: "wt",
+	})
+
+	select {
+	case evt, ok := <-ch:
+		if !ok {
+			t.Fatalf("legacy channel closed early")
+		}
+		if se, ok := evt.(*events.SpecStartedEvent); !ok {
+			t.Fatalf("expected *events.SpecStartedEvent, got %T", evt)
+		} else if se.SpecID != "after-unknown" {
+			t.Fatalf("expected SpecID after-unknown, got %s", se.SpecID)
+		}
+	case <-time.After(time.Second):
+		t.Fatalf("timed out waiting for legacy event after unknown event")
+	}
+}
+
 func TestBridgeTypedEventsToLegacyEmitter(t *testing.T) {
 	typed := NewEmitter()
 	legacy := events.NewEmitter()
