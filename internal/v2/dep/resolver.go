@@ -2,15 +2,16 @@ package dep
 
 import (
 	"fmt"
-	"sort"
+	"strings"
 )
 
-// Resolver tracks dependencies between beads and determines execution order.
+// Resolver tracks bead dependencies and determines the next eligible bead.
 type Resolver struct {
-	beads map[string][]string // beadID -> list of dependencies
+	beads    map[string][]string
+	addOrder []string
 }
 
-// NewResolver creates a new dependency resolver.
+// NewResolver constructs a Resolver.
 func NewResolver() *Resolver {
 	return &Resolver{
 		beads: make(map[string][]string),
@@ -19,99 +20,208 @@ func NewResolver() *Resolver {
 
 // Add registers a bead and its dependencies.
 func (r *Resolver) Add(beadID string, dependsOn []string) {
-	if dependsOn == nil {
-		dependsOn = []string{}
+	if beadID == "" {
+		return
 	}
-	r.beads[beadID] = dependsOn
+	if _, exists := r.beads[beadID]; !exists {
+		r.addOrder = append(r.addOrder, beadID)
+	}
+	r.beads[beadID] = normalizeDependencies(dependsOn)
 }
 
-// Next returns the next bead that can be executed given the completed beads.
-// Returns error if there are no eligible beads (deadlock/cycle detected).
-// When multiple beads are eligible, returns the lexicographically smallest.
+// Next returns the next bead whose dependencies are satisfied or an error when a cycle exists.
 func (r *Resolver) Next(completed []string) (string, error) {
-	// First, detect cycles in the unresolved beads
-	if err := r.detectCycles(completed); err != nil {
-		return "", err
+	completedSet := make(map[string]struct{}, len(completed))
+	for _, beadID := range completed {
+		if beadID == "" {
+			continue
+		}
+		completedSet[beadID] = struct{}{}
 	}
 
-	completedSet := make(map[string]bool)
-	for _, c := range completed {
-		completedSet[c] = true
-	}
-
-	// Collect all eligible beads
-	eligible := []string{}
-	for beadID, deps := range r.beads {
-		if completedSet[beadID] {
-			continue // Skip already completed beads
-		}
-
-		allDepsCompleted := true
-		for _, dep := range deps {
-			if !completedSet[dep] {
-				allDepsCompleted = false
-				break
-			}
-		}
-
-		if allDepsCompleted {
-			eligible = append(eligible, beadID)
-		}
-	}
-
-	if len(eligible) == 0 {
+	pending := r.pendingNodes(completedSet)
+	if len(pending) == 0 {
 		return "", nil
 	}
 
-	// Sort eligible beads for deterministic selection
-	sort.Strings(eligible)
-	return eligible[0], nil
-}
-
-// detectCycles checks if there are any cycles in the unresolved beads.
-func (r *Resolver) detectCycles(completed []string) error {
-	completedSet := make(map[string]bool)
-	for _, c := range completed {
-		completedSet[c] = true
+	order, err := r.topologicalOrder(pending, completedSet)
+	if err != nil {
+		return "", err
 	}
 
-	visited := make(map[string]bool)
-	recStack := make(map[string]bool)
+	for _, beadID := range order {
+		if r.dependenciesSatisfied(beadID, completedSet) {
+			return beadID, nil
+		}
+	}
 
-	for beadID := range r.beads {
-		if completedSet[beadID] {
+	return "", nil
+}
+
+func normalizeDependencies(dependsOn []string) []string {
+	if len(dependsOn) == 0 {
+		return nil
+	}
+
+	seen := make(map[string]struct{}, len(dependsOn))
+	result := make([]string, 0, len(dependsOn))
+	for _, dep := range dependsOn {
+		dep = strings.TrimSpace(dep)
+		if dep == "" {
 			continue
 		}
-		if !visited[beadID] {
-			if hasCycle := r.dfs(beadID, visited, recStack, completedSet); hasCycle {
-				return fmt.Errorf("cycle detected in dependencies involving %s", beadID)
-			}
+		if _, ok := seen[dep]; ok {
+			continue
 		}
+		seen[dep] = struct{}{}
+		result = append(result, dep)
 	}
-
-	return nil
+	return result
 }
 
-// dfs performs depth-first search to detect cycles.
-func (r *Resolver) dfs(beadID string, visited, recStack, completed map[string]bool) bool {
-	visited[beadID] = true
-	recStack[beadID] = true
-
-	deps := r.beads[beadID]
-	for _, dep := range deps {
-		if completed[dep] {
-			continue // Skip completed dependencies
+func (r *Resolver) pendingNodes(completed map[string]struct{}) map[string]struct{} {
+	pending := make(map[string]struct{})
+	for _, beadID := range r.addOrder {
+		if _, done := completed[beadID]; done {
+			continue
 		}
+		pending[beadID] = struct{}{}
+	}
+	return pending
+}
 
-		if !visited[dep] {
-			if r.dfs(dep, visited, recStack, completed) {
-				return true
+func (r *Resolver) topologicalOrder(pending, completed map[string]struct{}) ([]string, error) {
+	indegree := make(map[string]int, len(pending))
+	dependents := make(map[string][]string, len(pending))
+
+	for _, beadID := range r.addOrder {
+		if _, ok := pending[beadID]; !ok {
+			continue
+		}
+		indegree[beadID] = 0
+	}
+
+	for _, beadID := range r.addOrder {
+		if _, ok := pending[beadID]; !ok {
+			continue
+		}
+		for _, dep := range r.beads[beadID] {
+			if _, done := completed[dep]; done {
+				continue
 			}
-		} else if recStack[dep] {
-			return true // Cycle detected
+			if _, ok := pending[dep]; !ok {
+				continue
+			}
+			indegree[beadID]++
+			dependents[dep] = append(dependents[dep], beadID)
 		}
 	}
 
-	recStack[beadID] = false
-	return false
+	queue := make([]string, 0, len(pending))
+	for _, beadID := range r.addOrder {
+		if _, ok := pending[beadID]; !ok {
+			continue
+		}
+		if indegree[beadID] == 0 {
+			queue = append(queue, beadID)
+		}
+	}
+
+	order := make([]string, 0, len(pending))
+	for len(queue) > 0 {
+		current := queue[0]
+		queue = queue[1:]
+		order = append(order, current)
+		for _, dependent := range dependents[current] {
+			indegree[dependent]--
+			if indegree[dependent] == 0 {
+				queue = append(queue, dependent)
+			}
+		}
+	}
+
+	if len(order) != len(pending) {
+		if cycle, ok := r.findCycle(pending, completed); ok {
+			return nil, fmt.Errorf("cycle detected: %s", strings.Join(cycle, " -> "))
+		}
+		return nil, fmt.Errorf("cycle detected in dependency graph")
+	}
+
+	return order, nil
+}
+
+func (r *Resolver) dependenciesSatisfied(beadID string, completed map[string]struct{}) bool {
+	for _, dep := range r.beads[beadID] {
+		if _, ok := completed[dep]; !ok {
+			return false
+		}
+	}
+	return true
+}
+
+func (r *Resolver) findCycle(pending, completed map[string]struct{}) ([]string, bool) {
+	visited := make(map[string]struct{}, len(pending))
+	onStack := make(map[string]struct{}, len(pending))
+	stack := []string{}
+
+	var dfs func(string) ([]string, bool)
+	dfs = func(node string) ([]string, bool) {
+		visited[node] = struct{}{}
+		onStack[node] = struct{}{}
+		stack = append(stack, node)
+
+		for _, dep := range r.beads[node] {
+			if _, done := completed[dep]; done {
+				continue
+			}
+			if _, ok := pending[dep]; !ok {
+				continue
+			}
+			if _, ok := onStack[dep]; ok {
+				return buildCycle(stack, dep), true
+			}
+			if _, ok := visited[dep]; ok {
+				continue
+			}
+			if cycle, ok := dfs(dep); ok {
+				return cycle, true
+			}
+		}
+
+		stack = stack[:len(stack)-1]
+		delete(onStack, node)
+		return nil, false
+	}
+
+	for _, beadID := range r.addOrder {
+		if _, ok := pending[beadID]; !ok {
+			continue
+		}
+		if _, ok := visited[beadID]; ok {
+			continue
+		}
+		if cycle, ok := dfs(beadID); ok {
+			return cycle, true
+		}
+	}
+
+	return nil, false
+}
+
+func buildCycle(stack []string, target string) []string {
+	start := -1
+	for i := len(stack) - 1; i >= 0; i-- {
+		if stack[i] == target {
+			start = i
+			break
+		}
+	}
+	if start == -1 {
+		return []string{target, target}
+	}
+
+	cycle := make([]string, 0, len(stack)-start+1)
+	cycle = append(cycle, stack[start:]...)
+	cycle = append(cycle, target)
+	return cycle
 }
