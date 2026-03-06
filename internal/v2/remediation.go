@@ -35,10 +35,11 @@ type WorktreeCleaner interface {
 }
 
 var (
-	ErrSpecIDRequired         = errors.New("spec ID required")
-	ErrAcceptStageRequired    = errors.New("accept stage required")
-	ErrBeadRunnerRequired     = errors.New("bead runner required")
-	ErrDecomposeStageRequired = errors.New("decompose stage required")
+	ErrSpecIDRequired               = errors.New("spec ID required")
+	ErrAcceptStageRequired          = errors.New("accept stage required")
+	ErrBeadRunnerRequired           = errors.New("bead runner required")
+	ErrDecomposeStageRequired       = errors.New("decompose stage required")
+	ErrUnexpectedDecomposeArtifacts = errors.New("unexpected artifacts type from decompose stage")
 )
 
 // RemediationRunner drives the accept-gap-decompose-bead loop cycle.
@@ -174,7 +175,7 @@ func (r *RemediationRunner) decompose(ctx context.Context, req *stage.Request) (
 
 	artifacts, ok := res.Artifacts.(*stage.DecomposeArtifacts)
 	if !ok {
-		return nil, fmt.Errorf("unexpected artifacts type from decompose stage")
+		return nil, ErrUnexpectedDecomposeArtifacts
 	}
 
 	return append([]*bead.Bead(nil), artifacts.Beads...), nil
