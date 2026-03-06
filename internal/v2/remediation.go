@@ -35,9 +35,10 @@ type WorktreeCleaner interface {
 }
 
 var (
-	ErrSpecIDRequired      = errors.New("spec ID required")
-	ErrAcceptStageRequired = errors.New("accept stage required")
-	ErrBeadRunnerRequired  = errors.New("bead runner required")
+	ErrSpecIDRequired         = errors.New("spec ID required")
+	ErrAcceptStageRequired    = errors.New("accept stage required")
+	ErrBeadRunnerRequired     = errors.New("bead runner required")
+	ErrDecomposeStageRequired = errors.New("decompose stage required")
 )
 
 // RemediationRunner drives the accept-gap-decompose-bead loop cycle.
@@ -159,7 +160,7 @@ func (r *RemediationRunner) presentFailureSummary(ctx context.Context, specID, r
 
 func (r *RemediationRunner) decompose(ctx context.Context, req *stage.Request) ([]*bead.Bead, error) {
 	if r.cfg.DecomposeStage == nil {
-		return nil, fmt.Errorf("decompose stage required")
+		return nil, ErrDecomposeStageRequired
 	}
 
 	res, err := r.cfg.DecomposeStage.Run(ctx, req)
