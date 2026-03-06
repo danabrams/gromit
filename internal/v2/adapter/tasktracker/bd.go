@@ -44,7 +44,7 @@ func (a *BDAdapter) ShowBead(ctx context.Context, beadID string) (*Bead, error) 
 	if err != nil {
 		return nil, err
 	}
-	beadItem, err := client.Show(ctx, beadID)
+	beadItem, err := client.Show(ctx, normalizeString(beadID))
 	if err != nil {
 		return nil, err
 	}
@@ -86,8 +86,9 @@ func (a *BDAdapter) QueryBeads(ctx context.Context, req QueryBeadsRequest) (*Que
 	}
 
 	var beads []*bead.Bead
-	if strings.TrimSpace(req.Status) != "" {
-		beads, err = client.ListByStatus(ctx, strings.ToLower(req.Status))
+	status := normalizeString(req.Status)
+	if status != "" {
+		beads, err = client.ListByStatus(ctx, strings.ToLower(status))
 	} else {
 		beads, err = client.List(ctx)
 	}
@@ -100,7 +101,8 @@ func (a *BDAdapter) QueryBeads(ctx context.Context, req QueryBeadsRequest) (*Que
 		if b == nil {
 			continue
 		}
-		if strings.TrimSpace(req.Parent) != "" && strings.TrimSpace(b.Parent) != strings.TrimSpace(req.Parent) {
+		parent := normalizeString(req.Parent)
+		if parent != "" && normalizeString(b.Parent) != parent {
 			continue
 		}
 		if !hasLabels(b.Labels, req.Labels) {
@@ -179,4 +181,8 @@ func copyStrings(src []string) []string {
 	dst := make([]string, len(src))
 	copy(dst, src)
 	return dst
+}
+
+func normalizeString(value string) string {
+	return strings.TrimSpace(value)
 }
