@@ -42,6 +42,14 @@ func TestRemediationRunnerRun_requiresDecomposeStage(t *testing.T) {
 	}
 }
 
+func TestRemediationRunnerRun_requiresValidDecomposeArtifacts(t *testing.T) {
+	runner := newRunnerForUnexpectedArtifacts(newDecisionFailStage(), newDecomposeStageReturning("unexpected"), 1)
+
+	if err := runner.Run(context.Background(), "spec-id"); !errors.Is(err, ErrUnexpectedDecomposeArtifacts) {
+		t.Fatalf("expected ErrUnexpectedDecomposeArtifacts, got %v", err)
+	}
+}
+
 func newRunnerForSpecValidation() *RemediationRunner {
 	return NewRemediationRunner(RemediationRunnerConfig{})
 }
