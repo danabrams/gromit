@@ -2,23 +2,64 @@ package event
 
 import "sync"
 
-// subscriber invokes its handler sequentially as events arrive.
-const subscriberBufferSize = 16
-
 type subscriber struct {
 	fn func(Event)
-	ch chan Event
+
+	mu     sync.Mutex
+	queue  []Event
+	notify chan struct{}
+}
+
+func newSubscriber(fn func(Event)) *subscriber {
+	sub := &subscriber{
+		fn:     fn,
+		notify: make(chan struct{}, 1),
+	}
+
+	go sub.run()
+	return sub
 }
 
 func (s *subscriber) run() {
-	for evt := range s.ch {
-		func() {
-			defer func() {
-				recover()
-			}()
-			s.fn(evt)
-		}()
+	for {
+		evt := s.next()
+		s.dispatch(evt)
 	}
+}
+
+func (s *subscriber) next() Event {
+	s.mu.Lock()
+	for len(s.queue) == 0 {
+		s.mu.Unlock()
+		<-s.notify
+		s.mu.Lock()
+	}
+
+	evt := s.queue[0]
+	s.queue[0] = Event{}
+	s.queue = s.queue[1:]
+	s.mu.Unlock()
+
+	return evt
+}
+
+func (s *subscriber) enqueue(evt Event) {
+	s.mu.Lock()
+	s.queue = append(s.queue, evt)
+	s.mu.Unlock()
+
+	select {
+	case s.notify <- struct{}{}:
+	default:
+	}
+}
+
+func (s *subscriber) dispatch(evt Event) {
+	defer func() {
+		recover()
+	}()
+
+	s.fn(evt)
 }
 
 // Emitter fans out events to registered subscribers.
@@ -36,26 +77,18 @@ func NewEmitter() *Emitter {
 
 // Subscribe registers fn to receive emitted events.
 func (e *Emitter) Subscribe(fn func(Event)) {
-	sub := &subscriber{
-		fn: fn,
-		ch: make(chan Event, subscriberBufferSize),
-	}
+	sub := newSubscriber(fn)
 
 	e.mu.Lock()
 	e.subscribers[sub] = struct{}{}
 	e.mu.Unlock()
-
-	go sub.run()
 }
 
 // Emit delivers evt to all subscribers without waiting for them to complete.
 func (e *Emitter) Emit(evt Event) {
 	e.mu.RLock()
 	for sub := range e.subscribers {
-		select {
-		case sub.ch <- evt:
-		default:
-		}
+		sub.enqueue(evt)
 	}
 	e.mu.RUnlock()
 }
