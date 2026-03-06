@@ -424,13 +424,19 @@ func (s *SpecLoop) readGapAnalysis(worktree string) (string, error) {
 }
 
 func (s *SpecLoop) writePlanFile(worktree, plan string) error {
-	if strings.TrimSpace(worktree) == "" {
+	trimmed := strings.TrimSpace(worktree)
+	if trimmed == "" {
 		return fmt.Errorf("worktree required for plan persistence")
 	}
-	path := filepath.Join(worktree, "plan.md")
-	if err := os.MkdirAll(worktree, 0o755); err != nil {
-		return fmt.Errorf("create worktree directory: %w", err)
+	gromitDir := s.cfg.Paths.GromitDir
+	if gromitDir == "" {
+		gromitDir = defaultGromitDir
 	}
+	planDir := filepath.Join(trimmed, gromitDir, v2DirName)
+	if err := os.MkdirAll(planDir, 0o755); err != nil {
+		return fmt.Errorf("create plan directory: %w", err)
+	}
+	path := filepath.Join(planDir, "plan.md")
 	if err := os.WriteFile(path, []byte(plan), 0o644); err != nil {
 		return fmt.Errorf("write plan file: %w", err)
 	}

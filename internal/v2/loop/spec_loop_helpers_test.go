@@ -156,7 +156,7 @@ func newFakePresenterAdapter(t *testing.T) *fakePresenterAdapter {
 func (f *fakePresenterAdapter) PresentSummary(ctx context.Context, specID string, summary presentation.PresentationSummary) error {
 	f.t.Helper()
 	f.lastSummary = summary
-	planPath := filepath.Join(summary.Worktree, "plan.md")
+	planPath := filepath.Join(summary.Worktree, ".gromit", "v2", "plan.md")
 	data, err := os.ReadFile(planPath)
 	if err != nil {
 		f.t.Fatalf("read plan file: %v", err)
