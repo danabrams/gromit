@@ -528,6 +528,49 @@ func TestBeadLoopStopsWhenStopChannelCloses(t *testing.T) {
 	}
 }
 
+func TestBeadLoopStopsWhenContextCanceled(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	gate := &cancelingStage{name: "gate", cancelAfter: 1, cancelFn: cancel}
+	build := &decisionStage{name: "build", decision: stage.DecisionProceed}
+	validate := &decisionStage{name: "validate", decision: stage.DecisionProceed}
+	review := &decisionStage{name: "review", decision: stage.DecisionProceed}
+	epilogue := &decisionStage{name: "epilogue", decision: stage.DecisionProceed}
+
+	config := BeadLoopConfig{
+		Gate:     gate,
+		Build:    build,
+		Validate: validate,
+		Review:   review,
+		Epilogue: epilogue,
+	}
+
+	loop, err := NewBeadLoop(config)
+	if err != nil {
+		t.Fatalf("NewBeadLoop: %v", err)
+	}
+
+	beads := []*bead.Bead{
+		{ID: "first"},
+		{ID: "second"},
+	}
+
+	err = loop.Run(ctx, beads, nil)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("Run error = %v, want context canceled", err)
+	}
+
+	if build.runCount != 1 {
+		t.Fatalf("build run count = %d, want 1", build.runCount)
+	}
+	if review.runCount != 1 {
+		t.Fatalf("review run count = %d, want 1", review.runCount)
+	}
+}
+
 func collectLifecycleEvents(ch chan event.TypedEvent, expected int) []event.TypedEvent {
 	collected := make([]event.TypedEvent, 0, expected)
 	for len(collected) < expected {
@@ -662,6 +705,23 @@ func (s *closingStage) Run(ctx context.Context, req *stage.Request) (*stage.Resu
 	s.runCount++
 	if s.runCount == 1 && s.stopCh != nil {
 		close(s.stopCh)
+	}
+	return &stage.Result{Decision: stage.DecisionProceed}, nil
+}
+
+type cancelingStage struct {
+	name        string
+	cancelAfter int
+	cancelFn    func()
+	runCount    int
+}
+
+func (s *cancelingStage) Name() string { return s.name }
+
+func (s *cancelingStage) Run(ctx context.Context, req *stage.Request) (*stage.Result, error) {
+	s.runCount++
+	if s.cancelFn != nil && s.cancelAfter > 0 && s.runCount == s.cancelAfter {
+		s.cancelFn()
 	}
 	return &stage.Result{Decision: stage.DecisionProceed}, nil
 }
