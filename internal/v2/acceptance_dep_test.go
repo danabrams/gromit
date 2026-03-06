@@ -37,6 +37,9 @@ func TestRun2BlocksSpecWhenDependenciesIncomplete(t *testing.T) {
 	cfg := &config.Config{}
 	cfg.Project.Profile = "acceptance"
 
+	planStage := newAcceptancePlanStage("child-plan")
+	presentStage, summaryCtx := newAcceptancePresentStage()
+
 	loopInstance, err := loop.NewSpecLoop(
 		adapter.AdapterSet{
 			Git:         &fatalGitAdapter{t: t},
@@ -46,6 +49,8 @@ func TestRun2BlocksSpecWhenDependenciesIncomplete(t *testing.T) {
 		},
 		cfg,
 		gate,
+		loop.WithPlanStage(planStage),
+		loop.WithPresentStage(presentStage, summaryCtx),
 	)
 	if err != nil {
 		t.Fatalf("creating spec loop: %v", err)

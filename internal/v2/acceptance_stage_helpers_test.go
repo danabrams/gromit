@@ -8,8 +8,8 @@ import (
 	"os"
 	"path/filepath"
 
-	planstage "github.com/danabrams/gromit/internal/v2/stage/plan"
 	"github.com/danabrams/gromit/internal/v2/stage"
+	planstage "github.com/danabrams/gromit/internal/v2/stage/plan"
 	"github.com/danabrams/gromit/internal/v2/stage/present"
 )
 

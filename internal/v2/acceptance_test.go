@@ -41,11 +41,16 @@ func TestSpecLoopExecutesCanonicalStageChain(t *testing.T) {
 	cfg := &config.Config{}
 	gate := newDependencyGate()
 
+	planStage := newAcceptancePlanStage(specID + "-plan")
+	presentStage, summaryCtx := newAcceptancePresentStage()
+
 	specLoop, err := loop.NewSpecLoop(
 		adapters,
 		cfg,
 		gate,
 		loop.WithStageRecorder(recorder),
+		loop.WithPlanStage(planStage),
+		loop.WithPresentStage(presentStage, summaryCtx),
 		loop.WithDecomposeStage(newFakeDecomposeStage(specID)),
 		loop.WithBeadLoop(newFakeBeadRunner()),
 		loop.WithAcceptStage(newFakeAcceptStage()),
@@ -178,7 +183,7 @@ func requireCanonicalStageSequence(t *testing.T, recorder *fixtureStageRecorder)
 
 func verifyPlanFileJustInTime(t *testing.T, worktree, specID string, recorder *fixtureStageRecorder) {
 	t.Helper()
-	planPath := filepath.Join(worktree, "plan.md")
+	planPath := filepath.Join(worktree, ".gromit", "v2", "plan.md")
 	info, err := os.Stat(planPath)
 	if err != nil {
 		t.Fatalf("stat plan file: %v", err)

@@ -26,10 +26,14 @@ func TestAdapterSwappability(t *testing.T) {
 	for _, swap := range adapterSwaps() {
 		swap := swap
 		t.Run(swap.name, func(t *testing.T) {
+			planStage := newAcceptancePlanStage("spec-swap-plan")
+			presentStage, summaryCtx := newAcceptancePresentStage()
 			loopInstance, err := loop.NewSpecLoop(
 				swap.setup(newAdapterSet()),
 				&config.Config{},
 				newDependencyGate(),
+				loop.WithPlanStage(planStage),
+				loop.WithPresentStage(presentStage, summaryCtx),
 				loop.WithDecomposeStage(newFakeDecomposeStage("spec-swap")),
 				loop.WithBeadLoop(newFakeBeadRunner()),
 				loop.WithAcceptStage(newFakeAcceptStage()),
@@ -43,10 +47,14 @@ func TestAdapterSwappability(t *testing.T) {
 		})
 	}
 
+	planStage := newAcceptancePlanStage("spec-base-plan")
+	presentStage, summaryCtx := newAcceptancePresentStage()
 	baseLoop, err := loop.NewSpecLoop(
 		newAdapterSet(),
 		&config.Config{},
 		newDependencyGate(),
+		loop.WithPlanStage(planStage),
+		loop.WithPresentStage(presentStage, summaryCtx),
 		loop.WithDecomposeStage(newFakeDecomposeStage("spec-base")),
 		loop.WithBeadLoop(newFakeBeadRunner()),
 		loop.WithAcceptStage(newFakeAcceptStage()),
