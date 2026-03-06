@@ -171,7 +171,8 @@ func (r remediationBeadRunner) Run(ctx context.Context, beads []*bead.Bead) erro
 	if r.loop == nil {
 		return fmt.Errorf("bead loop required")
 	}
-	return r.loop.Run(ctx, beads, nil)
+	_, err := r.loop.Run(ctx, beads, nil)
+	return err
 }
 
 type noopValidationRunner struct{}

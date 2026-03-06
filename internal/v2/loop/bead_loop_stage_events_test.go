@@ -32,7 +32,7 @@ func TestBeadLoopEmitsStageLifecycleEvents(t *testing.T) {
 	}
 
 	beads := []*bead.Bead{{ID: "stage-bead"}}
-	if err := loop.Run(context.Background(), beads, nil); err != nil {
+	if _, err := loop.Run(context.Background(), beads, nil); err != nil {
 		t.Fatalf("Run failed: %v", err)
 	}
 

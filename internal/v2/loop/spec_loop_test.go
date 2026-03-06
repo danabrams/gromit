@@ -591,13 +591,14 @@ type fakeBeadRunner struct {
 	ran        bool
 	lastBeads  []*bead.Bead
 	lastStopCh <-chan struct{}
+	result     BeadLoopResult
 }
 
-func (f *fakeBeadRunner) Run(ctx context.Context, beads []*bead.Bead, stopCh <-chan struct{}) error {
+func (f *fakeBeadRunner) Run(ctx context.Context, beads []*bead.Bead, stopCh <-chan struct{}) (BeadLoopResult, error) {
 	f.ran = true
 	f.lastBeads = append([]*bead.Bead(nil), beads...)
 	f.lastStopCh = stopCh
-	return nil
+	return f.result, nil
 }
 
 func newFakeAcceptStage() *fakeAcceptStage {

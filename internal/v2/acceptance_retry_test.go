@@ -23,7 +23,7 @@ func TestRetryContextPopulatedOnFailure(t *testing.T) {
 		t.Fatalf("failed to build retry loop: %v", err)
 	}
 
-	err = beadLoop.Run(context.Background(), []*bead.Bead{{ID: "bead"}}, nil)
+	_, err = beadLoop.Run(context.Background(), []*bead.Bead{{ID: "bead"}}, nil)
 	if err == nil {
 		t.Fatalf("expected loop to fail when stage errors")
 	}

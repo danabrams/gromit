@@ -264,7 +264,8 @@ func (r *integrationRemediationRunner) Run(ctx context.Context, specID string) e
 			Labels: append([]string(nil), r.labels...),
 		},
 	}
-	return r.beadLoop.Run(ctx, beads, nil)
+	_, err := r.beadLoop.Run(ctx, beads, nil)
+	return err
 }
 
 func (r *integrationRemediationRunner) emitGenerationCapEvents(specID string) {

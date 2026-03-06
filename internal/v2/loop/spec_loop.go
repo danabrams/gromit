@@ -13,6 +13,7 @@ import (
 	"github.com/danabrams/gromit/internal/events"
 	"github.com/danabrams/gromit/internal/v2/adapter"
 	"github.com/danabrams/gromit/internal/v2/presentation"
+	v2review "github.com/danabrams/gromit/internal/v2/review"
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
 	stageaccept "github.com/danabrams/gromit/internal/v2/stage/accept"
 	planstage "github.com/danabrams/gromit/internal/v2/stage/plan"
@@ -20,8 +21,8 @@ import (
 )
 
 const (
-	defaultGromitDir    = ".gromit"
-	v2DirName           = "v2"
+	defaultGromitDir     = ".gromit"
+	v2DirName            = "v2"
 	maxAcceptanceRetries = 5
 )
 
@@ -47,7 +48,7 @@ type StageRecorder interface {
 
 // BeadRunner executes a set of beads via the inner loop.
 type BeadRunner interface {
-	Run(ctx context.Context, beads []*bead.Bead, stopCh <-chan struct{}) error
+	Run(ctx context.Context, beads []*bead.Bead, stopCh <-chan struct{}) (BeadLoopResult, error)
 }
 
 type remediationRunner interface {
@@ -223,11 +224,12 @@ func (s *SpecLoop) Run(ctx context.Context, specID string, stopCh <-chan struct{
 	}
 
 	s.recordBeadStages()
-	if err := s.runBeadLoop(ctx, beads, worktree, stopCh); err != nil {
+	beadResult, err := s.runBeadLoop(ctx, beads, worktree, stopCh)
+	if err != nil {
 		return err
 	}
 
-	baseSummary := s.buildSuccessSummary(specID, worktree, plan, beads, nil)
+	baseSummary := s.buildSuccessSummary(specID, worktree, plan, beads, nil, beadResult.OutOfScopeFindings)
 
 	if err := s.ctxErr(ctx); err != nil {
 		return err
@@ -239,7 +241,7 @@ func (s *SpecLoop) Run(ctx context.Context, specID string, stopCh <-chan struct{
 		return s.handleFailure(ctx, specID, baseSummary, err)
 	}
 
-	summary := s.buildSuccessSummary(specID, worktree, plan, beads, acceptRes)
+	summary := s.buildSuccessSummary(specID, worktree, plan, beads, acceptRes, beadResult.OutOfScopeFindings)
 
 	if err := s.ctxErr(ctx); err != nil {
 		return err
@@ -293,9 +295,9 @@ func (s *SpecLoop) recordBeadStages() {
 	}
 }
 
-func (s *SpecLoop) runBeadLoop(ctx context.Context, beads []*bead.Bead, worktree string, stopCh <-chan struct{}) error {
+func (s *SpecLoop) runBeadLoop(ctx context.Context, beads []*bead.Bead, worktree string, stopCh <-chan struct{}) (BeadLoopResult, error) {
 	if s.beadRunner == nil {
-		return fmt.Errorf("bead runner required")
+		return BeadLoopResult{}, fmt.Errorf("bead runner required")
 	}
 	if setter, ok := s.beadRunner.(worktreeSetter); ok {
 		setter.SetWorktree(worktree)
@@ -348,21 +350,22 @@ func (s *SpecLoop) acceptFailed(res *stagepkg.Result) bool {
 	return res.Decision == stagepkg.DecisionFail
 }
 
-func (s *SpecLoop) buildSuccessSummary(specID, worktree, plan string, beads []*bead.Bead, acceptRes *stagepkg.Result) presentation.PresentationSummary {
+func (s *SpecLoop) buildSuccessSummary(specID, worktree, plan string, beads []*bead.Bead, acceptRes *stagepkg.Result, outOfScope []v2review.Finding) presentation.PresentationSummary {
 	integrationBranch := strings.TrimSpace(s.cfg.Git.BaseBranch)
 	if integrationBranch == "" {
 		integrationBranch = presentation.DefaultIntegrationBranch()
 	}
 
 	return presentation.PresentationSummary{
-		SpecName:          specID,
-		SpecBranch:        presentation.SpecBranchName(specID),
-		IntegrationBranch: integrationBranch,
-		Plan:              plan,
-		Worktree:          worktree,
-		BeadSummaries:     s.beadSummaries(beads),
-		Success:           true,
-		AcceptanceResults: s.extractAcceptanceResults(acceptRes),
+		SpecName:           specID,
+		SpecBranch:         presentation.SpecBranchName(specID),
+		IntegrationBranch:  integrationBranch,
+		Plan:               plan,
+		Worktree:           worktree,
+		BeadSummaries:      s.beadSummaries(beads),
+		Success:            true,
+		AcceptanceResults:  s.extractAcceptanceResults(acceptRes),
+		OutOfScopeFindings: cloneOutOfScopeFindings(outOfScope),
 	}
 }
 
@@ -389,6 +392,18 @@ func (s *SpecLoop) beadSummaries(beads []*bead.Bead) []presentation.BeadSummary 
 		summaries = append(summaries, presentation.BeadSummary{ID: b.ID, Title: b.Title, Description: b.Description})
 	}
 	return summaries
+}
+
+func cloneOutOfScopeFindings(findings []v2review.Finding) []v2review.Finding {
+	if len(findings) == 0 {
+		return nil
+	}
+	clones := make([]v2review.Finding, len(findings))
+	for i, finding := range findings {
+		clones[i] = finding
+		clones[i].AffectedFiles = append([]string(nil), finding.AffectedFiles...)
+	}
+	return clones
 }
 
 func (s *SpecLoop) specStageRequest(specID, worktree string) stagepkg.Request {

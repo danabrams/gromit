@@ -13,6 +13,7 @@ import (
 	"github.com/danabrams/gromit/internal/v2/dep"
 	"github.com/danabrams/gromit/internal/v2/event"
 	"github.com/danabrams/gromit/internal/v2/generation"
+	v2review "github.com/danabrams/gromit/internal/v2/review"
 	"github.com/danabrams/gromit/internal/v2/stage"
 	reviewstage "github.com/danabrams/gromit/internal/v2/stage/review"
 )
@@ -30,17 +31,23 @@ type BeadLoopConfig struct {
 	StartGeneration int
 }
 
+// BeadLoopResult captures metadata produced by a bead loop execution.
+type BeadLoopResult struct {
+	OutOfScopeFindings []v2review.Finding
+}
+
 // BeadLoop orchestrates the per-bead execution pipeline.
 type BeadLoop struct {
-	gate            stage.Stage
-	build           stage.Stage
-	validate        stage.Stage
-	review          stage.Stage
-	epilogue        stage.Stage
-	emitter         *event.Emitter
-	generationCap   int
-	startGeneration int
-	worktree        string
+	gate               stage.Stage
+	build              stage.Stage
+	validate           stage.Stage
+	review             stage.Stage
+	epilogue           stage.Stage
+	emitter            *event.Emitter
+	generationCap      int
+	startGeneration    int
+	worktree           string
+	outOfScopeFindings []v2review.Finding
 }
 
 var ErrGenerationCapReached = errors.New("generation cap reached")
@@ -87,15 +94,16 @@ func (b *BeadLoop) SetWorktree(worktree string) {
 }
 
 // Run processes the provided beads through the stage pipeline.
-func (b *BeadLoop) Run(ctx context.Context, beads []*bead.Bead, stopCh <-chan struct{}) error {
+func (b *BeadLoop) Run(ctx context.Context, beads []*bead.Bead, stopCh <-chan struct{}) (BeadLoopResult, error) {
 	highestGeneration := 0
 	generationLimit := 0
+	b.outOfScopeFindings = b.outOfScopeFindings[:0]
 	if b.generationCap > 0 {
 		generationLimit = b.startGeneration + b.generationCap
 		highestGeneration = b.findHighestGeneration(beads)
 		if highestGeneration >= generationLimit {
 			b.emitGenerationCapReached(highestGeneration)
-			return ErrGenerationCapReached
+			return BeadLoopResult{}, ErrGenerationCapReached
 		}
 	}
 
@@ -121,7 +129,7 @@ runLoop:
 		if ctx != nil {
 			select {
 			case <-ctx.Done():
-				return ctx.Err()
+				return BeadLoopResult{}, ctx.Err()
 			default:
 			}
 		}
@@ -134,24 +142,26 @@ runLoop:
 		}
 		next, err := resolver.Next(completed)
 		if err != nil {
-			return fmt.Errorf("resolve bead: %w", err)
+			return BeadLoopResult{}, fmt.Errorf("resolve bead: %w", err)
 		}
 		if next == "" {
 			break
 		}
 		beadItem, ok := beadMap[next]
 		if !ok {
-			return fmt.Errorf("bead %q missing from input list", next)
+			return BeadLoopResult{}, fmt.Errorf("bead %q missing from input list", next)
 		}
 		b.emitBeadStarted(beadItem, iteration)
 		if err := b.processBead(ctx, beadItem, iteration, &highestGeneration, generationLimit); err != nil {
-			return err
+			return BeadLoopResult{}, err
 		}
 		b.emitBeadCompleted(beadItem, iteration, true, 0)
 		completed = append(completed, next)
 		iteration++
 	}
-	return nil
+	return BeadLoopResult{
+		OutOfScopeFindings: cloneOutOfScopeFindings(b.outOfScopeFindings),
+	}, nil
 }
 
 type stageEntry struct {
@@ -264,8 +274,11 @@ func (b *BeadLoop) runStageEntry(ctx context.Context, beadItem *bead.Bead, itera
 		if failed {
 			b.emitStageFailed(stageName, beadItem.ID, iteration, reason)
 		} else {
-			if entry.stage == b.review && b.handleGenerationCapFromReview(res, highestGen, generationLimit) {
-				return ErrGenerationCapReached
+			if entry.stage == b.review {
+				b.collectOutOfScopeFindings(res)
+				if b.handleGenerationCapFromReview(res, highestGen, generationLimit) {
+					return ErrGenerationCapReached
+				}
 			}
 			return nil
 		}
@@ -561,6 +574,19 @@ func (b *BeadLoop) handleGenerationCapFromReview(res *stage.Result, highestGen *
 		return true
 	}
 	return false
+}
+
+func (b *BeadLoop) collectOutOfScopeFindings(res *stage.Result) {
+	if res == nil || res.Artifacts == nil {
+		return
+	}
+	artifacts, ok := res.Artifacts.(*reviewstage.ReviewArtifacts)
+	if !ok {
+		return
+	}
+	for _, finding := range artifacts.OutOfScope {
+		b.outOfScopeFindings = append(b.outOfScopeFindings, finding)
+	}
 }
 
 func (b *BeadLoop) emitGenerationCapReached(highestGeneration int) {

@@ -39,7 +39,7 @@ func TestBeadLoopRunsStagesInOrder(t *testing.T) {
 		t.Fatalf("NewBeadLoop: %v", err)
 	}
 
-	if err := loop.Run(context.Background(), beads, nil); err != nil {
+	if _, err := loop.Run(context.Background(), beads, nil); err != nil {
 		t.Fatalf("Run failed: %v", err)
 	}
 
@@ -77,7 +77,7 @@ func TestBeadLoopRunsBeadsInDependencyOrder(t *testing.T) {
 		{ID: "root"},
 	}
 
-	if err := loop.Run(context.Background(), beads, nil); err != nil {
+	if _, err := loop.Run(context.Background(), beads, nil); err != nil {
 		t.Fatalf("Run failed: %v", err)
 	}
 
@@ -123,7 +123,7 @@ func TestBeadLoopShortCircuitsToFailurePath(t *testing.T) {
 				t.Fatalf("NewBeadLoop: %v", err)
 			}
 
-			err = loop.Run(context.Background(), []*bead.Bead{{ID: "blocked"}}, nil)
+			_, err = loop.Run(context.Background(), []*bead.Bead{{ID: "blocked"}}, nil)
 			if err == nil {
 				t.Fatalf("expected error for case %s", tc.name)
 			}
@@ -197,7 +197,7 @@ func TestBeadLoopRetryWithRunsBuildBeforeRetryAndReportsAttempt(t *testing.T) {
 	}
 
 	beads := []*bead.Bead{{ID: "retry"}}
-	if err := loop.Run(context.Background(), beads, nil); err != nil {
+	if _, err := loop.Run(context.Background(), beads, nil); err != nil {
 		t.Fatalf("Run failed: %v", err)
 	}
 
@@ -288,7 +288,7 @@ func TestBeadLoopValidateRetriesBuildOnFailure(t *testing.T) {
 	}
 
 	beads := []*bead.Bead{{ID: "spec"}}
-	if err := loop.Run(context.Background(), beads, nil); err != nil {
+	if _, err := loop.Run(context.Background(), beads, nil); err != nil {
 		t.Fatalf("Run failed: %v", err)
 	}
 
@@ -326,7 +326,7 @@ func TestBeadLoopStageRequestIncludesWorktree(t *testing.T) {
 	}
 	loop.SetWorktree(worktree)
 
-	if err := loop.Run(context.Background(), []*bead.Bead{{ID: "spec"}}, nil); err != nil {
+	if _, err := loop.Run(context.Background(), []*bead.Bead{{ID: "spec"}}, nil); err != nil {
 		t.Fatalf("Run failed: %v", err)
 	}
 
@@ -380,7 +380,7 @@ func TestBeadLoopStageErrorPropagation(t *testing.T) {
 				t.Fatalf("NewBeadLoop: %v", err)
 			}
 
-			err = loop.Run(context.Background(), []*bead.Bead{{ID: "err-bead"}}, nil)
+			_, err = loop.Run(context.Background(), []*bead.Bead{{ID: "err-bead"}}, nil)
 			if err == nil {
 				t.Fatal("expected error from Run, got nil")
 			}
@@ -418,7 +418,7 @@ func TestBeadLoopEmitsLifecycleEvents(t *testing.T) {
 	}
 
 	beads := []*bead.Bead{{ID: "event-bead", Title: "Eventful"}}
-	if err := loop.Run(context.Background(), beads, nil); err != nil {
+	if _, err := loop.Run(context.Background(), beads, nil); err != nil {
 		t.Fatalf("Run failed: %v", err)
 	}
 
@@ -475,7 +475,7 @@ func TestBeadLoopBridgesToLegacyEmitter(t *testing.T) {
 		t.Fatalf("NewBeadLoop: %v", err)
 	}
 
-	if err := loop.Run(context.Background(), beads, nil); err != nil {
+	if _, err := loop.Run(context.Background(), beads, nil); err != nil {
 		t.Fatalf("Run failed: %v", err)
 	}
 
@@ -520,7 +520,7 @@ func TestBeadLoopPopulatesIterationOnStageRequests(t *testing.T) {
 		t.Fatalf("NewBeadLoop: %v", err)
 	}
 
-	if err := loop.Run(context.Background(), beads, nil); err != nil {
+	if _, err := loop.Run(context.Background(), beads, nil); err != nil {
 		t.Fatalf("Run failed: %v", err)
 	}
 
@@ -574,7 +574,7 @@ func TestBeadLoopEnforcesGenerationCap(t *testing.T) {
 		{ID: "bead-at-gen-3", Labels: []string{generation.Format(3)}},
 	}
 
-	err = loop.Run(context.Background(), beads, nil)
+	_, err = loop.Run(context.Background(), beads, nil)
 	if !errors.Is(err, ErrGenerationCapReached) {
 		t.Fatalf("Run error = %v, want ErrGenerationCapReached", err)
 	}
@@ -621,7 +621,7 @@ func TestBeadLoopStopsWhenReviewCreatesBeadsAtGenerationCap(t *testing.T) {
 	}
 
 	beads := []*bead.Bead{{ID: "parent", Labels: []string{generation.Format(0)}}}
-	err = loop.Run(context.Background(), beads, nil)
+	_, err = loop.Run(context.Background(), beads, nil)
 	if !errors.Is(err, ErrGenerationCapReached) {
 		t.Fatalf("Run error = %v, want ErrGenerationCapReached", err)
 	}
@@ -657,7 +657,7 @@ func TestBeadLoopStopsWhenStopChannelCloses(t *testing.T) {
 		{ID: "second"},
 	}
 
-	if err := loop.Run(context.Background(), beads, stopCh); err != nil {
+	if _, err := loop.Run(context.Background(), beads, stopCh); err != nil {
 		t.Fatalf("Run failed: %v", err)
 	}
 
@@ -702,7 +702,7 @@ func TestBeadLoopStopsWhenContextCanceled(t *testing.T) {
 		{ID: "second"},
 	}
 
-	err = loop.Run(ctx, beads, nil)
+	_, err = loop.Run(ctx, beads, nil)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("Run error = %v, want context canceled", err)
 	}
