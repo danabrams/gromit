@@ -308,6 +308,36 @@ func TestBeadLoopValidateRetriesBuildOnFailure(t *testing.T) {
 	}
 }
 
+func TestBeadLoopStageRequestIncludesWorktree(t *testing.T) {
+	t.Parallel()
+
+	worktree := "/tmp/worktree"
+	validate := newRetryStage("validate", 0, nil)
+	config := BeadLoopConfig{
+		Gate:     newNoopStage("gate"),
+		Build:    newNoopStage("build"),
+		Validate: validate,
+		Review:   newNoopStage("review"),
+		Epilogue: newNoopStage("epilogue"),
+	}
+	loop, err := NewBeadLoop(config)
+	if err != nil {
+		t.Fatalf("NewBeadLoop: %v", err)
+	}
+	loop.worktree = worktree
+
+	if err := loop.Run(context.Background(), []*bead.Bead{{ID: "spec"}}, nil); err != nil {
+		t.Fatalf("Run failed: %v", err)
+	}
+
+	if len(validate.requests) == 0 {
+		t.Fatalf("validate stage not run")
+	}
+	if need := worktree; validate.requests[0].Worktree != need {
+		t.Fatalf("validate worktree = %q, want %q", validate.requests[0].Worktree, need)
+	}
+}
+
 func TestBeadLoopStageErrorPropagation(t *testing.T) {
 	t.Parallel()
 
