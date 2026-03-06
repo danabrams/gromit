@@ -182,6 +182,10 @@ func (s *SpecLoop) Run(ctx context.Context, specID string, stopCh <-chan struct{
 
 	req := s.specStageRequest(specID, worktree)
 
+	if err := s.ctxErr(ctx); err != nil {
+		return err
+	}
+
 	var plan string
 	s.recordStage("plan")
 	planRes, err := s.runPlanStage(ctx, req)
@@ -200,9 +204,17 @@ func (s *SpecLoop) Run(ctx context.Context, specID string, stopCh <-chan struct{
 		return fmt.Errorf("record plan: %w", err)
 	}
 
+	if err := s.ctxErr(ctx); err != nil {
+		return err
+	}
+
 	s.recordStage("decompose")
 	beads, err := s.runDecompose(ctx, req)
 	if err != nil {
+		return err
+	}
+
+	if err := s.ctxErr(ctx); err != nil {
 		return err
 	}
 
@@ -213,6 +225,10 @@ func (s *SpecLoop) Run(ctx context.Context, specID string, stopCh <-chan struct{
 
 	baseSummary := s.buildSuccessSummary(specID, worktree, plan, beads, nil)
 
+	if err := s.ctxErr(ctx); err != nil {
+		return err
+	}
+
 	s.recordStage("accept")
 	acceptRes, err := s.ensureAcceptance(ctx, &req, specID)
 	if err != nil {
@@ -220,6 +236,11 @@ func (s *SpecLoop) Run(ctx context.Context, specID string, stopCh <-chan struct{
 	}
 
 	summary := s.buildSuccessSummary(specID, worktree, plan, beads, acceptRes)
+
+	if err := s.ctxErr(ctx); err != nil {
+		return err
+	}
+
 	if err := s.presentSummary(ctx, specID, summary); err != nil {
 		return err
 	}
@@ -277,6 +298,10 @@ func (s *SpecLoop) runBeadLoop(ctx context.Context, beads []*bead.Bead, stopCh <
 
 func (s *SpecLoop) ensureAcceptance(ctx context.Context, req *stagepkg.Request, specID string) (*stagepkg.Result, error) {
 	for {
+		if err := s.ctxErr(ctx); err != nil {
+			return nil, err
+		}
+
 		res, err := s.runAcceptStage(ctx, req)
 		if err != nil {
 			return res, err
@@ -426,6 +451,10 @@ func (s *SpecLoop) cleanupWorktree(ctx context.Context, specID, worktree string,
 }
 
 func (s *SpecLoop) presentSummary(ctx context.Context, specID string, summary presentation.PresentationSummary) error {
+	if err := s.ctxErr(ctx); err != nil {
+		return err
+	}
+
 	s.recordStage("present")
 	if s.presentStage == nil || s.presentSummaryContext == nil {
 		return fmt.Errorf("present stage required")
@@ -491,4 +520,16 @@ func (s *SpecLoop) emit(evt events.Event) {
 		return
 	}
 	s.emitter.Emit(evt)
+}
+
+func (s *SpecLoop) ctxErr(ctx context.Context) error {
+	if ctx == nil {
+		return nil
+	}
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+		return nil
+	}
 }
