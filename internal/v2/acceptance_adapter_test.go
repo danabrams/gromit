@@ -204,18 +204,6 @@ func assertLoopImportsConfigPackage(t *testing.T) {
 	}
 }
 
-func TestStagePackageRoot(t *testing.T) {
-	t.Helper()
-	want := filepath.Join("..", "..", "stage")
-	if got := stagePackageRoot(); got != want {
-		t.Fatalf("expected stage package root %s, got %s", want, got)
-	}
-}
-
-func stagePackageRoot() string {
-	return filepath.Join("..", "..", "stage")
-}
-
 type noopDependencyGate struct{}
 
 func (noopDependencyGate) EnsureSpecReady(_ context.Context, _ string) error {
