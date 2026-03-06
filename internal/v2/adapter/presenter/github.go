@@ -93,8 +93,9 @@ func (g *GitHubPresenter) Present(ctx context.Context, req PresentRequest) (Pres
 		destination = trimmed
 	}
 	return PresentResponse{
-		Destination: destination,
-		Message:     fmt.Sprintf("presented %s", req.SpecID),
+		Destination:  destination,
+		Message:      fmt.Sprintf("presented %s", req.SpecID),
+		PublishedURL: strings.TrimSpace(req.DestinationHint),
 	}, nil
 }
 

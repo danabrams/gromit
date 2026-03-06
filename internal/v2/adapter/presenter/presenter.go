@@ -16,8 +16,9 @@ type PresentRequest struct {
 
 // PresentResponse describes the result of a presentation attempt.
 type PresentResponse struct {
-	Destination string
-	Message     string
+	Destination  string
+	Message      string
+	PublishedURL string
 }
 
 // Presenter publishes spec summaries to external stakeholders.
