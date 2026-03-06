@@ -2112,6 +2112,7 @@
 {"issue_id":"gromit-tung3","label":"estimated-files:2"}
 {"issue_id":"gromit-tung3","label":"spec:tui-pipeline-view"}
 {"issue_id":"gromit-tv7a","label":"spec:spec-acceptance-verification-loop"}
+{"issue_id":"gromit-tvwu7","label":"spec:v2-run-loop"}
 {"issue_id":"gromit-twl","label":"spec:system-verification"}
 {"issue_id":"gromit-txl6","label":"spec:routing-ratio-reliability-review"}
 {"issue_id":"gromit-u1gm","label":"spec:multi-provider-routing"}
