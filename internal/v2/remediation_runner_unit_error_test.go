@@ -24,13 +24,13 @@ func TestRemediationRunnerRunMissingAcceptStage(t *testing.T) {
 }
 
 func TestRemediationRunnerRunMissingBeadRunner(t *testing.T) {
-	accept := &stubStage{
+	accept := &unitTestStage{
 		name: "accept",
 		result: &stage.Result{
 			Decision: stage.DecisionFail,
 		},
 	}
-	decompose := &stubStage{
+	decompose := &unitTestStage{
 		name: "decompose",
 		result: &stage.Result{
 			Artifacts: &stage.DecomposeArtifacts{
@@ -51,4 +51,29 @@ func runnerForSpecIDValidation() *RemediationRunner {
 
 func runnerForAcceptStageValidation() *RemediationRunner {
 	return NewRemediationRunner(RemediationRunnerConfig{AcceptStage: nil})
+}
+
+func runnerForMissingBeadRunner(accept, decompose stage.Stage) *RemediationRunner {
+	return NewRemediationRunner(RemediationRunnerConfig{
+		AcceptStage:    accept,
+		DecomposeStage: decompose,
+		GenerationCap:  1,
+	})
+}
+
+type unitTestStage struct {
+	name   string
+	result *stage.Result
+	err    error
+}
+
+func (s *unitTestStage) Name() string {
+	return s.name
+}
+
+func (s *unitTestStage) Run(ctx context.Context, req *stage.Request) (*stage.Result, error) {
+	if s.err != nil {
+		return nil, s.err
+	}
+	return s.result, nil
 }
