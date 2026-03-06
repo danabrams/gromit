@@ -222,12 +222,12 @@ func changedGoFilesSinceBase(t *testing.T, root string) []string {
 
 func gitDiffGoFiles(t *testing.T, root, base, head string) []string {
 	t.Helper()
-	return gitList(t, root, "diff", "--name-only", base, head, "--", "*.go")
+	return gitList(t, root, "diff", "--name-only", "--diff-filter=d", base, head, "--", "*.go")
 }
 
 func gitDiffHeadGoFiles(t *testing.T, root string) []string {
 	t.Helper()
-	return gitList(t, root, "diff", "--name-only", "HEAD", "--", "*.go")
+	return gitList(t, root, "diff", "--name-only", "--diff-filter=d", "HEAD", "--", "*.go")
 }
 
 func gitMergeBase(root, other string) (string, error) {

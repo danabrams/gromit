@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -352,11 +353,10 @@ func (m *Manager) Cleanup(ctx context.Context) error {
 	return nil
 }
 
-// PruneStaleSessionWorktrees removes session worktrees from previous gromit run
-// sessions whose directories no longer exist on disk. It lists all registered
-// worktrees, identifies those matching the "-gromit-run-" pattern, checks whether
-// their directory still exists, and force-removes stale entries.
-// Returns the count of removed worktrees and any errors encountered.
+// PruneStaleSessionWorktrees removes stale session worktrees from previous gromit
+// sessions (run, debug, etc.). It handles two cases: (1) registered worktrees whose
+// directories no longer exist on disk, and (2) orphaned directories on disk whose
+// git worktree entries have been removed. Returns the count of cleaned-up items.
 func (m *Manager) PruneStaleSessionWorktrees(ctx context.Context) (int, error) {
 	if m == nil {
 		return 0, errors.New("nil Manager receiver")
@@ -378,7 +378,7 @@ func (m *Manager) PruneStaleSessionWorktrees(ctx context.Context) (int, error) {
 			continue
 		}
 		wtPath := strings.TrimPrefix(trimmed, "worktree ")
-		if strings.Contains(wtPath, "-gromit-run-") {
+		if strings.Contains(wtPath, "-gromit-run-") || strings.Contains(wtPath, "-gromit-debug-") {
 			sessionPaths = append(sessionPaths, wtPath)
 		}
 	}
@@ -399,10 +399,81 @@ func (m *Manager) PruneStaleSessionWorktrees(ctx context.Context) (int, error) {
 		removed++
 	}
 
+	// Also clean up orphaned directories: exist on disk but not in git registry.
+	// This handles the case where git worktree remove succeeded (entry gone)
+	// but the directory persists (e.g., process killed before cleanup finished).
+	removed += m.pruneOrphanedSessionDirs(ctx, sessionPaths, &errs)
+
 	if len(errs) > 0 {
 		return removed, fmt.Errorf("pruning stale worktrees: %s", strings.Join(errs, "; "))
 	}
 	return removed, nil
+}
+
+// pruneOrphanedSessionDirs removes session worktree directories from disk
+// that are no longer registered in git. Returns count of removed dirs.
+func (m *Manager) pruneOrphanedSessionDirs(ctx context.Context, registeredPaths []string, errs *[]string) int {
+	parentDir := filepath.Dir(m.MainDir)
+	baseName := filepath.Base(m.MainDir)
+
+	entries, err := os.ReadDir(parentDir)
+	if err != nil {
+		return 0
+	}
+
+	registered := make(map[string]struct{}, len(registeredPaths))
+	for _, p := range registeredPaths {
+		registered[p] = struct{}{}
+	}
+
+	// Also get the full set of currently registered worktree paths
+	allRegistered := m.allRegisteredWorktreePaths(ctx)
+
+	removed := 0
+	prefix := baseName + "-gromit-"
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		name := entry.Name()
+		if !strings.HasPrefix(name, prefix) {
+			continue
+		}
+		fullPath := filepath.Join(parentDir, name)
+		if _, ok := allRegistered[fullPath]; ok {
+			continue // still registered in git, skip
+		}
+		// Orphaned directory — make writable (Go module cache is read-only) then remove
+		_ = filepath.WalkDir(fullPath, func(path string, d os.DirEntry, err error) error {
+			if err != nil {
+				return nil
+			}
+			_ = os.Chmod(path, 0o755)
+			return nil
+		})
+		if removeErr := os.RemoveAll(fullPath); removeErr != nil {
+			*errs = append(*errs, fmt.Sprintf("removing orphaned dir %s: %v", fullPath, removeErr))
+			continue
+		}
+		removed++
+	}
+	return removed
+}
+
+// allRegisteredWorktreePaths returns all worktree paths known to git.
+func (m *Manager) allRegisteredWorktreePaths(ctx context.Context) map[string]struct{} {
+	output, err := m.runGit(ctx, m.MainDir, "worktree", "list", "--porcelain")
+	if err != nil {
+		return map[string]struct{}{}
+	}
+	paths := make(map[string]struct{})
+	for _, line := range strings.Split(output, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "worktree ") {
+			paths[strings.TrimPrefix(trimmed, "worktree ")] = struct{}{}
+		}
+	}
+	return paths
 }
 
 // RemoveByPath removes a session worktree by explicit path.
