@@ -18,19 +18,20 @@ type Event struct {
 }
 
 const (
-	EventTypeSpecStarted    = "spec.started"
-	EventTypeSpecCompleted  = "spec.completed"
-	EventTypeSpecFailed     = "spec.failed"
-	EventTypeBeadStarted    = "bead.started"
-	EventTypeBeadCompleted  = "bead.completed"
-	EventTypeStageStarted   = "stage.started"
-	EventTypeStageCompleted = "stage.completed"
-	EventTypeStageFailed    = "stage.failed"
-	EventTypeStageRetrying  = "stage.retrying"
-	EventTypeValidation     = "validation"
-	EventTypeReview         = "review"
-	EventTypeScope          = "scope"
-	EventTypeTelemetry      = "telemetry"
+	EventTypeSpecStarted       = "spec.started"
+	EventTypeSpecCompleted     = "spec.completed"
+	EventTypeSpecFailed        = "spec.failed"
+	EventTypeBeadStarted       = "bead.started"
+	EventTypeBeadCompleted     = "bead.completed"
+	EventTypeStageStarted      = "stage.started"
+	EventTypeStageCompleted    = "stage.completed"
+	EventTypeStageFailed       = "stage.failed"
+	EventTypeStageRetrying     = "stage.retrying"
+	EventTypeValidation        = "validation"
+	EventTypeReview            = "review"
+	EventTypeScope             = "scope"
+	EventTypeTelemetry         = "telemetry"
+	EventTypeGenerationCapReached = "generation_cap_reached"
 )
 
 // SpecStartedEvent marks the beginning of a spec execution.
@@ -180,3 +181,12 @@ type TelemetryEvent struct {
 }
 
 func (TelemetryEvent) EventType() string { return EventTypeTelemetry }
+
+// GenerationCapReachedEvent is emitted when the bead loop stops because the generation cap is exceeded.
+type GenerationCapReachedEvent struct {
+	Event
+	GenerationCap   int `json:"generation_cap,omitempty"`
+	HighestGeneration int `json:"highest_generation,omitempty"`
+}
+
+func (GenerationCapReachedEvent) EventType() string { return EventTypeGenerationCapReached }

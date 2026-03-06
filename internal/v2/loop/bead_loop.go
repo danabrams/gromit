@@ -11,28 +11,33 @@ import (
 	"github.com/danabrams/gromit/internal/queue"
 	"github.com/danabrams/gromit/internal/v2/dep"
 	"github.com/danabrams/gromit/internal/v2/event"
+	"github.com/danabrams/gromit/internal/v2/generation"
 	"github.com/danabrams/gromit/internal/v2/stage"
 )
 
 // BeadLoopConfig holds the stages required to process each bead.
 type BeadLoopConfig struct {
-	Gate          stage.Stage
-	Build         stage.Stage
-	Validate      stage.Stage
-	Review        stage.Stage
-	Epilogue      stage.Stage
-	Emitter       *event.Emitter
-	LegacyEmitter *events.Emitter
+	Gate            stage.Stage
+	Build           stage.Stage
+	Validate        stage.Stage
+	Review          stage.Stage
+	Epilogue        stage.Stage
+	Emitter         *event.Emitter
+	LegacyEmitter   *events.Emitter
+	GenerationCap   int
+	StartGeneration int
 }
 
 // BeadLoop orchestrates the per-bead execution pipeline.
 type BeadLoop struct {
-	gate     stage.Stage
-	build    stage.Stage
-	validate stage.Stage
-	review   stage.Stage
-	epilogue stage.Stage
-	emitter  *event.Emitter
+	gate              stage.Stage
+	build             stage.Stage
+	validate          stage.Stage
+	review            stage.Stage
+	epilogue          stage.Stage
+	emitter           *event.Emitter
+	generationCap     int
+	startGeneration   int
 }
 
 // NewBeadLoop constructs a BeadLoop tagged with the provided stages.
@@ -53,12 +58,14 @@ func NewBeadLoop(config BeadLoopConfig) (*BeadLoop, error) {
 		return nil, fmt.Errorf("epilogue stage required")
 	}
 	loop := &BeadLoop{
-		gate:     config.Gate,
-		build:    config.Build,
-		validate: config.Validate,
-		review:   config.Review,
-		epilogue: config.Epilogue,
-		emitter:  config.Emitter,
+		gate:            config.Gate,
+		build:           config.Build,
+		validate:        config.Validate,
+		review:          config.Review,
+		epilogue:        config.Epilogue,
+		emitter:         config.Emitter,
+		generationCap:   config.GenerationCap,
+		startGeneration: config.StartGeneration,
 	}
 	if config.Emitter != nil && config.LegacyEmitter != nil {
 		event.BridgeTypedToLegacy(config.Emitter, config.LegacyEmitter)
@@ -68,6 +75,15 @@ func NewBeadLoop(config BeadLoopConfig) (*BeadLoop, error) {
 
 // Run processes the provided beads through the stage pipeline.
 func (b *BeadLoop) Run(ctx context.Context, beads []*bead.Bead, stopCh <-chan struct{}) error {
+	// Check generation cap before processing any beads
+	if b.generationCap > 0 {
+		highestGen := b.findHighestGeneration(beads)
+		if highestGen >= b.startGeneration+b.generationCap-1 {
+			b.emitGenerationCapReached(highestGen)
+			return fmt.Errorf("generation cap reached")
+		}
+	}
+
 	resolver := dep.NewResolver()
 	beadMap := make(map[string]*bead.Bead, len(beads))
 
@@ -354,4 +370,33 @@ func stageName(st stage.Stage) string {
 		return ""
 	}
 	return st.Name()
+}
+
+func (b *BeadLoop) findHighestGeneration(beads []*bead.Bead) int {
+	maxGen := 0
+	for _, bead := range beads {
+		if bead == nil {
+			continue
+		}
+		gen := generation.Current(bead.Labels)
+		if gen > maxGen {
+			maxGen = gen
+		}
+	}
+	return maxGen
+}
+
+func (b *BeadLoop) emitGenerationCapReached(highestGeneration int) {
+	if b.emitter == nil {
+		return
+	}
+	b.emitter.Emit(event.GenerationCapReachedEvent{
+		Event: event.Event{
+			SchemaVersion: event.SchemaVersion,
+			Timestamp:     time.Now(),
+			Type:          event.EventTypeGenerationCapReached,
+		},
+		GenerationCap:     b.generationCap,
+		HighestGeneration: highestGeneration,
+	})
 }
