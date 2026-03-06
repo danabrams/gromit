@@ -58,6 +58,7 @@
 {"issue_id":"gromit-166sc","label":"spec:dynamic-code-map"}
 {"issue_id":"gromit-16zu4","label":"spec:tdd-cycle-coverage-tracker"}
 {"issue_id":"gromit-17zd","label":"spec:pipeline-extraction"}
+{"issue_id":"gromit-188e6","label":"spec:v2-run-loop"}
 {"issue_id":"gromit-18sei","label":"estimated-files:2"}
 {"issue_id":"gromit-18sei","label":"spec:decompose-low-complexity-bias"}
 {"issue_id":"gromit-18sei.1","label":"spec:decompose-low-complexity-bias"}
