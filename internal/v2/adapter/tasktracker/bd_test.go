@@ -19,3 +19,25 @@ func TestNextBead_ReturnsOpenBeadWithDependencyInfo(t *testing.T) {
 		t.Fatal("NextBead returned nil bead")
 	}
 }
+
+func TestCreateBead_CreatesBeadWithTitleDescriptionAndPriority(t *testing.T) {
+	ctx := context.Background()
+	adapter := NewBDAdapter(nil)
+
+	bead, err := adapter.CreateBead(ctx, "Test Title", "Test Description", 1, []string{"dep1"})
+	if err != nil {
+		t.Fatalf("CreateBead failed: %v", err)
+	}
+	if bead == nil {
+		t.Fatal("CreateBead returned nil bead")
+	}
+	if bead.Title != "Test Title" {
+		t.Errorf("expected title 'Test Title', got %q", bead.Title)
+	}
+	if bead.Description != "Test Description" {
+		t.Errorf("expected description 'Test Description', got %q", bead.Description)
+	}
+	if bead.Priority != 1 {
+		t.Errorf("expected priority 1, got %d", bead.Priority)
+	}
+}
