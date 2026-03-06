@@ -103,6 +103,82 @@ func TestRunWritesGapAnalysisWhenCriterionFails(t *testing.T) {
 	}
 }
 
+func TestRunProceedWhenAllCriteriaPass(t *testing.T) {
+	t.Parallel()
+
+	specID := "spec-pass"
+	tmp := t.TempDir()
+	specDir := filepath.Join(tmp, ".gromit", "specs")
+	if err := os.MkdirAll(specDir, 0o755); err != nil {
+		t.Fatalf("create specs dir: %v", err)
+	}
+	specPath := filepath.Join(specDir, specID+".md")
+	content := "# Pass spec\n\n## Acceptance Criteria\n- done A\n- done B\n"
+	if err := os.WriteFile(specPath, []byte(content), 0o644); err != nil {
+		t.Fatalf("write spec: %v", err)
+	}
+
+	cfg := &config.Config{
+		ProjectRoot: tmp,
+		Paths: config.PathsConfig{
+			GromitDir: ".gromit",
+			Specs:     ".gromit/specs",
+		},
+	}
+
+	git := &fakeGitAdapter{diff: "pass diff"}
+	llmProvider := &fakeLLM{
+		responses: []*llm.LLMResponse{
+			{Success: true, Output: `{"pass": true, "summary": "done"}`},
+			{Success: true, Output: `{"pass": true, "summary": "shipped"}`},
+		},
+	}
+
+	stageInstance, err := New(cfg, git, llmProvider, "BASE", "PROJECT", "FRAGMENT")
+	if err != nil {
+		t.Fatalf("create stage: %v", err)
+	}
+
+	req := &stagepkg.Request{
+		Bead:     stagepkg.BeadInfo{ID: specID},
+		Worktree: tmp,
+	}
+
+	res, err := stageInstance.Run(context.Background(), req)
+	if err != nil {
+		t.Fatalf("run stage: %v", err)
+	}
+	if res.Decision != stagepkg.DecisionProceed {
+		t.Fatalf("decision = %v, want %v", res.Decision, stagepkg.DecisionProceed)
+	}
+
+	artifacts, ok := res.Artifacts.(*AcceptArtifacts)
+	if !ok {
+		t.Fatalf("artifacts type = %T, want *AcceptArtifacts", res.Artifacts)
+	}
+	if artifacts.GapSummary != "" {
+		t.Fatalf("gap summary = %q, want empty", artifacts.GapSummary)
+	}
+
+	gapPath := filepath.Join(tmp, ".gromit", "v2", gapFileName)
+	if _, err := os.Stat(gapPath); err == nil || !os.IsNotExist(err) {
+		t.Fatalf("gap file exists unexpectedly: %v", err)
+	}
+
+	if len(artifacts.Results) != 2 {
+		t.Fatalf("results count = %d, want 2", len(artifacts.Results))
+	}
+	for _, result := range artifacts.Results {
+		if !strings.HasPrefix(result.Description, "PASS:") {
+			t.Fatalf("result description missing pass marker: %q", result.Description)
+		}
+	}
+
+	if got := len(llmProvider.calls); got != 2 {
+		t.Fatalf("llm calls = %d, want 2", got)
+	}
+}
+
 type fakeLLM struct {
 	calls     []llm.InvokeRequest
 	responses []*llm.LLMResponse
