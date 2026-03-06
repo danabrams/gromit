@@ -11,6 +11,18 @@ type Resolver struct {
 	addOrder []string
 }
 
+// CycleError reports a dependency cycle and the nodes involved.
+type CycleError struct {
+	Path []string
+}
+
+func (e *CycleError) Error() string {
+	if len(e.Path) == 0 {
+		return "cycle detected"
+	}
+	return fmt.Sprintf("cycle detected: %s", strings.Join(e.Path, " -> "))
+}
+
 // NewResolver constructs a Resolver.
 func NewResolver() *Resolver {
 	return &Resolver{
@@ -142,7 +154,7 @@ func (r *Resolver) topologicalOrder(pending, completed map[string]struct{}) ([]s
 
 	if len(order) != len(pending) {
 		if cycle, ok := r.findCycle(pending, completed); ok {
-			return nil, fmt.Errorf("cycle detected: %s", strings.Join(cycle, " -> "))
+			return nil, &CycleError{Path: cycle}
 		}
 		return nil, fmt.Errorf("cycle detected in dependency graph")
 	}
