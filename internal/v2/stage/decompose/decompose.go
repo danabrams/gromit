@@ -11,6 +11,7 @@ import (
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/jsonutil"
 	"github.com/danabrams/gromit/internal/provider"
+	"github.com/danabrams/gromit/internal/validate"
 	"github.com/danabrams/gromit/internal/v2/adapter/llm"
 	"github.com/danabrams/gromit/internal/v2/adapter/tasktracker"
 	"github.com/danabrams/gromit/internal/v2/generation"
@@ -114,13 +115,34 @@ func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Resul
 
 	promptText := buildDecomposePrompt(specID, string(planBody), skills.DecomposeSkill)
 	model := s.modelForPhase()
+	currentPrompt := promptText
+	maxSubBeads := s.cfg.Validation.PlanMaxSubBeadsValue()
+	maxRetries := normalizeMaxValidationRetries(s.cfg.Validation.MaxValidationRetries)
 
-	beadDefs, err := s.invokeProvider(ctx, promptText, model)
-	if err != nil {
-		return nil, err
-	}
-	if len(beadDefs) == 0 {
-		return nil, fmt.Errorf("no beads extracted from plan")
+	var beadDefs []beadDef
+	for attempt := 0; ; attempt++ {
+		defs, err := s.invokeProvider(ctx, currentPrompt, model)
+		if err != nil {
+			return nil, err
+		}
+		if len(defs) == 0 {
+			return nil, fmt.Errorf("no beads extracted from plan")
+		}
+		candidates := toBeadCandidates(defs)
+		validation := validate.ValidateDecomposeOutputWithMax(candidates, validate.DecomposeValidationModePipeline, "", maxSubBeads)
+		violations := append([]validate.Violation(nil), validation.Violations...)
+		violations = append(violations, validation.BatchViolations...)
+		if len(violations) == 0 {
+			beadDefs = defs
+			break
+		}
+		if attempt >= maxRetries {
+			return nil, fmt.Errorf("decomposition validation failed: %s", formatViolations(violations))
+		}
+		currentPrompt = validate.BuildReprompt(promptText, candidates, violations)
+		if feedback := buildComplexityRepromptFeedback(defs); feedback != "" {
+			currentPrompt += "\n\n" + feedback
+		}
 	}
 
 	createdIDs := make([]string, 0, len(beadDefs))
@@ -269,6 +291,51 @@ func specLabel(specID string) string {
 
 func buildDecomposePrompt(planName, planBody, skillContent string) string {
 	return fmt.Sprintf(decomposePromptTemplate, planName, planBody, skillContent, planName)
+}
+
+
+func toBeadCandidates(defs []beadDef) []validate.BeadCandidate {
+	res := make([]validate.BeadCandidate, len(defs))
+	for i, def := range defs {
+		expected := def.ExpectedOutputs
+		if len(expected) == 0 {
+			expected = def.AcceptanceCriteria
+		}
+		res[i] = validate.BeadCandidate{
+			Title:              def.Title,
+			Description:        def.Description,
+			CoversTasks:        def.CoversTasks,
+			DependsOnIndex:     def.DependsOnIndex,
+			EstimatedFiles:     def.EstimatedFiles,
+			AcceptanceCriteria: def.AcceptanceCriteria,
+			ExpectedOutputs:    expected,
+		}
+	}
+	return res
+}
+
+func formatViolations(violations []validate.Violation) string {
+	rules := make([]string, 0, len(violations))
+	for _, v := range violations {
+		rules = append(rules, fmt.Sprintf("[%s] %s", v.Rule, v.Message))
+	}
+	return strings.Join(rules, ", ")
+}
+
+func buildComplexityRepromptFeedback(defs []beadDef) string {
+	classification := validate.ValidateDecomposeCandidates(toBeadCandidates(defs))
+	feedback := validate.BuildComplexityRepromptFeedback(classification.ComplexityOutcome.HighComplexity)
+	if feedback == "" {
+		return ""
+	}
+	return "Complexity feedback:\n" + feedback
+}
+
+func normalizeMaxValidationRetries(maxRetries int) int {
+	if maxRetries < 0 {
+		return 0
+	}
+	return maxRetries
 }
 
 func parsePriority(p string) int {

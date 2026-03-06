@@ -146,6 +146,14 @@ func TestRunUsesGapAnalysisWhenRemediation(t *testing.T) {
 				"acceptance_criteria": ["crit"],
 				"expected_outputs": ["out"],
 				"depends_on_index": []
+			},
+			{
+				"title": "gap followup",
+				"description": "gap desc 2",
+				"priority": "P1",
+				"acceptance_criteria": ["crit2"],
+				"expected_outputs": ["out2"],
+				"depends_on_index": [0]
 			}
 		]`}},
 	}
