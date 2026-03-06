@@ -12,6 +12,13 @@ func TestGitInterface(t *testing.T) {
 	}
 }
 
+func TestDiffResponseIncludesSummary(t *testing.T) {
+	resp := DiffResponse{Diff: "diff", Summary: "summary"}
+	if resp.Summary != "summary" {
+		t.Fatalf("expected summary 'summary', got %q", resp.Summary)
+	}
+}
+
 type dummyGit struct{}
 
 func (dummyGit) CreateWorktree(context.Context, CreateWorktreeRequest) (CreateWorktreeResponse, error) {
@@ -27,5 +34,5 @@ func (dummyGit) Commit(context.Context, CommitRequest) (CommitResponse, error) {
 }
 
 func (dummyGit) Diff(context.Context, DiffRequest) (DiffResponse, error) {
-	return DiffResponse{Diff: "diff"}, nil
+	return DiffResponse{Diff: "diff", Summary: "summary"}, nil
 }
