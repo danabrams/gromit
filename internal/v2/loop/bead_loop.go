@@ -12,6 +12,8 @@ import (
 
 var ErrMaxRetriesExceeded = errors.New("max retries exceeded")
 
+const epilogueStageName = "epilogue"
+
 type BeadLoopResult struct {
 	StartGeneration int
 	CapHit          bool
@@ -116,15 +118,21 @@ func (b *BeadLoop) handleFailure(ctx context.Context, baseReq stage.Request, spe
 	stageName := spec.Stage.Name()
 
 	retries := state.retryCounts[stageName] + 1
-	if retries > spec.Retry.MaxRetries {
-		return fmt.Errorf("%s: %w", stageName, ErrMaxRetriesExceeded)
-	}
-	state.retryCounts[stageName] = retries
-
 	summary := fmt.Sprintf("%s failed: %v", stageName, failure)
 	state.failureHistory = append(state.failureHistory, summary)
 
 	retryCtx := newRetryContext(state.failureHistory, retries)
+
+	if retries > spec.Retry.MaxRetries {
+		if stageName != epilogueStageName {
+			if err := b.runEpilogueFailurePath(ctx, baseReq, state, retryCtx); err != nil {
+				return fmt.Errorf("%s: %w (epilogue failure: %v)", stageName, ErrMaxRetriesExceeded, err)
+			}
+		}
+		return fmt.Errorf("%s: %w", stageName, ErrMaxRetriesExceeded)
+	}
+
+	state.retryCounts[stageName] = retries
 
 	b.emitStageRetrying(stageName, retries, failure.Error())
 
@@ -139,6 +147,16 @@ func (b *BeadLoop) handleFailure(ctx context.Context, baseReq stage.Request, spe
 	}
 
 	return b.runStage(ctx, baseReq, spec, state, retryCtx)
+}
+
+func (b *BeadLoop) runEpilogueFailurePath(ctx context.Context, baseReq stage.Request, state *loopState, retryCtx *stage.RetryContext) error {
+	epilogueIdx, found := b.stageIndex[epilogueStageName]
+	if !found {
+		return nil
+	}
+
+	epilogueSpec := b.stages[epilogueIdx]
+	return b.runStage(ctx, baseReq, epilogueSpec, state, retryCtx)
 }
 
 func newRetryContext(history []string, attempt int) *stage.RetryContext {
