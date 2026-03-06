@@ -3,8 +3,11 @@ package loop
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/danabrams/gromit/internal/bead"
+	"github.com/danabrams/gromit/internal/queue"
+	"github.com/danabrams/gromit/internal/v2/dep"
 	"github.com/danabrams/gromit/internal/v2/stage"
 )
 
@@ -54,13 +57,38 @@ func NewBeadLoop(config BeadLoopConfig) (*BeadLoop, error) {
 
 // Run processes the provided beads through the stage pipeline.
 func (b *BeadLoop) Run(ctx context.Context, beads []*bead.Bead) error {
+	resolver := dep.NewResolver()
+	beadMap := make(map[string]*bead.Bead, len(beads))
+
 	for _, beadItem := range beads {
 		if beadItem == nil {
 			continue
 		}
+		id := strings.TrimSpace(beadItem.ID)
+		if id == "" {
+			continue
+		}
+		beadMap[id] = beadItem
+		resolver.Add(id, collectDependencies(beadItem))
+	}
+
+	var completed []string
+	for {
+		next, err := resolver.Next(completed)
+		if err != nil {
+			return fmt.Errorf("resolve bead: %w", err)
+		}
+		if next == "" {
+			break
+		}
+		beadItem, ok := beadMap[next]
+		if !ok {
+			return fmt.Errorf("bead %q missing from input list", next)
+		}
 		if err := b.processBead(ctx, beadItem); err != nil {
 			return err
 		}
+		completed = append(completed, next)
 	}
 	return nil
 }
@@ -103,4 +131,14 @@ func copyLabels(labels []string) []string {
 	copied := make([]string, len(labels))
 	copy(copied, labels)
 	return copied
+}
+
+func collectDependencies(b *bead.Bead) []string {
+	if b == nil {
+		return nil
+	}
+	deps := queue.DependencyIDs(b.DependsOn)
+	deps = append(deps, queue.DependencyIDs(b.Dependencies)...)
+	deps = append(deps, queue.DependencyIDs(b.BlockedBy)...)
+	return deps
 }
