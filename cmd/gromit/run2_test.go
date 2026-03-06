@@ -12,7 +12,6 @@ import (
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/events"
 	"github.com/danabrams/gromit/internal/v2/adapter"
-	"github.com/danabrams/gromit/internal/v2/dep"
 	"github.com/danabrams/gromit/internal/v2/loop"
 	v2spec "github.com/danabrams/gromit/internal/v2/spec"
 )
@@ -34,7 +33,7 @@ func TestRun2FailsWhenDependenciesBlocked(t *testing.T) {
 	defer func() { startRun2SubscribersFn = stubSubscribers }()
 
 	stubLoop := newSpecLoopFn
-	newSpecLoopFn = func(adapters adapter.AdapterSet, cfg *config.Config, gate dep.DependencyGate, opts ...loop.SpecLoopOption) (specLoop, error) {
+	newSpecLoopFn = func(adapters adapter.AdapterSet, cfg *config.Config, gate loop.DependencyGate, opts ...loop.SpecLoopOption) (specLoop, error) {
 		return &fakeSpecLoop{}, nil
 	}
 	defer func() { newSpecLoopFn = stubLoop }()
@@ -70,7 +69,7 @@ func TestRun2InvokesSpecLoopWhenReady(t *testing.T) {
 	defer func() { startRun2SubscribersFn = stubSubscribers }()
 
 	stub := newSpecLoopFn
-	newSpecLoopFn = func(adapters adapter.AdapterSet, cfg *config.Config, gate dep.DependencyGate, opts ...loop.SpecLoopOption) (specLoop, error) {
+	newSpecLoopFn = func(adapters adapter.AdapterSet, cfg *config.Config, gate loop.DependencyGate, opts ...loop.SpecLoopOption) (specLoop, error) {
 		return &stubLoop, nil
 	}
 	defer func() { newSpecLoopFn = stub }()
