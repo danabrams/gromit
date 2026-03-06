@@ -21,8 +21,9 @@ type StageSpec struct {
 }
 
 type BeadLoop struct {
-	stages     []StageSpec
-	stageIndex map[string]int
+	stages         []StageSpec
+	stageIndex     map[string]int
+	GenerationCap  int
 }
 
 func NewBeadLoop(stages []StageSpec) (*BeadLoop, error) {
@@ -40,7 +41,7 @@ func NewBeadLoop(stages []StageSpec) (*BeadLoop, error) {
 		}
 		index[name] = idx
 	}
-	return &BeadLoop{stages: stages, stageIndex: index}, nil
+	return &BeadLoop{stages: stages, stageIndex: index, GenerationCap: 3}, nil
 }
 
 func (b *BeadLoop) Run(ctx context.Context, req stage.Request) (*BeadLoopResult, error) {

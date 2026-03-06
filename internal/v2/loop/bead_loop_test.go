@@ -49,6 +49,54 @@ func TestRecordsStartGeneration(t *testing.T) {
 }
 
 // successStage is a test stage that always succeeds
+func TestBeadLoopHasDefaultGenerationCap(t *testing.T) {
+	t.Parallel()
+
+	successStage := &successStage{
+		name: "test",
+	}
+
+	beadLoop, err := NewBeadLoop([]StageSpec{
+		{
+			Stage: successStage,
+			Retry: stage.RetryConfig{MaxRetries: 0},
+		},
+	})
+	if err != nil {
+		t.Fatalf("construct bead loop: %v", err)
+	}
+
+	// Default generation cap should be 3
+	if beadLoop.GenerationCap != 3 {
+		t.Fatalf("GenerationCap = %d, want 3", beadLoop.GenerationCap)
+	}
+}
+
+func TestBeadLoopCanSetCustomGenerationCap(t *testing.T) {
+	t.Parallel()
+
+	successStage := &successStage{
+		name: "test",
+	}
+
+	beadLoop, err := NewBeadLoop([]StageSpec{
+		{
+			Stage: successStage,
+			Retry: stage.RetryConfig{MaxRetries: 0},
+		},
+	})
+	if err != nil {
+		t.Fatalf("construct bead loop: %v", err)
+	}
+
+	beadLoop.GenerationCap = 5
+
+	if beadLoop.GenerationCap != 5 {
+		t.Fatalf("GenerationCap = %d, want 5", beadLoop.GenerationCap)
+	}
+}
+
+// successStage is a test stage that always succeeds
 type successStage struct {
 	name string
 }
