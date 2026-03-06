@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 	"syscall"
+	"time"
 
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/events"
@@ -17,7 +18,7 @@ import (
 	"github.com/danabrams/gromit/internal/events/stream"
 	"github.com/danabrams/gromit/internal/v2/adapter"
 	gitadapter "github.com/danabrams/gromit/internal/v2/adapter/git"
-	llmadapter "github.com/danabrams/gromit/internal/v2/adapter/llm"
+	llm "github.com/danabrams/gromit/internal/v2/adapter/llm"
 	"github.com/danabrams/gromit/internal/v2/adapter/presenter"
 	"github.com/danabrams/gromit/internal/v2/adapter/tasktracker"
 	"github.com/danabrams/gromit/internal/v2/dep"
@@ -77,7 +78,7 @@ func run2(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("dependency gate: %w", err)
 	}
 
-	llmAdapter, err := llmadapter.NewPlanLLMAdapter(cfg, specsDir)
+	llmAdapter, err := llm.NewPlanLLMAdapter(cfg, specsDir)
 	if err != nil {
 		return fmt.Errorf("create plan adapter: %w", err)
 	}
@@ -85,10 +86,11 @@ func run2(cmd *cobra.Command, args []string) error {
 	gromitDir := resolveGromitDir(cfg)
 	worktreesDir := filepath.Join(gromitDir, "spec-worktrees")
 
+	trackerAdapter := tasktracker.NewBDAdapter(nil)
 	adapters := adapter.AdapterSet{
 		Git:         gitadapter.NewExecGitAdapter(worktreesDir),
 		LLM:         llmAdapter,
-		TaskTracker: tasktracker.NewBDAdapter(nil),
+		TaskTracker: trackerAdapter,
 		Presenter:   presenter.NewGitHubPresenter(nil),
 	}
 
@@ -112,10 +114,18 @@ func run2(cmd *cobra.Command, args []string) error {
 		emitter.Close()
 		wg.Wait()
 	}()
+	provider := newRun2LLMProvider(cfg)
+	decomposeStage, beadLoop, typedLoopEmitter, err := loop.NewRun2LoopComponents(cfg, adapters, trackerAdapter, provider, emitter, cmd.ErrOrStderr())
+	if err != nil {
+		return fmt.Errorf("preparing run loop components: %w", err)
+	}
+	defer typedLoopEmitter.Close()
 
 	loopInstance, err := newSpecLoopFn(adapters, cfg, gate,
 		loop.WithStageRecorder(newSpecLoopStageRecorder(emitter, specFile.ID)),
 		newSpecLoopEmitterFn(emitter),
+		loop.WithDecomposeStage(decomposeStage),
+		loop.WithBeadLoop(beadLoop),
 	)
 	if err != nil {
 		return fmt.Errorf("initializing spec loop: %w", err)
@@ -188,4 +198,20 @@ func (r *specLoopStageRecorder) RecordStage(name string) {
 		Level:   "info",
 		Message: fmt.Sprintf("spec %s: stage %s", r.specID, name),
 	})
+}
+
+func newRun2LLMProvider(cfg *config.Config) llm.LLMProvider {
+	binary := "claude"
+	if cfg != nil && strings.TrimSpace(cfg.Claude.Binary) != "" {
+		binary = strings.TrimSpace(cfg.Claude.Binary)
+	}
+	flags := []string{}
+	if cfg != nil && len(cfg.Claude.Flags) > 0 {
+		flags = append(flags, cfg.Claude.Flags...)
+	}
+	timeout := 15 * time.Minute
+	if cfg != nil && cfg.Claude.Timeout > 0 {
+		timeout = time.Duration(cfg.Claude.Timeout) * time.Second
+	}
+	return llm.NewClaudeAdapter(binary, flags, timeout)
 }
