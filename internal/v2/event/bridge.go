@@ -98,6 +98,21 @@ func legacyEventsFromTyped(evt TypedEvent) []events.Event {
 	}
 }
 
+// BridgeTypedToLegacy wires the typed emitter to the legacy emitter, converting events before re-emitting.
+func BridgeTypedToLegacy(typed *Emitter, legacy *events.Emitter) {
+	if typed == nil || legacy == nil {
+		return
+	}
+	typed.Subscribe(func(evt TypedEvent) {
+		for _, legacyEvt := range legacyEventsFromTyped(evt) {
+			if legacyEvt == nil {
+				continue
+			}
+			legacy.Emit(legacyEvt)
+		}
+	})
+}
+
 func convertBeadCompleted(e *BeadCompletedEvent) []events.Event {
 	base := []events.Event{&events.IterationCompleteEvent{
 		Iteration: e.Iteration,
