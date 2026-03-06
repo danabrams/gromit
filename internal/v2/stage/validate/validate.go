@@ -14,6 +14,13 @@ type ValidationRunner interface {
 	Run(ctx context.Context, command string) error
 }
 
+// ValidateArtifacts capture failure details when validation commands do not all succeed.
+type ValidateArtifacts struct {
+	Commands      []string
+	FailedCommand string
+	FailureError  error
+}
+
 // Stage enforces project validation commands before proceeding.
 type Stage struct {
 	name   string
@@ -51,9 +58,17 @@ func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Resul
 	}
 
 	commands := cfg.EffectiveValidationCommands()
+	snapshot := append([]string(nil), commands...)
 	for _, cmd := range commands {
 		if err := s.runner.Run(ctx, cmd); err != nil {
-			return nil, err
+			return &stagepkg.Result{
+				Decision: stagepkg.DecisionFail,
+				Artifacts: &ValidateArtifacts{
+					Commands:      snapshot,
+					FailedCommand: cmd,
+					FailureError:  err,
+				},
+			}, nil
 		}
 	}
 
