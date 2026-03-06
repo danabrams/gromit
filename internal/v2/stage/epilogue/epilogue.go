@@ -10,7 +10,7 @@ import (
 	"github.com/danabrams/gromit/internal/events"
 	"github.com/danabrams/gromit/internal/v2/adapter/tasktracker"
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
-	stagesdesc "github.com/danabrams/gromit/internal/v2/stages/epilogue"
+	stagedesc "github.com/danabrams/gromit/internal/v2/stage/names"
 )
 
 // Stage handles the final bookkeeping for a completed bead iteration.
@@ -33,7 +33,7 @@ func New(cfg *config.Config, tracker tasktracker.TaskTracker) (*Stage, error) {
 	if tracker == nil {
 		return nil, fmt.Errorf("task tracker required")
 	}
-	return &Stage{name: stagesdesc.Describe(cfg), tracker: tracker}, nil
+	return &Stage{name: stagedesc.Describe("epilogue", cfg), tracker: tracker}, nil
 }
 
 var _ stagepkg.Stage = (*Stage)(nil)
@@ -128,15 +128,4 @@ func failureSummary(req *stagepkg.Request) string {
 
 func isFailurePath(req *stagepkg.Request) bool {
 	return req != nil && req.RetryContext != nil
-}
-
-func Describe(cfg *config.Config) string {
-	if cfg == nil {
-		return "epilogue"
-	}
-	profile := cfg.Project.Profile
-	if profile == "" {
-		return "epilogue:default"
-	}
-	return profile + ":" + "epilogue"
 }

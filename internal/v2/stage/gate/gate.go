@@ -9,7 +9,7 @@ import (
 	"github.com/danabrams/gromit/internal/tracker"
 	"github.com/danabrams/gromit/internal/v2/adapter/tasktracker"
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
-	stagesdesc "github.com/danabrams/gromit/internal/v2/stages/gate"
+	stagedesc "github.com/danabrams/gromit/internal/v2/stage/names"
 )
 
 // Stage evaluates bead readiness before build work begins.
@@ -26,7 +26,7 @@ func New(cfg *config.Config, tracker tasktracker.TaskTracker) (*Stage, error) {
 	if tracker == nil {
 		return nil, fmt.Errorf("task tracker required")
 	}
-	return &Stage{name: stagesdesc.Describe(cfg), tracker: tracker}, nil
+	return &Stage{name: stagedesc.Describe("gate", cfg), tracker: tracker}, nil
 }
 
 var _ stagepkg.Stage = (*Stage)(nil)

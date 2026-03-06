@@ -6,7 +6,7 @@ import (
 
 	"github.com/danabrams/gromit/internal/config"
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
-	stagesvalidate "github.com/danabrams/gromit/internal/v2/stages/validate"
+	stagedesc "github.com/danabrams/gromit/internal/v2/stage/names"
 )
 
 // ValidationRunner executes a single validation command.
@@ -36,7 +36,7 @@ func New(cfg *config.Config, runner ValidationRunner) (*Stage, error) {
 	if runner == nil {
 		return nil, fmt.Errorf("validation runner required")
 	}
-	return &Stage{name: stagesvalidate.Describe(cfg), runner: runner, cfg: cfg}, nil
+	return &Stage{name: stagedesc.Describe("validate", cfg), runner: runner, cfg: cfg}, nil
 }
 
 var _ stagepkg.Stage = (*Stage)(nil)

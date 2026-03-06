@@ -10,7 +10,7 @@ import (
 	"github.com/danabrams/gromit/internal/v2/presentation"
 	v2review "github.com/danabrams/gromit/internal/v2/review"
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
-	stagespresent "github.com/danabrams/gromit/internal/v2/stages/present"
+	stagedesc "github.com/danabrams/gromit/internal/v2/stage/names"
 )
 
 // SummaryContext captures the accumulated data the presentation stage surfaces.
@@ -44,7 +44,7 @@ func New(cfg *config.Config, presenter adapter.PresenterAdapter, ctx *SummaryCon
 		return nil, errors.New("summary context required")
 	}
 	return &Stage{
-		name:      stagespresent.Describe(cfg),
+		name:      stagedesc.Describe("present", cfg),
 		presenter: presenter,
 		ctx:       ctx,
 	}, nil

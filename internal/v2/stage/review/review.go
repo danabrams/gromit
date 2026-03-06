@@ -18,7 +18,7 @@ import (
 	"github.com/danabrams/gromit/internal/v2/prompt"
 	v2review "github.com/danabrams/gromit/internal/v2/review"
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
-	stagesreview "github.com/danabrams/gromit/internal/v2/stages/review"
+	stagedesc "github.com/danabrams/gromit/internal/v2/stage/names"
 )
 
 // ReviewArtifacts captures data emitted by the review stage.
@@ -56,7 +56,7 @@ func New(cfg *config.Config, gitAdapter adapter.GitAdapter, provider llm.LLMProv
 	}
 
 	return &Stage{
-		name:     stagesreview.Describe(cfg),
+		name:     stagedesc.Describe("review", cfg),
 		cfg:      cfg,
 		git:      gitAdapter,
 		llm:      provider,

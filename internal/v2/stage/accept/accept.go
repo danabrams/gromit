@@ -15,7 +15,7 @@ import (
 	"github.com/danabrams/gromit/internal/v2/presentation"
 	v2prompt "github.com/danabrams/gromit/internal/v2/prompt"
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
-	stagesdesc "github.com/danabrams/gromit/internal/v2/stages/accept"
+	stagedesc "github.com/danabrams/gromit/internal/v2/stage/names"
 )
 
 const (
@@ -55,7 +55,7 @@ func New(cfg *config.Config, git adapter.GitAdapter, provider llm.LLMProvider, b
 		return nil, fmt.Errorf("llm provider required")
 	}
 	return &Stage{
-		name:     stagesdesc.Describe(cfg),
+		name:     stagedesc.Describe("accept", cfg),
 		cfg:      cfg,
 		git:      git,
 		llm:      provider,

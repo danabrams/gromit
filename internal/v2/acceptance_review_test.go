@@ -11,7 +11,7 @@ import (
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/events"
 	v2review "github.com/danabrams/gromit/internal/v2/review"
-	present "github.com/danabrams/gromit/internal/v2/stages/present"
+	present "github.com/danabrams/gromit/internal/v2/stage/present"
 )
 
 func TestReviewStageInScopeFindingsCreateNextGenBeads(t *testing.T) {

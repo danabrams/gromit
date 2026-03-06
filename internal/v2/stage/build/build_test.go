@@ -11,7 +11,7 @@ import (
 	"github.com/danabrams/gromit/internal/events"
 	"github.com/danabrams/gromit/internal/v2/adapter/llm"
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
-	stagesbuild "github.com/danabrams/gromit/internal/v2/stages/build"
+	stagedesc "github.com/danabrams/gromit/internal/v2/stage/names"
 )
 
 func TestNewBuildStageRequiresConfigAndProvider(t *testing.T) {
@@ -31,7 +31,7 @@ func TestNewBuildStageRequiresConfigAndProvider(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	want := stagesbuild.Describe(cfg)
+	want := stagedesc.Describe("build", cfg)
 	if got := stage.Name(); got != want {
 		t.Fatalf("stage name = %q, want %q", got, want)
 	}

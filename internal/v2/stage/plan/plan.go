@@ -11,7 +11,7 @@ import (
 	"github.com/danabrams/gromit/internal/v2/adapter/llm"
 	"github.com/danabrams/gromit/internal/v2/prompt"
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
-	stagesplan "github.com/danabrams/gromit/internal/v2/stages/plan"
+	stagedesc "github.com/danabrams/gromit/internal/v2/stage/names"
 )
 
 const (
@@ -50,7 +50,7 @@ func New(cfg *config.Config, provider llm.LLMProvider, base, project, fragment s
 		return nil, fmt.Errorf("llm provider required")
 	}
 
-	name := stagesplan.Describe(cfg)
+	name := stagedesc.Describe("plan", cfg)
 	return &Stage{
 		name:     name,
 		llm:      provider,

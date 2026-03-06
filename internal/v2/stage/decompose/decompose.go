@@ -15,7 +15,7 @@ import (
 	"github.com/danabrams/gromit/internal/v2/adapter/tasktracker"
 	"github.com/danabrams/gromit/internal/v2/generation"
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
-	stagesdesc "github.com/danabrams/gromit/internal/v2/stages/decompose"
+	stagedesc "github.com/danabrams/gromit/internal/v2/stage/names"
 	"github.com/danabrams/gromit/internal/validate"
 	"github.com/danabrams/gromit/skills"
 )
@@ -76,7 +76,7 @@ func New(cfg *config.Config, provider llm.LLMProvider, tracker tasktracker.TaskT
 		return nil, fmt.Errorf("task tracker required")
 	}
 	return &Stage{
-		name:    stagesdesc.Describe(cfg),
+		name:    stagedesc.Describe("decompose", cfg),
 		cfg:     cfg,
 		llm:     provider,
 		tracker: tracker,

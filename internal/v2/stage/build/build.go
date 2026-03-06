@@ -13,7 +13,7 @@ import (
 	"github.com/danabrams/gromit/internal/v2/adapter/llm"
 	"github.com/danabrams/gromit/internal/v2/prompt"
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
-	stagesdesc "github.com/danabrams/gromit/internal/v2/stages/build"
+	stagedesc "github.com/danabrams/gromit/internal/v2/stage/names"
 )
 
 // PromptFragments groups template fragments for each build methodology.
@@ -67,7 +67,7 @@ func New(cfg *config.Config, provider llm.LLMProvider, base, project string, fra
 		output = io.Discard
 	}
 	return &Stage{
-		name:      stagesdesc.Describe(cfg),
+		name:      stagedesc.Describe("build", cfg),
 		cfg:       cfg,
 		llm:       provider,
 		base:      base,
