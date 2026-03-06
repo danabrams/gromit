@@ -1,6 +1,9 @@
 package event
 
 import (
+	"bytes"
+	"log"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -262,6 +265,42 @@ func TestEmitterIsolatesSlowAndPanicSubscribers(t *testing.T) {
 	}
 
 	closeSlowOnce()
+}
+
+func TestEmitterLogsRecoveredSubscriberPanics(t *testing.T) {
+	emitter := NewEmitter()
+
+	nonPanicDone := make(chan struct{})
+	emitter.Subscribe(func(TypedEvent) {
+		close(nonPanicDone)
+	})
+
+	var buf bytes.Buffer
+	origOutput := log.Writer()
+	origFlags := log.Flags()
+	log.SetOutput(&buf)
+	log.SetFlags(0)
+	defer func() {
+		log.SetOutput(origOutput)
+		log.SetFlags(origFlags)
+	}()
+
+	emitter.Subscribe(func(TypedEvent) {
+		panic("boom")
+	})
+
+	emitter.Emit(dummyEvent{Event: Event{Type: "panic-logging"}})
+
+	select {
+	case <-nonPanicDone:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for event delivery")
+	}
+
+	logOutput := buf.String()
+	if !strings.Contains(logOutput, "subscriber panic recovered") || !strings.Contains(logOutput, "boom") {
+		t.Fatalf("expected panic log with subscriber panic, got %q", logOutput)
+	}
 }
 
 func TestEmitterCloseStopsSubscriberGoroutines(t *testing.T) {
