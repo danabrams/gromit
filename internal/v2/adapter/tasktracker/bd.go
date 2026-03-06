@@ -44,5 +44,5 @@ func (a *BDAdapter) CloseBead(ctx context.Context, beadID string) error {
 
 // QueryBeads filters beads by labels, status, and parent
 func (a *BDAdapter) QueryBeads(ctx context.Context, labels []string, status, parent string) ([]Bead, error) {
-	return nil, nil
+	return []Bead{}, nil
 }
