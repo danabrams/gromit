@@ -44,7 +44,8 @@ type DiffRequest struct {
 
 // DiffResponse carries the diff output.
 type DiffResponse struct {
-	Diff string
+	Diff    string
+	Summary string
 }
 
 // Git describes higher-level git operations for the run loop.
