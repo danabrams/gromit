@@ -3,6 +3,7 @@ package loop
 import (
 	"context"
 	"os"
+	"path/filepath"
 	"reflect"
 	"testing"
 
@@ -97,6 +98,27 @@ func TestSpecLoopHappyPathExecutesPipeline(t *testing.T) {
 	}
 	if len(summary.AcceptanceResults) != len(accept.results) {
 		t.Fatalf("acceptance results count = %d", len(summary.AcceptanceResults))
+	}
+}
+
+func TestSpecLoopPersistsPlanInGromitDir(t *testing.T) {
+	t.Parallel()
+
+	worktree := t.TempDir()
+	cfg := &config.Config{}
+	loopInstance := &SpecLoop{cfg: cfg}
+	plan := "persisted plan"
+	if err := loopInstance.writePlanFile(worktree, plan); err != nil {
+		t.Fatalf("write plan: %v", err)
+	}
+
+	planPath := filepath.Join(worktree, ".gromit", "v2", "plan.md")
+	data, err := os.ReadFile(planPath)
+	if err != nil {
+		t.Fatalf("read plan file: %v", err)
+	}
+	if string(data) != plan {
+		t.Fatalf("plan file = %q, want %q", string(data), plan)
 	}
 }
 
