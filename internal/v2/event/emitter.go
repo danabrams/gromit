@@ -22,11 +22,22 @@ func (e *Emitter) Subscribe(fn func(Event)) {
 
 // Emit delivers evt to all subscribers.
 func (e *Emitter) Emit(evt Event) {
-    e.mu.Lock()
-    subs := append([]func(Event){}, e.subscribers...)
-    e.mu.Unlock()
+	e.mu.Lock()
+	subs := append([]func(Event){}, e.subscribers...)
+	e.mu.Unlock()
 
-    for _, fn := range subs {
-        fn(evt)
-    }
+	var wg sync.WaitGroup
+	wg.Add(len(subs))
+
+	for _, fn := range subs {
+		go func(fn func(Event), evt Event) {
+			defer wg.Done()
+			defer func() {
+				recover()
+			}()
+			fn(evt)
+		}(fn, evt)
+	}
+
+	wg.Wait()
 }
