@@ -8,10 +8,10 @@ import (
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
-	"github.com/danabrams/gromit/internal/runner/execution"
 	"github.com/danabrams/gromit/internal/learnings"
-	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/prompt"
+	"github.com/danabrams/gromit/internal/provider"
+	"github.com/danabrams/gromit/internal/runner/execution"
 	"github.com/danabrams/gromit/internal/specflow"
 	"github.com/danabrams/gromit/internal/tracker"
 )
@@ -27,7 +27,7 @@ func TestNewStageAwarePreImplementationHookReturnsNilWhenNotSpecStage(t *testing
 	hook = newStageAwarePreImplementationHook(&StageContext{
 		SpecName: "",
 		Stage:    specflow.StageImplementation,
-	}, &config.Config{}, &fakePromptRenderer{}, execution.NewInvoker(&execution.noopRouter{}, io.Discard, nil), "", nil, nil)
+	}, &config.Config{}, &fakePromptRenderer{}, nil, "", nil, nil)
 	if hook != nil {
 		t.Fatal("hook should be nil when spec stage is not acceptance-tests")
 	}
@@ -82,10 +82,10 @@ func TestNewStageAwarePreImplementationHookRunsAcceptanceAuthoring(t *testing.T)
 }
 
 type fakePromptRenderer struct {
-	lastBuildBead       *bead.Bead
-	renderAcceptanceCtx *prompt.Context
+	lastBuildBead         *bead.Bead
+	renderAcceptanceCtx   *prompt.Context
 	renderAcceptanceCalls int
-	renderedPrompt      string
+	renderedPrompt        string
 }
 
 func (f *fakePromptRenderer) BuildContext(b *bead.Bead, parent *bead.Bead, iteration int, model string, phase string) (*prompt.Context, error) {
@@ -110,23 +110,35 @@ func (f *fakePromptRenderer) RenderAcceptanceTests(ctx *prompt.Context) (string,
 	return f.renderedPrompt, nil
 }
 
-func (*fakePromptRenderer) RenderBuild(string, string, []string) (string, error)              { return "", nil }
-func (*fakePromptRenderer) RenderAnalyze(*prompt.AnalyzeContext) (string, error)              { return "", nil }
-func (*fakePromptRenderer) RenderLearn(*prompt.LearnContext) (string, error)                  { return "", nil }
-func (*fakePromptRenderer) RenderDecompose(*prompt.DecomposeContext) (string, error)          { return "", nil }
-func (*fakePromptRenderer) RenderScope(*prompt.ScopeContext) (string, error)                  { return "", nil }
-func (*fakePromptRenderer) RenderPrecheck(*prompt.PrecheckContext) (string, error)            { return "", nil }
-func (*fakePromptRenderer) RenderSpecAcceptance(*prompt.SpecAcceptanceContext) (string, error) { return "", nil }
-func (*fakePromptRenderer) RenderSpecGate(*prompt.SpecGateContext) (string, error)             { return "", nil }
-func (*fakePromptRenderer) RenderReview(*prompt.ReviewContext) (string, error)                 { return "", nil }
-func (*fakePromptRenderer) RenderThoroughReview(*prompt.ThoroughReviewContext) (string, error) { return "", nil }
-func (*fakePromptRenderer) RenderATDDBuild(*prompt.Context) (string, error)                    { return "", nil }
-func (*fakePromptRenderer) RenderATDDDiagnostic(*prompt.DiagnosticContext) (string, error)     { return "", nil }
-func (*fakePromptRenderer) RenderTDDBuild(*prompt.Context) (string, error)                     { return "", nil }
-func (*fakePromptRenderer) RenderTDDRed(*prompt.TDDRedContext) (string, error)                 { return "", nil }
-func (*fakePromptRenderer) RenderTDDGreen(*prompt.TDDGreenContext) (string, error)             { return "", nil }
-func (*fakePromptRenderer) RenderRefactor(*prompt.Context) (string, error)                     { return "", nil }
-func (*fakePromptRenderer) RenderTestFix(*prompt.TestFixContext) (string, error)               { return "", nil }
+func (*fakePromptRenderer) RenderBuild(*prompt.Context) (string, error)              { return "", nil }
+func (*fakePromptRenderer) RenderAnalyze(*prompt.AnalyzeContext) (string, error)     { return "", nil }
+func (*fakePromptRenderer) RenderLearn(*prompt.LearnContext) (string, error)         { return "", nil }
+func (*fakePromptRenderer) RenderDecompose(*prompt.DecomposeContext) (string, error) { return "", nil }
+func (*fakePromptRenderer) RenderScope(*prompt.ScopeContext) (string, error)         { return "", nil }
+func (*fakePromptRenderer) RenderPrecheck(*prompt.PrecheckContext) (string, error)   { return "", nil }
+func (*fakePromptRenderer) RenderSpecAcceptance(*prompt.SpecAcceptanceContext) (string, error) {
+	return "", nil
+}
+func (*fakePromptRenderer) RenderSpecGate(*prompt.SpecGateContext) (string, error) { return "", nil }
+func (*fakePromptRenderer) RenderReview(*prompt.ReviewContext) (string, error)     { return "", nil }
+func (*fakePromptRenderer) RenderThoroughReview(*prompt.ThoroughReviewContext) (string, error) {
+	return "", nil
+}
+func (*fakePromptRenderer) RenderATDDBuild(*prompt.Context) (string, error) { return "", nil }
+func (*fakePromptRenderer) RenderATDDDiagnostic(*prompt.DiagnosticContext) (string, error) {
+	return "", nil
+}
+func (*fakePromptRenderer) RenderTDDBuild(*prompt.Context) (string, error) { return "", nil }
+func (*fakePromptRenderer) RenderTDDRed(*prompt.TDDRedContext) (string, error) {
+	return "", nil
+}
+func (*fakePromptRenderer) RenderTDDGreen(*prompt.TDDGreenContext) (string, error) {
+	return "", nil
+}
+func (*fakePromptRenderer) RenderRefactor(*prompt.Context) (string, error) { return "", nil }
+func (*fakePromptRenderer) RenderTestFix(*prompt.TestFixContext) (string, error) {
+	return "", nil
+}
 func (*fakePromptRenderer) RenderCoverageValidation(*prompt.CoverageValidationContext) (string, error) {
 	return "", nil
 }
@@ -140,7 +152,7 @@ func (*fakePromptRenderer) GetLearningsFile() *learnings.File {
 	return nil
 }
 func (*fakePromptRenderer) SetSiblingTouchedPackagesResolver(prompt.SiblingTouchedPackagesResolver) {}
-func (*fakePromptRenderer) LastDiagnostics() *prompt.PromptDiagnostics { return nil }
+func (*fakePromptRenderer) LastDiagnostics() *prompt.PromptDiagnostics                              { return nil }
 
 type fakeRouter struct {
 	provider *fakeProvider
@@ -149,8 +161,8 @@ type fakeRouter struct {
 func (f *fakeRouter) Select(phase, tier string) (execution.Provider, string) {
 	return f.provider, tier
 }
-func (*fakeRouter) MarkUnavailable(string)                                     {}
-func (*fakeRouter) RecordOutcome(providerName, failureCategory string)       {}
+func (*fakeRouter) MarkUnavailable(string)                             {}
+func (*fakeRouter) RecordOutcome(providerName, failureCategory string) {}
 
 type fakeProvider struct {
 	calls      int

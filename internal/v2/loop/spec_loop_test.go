@@ -262,8 +262,8 @@ func newFakeBeadRunner() *fakeBeadRunner {
 }
 
 type fakeBeadRunner struct {
-	ran       bool
-	lastBeads []*bead.Bead
+	ran        bool
+	lastBeads  []*bead.Bead
 	lastStopCh <-chan struct{}
 }
 

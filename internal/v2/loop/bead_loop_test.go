@@ -67,7 +67,7 @@ func TestBeadLoopRunsBeadsInDependencyOrder(t *testing.T) {
 		{ID: "root"},
 	}
 
-			if err := loop.Run(context.Background(), beads, nil); err != nil {
+	if err := loop.Run(context.Background(), beads, nil); err != nil {
 		t.Fatalf("Run failed: %v", err)
 	}
 

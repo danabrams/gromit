@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
@@ -18,6 +19,7 @@ import (
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/runner/execution"
+	"github.com/danabrams/gromit/internal/runner/methodology"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 	"github.com/danabrams/gromit/internal/runner/specmerge"
 	"github.com/danabrams/gromit/internal/specflow"
@@ -423,13 +425,84 @@ func newSpecMergeController(cfg *config.Config, client tracker.Client, router pr
 	return pipeline
 }
 
-func newStageAwarePreImplementationHook(stageCtx *StageContext) func(context.Context) error {
+func newStageAwarePreImplementationHook(stageCtx *StageContext, cfg *config.Config, renderer PromptRenderer, invoker *execution.Invoker, cacheVersionKey string, costDefs map[string]config.ProviderDef, output io.Writer) func(context.Context) error {
 	if stageCtx == nil || stageCtx.SpecName == "" || stageCtx.Stage != specflow.StageAcceptanceTests {
 		return nil
 	}
-	return func(ctx context.Context) error {
-		// TODO: orchestrate acceptance-test authoring beads for stageCtx.SpecName before implementation starts.
+	if cfg == nil || !cfg.Methodology.ATDD || cfg.Methodology.Granularity != config.MethodologyGranularitySpec {
 		return nil
+	}
+
+	return func(ctx context.Context) error {
+		if renderer == nil {
+			return fmt.Errorf("prompt renderer not configured for spec acceptance hook")
+		}
+		if invoker == nil {
+			return fmt.Errorf("acceptance invoker not configured for spec acceptance hook")
+		}
+
+		specLabel := tracker.SpecLabelPrefix + stageCtx.SpecName
+		beadObj := &bead.Bead{
+			ID:          fmt.Sprintf("spec-%s-acceptance", stageCtx.SpecName),
+			Title:       fmt.Sprintf("Spec %s acceptance tests", stageCtx.SpecName),
+			Description: fmt.Sprintf("Generate acceptance tests for the %s spec.", stageCtx.SpecName),
+			Priority:    1,
+			Labels:      []string{specLabel},
+		}
+
+		model := cfg.SelectModel(beadObj.Priority, beadObj.Labels)
+		promptCtx, err := renderer.BuildContext(beadObj, nil, 0, model, "")
+		if err != nil {
+			return fmt.Errorf("building acceptance prompt context for %s: %w", stageCtx.SpecName, err)
+		}
+
+		tier := provider.TierMedium
+		if override := cfg.PhaseModelTier("build", tier); override != "" {
+			tier = override
+		}
+
+		bc := &runtypes.BeadContext{
+			Bead:      beadObj,
+			Tier:      tier,
+			PromptCtx: promptCtx,
+			Result: &runtypes.IterationResult{
+				BeadID: beadObj.ID,
+				SpecID: stageCtx.SpecName,
+			},
+		}
+
+		if cfg != nil {
+			bc.MaxRetries = cfg.Escalation.MaxRetriesPerModel
+			bc.MaxRetriesPerBead = cfg.Escalation.MaxRetriesPerBead
+			bc.BeadTimeout = time.Duration(cfg.Claude.BeadTimeout) * time.Second
+		}
+
+		renderFn := func(ctx *prompt.Context) (string, error) {
+			return renderer.RenderAcceptanceTests(ctx)
+		}
+
+		invokeFn := func(ctx context.Context, bc *runtypes.BeadContext, prompt string) error {
+			inv := invoker
+			if cacheVersionKey != "" {
+				inv = inv.WithCacheVersionKey(cacheVersionKey)
+			}
+			bc.BuildPrompt = prompt
+			result, err := inv.Execute(ctx, bc, prompt)
+			if err != nil {
+				return err
+			}
+			if result == nil || result.ProviderResult == nil {
+				return fmt.Errorf("acceptance invocation returned nil provider result")
+			}
+			applyCostFallback(result.ProviderResult, result.ProviderName, costDefs)
+			return nil
+		}
+
+		executor := methodology.NewExecutorWithEscalation(cfg, output, renderFn, invokeFn, nil, func(bc *runtypes.BeadContext, nextTier string) {
+			bc.Tier = nextTier
+		})
+
+		return executor.RunAcceptanceTestsWithRetry(ctx, bc)
 	}
 }
 
