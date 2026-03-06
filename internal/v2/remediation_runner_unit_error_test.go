@@ -97,6 +97,15 @@ func runnerForMissingDecomposeStage(accept stage.Stage) *RemediationRunner {
 	})
 }
 
+func runnerForUnexpectedArtifacts(accept, decompose stage.Stage) *RemediationRunner {
+	return NewRemediationRunner(RemediationRunnerConfig{
+		AcceptStage:    accept,
+		DecomposeStage:  decompose,
+		BeadRunner:      &unitTestBeadRunner{},
+		GenerationCap:   1,
+	})
+}
+
 type unitTestStage struct {
 	name   string
 	result *stage.Result
