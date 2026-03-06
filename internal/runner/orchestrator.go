@@ -134,6 +134,10 @@ type OrchestratorConfig struct {
 	// Optional: nil means no preflight check is performed.
 	PreflightCheck PreflightChecker
 
+	// PreflightBuildCheck verifies the codebase compiles before the main loop.
+	// Optional: nil means no preflight build check is performed.
+	PreflightBuildCheck PreflightBuildChecker
+
 	// GitCheckout performs git branch checkout operations.
 	// Optional: nil means branch checkout is skipped.
 	GitCheckout GitCheckout
@@ -441,6 +445,13 @@ func (o *Orchestrator) Run(ctx context.Context, maxIterations int, deadline time
 	if o.cfg.PreflightCheck != nil {
 		if err := o.cfg.PreflightCheck.EnsureWorktreeClean(ctx); err != nil {
 			return fmt.Errorf("environment_blocked: dirty worktree at run start: %w", err)
+		}
+	}
+
+	// Preflight: ensure the codebase compiles before consuming bead retry budget.
+	if o.cfg.PreflightBuildCheck != nil {
+		if err := o.cfg.PreflightBuildCheck.EnsureBuildPasses(ctx); err != nil {
+			return fmt.Errorf("environment_blocked: build already broken at run start: %w", err)
 		}
 	}
 

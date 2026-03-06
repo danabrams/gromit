@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/events"
 	"github.com/danabrams/gromit/internal/v2/adapter"
 	"github.com/danabrams/gromit/internal/v2/presentation"
 )
@@ -40,6 +41,13 @@ func WithStageRecorder(recorder StageRecorder) SpecLoopOption {
 	}
 }
 
+// WithEmitter attaches an event emitter to the spec loop.
+func WithEmitter(emitter *events.Emitter) SpecLoopOption {
+	return func(s *SpecLoop) {
+		s.emitter = emitter
+	}
+}
+
 // AdapterSet alias exposes the adapter basket consumed by the run loop.
 type AdapterSet = adapter.AdapterSet
 
@@ -54,6 +62,7 @@ type SpecLoop struct {
 	cfg      *config.Config
 	gate     DependencyGate
 	recorder StageRecorder
+	emitter  *events.Emitter
 }
 
 // NewSpecLoop constructs a spec loop backed by the provided adapters and configuration.
@@ -98,6 +107,8 @@ func (s *SpecLoop) Run(ctx context.Context, specID string) error {
 		return fmt.Errorf("checkout: %w", err)
 	}
 
+	s.emit(&events.SpecStartedEvent{SpecID: specID, Worktree: worktree})
+
 	s.recordStage("plan")
 	plan, err := s.adapters.LLM.GeneratePlan(ctx, specID)
 	if err != nil {
@@ -138,6 +149,12 @@ func (s *SpecLoop) Run(ctx context.Context, specID string) error {
 		return fmt.Errorf("present summary: %w", err)
 	}
 
+	if err := os.RemoveAll(worktree); err != nil {
+		return fmt.Errorf("cleanup worktree: %w", err)
+	}
+
+	s.emit(&events.SpecCompletedEvent{SpecID: specID, Worktree: worktree, Success: true})
+
 	return nil
 }
 
@@ -160,4 +177,11 @@ func (s *SpecLoop) recordStage(name string) {
 		return
 	}
 	s.recorder.RecordStage(name)
+}
+
+func (s *SpecLoop) emit(evt events.Event) {
+	if s.emitter == nil {
+		return
+	}
+	s.emitter.Emit(evt)
 }

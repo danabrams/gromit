@@ -116,6 +116,12 @@ type PreflightChecker interface {
 	EnsureWorktreeClean(ctx context.Context) error
 }
 
+// PreflightBuildChecker verifies the codebase compiles before the run loop starts.
+// If the build is already broken, the run should fail fast with environment_blocked.
+type PreflightBuildChecker interface {
+	EnsureBuildPasses(ctx context.Context) error
+}
+
 // IterationResult captures the outcome of one loop iteration.
 // Type alias for backward compatibility — canonical definition is in runtypes.
 type IterationResult = runtypes.IterationResult
