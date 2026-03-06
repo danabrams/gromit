@@ -11,12 +11,12 @@ import (
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/jsonutil"
 	"github.com/danabrams/gromit/internal/provider"
-	"github.com/danabrams/gromit/internal/validate"
 	"github.com/danabrams/gromit/internal/v2/adapter/llm"
 	"github.com/danabrams/gromit/internal/v2/adapter/tasktracker"
 	"github.com/danabrams/gromit/internal/v2/generation"
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
 	stagesdesc "github.com/danabrams/gromit/internal/v2/stages/decompose"
+	"github.com/danabrams/gromit/internal/validate"
 	"github.com/danabrams/gromit/skills"
 )
 
@@ -153,12 +153,21 @@ func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Resul
 		labels := s.buildLabels(specID, def.EstimatedFiles, req)
 		dependencies := resolveDependencies(def.DependsOnIndex, createdIDs, idx)
 
-		trackerBead, err := s.tracker.CreateBead(ctx, def.Title, def.Description, priority, labels, dependencies)
+		trackerResp, err := s.tracker.CreateBead(ctx, tasktracker.CreateBeadRequest{
+			Title:        def.Title,
+			Description:  def.Description,
+			Priority:     priority,
+			Labels:       labels,
+			Dependencies: dependencies,
+		})
 		if err != nil {
 			return nil, fmt.Errorf("creating bead %d: %w", idx, err)
 		}
-		createdIDs = append(createdIDs, trackerBead.ID)
-		createdBeads = append(createdBeads, convertTrackerBead(trackerBead))
+		if trackerResp == nil || trackerResp.Bead == nil {
+			return nil, fmt.Errorf("create bead response missing result")
+		}
+		createdIDs = append(createdIDs, trackerResp.Bead.ID)
+		createdBeads = append(createdBeads, convertTrackerBead(trackerResp.Bead))
 	}
 
 	return &stagepkg.Result{
@@ -292,7 +301,6 @@ func specLabel(specID string) string {
 func buildDecomposePrompt(planName, planBody, skillContent string) string {
 	return fmt.Sprintf(decomposePromptTemplate, planName, planBody, skillContent, planName)
 }
-
 
 func toBeadCandidates(defs []beadDef) []validate.BeadCandidate {
 	res := make([]validate.BeadCandidate, len(defs))

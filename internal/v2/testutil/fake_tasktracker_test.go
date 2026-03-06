@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/danabrams/gromit/internal/tracker"
+	"github.com/danabrams/gromit/internal/v2/adapter/tasktracker"
 )
 
 var _ = tracker.StatusOpen
@@ -15,18 +16,31 @@ func TestFakeTaskTracker_CreatesBeadsAndObservesDependencies(t *testing.T) {
 	ctx := context.Background()
 	fake := NewFakeTaskTracker()
 
-	first, err := fake.CreateBead(ctx, "first", "desc", 1, []string{"alpha"}, nil)
+	firstResp, err := fake.CreateBead(ctx, tasktracker.CreateBeadRequest{
+		Title:       "first",
+		Description: "desc",
+		Priority:    1,
+		Labels:      []string{"alpha"},
+	})
 	if err != nil {
 		t.Fatalf("CreateBead failed: %v", err)
 	}
+	first := firstResp.Bead
 	if first == nil {
 		t.Fatal("CreateBead returned nil bead")
 	}
 
-	second, err := fake.CreateBead(ctx, "second", "desc", 2, []string{"beta"}, []string{first.ID})
+	secondResp, err := fake.CreateBead(ctx, tasktracker.CreateBeadRequest{
+		Title:        "second",
+		Description:  "desc",
+		Priority:     2,
+		Labels:       []string{"beta"},
+		Dependencies: []string{first.ID},
+	})
 	if err != nil {
 		t.Fatalf("CreateBead failed: %v", err)
 	}
+	second := secondResp.Bead
 
 	refreshed, err := fake.ShowBead(ctx, first.ID)
 	if err != nil {
@@ -36,30 +50,36 @@ func TestFakeTaskTracker_CreatesBeadsAndObservesDependencies(t *testing.T) {
 		t.Fatalf("expected first bead to list second as dependent, got %v", refreshed.Dependents)
 	}
 
-	queried, err := fake.QueryBeads(ctx, []string{"alpha"}, tracker.StatusOpen, "")
+	queriedResp, err := fake.QueryBeads(ctx, tasktracker.QueryBeadsRequest{Labels: []string{"alpha"}, Status: tracker.StatusOpen})
 	if err != nil {
 		t.Fatalf("QueryBeads failed: %v", err)
 	}
-	if len(queried) != 1 || queried[0].ID != first.ID {
-		t.Fatalf("QueryBeads result mismatch: %+v", queried)
+	if queriedResp == nil || len(queriedResp.Beads) != 1 || queriedResp.Beads[0].ID != first.ID {
+		t.Fatalf("QueryBeads result mismatch: %+v", queriedResp)
 	}
 
-	if pending, err := fake.NextBead(ctx); err != nil {
-		t.Fatalf("NextBead failed: %v", err)
-	} else if pending == nil || pending.ID != first.ID {
-		t.Fatalf("NextBead returned %v, want %s", pending, first.ID)
-	}
-
-	if err := fake.CloseBead(ctx, first.ID); err != nil {
-		t.Fatalf("CloseBead failed: %v", err)
-	}
-
-	unlocked, err := fake.NextBead(ctx)
+	pendingResp, err := fake.NextBead(ctx, tasktracker.NextBeadRequest{})
 	if err != nil {
 		t.Fatalf("NextBead failed: %v", err)
 	}
-	if unlocked == nil || unlocked.ID != second.ID {
-		t.Fatalf("NextBead returned %v, want %s", unlocked, second.ID)
+	if pendingResp == nil || pendingResp.Bead == nil || pendingResp.Bead.ID != first.ID {
+		t.Fatalf("NextBead returned %v, want %s", pendingResp, first.ID)
+	}
+
+	closeResp, err := fake.CloseBead(ctx, tasktracker.CloseBeadRequest{BeadID: first.ID})
+	if err != nil {
+		t.Fatalf("CloseBead failed: %v", err)
+	}
+	if closeResp == nil || !closeResp.Closed {
+		t.Fatalf("CloseBead response = %#v", closeResp)
+	}
+
+	unlockedResp, err := fake.NextBead(ctx, tasktracker.NextBeadRequest{})
+	if err != nil {
+		t.Fatalf("NextBead failed: %v", err)
+	}
+	if unlockedResp == nil || unlockedResp.Bead == nil || unlockedResp.Bead.ID != second.ID {
+		t.Fatalf("NextBead returned %v, want %s", unlockedResp, second.ID)
 	}
 
 	shownSecond, err := fake.ShowBead(ctx, second.ID)

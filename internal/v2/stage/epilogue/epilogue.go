@@ -68,8 +68,12 @@ func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Resul
 		}, nil
 	}
 
-	if err := s.tracker.CloseBead(ctx, beadID); err != nil {
+	closeResp, err := s.tracker.CloseBead(ctx, tasktracker.CloseBeadRequest{BeadID: beadID})
+	if err != nil {
 		return nil, fmt.Errorf("close bead %s: %w", beadID, err)
+	}
+	if closeResp == nil || !closeResp.Closed {
+		return nil, fmt.Errorf("close bead %s: unexpected response %#v", beadID, closeResp)
 	}
 
 	return &stagepkg.Result{

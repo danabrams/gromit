@@ -11,11 +11,11 @@ func TestNextBead_ReturnsOpenBeadWithDependencyInfo(t *testing.T) {
 	ctx := context.Background()
 	adapter := NewBDAdapter(nil) // Will fail - but that's the point of RED phase
 
-	bead, err := adapter.NextBead(ctx)
+	resp, err := adapter.NextBead(ctx, NextBeadRequest{})
 	if err != nil {
 		t.Fatalf("NextBead failed: %v", err)
 	}
-	if bead == nil {
+	if resp == nil || resp.Bead == nil {
 		t.Fatal("NextBead returned nil bead")
 	}
 }
@@ -24,21 +24,26 @@ func TestCreateBead_CreatesBeadWithTitleDescriptionAndPriority(t *testing.T) {
 	ctx := context.Background()
 	adapter := NewBDAdapter(nil)
 
-	bead, err := adapter.CreateBead(ctx, "Test Title", "Test Description", 1, nil, []string{"dep1"})
+	resp, err := adapter.CreateBead(ctx, CreateBeadRequest{
+		Title:        "Test Title",
+		Description:  "Test Description",
+		Priority:     1,
+		Dependencies: []string{"dep1"},
+	})
 	if err != nil {
 		t.Fatalf("CreateBead failed: %v", err)
 	}
-	if bead == nil {
+	if resp == nil || resp.Bead == nil {
 		t.Fatal("CreateBead returned nil bead")
 	}
-	if bead.Title != "Test Title" {
-		t.Errorf("expected title 'Test Title', got %q", bead.Title)
+	if resp.Bead.Title != "Test Title" {
+		t.Errorf("expected title 'Test Title', got %q", resp.Bead.Title)
 	}
-	if bead.Description != "Test Description" {
-		t.Errorf("expected description 'Test Description', got %q", bead.Description)
+	if resp.Bead.Description != "Test Description" {
+		t.Errorf("expected description 'Test Description', got %q", resp.Bead.Description)
 	}
-	if bead.Priority != 1 {
-		t.Errorf("expected priority 1, got %d", bead.Priority)
+	if resp.Bead.Priority != 1 {
+		t.Errorf("expected priority 1, got %d", resp.Bead.Priority)
 	}
 }
 
@@ -46,9 +51,12 @@ func TestCloseBead_MarksBeadAsClosed(t *testing.T) {
 	ctx := context.Background()
 	adapter := NewBDAdapter(nil)
 
-	err := adapter.CloseBead(ctx, "test-bead-id")
+	resp, err := adapter.CloseBead(ctx, CloseBeadRequest{BeadID: "test-bead-id"})
 	if err != nil {
 		t.Fatalf("CloseBead failed: %v", err)
+	}
+	if resp == nil || !resp.Closed {
+		t.Fatalf("CloseBead response = %#v", resp)
 	}
 }
 
@@ -56,11 +64,11 @@ func TestQueryBeads_FiltersBeadsByLabelsAndStatus(t *testing.T) {
 	ctx := context.Background()
 	adapter := NewBDAdapter(nil)
 
-	beads, err := adapter.QueryBeads(ctx, []string{"gen:1"}, "open", "")
+	resp, err := adapter.QueryBeads(ctx, QueryBeadsRequest{Labels: []string{"gen:1"}, Status: "open"})
 	if err != nil {
 		t.Fatalf("QueryBeads failed: %v", err)
 	}
-	if beads == nil {
+	if resp == nil {
 		t.Fatal("QueryBeads returned nil beads slice")
 	}
 }

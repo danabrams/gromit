@@ -23,6 +23,10 @@ func (taskTrackerTestStub) QueryBeads(ctx context.Context, req QueryBeadsRequest
 	return &QueryBeadsResponse{}, nil
 }
 
+func (taskTrackerTestStub) ShowBead(context.Context, string) (*Bead, error) {
+	return &Bead{ID: "stub"}, nil
+}
+
 func TestTaskTrackerInterface(t *testing.T) {
 	var _ TaskTracker = taskTrackerTestStub{}
 }

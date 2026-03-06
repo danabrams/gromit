@@ -281,11 +281,20 @@ func (s *Stage) createBeads(ctx context.Context, parentID string, proposals []*b
 	created := make([]*tasktracker.Bead, 0, len(proposals))
 	for _, proposal := range proposals {
 		labels := copyStrings(proposal.Labels)
-		trackerBead, err := s.tracker.CreateBead(ctx, proposal.Title, proposal.Description, proposal.Priority, labels, deps)
+		trackerResp, err := s.tracker.CreateBead(ctx, tasktracker.CreateBeadRequest{
+			Title:        proposal.Title,
+			Description:  proposal.Description,
+			Priority:     proposal.Priority,
+			Labels:       labels,
+			Dependencies: deps,
+		})
 		if err != nil {
 			return nil, fmt.Errorf("review: creating bead %q: %w", proposal.Title, err)
 		}
-		created = append(created, trackerBead)
+		if trackerResp == nil || trackerResp.Bead == nil {
+			return nil, fmt.Errorf("review: create bead response missing for %q", proposal.Title)
+		}
+		created = append(created, trackerResp.Bead)
 	}
 	return created, nil
 }

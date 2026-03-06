@@ -252,39 +252,39 @@ type createCall struct {
 	Dependencies []string
 }
 
-func (f *fakeTracker) NextBead(ctx context.Context) (*tasktracker.Bead, error) {
-	return nil, nil
+func (f *fakeTracker) NextBead(ctx context.Context, req tasktracker.NextBeadRequest) (*tasktracker.NextBeadResponse, error) {
+	return &tasktracker.NextBeadResponse{}, nil
 }
 
 func (f *fakeTracker) ShowBead(context.Context, string) (*tasktracker.Bead, error) {
 	return nil, nil
 }
 
-func (f *fakeTracker) CreateBead(ctx context.Context, title, description string, priority int, labels, dependencies []string) (*tasktracker.Bead, error) {
+func (f *fakeTracker) CreateBead(ctx context.Context, req tasktracker.CreateBeadRequest) (*tasktracker.CreateBeadResponse, error) {
 	f.nextID++
 	id := fmt.Sprintf("bead-%d", f.nextID)
 	call := createCall{
-		Title:        title,
-		Description:  description,
-		Priority:     priority,
-		Labels:       append([]string(nil), labels...),
-		Dependencies: append([]string(nil), dependencies...),
+		Title:        req.Title,
+		Description:  req.Description,
+		Priority:     req.Priority,
+		Labels:       append([]string(nil), req.Labels...),
+		Dependencies: append([]string(nil), req.Dependencies...),
 	}
 	f.calls = append(f.calls, call)
-	return &tasktracker.Bead{
+	return &tasktracker.CreateBeadResponse{Bead: &tasktracker.Bead{
 		ID:          id,
-		Title:       title,
-		Description: description,
-		Priority:    priority,
+		Title:       req.Title,
+		Description: req.Description,
+		Priority:    req.Priority,
 		Labels:      append([]string(nil), call.Labels...),
-		DependsOn:   append([]string(nil), dependencies...),
-	}, nil
+		DependsOn:   append([]string(nil), req.Dependencies...),
+	}}, nil
 }
 
-func (f *fakeTracker) CloseBead(ctx context.Context, beadID string) error {
-	return nil
+func (f *fakeTracker) CloseBead(ctx context.Context, req tasktracker.CloseBeadRequest) (*tasktracker.CloseBeadResponse, error) {
+	return &tasktracker.CloseBeadResponse{Closed: true}, nil
 }
 
-func (f *fakeTracker) QueryBeads(ctx context.Context, labels []string, status, parent string) ([]tasktracker.Bead, error) {
-	return nil, nil
+func (f *fakeTracker) QueryBeads(ctx context.Context, req tasktracker.QueryBeadsRequest) (*tasktracker.QueryBeadsResponse, error) {
+	return &tasktracker.QueryBeadsResponse{}, nil
 }

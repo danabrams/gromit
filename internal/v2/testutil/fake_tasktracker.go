@@ -31,7 +31,7 @@ func NewFakeTaskTracker() *FakeTaskTracker {
 }
 
 // NextBead returns the earliest open bead whose dependencies are cleared.
-func (f *FakeTaskTracker) NextBead(_ context.Context) (*tasktracker.Bead, error) {
+func (f *FakeTaskTracker) NextBead(_ context.Context, req tasktracker.NextBeadRequest) (*tasktracker.NextBeadResponse, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
@@ -43,7 +43,7 @@ func (f *FakeTaskTracker) NextBead(_ context.Context) (*tasktracker.Bead, error)
 		if f.hasPendingDependencies(bead) {
 			continue
 		}
-		return cloneBead(bead), nil
+		return &tasktracker.NextBeadResponse{Bead: cloneBead(bead)}, nil
 	}
 	return nil, nil
 }
@@ -60,7 +60,7 @@ func (f *FakeTaskTracker) ShowBead(_ context.Context, beadID string) (*tasktrack
 }
 
 // CreateBead appends a new bead and wires up dependency links.
-func (f *FakeTaskTracker) CreateBead(_ context.Context, title, description string, priority int, labels, dependencies []string) (*tasktracker.Bead, error) {
+func (f *FakeTaskTracker) CreateBead(_ context.Context, req tasktracker.CreateBeadRequest) (*tasktracker.CreateBeadResponse, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
@@ -68,39 +68,41 @@ func (f *FakeTaskTracker) CreateBead(_ context.Context, title, description strin
 	id := fmt.Sprintf("bead-%d", f.nextID)
 	bead := &tasktracker.Bead{
 		ID:          id,
-		Title:       title,
-		Description: description,
-		Priority:    priority,
-		Labels:      cloneStrings(labels),
-		DependsOn:   cloneStrings(dependencies),
-		BlockedBy:   cloneStrings(dependencies),
+		Title:       req.Title,
+		Description: req.Description,
+		Priority:    req.Priority,
+		Labels:      cloneStrings(req.Labels),
+		DependsOn:   cloneStrings(req.Dependencies),
+		BlockedBy:   cloneStrings(req.Dependencies),
 		Status:      tracker.StatusOpen,
 	}
 	f.beads[id] = bead
 	f.order = append(f.order, id)
 
-	for _, depID := range dependencies {
+	for _, depID := range req.Dependencies {
 		if dep, ok := f.beads[depID]; ok {
 			dep.Dependents = appendIfMissing(dep.Dependents, id)
 		}
 	}
 
-	return cloneBead(bead), nil
+	return &tasktracker.CreateBeadResponse{Bead: cloneBead(bead)}, nil
 }
 
 // CloseBead marks a bead closed but leaves other metadata intact.
-func (f *FakeTaskTracker) CloseBead(_ context.Context, beadID string) error {
+func (f *FakeTaskTracker) CloseBead(_ context.Context, req tasktracker.CloseBeadRequest) (*tasktracker.CloseBeadResponse, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	if bead, ok := f.beads[beadID]; ok {
+	closed := false
+	if bead, ok := f.beads[req.BeadID]; ok {
 		bead.Status = tracker.StatusClosed
+		closed = true
 	}
-	return nil
+	return &tasktracker.CloseBeadResponse{Closed: closed}, nil
 }
 
 // QueryBeads filters beads by labels and status.
-func (f *FakeTaskTracker) QueryBeads(_ context.Context, labels []string, status, parent string) ([]tasktracker.Bead, error) {
+func (f *FakeTaskTracker) QueryBeads(_ context.Context, req tasktracker.QueryBeadsRequest) (*tasktracker.QueryBeadsResponse, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
@@ -110,15 +112,15 @@ func (f *FakeTaskTracker) QueryBeads(_ context.Context, labels []string, status,
 		if bead == nil {
 			continue
 		}
-		if status != "" && !strings.EqualFold(strings.TrimSpace(status), strings.TrimSpace(bead.Status)) {
+		if req.Status != "" && !strings.EqualFold(strings.TrimSpace(req.Status), strings.TrimSpace(bead.Status)) {
 			continue
 		}
-		if !containsAllLabels(bead.Labels, labels) {
+		if !containsAllLabels(bead.Labels, req.Labels) {
 			continue
 		}
 		filtered = append(filtered, *cloneBead(bead))
 	}
-	return filtered, nil
+	return &tasktracker.QueryBeadsResponse{Beads: filtered}, nil
 }
 
 // RecordPlan captures the computed plan for later inspection.

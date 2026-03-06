@@ -128,7 +128,7 @@ type fakeTracker struct {
 	closeCalls []string
 }
 
-func (f *fakeTracker) NextBead(ctx context.Context) (*tasktracker.Bead, error) {
+func (f *fakeTracker) NextBead(ctx context.Context, req tasktracker.NextBeadRequest) (*tasktracker.NextBeadResponse, error) {
 	return nil, nil
 }
 
@@ -136,15 +136,15 @@ func (f *fakeTracker) ShowBead(ctx context.Context, beadID string) (*tasktracker
 	return nil, nil
 }
 
-func (f *fakeTracker) CreateBead(ctx context.Context, title, description string, priority int, labels, dependencies []string) (*tasktracker.Bead, error) {
+func (f *fakeTracker) CreateBead(ctx context.Context, req tasktracker.CreateBeadRequest) (*tasktracker.CreateBeadResponse, error) {
 	return nil, nil
 }
 
-func (f *fakeTracker) CloseBead(ctx context.Context, beadID string) error {
-	f.closeCalls = append(f.closeCalls, beadID)
-	return nil
+func (f *fakeTracker) CloseBead(ctx context.Context, req tasktracker.CloseBeadRequest) (*tasktracker.CloseBeadResponse, error) {
+	f.closeCalls = append(f.closeCalls, req.BeadID)
+	return &tasktracker.CloseBeadResponse{Closed: true}, nil
 }
 
-func (f *fakeTracker) QueryBeads(ctx context.Context, labels []string, status, parent string) ([]tasktracker.Bead, error) {
-	return nil, nil
+func (f *fakeTracker) QueryBeads(ctx context.Context, req tasktracker.QueryBeadsRequest) (*tasktracker.QueryBeadsResponse, error) {
+	return &tasktracker.QueryBeadsResponse{}, nil
 }

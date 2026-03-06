@@ -90,25 +90,30 @@ type fakeTracker struct {
 	created []*tasktracker.Bead
 }
 
-func (f *fakeTracker) NextBead(context.Context) (*tasktracker.Bead, error) { return nil, nil }
+func (f *fakeTracker) NextBead(context.Context, tasktracker.NextBeadRequest) (*tasktracker.NextBeadResponse, error) {
+	return &tasktracker.NextBeadResponse{}, nil
+}
 func (f *fakeTracker) ShowBead(context.Context, string) (*tasktracker.Bead, error) {
 	return nil, nil
 }
-func (f *fakeTracker) CreateBead(ctx context.Context, title, description string, priority int, labels, dependencies []string) (*tasktracker.Bead, error) {
+
+func (f *fakeTracker) CreateBead(ctx context.Context, req tasktracker.CreateBeadRequest) (*tasktracker.CreateBeadResponse, error) {
 	bead := &tasktracker.Bead{
 		ID:          fmt.Sprintf("bead-%d", len(f.created)+1),
-		Title:       title,
-		Description: description,
-		Priority:    priority,
-		Labels:      append([]string(nil), labels...),
-		DependsOn:   append([]string(nil), dependencies...),
+		Title:       req.Title,
+		Description: req.Description,
+		Priority:    req.Priority,
+		Labels:      append([]string(nil), req.Labels...),
+		DependsOn:   append([]string(nil), req.Dependencies...),
 	}
 	f.created = append(f.created, bead)
-	return bead, nil
+	return &tasktracker.CreateBeadResponse{Bead: bead}, nil
 }
-func (f *fakeTracker) CloseBead(context.Context, string) error { return nil }
-func (f *fakeTracker) QueryBeads(context.Context, []string, string, string) ([]tasktracker.Bead, error) {
-	return nil, nil
+func (f *fakeTracker) CloseBead(context.Context, tasktracker.CloseBeadRequest) (*tasktracker.CloseBeadResponse, error) {
+	return &tasktracker.CloseBeadResponse{Closed: true}, nil
+}
+func (f *fakeTracker) QueryBeads(context.Context, tasktracker.QueryBeadsRequest) (*tasktracker.QueryBeadsResponse, error) {
+	return &tasktracker.QueryBeadsResponse{}, nil
 }
 
 type fakeGitAdapter struct {
