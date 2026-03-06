@@ -1,6 +1,7 @@
 package loop
 
 import (
+	"bytes"
 	"context"
 	"os"
 	"path/filepath"
@@ -8,8 +9,11 @@ import (
 	"testing"
 
 	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/events"
+	"github.com/danabrams/gromit/internal/v2/adapter"
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
 	stagevalidate "github.com/danabrams/gromit/internal/v2/stage/validate"
+	"github.com/danabrams/gromit/internal/v2/testutil"
 )
 
 func TestCommandValidationRunnerExecutesShellCommand(t *testing.T) {
@@ -193,6 +197,62 @@ func TestLoadMethodologyFragments(t *testing.T) {
 	}
 	if !strings.Contains(fragments.Refactor, refactorContent) {
 		t.Fatalf("expected Refactor to match build_refactor.md, got: %q", fragments.Refactor)
+	}
+}
+
+func TestNewRun2LoopComponentsWiring(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+
+	cfg := &config.Config{
+		ProjectRoot: tmpDir,
+	}
+
+	adapters := adapter.AdapterSet{
+		Git:         testutil.NewFakeGit(),
+		LLM:         newFakeLLMAdapter(),
+		TaskTracker: testutil.NewFakeTaskTracker(),
+		Presenter:   testutil.NewFakePresenter(),
+	}
+
+	legacyEmitter := events.NewEmitter()
+	defer legacyEmitter.Close()
+
+	var output bytes.Buffer
+
+	components, err := NewRun2LoopComponents(cfg, adapters, legacyEmitter, &output)
+	if err != nil {
+		t.Fatalf("NewRun2LoopComponents returned error: %v", err)
+	}
+	if components == nil {
+		t.Fatal("expected non-nil components")
+	}
+
+	// Verify all stages are wired (non-nil).
+	if components.PlanStage == nil {
+		t.Error("PlanStage is nil")
+	}
+	if components.PresentStage == nil {
+		t.Error("PresentStage is nil")
+	}
+	if components.PresentSummaryContext == nil {
+		t.Error("PresentSummaryContext is nil")
+	}
+	if components.DecomposeStage == nil {
+		t.Error("DecomposeStage is nil")
+	}
+	if components.BeadLoop == nil {
+		t.Error("BeadLoop is nil")
+	}
+	if components.AcceptStage == nil {
+		t.Error("AcceptStage is nil")
+	}
+	if components.RemediationRunner == nil {
+		t.Error("RemediationRunner is nil")
+	}
+	if components.Emitter == nil {
+		t.Error("Emitter is nil")
 	}
 }
 

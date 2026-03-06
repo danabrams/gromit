@@ -2,8 +2,10 @@ package plan
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/config"
@@ -169,10 +171,14 @@ type fakeLLMProvider struct {
 	response      *llm.LLMInvokeResponse
 	lastRequest   llm.LLMInvokeRequest
 	resetResponse string
+	err           error
 }
 
 func (f *fakeLLMProvider) Invoke(_ context.Context, req llm.LLMInvokeRequest) (*llm.LLMInvokeResponse, error) {
 	f.lastRequest = req
+	if f.err != nil {
+		return nil, f.err
+	}
 	if f.response == nil {
 		f.response = &llm.LLMInvokeResponse{Success: true, Output: f.resetResponse}
 	}
@@ -180,5 +186,96 @@ func (f *fakeLLMProvider) Invoke(_ context.Context, req llm.LLMInvokeRequest) (*
 }
 
 func (f *fakeLLMProvider) StreamInvoke(context.Context, llm.LLMStreamInvokeRequest) (*llm.LLMStreamInvokeResponse, error) {
+	panic("not implemented")
+}
+
+func setupPlanStage(t *testing.T, provider *fakeLLMProvider) (*Stage, *config.Config, string) {
+	t.Helper()
+	tmpDir := t.TempDir()
+	specID := "test-spec"
+	specContent := "# Test spec\nDetails"
+
+	specsDir := filepath.Join(tmpDir, ".gromit", "specs")
+	if err := os.MkdirAll(specsDir, 0o755); err != nil {
+		t.Fatalf("create specs dir: %v", err)
+	}
+	specPath := filepath.Join(specsDir, specID+".md")
+	if err := os.WriteFile(specPath, []byte(specContent), 0o644); err != nil {
+		t.Fatalf("write spec file: %v", err)
+	}
+
+	cfg := &config.Config{
+		ProjectRoot: tmpDir,
+		Paths: config.PathsConfig{
+			Specs:     ".gromit/specs",
+			GromitDir: ".gromit",
+		},
+	}
+
+	stageInstance, err := New(cfg, provider, "base", "project", "fragment")
+	if err != nil {
+		t.Fatalf("create stage: %v", err)
+	}
+	return stageInstance, cfg, specID
+}
+
+func TestRunReturnsErrorWhenLLMFails(t *testing.T) {
+	t.Parallel()
+	provider := &fakeLLMProvider{err: fmt.Errorf("llm unavailable")}
+	stageInstance, cfg, specID := setupPlanStage(t, provider)
+
+	req := &stagepkg.Request{Bead: stagepkg.BeadInfo{ID: specID}, Config: cfg}
+	_, err := stageInstance.Run(context.Background(), req)
+	if err == nil {
+		t.Fatal("expected error when LLM returns error, got nil")
+	}
+	if !strings.Contains(err.Error(), "invoke llm") {
+		t.Fatalf("error should mention invoke llm, got: %v", err)
+	}
+}
+
+func TestRunReturnsErrorWhenLLMReturnsNil(t *testing.T) {
+	t.Parallel()
+	provider := &fakeLLMProvider{response: nil, resetResponse: ""}
+	// Override Invoke to return nil response without error.
+	nilProvider := &nilResponseLLMProvider{}
+	stageInstance, cfg, specID := setupPlanStage(t, provider)
+	// Reconstruct with nilProvider.
+	stageInstance, _ = New(cfg, nilProvider, "base", "project", "fragment")
+
+	req := &stagepkg.Request{Bead: stagepkg.BeadInfo{ID: specID}, Config: cfg}
+	_, err := stageInstance.Run(context.Background(), req)
+	if err == nil {
+		t.Fatal("expected error when LLM returns nil response, got nil")
+	}
+	if !strings.Contains(err.Error(), "nil response") {
+		t.Fatalf("error should mention nil response, got: %v", err)
+	}
+}
+
+func TestRunReturnsErrorWhenLLMReportsFailure(t *testing.T) {
+	t.Parallel()
+	provider := &fakeLLMProvider{
+		response: &llm.LLMInvokeResponse{Success: false, Output: "budget exceeded"},
+	}
+	stageInstance, cfg, specID := setupPlanStage(t, provider)
+
+	req := &stagepkg.Request{Bead: stagepkg.BeadInfo{ID: specID}, Config: cfg}
+	_, err := stageInstance.Run(context.Background(), req)
+	if err == nil {
+		t.Fatal("expected error when LLM reports Success=false, got nil")
+	}
+	if !strings.Contains(err.Error(), "unsuccessful") {
+		t.Fatalf("error should mention unsuccessful, got: %v", err)
+	}
+}
+
+type nilResponseLLMProvider struct{}
+
+func (n *nilResponseLLMProvider) Invoke(context.Context, llm.LLMInvokeRequest) (*llm.LLMInvokeResponse, error) {
+	return nil, nil
+}
+
+func (n *nilResponseLLMProvider) StreamInvoke(context.Context, llm.LLMStreamInvokeRequest) (*llm.LLMStreamInvokeResponse, error) {
 	panic("not implemented")
 }

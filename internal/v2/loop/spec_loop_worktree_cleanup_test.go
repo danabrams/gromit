@@ -41,7 +41,7 @@ func TestSpecLoopFailureCommitsPartialWorkAndRemovesWorktree(t *testing.T) {
 	specID := "spec-loop-worktree-cleanup"
 	worktreesDir := filepath.Join(repoRoot, ".gromit", "spec-worktrees")
 	gitAdapter := &recordingGitAdapter{
-		ExecGitAdapter: gitadapter.NewExecGitAdapter(worktreesDir),
+		ExecGitAdapter: gitadapter.NewExecGitAdapter(repoRoot, worktreesDir),
 		t:              t,
 		specID:         specID,
 	}
@@ -122,4 +122,77 @@ func (r *recordingGitAdapter) RemoveWorktree(ctx context.Context, worktree strin
 	r.t.Helper()
 	r.lastCommitLog = gitCommand(r.t, worktree, "log", "-1", "--pretty=%B")
 	return r.ExecGitAdapter.RemoveWorktree(ctx, worktree)
+}
+
+// ctxCheckingGitAdapter records whether RemoveWorktree received a non-cancelled context.
+type ctxCheckingGitAdapter struct {
+	fakeGitAdapter
+	removeCtxErr error
+}
+
+func (c *ctxCheckingGitAdapter) RemoveWorktree(ctx context.Context, worktree string) error {
+	c.removeCtxErr = ctx.Err()
+	c.removedWorktrees = append(c.removedWorktrees, worktree)
+	return nil
+}
+
+func (c *ctxCheckingGitAdapter) Status(ctx context.Context, worktree string) (string, error) {
+	if ctx.Err() != nil {
+		return "", ctx.Err()
+	}
+	return "M dirty-file.go", nil
+}
+
+func (c *ctxCheckingGitAdapter) Commit(ctx context.Context, worktree, message string) (string, error) {
+	if ctx.Err() != nil {
+		return "", ctx.Err()
+	}
+	c.commitMessages = append(c.commitMessages, message)
+	return "fake-sha", nil
+}
+
+func TestCleanupWorktreeUsesNonCancelledContext(t *testing.T) {
+	t.Parallel()
+
+	gitAdapter := &ctxCheckingGitAdapter{}
+	gitAdapter.t = t
+
+	adapters := adapter.AdapterSet{
+		Git:         gitAdapter,
+		LLM:         newFakeLLMAdapter(),
+		TaskTracker: newFakeTaskTrackerAdapter(),
+		Presenter:   newFakePresenterAdapter(t),
+	}
+
+	loopInstance, err := NewSpecLoop(adapters, &config.Config{}, noopDependencyGate{})
+	if err != nil {
+		t.Fatalf("create spec loop: %v", err)
+	}
+
+	// Cancel the parent context before calling cleanupWorktree.
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	// cleanupWorktree should succeed because it creates a fresh context internally.
+	if err := loopInstance.cleanupWorktree(ctx, "test-spec", "/tmp/fake-worktree", false); err != nil {
+		t.Fatalf("cleanupWorktree should succeed with cancelled context, got: %v", err)
+	}
+
+	// The git adapter should have received a non-cancelled context for RemoveWorktree.
+	if gitAdapter.removeCtxErr != nil {
+		t.Fatalf("RemoveWorktree received cancelled context: %v", gitAdapter.removeCtxErr)
+	}
+
+	// Verify partial work was committed (status returned dirty).
+	if len(gitAdapter.commitMessages) != 1 {
+		t.Fatalf("expected 1 commit, got %d", len(gitAdapter.commitMessages))
+	}
+	if !strings.Contains(gitAdapter.commitMessages[0], "test-spec") {
+		t.Fatalf("commit message should contain spec ID, got: %q", gitAdapter.commitMessages[0])
+	}
+
+	// Verify worktree was removed.
+	if len(gitAdapter.removedWorktrees) != 1 {
+		t.Fatalf("expected 1 removed worktree, got %d", len(gitAdapter.removedWorktrees))
+	}
 }

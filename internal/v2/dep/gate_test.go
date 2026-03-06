@@ -342,6 +342,349 @@ func TestListReady_IgnoresNonMarkdownFiles(t *testing.T) {
 	}
 }
 
+// --- EnsureSpecReady (error cases) ------------------------------------------
+
+func TestEnsureSpecReady_NilGate_ReturnsError(t *testing.T) {
+	t.Parallel()
+	var gate *SpecDependencyGate
+
+	err := gate.EnsureSpecReady(context.Background(), "any")
+	if err == nil {
+		t.Fatal("expected error for nil gate, got nil")
+	}
+}
+
+func TestEnsureSpecReady_MalformedFrontmatter_ReturnsError(t *testing.T) {
+	t.Parallel()
+	specsDir := createTestSpecsDir(t)
+
+	// Write a file with unclosed frontmatter delimiter.
+	path := filepath.Join(specsDir, "bad.md")
+	if err := os.WriteFile(path, []byte("---\nid: bad\nno closing delimiter"), 0o644); err != nil {
+		t.Fatalf("writing malformed spec: %v", err)
+	}
+
+	gate, err := NewSpecDependencyGate(specsDir)
+	if err != nil {
+		t.Fatalf("new gate: %v", err)
+	}
+
+	err = gate.EnsureSpecReady(context.Background(), "bad")
+	if err == nil {
+		t.Fatal("expected error for malformed frontmatter, got nil")
+	}
+}
+
+func TestEnsureSpecReady_DuplicateDependencies_DeduplicatesBlockers(t *testing.T) {
+	t.Parallel()
+	specsDir := createTestSpecsDir(t)
+	writeTestSpecFile(t, specsDir, "dep-a", "", nil) // not done
+	writeTestSpecFile(t, specsDir, "child", "", []string{"dep-a", "dep-a", "dep-a"})
+
+	gate, err := NewSpecDependencyGate(specsDir)
+	if err != nil {
+		t.Fatalf("new gate: %v", err)
+	}
+
+	err = gate.EnsureSpecReady(context.Background(), "child")
+	if err == nil {
+		t.Fatal("expected error for unsatisfied dependency")
+	}
+
+	var depErr *SpecDependencyError
+	if !errors.As(err, &depErr) {
+		t.Fatalf("expected *SpecDependencyError, got %T: %v", err, err)
+	}
+
+	blocking := depErr.BlockingIDs()
+	if len(blocking) != 1 {
+		t.Fatalf("duplicate deps should be deduplicated: BlockingIDs() = %v, want [dep-a]", blocking)
+	}
+	if blocking[0] != "dep-a" {
+		t.Fatalf("BlockingIDs() = %v, want [dep-a]", blocking)
+	}
+}
+
+func TestEnsureSpecReady_SpecIsDone_StillSucceeds(t *testing.T) {
+	t.Parallel()
+	specsDir := createTestSpecsDir(t)
+	writeTestSpecFile(t, specsDir, "done-spec", "done", nil)
+
+	gate, err := NewSpecDependencyGate(specsDir)
+	if err != nil {
+		t.Fatalf("new gate: %v", err)
+	}
+
+	// EnsureSpecReady checks deps, not stage — a done spec with no deps should pass.
+	if err := gate.EnsureSpecReady(context.Background(), "done-spec"); err != nil {
+		t.Fatalf("EnsureSpecReady() = %v, want nil (done spec with no deps)", err)
+	}
+}
+
+// --- ListReady (error cases) ------------------------------------------------
+
+func TestListReady_NilGate_ReturnsError(t *testing.T) {
+	t.Parallel()
+	var gate *SpecDependencyGate
+
+	_, err := gate.ListReady(context.Background())
+	if err == nil {
+		t.Fatal("expected error for nil gate, got nil")
+	}
+}
+
+func TestListReady_NonExistentDirectory_ReturnsError(t *testing.T) {
+	t.Parallel()
+	gate, err := NewSpecDependencyGate("/tmp/does-not-exist-gromit-test-" + t.Name())
+	if err != nil {
+		t.Fatalf("new gate: %v", err)
+	}
+
+	_, err = gate.ListReady(context.Background())
+	if err == nil {
+		t.Fatal("expected error for non-existent directory, got nil")
+	}
+}
+
+func TestListReady_MalformedSpecFile_ReturnsError(t *testing.T) {
+	t.Parallel()
+	specsDir := createTestSpecsDir(t)
+
+	// Write a valid spec and a malformed one.
+	writeTestSpecFile(t, specsDir, "good", "", nil)
+	path := filepath.Join(specsDir, "bad.md")
+	if err := os.WriteFile(path, []byte("---\nid: bad\nno closing delimiter"), 0o644); err != nil {
+		t.Fatalf("writing malformed spec: %v", err)
+	}
+
+	gate, err := NewSpecDependencyGate(specsDir)
+	if err != nil {
+		t.Fatalf("new gate: %v", err)
+	}
+
+	_, err = gate.ListReady(context.Background())
+	if err == nil {
+		t.Fatal("expected error for malformed spec file, got nil")
+	}
+}
+
+func TestListReady_IgnoresSubdirectories(t *testing.T) {
+	t.Parallel()
+	specsDir := createTestSpecsDir(t)
+	writeTestSpecFile(t, specsDir, "real", "", nil)
+
+	// Create a subdirectory — should be skipped.
+	subDir := filepath.Join(specsDir, "subdir")
+	if err := os.MkdirAll(subDir, 0o755); err != nil {
+		t.Fatalf("creating subdirectory: %v", err)
+	}
+
+	gate, err := NewSpecDependencyGate(specsDir)
+	if err != nil {
+		t.Fatalf("new gate: %v", err)
+	}
+
+	ready, err := gate.ListReady(context.Background())
+	if err != nil {
+		t.Fatalf("ListReady() error = %v", err)
+	}
+
+	if len(ready) != 1 || ready[0] != "real" {
+		t.Fatalf("ListReady() = %v, want [real]", ready)
+	}
+}
+
+func TestListReady_AllSpecsDone_ReturnsEmpty(t *testing.T) {
+	t.Parallel()
+	specsDir := createTestSpecsDir(t)
+	writeTestSpecFile(t, specsDir, "a", "done", nil)
+	writeTestSpecFile(t, specsDir, "b", "done", nil)
+
+	gate, err := NewSpecDependencyGate(specsDir)
+	if err != nil {
+		t.Fatalf("new gate: %v", err)
+	}
+
+	ready, err := gate.ListReady(context.Background())
+	if err != nil {
+		t.Fatalf("ListReady() error = %v", err)
+	}
+
+	if len(ready) != 0 {
+		t.Fatalf("ListReady() = %v, want empty", ready)
+	}
+}
+
+func TestListReady_ChainedDependencies_OnlyLeafReady(t *testing.T) {
+	t.Parallel()
+	specsDir := createTestSpecsDir(t)
+	// Chain: c depends on b, b depends on a. Only a has no deps.
+	writeTestSpecFile(t, specsDir, "a", "", nil)
+	writeTestSpecFile(t, specsDir, "b", "", []string{"a"})
+	writeTestSpecFile(t, specsDir, "c", "", []string{"b"})
+
+	gate, err := NewSpecDependencyGate(specsDir)
+	if err != nil {
+		t.Fatalf("new gate: %v", err)
+	}
+
+	ready, err := gate.ListReady(context.Background())
+	if err != nil {
+		t.Fatalf("ListReady() error = %v", err)
+	}
+
+	// Only 'a' should be ready (no deps, not done).
+	// 'b' blocked by 'a' (not done), 'c' blocked by 'b' (not done).
+	if len(ready) != 1 || ready[0] != "a" {
+		t.Fatalf("ListReady() = %v, want [a]", ready)
+	}
+}
+
+// --- blockingDependencies (direct tests) ------------------------------------
+
+func TestBlockingDependencies_NilMetadata_ReturnsNil(t *testing.T) {
+	t.Parallel()
+	specsDir := createTestSpecsDir(t)
+	gate, err := NewSpecDependencyGate(specsDir)
+	if err != nil {
+		t.Fatalf("new gate: %v", err)
+	}
+
+	blockers, err := gate.blockingDependencies(nil)
+	if err != nil {
+		t.Fatalf("blockingDependencies(nil) error = %v", err)
+	}
+	if blockers != nil {
+		t.Fatalf("blockingDependencies(nil) = %v, want nil", blockers)
+	}
+}
+
+func TestBlockingDependencies_EmptyDependsOn_ReturnsNil(t *testing.T) {
+	t.Parallel()
+	specsDir := createTestSpecsDir(t)
+	gate, err := NewSpecDependencyGate(specsDir)
+	if err != nil {
+		t.Fatalf("new gate: %v", err)
+	}
+
+	meta := &specMetadata{ID: "test", DependsOn: nil}
+	blockers, err := gate.blockingDependencies(meta)
+	if err != nil {
+		t.Fatalf("blockingDependencies() error = %v", err)
+	}
+	if blockers != nil {
+		t.Fatalf("blockingDependencies() = %v, want nil", blockers)
+	}
+}
+
+func TestBlockingDependencies_AllDone_ReturnsEmpty(t *testing.T) {
+	t.Parallel()
+	specsDir := createTestSpecsDir(t)
+	writeTestSpecFile(t, specsDir, "dep-x", "done", nil)
+	writeTestSpecFile(t, specsDir, "dep-y", "done", nil)
+
+	gate, err := NewSpecDependencyGate(specsDir)
+	if err != nil {
+		t.Fatalf("new gate: %v", err)
+	}
+
+	meta := &specMetadata{ID: "child", DependsOn: []string{"dep-x", "dep-y"}}
+	blockers, err := gate.blockingDependencies(meta)
+	if err != nil {
+		t.Fatalf("blockingDependencies() error = %v", err)
+	}
+	if len(blockers) != 0 {
+		t.Fatalf("blockingDependencies() = %v, want empty", blockers)
+	}
+}
+
+func TestBlockingDependencies_MissingDepFile_TreatedAsBlocker(t *testing.T) {
+	t.Parallel()
+	specsDir := createTestSpecsDir(t)
+
+	gate, err := NewSpecDependencyGate(specsDir)
+	if err != nil {
+		t.Fatalf("new gate: %v", err)
+	}
+
+	meta := &specMetadata{ID: "child", DependsOn: []string{"nonexistent"}}
+	blockers, err := gate.blockingDependencies(meta)
+	if err != nil {
+		t.Fatalf("blockingDependencies() error = %v", err)
+	}
+	if len(blockers) != 1 || blockers[0] != "nonexistent" {
+		t.Fatalf("blockingDependencies() = %v, want [nonexistent]", blockers)
+	}
+}
+
+func TestBlockingDependencies_DuplicateDeps_Deduplicated(t *testing.T) {
+	t.Parallel()
+	specsDir := createTestSpecsDir(t)
+	writeTestSpecFile(t, specsDir, "dep", "", nil) // not done
+
+	gate, err := NewSpecDependencyGate(specsDir)
+	if err != nil {
+		t.Fatalf("new gate: %v", err)
+	}
+
+	meta := &specMetadata{ID: "child", DependsOn: []string{"dep", "dep", "dep"}}
+	blockers, err := gate.blockingDependencies(meta)
+	if err != nil {
+		t.Fatalf("blockingDependencies() error = %v", err)
+	}
+	if len(blockers) != 1 || blockers[0] != "dep" {
+		t.Fatalf("blockingDependencies() = %v, want [dep]", blockers)
+	}
+}
+
+func TestBlockingDependencies_WhitespaceOnlyDeps_Skipped(t *testing.T) {
+	t.Parallel()
+	specsDir := createTestSpecsDir(t)
+
+	gate, err := NewSpecDependencyGate(specsDir)
+	if err != nil {
+		t.Fatalf("new gate: %v", err)
+	}
+
+	meta := &specMetadata{ID: "child", DependsOn: []string{"", "  ", "\t"}}
+	blockers, err := gate.blockingDependencies(meta)
+	if err != nil {
+		t.Fatalf("blockingDependencies() error = %v", err)
+	}
+	if len(blockers) != 0 {
+		t.Fatalf("blockingDependencies() = %v, want empty (whitespace-only deps skipped)", blockers)
+	}
+}
+
+func TestBlockingDependencies_ResultIsSorted(t *testing.T) {
+	t.Parallel()
+	specsDir := createTestSpecsDir(t)
+	writeTestSpecFile(t, specsDir, "zzz", "", nil) // not done
+	writeTestSpecFile(t, specsDir, "aaa", "", nil) // not done
+	writeTestSpecFile(t, specsDir, "mmm", "", nil) // not done
+
+	gate, err := NewSpecDependencyGate(specsDir)
+	if err != nil {
+		t.Fatalf("new gate: %v", err)
+	}
+
+	meta := &specMetadata{ID: "child", DependsOn: []string{"zzz", "aaa", "mmm"}}
+	blockers, err := gate.blockingDependencies(meta)
+	if err != nil {
+		t.Fatalf("blockingDependencies() error = %v", err)
+	}
+
+	want := []string{"aaa", "mmm", "zzz"}
+	if len(blockers) != len(want) {
+		t.Fatalf("blockingDependencies() = %v, want %v", blockers, want)
+	}
+	for i, b := range blockers {
+		if b != want[i] {
+			t.Fatalf("blockingDependencies()[%d] = %q, want %q", i, b, want[i])
+		}
+	}
+}
+
 // --- SpecDependencyError ----------------------------------------------------
 
 func TestSpecDependencyError_ErrorMessage(t *testing.T) {

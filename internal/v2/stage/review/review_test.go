@@ -72,10 +72,14 @@ func TestStageUsesGitAdapterDiff(t *testing.T) {
 type fakeLLM struct {
 	lastPrompt string
 	response   *llm.LLMResponse
+	err        error
 }
 
 func (f *fakeLLM) Invoke(_ context.Context, req llm.InvokeRequest) (*llm.LLMResponse, error) {
 	f.lastPrompt = req.Prompt
+	if f.err != nil {
+		return nil, f.err
+	}
 	if f.response != nil {
 		return f.response, nil
 	}
@@ -234,4 +238,52 @@ func hasLabel(labels []string, target string) bool {
 		}
 	}
 	return false
+}
+
+func TestRunReturnsErrorWhenLLMFails(t *testing.T) {
+	t.Parallel()
+	cfg := &config.Config{Review: config.ReviewConfig{Enabled: true, Tier: "sonnet"}}
+	llmStub := &fakeLLM{err: fmt.Errorf("llm unavailable")}
+	stage, err := review.New(cfg, &fakeGitAdapter{diff: "diff"}, llmStub, &fakeTracker{}, "", "", "")
+	if err != nil {
+		t.Fatalf("unexpected error creating stage: %v", err)
+	}
+
+	req := &stagepkg.Request{Bead: stagepkg.BeadInfo{ID: "spec-1"}, Worktree: t.TempDir(), Config: cfg}
+	_, err = stage.Run(context.Background(), req)
+	if err == nil {
+		t.Fatal("expected error when LLM returns error, got nil")
+	}
+	if !strings.Contains(err.Error(), "invoking llm") {
+		t.Fatalf("error should mention invoking llm, got: %v", err)
+	}
+}
+
+func TestRunReturnsErrorWhenLLMReturnsNil(t *testing.T) {
+	t.Parallel()
+	cfg := &config.Config{Review: config.ReviewConfig{Enabled: true, Tier: "sonnet"}}
+	llmStub := &nilResponseLLM{}
+	stage, err := review.New(cfg, &fakeGitAdapter{diff: "diff"}, llmStub, &fakeTracker{}, "", "", "")
+	if err != nil {
+		t.Fatalf("unexpected error creating stage: %v", err)
+	}
+
+	req := &stagepkg.Request{Bead: stagepkg.BeadInfo{ID: "spec-1"}, Worktree: t.TempDir(), Config: cfg}
+	_, err = stage.Run(context.Background(), req)
+	if err == nil {
+		t.Fatal("expected error when LLM returns nil response, got nil")
+	}
+	if !strings.Contains(err.Error(), "nil") {
+		t.Fatalf("error should mention nil, got: %v", err)
+	}
+}
+
+type nilResponseLLM struct{}
+
+func (n *nilResponseLLM) Invoke(context.Context, llm.InvokeRequest) (*llm.LLMResponse, error) {
+	return nil, nil
+}
+
+func (n *nilResponseLLM) StreamInvoke(context.Context, llm.StreamInvokeRequest) (*llm.LLMResponse, error) {
+	return nil, nil
 }

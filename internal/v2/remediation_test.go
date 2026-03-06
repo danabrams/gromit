@@ -88,6 +88,49 @@ func TestRemediationRunnerUsesDefaultGenerationCapWhenZero(t *testing.T) {
 	}
 }
 
+func TestRemediationRunnerRun_resetsGenerationCountBetweenRuns(t *testing.T) {
+	ctx := context.Background()
+
+	// Accept stage: fail once then succeed (per run).
+	callCount := 0
+	accept := &testStage{
+		name: "accept",
+		run: func(ctx context.Context, _ *stage.Request) (*stage.StageResult, error) {
+			callCount++
+			// Odd calls fail, even calls succeed (fail-then-pass per run).
+			if callCount%2 == 1 {
+				return &stage.StageResult{Decision: stage.DecisionFail}, nil
+			}
+			return &stage.StageResult{Decision: stage.DecisionProceed}, nil
+		},
+	}
+
+	decompose := &testStage{
+		name: "decompose",
+		run: func(ctx context.Context, _ *stage.Request) (*stage.StageResult, error) {
+			return &stage.StageResult{
+				Artifacts: &stage.DecomposeArtifacts{
+					Beads: []*bead.Bead{{ID: "b1"}},
+				},
+			}, nil
+		},
+	}
+
+	// GenerationCap=1: only one remediation allowed per run.
+	runner := newRunnerForRemediationCycle(accept, decompose, &testBeadRunner{}, 1)
+
+	// First run: should succeed (one remediation, then accept passes).
+	if err := runner.Run(ctx, "spec-1"); err != nil {
+		t.Fatalf("first run failed: %v", err)
+	}
+
+	// Second run: if generationCount is not reset, the runner thinks it already
+	// hit the cap and returns "generation cap reached" immediately.
+	if err := runner.Run(ctx, "spec-2"); err != nil {
+		t.Fatalf("second run should succeed but got: %v", err)
+	}
+}
+
 func newRunnerForSpecValidation() *RemediationRunner {
 	return NewRemediationRunner(RemediationRunnerConfig{})
 }

@@ -227,3 +227,68 @@ func (f *fakeGitAdapter) Status(_ context.Context, worktree string) (string, err
 	f.lastWorktree = worktree
 	return "", nil
 }
+
+func setupAcceptStage(t *testing.T, llmProvider *fakeLLM) (*Stage, *stagepkg.Request) {
+	t.Helper()
+	specID := "spec-err"
+	tmp := t.TempDir()
+	specDir := filepath.Join(tmp, ".gromit", "specs")
+	if err := os.MkdirAll(specDir, 0o755); err != nil {
+		t.Fatalf("create specs dir: %v", err)
+	}
+	specPath := filepath.Join(specDir, specID+".md")
+	content := "# Error spec\n\n## Acceptance Criteria\n- criterion A\n"
+	if err := os.WriteFile(specPath, []byte(content), 0o644); err != nil {
+		t.Fatalf("write spec: %v", err)
+	}
+
+	cfg := &config.Config{
+		ProjectRoot: tmp,
+		Paths: config.PathsConfig{
+			GromitDir: ".gromit",
+			Specs:     ".gromit/specs",
+		},
+	}
+
+	git := &fakeGitAdapter{diff: "diff content"}
+	stageInstance, err := New(cfg, git, llmProvider, "BASE", "PROJECT", "FRAGMENT")
+	if err != nil {
+		t.Fatalf("create stage: %v", err)
+	}
+
+	req := &stagepkg.Request{
+		Bead:     stagepkg.BeadInfo{ID: specID},
+		Worktree: tmp,
+	}
+	return stageInstance, req
+}
+
+func TestRunReturnsErrorWhenLLMFails(t *testing.T) {
+	t.Parallel()
+	// Empty responses slice causes fakeLLM.Invoke to return an error.
+	llmProvider := &fakeLLM{responses: nil}
+	stageInstance, req := setupAcceptStage(t, llmProvider)
+
+	_, err := stageInstance.Run(context.Background(), req)
+	if err == nil {
+		t.Fatal("expected error when LLM returns error, got nil")
+	}
+	if !strings.Contains(err.Error(), "evaluate criterion") {
+		t.Fatalf("error should mention evaluate criterion, got: %v", err)
+	}
+}
+
+func TestRunReturnsErrorWhenLLMReturnsNil(t *testing.T) {
+	t.Parallel()
+	// A nil entry in responses causes Invoke to return (nil, nil).
+	llmProvider := &fakeLLM{responses: []*llm.LLMResponse{nil}}
+	stageInstance, req := setupAcceptStage(t, llmProvider)
+
+	_, err := stageInstance.Run(context.Background(), req)
+	if err == nil {
+		t.Fatal("expected error when LLM returns nil response, got nil")
+	}
+	if !strings.Contains(err.Error(), "nil response") {
+		t.Fatalf("error should mention nil response, got: %v", err)
+	}
+}

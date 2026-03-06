@@ -15,12 +15,15 @@ var _ adapter.GitAdapter = (*ExecGitAdapter)(nil)
 
 // ExecGitAdapter implements GitAdapter using exec.Command("git", ...).
 type ExecGitAdapter struct {
+	repoRoot     string
 	worktreesDir string
 }
 
 // NewExecGitAdapter returns an ExecGitAdapter that creates worktrees under worktreesDir.
-func NewExecGitAdapter(worktreesDir string) *ExecGitAdapter {
-	return &ExecGitAdapter{worktreesDir: worktreesDir}
+// repoRoot is the path to the git repository root; git commands that operate on the
+// repository (e.g. worktree add/remove) run with Dir set to repoRoot.
+func NewExecGitAdapter(repoRoot, worktreesDir string) *ExecGitAdapter {
+	return &ExecGitAdapter{repoRoot: repoRoot, worktreesDir: worktreesDir}
 }
 
 // Checkout creates a git worktree for the given specID and returns its path.
@@ -31,6 +34,7 @@ func (a *ExecGitAdapter) Checkout(ctx context.Context, specID string) (string, e
 	}
 
 	cmd := exec.CommandContext(ctx, "git", "worktree", "add", wtPath, "HEAD")
+	cmd.Dir = a.repoRoot
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return "", fmt.Errorf("git worktree add: %s: %w", out, err)
 	}
@@ -81,6 +85,7 @@ func (a *ExecGitAdapter) RemoveWorktree(ctx context.Context, worktree string) er
 		return fmt.Errorf("worktree required")
 	}
 	cmd := exec.CommandContext(ctx, "git", "worktree", "remove", trimmed)
+	cmd.Dir = a.repoRoot
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("git worktree remove: %s: %w", out, err)
 	}

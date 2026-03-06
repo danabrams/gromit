@@ -89,7 +89,7 @@ func run2(cmd *cobra.Command, args []string) error {
 	}
 	trackerAdapter := tasktracker.NewBDAdapter(beadClient)
 	adapters := adapter.AdapterSet{
-		Git:         gitadapter.NewExecGitAdapter(worktreesDir),
+		Git:         gitadapter.NewExecGitAdapter(".", worktreesDir),
 		LLM:         llmAdapter,
 		TaskTracker: trackerAdapter,
 		Presenter:   presenter.NewGitHubPresenter(nil),

@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
@@ -193,7 +194,9 @@ func (s *SpecLoop) Run(ctx context.Context, specID string, stopCh <-chan struct{
 			return
 		}
 		if retErr != nil {
-			_ = s.adapters.Git.RemoveWorktree(ctx, worktree)
+			cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cleanupCancel()
+			_ = s.adapters.Git.RemoveWorktree(cleanupCtx, worktree)
 		}
 	}()
 
@@ -463,7 +466,7 @@ func (s *SpecLoop) handleFailure(ctx context.Context, specID string, base presen
 	return fmt.Errorf("accept failure: %w", failure)
 }
 
-func (s *SpecLoop) cleanupWorktree(ctx context.Context, specID, worktree string, success bool) error {
+func (s *SpecLoop) cleanupWorktree(_ context.Context, specID, worktree string, success bool) error {
 	trimmed := strings.TrimSpace(worktree)
 	if trimmed == "" {
 		return nil
@@ -472,19 +475,23 @@ func (s *SpecLoop) cleanupWorktree(ctx context.Context, specID, worktree string,
 	if git == nil {
 		return fmt.Errorf("git adapter required for cleanup")
 	}
+	// Use a fresh context so cleanup succeeds even when the caller's context
+	// has been cancelled (exec.CommandContext fails immediately otherwise).
+	cleanupCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
 	if !success {
-		status, err := git.Status(ctx, trimmed)
+		status, err := git.Status(cleanupCtx, trimmed)
 		if err != nil {
 			return fmt.Errorf("git status: %w", err)
 		}
 		if strings.TrimSpace(status) != "" {
 			message := fmt.Sprintf("[gromit: partial work] spec %s", specID)
-			if _, err := git.Commit(ctx, trimmed, message); err != nil {
+			if _, err := git.Commit(cleanupCtx, trimmed, message); err != nil {
 				return fmt.Errorf("commit partial work: %w", err)
 			}
 		}
 	}
-	if err := git.RemoveWorktree(ctx, trimmed); err != nil {
+	if err := git.RemoveWorktree(cleanupCtx, trimmed); err != nil {
 		return fmt.Errorf("remove worktree: %w", err)
 	}
 	return nil

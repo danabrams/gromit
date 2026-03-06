@@ -57,6 +57,7 @@ func NewRemediationRunner(cfg RemediationRunnerConfig) *RemediationRunner {
 
 // Run executes the remediation cycle for the provided spec.
 func (r *RemediationRunner) Run(ctx context.Context, specID string) error {
+	r.generationCount = 0
 	if specID == "" {
 		return ErrSpecIDRequired
 	}
