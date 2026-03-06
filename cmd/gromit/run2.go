@@ -50,7 +50,7 @@ var (
 )
 
 type specLoop interface {
-	Run(ctx context.Context, specID string) error
+	Run(ctx context.Context, specID string, stopCh <-chan struct{}) error
 }
 
 func run2(cmd *cobra.Command, args []string) error {
@@ -131,7 +131,7 @@ func run2(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("initializing spec loop: %w", err)
 	}
 
-	if err := loopInstance.Run(ctx, specFile.ID); err != nil {
+	if err := loopInstance.Run(ctx, specFile.ID, stopCh); err != nil {
 		return fmt.Errorf("running spec %s: %w", specFile.ID, err)
 	}
 

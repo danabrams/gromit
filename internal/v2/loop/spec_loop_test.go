@@ -56,7 +56,7 @@ func TestSpecLoopHappyPathExecutesPipeline(t *testing.T) {
 		t.Fatalf("create spec loop: %v", err)
 	}
 
-	if err := loopInstance.Run(ctx, specID); err != nil {
+	if err := loopInstance.Run(ctx, specID, nil); err != nil {
 		t.Fatalf("run spec loop: %v", err)
 	}
 
@@ -132,7 +132,7 @@ func TestSpecLoopProvidesStageRequestToAcceptStage(t *testing.T) {
 		t.Fatalf("create spec loop: %v", err)
 	}
 
-	if err := loopInstance.Run(ctx, specID); err != nil {
+	if err := loopInstance.Run(ctx, specID, nil); err != nil {
 		t.Fatalf("run spec loop: %v", err)
 	}
 
@@ -184,7 +184,7 @@ func TestSpecLoopFailureEmitsCompletionAndCleansWorktree(t *testing.T) {
 		t.Fatalf("create spec loop: %v", err)
 	}
 
-	if err := loopInstance.Run(ctx, specID); err == nil {
+	if err := loopInstance.Run(ctx, specID, nil); err == nil {
 		t.Fatal("expected failure from accept stage")
 	}
 

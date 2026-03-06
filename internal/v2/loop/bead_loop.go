@@ -67,7 +67,7 @@ func NewBeadLoop(config BeadLoopConfig) (*BeadLoop, error) {
 }
 
 // Run processes the provided beads through the stage pipeline.
-func (b *BeadLoop) Run(ctx context.Context, beads []*bead.Bead) error {
+func (b *BeadLoop) Run(ctx context.Context, beads []*bead.Bead, stopCh <-chan struct{}) error {
 	resolver := dep.NewResolver()
 	beadMap := make(map[string]*bead.Bead, len(beads))
 

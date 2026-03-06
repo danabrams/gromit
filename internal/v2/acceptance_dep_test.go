@@ -51,7 +51,7 @@ func TestRun2BlocksSpecWhenDependenciesIncomplete(t *testing.T) {
 		t.Fatalf("creating spec loop: %v", err)
 	}
 
-	err = loopInstance.Run(ctx, "child")
+	err = loopInstance.Run(ctx, "child", nil)
 	if err == nil {
 		t.Fatal("Run() expected dependency error when prereqs are incomplete")
 	}

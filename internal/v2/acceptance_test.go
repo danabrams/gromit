@@ -43,7 +43,7 @@ func TestSpecLoopExecutesCanonicalStageChain(t *testing.T) {
 		t.Fatalf("NewSpecLoop error = %v", err)
 	}
 
-	if err := specLoop.Run(ctx, specID); err != nil {
+	if err := specLoop.Run(ctx, specID, nil); err != nil {
 		t.Fatalf("Run() error = %v", err)
 	}
 

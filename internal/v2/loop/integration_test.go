@@ -50,7 +50,7 @@ func TestIntegration_SpecLoopHappyPathCompletes(t *testing.T) {
 		t.Fatalf("create spec loop: %v", err)
 	}
 
-	if err := loopInstance.Run(ctx, specID); err != nil {
+	if err := loopInstance.Run(ctx, specID, nil); err != nil {
 		t.Fatalf("run spec loop: %v", err)
 	}
 
@@ -108,7 +108,7 @@ func TestIntegration_SpecLoopFailureHitsGenerationCap(t *testing.T) {
 		t.Fatalf("create spec loop: %v", err)
 	}
 
-	if err := loopInstance.Run(ctx, specID); err == nil {
+	if err := loopInstance.Run(ctx, specID, nil); err == nil {
 		t.Fatal("expected Run to return an error")
 	}
 
@@ -171,7 +171,7 @@ func TestIntegration_SpecLoopRemediationAppliesGapAnalysis(t *testing.T) {
 		t.Fatalf("create spec loop: %v", err)
 	}
 
-	if err := loopInstance.Run(ctx, specID); err != nil {
+	if err := loopInstance.Run(ctx, specID, nil); err != nil {
 		t.Fatalf("run spec loop: %v", err)
 	}
 
@@ -252,7 +252,7 @@ func (r *integrationRemediationRunner) Run(ctx context.Context, specID string) e
 			Labels: append([]string(nil), r.labels...),
 		},
 	}
-	return r.beadLoop.Run(ctx, beads)
+	return r.beadLoop.Run(ctx, beads, nil)
 }
 
 func (r *integrationRemediationRunner) emitGenerationCapEvents(specID string) {

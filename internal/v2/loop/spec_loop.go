@@ -42,7 +42,7 @@ type StageRecorder interface {
 
 // BeadRunner executes a set of beads via the inner loop.
 type BeadRunner interface {
-	Run(ctx context.Context, beads []*bead.Bead) error
+	Run(ctx context.Context, beads []*bead.Bead, stopCh <-chan struct{}) error
 }
 
 type remediationRunner interface {
@@ -144,7 +144,7 @@ func NewSpecLoop(adapters adapter.AdapterSet, cfg *config.Config, gate Dependenc
 }
 
 // Run executes the configured adapters for the requested spec.
-func (s *SpecLoop) Run(ctx context.Context, specID string) error {
+func (s *SpecLoop) Run(ctx context.Context, specID string, stopCh <-chan struct{}) error {
 	if specID == "" {
 		return fmt.Errorf("spec ID required")
 	}
@@ -183,7 +183,7 @@ func (s *SpecLoop) Run(ctx context.Context, specID string) error {
 	}
 
 	s.recordBeadStages()
-	if err := s.runBeadLoop(ctx, beads); err != nil {
+	if err := s.runBeadLoop(ctx, beads, stopCh); err != nil {
 		return err
 	}
 
@@ -233,11 +233,11 @@ func (s *SpecLoop) recordBeadStages() {
 	}
 }
 
-func (s *SpecLoop) runBeadLoop(ctx context.Context, beads []*bead.Bead) error {
+func (s *SpecLoop) runBeadLoop(ctx context.Context, beads []*bead.Bead, stopCh <-chan struct{}) error {
 	if s.beadRunner == nil {
 		return fmt.Errorf("bead runner required")
 	}
-	return s.beadRunner.Run(ctx, beads)
+	return s.beadRunner.Run(ctx, beads, stopCh)
 }
 
 func (s *SpecLoop) ensureAcceptance(ctx context.Context, req *stagepkg.Request, specID string) (*stagepkg.Result, error) {

@@ -241,11 +241,13 @@ var _ specLoop = (*fakeSpecLoop)(nil)
 type fakeSpecLoop struct {
 	called    bool
 	runSpecID string
+	stopCh    <-chan struct{}
 }
 
-func (f *fakeSpecLoop) Run(ctx context.Context, specID string) error {
+func (f *fakeSpecLoop) Run(ctx context.Context, specID string, stopCh <-chan struct{}) error {
 	f.called = true
 	f.runSpecID = specID
+	f.stopCh = stopCh
 	return nil
 }
 

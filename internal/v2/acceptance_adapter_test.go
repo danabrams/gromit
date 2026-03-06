@@ -30,7 +30,7 @@ func TestAdapterSwappability(t *testing.T) {
 			if err != nil {
 				t.Fatalf("setup loop: %v", err)
 			}
-			if err := loopInstance.Run(ctx, "spec-swap"); err != nil {
+			if err := loopInstance.Run(ctx, "spec-swap", nil); err != nil {
 				t.Fatalf("run loop: %v", err)
 			}
 		})
@@ -40,7 +40,7 @@ func TestAdapterSwappability(t *testing.T) {
 	if err != nil {
 		t.Fatalf("base state: %v", err)
 	}
-	if err := baseLoop.Run(ctx, "spec-base"); err != nil {
+	if err := baseLoop.Run(ctx, "spec-base", nil); err != nil {
 		t.Fatalf("base run: %v", err)
 	}
 
