@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/danabrams/gromit/internal/claude"
 	"github.com/danabrams/gromit/internal/procutil"
 )
 
@@ -62,7 +63,38 @@ func (a *claudeAdapter) Invoke(ctx context.Context, req InvokeRequest) (*LLMResp
 }
 
 func (a *claudeAdapter) StreamInvoke(ctx context.Context, req StreamInvokeRequest) (*LLMResponse, error) {
-	return nil, errors.New("stream invoke not implemented")
+	if req.Model == "" {
+		return nil, errors.New("model is required")
+	}
+
+	output := req.Output
+	if output == nil {
+		output = io.Discard
+	}
+
+	flags := append([]string(nil), a.flags...)
+	timeoutSec := int(a.timeout / time.Second)
+	if timeoutSec <= 0 {
+		timeoutSec = 1
+	}
+
+	client, err := claude.NewClient(a.binary, flags, timeoutSec)
+	if err != nil {
+		return nil, err
+	}
+
+	result, err := client.StreamRun(ctx, req.Prompt, req.Model, output, nil, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return &LLMResponse{
+		Success:  result.Success,
+		Output:   strings.TrimSpace(result.Output),
+		Tokens:   result.InputTokens + result.OutputTokens,
+		CostUSD:  result.CostUSD,
+		Duration: result.Duration,
+	}, nil
 }
 
 func (a *claudeAdapter) runOnce(ctx context.Context, args []string, prompt string) (string, time.Duration, error) {
