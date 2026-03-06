@@ -12,6 +12,7 @@ import (
 	"github.com/danabrams/gromit/internal/coverage"
 	"github.com/danabrams/gromit/internal/events"
 	legacyReview "github.com/danabrams/gromit/internal/review"
+	"github.com/danabrams/gromit/internal/v2/adapter"
 	"github.com/danabrams/gromit/internal/v2/adapter/llm"
 	"github.com/danabrams/gromit/internal/v2/adapter/tasktracker"
 	"github.com/danabrams/gromit/internal/v2/prompt"
@@ -19,9 +20,6 @@ import (
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
 	stagesreview "github.com/danabrams/gromit/internal/v2/stages/review"
 )
-
-// GitDiffFn returns the git diff for the current worktree.
-type GitDiffFn func(ctx context.Context, worktree string) (string, error)
 
 // ReviewArtifacts captures data emitted by the review stage.
 type ReviewArtifacts struct {
@@ -33,7 +31,7 @@ type ReviewArtifacts struct {
 type Stage struct {
 	name     string
 	cfg      *config.Config
-	gitDiff  GitDiffFn
+	git      adapter.GitAdapter
 	llm      llm.LLMProvider
 	tracker  tasktracker.TaskTracker
 	base     string
@@ -43,12 +41,12 @@ type Stage struct {
 }
 
 // New constructs a review stage with the provided dependencies.
-func New(cfg *config.Config, gitDiff GitDiffFn, provider llm.LLMProvider, tracker tasktracker.TaskTracker, base, project, fragment string) (*Stage, error) {
+func New(cfg *config.Config, gitAdapter adapter.GitAdapter, provider llm.LLMProvider, tracker tasktracker.TaskTracker, base, project, fragment string) (*Stage, error) {
 	if cfg == nil {
 		return nil, fmt.Errorf("config required")
 	}
-	if gitDiff == nil {
-		return nil, fmt.Errorf("git diff fn required")
+	if gitAdapter == nil {
+		return nil, fmt.Errorf("git adapter required")
 	}
 	if provider == nil {
 		return nil, fmt.Errorf("llm provider required")
@@ -60,7 +58,7 @@ func New(cfg *config.Config, gitDiff GitDiffFn, provider llm.LLMProvider, tracke
 	return &Stage{
 		name:     stagesreview.Describe(cfg),
 		cfg:      cfg,
-		gitDiff:  gitDiff,
+		git:      gitAdapter,
 		llm:      provider,
 		tracker:  tracker,
 		base:     base,
@@ -99,12 +97,17 @@ func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Resul
 		return nil, fmt.Errorf("spec ID required")
 	}
 
-	diff, err := s.gitDiff(ctx, req.Worktree)
+	root, err := s.rootPath(req, cfg)
+	if err != nil {
+		return nil, fmt.Errorf("review: %w", err)
+	}
+
+	diff, err := s.git.Diff(ctx, root)
 	if err != nil {
 		return nil, fmt.Errorf("review: git diff: %w", err)
 	}
 
-	acceptance, err := s.acceptanceLayer(cfg, req)
+	acceptance, err := s.acceptanceLayer(cfg, req, root)
 	if err != nil {
 		return nil, fmt.Errorf("review: acceptance: %w", err)
 	}
@@ -158,8 +161,8 @@ func (s *Stage) resolveConfig(req *stagepkg.Request) (*config.Config, error) {
 	return cfg, nil
 }
 
-func (s *Stage) acceptanceLayer(cfg *config.Config, req *stagepkg.Request) (string, error) {
-	path, err := s.specFilePath(cfg, req)
+func (s *Stage) acceptanceLayer(cfg *config.Config, req *stagepkg.Request, root string) (string, error) {
+	path, err := s.specFilePath(cfg, req, root)
 	if err != nil {
 		return "", err
 	}
@@ -177,7 +180,7 @@ func (s *Stage) acceptanceLayer(cfg *config.Config, req *stagepkg.Request) (stri
 	return formatCriteria(criteria), nil
 }
 
-func (s *Stage) specFilePath(cfg *config.Config, req *stagepkg.Request) (string, error) {
+func (s *Stage) specFilePath(cfg *config.Config, req *stagepkg.Request, root string) (string, error) {
 	specID := strings.TrimSpace(req.Bead.ID)
 	if specID == "" {
 		return "", fmt.Errorf("spec ID required")
@@ -191,16 +194,26 @@ func (s *Stage) specFilePath(cfg *config.Config, req *stagepkg.Request) (string,
 		specName += ".md"
 	}
 	if !filepath.IsAbs(specDir) {
-		root := strings.TrimSpace(req.Worktree)
-		if root == "" {
-			root = cfg.ProjectRoot
-		}
-		if root == "" {
-			root = "."
-		}
 		specDir = filepath.Join(root, specDir)
 	}
 	return filepath.Join(specDir, specName), nil
+}
+
+func (s *Stage) rootPath(req *stagepkg.Request, cfg *config.Config) (string, error) {
+	if cfg == nil {
+		return "", fmt.Errorf("config required")
+	}
+	if req == nil {
+		return "", fmt.Errorf("request required")
+	}
+	root := strings.TrimSpace(req.Worktree)
+	if root == "" {
+		root = cfg.ProjectRoot
+	}
+	if root == "" {
+		root = "."
+	}
+	return root, nil
 }
 
 func formatCriteria(criteria []coverage.Criterion) string {

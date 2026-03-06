@@ -9,6 +9,7 @@ import (
 // GitAdapter performs git operations required by the run loop.
 type GitAdapter interface {
 	Checkout(ctx context.Context, specID string) (worktree string, err error)
+	Diff(ctx context.Context, worktree string) (string, error)
 }
 
 // LLMAdapter synthesizes the plan for a spec.

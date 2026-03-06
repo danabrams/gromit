@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"github.com/danabrams/gromit/internal/v2/adapter"
 )
@@ -35,4 +36,19 @@ func (a *ExecGitAdapter) Checkout(ctx context.Context, specID string) (string, e
 	}
 
 	return wtPath, nil
+}
+
+// Diff returns the current diff for the provided worktree.
+func (a *ExecGitAdapter) Diff(ctx context.Context, worktree string) (string, error) {
+	if strings.TrimSpace(worktree) == "" {
+		return "", fmt.Errorf("worktree required")
+	}
+	cmd := exec.CommandContext(ctx, "git", "diff", "HEAD")
+	cmd.Dir = worktree
+
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("git diff: %s: %w", out, err)
+	}
+	return string(out), nil
 }

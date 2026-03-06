@@ -49,9 +49,9 @@ func TestStageUsesGitAdapterDiff(t *testing.T) {
 
 	worktree := t.TempDir()
 	req := &stagepkg.Request{
-		Bead:    stagepkg.BeadInfo{ID: "spec-1"},
+		Bead:     stagepkg.BeadInfo{ID: "spec-1"},
 		Worktree: worktree,
-		Config:  cfg,
+		Config:   cfg,
 	}
 
 	if _, err := stage.Run(context.Background(), req); err != nil {
@@ -109,10 +109,10 @@ func (f *fakeTracker) QueryBeads(context.Context, []string, string, string) ([]t
 }
 
 type fakeGitAdapter struct {
-	diff        string
-	diffErr     error
+	diff         string
+	diffErr      error
 	lastWorktree string
-	diffCalls   int
+	diffCalls    int
 }
 
 func (f *fakeGitAdapter) Checkout(context.Context, string) (string, error) {
@@ -141,13 +141,11 @@ func TestStageIncludesDiffAndAcceptanceCriteriaInPrompt(t *testing.T) {
 	}
 
 	const diffText = "diff --git a/foo b/foo"
-	gitDiff := func(context.Context, string) (string, error) {
-		return diffText, nil
-	}
+	git := &fakeGitAdapter{diff: diffText}
 
 	cfg := &config.Config{Review: config.ReviewConfig{Enabled: true, Tier: "sonnet"}}
 	llmStub := &fakeLLM{response: &llm.LLMResponse{Success: true, Output: `{"passed": true, "fixes_applied": [], "beads_to_create": [], "backlog_items": [], "summary": "ok"}`}}
-	stage, err := review.New(cfg, gitDiff, llmStub, &fakeTracker{}, "base", "project", "fragment")
+	stage, err := review.New(cfg, git, llmStub, &fakeTracker{}, "base", "project", "fragment")
 	if err != nil {
 		t.Fatalf("unexpected error creating stage: %v", err)
 	}
@@ -167,10 +165,6 @@ func TestStageIncludesDiffAndAcceptanceCriteriaInPrompt(t *testing.T) {
 
 func TestReviewStageCreatesTaskTrackerBeads(t *testing.T) {
 	diff := "diff --git a/foo.go b/foo.go"
-	gitDiff := func(context.Context, string) (string, error) {
-		return diff, nil
-	}
-
 	response := `{
         "passed": false,
         "beads_to_create": [
@@ -180,10 +174,11 @@ func TestReviewStageCreatesTaskTrackerBeads(t *testing.T) {
         "fixes_applied": [],
         "summary": "found issue"
     }`
+	git := &fakeGitAdapter{diff: diff}
 	llmStub := &fakeLLM{response: &llm.LLMResponse{Success: true, Output: response}}
 	tracker := &fakeTracker{}
 	cfg := &config.Config{Review: config.ReviewConfig{Enabled: true, Tier: "sonnet"}}
-	stageInst, err := review.New(cfg, gitDiff, llmStub, tracker, "", "", "")
+	stageInst, err := review.New(cfg, git, llmStub, tracker, "", "", "")
 	if err != nil {
 		t.Fatalf("create stage: %v", err)
 	}

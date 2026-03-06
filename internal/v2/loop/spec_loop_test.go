@@ -299,6 +299,10 @@ func (f *fakeGitAdapter) Checkout(ctx context.Context, specID string) (string, e
 	return worktree, nil
 }
 
+func (f *fakeGitAdapter) Diff(context.Context, string) (string, error) {
+	return "", nil
+}
+
 type fakeLLMAdapter struct{}
 
 func newFakeLLMAdapter() *fakeLLMAdapter {
