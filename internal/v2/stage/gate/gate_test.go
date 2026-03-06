@@ -69,6 +69,40 @@ func TestStageBlocksWhenDependencyNotClosed(t *testing.T) {
 	}
 }
 
+func TestStageProceedsWhenBlockedDependencyClosed(t *testing.T) {
+	t.Parallel()
+
+	tracker := &fakeTaskTracker{
+		beads: map[string]*tasktracker.Bead{
+			"ready-bead": {
+				ID:        "ready-bead",
+				Status:    "open",
+				BlockedBy: []string{"dep-bead"},
+			},
+			"dep-bead": {
+				ID:     "dep-bead",
+				Status: "closed",
+			},
+		},
+	}
+
+	stageInstance, err := New(&config.Config{}, tracker)
+	if err != nil {
+		t.Fatalf("unexpected stage creation error: %v", err)
+	}
+
+	res, err := stageInstance.Run(context.Background(), &stagepkg.Request{Bead: stagepkg.BeadInfo{ID: "ready-bead"}})
+	if err != nil {
+		t.Fatalf("run stage: %v", err)
+	}
+	if res == nil {
+		t.Fatal("expected result")
+	}
+	if res.Decision != stagepkg.DecisionProceed {
+		t.Fatalf("decision = %v, want proceed", res.Decision)
+	}
+}
+
 // fakeTaskTracker provides a minimal TaskTracker implementation for gate tests.
 type fakeTaskTracker struct {
 	beads map[string]*tasktracker.Bead
