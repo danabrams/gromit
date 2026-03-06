@@ -101,11 +101,11 @@ func (a *BDAdapter) QueryBeads(ctx context.Context, req QueryBeadsRequest) (*Que
 	}
 
 	response := &QueryBeadsResponse{}
+	parent := normalizeString(req.Parent)
 	for _, b := range beads {
 		if b == nil {
 			continue
 		}
-		parent := normalizeString(req.Parent)
 		if parent != "" && normalizeString(b.Parent) != parent {
 			continue
 		}
