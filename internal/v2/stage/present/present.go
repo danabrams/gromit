@@ -61,7 +61,7 @@ func (s *Stage) Name() string {
 func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Result, error) {
 	summary := s.buildPresentation(req)
 	if err := s.presenter.PresentSummary(ctx, beadID(req), summary); err != nil {
-		return nil, err
+		return &stagepkg.Result{Decision: stagepkg.DecisionFail}, nil
 	}
 	return &stagepkg.Result{Decision: stagepkg.DecisionProceed}, nil
 }
