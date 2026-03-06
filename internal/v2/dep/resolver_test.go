@@ -1,6 +1,7 @@
 package dep
 
 import (
+	"reflect"
 	"testing"
 )
 
@@ -105,3 +106,26 @@ func TestNext_DeterministicOrderingWhenMultipleBeadsEligible(t *testing.T) {
 	}
 }
 
+func TestNext_RespectsAdditionOrderTieBreaking(t *testing.T) {
+	r := NewResolver()
+	r.Add("zebra", nil)
+	r.Add("apple", nil)
+	r.Add("middle", nil)
+
+	collected := []string{}
+	for len(collected) < 3 {
+		next, err := r.Next(collected)
+		if err != nil {
+			t.Fatalf("Next() failed: %v", err)
+		}
+		if next == "" {
+			t.Fatalf("expected bead, got empty string")
+		}
+		collected = append(collected, next)
+	}
+
+	want := []string{"zebra", "apple", "middle"}
+	if !reflect.DeepEqual(collected, want) {
+		t.Fatalf("expected %v, got %v", want, collected)
+	}
+}
