@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/v2/prompt"
 )
 
 func TestSpecExecutionCreatesIsolatedWorktree(t *testing.T) {
@@ -74,7 +75,7 @@ func (s *spyValidationRunner) Run(ctx context.Context, command string) error {
 func TestPromptAssemblerCompilesAllLayers(t *testing.T) {
 	t.Parallel()
 
-	assembler := NewPromptAssembler("base", "project", "instance", "fragment")
+	assembler := prompt.NewPromptAssembler("base", "project", "instance", "fragment")
 	output := assembler.Assemble()
 
 	order := []string{"base", "project", "instance", "fragment"}
