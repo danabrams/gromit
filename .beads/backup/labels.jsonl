@@ -2312,6 +2312,7 @@
 {"issue_id":"gromit-x9bq","label":"spec:epic-scoped-execution"}
 {"issue_id":"gromit-xa7k","label":"spec:atdd-prompt-context-budget"}
 {"issue_id":"gromit-xbw","label":"spec:real-tests-for-chain-logic"}
+{"issue_id":"gromit-xdgza","label":"spec:v2-run-loop"}
 {"issue_id":"gromit-xdku8","label":"from-review"}
 {"issue_id":"gromit-xdku8","label":"refactor"}
 {"issue_id":"gromit-xe0","label":"spec:atdd-methodology"}
