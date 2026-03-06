@@ -188,6 +188,54 @@ func TestBeadLoopEmitsLifecycleEvents(t *testing.T) {
 	}
 }
 
+func TestBeadLoopPopulatesIterationOnStageRequests(t *testing.T) {
+	t.Parallel()
+
+	beads := []*bead.Bead{{ID: "first"}, {ID: "second"}}
+
+	gate := newCapturingStage("gate")
+	build := newCapturingStage("build")
+	validate := newCapturingStage("validate")
+	review := newCapturingStage("review")
+	epilogue := newCapturingStage("epilogue")
+
+	config := BeadLoopConfig{
+		Gate:     gate,
+		Build:    build,
+		Validate: validate,
+		Review:   review,
+		Epilogue: epilogue,
+	}
+	loop, err := NewBeadLoop(config)
+	if err != nil {
+		t.Fatalf("NewBeadLoop: %v", err)
+	}
+
+	if err := loop.Run(context.Background(), beads); err != nil {
+		t.Fatalf("Run failed: %v", err)
+	}
+
+	stages := map[string]*capturingStage{
+		"gate":     gate,
+		"build":    build,
+		"validate": validate,
+		"review":   review,
+		"epilogue": epilogue,
+	}
+
+	for name, stage := range stages {
+		if len(stage.requests) != len(beads) {
+			t.Fatalf("stage %s executed = %d, want %d", name, len(stage.requests), len(beads))
+		}
+		for idx, req := range stage.requests {
+			iteration := idx + 1
+			if req.Iteration != iteration {
+				t.Fatalf("stage %s iteration = %d, want %d", name, req.Iteration, iteration)
+			}
+		}
+	}
+}
+
 func collectLifecycleEvents(ch chan event.TypedEvent, expected int) []event.TypedEvent {
 	collected := make([]event.TypedEvent, 0, expected)
 	for len(collected) < expected {
@@ -257,4 +305,24 @@ func (s *decisionStage) Run(ctx context.Context, req *stage.Request) (*stage.Res
 		return nil, s.err
 	}
 	return &stage.Result{Decision: s.decision}, nil
+}
+
+type capturingStage struct {
+	name     string
+	requests []stage.Request
+}
+
+func newCapturingStage(name string) *capturingStage {
+	return &capturingStage{name: name}
+}
+
+func (s *capturingStage) Name() string { return s.name }
+
+func (s *capturingStage) Run(ctx context.Context, req *stage.Request) (*stage.Result, error) {
+	if req != nil {
+		s.requests = append(s.requests, *req)
+	} else {
+		s.requests = append(s.requests, stage.Request{})
+	}
+	return &stage.Result{Decision: stage.DecisionProceed}, nil
 }
