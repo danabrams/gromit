@@ -138,6 +138,35 @@ func (f *failingRemoveGitAdapter) RemoveWorktree(_ context.Context, worktree str
 	return f.removeErr
 }
 
+// TestCleanupWorktreePreservesWorktreeWhenPreserveOnFailureIsDefault verifies that
+// cleanupWorktree does NOT call RemoveWorktree on failure when PreserveOnFailure
+// is not set (default true).
+func TestCleanupWorktreePreservesWorktreeWhenPreserveOnFailureIsDefault(t *testing.T) {
+	t.Parallel()
+
+	gitAdapter := &failingRemoveGitAdapter{removeErr: fmt.Errorf("should not be called")}
+	gitAdapter.t = t
+
+	adapters := adapter.AdapterSet{
+		Git:         gitAdapter,
+		LLM:         newFakeLLMAdapter(),
+		TaskTracker: newFakeTaskTrackerAdapter(),
+		Presenter:   newFakePresenterAdapter(t),
+	}
+
+	loopInstance, err := NewSpecLoop(adapters, &config.Config{}, noopDependencyGate{})
+	if err != nil {
+		t.Fatalf("create spec loop: %v", err)
+	}
+
+	if err := loopInstance.cleanupWorktree(context.Background(), "test-spec", "/tmp/fake-worktree", false); err != nil {
+		t.Fatalf("cleanupWorktree should not error when preserving on failure, got: %v", err)
+	}
+	if gitAdapter.removeCalled {
+		t.Fatal("RemoveWorktree should not be called when PreserveOnFailure is true (default)")
+	}
+}
+
 // TestCleanupWorktreeReturnsErrorWhenRemoveWorktreeFails verifies that the
 // cleanupWorktree method surfaces the RemoveWorktree error to the caller.
 func TestCleanupWorktreeReturnsErrorWhenRemoveWorktreeFails(t *testing.T) {
