@@ -84,3 +84,11 @@
 {"schema_version":1,"timestamp":"2026-03-07T16:09:43.538724-05:00","type":"stage.completed","stage_name":"validate:default","bead_id":"gromit-f4ouz","iteration":14,"success":true,"duration":39650083}
 {"schema_version":1,"timestamp":"2026-03-07T16:09:43.586665-05:00","type":"stage.started","stage_name":"review:default","bead_id":"gromit-f4ouz","iteration":14}
 {"schema_version":1,"timestamp":"2026-03-07T16:09:43.586676-05:00","type":"stage.completed","stage_name":"review:default","bead_id":"gromit-f4ouz","iteration":14,"success":true,"duration":4375}
+{"schema_version":1,"timestamp":"2026-03-07T16:09:43.633943-05:00","type":"stage.started","stage_name":"epilogue:default","bead_id":"gromit-f4ouz","iteration":14}
+{"schema_version":1,"timestamp":"2026-03-07T16:09:43.790245-05:00","type":"stage.completed","stage_name":"epilogue:default","bead_id":"gromit-f4ouz","iteration":14,"success":true,"duration":156293250}
+{"schema_version":1,"timestamp":"2026-03-07T16:09:43.790257-05:00","type":"bead.completed","bead_id":"gromit-f4ouz","bead_title":"Add scoped CLAUDE.md loading to PromptAssembler","iteration":14,"success":true}
+{"schema_version":1,"timestamp":"2026-03-07T16:09:43.790285-05:00","type":"bead.started","bead_id":"gromit-fhp2q","bead_title":"Implement gate re-queue logic in bead loop","iteration":15}
+{"schema_version":1,"timestamp":"2026-03-07T16:09:43.790287-05:00","type":"stage.started","stage_name":"gate:default","bead_id":"gromit-fhp2q","iteration":15}
+{"schema_version":1,"timestamp":"2026-03-07T16:09:43.86676-05:00","type":"stage.completed","stage_name":"gate:default","bead_id":"gromit-fhp2q","iteration":15,"success":true,"duration":76471875}
+{"schema_version":1,"timestamp":"2026-03-07T16:09:43.866768-05:00","type":"stage.started","stage_name":"build:default","bead_id":"gromit-fhp2q","iteration":15}
+{"schema_version":1,"timestamp":"2026-03-07T16:17:46.500635-05:00","type":"stage.completed","stage_name":"build:default","bead_id":"gromit-fhp2q","iteration":15,"success":true,"duration":482632017375}
