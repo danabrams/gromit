@@ -176,3 +176,18 @@
 {"schema_version":1,"timestamp":"2026-03-07T16:40:03.812267-05:00","type":"stage.completed","stage_name":"validate:default","bead_id":"gromit-w83pd","iteration":23,"success":true,"duration":40627875}
 {"schema_version":1,"timestamp":"2026-03-07T16:40:03.861359-05:00","type":"stage.started","stage_name":"review:default","bead_id":"gromit-w83pd","iteration":23}
 {"schema_version":1,"timestamp":"2026-03-07T16:40:03.861382-05:00","type":"stage.completed","stage_name":"review:default","bead_id":"gromit-w83pd","iteration":23,"success":true,"duration":10833}
+{"schema_version":1,"timestamp":"2026-03-07T16:40:03.909464-05:00","type":"stage.started","stage_name":"epilogue:default","bead_id":"gromit-w83pd","iteration":23}
+{"schema_version":1,"timestamp":"2026-03-07T16:40:04.005688-05:00","type":"stage.completed","stage_name":"epilogue:default","bead_id":"gromit-w83pd","iteration":23,"success":true,"duration":96209917}
+{"schema_version":1,"timestamp":"2026-03-07T16:40:04.0057-05:00","type":"bead.completed","bead_id":"gromit-w83pd","bead_title":"Implement gap analysis for resume","iteration":23,"success":true}
+{"schema_version":1,"timestamp":"2026-03-07T16:40:04.005713-05:00","type":"bead.started","bead_id":"gromit-zrrn7","bead_title":"Implement selective revalidation in spec loop","iteration":24}
+{"schema_version":1,"timestamp":"2026-03-07T16:40:04.005723-05:00","type":"stage.started","stage_name":"gate:default","bead_id":"gromit-zrrn7","iteration":24}
+{"schema_version":1,"timestamp":"2026-03-07T16:40:04.074518-05:00","type":"stage.completed","stage_name":"gate:default","bead_id":"gromit-zrrn7","iteration":24,"success":true,"duration":68794166}
+{"schema_version":1,"timestamp":"2026-03-07T16:40:04.074526-05:00","type":"stage.started","stage_name":"build:default","bead_id":"gromit-zrrn7","iteration":24}
+{"schema_version":1,"timestamp":"2026-03-07T16:45:12.659648-05:00","type":"stage.completed","stage_name":"build:default","bead_id":"gromit-zrrn7","iteration":24,"success":true,"duration":308583850375}
+{"schema_version":1,"timestamp":"2026-03-07T16:45:12.730416-05:00","type":"stage.started","stage_name":"validate:default","bead_id":"gromit-zrrn7","iteration":24}
+{"schema_version":1,"timestamp":"2026-03-07T16:45:12.770575-05:00","type":"stage.completed","stage_name":"validate:default","bead_id":"gromit-zrrn7","iteration":24,"success":true,"duration":40143709}
+{"schema_version":1,"timestamp":"2026-03-07T16:45:12.818794-05:00","type":"stage.started","stage_name":"review:default","bead_id":"gromit-zrrn7","iteration":24}
+{"schema_version":1,"timestamp":"2026-03-07T16:45:12.818811-05:00","type":"stage.completed","stage_name":"review:default","bead_id":"gromit-zrrn7","iteration":24,"success":true,"duration":10416}
+{"schema_version":1,"timestamp":"2026-03-07T16:45:12.866532-05:00","type":"stage.started","stage_name":"epilogue:default","bead_id":"gromit-zrrn7","iteration":24}
+{"schema_version":1,"timestamp":"2026-03-07T16:45:13.022158-05:00","type":"stage.completed","stage_name":"epilogue:default","bead_id":"gromit-zrrn7","iteration":24,"success":true,"duration":155617458}
+{"schema_version":1,"timestamp":"2026-03-07T16:45:13.022172-05:00","type":"bead.completed","bead_id":"gromit-zrrn7","bead_title":"Implement selective revalidation in spec loop","iteration":24,"success":true}
