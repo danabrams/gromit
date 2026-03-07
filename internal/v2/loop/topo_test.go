@@ -6,6 +6,20 @@ import (
 	"github.com/danabrams/gromit/internal/bead"
 )
 
+func TestTopologicalSort_CycleReturnsError(t *testing.T) {
+	t.Parallel()
+
+	beads := []*bead.Bead{
+		{ID: "a", DependsOn: []bead.Dependency{{ID: "b"}}},
+		{ID: "b", DependsOn: []bead.Dependency{{ID: "a"}}},
+	}
+
+	_, err := TopologicalSort(beads)
+	if err == nil {
+		t.Fatal("expected error for cycle, got nil")
+	}
+}
+
 func TestTopologicalSort_DependencyBeforeDependent(t *testing.T) {
 	t.Parallel()
 
