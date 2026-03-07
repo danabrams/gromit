@@ -150,6 +150,22 @@ func TestPresentStageSquasherErrorPropagates(t *testing.T) {
 	}
 }
 
+func TestPresentStageNilSquasherIsBackwardCompatible(t *testing.T) {
+	ctx := &SummaryContext{Plan: "p", Worktree: "/tmp/w"}
+	presenter := &spyPresenter{}
+	stageInstance, err := New(nil, presenter, ctx)
+	if err != nil {
+		t.Fatalf("unexpected error creating stage: %v", err)
+	}
+	_, runErr := stageInstance.Run(context.Background(), &stage.Request{Bead: stage.BeadInfo{ID: "spec-no-sq"}})
+	if runErr != nil {
+		t.Fatalf("expected no error without squasher, got: %v", runErr)
+	}
+	if presenter.lastSpec != "spec-no-sq" {
+		t.Fatal("presenter was not called without squasher")
+	}
+}
+
 func TestPresentStageTrimsLinks(t *testing.T) {
 	ctx := &SummaryContext{
 		Plan:              "plan details",
