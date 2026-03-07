@@ -86,6 +86,25 @@ func TestTopologicalSort_DependencyBeforeDependent(t *testing.T) {
 	}
 }
 
+func TestTopologicalSort_ExternalDepTreatedAsSatisfied(t *testing.T) {
+	t.Parallel()
+
+	// "b" depends on "external" which is not in the input set.
+	// The sort must not error and must include both beads.
+	beads := []*bead.Bead{
+		{ID: "b", DependsOn: []bead.Dependency{{ID: "external"}}},
+		{ID: "a"},
+	}
+
+	got, err := TopologicalSort(beads)
+	if err != nil {
+		t.Fatalf("TopologicalSort: unexpected error: %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("got %d beads, want 2", len(got))
+	}
+}
+
 func TestTopologicalSort_ChainOrderingThreeLevels(t *testing.T) {
 	t.Parallel()
 
