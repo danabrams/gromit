@@ -148,3 +148,11 @@
 {"schema_version":1,"timestamp":"2026-03-07T16:32:29.481473-05:00","type":"stage.completed","stage_name":"validate:default","bead_id":"gromit-v1j2u","iteration":20,"success":true,"duration":40018375}
 {"schema_version":1,"timestamp":"2026-03-07T16:32:29.530042-05:00","type":"stage.started","stage_name":"review:default","bead_id":"gromit-v1j2u","iteration":20}
 {"schema_version":1,"timestamp":"2026-03-07T16:32:29.530052-05:00","type":"stage.completed","stage_name":"review:default","bead_id":"gromit-v1j2u","iteration":20,"success":true,"duration":2542}
+{"schema_version":1,"timestamp":"2026-03-07T16:32:29.577196-05:00","type":"stage.started","stage_name":"epilogue:default","bead_id":"gromit-v1j2u","iteration":20}
+{"schema_version":1,"timestamp":"2026-03-07T16:32:29.67267-05:00","type":"stage.completed","stage_name":"epilogue:default","bead_id":"gromit-v1j2u","iteration":20,"success":true,"duration":95465417}
+{"schema_version":1,"timestamp":"2026-03-07T16:32:29.672676-05:00","type":"bead.completed","bead_id":"gromit-v1j2u","bead_title":"Add phase filtering to rules loading in PromptAssembler","iteration":20,"success":true}
+{"schema_version":1,"timestamp":"2026-03-07T16:32:29.67269-05:00","type":"bead.started","bead_id":"gromit-v46qz","bead_title":"Add unit tests for topological sort","iteration":21}
+{"schema_version":1,"timestamp":"2026-03-07T16:32:29.672691-05:00","type":"stage.started","stage_name":"gate:default","bead_id":"gromit-v46qz","iteration":21}
+{"schema_version":1,"timestamp":"2026-03-07T16:32:29.817001-05:00","type":"stage.completed","stage_name":"gate:default","bead_id":"gromit-v46qz","iteration":21,"success":true,"duration":144308417}
+{"schema_version":1,"timestamp":"2026-03-07T16:32:29.817012-05:00","type":"stage.started","stage_name":"build:default","bead_id":"gromit-v46qz","iteration":21}
+{"schema_version":1,"timestamp":"2026-03-07T16:36:59.519006-05:00","type":"stage.completed","stage_name":"build:default","bead_id":"gromit-v46qz","iteration":21,"success":true,"duration":269700960750}
