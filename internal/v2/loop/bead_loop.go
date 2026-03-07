@@ -27,6 +27,11 @@ type GitCommitter interface {
 	Commit(ctx context.Context, worktree, message string) (string, error)
 }
 
+// StageCommitter commits work after each successful stage.
+type StageCommitter interface {
+	CommitStage(ctx context.Context, worktree, beadID, stageName string, iteration int, decision string) error
+}
+
 // BeadLoopConfig holds the stages required to process each bead.
 type BeadLoopConfig struct {
 	Gate            stage.Stage
@@ -42,6 +47,7 @@ type BeadLoopConfig struct {
 	DecompositionGenerationCap int // generation cap for triage-decomposed beads (separate from review)
 	StartGeneration          int
 	Git                      GitCommitter
+	StageCommitter           StageCommitter
 }
 
 // BeadLoopResult captures metadata produced by a bead loop execution.
@@ -65,6 +71,7 @@ type BeadLoop struct {
 	worktree                 string
 	outOfScopeFindings       []v2review.Finding
 	git                      GitCommitter
+	stageCommitter       StageCommitter
 	// run-scoped state for in-loop decomposition
 	resolver *dep.Resolver
 	beadMap  map[string]*bead.Bead
@@ -115,6 +122,7 @@ func NewBeadLoop(config BeadLoopConfig) (*BeadLoop, error) {
 		decompositionGenerationCap: config.DecompositionGenerationCap,
 		startGeneration:          config.StartGeneration,
 		git:                      config.Git,
+		stageCommitter:           config.StageCommitter,
 	}
 	if config.Emitter != nil && config.LegacyEmitter != nil {
 		event.BridgeTypedToLegacy(config.Emitter, config.LegacyEmitter)
@@ -326,6 +334,14 @@ func (b *BeadLoop) runGate(ctx context.Context, beadItem *bead.Bead, iteration i
 	}
 }
 
+// commitAfterStage calls StageCommitter.CommitStage after a successful stage run.
+func (b *BeadLoop) commitAfterStage(ctx context.Context, beadItem *bead.Bead, sName string, iteration int, decision string) error {
+	if b.stageCommitter == nil {
+		return nil
+	}
+	return b.stageCommitter.CommitStage(ctx, b.worktree, beadItem.ID, sName, iteration, decision)
+}
+
 // commitBeadWork commits any uncommitted changes after the review stage completes.
 // This ensures bead work survives crashes. Only commits if there are actual changes.
 func (b *BeadLoop) commitBeadWork(ctx context.Context, beadItem *bead.Bead) error {
@@ -393,6 +409,10 @@ func (b *BeadLoop) runStageEntry(ctx context.Context, beadItem *bead.Bead, itera
 				if b.handleGenerationCapFromReview(res, highestGen, generationLimit) {
 					return ErrGenerationCapReached
 				}
+			}
+			decision := stageDecision(res).String()
+			if err := b.commitAfterStage(ctx, beadItem, stageName, iteration, decision); err != nil {
+				return fmt.Errorf("stage commit after %s: %w", stageName, err)
 			}
 			return nil
 		}
