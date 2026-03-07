@@ -1,0 +1,172 @@
+package loop
+
+import (
+	"context"
+	"testing"
+	"time"
+
+	"github.com/danabrams/gromit/internal/bead"
+	"github.com/danabrams/gromit/internal/v2/llmtypes"
+	"github.com/danabrams/gromit/internal/v2/routing"
+	"github.com/danabrams/gromit/internal/v2/stage"
+)
+
+// spyStage captures Request fields from each invocation.
+type spyStage struct {
+	name     string
+	models   []string
+	hadProv  []bool
+	decision stage.Decision
+	failN    int // fail the first N calls
+	calls    int
+}
+
+func (s *spyStage) Name() string { return s.name }
+
+func (s *spyStage) RetryConfig() stage.RetryConfig {
+	return stage.RetryConfig{MaxRetries: 3}
+}
+
+func (s *spyStage) Run(_ context.Context, req *stage.Request) (*stage.Result, error) {
+	s.models = append(s.models, req.Model)
+	s.hadProv = append(s.hadProv, req.Provider != nil)
+	s.calls++
+	if s.failN > 0 && s.calls <= s.failN {
+		return &stage.Result{Decision: stage.DecisionFail}, nil
+	}
+	return &stage.Result{Decision: s.decision}, nil
+}
+
+// fakeProvider satisfies llmtypes.LLMProvider for testing.
+type fakeProvider struct{}
+
+func (f *fakeProvider) Invoke(_ context.Context, _ llmtypes.LLMInvokeRequest) (*llmtypes.LLMInvokeResponse, error) {
+	return &llmtypes.LLMInvokeResponse{}, nil
+}
+func (f *fakeProvider) StreamInvoke(_ context.Context, _ llmtypes.LLMStreamInvokeRequest) (*llmtypes.LLMInvokeResponse, error) {
+	return &llmtypes.LLMInvokeResponse{}, nil
+}
+
+func TestBeadLoopRouterPopulatesProviderAndModel(t *testing.T) {
+	t.Parallel()
+
+	buildSpy := &spyStage{name: "build", decision: stage.DecisionProceed}
+
+	r := routing.NewRouter(routing.RouterConfig{
+		Providers: map[string]llmtypes.LLMProvider{
+			"claude": &fakeProvider{},
+		},
+		Ratio:    map[string]int{"claude": 1},
+		Cooldown: time.Minute,
+	})
+
+	cfg := BeadLoopConfig{
+		Gate:        newNoopStage("gate"),
+		Build:       buildSpy,
+		Validate:    newNoopStage("validate"),
+		Review:      newNoopStage("review"),
+		Epilogue:    newNoopStage("epilogue"),
+		Router:      r,
+		PhaseModels: map[string]string{"build": "low"},
+	}
+
+	loop, err := NewBeadLoop(cfg)
+	if err != nil {
+		t.Fatalf("NewBeadLoop: %v", err)
+	}
+
+	beads := []*bead.Bead{{ID: "bead-1"}}
+	if _, err := loop.Run(context.Background(), beads, nil); err != nil {
+		t.Fatalf("Run failed: %v", err)
+	}
+
+	if len(buildSpy.models) == 0 {
+		t.Fatal("build stage was never called")
+	}
+	if buildSpy.models[0] != "low" {
+		t.Fatalf("build model = %q, want %q", buildSpy.models[0], "low")
+	}
+	if !buildSpy.hadProv[0] {
+		t.Fatal("build Provider was nil, want non-nil")
+	}
+}
+
+func TestBeadLoopEscalationBumpsTierOnRetry(t *testing.T) {
+	t.Parallel()
+
+	// Build fails once then succeeds — should see tier escalation.
+	buildSpy := &spyStage{name: "build", decision: stage.DecisionProceed, failN: 1}
+
+	r := routing.NewRouter(routing.RouterConfig{
+		Providers: map[string]llmtypes.LLMProvider{
+			"claude": &fakeProvider{},
+		},
+		Ratio:    map[string]int{"claude": 1},
+		Cooldown: time.Minute,
+	})
+
+	cfg := BeadLoopConfig{
+		Gate:        newNoopStage("gate"),
+		Build:       buildSpy,
+		Validate:    newNoopStage("validate"),
+		Review:      newNoopStage("review"),
+		Epilogue:    newNoopStage("epilogue"),
+		Router:      r,
+		PhaseModels: map[string]string{"build": "low"},
+	}
+
+	loop, err := NewBeadLoop(cfg)
+	if err != nil {
+		t.Fatalf("NewBeadLoop: %v", err)
+	}
+
+	beads := []*bead.Bead{{ID: "bead-1"}}
+	if _, err := loop.Run(context.Background(), beads, nil); err != nil {
+		t.Fatalf("Run failed: %v", err)
+	}
+
+	if len(buildSpy.models) < 2 {
+		t.Fatalf("expected at least 2 build calls, got %d", len(buildSpy.models))
+	}
+	if buildSpy.models[0] != "low" {
+		t.Fatalf("first attempt model = %q, want %q", buildSpy.models[0], "low")
+	}
+	if buildSpy.models[1] != "medium" {
+		t.Fatalf("second attempt model = %q, want %q", buildSpy.models[1], "medium")
+	}
+}
+
+func TestBeadLoopRoutingSkippedWhenRouterNil(t *testing.T) {
+	t.Parallel()
+
+	buildSpy := &spyStage{name: "build", decision: stage.DecisionProceed}
+
+	cfg := BeadLoopConfig{
+		Gate:     newNoopStage("gate"),
+		Build:    buildSpy,
+		Validate: newNoopStage("validate"),
+		Review:   newNoopStage("review"),
+		Epilogue: newNoopStage("epilogue"),
+		// Router intentionally nil
+	}
+
+	loop, err := NewBeadLoop(cfg)
+	if err != nil {
+		t.Fatalf("NewBeadLoop: %v", err)
+	}
+
+	beads := []*bead.Bead{{ID: "bead-1"}}
+	if _, err := loop.Run(context.Background(), beads, nil); err != nil {
+		t.Fatalf("Run failed: %v", err)
+	}
+
+	if len(buildSpy.models) == 0 {
+		t.Fatal("build stage was never called")
+	}
+	if buildSpy.models[0] != "" {
+		t.Fatalf("build model = %q, want empty (no router)", buildSpy.models[0])
+	}
+	if buildSpy.hadProv[0] {
+		t.Fatal("build Provider should be nil when router is nil")
+	}
+}

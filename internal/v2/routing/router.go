@@ -2,6 +2,7 @@ package routing
 
 import (
 	"fmt"
+	"sort"
 	"sync"
 	"time"
 
@@ -59,6 +60,7 @@ func NewRouter(cfg RouterConfig) *Router {
 // Select picks an LLMProvider and model name for the given phase and tier.
 // Phase preferences are checked first, then ratio balancing among available providers.
 // Returns an error when no providers are configured or all are unavailable.
+// Automatically records the invocation for ratio balancing.
 func (r *Router) Select(phase, tier string) (llmtypes.LLMProvider, string, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -73,6 +75,7 @@ func (r *Router) Select(phase, tier string) (llmtypes.LLMProvider, string, error
 	if preferred, ok := r.phasePreferences[phase]; ok && preferred != "" {
 		if p, exists := r.providers[preferred]; exists {
 			if !r.isUnavailable(preferred, now) {
+				r.counts[preferred]++
 				return p, tier, nil
 			}
 		}
@@ -83,6 +86,7 @@ func (r *Router) Select(phase, tier string) (llmtypes.LLMProvider, string, error
 	if chosen == "" {
 		return nil, "", fmt.Errorf("routing: all providers unavailable")
 	}
+	r.counts[chosen]++
 	return r.providers[chosen], tier, nil
 }
 
@@ -92,13 +96,6 @@ func (r *Router) MarkUnavailable(name string) {
 	defer r.mu.Unlock()
 	until := time.Now().Add(r.cooldown)
 	r.unavailable[name] = until
-}
-
-// RecordInvocation increments the invocation count for the named provider.
-func (r *Router) RecordInvocation(name string) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.counts[name]++
 }
 
 // isUnavailable reports whether the named provider is currently in cooldown.
@@ -119,14 +116,20 @@ func (r *Router) isUnavailable(name string, now time.Time) bool {
 // Returns empty string when all providers are unavailable.
 // Caller must hold r.mu.
 func (r *Router) selectByRatio(now time.Time) string {
-	// Collect available providers.
 	type candidate struct {
 		name  string
 		score float64
 	}
+	// Sort provider names for deterministic tie-breaking.
+	names := make([]string, 0, len(r.providers))
+	for name := range r.providers {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
 	var best candidate
 	found := false
-	for name := range r.providers {
+	for _, name := range names {
 		if r.isUnavailable(name, now) {
 			continue
 		}

@@ -7,7 +7,7 @@ import (
 
 func TestPromptAssemblerAddsLayerMarkers(t *testing.T) {
 	assembler := NewPromptAssembler("base layer", "project layer", "instance layer", "fragment layer")
-	output := assembler.Assemble()
+	output := assembler.Assemble("", BeadInfo{})
 
 	expectedSequence := []string{
 		"=== BASE ===",
@@ -35,7 +35,7 @@ func TestPromptAssemblerAddsLayerMarkers(t *testing.T) {
 
 func TestPromptAssemblerSkipsEmptyLayers(t *testing.T) {
 	assembler := NewPromptAssembler("base layer", "", "instance layer", "")
-	output := assembler.Assemble()
+	output := assembler.Assemble("", BeadInfo{})
 
 	if !strings.Contains(output, "=== BASE ===") {
 		t.Fatalf("base section missing")
@@ -53,7 +53,7 @@ func TestPromptAssemblerSkipsEmptyLayers(t *testing.T) {
 
 func TestPromptAssemblerSkipsWhitespaceOnlyLayers(t *testing.T) {
 	assembler := NewPromptAssembler("base layer", "  \n\t", "instance layer", "fragment layer")
-	output := assembler.Assemble()
+	output := assembler.Assemble("", BeadInfo{})
 
 	if strings.Contains(output, "=== PROJECT ===") {
 		t.Fatalf("project section should be omitted when it contains only whitespace")
@@ -69,105 +69,91 @@ func TestPromptAssemblerSkipsWhitespaceOnlyLayers(t *testing.T) {
 	}
 }
 
-func TestLoadBaseInstructionsCapsAtPhaseLimitBuild(t *testing.T) {
-	// Build phase cap is 12,800 chars per spec.
-	// Generate base content larger than the cap with only build-phase sections.
-	longContent := strings.Repeat("x", 500)
-	base := "## Section <!-- phases: build -->\n\n" + longContent + "\n\n## Section2 <!-- phases: build -->\n\n" + strings.Repeat("y", 13000)
-	assembler := NewPromptAssembler(base, "", "", "")
-	result := assembler.loadBaseInstructions("build")
-	const buildCap = 12800
-	if len(result) > buildCap {
-		t.Errorf("build phase result is %d chars, exceeds cap of %d", len(result), buildCap)
+func TestShapeBudgetSmallBeadGets50Percent(t *testing.T) {
+	content := strings.Repeat("x", 10000)
+	shaped, report := ShapeBudget(content, 1, 10000)
+
+	if len(shaped) > 5000 {
+		t.Fatalf("shaped len = %d, want <= 5000 (50%% of 10000)", len(shaped))
+	}
+	if !report.Trimmed {
+		t.Fatal("expected Trimmed = true")
+	}
+	if report.AdjustedBudget != 5000 {
+		t.Fatalf("AdjustedBudget = %d, want 5000", report.AdjustedBudget)
 	}
 }
 
-func TestLoadBaseInstructionsCapsAtPhaseLimitRed(t *testing.T) {
-	// Red phase cap is 8,500 chars per spec.
-	longContent := strings.Repeat("z", 9000)
-	base := "## Section <!-- phases: red -->\n\n" + longContent
-	assembler := NewPromptAssembler(base, "", "", "")
-	result := assembler.loadBaseInstructions("red")
-	const redCap = 8500
-	if len(result) > redCap {
-		t.Errorf("red phase result is %d chars, exceeds cap of %d", len(result), redCap)
+func TestShapeBudgetMediumBeadGets75Percent(t *testing.T) {
+	content := strings.Repeat("x", 10000)
+	shaped, report := ShapeBudget(content, 3, 10000)
+
+	if len(shaped) > 7500 {
+		t.Fatalf("shaped len = %d, want <= 7500 (75%% of 10000)", len(shaped))
+	}
+	if !report.Trimmed {
+		t.Fatal("expected Trimmed = true")
+	}
+	if report.AdjustedBudget != 7500 {
+		t.Fatalf("AdjustedBudget = %d, want 7500", report.AdjustedBudget)
 	}
 }
 
-func TestLoadProjectContextNoPackagePathsReturnsProjectUnchanged(t *testing.T) {
-	project := "# Project\nSome instructions"
-	assembler := NewPromptAssembler("base", project, "instance", "fragment")
-	got := assembler.loadProjectContext(BeadInfo{Title: "add some feature"})
-	if got != project {
-		t.Errorf("expected project unchanged, got %q", got)
+func TestShapeBudgetLargeBeadGets100Percent(t *testing.T) {
+	content := strings.Repeat("x", 10000)
+	shaped, report := ShapeBudget(content, 6, 10000)
+
+	if len(shaped) != 10000 {
+		t.Fatalf("shaped len = %d, want 10000 (100%% budget, no trim needed)", len(shaped))
+	}
+	if report.Trimmed {
+		t.Fatal("expected Trimmed = false for large bead within budget")
+	}
+	if report.AdjustedBudget != 10000 {
+		t.Fatalf("AdjustedBudget = %d, want 10000", report.AdjustedBudget)
 	}
 }
 
-func TestLoadBaseInstructionsFiltersPhase(t *testing.T) {
-	base := `# Rules
+func TestShapeBudgetReportsTrimmingDetails(t *testing.T) {
+	content := strings.Repeat("x", 10000)
+	_, report := ShapeBudget(content, 2, 10000)
 
-## Code Style <!-- phases: red, build, green, refactor, review -->
-
-- Use go fmt standard formatting
-
-## Build Only <!-- phases: build -->
-
-- Always run tests before committing
-
-## Review Only <!-- phases: review -->
-
-- Check for security issues`
-
-	assembler := NewPromptAssembler(base, "", "", "")
-
-	buildResult := assembler.loadBaseInstructions("build")
-	if !strings.Contains(buildResult, "## Code Style") {
-		t.Errorf("build result missing ## Code Style")
+	if report.OriginalSize != 10000 {
+		t.Fatalf("OriginalSize = %d, want 10000", report.OriginalSize)
 	}
-	if !strings.Contains(buildResult, "## Build Only") {
-		t.Errorf("build result missing ## Build Only")
+	if report.ShapedSize != 5000 {
+		t.Fatalf("ShapedSize = %d, want 5000", report.ShapedSize)
 	}
-	if strings.Contains(buildResult, "## Review Only") {
-		t.Errorf("build result should not contain ## Review Only")
+	if report.TrimmedBytes != 5000 {
+		t.Fatalf("TrimmedBytes = %d, want 5000", report.TrimmedBytes)
 	}
-
-	reviewResult := assembler.loadBaseInstructions("review")
-	if !strings.Contains(reviewResult, "## Code Style") {
-		t.Errorf("review result missing ## Code Style")
-	}
-	if strings.Contains(reviewResult, "## Build Only") {
-		t.Errorf("review result should not contain ## Build Only")
-	}
-	if !strings.Contains(reviewResult, "## Review Only") {
-		t.Errorf("review result missing ## Review Only")
+	if report.FileCount != 2 {
+		t.Fatalf("FileCount = %d, want 2", report.FileCount)
 	}
 }
 
-func TestLoadProjectContextScopesArchitectureToMentionedPackage(t *testing.T) {
-	project := `# Gromit
+func TestAssembleWithPhaseFiltersBase(t *testing.T) {
+	base := "## build\nbuild instructions\n\n## validate\nvalidate instructions"
+	assembler := NewPromptAssembler(base, "project context", "", "")
+	output := assembler.Assemble("build", BeadInfo{FileCount: 10})
 
-A Go CLI tool.
-
-## Architecture
-
-- ` + "`internal/v2/prompt/`" + ` — prompt assembly
-- ` + "`internal/runner/`" + ` — core loop orchestration
-
-## Key Principles
-
-1. Fresh context each iteration
-2. State in files, not memory`
-
-	assembler := NewPromptAssembler("base", project, "instance", "fragment")
-	got := assembler.loadProjectContext(BeadInfo{Title: "Modify internal/v2/prompt/assembler.go: implement loadProjectContext"})
-
-	if !strings.Contains(got, "internal/v2/prompt/") {
-		t.Errorf("expected scoped content to include internal/v2/prompt/, got: %q", got)
+	if !strings.Contains(output, "build instructions") {
+		t.Fatal("output should contain build instructions")
 	}
-	if strings.Contains(got, "internal/runner/") {
-		t.Errorf("expected scoped content to exclude internal/runner/, got: %q", got)
+	if strings.Contains(output, "validate instructions") {
+		t.Fatal("output should NOT contain validate instructions when phase=build")
 	}
-	if !strings.Contains(got, "Key Principles") {
-		t.Errorf("expected scoped content to preserve Key Principles section, got: %q", got)
+}
+
+func TestAssembleStoresLastReport(t *testing.T) {
+	assembler := NewPromptAssembler("base", "project", "", "")
+	assembler.Assemble("", BeadInfo{FileCount: 1})
+
+	report := assembler.LastReport()
+	if report == nil {
+		t.Fatal("LastReport should not be nil after Assemble")
+	}
+	if report.FileCount != 1 {
+		t.Fatalf("report.FileCount = %d, want 1", report.FileCount)
 	}
 }

@@ -16,6 +16,7 @@ import (
 	"github.com/danabrams/gromit/internal/v2/event"
 	"github.com/danabrams/gromit/internal/v2/generation"
 	v2review "github.com/danabrams/gromit/internal/v2/review"
+	"github.com/danabrams/gromit/internal/v2/routing"
 	"github.com/danabrams/gromit/internal/v2/stage"
 	reviewstage "github.com/danabrams/gromit/internal/v2/stage/review"
 	"github.com/danabrams/gromit/internal/v2/stage/triage"
@@ -48,6 +49,8 @@ type BeadLoopConfig struct {
 	StartGeneration          int
 	Git                      GitCommitter
 	StageCommitter           StageCommitter
+	Router                   *routing.Router      // optional: if nil, routing is skipped
+	PhaseModels              map[string]string     // optional: phase -> starting tier
 }
 
 // BeadLoopResult captures metadata produced by a bead loop execution.
@@ -72,6 +75,8 @@ type BeadLoop struct {
 	outOfScopeFindings       []v2review.Finding
 	git                      GitCommitter
 	stageCommitter       StageCommitter
+	router               *routing.Router
+	phaseModels          map[string]string
 	// run-scoped state for in-loop decomposition
 	resolver *dep.Resolver
 	beadMap  map[string]*bead.Bead
@@ -128,6 +133,8 @@ func NewBeadLoop(config BeadLoopConfig) (*BeadLoop, error) {
 		startGeneration:          config.StartGeneration,
 		git:                      config.Git,
 		stageCommitter:           config.StageCommitter,
+		router:                   config.Router,
+		phaseModels:              config.PhaseModels,
 	}
 	if config.Emitter != nil && config.LegacyEmitter != nil {
 		event.BridgeTypedToLegacy(config.Emitter, config.LegacyEmitter)
@@ -156,6 +163,16 @@ func (b *BeadLoop) Run(ctx context.Context, beads []*bead.Bead, stopCh <-chan st
 			return BeadLoopResult{}, ErrGenerationCapReached
 		}
 	}
+
+	// Pre-sort beads topologically so the resolver's add-order reflects
+	// dependency ordering. TopologicalSort provides the initial execution
+	// order; dep.Resolver handles dynamic re-ordering during execution
+	// (blocking/unblocking as beads complete).
+	sorted, err := TopologicalSort(beads)
+	if err != nil {
+		return BeadLoopResult{}, fmt.Errorf("topological pre-sort: %w", err)
+	}
+	beads = sorted
 
 	b.resolver = dep.NewResolver()
 	b.beadMap = make(map[string]*bead.Bead, len(beads))
@@ -397,6 +414,12 @@ func (b *BeadLoop) runStageEntry(ctx context.Context, beadItem *bead.Bead, itera
 		return nil
 	}
 
+	// Determine starting tier for this stage's phase via routing.
+	startTier := routing.TierMedium
+	if b.router != nil {
+		startTier = routing.TierForPhase(stageName, b.phaseModels, routing.TierMedium)
+	}
+
 	retriesRemaining := entry.retryConfig.MaxRetries
 	if retriesRemaining < 0 {
 		retriesRemaining = 0
@@ -407,6 +430,21 @@ func (b *BeadLoop) runStageEntry(ctx context.Context, beadItem *bead.Bead, itera
 
 	for {
 		req := b.stageRequest(beadItem, iteration, stageRetryContext(attempt, priorFailures))
+
+		// Apply routing: select provider and model for this stage.
+		if b.router != nil {
+			escalationLevel := 0
+			if req.RetryContext != nil {
+				escalationLevel = req.RetryContext.EscalationLevel
+			}
+			tier := routing.EscalationTier(startTier, escalationLevel)
+			provider, model, routeErr := b.router.Select(stageName, tier)
+			if routeErr == nil && provider != nil {
+				req.Provider = provider
+				req.Model = model
+			}
+		}
+
 		b.emitStageStarted(stageName, beadItem.ID, iteration)
 		start := time.Now()
 		res, err := b.runStage(ctx, entry.stage, req)
@@ -509,7 +547,14 @@ func stageRetryContext(attempt int, priorFailures []string) *stage.RetryContext 
 	if attempt <= 1 && len(priorFailures) == 0 {
 		return nil
 	}
-	ctx := &stage.RetryContext{Attempt: attempt}
+	escalation := 0
+	if attempt > 1 {
+		escalation = attempt - 1
+	}
+	ctx := &stage.RetryContext{
+		Attempt:         attempt,
+		EscalationLevel: escalation,
+	}
 	if len(priorFailures) > 0 {
 		ctx.PriorFailures = append([]string(nil), priorFailures...)
 	}

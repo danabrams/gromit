@@ -53,13 +53,13 @@ func TopologicalSort(beads []*bead.Bead) ([]*bead.Bead, error) {
 	}
 
 	// Kahn's algorithm; break ties by original position for stable output
-	queue := make([]string, 0, len(beads))
+	ready := make([]string, 0, len(beads))
 	for _, b := range beads {
 		if b == nil {
 			continue
 		}
 		if indegree[b.ID] == 0 {
-			queue = append(queue, b.ID)
+			ready = append(ready, b.ID)
 		}
 	}
 
@@ -71,22 +71,22 @@ func TopologicalSort(beads []*bead.Bead) ([]*bead.Bead, error) {
 	}
 
 	result := make([]*bead.Bead, 0, len(beads))
-	for len(queue) > 0 {
+	for len(ready) > 0 {
 		// Pick next by original position (stable)
 		minIdx := 0
-		for i := 1; i < len(queue); i++ {
-			if index[queue[i]] < index[queue[minIdx]] {
+		for i := 1; i < len(ready); i++ {
+			if index[ready[i]] < index[ready[minIdx]] {
 				minIdx = i
 			}
 		}
-		cur := queue[minIdx]
-		queue = append(queue[:minIdx], queue[minIdx+1:]...)
+		cur := ready[minIdx]
+		ready = append(ready[:minIdx], ready[minIdx+1:]...)
 		result = append(result, beadByID[cur])
 
 		for _, dep := range dependents[cur] {
 			indegree[dep]--
 			if indegree[dep] == 0 {
-				queue = append(queue, dep)
+				ready = append(ready, dep)
 			}
 		}
 	}
@@ -118,7 +118,7 @@ func beadDependencyIDs(b *bead.Bead) []string {
 }
 
 func filterEmpty(ss []string) []string {
-	out := ss[:0]
+	out := make([]string, 0, len(ss))
 	for _, s := range ss {
 		if strings.TrimSpace(s) != "" {
 			out = append(out, s)

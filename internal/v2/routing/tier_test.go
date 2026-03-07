@@ -70,3 +70,39 @@ func TestResolveModelEmptyStringModelFallsBack(t *testing.T) {
 		t.Fatalf("ResolveModel with empty string model = %q, want %q", got, "low")
 	}
 }
+
+func TestEscalationTierLowToMediumToHigh(t *testing.T) {
+	cases := []struct {
+		level int
+		want  string
+	}{
+		{0, routing.TierLow},
+		{1, routing.TierMedium},
+		{2, routing.TierHigh},
+		{3, routing.TierHigh}, // caps at highest
+	}
+	for _, tc := range cases {
+		got := routing.EscalationTier(routing.TierLow, tc.level)
+		if got != tc.want {
+			t.Errorf("EscalationTier(low, %d) = %q, want %q", tc.level, got, tc.want)
+		}
+	}
+}
+
+func TestEscalationTierMediumToHigh(t *testing.T) {
+	if got := routing.EscalationTier(routing.TierMedium, 0); got != routing.TierMedium {
+		t.Errorf("EscalationTier(medium, 0) = %q, want %q", got, routing.TierMedium)
+	}
+	if got := routing.EscalationTier(routing.TierMedium, 1); got != routing.TierHigh {
+		t.Errorf("EscalationTier(medium, 1) = %q, want %q", got, routing.TierHigh)
+	}
+}
+
+func TestEscalationTierHighStaysHigh(t *testing.T) {
+	if got := routing.EscalationTier(routing.TierHigh, 0); got != routing.TierHigh {
+		t.Errorf("EscalationTier(high, 0) = %q, want %q", got, routing.TierHigh)
+	}
+	if got := routing.EscalationTier(routing.TierHigh, 1); got != routing.TierHigh {
+		t.Errorf("EscalationTier(high, 1) = %q, want %q", got, routing.TierHigh)
+	}
+}

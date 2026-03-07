@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync"
 	"syscall"
+	"time"
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
@@ -23,7 +24,9 @@ import (
 	"github.com/danabrams/gromit/internal/v2/adapter/presenter"
 	"github.com/danabrams/gromit/internal/v2/adapter/tasktracker"
 	"github.com/danabrams/gromit/internal/v2/dep"
+	"github.com/danabrams/gromit/internal/v2/llmtypes"
 	"github.com/danabrams/gromit/internal/v2/loop"
+	"github.com/danabrams/gromit/internal/v2/routing"
 	v2spec "github.com/danabrams/gromit/internal/v2/spec"
 	"github.com/spf13/cobra"
 )
@@ -138,6 +141,8 @@ func run2(cmd *cobra.Command, args []string) error {
 		wg.Wait()
 	}()
 
+	router, phaseModels := buildRouter(cfg)
+
 	baseOpts := []loop.SpecLoopOption{
 		newSpecLoopEmitterFn(emitter),
 		loop.WithPlanStage(components.PlanStage),
@@ -148,6 +153,12 @@ func run2(cmd *cobra.Command, args []string) error {
 		loop.WithRemediationRunner(components.RemediationRunner),
 		loop.WithStageCommitter(components.StageCommitter),
 		loop.WithTypedEmitter(components.TypedEmitter),
+	}
+	if router != nil {
+		baseOpts = append(baseOpts, loop.WithRouter(router))
+	}
+	if len(phaseModels) > 0 {
+		baseOpts = append(baseOpts, loop.WithPhaseModels(phaseModels))
 	}
 	for _, specFile := range specFiles {
 		if err := specFile.CheckDependencies(specsDir); err != nil {
@@ -256,6 +267,80 @@ func loadSpecFromArg(arg string) (*v2spec.Spec, error) {
 		return nil, fmt.Errorf("loading spec %s: %w", specPath, err)
 	}
 	return specFile, nil
+}
+
+// buildRouter constructs a Router from the config's provider and routing
+// settings. Returns (nil, nil) when no providers are configured, preserving
+// backward compatibility — the spec loop handles a nil Router gracefully.
+func buildRouter(cfg *config.Config) (*routing.Router, map[string]string) {
+	if cfg == nil || len(cfg.Providers) == 0 {
+		return nil, nil
+	}
+
+	binary := "claude"
+	if strings.TrimSpace(cfg.Claude.Binary) != "" {
+		binary = strings.TrimSpace(cfg.Claude.Binary)
+	}
+	flags := []string{}
+	if len(cfg.Claude.Flags) > 0 {
+		flags = append(flags, cfg.Claude.Flags...)
+	}
+	timeout := 15 * time.Minute
+	if cfg.Claude.Timeout > 0 {
+		timeout = time.Duration(cfg.Claude.Timeout) * time.Second
+	}
+
+	providers := make(map[string]llmtypes.LLMProvider, len(cfg.Providers))
+	for name, def := range cfg.Providers {
+		provBinary := binary
+		if strings.TrimSpace(def.Binary) != "" {
+			provBinary = strings.TrimSpace(def.Binary)
+		}
+		provFlags := flags
+		if len(def.Flags) > 0 {
+			provFlags = append([]string(nil), def.Flags...)
+		}
+		providers[name] = llm.NewClaudeAdapter(provBinary, provFlags, timeout)
+	}
+
+	var cooldown time.Duration
+	if cd := strings.TrimSpace(cfg.Routing.Fallback.Cooldown); cd != "" {
+		if parsed, err := time.ParseDuration(cd); err == nil {
+			cooldown = parsed
+		}
+	}
+
+	router := routing.NewRouter(routing.RouterConfig{
+		Providers:        providers,
+		PhasePreferences: cfg.Routing.PhasePreferences,
+		Ratio:            cfg.Routing.Ratio,
+		Cooldown:         cooldown,
+	})
+
+	phaseModels := phaseModelsFromConfig(cfg.Methodology.PhaseModels)
+	return router, phaseModels
+}
+
+// phaseModelsFromConfig converts the structured PhaseModelsConfig into a
+// flat map[string]string suitable for routing.TierForPhase.
+func phaseModelsFromConfig(pm config.PhaseModelsConfig) map[string]string {
+	m := map[string]string{}
+	if pm.Decompose != "" {
+		m["decompose"] = pm.Decompose
+	}
+	if pm.Build != "" {
+		m["build"] = pm.Build
+	}
+	if pm.Red != "" {
+		m["red"] = pm.Red
+	}
+	if pm.Green != "" {
+		m["green"] = pm.Green
+	}
+	if pm.Refactor != "" {
+		m["refactor"] = pm.Refactor
+	}
+	return m
 }
 
 func startRun2Subscribers(ctx context.Context, emitter *events.Emitter, output io.Writer, logsDir string) (*sync.WaitGroup, error) {

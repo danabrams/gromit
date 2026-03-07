@@ -6,12 +6,14 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/events"
 	"github.com/danabrams/gromit/internal/v2/adapter"
 	"github.com/danabrams/gromit/internal/v2/adapter/llm"
+	"github.com/danabrams/gromit/internal/v2/adapter/tasktracker"
 	"github.com/danabrams/gromit/internal/v2/generation"
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
 	"github.com/danabrams/gromit/internal/v2/testutil"
@@ -319,6 +321,7 @@ type integrationGitAdapter struct {
 	*testutil.FakeGit
 	t                  *testing.T
 	gapAnalysisContent string
+	planContent        string
 }
 
 func newIntegrationGitAdapter(t *testing.T) *integrationGitAdapter {
@@ -334,16 +337,23 @@ func (g *integrationGitAdapter) Checkout(ctx context.Context, specID string) (st
 	if err != nil {
 		return "", err
 	}
-	if g.gapAnalysisContent == "" {
-		return worktree, nil
-	}
 	gromitPath := filepath.Join(worktree, ".gromit", "v2")
-	if err := os.MkdirAll(gromitPath, 0o755); err != nil {
-		g.t.Fatalf("create gromit dir: %v", err)
+	if g.gapAnalysisContent != "" || g.planContent != "" {
+		if err := os.MkdirAll(gromitPath, 0o755); err != nil {
+			g.t.Fatalf("create gromit dir: %v", err)
+		}
 	}
-	path := filepath.Join(gromitPath, "gap-analysis.md")
-	if err := os.WriteFile(path, []byte(g.gapAnalysisContent), 0o644); err != nil {
-		g.t.Fatalf("write gap analysis: %v", err)
+	if g.gapAnalysisContent != "" {
+		path := filepath.Join(gromitPath, "gap-analysis.md")
+		if err := os.WriteFile(path, []byte(g.gapAnalysisContent), 0o644); err != nil {
+			g.t.Fatalf("write gap analysis: %v", err)
+		}
+	}
+	if g.planContent != "" {
+		path := filepath.Join(gromitPath, "plan.md")
+		if err := os.WriteFile(path, []byte(g.planContent), 0o644); err != nil {
+			g.t.Fatalf("write plan: %v", err)
+		}
 	}
 	return worktree, nil
 }
@@ -402,4 +412,171 @@ func assertPresenterSuccess(t *testing.T, presenter *testutil.FakePresenter, wan
 	if got != want {
 		t.Fatalf("presenter summary success = %v, want %v", got, want)
 	}
+}
+
+// TestIntegration_ResumeWithGapAnalysisAndRevalidation exercises the resume path:
+// existing beads are found via the task tracker, plan is loaded from disk,
+// gap analysis identifies affected beads, and selective revalidation re-queues them.
+func TestIntegration_ResumeWithGapAnalysisAndRevalidation(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	specID := "spec-resume-gap"
+	cfg := &config.Config{}
+
+	emitter := events.NewEmitter()
+	ch := emitter.Subscribe()
+	t.Cleanup(func() {
+		emitter.Unsubscribe(ch)
+	})
+
+	git := newIntegrationGitAdapter(t)
+	git.planContent = "existing plan from prior run"
+	llmAdapter := newIntegrationLLMAdapter()
+	taskTracker := newIntegrationTaskTrackerAdapter()
+	presenter := newIntegrationPresenterAdapter(t)
+
+	// Seed three beads with the spec label so queryExistingBeads finds them.
+	label := fmt.Sprintf("spec:%s", specID)
+	for _, title := range []string{"bead-a", "bead-b", "bead-c"} {
+		_, err := taskTracker.CreateBead(ctx, tasktracker.CreateBeadRequest{
+			Title:  title,
+			Labels: []string{label},
+		})
+		if err != nil {
+			t.Fatalf("seed bead %s: %v", title, err)
+		}
+	}
+
+	// Gap analyzer: report that "main.go" changed and bead-1 (first seeded) touches it.
+	gap := &mockGapAnalyzer{
+		changedFiles: []string{"main.go"},
+		beadFileMap:  map[string][]string{"bead-1": {"main.go", "util.go"}},
+	}
+
+	// Revalidator: return the flagged bead as needing re-queue.
+	revalidator := &mockRevalidator{}
+
+	accept := newScriptedAcceptStage(stagepkg.Result{Decision: stagepkg.DecisionProceed})
+	_, beadLoop := newIntegrationLoopComponents(t, specID)
+	planStage := newFakePlanStage(specID)
+	presentStage, summaryCtx := newPresentStageForTest(t, cfg, presenter)
+
+	adapters := adapter.AdapterSet{
+		Git:         git,
+		LLM:         llmAdapter,
+		TaskTracker: taskTracker,
+		Presenter:   presenter,
+	}
+
+	loopInstance, err := NewSpecLoop(adapters, cfg, noopDependencyGate{},
+		WithEmitter(emitter),
+		WithPlanStage(planStage),
+		WithPresentStage(presentStage, summaryCtx),
+		WithAcceptStage(accept),
+		WithBeadLoop(beadLoop),
+		WithGapAnalyzer(gap),
+		WithSelectiveRevalidator(revalidator),
+	)
+	if err != nil {
+		t.Fatalf("create spec loop: %v", err)
+	}
+
+	if err := loopInstance.Run(ctx, specID, nil); err != nil {
+		t.Fatalf("run spec loop: %v", err)
+	}
+
+	// Plan stage should NOT have been called (plan loaded from disk).
+	if planStage.called {
+		t.Fatal("plan stage was called, want skipped (should resume from disk)")
+	}
+
+	// Gap analyzer should have been called exactly once.
+	if gap.calls != 1 {
+		t.Fatalf("gap analyzer calls = %d, want 1", gap.calls)
+	}
+
+	// Revalidator should have been called exactly once.
+	if revalidator.calls != 1 {
+		t.Fatalf("revalidator calls = %d, want 1", revalidator.calls)
+	}
+
+	// The revalidator received the flagged bead (bead-1 overlaps changed files).
+	if len(revalidator.receivedBeads) != 1 {
+		t.Fatalf("revalidator received %d beads, want 1", len(revalidator.receivedBeads))
+	}
+	if revalidator.receivedBeads[0].ID != "bead-1" {
+		t.Fatalf("revalidator bead ID = %q, want %q", revalidator.receivedBeads[0].ID, "bead-1")
+	}
+
+	// Accept should have been called (spec completed successfully).
+	if accept.calls != 1 {
+		t.Fatalf("accept calls = %d, want 1", accept.calls)
+	}
+
+	// Should see DecomposeResumedEvent and PlanResumedEvent in the event stream.
+	evts := drainEvents(ch)
+	foundDecomposeResumed := false
+	foundPlanResumed := false
+	for _, evt := range evts {
+		switch evt.(type) {
+		case *events.DecomposeResumedEvent:
+			foundDecomposeResumed = true
+		case *events.PlanResumedEvent:
+			foundPlanResumed = true
+		}
+	}
+	if !foundPlanResumed {
+		types := make([]string, len(evts))
+		for i, e := range evts {
+			types[i] = fmt.Sprintf("%T", e)
+		}
+		t.Fatalf("expected PlanResumedEvent in events, got: %v", types)
+	}
+	if !foundDecomposeResumed {
+		types := make([]string, len(evts))
+		for i, e := range evts {
+			types[i] = fmt.Sprintf("%T", e)
+		}
+		t.Fatalf("expected DecomposeResumedEvent in events, got: %v", types)
+	}
+
+	assertPresenterSuccess(t, presenter, true)
+}
+
+func drainEvents(ch chan events.Event) []events.Event {
+	var evts []events.Event
+	deadline := time.After(time.Second)
+	for {
+		select {
+		case evt := <-ch:
+			evts = append(evts, evt)
+		case <-deadline:
+			return evts
+		}
+	}
+}
+
+// mockGapAnalyzer implements GapAnalyzer for testing.
+type mockGapAnalyzer struct {
+	changedFiles []string
+	beadFileMap  map[string][]string
+	calls        int
+}
+
+func (m *mockGapAnalyzer) Analyze(_ context.Context, _ string, _ []*bead.Bead) ([]string, map[string][]string, error) {
+	m.calls++
+	return m.changedFiles, m.beadFileMap, nil
+}
+
+// mockRevalidator implements SelectiveRevalidator for testing.
+type mockRevalidator struct {
+	calls         int
+	receivedBeads []*bead.Bead
+}
+
+func (m *mockRevalidator) Revalidate(_ context.Context, beads []*bead.Bead, _ string) ([]*bead.Bead, error) {
+	m.calls++
+	m.receivedBeads = append(m.receivedBeads, beads...)
+	return beads, nil
 }

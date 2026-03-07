@@ -114,7 +114,7 @@ func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Resul
 	}
 
 	instance := buildTriageInstance(req.Bead.ID, req.Bead.Title, labels, failureMessage)
-	promptText := prompt.NewPromptAssembler(s.base, s.project, instance, s.fragment).Assemble()
+	promptText := prompt.NewPromptAssembler(s.base, s.project, instance, s.fragment).Assemble("", prompt.BeadInfo{})
 
 	model := s.cfg.Models.P2
 	if model == "" {

@@ -204,7 +204,7 @@ func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Resul
 	}
 
 	instance := buildInstanceLayer(diff, acceptance)
-	promptText := prompt.NewPromptAssembler(s.base, s.project, instance, s.fragment).Assemble()
+	promptText := prompt.NewPromptAssembler(s.base, s.project, instance, s.fragment).Assemble("", prompt.BeadInfo{})
 
 	model, err := reviewModel(cfg)
 	if err != nil {

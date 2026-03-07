@@ -102,20 +102,24 @@ func TestRouterSelectRatioBalancesAcrossProviders(t *testing.T) {
 			"providerA": providerA,
 			"providerB": providerB,
 		},
+		PhasePreferences: map[string]string{
+			"forced": "providerA",
+		},
 		Ratio: map[string]int{
 			"providerA": 3,
 			"providerB": 1,
 		},
 	})
 
-	// After recording 3 invocations for providerA and 1 for providerB,
-	// providerA's score = 3/3=1.0, providerB's score = 1/1=1.0 (tied).
-	// After 4 more for providerA, score = 4/3 > 1.0, so providerB should win.
-	r.RecordInvocation("providerA")
-	r.RecordInvocation("providerA")
-	r.RecordInvocation("providerA")
-	r.RecordInvocation("providerA") // now 4 for A vs 0 for B
-	// providerA score = 4/3 ≈ 1.33, providerB score = 0/1 = 0 → B should be selected
+	// Use phase preference to force 4 invocations on providerA (Select auto-records).
+	for i := 0; i < 4; i++ {
+		_, _, err := r.Select("forced", "low")
+		if err != nil {
+			t.Fatalf("unexpected error on forced select %d: %v", i, err)
+		}
+	}
+	// providerA count=4, providerB count=0.
+	// providerA score = 4/3 ≈ 1.33, providerB score = 0/1 = 0 → B should be selected.
 	got, _, err := r.Select("build", "low")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
