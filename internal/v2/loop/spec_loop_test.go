@@ -1086,6 +1086,40 @@ func TestWithTypedEmitterSetsField(t *testing.T) {
 	}
 }
 
+func TestWithStageCommitterSetsField(t *testing.T) {
+	t.Parallel()
+	sc := &fakeSpecStageCommitter{}
+	s := &SpecLoop{}
+	WithStageCommitter(sc)(s)
+	if s.stageCommitter != sc {
+		t.Fatalf("stageCommitter not set")
+	}
+}
+
+// fakeSpecStageCommitter records CommitStage calls for assertion in spec loop tests.
+type fakeSpecStageCommitter struct {
+	calls []specStageCommitCall
+}
+
+type specStageCommitCall struct {
+	stageName string
+	beadID    string
+}
+
+func (f *fakeSpecStageCommitter) CommitStage(_ context.Context, _, beadID, stageName string, _ int, _ string) error {
+	f.calls = append(f.calls, specStageCommitCall{stageName: stageName, beadID: beadID})
+	return nil
+}
+
+func (f *fakeSpecStageCommitter) hasCall(stageName string) bool {
+	for _, c := range f.calls {
+		if c.stageName == stageName {
+			return true
+		}
+	}
+	return false
+}
+
 func newPresentStageForTest(t *testing.T, cfg *config.Config, presenter adapter.PresenterAdapter) (stagepkg.Stage, *present.SummaryContext) {
 	t.Helper()
 	summaryCtx := &present.SummaryContext{}
