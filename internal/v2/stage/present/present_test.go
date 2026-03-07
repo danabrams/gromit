@@ -112,6 +112,26 @@ func (s *spyPresenter) PresentSummary(ctx context.Context, specID string, summar
 	return s.err
 }
 
+func TestPresentStageCallsSquasher(t *testing.T) {
+	called := false
+	squasher := func(ctx context.Context) error {
+		called = true
+		return nil
+	}
+	ctx := &SummaryContext{Plan: "p", Worktree: "/tmp/w"}
+	presenter := &spyPresenter{}
+	stageInstance, err := New(nil, presenter, ctx, WithSquasher(squasher))
+	if err != nil {
+		t.Fatalf("unexpected error creating stage: %v", err)
+	}
+	if _, err := stageInstance.Run(context.Background(), &stage.Request{Bead: stage.BeadInfo{ID: "spec-sq"}}); err != nil {
+		t.Fatalf("run failed: %v", err)
+	}
+	if !called {
+		t.Fatal("squasher was not called")
+	}
+}
+
 func TestPresentStageTrimsLinks(t *testing.T) {
 	ctx := &SummaryContext{
 		Plan:              "plan details",
