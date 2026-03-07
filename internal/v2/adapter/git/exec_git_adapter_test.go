@@ -147,6 +147,51 @@ func TestExecGitAdapterCheckoutCreatesBranch(t *testing.T) {
 	}
 }
 
+func TestExecGitAdapterLogReturnsMostRecentFirst(t *testing.T) {
+	t.Parallel()
+	repoDir := initTestRepo(t)
+	worktreesDir := t.TempDir()
+
+	a := NewExecGitAdapter(repoDir, worktreesDir)
+	ctx := context.Background()
+
+	// Create a worktree and add two commits.
+	wtPath, err := a.Checkout(ctx, "spec-log-test")
+	if err != nil {
+		t.Fatalf("Checkout: %v", err)
+	}
+
+	// Write a file and commit.
+	if err := os.WriteFile(filepath.Join(wtPath, "a.txt"), []byte("a"), 0o644); err != nil {
+		t.Fatalf("WriteFile a.txt: %v", err)
+	}
+	runGitBinary(t, wtPath, "add", "-A")
+	runGitBinary(t, wtPath, "commit", "-m", "first commit")
+
+	if err := os.WriteFile(filepath.Join(wtPath, "b.txt"), []byte("b"), 0o644); err != nil {
+		t.Fatalf("WriteFile b.txt: %v", err)
+	}
+	runGitBinary(t, wtPath, "add", "-A")
+	runGitBinary(t, wtPath, "commit", "-m", "second commit")
+
+	entries, err := a.Log(ctx, wtPath, 2)
+	if err != nil {
+		t.Fatalf("Log: %v", err)
+	}
+	if len(entries) != 2 {
+		t.Fatalf("expected 2 log entries, got %d", len(entries))
+	}
+	if entries[0].Message != "second commit" {
+		t.Fatalf("expected most recent commit first, got %q", entries[0].Message)
+	}
+	if entries[1].Message != "first commit" {
+		t.Fatalf("expected first commit second, got %q", entries[1].Message)
+	}
+	if entries[0].Hash == "" {
+		t.Fatal("expected non-empty hash for first entry")
+	}
+}
+
 func TestExecGitAdapterRemoveWorktreeSetsDir(t *testing.T) {
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git not available")
