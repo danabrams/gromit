@@ -83,6 +83,13 @@ func WithTypedEmitter(em *event.Emitter) SpecLoopOption {
 	}
 }
 
+// WithStageCommitter installs a StageCommitter that creates a git commit after each spec-level stage.
+func WithStageCommitter(sc StageCommitter) SpecLoopOption {
+	return func(s *SpecLoop) {
+		s.stageCommitter = sc
+	}
+}
+
 // WithRemediationRunner sets the runner the spec loop should invoke when acceptance fails.
 func WithRemediationRunner(r remediationRunner) SpecLoopOption {
 	return func(s *SpecLoop) {
@@ -151,6 +158,7 @@ type SpecLoop struct {
 	acceptStage           stagepkg.Stage
 	emitter               *events.Emitter
 	typedEmitter          *event.Emitter
+	stageCommitter        StageCommitter
 	remediationRunner     remediationRunner
 	gapAnalysisFilename   string
 	decomposeStage        stagepkg.Stage
