@@ -289,6 +289,166 @@ func hasLabel(labels []string, target string) bool {
 	return false
 }
 
+func TestReviewStageCreatesBeadsFromRealisticOutput(t *testing.T) {
+	t.Parallel()
+	diff := "diff --git a/parser.go b/parser.go\n--- a/parser.go\n+++ b/parser.go\n@@ -1,5 +1,10 @@"
+	response := `{
+		"passed": false,
+		"fixes_applied": ["fixed import order"],
+		"fix_categories": ["formatting"],
+		"beads_to_create": [
+			{"title": "Add missing error handling in parser", "description": "The parser.go file doesn't handle EOF errors", "priority": 1, "labels": ["bug"]},
+			{"title": "Extract validation helper", "description": "Duplicate validation logic in handler.go and service.go", "priority": 2, "labels": ["refactor"]}
+		],
+		"backlog_items": [
+			{"title": "Consider caching parsed results", "description": "Parser is called multiple times with same input", "reason": "Performance optimization, not blocking"}
+		],
+		"learnings": [],
+		"summary": "Found error handling gap and code duplication"
+	}`
+	git := &fakeGitAdapter{diff: diff}
+	llmStub := &fakeLLM{response: &llm.LLMResponse{Success: true, Output: response}}
+	tracker := &fakeTracker{}
+	cfg := &config.Config{Review: config.ReviewConfig{Enabled: true, Tier: "sonnet"}}
+	stageInst, err := review.New(cfg, git, llmStub, tracker, "", "", "")
+	if err != nil {
+		t.Fatalf("create stage: %v", err)
+	}
+
+	parentID := "spec-realistic-1"
+	req := &stagepkg.Request{
+		Bead:     stagepkg.BeadInfo{ID: parentID, Labels: []string{"gen:1"}},
+		Worktree: t.TempDir(),
+		Config:   cfg,
+	}
+	res, err := stageInst.Run(context.Background(), req)
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+
+	// Two in-scope beads should be created via the tracker.
+	if len(tracker.created) != 2 {
+		t.Fatalf("created %d beads, want 2", len(tracker.created))
+	}
+
+	// Verify first created bead.
+	first := tracker.created[0]
+	if first.Title != "Add missing error handling in parser" {
+		t.Errorf("bead[0] title = %q, want %q", first.Title, "Add missing error handling in parser")
+	}
+	if first.Priority != 1 {
+		t.Errorf("bead[0] priority = %d, want 1", first.Priority)
+	}
+	if !hasLabel(first.Labels, "review-source:"+parentID) {
+		t.Errorf("bead[0] labels missing review-source:%s: %v", parentID, first.Labels)
+	}
+	if len(first.DependsOn) != 0 {
+		t.Errorf("bead[0] expected no dependencies, got %v", first.DependsOn)
+	}
+
+	// Verify second created bead.
+	second := tracker.created[1]
+	if second.Title != "Extract validation helper" {
+		t.Errorf("bead[1] title = %q, want %q", second.Title, "Extract validation helper")
+	}
+	if second.Priority != 2 {
+		t.Errorf("bead[1] priority = %d, want 2", second.Priority)
+	}
+	if !hasLabel(second.Labels, "review-source:"+parentID) {
+		t.Errorf("bead[1] labels missing review-source:%s: %v", parentID, second.Labels)
+	}
+	if len(second.DependsOn) != 0 {
+		t.Errorf("bead[1] expected no dependencies, got %v", second.DependsOn)
+	}
+
+	// Backlog items should appear as out-of-scope findings in artifacts.
+	artifacts, ok := res.Artifacts.(*review.ReviewArtifacts)
+	if !ok {
+		t.Fatalf("artifacts type = %T, want *review.ReviewArtifacts", res.Artifacts)
+	}
+	if len(artifacts.OutOfScope) != 1 {
+		t.Fatalf("out-of-scope findings = %d, want 1", len(artifacts.OutOfScope))
+	}
+	if artifacts.OutOfScope[0].Title != "Consider caching parsed results" {
+		t.Errorf("out-of-scope[0] title = %q, want %q", artifacts.OutOfScope[0].Title, "Consider caching parsed results")
+	}
+	if artifacts.OutOfScope[0].InScope {
+		t.Errorf("out-of-scope[0] InScope = true, want false")
+	}
+
+	// Decision should reflect the review outcome (proceed even on failed review).
+	if res.Decision != stagepkg.DecisionProceed {
+		t.Errorf("decision = %v, want %v", res.Decision, stagepkg.DecisionProceed)
+	}
+
+	// Created beads should also appear in artifacts.
+	if len(artifacts.CreatedBeads) != 2 {
+		t.Fatalf("artifacts.CreatedBeads = %d, want 2", len(artifacts.CreatedBeads))
+	}
+}
+
+func TestReviewStageOutOfScopeFindingsFromBacklogItems(t *testing.T) {
+	t.Parallel()
+	diff := "diff --git a/db.go b/db.go\n--- a/db.go\n+++ b/db.go\n@@ -10,3 +10,7 @@"
+	response := `{
+		"passed": true,
+		"fixes_applied": [],
+		"beads_to_create": [],
+		"backlog_items": [
+			{"title": "Optimize database queries", "description": "N+1 query pattern detected", "reason": "Not in scope for this bead"}
+		],
+		"learnings": [],
+		"summary": "Code looks good, one optimization suggestion"
+	}`
+	git := &fakeGitAdapter{diff: diff}
+	llmStub := &fakeLLM{response: &llm.LLMResponse{Success: true, Output: response}}
+	tracker := &fakeTracker{}
+	cfg := &config.Config{Review: config.ReviewConfig{Enabled: true, Tier: "sonnet"}}
+	stageInst, err := review.New(cfg, git, llmStub, tracker, "", "", "")
+	if err != nil {
+		t.Fatalf("create stage: %v", err)
+	}
+
+	req := &stagepkg.Request{
+		Bead:     stagepkg.BeadInfo{ID: "spec-backlog-1", Labels: []string{"gen:1"}},
+		Worktree: t.TempDir(),
+		Config:   cfg,
+	}
+	res, err := stageInst.Run(context.Background(), req)
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+
+	// No beads should be created (only backlog items, no beads_to_create).
+	if len(tracker.created) != 0 {
+		t.Fatalf("created %d beads, want 0", len(tracker.created))
+	}
+
+	// Out-of-scope findings should be present in artifacts.
+	artifacts, ok := res.Artifacts.(*review.ReviewArtifacts)
+	if !ok {
+		t.Fatalf("artifacts type = %T, want *review.ReviewArtifacts", res.Artifacts)
+	}
+	if len(artifacts.OutOfScope) != 1 {
+		t.Fatalf("out-of-scope findings = %d, want 1", len(artifacts.OutOfScope))
+	}
+	oos := artifacts.OutOfScope[0]
+	if oos.Title != "Optimize database queries" {
+		t.Errorf("out-of-scope[0] title = %q, want %q", oos.Title, "Optimize database queries")
+	}
+	if oos.Description != "N+1 query pattern detected" {
+		t.Errorf("out-of-scope[0] description = %q, want %q", oos.Description, "N+1 query pattern detected")
+	}
+	if oos.InScope {
+		t.Errorf("out-of-scope[0] InScope = true, want false")
+	}
+
+	// Stage should return Proceed (passed = true).
+	if res.Decision != stagepkg.DecisionProceed {
+		t.Errorf("decision = %v, want %v", res.Decision, stagepkg.DecisionProceed)
+	}
+}
+
 func TestRunReturnsErrorWhenLLMFails(t *testing.T) {
 	t.Parallel()
 	cfg := &config.Config{Review: config.ReviewConfig{Enabled: true, Tier: "sonnet"}}
