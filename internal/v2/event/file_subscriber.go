@@ -1,6 +1,11 @@
 package event
 
-import "sync"
+import (
+	"encoding/json"
+	"os"
+	"path/filepath"
+	"sync"
+)
 
 // FileSubscriber appends JSON-encoded events to a JSONL file.
 type FileSubscriber struct {
@@ -11,4 +16,27 @@ type FileSubscriber struct {
 // NewFileSubscriber returns a FileSubscriber that writes to path.
 func NewFileSubscriber(path string) *FileSubscriber {
 	return &FileSubscriber{path: path}
+}
+
+// Handle appends the event as a JSON line to the JSONL file.
+// Parent directories are created automatically.
+func (f *FileSubscriber) Handle(evt TypedEvent) {
+	data, err := json.Marshal(evt)
+	if err != nil {
+		return
+	}
+	data = append(data, '\n')
+
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	if err := os.MkdirAll(filepath.Dir(f.path), 0o755); err != nil {
+		return
+	}
+	file, err := os.OpenFile(f.path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	if err != nil {
+		return
+	}
+	defer file.Close()
+	_, _ = file.Write(data)
 }
