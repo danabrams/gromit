@@ -6,6 +6,31 @@ import (
 	"github.com/danabrams/gromit/internal/bead"
 )
 
+func TestTopologicalSort_StableTieBreaking(t *testing.T) {
+	t.Parallel()
+
+	// Three independent beads — output must preserve input order.
+	beads := []*bead.Bead{
+		{ID: "c"},
+		{ID: "a"},
+		{ID: "b"},
+	}
+
+	got, err := TopologicalSort(beads)
+	if err != nil {
+		t.Fatalf("TopologicalSort: %v", err)
+	}
+	if len(got) != 3 {
+		t.Fatalf("got %d beads, want 3", len(got))
+	}
+	want := []string{"c", "a", "b"}
+	for i, w := range want {
+		if got[i].ID != w {
+			t.Fatalf("position %d = %q, want %q", i, got[i].ID, w)
+		}
+	}
+}
+
 func TestTopologicalSort_CycleReturnsError(t *testing.T) {
 	t.Parallel()
 
