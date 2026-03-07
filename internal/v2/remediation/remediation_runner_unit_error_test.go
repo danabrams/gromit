@@ -11,14 +11,14 @@ import (
 
 func TestRemediationRunnerRunMissingSpecID(t *testing.T) {
 	runner := runnerForSpecIDValidation()
-	if err := runner.Run(context.Background(), ""); !errors.Is(err, ErrSpecIDRequired) {
+	if err := runner.Run(context.Background(), "", ""); !errors.Is(err, ErrSpecIDRequired) {
 		t.Fatalf("expected ErrSpecIDRequired, got %v", err)
 	}
 }
 
 func TestRemediationRunnerRunMissingAcceptStage(t *testing.T) {
 	runner := runnerForAcceptStageValidation()
-	if err := runner.Run(context.Background(), "spec"); !errors.Is(err, ErrAcceptStageRequired) {
+	if err := runner.Run(context.Background(), "spec", ""); !errors.Is(err, ErrAcceptStageRequired) {
 		t.Fatalf("expected ErrAcceptStageRequired, got %v", err)
 	}
 }
@@ -40,7 +40,7 @@ func TestRemediationRunnerRunMissingBeadRunner(t *testing.T) {
 	}
 
 	runner := runnerForMissingBeadRunner(accept, decompose)
-	if err := runner.Run(context.Background(), "spec"); !errors.Is(err, ErrBeadRunnerRequired) {
+	if err := runner.Run(context.Background(), "spec", ""); !errors.Is(err, ErrBeadRunnerRequired) {
 		t.Fatalf("expected ErrBeadRunnerRequired, got %v", err)
 	}
 }
@@ -52,7 +52,7 @@ func TestRemediationRunnerRunMissingDecomposeStage(t *testing.T) {
 	}
 
 	runner := runnerForMissingDecomposeStage(accept)
-	if err := runner.Run(context.Background(), "spec"); !errors.Is(err, ErrDecomposeStageRequired) {
+	if err := runner.Run(context.Background(), "spec", ""); !errors.Is(err, ErrDecomposeStageRequired) {
 		t.Fatalf("expected ErrDecomposeStageRequired, got %v", err)
 	}
 }
@@ -68,7 +68,7 @@ func TestRemediationRunnerRunUnexpectedDecomposeArtifactsUnit(t *testing.T) {
 	}
 
 	runner := runnerForUnexpectedArtifacts(accept, decompose)
-	if err := runner.Run(context.Background(), "spec"); !errors.Is(err, ErrUnexpectedDecomposeArtifacts) {
+	if err := runner.Run(context.Background(), "spec", ""); !errors.Is(err, ErrUnexpectedDecomposeArtifacts) {
 		t.Fatalf("expected ErrUnexpectedDecomposeArtifacts, got %v", err)
 	}
 }

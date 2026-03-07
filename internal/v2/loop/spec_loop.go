@@ -56,7 +56,7 @@ type BeadRunner interface {
 }
 
 type remediationRunner interface {
-	Run(ctx context.Context, specID string) error
+	Run(ctx context.Context, specID, worktree string) error
 }
 
 // SpecLoopOption configures optional behavior when constructing a SpecLoop.
@@ -463,7 +463,7 @@ func (s *SpecLoop) ensureAcceptance(ctx context.Context, req *stagepkg.Request, 
 		if retriesRemaining <= 0 {
 			return res, fmt.Errorf("%w: limit %d reached", ErrAcceptanceRetriesExceeded, maxAcceptanceRetries)
 		}
-		if err := s.remediationRunner.Run(ctx, specID); err != nil {
+		if err := s.remediationRunner.Run(ctx, specID, req.Worktree); err != nil {
 			return res, err
 		}
 		retriesRemaining--

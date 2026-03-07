@@ -56,7 +56,7 @@ func NewRemediationRunner(cfg RemediationRunnerConfig) *RemediationRunner {
 }
 
 // Run executes the remediation cycle for the provided spec.
-func (r *RemediationRunner) Run(ctx context.Context, specID string) error {
+func (r *RemediationRunner) Run(ctx context.Context, specID, worktree string) error {
 	r.generationCount = 0
 	if specID == "" {
 		return ErrSpecIDRequired
@@ -65,7 +65,7 @@ func (r *RemediationRunner) Run(ctx context.Context, specID string) error {
 		return ErrAcceptStageRequired
 	}
 
-	reqTemplate := stage.Request{Bead: stage.BeadInfo{ID: specID}}
+	reqTemplate := stage.Request{Bead: stage.BeadInfo{ID: specID}, Worktree: worktree}
 	for {
 		req := reqTemplate
 		res, err := r.cfg.AcceptStage.Run(ctx, &req)

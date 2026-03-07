@@ -234,7 +234,7 @@ type fakeRemediationRunner struct {
 	err   error
 }
 
-func (f *fakeRemediationRunner) Run(_ context.Context, _ string) error {
+func (f *fakeRemediationRunner) Run(_ context.Context, _, _ string) error {
 	f.calls++
 	return f.err
 }
