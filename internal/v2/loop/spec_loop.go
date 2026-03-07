@@ -241,6 +241,14 @@ func (s *SpecLoop) Run(ctx context.Context, specID string, stopCh <-chan struct{
 			return fmt.Errorf("unexpected artifacts type from plan stage: %T", planRes.Artifacts)
 		}
 		plan = planArtifacts.Plan
+
+		// Persist the plan so it survives a crash and can be resumed.
+		if err := os.MkdirAll(filepath.Dir(planPath), 0o755); err != nil {
+			return fmt.Errorf("create plan directory: %w", err)
+		}
+		if err := os.WriteFile(planPath, []byte(plan), 0o644); err != nil {
+			return fmt.Errorf("persist plan: %w", err)
+		}
 	}
 
 	if err := s.ctxErr(ctx); err != nil {

@@ -783,6 +783,86 @@ func TestSpecLoopPreservesWorktreeOnEarlyErrorWhenPreserveOnFailure(t *testing.T
 	}
 }
 
+func TestSpecLoopPersistsPlanAfterGeneration(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	specID := "spec-plan-persist"
+	cfg := &config.Config{}
+
+	git := newFakeGitAdapter(t)
+
+	// Use a plan stage that returns a plan but does NOT write it to disk.
+	nonWritingPlan := &nonWritingPlanStage{plan: "generated plan content"}
+
+	decompose := newFakeDecomposeStage(specID)
+	beadRunner := newFakeBeadRunner()
+	accept := newFakeAcceptStage()
+	presentStage := &planCheckingPresentStage{expectedPlan: "generated plan content"}
+	summaryCtx := &present.SummaryContext{}
+
+	adapters := adapter.AdapterSet{
+		Git:         git,
+		LLM:         newFakeLLMAdapter(),
+		TaskTracker: newFakeTaskTrackerAdapter(),
+		Presenter:   newFakePresenterAdapter(t),
+	}
+
+	loopInstance, err := NewSpecLoop(adapters, cfg, noopDependencyGate{},
+		WithPlanStage(nonWritingPlan),
+		WithPresentStage(presentStage, summaryCtx),
+		WithDecomposeStage(decompose),
+		WithBeadLoop(beadRunner),
+		WithAcceptStage(accept),
+	)
+	if err != nil {
+		t.Fatalf("create spec loop: %v", err)
+	}
+
+	if err := loopInstance.Run(ctx, specID, nil); err != nil {
+		t.Fatalf("run spec loop: %v", err)
+	}
+
+	// The planCheckingPresentStage verifies that the plan file existed at
+	// presentation time (before worktree cleanup).
+	if !presentStage.planFileFound {
+		t.Fatal("plan file was not persisted before presentation stage")
+	}
+}
+
+type planCheckingPresentStage struct {
+	planFileFound bool
+	expectedPlan  string
+}
+
+func (f *planCheckingPresentStage) Name() string { return "present" }
+
+func (f *planCheckingPresentStage) Run(_ context.Context, req *stagepkg.Request) (*stagepkg.Result, error) {
+	planPath := filepath.Join(req.Worktree, ".gromit", "v2", "plan.md")
+	data, err := os.ReadFile(planPath)
+	if err != nil {
+		return nil, fmt.Errorf("plan file not found at presentation time: %w", err)
+	}
+	if string(data) != f.expectedPlan {
+		return nil, fmt.Errorf("plan file = %q, want %q", string(data), f.expectedPlan)
+	}
+	f.planFileFound = true
+	return &stagepkg.Result{Decision: stagepkg.DecisionProceed}, nil
+}
+
+type nonWritingPlanStage struct {
+	plan string
+}
+
+func (f *nonWritingPlanStage) Name() string { return "plan" }
+
+func (f *nonWritingPlanStage) Run(_ context.Context, _ *stagepkg.Request) (*stagepkg.Result, error) {
+	return &stagepkg.Result{
+		Decision:  stagepkg.DecisionProceed,
+		Artifacts: &planstage.PlanArtifacts{Plan: f.plan},
+	}, nil
+}
+
 type failingPlanStage struct {
 	err error
 }
