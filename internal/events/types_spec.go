@@ -38,8 +38,8 @@ func (e *SpecFailedEvent) EventType() string {
 
 // PlanResumedEvent is emitted when an existing plan is reused on rerun.
 type PlanResumedEvent struct {
-	SpecID string
-	Path   string
+	SpecID string `json:"spec_id"`
+	Path   string `json:"path"`
 	TimeMixin
 }
 
@@ -49,8 +49,8 @@ func (e *PlanResumedEvent) EventType() string {
 
 // DecomposeResumedEvent is emitted when existing beads are reused on rerun.
 type DecomposeResumedEvent struct {
-	SpecID    string
-	BeadCount int
+	SpecID    string `json:"spec_id"`
+	BeadCount int    `json:"bead_count"`
 	TimeMixin
 }
 

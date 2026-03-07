@@ -3,6 +3,8 @@
 package events
 
 import (
+	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 )
@@ -144,6 +146,77 @@ func TestEventTypeStringsAreUnique(t *testing.T) {
 	// If we reach here, all EventType() strings are unique (map keys are unique)
 	if len(eventTypes) != 37 {
 		t.Errorf("Expected 37 unique event types, got %d", len(eventTypes))
+	}
+}
+
+func TestPlanResumedEventJSONUsesSnakeCase(t *testing.T) {
+	t.Parallel()
+
+	evt := PlanResumedEvent{
+		SpecID:    "spec-1",
+		Path:      "/tmp/plan.yaml",
+		TimeMixin: TimeMixin{Time: time.Unix(1000, 0)},
+	}
+	data, err := json.Marshal(evt)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	jsonStr := string(data)
+
+	// Must contain snake_case keys.
+	for _, key := range []string{"spec_id", "path"} {
+		if !strings.Contains(jsonStr, `"`+key+`"`) {
+			t.Errorf("expected snake_case field %q in JSON: %s", key, jsonStr)
+		}
+	}
+	// Must NOT contain PascalCase keys.
+	for _, bad := range []string{"SpecID", "Path"} {
+		if strings.Contains(jsonStr, `"`+bad+`"`) {
+			t.Errorf("field %q appears as PascalCase instead of snake_case: %s", bad, jsonStr)
+		}
+	}
+
+	// Round-trip: unmarshal back.
+	var got PlanResumedEvent
+	if err := json.Unmarshal(data, &got); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if got.SpecID != evt.SpecID || got.Path != evt.Path {
+		t.Fatalf("round-trip mismatch: got %+v, want %+v", got, evt)
+	}
+}
+
+func TestDecomposeResumedEventJSONUsesSnakeCase(t *testing.T) {
+	t.Parallel()
+
+	evt := DecomposeResumedEvent{
+		SpecID:    "spec-2",
+		BeadCount: 5,
+		TimeMixin: TimeMixin{Time: time.Unix(2000, 0)},
+	}
+	data, err := json.Marshal(evt)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	jsonStr := string(data)
+
+	for _, key := range []string{"spec_id", "bead_count"} {
+		if !strings.Contains(jsonStr, `"`+key+`"`) {
+			t.Errorf("expected snake_case field %q in JSON: %s", key, jsonStr)
+		}
+	}
+	for _, bad := range []string{"SpecID", "BeadCount"} {
+		if strings.Contains(jsonStr, `"`+bad+`"`) {
+			t.Errorf("field %q appears as PascalCase instead of snake_case: %s", bad, jsonStr)
+		}
+	}
+
+	var got DecomposeResumedEvent
+	if err := json.Unmarshal(data, &got); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if got.SpecID != evt.SpecID || got.BeadCount != evt.BeadCount {
+		t.Fatalf("round-trip mismatch: got %+v, want %+v", got, evt)
 	}
 }
 
