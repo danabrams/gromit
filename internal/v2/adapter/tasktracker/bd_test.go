@@ -255,7 +255,7 @@ func TestConvertBead_DependenciesWithBlocksType_MapsToBlockedBy(t *testing.T) {
 	}
 }
 
-func TestConvertBead_RealBDDependencyFormat_GateSeesBlockers(t *testing.T) {
+func TestConvertBead_RealBDFormat_MapsBlockersToBlockedBy(t *testing.T) {
 	t.Parallel()
 
 	// Simulate real bd JSON output where dependencies with dependency_type "blocks"
@@ -313,6 +313,39 @@ func TestConvertBead_BlockedByMergesExplicitAndDependencies(t *testing.T) {
 	}
 	if !containsString(result.BlockedBy, "dep-blocker") {
 		t.Fatalf("BlockedBy missing dep-blocker, got %v", result.BlockedBy)
+	}
+}
+
+func TestConvertBead_DuplicateIDsInBlockedByAndDependencies_Deduplicated(t *testing.T) {
+	t.Parallel()
+
+	// Same bead ID appears in both BlockedBy and Dependencies with type "blocks".
+	// The merged BlockedBy slice should contain each ID only once.
+	b := &bead.Bead{
+		ID:     "dedup-test",
+		Title:  "Dedup test",
+		Status: "open",
+		BlockedBy: []bead.Dependency{
+			{ID: "shared-blocker"},
+			{ID: "only-explicit"},
+		},
+		Dependencies: []bead.Dependency{
+			{ID: "shared-blocker", DependencyType: "blocks"},
+			{ID: "only-dep-blocker", DependencyType: "blocks"},
+		},
+	}
+
+	result := convertBead(b)
+	if result == nil {
+		t.Fatal("convertBead returned nil")
+	}
+	if len(result.BlockedBy) != 3 {
+		t.Fatalf("BlockedBy should have 3 unique entries, got %d: %v", len(result.BlockedBy), result.BlockedBy)
+	}
+	for _, expected := range []string{"shared-blocker", "only-explicit", "only-dep-blocker"} {
+		if !containsString(result.BlockedBy, expected) {
+			t.Fatalf("BlockedBy missing %s, got %v", expected, result.BlockedBy)
+		}
 	}
 }
 

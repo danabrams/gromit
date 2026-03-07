@@ -152,7 +152,7 @@ func splitDependenciesByType(deps []bead.Dependency) (blockers, dependents []str
 	return blockers, dependents
 }
 
-// appendIDs appends additional IDs to an existing slice, returning the combined result.
+// appendIDs appends additional IDs to an existing slice, deduplicating entries.
 func appendIDs(base, extra []string) []string {
 	if len(extra) == 0 {
 		return base
@@ -160,7 +160,17 @@ func appendIDs(base, extra []string) []string {
 	if len(base) == 0 {
 		return extra
 	}
-	return append(base, extra...)
+	seen := make(map[string]struct{}, len(base))
+	for _, id := range base {
+		seen[id] = struct{}{}
+	}
+	for _, id := range extra {
+		if _, ok := seen[id]; !ok {
+			base = append(base, id)
+			seen[id] = struct{}{}
+		}
+	}
+	return base
 }
 
 func dependencyIDs(deps []bead.Dependency) []string {

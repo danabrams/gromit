@@ -1695,7 +1695,10 @@ func TestBeadLoopClosesParentAfterReviewCreatesChildren(t *testing.T) {
 		t.Fatalf("CloseBead called with %q, want %q", tracker.closeCalls[0], parentID)
 	}
 
-	// Assert child beads have no dependencies on the parent bead.
+	// These assertions document the expected contract for review-created child beads:
+	// labels carry provenance (review-source:<parentID>), and DependsOn is empty
+	// to avoid blocking parent closure. They verify the fixture, not runtime behavior —
+	// the scriptedReviewStage injects these artifacts directly.
 	for i, child := range childBeads {
 		if len(child.DependsOn) != 0 {
 			t.Fatalf("child[%d] %q has dependencies %v, want none", i, child.ID, child.DependsOn)

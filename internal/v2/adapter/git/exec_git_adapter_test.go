@@ -31,6 +31,7 @@ func initTestRepo(t *testing.T) string {
 }
 
 func TestExecGitAdapterCheckoutSetsDir(t *testing.T) {
+	t.Parallel()
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git not available")
 	}
@@ -74,6 +75,7 @@ func TestExecGitAdapterCheckoutSetsDir(t *testing.T) {
 }
 
 func TestExecGitAdapterCheckoutIdempotent(t *testing.T) {
+	t.Parallel()
 	repoDir := initTestRepo(t)
 	worktreesDir := t.TempDir()
 
@@ -109,6 +111,7 @@ func TestExecGitAdapterCheckoutIdempotent(t *testing.T) {
 }
 
 func TestExecGitAdapterCheckoutCreatesBranch(t *testing.T) {
+	t.Parallel()
 	repoDir := initTestRepo(t)
 	worktreesDir := t.TempDir()
 
