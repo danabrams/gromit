@@ -1430,7 +1430,10 @@ func TestBeadLoopGateSkipContinuesLoop(t *testing.T) {
 func TestBeadLoopGateBlockDefersBeadAndContinues(t *testing.T) {
 	t.Parallel()
 
-	// Gate that blocks the first bead, proceeds for the second
+	// Gate that blocks "block-me" on every call, proceeds for everything else.
+	// With re-queue logic: "run-me" makes progress in pass 1, "block-me" is
+	// re-queued, then retried in pass 2 where it still blocks with no
+	// progress → loop returns a descriptive error.
 	gateStage := &scriptedGateStage{
 		name:      "gate",
 		decisions: map[string]stage.Decision{"block-me": stage.DecisionBlock},
@@ -1456,11 +1459,16 @@ func TestBeadLoopGateBlockDefersBeadAndContinues(t *testing.T) {
 		{ID: "block-me"},
 	}
 	_, err = loop.Run(context.Background(), beads, nil)
-	if err != nil {
-		t.Fatalf("Run should succeed, got: %v", err)
+	// "run-me" makes progress in pass 1; "block-me" is retried in pass 2
+	// and still blocks → loop returns error for permanently blocked bead.
+	if err == nil {
+		t.Fatal("expected error when blocked bead cannot proceed after retry, got nil")
+	}
+	if !strings.Contains(err.Error(), "blocked") {
+		t.Fatalf("expected error to mention 'blocked', got: %v", err)
 	}
 
-	// Build should only run for "run-me"
+	// Build should only run for "run-me" — never for the blocked bead
 	if build.runCount != 1 {
 		t.Fatalf("build run count = %d, want 1 (only run-me)", build.runCount)
 	}
