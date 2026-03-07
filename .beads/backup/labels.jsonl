@@ -669,6 +669,9 @@
 {"issue_id":"gromit-85z2x","label":"spec:configurable-verification-script"}
 {"issue_id":"gromit-863sy","label":"from-review"}
 {"issue_id":"gromit-86vp","label":"spec:fix-atdd-invisible-tests"}
+{"issue_id":"gromit-87jx6","label":"estimated-files:2"}
+{"issue_id":"gromit-87jx6","label":"gen:0"}
+{"issue_id":"gromit-87jx6","label":"spec:immutable-pipeline"}
 {"issue_id":"gromit-89b","label":"spec:atdd-methodology"}
 {"issue_id":"gromit-8a52","label":"bug"}
 {"issue_id":"gromit-8a52","label":"from-review"}
