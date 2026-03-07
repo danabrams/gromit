@@ -69,6 +69,31 @@ func TestPromptAssemblerSkipsWhitespaceOnlyLayers(t *testing.T) {
 	}
 }
 
+func TestLoadBaseInstructionsCapsAtPhaseLimitBuild(t *testing.T) {
+	// Build phase cap is 12,800 chars per spec.
+	// Generate base content larger than the cap with only build-phase sections.
+	longContent := strings.Repeat("x", 500)
+	base := "## Section <!-- phases: build -->\n\n" + longContent + "\n\n## Section2 <!-- phases: build -->\n\n" + strings.Repeat("y", 13000)
+	assembler := NewPromptAssembler(base, "", "", "")
+	result := assembler.loadBaseInstructions("build")
+	const buildCap = 12800
+	if len(result) > buildCap {
+		t.Errorf("build phase result is %d chars, exceeds cap of %d", len(result), buildCap)
+	}
+}
+
+func TestLoadBaseInstructionsCapsAtPhaseLimitRed(t *testing.T) {
+	// Red phase cap is 8,500 chars per spec.
+	longContent := strings.Repeat("z", 9000)
+	base := "## Section <!-- phases: red -->\n\n" + longContent
+	assembler := NewPromptAssembler(base, "", "", "")
+	result := assembler.loadBaseInstructions("red")
+	const redCap = 8500
+	if len(result) > redCap {
+		t.Errorf("red phase result is %d chars, exceeds cap of %d", len(result), redCap)
+	}
+}
+
 func TestLoadProjectContextNoPackagePathsReturnsProjectUnchanged(t *testing.T) {
 	project := "# Project\nSome instructions"
 	assembler := NewPromptAssembler("base", project, "instance", "fragment")
