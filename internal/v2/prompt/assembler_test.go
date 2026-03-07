@@ -77,3 +77,32 @@ func TestLoadProjectContextNoPackagePathsReturnsProjectUnchanged(t *testing.T) {
 		t.Errorf("expected project unchanged, got %q", got)
 	}
 }
+
+func TestLoadProjectContextScopesArchitectureToMentionedPackage(t *testing.T) {
+	project := `# Gromit
+
+A Go CLI tool.
+
+## Architecture
+
+- ` + "`internal/v2/prompt/`" + ` — prompt assembly
+- ` + "`internal/runner/`" + ` — core loop orchestration
+
+## Key Principles
+
+1. Fresh context each iteration
+2. State in files, not memory`
+
+	assembler := NewPromptAssembler("base", project, "instance", "fragment")
+	got := assembler.loadProjectContext(BeadInfo{Title: "Modify internal/v2/prompt/assembler.go: implement loadProjectContext"})
+
+	if !strings.Contains(got, "internal/v2/prompt/") {
+		t.Errorf("expected scoped content to include internal/v2/prompt/, got: %q", got)
+	}
+	if strings.Contains(got, "internal/runner/") {
+		t.Errorf("expected scoped content to exclude internal/runner/, got: %q", got)
+	}
+	if !strings.Contains(got, "Key Principles") {
+		t.Errorf("expected scoped content to preserve Key Principles section, got: %q", got)
+	}
+}
