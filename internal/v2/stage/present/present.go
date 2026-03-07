@@ -38,21 +38,36 @@ type Stage struct {
 	name      string
 	presenter Presenter
 	ctx       *SummaryContext
+	squasher  func(context.Context) error
+}
+
+// Option configures a Stage.
+type Option func(*Stage)
+
+// WithSquasher sets a squasher func called in Run before the presenter.
+func WithSquasher(fn func(context.Context) error) Option {
+	return func(s *Stage) {
+		s.squasher = fn
+	}
 }
 
 // New creates a present stage backed by the provided presenter and accumulated context.
-func New(cfg *config.Config, presenter Presenter, ctx *SummaryContext) (*Stage, error) {
+func New(cfg *config.Config, presenter Presenter, ctx *SummaryContext, opts ...Option) (*Stage, error) {
 	if presenter == nil {
 		return nil, errors.New("presenter required")
 	}
 	if ctx == nil {
 		return nil, errors.New("summary context required")
 	}
-	return &Stage{
+	s := &Stage{
 		name:      stagedesc.Describe("present", cfg),
 		presenter: presenter,
 		ctx:       ctx,
-	}, nil
+	}
+	for _, o := range opts {
+		o(s)
+	}
+	return s, nil
 }
 
 var _ stagepkg.Stage = (*Stage)(nil)
@@ -64,6 +79,11 @@ func (s *Stage) Name() string {
 
 // Run builds the presentation summary and forwards it to the presenter.
 func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Result, error) {
+	if s.squasher != nil {
+		if err := s.squasher(ctx); err != nil {
+			return nil, fmt.Errorf("squash: %w", err)
+		}
+	}
 	summary := s.buildPresentation(req)
 	if err := s.presenter.PresentSummary(ctx, beadID(req), summary); err != nil {
 		return nil, fmt.Errorf("present summary: %w", err)
