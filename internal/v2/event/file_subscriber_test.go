@@ -40,3 +40,22 @@ func TestHandleAppendsJSONLineToFile(t *testing.T) {
 		t.Fatalf("expected event type in output, got %q", line)
 	}
 }
+
+func TestSubscribeToRegistersHandlerWithEmitter(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "events.jsonl")
+	fs := NewFileSubscriber(path)
+	emitter := NewEmitter()
+
+	fs.SubscribeTo(emitter)
+
+	emitter.Emit(&StageStartedEvent{Event: Event{Type: EventTypeStageStarted}, StageName: "test"})
+	emitter.Close()
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("reading file: %v", err)
+	}
+	if !strings.Contains(string(data), EventTypeStageStarted) {
+		t.Fatalf("expected event in file after SubscribeTo, got %q", string(data))
+	}
+}
