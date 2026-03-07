@@ -57,6 +57,16 @@ func readDebug2EventLog(wtPath string) ([]map[string]interface{}, error) {
 	return events, scanner.Err()
 }
 
+// findFailureEvent returns the first event with decision "Fail", or nil if none found.
+func findFailureEvent(events []map[string]interface{}) map[string]interface{} {
+	for _, e := range events {
+		if e["decision"] == "Fail" {
+			return e
+		}
+	}
+	return nil
+}
+
 func debug2RunE(cmd *cobra.Command, args []string) error {
 	specName := args[0]
 	cfg, err := loadConfig()
