@@ -359,6 +359,45 @@ func TestExecGitAdapterCheckoutWithReadOnlyFiles(t *testing.T) {
 	}
 }
 
+func TestExecGitAdapterCheckoutReturnsAbsolutePath(t *testing.T) {
+	// Not parallel: this test changes CWD which is process-global.
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not available")
+	}
+
+	repoDir := initTestRepo(t)
+
+	// Use a relative worktreesDir to verify Checkout still returns an absolute path.
+	oldWd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	if err := os.Chdir(repoDir); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+	defer func() {
+		if err := os.Chdir(oldWd); err != nil {
+			t.Fatalf("restore cwd: %v", err)
+		}
+	}()
+
+	adapter := NewExecGitAdapter(".", "worktrees")
+	ctx := context.Background()
+
+	wtPath, err := adapter.Checkout(ctx, "spec-abs-path")
+	if err != nil {
+		t.Fatalf("Checkout failed: %v", err)
+	}
+
+	if !filepath.IsAbs(wtPath) {
+		t.Fatalf("Checkout returned relative path %q, want absolute", wtPath)
+	}
+
+	if _, err := os.Stat(wtPath); err != nil {
+		t.Fatalf("worktree dir not created at absolute path: %v", err)
+	}
+}
+
 func TestExecGitAdapterRemoveWorktreeSetsDir(t *testing.T) {
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git not available")

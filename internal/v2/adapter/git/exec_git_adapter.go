@@ -27,7 +27,11 @@ func NewExecGitAdapter(repoRoot, worktreesDir string) *ExecGitAdapter {
 	return &ExecGitAdapter{repoRoot: repoRoot, worktreesDir: worktreesDir}
 }
 
-// Checkout creates a git worktree for the given specID and returns its path.
+// Checkout creates a git worktree for the given specID and returns its
+// absolute path. The returned path is always absolute regardless of whether
+// repoRoot or worktreesDir were specified as relative paths, ensuring that
+// downstream consumers (Claude CLI, stage committers, etc.) always target
+// the worktree and never accidentally operate on the main repo.
 func (a *ExecGitAdapter) Checkout(ctx context.Context, specID string) (string, error) {
 	wtPath := filepath.Join(a.worktreesDir, specID)
 	if err := os.MkdirAll(filepath.Dir(wtPath), 0o755); err != nil {
@@ -49,7 +53,15 @@ func (a *ExecGitAdapter) Checkout(ctx context.Context, specID string) (string, e
 		return "", fmt.Errorf("git worktree add: %s: %w", out, err)
 	}
 
-	return wtPath, nil
+	// Always return an absolute path so that all downstream git operations
+	// (cmd.Dir, stage commits, Claude CLI working directory) unambiguously
+	// target the worktree regardless of CWD changes.
+	absPath, err := filepath.Abs(wtPath)
+	if err != nil {
+		return "", fmt.Errorf("resolving absolute worktree path: %w", err)
+	}
+
+	return absPath, nil
 }
 
 // Diff returns the current diff for the provided worktree.

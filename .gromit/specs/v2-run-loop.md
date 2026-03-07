@@ -476,3 +476,13 @@ The following fixes were applied to main after the v2-run-loop spec was merged (
 - All LLM-invoking stages (build, review, accept, plan, triage, decompose) set `Dir: req.Worktree` in their LLM requests
 - The `claudeClient` interface in `internal/provider/claude.go` matches the updated `StreamRun` signature
 - `go build ./...` and `go test ./...` pass
+
+### A14. Absolute worktree paths for spec branch isolation (`pending`)
+
+**Problem:** `ExecGitAdapter` was constructed with relative paths (`"."` repo root, relative `worktreesDir`). `Checkout()` returned a relative worktree path, which became ambiguous if any subprocess changed CWD. Combined with the external `bd` CLI committing to main's HEAD, this caused spec work to leak onto main instead of staying on the spec branch.
+
+**Acceptance criteria:**
+- `Checkout()` returns an absolute path via `filepath.Abs` regardless of how the adapter was constructed
+- `run2.go` constructs `ExecGitAdapter` with an absolute repo root
+- Test verifies `Checkout()` returns absolute path when given relative inputs
+- `bd backup` interaction documented: external binary, users must not run concurrently with `gromit run2`

@@ -83,13 +83,27 @@ func run2(cmd *cobra.Command, args []string) error {
 	gromitDir := resolveGromitDir(cfg)
 	worktreesDir := filepath.Join(gromitDir, "spec-worktrees")
 
+	// Use an absolute repo root so the worktree paths returned by
+	// Checkout() are always absolute, preventing git operations from
+	// accidentally targeting the main repo when CWD changes.
+	repoRoot, err := filepath.Abs(".")
+	if err != nil {
+		return fmt.Errorf("resolving repo root: %w", err)
+	}
+
 	beadClient, err := bead.NewClient()
 	if err != nil {
 		return fmt.Errorf("create bd client: %w", err)
 	}
+	// NOTE: The bd CLI (bead client) is an external binary that operates on
+	// whatever repo its CWD points to. During spec runs, bd is NOT invoked
+	// by gromit — any "bd: backup" commits on main are from manual or
+	// scheduled bd invocations outside gromit's control. To prevent those
+	// commits from landing on main during a spec run, the user should avoid
+	// running bd backup while gromit run2 is executing.
 	trackerAdapter := tasktracker.NewBDAdapter(beadClient)
 	adapters := adapter.AdapterSet{
-		Git:         gitadapter.NewExecGitAdapter(".", worktreesDir),
+		Git:         gitadapter.NewExecGitAdapter(repoRoot, worktreesDir),
 		LLM:         llmAdapter,
 		TaskTracker: trackerAdapter,
 		Presenter:   presenter.NewGitHubPresenter(nil),
