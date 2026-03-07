@@ -639,6 +639,9 @@ func (s *SpecLoop) presentSummary(ctx context.Context, specID string, summary pr
 	if res != nil && res.Decision == stagepkg.DecisionFail {
 		return fmt.Errorf("present stage failed")
 	}
+	if err := s.commitStage(ctx, summary.Worktree, specID, "present", 0, "proceed"); err != nil {
+		return fmt.Errorf("commit after present: %w", err)
+	}
 	return nil
 }
 
