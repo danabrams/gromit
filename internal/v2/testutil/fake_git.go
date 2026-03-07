@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+
+	"github.com/danabrams/gromit/internal/v2/adapter"
 )
 
 // FakeGit records checkout, diff, and worktree creation calls.
@@ -21,6 +23,8 @@ type FakeGit struct {
 	CommitMessages      []string
 	RemoveWorktreeCalls []string
 	StatusCalls         []string
+	LogCalls            []string
+	LogEntries          []adapter.LogEntry
 
 	// Error injection fields — when non-nil the corresponding method
 	// returns the configured error.
@@ -30,6 +34,7 @@ type FakeGit struct {
 	CommitErr          error
 	RemoveWorktreeErr  error
 	StatusErr          error
+	LogErr             error
 }
 
 // NewFakeGit returns a fake Git adapter with defaults.
@@ -104,6 +109,16 @@ func (f *FakeGit) Status(_ context.Context, worktree string) (string, error) {
 		return "", f.StatusErr
 	}
 	return "", nil
+}
+
+func (f *FakeGit) Log(_ context.Context, worktree string, _ int) ([]adapter.LogEntry, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.LogCalls = append(f.LogCalls, worktree)
+	if f.LogErr != nil {
+		return nil, f.LogErr
+	}
+	return f.LogEntries, nil
 }
 
 func (f *FakeGit) baseRoot() string {

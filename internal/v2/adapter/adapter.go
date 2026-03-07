@@ -8,6 +8,12 @@ import (
 	"github.com/danabrams/gromit/internal/v2/trackertypes"
 )
 
+// LogEntry represents a single commit in a git log.
+type LogEntry struct {
+	Hash    string
+	Message string
+}
+
 // GitAdapter performs git operations required by the run loop.
 type GitAdapter interface {
 	Checkout(ctx context.Context, specID string) (worktree string, err error)
@@ -15,6 +21,7 @@ type GitAdapter interface {
 	Commit(ctx context.Context, worktree, message string) (string, error)
 	RemoveWorktree(ctx context.Context, worktree string) error
 	Status(ctx context.Context, worktree string) (string, error)
+	Log(ctx context.Context, worktree string, n int) ([]LogEntry, error)
 }
 
 // LLMAdapter provides LLM operations for the run loop.

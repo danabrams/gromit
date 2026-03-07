@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/danabrams/gromit/internal/events"
+	"github.com/danabrams/gromit/internal/v2/adapter"
 	"github.com/danabrams/gromit/internal/v2/adapter/llm"
 	"github.com/danabrams/gromit/internal/v2/adapter/tasktracker"
 	"github.com/danabrams/gromit/internal/v2/presentation"
@@ -100,7 +101,8 @@ func (f *fakeGitAdapter) Checkout(ctx context.Context, specID string) (string, e
 		if err := os.MkdirAll(planPath, 0o755); err != nil {
 			f.t.Fatalf("create plan dir: %v", err)
 		}
-		if err := os.WriteFile(filepath.Join(planPath, "plan.md"), []byte(f.planContent), 0o644); err != nil {
+		path := filepath.Join(planPath, "plan.md")
+		if err := os.WriteFile(path, []byte(f.planContent), 0o644); err != nil {
 			f.t.Fatalf("write plan content: %v", err)
 		}
 	}
@@ -127,6 +129,10 @@ func (f *fakeGitAdapter) Status(_ context.Context, worktree string) (string, err
 	return "", nil
 }
 
+func (f *fakeGitAdapter) Log(_ context.Context, _ string, _ int) ([]adapter.LogEntry, error) {
+	return nil, nil
+}
+
 type fakeLLMAdapter struct{}
 
 func newFakeLLMAdapter() *fakeLLMAdapter {
@@ -149,9 +155,7 @@ func (f *fakeLLMAdapter) planFor(specID string) string {
 	return specID + "-plan"
 }
 
-type fakeTaskTrackerAdapter struct {
-	queryBeadsResponse *tasktracker.TaskTrackerQueryBeadsResponse
-}
+type fakeTaskTrackerAdapter struct{}
 
 func newFakeTaskTrackerAdapter() *fakeTaskTrackerAdapter {
 	return &fakeTaskTrackerAdapter{}
@@ -174,9 +178,6 @@ func (f *fakeTaskTrackerAdapter) CloseBead(_ context.Context, _ tasktracker.Task
 }
 
 func (f *fakeTaskTrackerAdapter) QueryBeads(_ context.Context, _ tasktracker.TaskTrackerQueryBeadsRequest) (*tasktracker.TaskTrackerQueryBeadsResponse, error) {
-	if f.queryBeadsResponse != nil {
-		return f.queryBeadsResponse, nil
-	}
 	return &tasktracker.TaskTrackerQueryBeadsResponse{}, nil
 }
 

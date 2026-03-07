@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/danabrams/gromit/internal/v2/adapter"
@@ -106,6 +107,29 @@ func (a *ExecGitAdapter) RemoveWorktree(ctx context.Context, worktree string) er
 		return fmt.Errorf("git worktree remove: %s: %w", out, err)
 	}
 	return nil
+}
+
+func (a *ExecGitAdapter) Log(ctx context.Context, worktree string, n int) ([]adapter.LogEntry, error) {
+	trimmed := strings.TrimSpace(worktree)
+	if trimmed == "" {
+		return nil, fmt.Errorf("worktree required")
+	}
+	out, err := runGitCommand(ctx, trimmed, "log", "--format=%H%x00%s", "-"+strconv.Itoa(n))
+	if err != nil {
+		return nil, fmt.Errorf("git log: %s: %w", out, err)
+	}
+	var entries []adapter.LogEntry
+	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+		if line == "" {
+			continue
+		}
+		parts := strings.SplitN(line, "\x00", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		entries = append(entries, adapter.LogEntry{Hash: parts[0], Message: parts[1]})
+	}
+	return entries, nil
 }
 
 func (a *ExecGitAdapter) Status(ctx context.Context, worktree string) (string, error) {
