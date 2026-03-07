@@ -277,6 +277,9 @@ func (s *SpecLoop) Run(ctx context.Context, specID string, stopCh <-chan struct{
 		if err := os.WriteFile(planPath, []byte(plan), 0o644); err != nil {
 			return fmt.Errorf("persist plan: %w", err)
 		}
+		if err := s.commitStage(ctx, worktree, specID, "plan", 0, "proceed"); err != nil {
+			return fmt.Errorf("commit after plan: %w", err)
+		}
 	}
 
 	if err := s.ctxErr(ctx); err != nil {
@@ -668,6 +671,13 @@ func (s *SpecLoop) readGapAnalysis(worktree string) (string, error) {
 		return "", err
 	}
 	return strings.TrimSpace(string(data)), nil
+}
+
+func (s *SpecLoop) commitStage(ctx context.Context, worktree, specID, stageName string, iteration int, decision string) error {
+	if s.stageCommitter == nil {
+		return nil
+	}
+	return s.stageCommitter.CommitStage(ctx, worktree, specID, stageName, iteration, decision)
 }
 
 func (s *SpecLoop) recordStage(name string) {
