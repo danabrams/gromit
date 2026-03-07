@@ -205,6 +205,9 @@ func (s *SpecLoop) Run(ctx context.Context, specID string, stopCh <-chan struct{
 			return
 		}
 		if retErr != nil {
+			if s.preserveOnFailure {
+				return
+			}
 			cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cleanupCancel()
 			_ = s.adapters.Git.RemoveWorktree(cleanupCtx, worktree)

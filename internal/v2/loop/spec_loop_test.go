@@ -745,6 +745,54 @@ func TestSpecLoopDecomposesWhenNoExistingBeads(t *testing.T) {
 	}
 }
 
+func TestSpecLoopPreservesWorktreeOnEarlyErrorWhenPreserveOnFailure(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	specID := "spec-preserve-early-err"
+	cfg := &config.Config{}
+
+	git := newFakeGitAdapter(t)
+
+	// Use a plan stage that returns an error to trigger the deferred cleanup path.
+	failingPlan := &failingPlanStage{err: fmt.Errorf("plan generation failed")}
+
+	adapters := adapter.AdapterSet{
+		Git:         git,
+		LLM:         newFakeLLMAdapter(),
+		TaskTracker: newFakeTaskTrackerAdapter(),
+		Presenter:   newFakePresenterAdapter(t),
+	}
+
+	loopInstance, err := NewSpecLoop(adapters, cfg, noopDependencyGate{},
+		WithPlanStage(failingPlan),
+		WithPreserveOnFailure(true),
+	)
+	if err != nil {
+		t.Fatalf("create spec loop: %v", err)
+	}
+
+	runErr := loopInstance.Run(ctx, specID, nil)
+	if runErr == nil {
+		t.Fatal("expected error from failing plan stage")
+	}
+
+	// The worktree should NOT have been removed because preserveOnFailure=true.
+	if len(git.removedWorktrees) != 0 {
+		t.Fatalf("worktree was removed despite preserveOnFailure=true; removed: %v", git.removedWorktrees)
+	}
+}
+
+type failingPlanStage struct {
+	err error
+}
+
+func (f *failingPlanStage) Name() string { return "plan" }
+
+func (f *failingPlanStage) Run(_ context.Context, _ *stagepkg.Request) (*stagepkg.Result, error) {
+	return nil, f.err
+}
+
 func newFakeDecomposeStage(specID string) *fakeDecomposeStage {
 	beads := []*bead.Bead{{ID: specID + "-bead"}}
 	return &fakeDecomposeStage{producedBeads: beads}
