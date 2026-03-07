@@ -246,6 +246,33 @@ func TestDeferredCleanupSilentlyDiscardsRemoveWorktreeError(t *testing.T) {
 	}
 }
 
+// TestWorktreeCheckoutUsesNamedBranch verifies that ExecGitAdapter.Checkout creates
+// a worktree on a named branch (gromit/spec/<specID>), not a detached HEAD.
+func TestWorktreeCheckoutUsesNamedBranch(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Fatal("git not available")
+	}
+
+	repoRoot := t.TempDir()
+	initGitRepo(t, repoRoot)
+
+	worktreesDir := filepath.Join(repoRoot, ".gromit", "spec-worktrees")
+	gitAdapter := gitadapter.NewExecGitAdapter(repoRoot, worktreesDir)
+
+	wtPath, err := gitAdapter.Checkout(context.Background(), "test-spec")
+	if err != nil {
+		t.Fatalf("Checkout: %v", err)
+	}
+
+	branchName := strings.TrimSpace(gitCommand(t, wtPath, "rev-parse", "--abbrev-ref", "HEAD"))
+	if branchName == "HEAD" {
+		t.Fatal("worktree is on detached HEAD, expected a named branch")
+	}
+	if branchName != "gromit/spec/test-spec" {
+		t.Fatalf("branch = %q, want %q", branchName, "gromit/spec/test-spec")
+	}
+}
+
 // ctxCheckingGitAdapter records whether RemoveWorktree received a non-cancelled context.
 type ctxCheckingGitAdapter struct {
 	fakeGitAdapter
