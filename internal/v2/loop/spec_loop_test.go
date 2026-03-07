@@ -1130,6 +1130,7 @@ func TestSpecLoopCreatesEventsFileWhenTypedEmitterSet(t *testing.T) {
 	em := event.NewEmitter()
 
 	git := newFakeGitAdapter(t)
+	git.noRemove = true // preserve worktree so events file survives cleanup
 	loopInstance, err := NewSpecLoop(
 		adapter.AdapterSet{
 			Git:         git,

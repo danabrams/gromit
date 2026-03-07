@@ -215,6 +215,17 @@ func (s *SpecLoop) Run(ctx context.Context, specID string, stopCh <-chan struct{
 		return fmt.Errorf("checkout: %w", err)
 	}
 
+	if s.typedEmitter != nil {
+		fs := event.NewFileSubscriber(s.eventsFilePath(worktree))
+		fs.SubscribeTo(s.typedEmitter)
+		defer fs.Close()
+		s.typedEmitter.Emit(event.SpecStartedEvent{
+			Event:    event.Event{SchemaVersion: event.SchemaVersion, Timestamp: time.Now(), Type: event.EventTypeSpecStarted},
+			SpecID:   specID,
+			Worktree: worktree,
+		})
+	}
+
 	var handleFailureCleaned bool
 	var succeeded bool
 	defer func() {
@@ -378,6 +389,14 @@ func (s *SpecLoop) queryExistingBeads(ctx context.Context, specID string) ([]*be
 		}
 	}
 	return beads, nil
+}
+
+func (s *SpecLoop) eventsFilePath(worktree string) string {
+	gromitDir := s.cfg.Paths.GromitDir
+	if gromitDir == "" {
+		gromitDir = defaultGromitDir
+	}
+	return filepath.Join(worktree, gromitDir, v2DirName, "events.jsonl")
 }
 
 func (s *SpecLoop) planFilePath(worktree string) string {

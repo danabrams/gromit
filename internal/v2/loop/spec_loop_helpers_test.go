@@ -74,6 +74,7 @@ type fakeGitAdapter struct {
 	commitMessages     []string
 	removedWorktrees   []string
 	statusCalls        []string
+	noRemove           bool // if true, RemoveWorktree records but does not actually delete
 }
 
 func newFakeGitAdapter(t *testing.T) *fakeGitAdapter {
@@ -121,6 +122,9 @@ func (f *fakeGitAdapter) Commit(_ context.Context, worktree, message string) (st
 
 func (f *fakeGitAdapter) RemoveWorktree(_ context.Context, worktree string) error {
 	f.removedWorktrees = append(f.removedWorktrees, worktree)
+	if f.noRemove {
+		return nil
+	}
 	return os.RemoveAll(worktree)
 }
 
