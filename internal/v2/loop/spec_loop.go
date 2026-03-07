@@ -353,6 +353,11 @@ func (s *SpecLoop) queryExistingBeads(ctx context.Context, specID string) ([]*be
 			ID:          b.ID,
 			Title:       b.Title,
 			Description: b.Description,
+			Priority:    b.Priority,
+			Labels:      b.Labels,
+			Status:      b.Status,
+			DependsOn:   stringsToDependencies(b.DependsOn),
+			BlockedBy:   stringsToDependencies(b.BlockedBy),
 		}
 	}
 	return beads, nil
@@ -641,6 +646,17 @@ func (s *SpecLoop) emit(evt events.Event) {
 		return
 	}
 	s.emitter.Emit(evt)
+}
+
+func stringsToDependencies(ids []string) []bead.Dependency {
+	if len(ids) == 0 {
+		return nil
+	}
+	deps := make([]bead.Dependency, len(ids))
+	for i, id := range ids {
+		deps[i] = bead.Dependency{ID: id}
+	}
+	return deps
 }
 
 func (s *SpecLoop) ctxErr(ctx context.Context) error {

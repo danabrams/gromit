@@ -850,6 +850,93 @@ func (f *planCheckingPresentStage) Run(_ context.Context, req *stagepkg.Request)
 	return &stagepkg.Result{Decision: stagepkg.DecisionProceed}, nil
 }
 
+func TestQueryExistingBeadsMapsAllFields(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	specID := "spec-full-mapping"
+	cfg := &config.Config{}
+
+	git := newFakeGitAdapter(t)
+	taskTracker := newFakeTaskTrackerAdapter()
+	taskTracker.queryBeadsResponse = &tasktracker.TaskTrackerQueryBeadsResponse{
+		Beads: []tasktracker.Bead{
+			{
+				ID:          "bead-full",
+				Title:       "Full bead",
+				Description: "A fully populated bead",
+				Priority:    2,
+				Labels:      []string{"label-a", "label-b"},
+				Status:      "open",
+				DependsOn:   []string{"dep-1", "dep-2"},
+				BlockedBy:   []string{"blocker-1"},
+			},
+		},
+	}
+
+	planStage := newFakePlanStage(specID)
+	decompose := newFakeDecomposeStage(specID)
+	beadRunner := newFakeBeadRunner()
+	accept := newFakeAcceptStage()
+	presentStage := newFakePresentStage()
+	summaryCtx := &present.SummaryContext{}
+
+	adapters := adapter.AdapterSet{
+		Git:         git,
+		LLM:         newFakeLLMAdapter(),
+		TaskTracker: taskTracker,
+		Presenter:   newFakePresenterAdapter(t),
+	}
+
+	loopInstance, err := NewSpecLoop(adapters, cfg, noopDependencyGate{},
+		WithPlanStage(planStage),
+		WithPresentStage(presentStage, summaryCtx),
+		WithDecomposeStage(decompose),
+		WithBeadLoop(beadRunner),
+		WithAcceptStage(accept),
+	)
+	if err != nil {
+		t.Fatalf("create spec loop: %v", err)
+	}
+
+	if err := loopInstance.Run(ctx, specID, nil); err != nil {
+		t.Fatalf("run spec loop: %v", err)
+	}
+
+	if len(beadRunner.lastBeads) != 1 {
+		t.Fatalf("bead runner got %d beads, want 1", len(beadRunner.lastBeads))
+	}
+
+	b := beadRunner.lastBeads[0]
+	if b.ID != "bead-full" {
+		t.Fatalf("ID = %q, want %q", b.ID, "bead-full")
+	}
+	if b.Title != "Full bead" {
+		t.Fatalf("Title = %q, want %q", b.Title, "Full bead")
+	}
+	if b.Description != "A fully populated bead" {
+		t.Fatalf("Description = %q, want %q", b.Description, "A fully populated bead")
+	}
+	if b.Priority != 2 {
+		t.Fatalf("Priority = %d, want 2", b.Priority)
+	}
+	if !reflect.DeepEqual(b.Labels, []string{"label-a", "label-b"}) {
+		t.Fatalf("Labels = %v, want [label-a label-b]", b.Labels)
+	}
+	if b.Status != "open" {
+		t.Fatalf("Status = %q, want %q", b.Status, "open")
+	}
+	if len(b.DependsOn) != 2 {
+		t.Fatalf("DependsOn len = %d, want 2", len(b.DependsOn))
+	}
+	if b.DependsOn[0].ID != "dep-1" || b.DependsOn[1].ID != "dep-2" {
+		t.Fatalf("DependsOn = %v, want dep-1 and dep-2", b.DependsOn)
+	}
+	if len(b.BlockedBy) != 1 || b.BlockedBy[0].ID != "blocker-1" {
+		t.Fatalf("BlockedBy = %v, want blocker-1", b.BlockedBy)
+	}
+}
+
 type nonWritingPlanStage struct {
 	plan string
 }
