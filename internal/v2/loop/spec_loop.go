@@ -59,6 +59,12 @@ type remediationRunner interface {
 	Run(ctx context.Context, specID, worktree string) error
 }
 
+// SelectiveRevalidator checks beads for regressions and returns the subset
+// that failed validation and need to be re-queued in the bead loop.
+type SelectiveRevalidator interface {
+	Revalidate(ctx context.Context, beads []*bead.Bead, worktree string) ([]*bead.Bead, error)
+}
+
 // SpecLoopOption configures optional behavior when constructing a SpecLoop.
 type SpecLoopOption func(*SpecLoop)
 
@@ -125,6 +131,14 @@ func WithPlanStage(stage stagepkg.Stage) SpecLoopOption {
 	}
 }
 
+// WithSelectiveRevalidator installs a revalidator that checks completed beads
+// for regressions before the bead loop starts on resume.
+func WithSelectiveRevalidator(r SelectiveRevalidator) SpecLoopOption {
+	return func(s *SpecLoop) {
+		s.selectiveRevalidator = r
+	}
+}
+
 // WithPreserveOnFailure controls whether the worktree is kept when the spec
 // fails. The default is true (preserve). Pass false to remove it on failure.
 func WithPreserveOnFailure(preserve bool) SpecLoopOption {
@@ -167,6 +181,7 @@ type SpecLoop struct {
 	presentStage          stagepkg.Stage
 	presentSummaryContext *present.SummaryContext
 	preserveOnFailure     bool // restore t.Cleanup if overriding in tests
+	selectiveRevalidator  SelectiveRevalidator
 }
 
 type worktreeSetter interface {
@@ -295,6 +310,13 @@ func (s *SpecLoop) Run(ctx context.Context, specID string, stopCh <-chan struct{
 	if len(existingBeads) > 0 {
 		beads = existingBeads
 		s.emit(&events.DecomposeResumedEvent{SpecID: specID, BeadCount: len(beads)})
+		if s.selectiveRevalidator != nil {
+			requeueBeads, err := s.selectiveRevalidator.Revalidate(ctx, beads, worktree)
+			if err != nil {
+				return fmt.Errorf("selective revalidation: %w", err)
+			}
+			beads = append(beads, requeueBeads...)
+		}
 	} else {
 		beads, err = s.runDecompose(ctx, req)
 		if err != nil {
