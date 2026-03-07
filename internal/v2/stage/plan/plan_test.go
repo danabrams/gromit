@@ -282,3 +282,37 @@ func (n *nilResponseLLMProvider) Invoke(context.Context, llm.LLMInvokeRequest) (
 func (n *nilResponseLLMProvider) StreamInvoke(context.Context, llm.LLMStreamInvokeRequest) (*llm.LLMStreamInvokeResponse, error) {
 	panic("not implemented")
 }
+
+func TestRunFallsBackToStoredConfig(t *testing.T) {
+	t.Parallel()
+
+	provider := &fakeLLMProvider{
+		response: &llm.LLMInvokeResponse{Success: true, Output: "planned via stored cfg"},
+	}
+	stageInstance, cfg, specID := setupPlanStage(t, provider)
+
+	// Pass a request with nil Config — should fall back to the cfg stored in the constructor.
+	req := &stagepkg.Request{Bead: stagepkg.BeadInfo{ID: specID}, Config: nil}
+	res, err := stageInstance.Run(context.Background(), req)
+	if err != nil {
+		t.Fatalf("expected Run to succeed with stored config, got error: %v", err)
+	}
+	if res == nil || res.Decision != stagepkg.DecisionProceed {
+		t.Fatalf("unexpected decision: %v", res)
+	}
+
+	artifacts, ok := res.Artifacts.(*PlanArtifacts)
+	if !ok {
+		t.Fatalf("unexpected artifacts type: %T", res.Artifacts)
+	}
+	if artifacts.Plan != provider.response.Output {
+		t.Fatalf("plan mismatch: got %q want %q", artifacts.Plan, provider.response.Output)
+	}
+
+	// Verify the plan was written using the stored config's project root.
+	planPath := filepath.Join(cfg.ProjectRoot, ".gromit", "v2", "plan.md")
+	if artifacts.Path != planPath {
+		t.Fatalf("plan path = %q, want %q", artifacts.Path, planPath)
+	}
+}
+
