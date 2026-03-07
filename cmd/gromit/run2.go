@@ -132,6 +132,8 @@ func run2(cmd *cobra.Command, args []string) error {
 		loop.WithBeadLoop(components.BeadLoop),
 		loop.WithAcceptStage(components.AcceptStage),
 		loop.WithRemediationRunner(components.RemediationRunner),
+		loop.WithStageCommitter(components.StageCommitter),
+		loop.WithTypedEmitter(components.TypedEmitter),
 	}
 	for _, specFile := range specFiles {
 		if err := specFile.CheckDependencies(specsDir); err != nil {
