@@ -6,6 +6,27 @@ import (
 	"github.com/danabrams/gromit/internal/bead"
 )
 
+func TestTopologicalSort_BlockedByHonored(t *testing.T) {
+	t.Parallel()
+
+	// "consumer" is blocked_by "provider" — provider must come first.
+	beads := []*bead.Bead{
+		{ID: "consumer", BlockedBy: []bead.Dependency{{ID: "provider"}}},
+		{ID: "provider"},
+	}
+
+	got, err := TopologicalSort(beads)
+	if err != nil {
+		t.Fatalf("TopologicalSort: %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("got %d beads, want 2", len(got))
+	}
+	if got[0].ID != "provider" || got[1].ID != "consumer" {
+		t.Fatalf("order = [%s %s], want [provider consumer]", got[0].ID, got[1].ID)
+	}
+}
+
 func TestTopologicalSort_StableTieBreaking(t *testing.T) {
 	t.Parallel()
 
