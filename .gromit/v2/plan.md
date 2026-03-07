@@ -1,0 +1,1 @@
+All three exploration agents have completed. The plan is finalized at `.gromit/v2/plan.md`.
