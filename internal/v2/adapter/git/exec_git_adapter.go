@@ -94,12 +94,7 @@ func (a *ExecGitAdapter) RemoveWorktree(ctx context.Context, worktree string) er
 	if trimmed == "" {
 		return fmt.Errorf("worktree required")
 	}
-	cmd := exec.CommandContext(ctx, "git", "worktree", "remove", trimmed)
-	cmd.Dir = a.repoRoot
-	if out, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("git worktree remove: %s: %w", out, err)
-	}
-	return nil
+	return a.removeExistingWorktree(ctx, trimmed)
 }
 
 func (a *ExecGitAdapter) Log(ctx context.Context, worktree string, n int) ([]adapter.LogEntry, error) {
