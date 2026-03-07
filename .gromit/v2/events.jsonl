@@ -20,3 +20,15 @@
 {"schema_version":1,"timestamp":"2026-03-07T15:46:29.204252-05:00","type":"stage.completed","stage_name":"validate:default","bead_id":"gromit-20962","iteration":4,"success":true,"duration":353916209}
 {"schema_version":1,"timestamp":"2026-03-07T15:46:29.262226-05:00","type":"stage.started","stage_name":"review:default","bead_id":"gromit-20962","iteration":4}
 {"schema_version":1,"timestamp":"2026-03-07T15:46:29.262237-05:00","type":"stage.completed","stage_name":"review:default","bead_id":"gromit-20962","iteration":4,"success":true,"duration":5708}
+{"schema_version":1,"timestamp":"2026-03-07T15:46:29.309132-05:00","type":"stage.started","stage_name":"epilogue:default","bead_id":"gromit-20962","iteration":4}
+{"schema_version":1,"timestamp":"2026-03-07T15:46:29.403204-05:00","type":"stage.completed","stage_name":"epilogue:default","bead_id":"gromit-20962","iteration":4,"success":true,"duration":94064750}
+{"schema_version":1,"timestamp":"2026-03-07T15:46:29.403212-05:00","type":"bead.completed","bead_id":"gromit-20962","bead_title":"Expand remediation runner signature for worktree propagation","iteration":4,"success":true}
+{"schema_version":1,"timestamp":"2026-03-07T15:46:29.403244-05:00","type":"bead.started","bead_id":"gromit-61cbs","bead_title":"Add unit tests for phase filtering and scoping in prompt assembler","iteration":5}
+{"schema_version":1,"timestamp":"2026-03-07T15:46:29.403247-05:00","type":"stage.started","stage_name":"gate:default","bead_id":"gromit-61cbs","iteration":5}
+{"schema_version":1,"timestamp":"2026-03-07T15:46:29.548508-05:00","type":"stage.completed","stage_name":"gate:default","bead_id":"gromit-61cbs","iteration":5,"success":true,"duration":145260542}
+{"schema_version":1,"timestamp":"2026-03-07T15:46:29.548515-05:00","type":"bead.completed","bead_id":"gromit-61cbs","bead_title":"Add unit tests for phase filtering and scoping in prompt assembler","iteration":5,"success":false}
+{"schema_version":1,"timestamp":"2026-03-07T15:46:29.548533-05:00","type":"bead.started","bead_id":"gromit-7a6rt","bead_title":"Implement topological sort for beads","iteration":6}
+{"schema_version":1,"timestamp":"2026-03-07T15:46:29.548534-05:00","type":"stage.started","stage_name":"gate:default","bead_id":"gromit-7a6rt","iteration":6}
+{"schema_version":1,"timestamp":"2026-03-07T15:46:29.618854-05:00","type":"stage.completed","stage_name":"gate:default","bead_id":"gromit-7a6rt","iteration":6,"success":true,"duration":70319125}
+{"schema_version":1,"timestamp":"2026-03-07T15:46:29.618862-05:00","type":"stage.started","stage_name":"build:default","bead_id":"gromit-7a6rt","iteration":6}
+{"schema_version":1,"timestamp":"2026-03-07T15:49:49.764385-05:00","type":"stage.completed","stage_name":"build:default","bead_id":"gromit-7a6rt","iteration":6,"success":true,"duration":200144753750}
