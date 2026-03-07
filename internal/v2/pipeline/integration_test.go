@@ -4,12 +4,15 @@ package pipeline
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	execgit "github.com/danabrams/gromit/internal/v2/adapter/git"
+	"github.com/danabrams/gromit/internal/v2/event"
 )
 
 func initIntegrationRepo(t *testing.T) string {
@@ -74,6 +77,45 @@ func TestIntegration_CommitPerStageFlowGitLogParseable(t *testing.T) {
 		_, ok := ParseCommitMessage(entry.Message)
 		if !ok {
 			t.Errorf("commit message not parseable: %q", entry.Message)
+		}
+	}
+}
+
+func TestIntegration_EventsJSONLCumulativeValidLines(t *testing.T) {
+	t.Parallel()
+	eventsPath := filepath.Join(t.TempDir(), "events", "events.jsonl")
+
+	emitter := event.NewEmitter()
+	sub := event.NewFileSubscriber(eventsPath)
+	sub.SubscribeTo(emitter)
+
+	emitter.Emit(event.SpecStartedEvent{
+		Event:  event.Event{SchemaVersion: event.SchemaVersion, Type: event.EventTypeSpecStarted},
+		SpecID: "test-spec",
+	})
+	emitter.Emit(event.BeadStartedEvent{
+		Event:  event.Event{SchemaVersion: event.SchemaVersion, Type: event.EventTypeBeadStarted},
+		BeadID: "nd56b",
+	})
+
+	emitter.Close()
+	if err := sub.Close(); err != nil {
+		t.Fatalf("sub.Close: %v", err)
+	}
+
+	data, err := os.ReadFile(eventsPath)
+	if err != nil {
+		t.Fatalf("ReadFile events.jsonl: %v", err)
+	}
+
+	lines := strings.Split(strings.TrimRight(string(data), "\n"), "\n")
+	if len(lines) != 2 {
+		t.Fatalf("expected 2 lines in events.jsonl, got %d: %q", len(lines), data)
+	}
+	for i, line := range lines {
+		var m map[string]interface{}
+		if err := json.Unmarshal([]byte(line), &m); err != nil {
+			t.Errorf("line %d not valid JSON: %v: %q", i, err, line)
 		}
 	}
 }
