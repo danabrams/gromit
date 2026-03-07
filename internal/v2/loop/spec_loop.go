@@ -14,6 +14,7 @@ import (
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/events"
 	"github.com/danabrams/gromit/internal/v2/adapter"
+	"github.com/danabrams/gromit/internal/v2/event"
 	"github.com/danabrams/gromit/internal/v2/trackertypes"
 	"github.com/danabrams/gromit/internal/v2/presentation"
 	v2review "github.com/danabrams/gromit/internal/v2/review"
@@ -72,6 +73,13 @@ func WithStageRecorder(recorder StageRecorder) SpecLoopOption {
 func WithEmitter(emitter *events.Emitter) SpecLoopOption {
 	return func(s *SpecLoop) {
 		s.emitter = emitter
+	}
+}
+
+// WithTypedEmitter attaches a typed event emitter to the spec loop.
+func WithTypedEmitter(em *event.Emitter) SpecLoopOption {
+	return func(s *SpecLoop) {
+		s.typedEmitter = em
 	}
 }
 
@@ -142,6 +150,7 @@ type SpecLoop struct {
 	recorder              StageRecorder
 	acceptStage           stagepkg.Stage
 	emitter               *events.Emitter
+	typedEmitter          *event.Emitter
 	remediationRunner     remediationRunner
 	gapAnalysisFilename   string
 	decomposeStage        stagepkg.Stage
