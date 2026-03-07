@@ -170,7 +170,9 @@ func init() {
 
 func registerRootCommands(root *cobra.Command) {
 	root.AddCommand(runCmd)
+	root.AddCommand(run2Cmd)
 	root.AddCommand(statusCmd)
+	root.AddCommand(readyCmd)
 	root.AddCommand(retroCmd)
 	root.AddCommand(validatePRMetadataCmd)
 	registerBenchmarkCommands(root)
@@ -279,6 +281,9 @@ func runLoop(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return err
 		}
+		if runSpecFlag != "" {
+			fmt.Fprintf(os.Stderr, "Spec: %s\n", runSpecFlag)
+		}
 
 		// Override max iterations from flag if set
 		if maxIterations > 0 {
@@ -315,6 +320,7 @@ func runLoop(cmd *cobra.Command, args []string) error {
 					return fmt.Errorf("preparing spec branch: %w", err)
 				}
 				runner.SpecBranchCreatorFactory = origBranchFactory
+				fmt.Fprintf(os.Stderr, "Spec branch ready\n")
 			}
 		}
 
@@ -322,6 +328,7 @@ func runLoop(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return fmt.Errorf("failed to create runner: %w", err)
 		}
+		fmt.Fprintf(os.Stderr, "Starting run loop...\n")
 		return r.Run(ctx, cfg.Loop.MaxIterations, deadline, stopCh)
 	})
 }

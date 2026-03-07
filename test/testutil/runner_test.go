@@ -291,10 +291,7 @@ cat
 `
 	testBinary := createTempShellScript(t, tmpDir, "helper-script", scriptContent)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-
-	stdout, stderr, exitCode, err := RunGromitHelperProcessWithStdin(ctx, testBinary, "", os.Environ(), "stdin payload\n", "debug", "test")
+	stdout, stderr, exitCode, err := RunGromitHelperProcessWithStdin(context.Background(), testBinary, "", os.Environ(), "stdin payload\n", "debug", "test")
 	if err != nil {
 		t.Fatalf("RunGromitHelperProcessWithStdin() error = %v", err)
 	}
@@ -341,41 +338,50 @@ func TestRunGromitHelperProcessWithStdin_TimeoutKillsProcessGroup(t *testing.T) 
 
 	tmpDir := t.TempDir()
 	childPIDPath := filepath.Join(tmpDir, "child.pid")
+	readyPath := filepath.Join(tmpDir, "ready")
 
-	// The script writes the child PID then sleeps. Use a longer timeout (500ms)
-	// so the script reliably writes the PID file before being killed on slower CI.
+	// The script spawns a background child, writes its PID and a ready signal,
+	// then sleeps forever. We wait for the ready signal before applying the
+	// timeout so the PID file is guaranteed to exist when we read it.
 	scriptContent := `#!/bin/bash
 if [[ "$1" == "-test.run=TestGromitHelperProcess" && "$2" == "--" ]]; then
   shift 2
 fi
 child_pid_file="$1"
+ready_file="$2"
 sleep 5 &
 child=$!
 echo "$child" > "$child_pid_file"
+sync
+touch "$ready_file"
 sleep 5
 `
 	testBinary := createTempShellScript(t, tmpDir, "sleep-with-child", scriptContent)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	// Phase 1: Start the script with a generous timeout — we only need it to
+	// write the PID file and ready signal, not to complete.
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	_, _, _, err := RunGromitHelperProcessWithStdin(ctx, testBinary, "", os.Environ(), "", childPIDPath)
-	if err == nil {
-		t.Fatal("expected timeout error, got nil")
-	}
+	errCh := make(chan error, 1)
+	go func() {
+		_, _, _, err := RunGromitHelperProcessWithStdin(ctx, testBinary, "", os.Environ(), "", childPIDPath, readyPath)
+		errCh <- err
+	}()
 
-	// Wait for the PID file to appear (the script may write it just before being killed).
-	pidFileDeadline := time.Now().Add(2 * time.Second)
+	// Wait for the ready signal — this means the PID file has been written.
+	readyDeadline := time.Now().Add(5 * time.Second)
 	for {
-		if _, statErr := os.Stat(childPIDPath); statErr == nil {
+		if _, statErr := os.Stat(readyPath); statErr == nil {
 			break
 		}
-		if time.Now().After(pidFileDeadline) {
-			break
+		if time.Now().After(readyDeadline) {
+			t.Fatal("timed out waiting for script to write ready signal")
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
 
+	// Read the child PID now that we know it is written.
 	childPIDBytes, readErr := os.ReadFile(childPIDPath)
 	if readErr != nil {
 		t.Fatalf("failed reading child pid file: %v", readErr)
@@ -389,20 +395,30 @@ sleep 5
 		_ = syscall.Kill(childPID, syscall.SIGKILL)
 	})
 
-	deadline := time.Now().Add(500 * time.Millisecond)
+	// Phase 2: Cancel the context to trigger process-group kill.
+	cancel()
+
+	// Wait for RunGromitHelperProcessWithStdin to return.
+	err := <-errCh
+	if err == nil {
+		t.Fatal("expected cancellation error, got nil")
+	}
+
+	// Verify the child process was killed along with the process group.
+	deadline := time.Now().Add(2 * time.Second)
 	for {
-		err := syscall.Kill(childPID, 0)
-		if err == nil {
+		killErr := syscall.Kill(childPID, 0)
+		if killErr == nil {
 			if time.Now().After(deadline) {
 				t.Fatalf("expected child process to be terminated, pid=%d still running", childPID)
 			}
 			time.Sleep(10 * time.Millisecond)
 			continue
 		}
-		if errors.Is(err, syscall.ESRCH) {
+		if errors.Is(killErr, syscall.ESRCH) {
 			break
 		}
-		t.Fatalf("unexpected error checking child process: %v", err)
+		t.Fatalf("unexpected error checking child process: %v", killErr)
 	}
 }
 

@@ -279,16 +279,17 @@ func newRunnerImplWithStageContext(cfg *config.Config, output io.Writer, labels 
 			}
 			return beadsClient.Show(ctx, beadID)
 		},
-		Config:              cfg,
-		SpecMergeController: specMergeController,
-		Router:              router,
-		GlobalStatsPath:     filepath.Join(gromitDir, "stats.json"),
-		GetRunID:            getRunIDFn,
-		LogsDir:             cfg.Paths.Logs,
-		Output:              syncOut,
-		TrendUpdater:        trendUpdater,
-		AutoTriageService:   newAutoTriageService(cfg, gromitDir, trackerClientInterface, sf),
-		ExperimentMgr:       experimentMgr,
+		Config:                cfg,
+		SpecMergeController:   specMergeController,
+		Router:                router,
+		GlobalStatsPath:       filepath.Join(gromitDir, "stats.json"),
+		GetRunID:              getRunIDFn,
+		LogsDir:               cfg.Paths.Logs,
+		Output:                syncOut,
+		TrendUpdater:          trendUpdater,
+		AutoTriageService:     newAutoTriageService(cfg, gromitDir, trackerClientInterface, sf),
+		ExperimentMgr:         experimentMgr,
+		PreImplementationHook: newStageAwarePreImplementationHook(stageCtx, cfg, renderer, buildExecInvoker, buildCacheVersionKey, costDefs, syncOut),
 		StatusWriter: func(ctx context.Context, iteration int, beadID, beadTitle string, dl time.Time) {
 			if statusWriter != nil {
 				if specProgressLabel != "" {

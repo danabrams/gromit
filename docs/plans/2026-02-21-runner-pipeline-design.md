@@ -9,123 +9,128 @@
 
 Gromit's `Runner` struct has accumulated roughly 40 fields spread across more than 20 files. The `callbacks.go` file alone runs to 756 lines and is exercised by every execution path through the system. An earlier round of sub-package splits — `escalation/`, `methodology/`, `validation/`, `execution/` — provided some organizational relief but did not decouple state. The `Runner` struct still owns everything. Each new feature found it psychologically easy to attach another field to `Runner` or another method to `callbacks.go`, and the accumulation continued.
 
-The fix is a different object model. Stages receive explicit inputs and return explicit outputs. The orchestrator holds no mutable state beyond its wiring of stages together. State flows through data, not through a shared struct.
+The fix is a different object model. Stages receive explicit inputs and return explicit outputs. The orchestrator holds no mutable state beyond its wiring of stages together. State flows through data, not through a shared struct. To keep v1 running while the new architecture bootstraps, we implemented the v2 loop inside its own `internal/v2/` package tree and exposed it via the `gromit run2` command instead of mutating the existing runner.
 
 ---
 
-## Decision: Full Test Reset with Acceptance Preservation
+## Decision: Build the v2 run loop in `internal/v2/` and keep v1 untouched
 
-The 170 non-acceptance test files in `internal/runner/` test internal wiring rather than observable behavior. They encode the current implementation's shape — field names, method signatures, callback sequencing — and will need to be rewritten regardless of how carefully a refactor is approached. Carrying them forward would anchor the new design to the old structure.
+The 170 non-acceptance test files in `internal/runner/` encode implementation-specific wiring; rewriting them for the new model would have anchored the refactor to the old structure. Rather than evolve `internal/runner` in place, we let it continue as-is and built the cleaner loop adjacent to it.
 
-The `//go:build acceptance` tagged files are different. They represent behavioral contracts: given this environment and configuration, the pipeline must produce this outcome. These files are preserved by extracting them to `internal/runner/acceptance/` and become the behavioral contract the new pipeline must satisfy. The migration is complete when the acceptance suite passes against the new implementation.
+Key consequences of the decision:
+
+1. **Safe bootstrap.** Gromit v1 builds the project binaries and powers automation. Touching `internal/runner` directly while v2 is incomplete could break the tool that builds and tests v2 itself. The `internal/v2/` package tree avoids that dependency cycle.
+2. **No translational adapters.** Instead of wrapping v1 stages in adapters and rewriting them one by one, v2 stages are natively implemented. The new stage interfaces and loop are their own code, not incremental mutations of runner internals.
+3. **Controlled cutover.** `gromit run2` routes to the v2 loop while `gromit run` keeps executing the legacy runner. We switch the commands only after v2 acceptance passes and we can delete the old runner wholesale.
+
+Acceptance tests remain the behavioral contract. They continue to live under `internal/runner/acceptance/` and assert the outcomes that v2 must satisfy before the cutover.
 
 ---
 
 ## Package Layout
 
 ```
-internal/pipeline/          ← stage interfaces and shared types only
-    stage.go                ← Stage interface, Input, Output types
-    prepare/                ← stage 1: gate decisions
-    execute/                ← stage 2: LLM code authoring
-    validate/               ← stage 3: programmatic test/lint
-    review/                 ← stage 4: LLM code review (optional)
-    epilogue/               ← stage 5: bead lifecycle and cleanup
-
-internal/runner/
-    orchestrator.go         ← wires stages, runs the loop
-    constructor.go          ← builds pipeline from config
-    acceptance/             ← behavioral tests extracted from runner_test.go
+internal/v2/
+  stage/             # Stage contracts, retry policies, telemetry models
+  stage/plan         # Plan stage that turns specs into work statements
+  stage/decompose    # Spec-level bead decomposition
+  stage/gate         # Relevance gate plus dependency guardrails
+  stage/build        # LLM authoring, methodology selection, escalation
+  stage/validate     # Programmatic verification of worktrees
+  stage/review       # Optional LLM review and secondary bead creation
+  stage/epilogue     # Bead lifecycle, status updates, artifact publishing
+  stage/accept       # Spec-level acceptance gate and remediation kickoff
+  stage/present      # Product-owner presentation generator
+  adapter/           # Bridges to Git, LLM, task tracker, presenter, etc.
+  adapter/git        # Executes git operations in isolated worktrees
+  adapter/llm        # Provides Claude/LLM runs with model escalation
+  adapter/tasktracker# bd client adapter for recording work
+  adapter/presenter  # GitHub/presentation helpers
+  loop/              # SpecLoop and BeadLoop orchestration
+  loop/run2_components.go # Wiring for Run2 command (Gate/Build/Validate/Review/Epilogue)
+  event/             # Typed events consumed by subscribers
+  dep/               # Spec dependency gate and DAG traversal
+  prompt/            # Prompt fragments, templates, and combinators
+  presentation/      # Summary and remediation builders
+  spec/              # Spec metadata loader and validation helpers
+  testutil/          # Test doubles for adapters, loops, events
 ```
 
-The core structural constraint is that `internal/runner/` imports `internal/pipeline/` only. No stage package imports `runner/`. This import cycle enforcement is the mechanical guarantee against re-accumulation. When a developer wants to add a new capability, they cannot attach it to the orchestrator — they must define a stage interface, implement it, and register it in the constructor. The compiler prevents shortcuts.
+`cmd/gromit/run2.go` is the CLI entry point for the v2 loop. It builds the adapters, dependency gate, loop components, and event subscribers before invoking `loop.SpecLoop.Run` for each requested spec.
 
 ---
 
 ## Stage Interface
 
+Stages live under `internal/v2/stage` and share a concise contract:
+
 ```go
-type Stage interface {
-    Run(ctx context.Context, in Input) (Output, error)
-}
-
-type Input struct {
-    Bead             *bead.Bead
-    Config           *config.Config
-    Iteration        int
-    Deadline         time.Time
-    ValidationFails  []string  // fed back from prior Validate failures
-    // accumulated context from prior stages
-}
-
-type Output struct {
-    Decision         Decision  // for Gate: Proceed | Skip | Block
-    // stage-specific fields
-}
+func (s Stage) Name() string
+func (s Stage) Run(context.Context, *StageRequest) (*StageResult, error)
 ```
 
-`Input` carries everything a stage needs to execute. `Output` carries everything subsequent stages or the orchestrator need to proceed. Neither type is mutable once constructed. The orchestrator merges `Output` from one stage into the `Input` for the next.
+`StageRequest` carries the bead metadata, iteration count, configuration, worktree path, remediation flag, retry context, and telemetry summary inherited from earlier stages. `StageResult` bundles a `Decision` (`Proceed`, `Skip`, `Block`, or `Fail`), optional typed `Artifacts`, and emitted `event.TypedEvent`s. The loop type-asserts `Artifacts` where needed (e.g., the `Decompose` stage returns a list of beads). Stages remain stateless; every invocation receives the context it needs and reports exactly what the loop should do next.
 
 ---
 
-## The Five Stages
+## Two-Level Loop
 
-**Stage 1: Gate (programmatic)**
+The run loop is split between `SpecLoop` and `BeadLoop`.
 
-Gate is the only place early exit is permitted. It runs precheck, stuck check, scope gate, and proactive decomposition. It returns one of three decisions: `Proceed`, `Skip`, or `Block`. If the decision is `Skip` or `Block`, the orchestrator exits the current iteration without running any further stages. Gate contains no LLM calls — it is entirely programmatic and must execute quickly and deterministically.
+**SpecLoop** (`internal/v2/loop/spec_loop.go`)
+1. Resolve spec dependencies via `dep.SpecDependencyGate` to ensure prerequisite specs are satisfied.
+2. Check out an isolated worktree for the spec.
+3. Emit the `plan` stage by calling the task-tracker-aware LLM adapter and persist the plan.
+4. Run `Decompose` to emit beads ordered with dependency metadata.
+5. Feed the produced beads into the inner `BeadLoop` for execution.
+6. Invoke `Accept` to enforce spec-level acceptance criteria (and trigger remediation runs or escalation if needed).
+7. Run `Present` to publish summaries and telemetry.
+8. Clean up the worktree and emit completion events.
 
-**Stage 2: Build (LLM)**
+**BeadLoop** (`internal/v2/loop/bead_loop.go`)
+1. Pick the next bead whose dependencies are satisfied.
+2. Execute Gate, Build, Validate, Review, and Epilogue stages sequentially.
+3. Gate may skip or block beads; Validate failures trigger retries that rerun Build before re-validating.
+4. The loop tracks bead generations so review-created beads are labeled with `gen+1`, acceptance-created beads start a fresh generation, and a default cap prevents runaway retries.
 
-Build handles prompt construction, methodology selection (TDD, refactor, standard), and Claude invocation. The escalation chain (haiku → sonnet → opus) is internal to Build. The orchestrator sees only success or failure, not the individual escalation attempts. Build returns the result of the LLM authoring pass, the model that produced the successful output, and the diff applied to the working tree.
-
-**Stage 3: Validate (programmatic)**
-
-Validate runs `go test`, `golangci-lint`, and auto-fix passes (gofmt, goimports). It also handles periodic full validation when configured. On failure, Validate returns a `ValidationFailed` result with structured failure summaries. The orchestrator passes these summaries into the next iteration's Build `Input`. No stage holds failure state between iterations — the summaries travel through the data flow.
-
-**Stage 4: Review (LLM, optional)**
-
-Review invokes a code review pass and generates new beads from the findings. It only runs when configured. Review returns the review output and the IDs of any new beads created. Because it is optional, the orchestrator checks the configuration before including it in the stage sequence for a given iteration.
-
-**Stage 5: Epilogue (programmatic)**
-
-Epilogue closes and syncs beads, evaluates the spec gate, merges the worktree if appropriate, writes status, triggers a thorough review when conditions warrant, and runs the between-iterations command. Epilogue marks the iteration complete. It is always the last stage when it runs.
+Subscribing components observe typed events emitted by both loops and by individual stages.
 
 ---
 
-## Data Flow
+## CLI & Workflow
 
-The pipeline runs sequentially: Gate → Build → Validate → Review → Epilogue.
+`gromit run2 <spec>` is the sanctioned way to execute v2. The command:
 
-Each stage's `Output` is merged into the next stage's `Input`. Validate failure feeds back into Build `Input` on the next iteration attempt. No stage holds mutable state between iterations — all state flows through `Input`/`Output` structs or loop-level state owned by the orchestrator. The orchestrator's loop-level state is limited to what is needed to construct the next iteration's `Input`: the current bead, the iteration counter, the deadline, and the accumulated validation failure summaries.
+1. Loads configuration and resolves spec files (single spec or `--epic`).
+2. Builds the dependency gate (`dep.NewSpecDependencyGate`) to enforce spec ordering.
+3. Assembles adapters for Git, LLM, TaskTracker, and Presenter.
+4. Calls `loop.NewRun2LoopComponents` to construct the `Decompose` stage plus the inner `BeadLoop` (Gate, Build, Validate, Review, Epilogue) and the typed-event emitter funding the subscribers.
+5. Starts the subscriber mesh via `startRun2Subscribers`, routing events to the CLI output and log files.
+6. Instantiates `loop.SpecLoop` for each spec with the prepared adapters, gate, and bead loop, then runs it under the provided context.
+
+Signals (`SIGINT`, `SIGTERM`) and stop channels ensure clean shutdown. `run2` also streams CLI output while collecting telemetry, keeping the legacy `gromit run` untouched until v2 acceptance is proven.
 
 ---
 
 ## Migration Sequence
 
-The migration proceeds in six steps, each leaving the codebase in a working state.
-
-First, extract the `//go:build acceptance` tagged files from `internal/runner/` to `internal/runner/acceptance/`. These files must pass before the migration begins and must continue to pass at every subsequent step.
-
-Second, delete all other `internal/runner/*_test.go` files. This removes the implementation-coupled tests that would otherwise anchor the refactor to the old structure.
-
-Third, create the `internal/pipeline/` skeleton with the five stage subdirectories and placeholder files. No logic is written at this step — only the directory and interface structure.
-
-Fourth, specify the `Stage` interface and the `Input`/`Output` types in `internal/pipeline/stage.go`. This is a design decision point; the types should be reviewed before implementation proceeds.
-
-Fifth, implement each stage TDD against its interface. No stage package imports `internal/runner/`. Each stage package contains its own tests using fakes for dependencies. The five stages can be implemented in sequence or in parallel by different contributors.
-
-Sixth, wire the orchestrator in `orchestrator.go` and `constructor.go`, then run the acceptance suite. The migration is complete when the acceptance suite passes.
+1. Scaffold `internal/v2/` with stage interfaces, adapters, and an empty loop.
+2. Implement the two-level loop (spec + bead) and wire typed events.
+3. Implement the stage packages (Plan, Decompose, Gate, Build, Validate, Review, Epilogue, Accept, Present) under `internal/v2/stage` with TDD.
+4. Add `cmd/gromit/run2` to wire adapters, dependency gate, loop components, and subscribers.
+5. Run the acceptance suite under `internal/runner/acceptance/` against the v2 loop to validate behavioral parity.
+6. Once v2 satisfies the acceptance contract, delete the legacy `internal/runner/` implementation and rename `run2` → `run` for the main CLI entry point.
 
 ---
 
 ## Testing Strategy
 
-Each stage package contains its own unit tests. Dependencies are provided through fakes that satisfy the relevant interfaces — no stage test imports `internal/runner/`. This keeps stage tests fast and isolated from the orchestrator's wiring.
-
-The `internal/runner/acceptance/` package runs end-to-end against the assembled pipeline. These tests are the behavioral contract. They are the authoritative answer to whether the new pipeline is equivalent to the old one. They are not a supplement to unit tests — they are the migration gate.
+- Each `internal/v2/stage/*` package has focused unit tests that exercise the stage contract via fake adapters from `internal/v2/testutil/`.
+- The two-level loop has integration and acceptance coverage (`internal/v2/loop/spec_loop_test.go`, `internal/v2/loop/bead_loop_test.go`, `internal/v2/acceptance_*.go`) to ensure ordering, retries, and event emission.
+- The `internal/runner/acceptance` suite remains the behavioral contract for cutover; these tests now exercise the v2 loop through the CLI adapters.
 
 ---
 
 ## Structural Constraint
 
-The God Object reformed because the `Runner` namespace made it easy to attach new methods without confronting the question of where they belonged. The `internal/pipeline/` top-level stage layout enforces a hard boundary. A new feature cannot attach to the orchestrator. It must define its stage interface, implement it in a stage package, and register it in the constructor. The compiler rejects any attempt to shortcut this by importing `runner/` from a stage package. The mechanical enforcement is what makes the constraint durable across contributors and time.
+The new architecture enforces that no stage package imports `loop`. Stages only depend on `stage.Stage` and their own helpers; the orchestrator (`loop.SpecLoop`/`loop.BeadLoop`) wires everything together. This prevents the old god-object anti-pattern because the compiler prohibits attaching new state directly to the orchestrator — every new capability must live behind a stage contract.

@@ -438,7 +438,7 @@ func (testReviewScopeResolver) ResolveReviewScope(ctx context.Context, spec stri
 }
 
 func TestApplyInteractiveReviewFindings_MissingFileWarns(t *testing.T) {
-	t.Parallel()
+	// Not parallel: mutates package-level reviewFindingsLogWriter and buildReviewFindingsApplierFn.
 
 	gromitDir := t.TempDir()
 	var buf strings.Builder
@@ -464,7 +464,7 @@ func TestApplyInteractiveReviewFindings_MissingFileWarns(t *testing.T) {
 }
 
 func TestApplyInteractiveReviewFindings_MalformedFileWarns(t *testing.T) {
-	t.Parallel()
+	// Not parallel: mutates package-level reviewFindingsLogWriter and buildReviewFindingsApplierFn.
 
 	gromitDir := t.TempDir()
 	reviewDir := filepath.Join(gromitDir, "tmp")
@@ -498,7 +498,7 @@ func TestApplyInteractiveReviewFindings_MalformedFileWarns(t *testing.T) {
 }
 
 func TestApplyInteractiveReviewFindings_AppliesAndLogsSummary(t *testing.T) {
-	t.Parallel()
+	// Not parallel: mutates package-level reviewFindingsLogWriter and buildReviewFindingsApplierFn.
 
 	gromitDir := t.TempDir()
 	reviewDir := filepath.Join(gromitDir, "tmp")
@@ -1537,7 +1537,7 @@ func TestReviewCommand_MutualExclusivityWithWhitespace(t *testing.T) {
 // delegates scope resolution to Pipeline.ResolveReviewScope
 // Expected failure: runReview does not yet call Pipeline.ResolveReviewScope
 func TestRunReviewDelegatesStoPipelineResolveReviewScope(t *testing.T) {
-	t.Parallel()
+	// Not parallel: mutates package-level createReviewPipelineFn and flag vars.
 
 	_, _, cfgPath := setupAgentConfig(t, `
 claude:

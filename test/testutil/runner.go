@@ -1,11 +1,11 @@
 package testutil
 
 import (
-	"github.com/danabrams/gromit/internal/analytics"
 	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/danabrams/gromit/internal/analytics"
 	"os"
 	"os/exec"
 	"path/filepath"

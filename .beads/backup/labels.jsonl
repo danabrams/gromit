@@ -260,6 +260,7 @@
 {"issue_id":"gromit-43638","label":"spec:spec-acceptance-verification-loop"}
 {"issue_id":"gromit-43rex","label":"spec:token-budget-guardrail"}
 {"issue_id":"gromit-445b","label":"spec:runner-test-runtime-reduction"}
+{"issue_id":"gromit-4642b","label":"spec:v2-run-loop"}
 {"issue_id":"gromit-47kv5","label":"estimated-files:2"}
 {"issue_id":"gromit-47kv5","label":"spec:tui-pipeline-view"}
 {"issue_id":"gromit-47mxi","label":"spec:retro-review-worktree-launch-dir"}
@@ -434,6 +435,7 @@
 {"issue_id":"gromit-6w39","label":"spec:model-success-tracking"}
 {"issue_id":"gromit-6wh2","label":"spec:bead-scope-validation"}
 {"issue_id":"gromit-6x11","label":"spec:retro-efficiency-experiments"}
+{"issue_id":"gromit-6xue1","label":"spec:v2-run-loop"}
 {"issue_id":"gromit-6yim","label":"spec:multi-agent-phases"}
 {"issue_id":"gromit-6z616","label":"estimated-files:2"}
 {"issue_id":"gromit-6z616","label":"spec:auto-generate-acceptance-criteria"}
@@ -814,6 +816,7 @@
 {"issue_id":"gromit-au1yu","label":"spec:auto-generate-acceptance-criteria"}
 {"issue_id":"gromit-avbc","label":"spec:retro-efficiency-experiments"}
 {"issue_id":"gromit-awh9","label":"spec:pipeline-extraction"}
+{"issue_id":"gromit-awpko","label":"spec:v2-run-loop"}
 {"issue_id":"gromit-axqrj","label":"spec:runner-pipeline"}
 {"issue_id":"gromit-ayp","label":"spec:real-tests-for-chain-logic"}
 {"issue_id":"gromit-b002","label":"spec:codex-streaming-parity"}
@@ -1705,6 +1708,7 @@
 {"issue_id":"gromit-nwe9y","label":"from-review"}
 {"issue_id":"gromit-nwe9y","label":"spec:runner-pipeline"}
 {"issue_id":"gromit-nwhgo","label":"spec:runner-pipeline"}
+{"issue_id":"gromit-nwqme","label":"spec:v2-run-loop"}
 {"issue_id":"gromit-nxp9w","label":"estimated-files:2"}
 {"issue_id":"gromit-nxp9w","label":"spec:remove-tdd-fresh-context"}
 {"issue_id":"gromit-o0cjy","label":"from-review"}
@@ -2312,6 +2316,7 @@
 {"issue_id":"gromit-x9bq","label":"spec:epic-scoped-execution"}
 {"issue_id":"gromit-xa7k","label":"spec:atdd-prompt-context-budget"}
 {"issue_id":"gromit-xbw","label":"spec:real-tests-for-chain-logic"}
+{"issue_id":"gromit-xdgza","label":"spec:v2-run-loop"}
 {"issue_id":"gromit-xdku8","label":"from-review"}
 {"issue_id":"gromit-xdku8","label":"refactor"}
 {"issue_id":"gromit-xe0","label":"spec:atdd-methodology"}
@@ -2568,6 +2573,7 @@
 {"issue_id":"gromit-zds8","label":"spec:retro-efficiency-experiments"}
 {"issue_id":"gromit-zf3u","label":"bug"}
 {"issue_id":"gromit-zf3u","label":"from-review"}
+{"issue_id":"gromit-zjdta","label":"spec:v2-run-loop"}
 {"issue_id":"gromit-zjflz","label":"from-review"}
 {"issue_id":"gromit-zjflz","label":"gen:1"}
 {"issue_id":"gromit-zjflz","label":"spec:v2-run-loop"}

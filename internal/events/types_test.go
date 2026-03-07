@@ -30,6 +30,11 @@ func TestAllEventTypesImplementEvent(t *testing.T) {
 	validationFailEvent := &ValidationFailEvent{BeadID: "b1", Duration: 1 * time.Second}
 	reviewStartEvent := &ReviewStartEvent{BeadID: "b1", Model: "opus"}
 	reviewCompleteEvent := &ReviewCompleteEvent{BeadID: "b1", Verdict: "pass"}
+	reviewFindingEvent := &ReviewFindingEvent{
+		BeadID:        "b1",
+		Description:   "out of scope",
+		SchemaVersion: ReviewFindingSchemaVersion,
+	}
 	analysisStartEvent := &AnalysisStartEvent{BeadID: "b1"}
 	analysisCompleteEvent := &AnalysisCompleteEvent{BeadID: "b1", Category: "test"}
 	retroStartEvent := &RetroStartEvent{BeadID: "b1"}
@@ -64,7 +69,7 @@ func TestAllEventTypesImplementEvent(t *testing.T) {
 		runStartEvent, runCompleteEvent, iterStartEvent, iterCompleteEvent,
 		beadCompleteEvent, beadFailedEvent, beadStuckEvent, beadUnstickedEvent, beadSkippedEvent,
 		buildStartEvent, buildCompleteEvent, validationStartEvent, validationPassEvent,
-		validationFailEvent, reviewStartEvent, reviewCompleteEvent,
+		validationFailEvent, reviewStartEvent, reviewCompleteEvent, reviewFindingEvent,
 		analysisStartEvent, analysisCompleteEvent, retroStartEvent, retroCompleteEvent,
 		heartbeatEvent, modelSelectedEvent, escalationEvent, stallDetectedEvent, scopeCheckEvent,
 		decomposeStartEvent, subBeadCreatedEvent, decomposeCompleteEvent,
@@ -113,6 +118,7 @@ func TestEventTypeStringsAreUnique(t *testing.T) {
 		(&ValidationFailEvent{}).EventType():    true,
 		(&ReviewStartEvent{}).EventType():       true,
 		(&ReviewCompleteEvent{}).EventType():    true,
+		(&ReviewFindingEvent{}).EventType():     true,
 		(&AnalysisStartEvent{}).EventType():     true,
 		(&AnalysisCompleteEvent{}).EventType():  true,
 		(&RetroStartEvent{}).EventType():        true,
@@ -136,8 +142,8 @@ func TestEventTypeStringsAreUnique(t *testing.T) {
 	}
 
 	// If we reach here, all EventType() strings are unique (map keys are unique)
-	if len(eventTypes) != 36 {
-		t.Errorf("Expected 35 unique event types, got %d", len(eventTypes))
+	if len(eventTypes) != 37 {
+		t.Errorf("Expected 37 unique event types, got %d", len(eventTypes))
 	}
 }
 
@@ -345,6 +351,17 @@ func specEventCases(ts time.Time) []eventSpec {
 				Verdict:   "pass",
 				Issues:    []string{"issue"},
 				TimeMixin: TimeMixin{Time: ts},
+			},
+		},
+		{
+			name:     "ReviewFindingEvent",
+			wantType: "review_finding",
+			event: &ReviewFindingEvent{
+				BeadID:        "b1",
+				Description:   "note",
+				InScope:       false,
+				SchemaVersion: ReviewFindingSchemaVersion,
+				TimeMixin:     TimeMixin{Time: ts},
 			},
 		},
 		{
