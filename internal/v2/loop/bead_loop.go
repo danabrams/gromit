@@ -289,12 +289,6 @@ func (b *BeadLoop) processBead(ctx context.Context, beadItem *bead.Bead, iterati
 		}
 	}
 
-	if b.stageCommitter == nil {
-		if err := b.commitBeadWork(ctx, beadItem); err != nil {
-			return fmt.Errorf("git commit after bead %s: %w", beadItem.ID, err)
-		}
-	}
-
 	if err := b.runEpilogue(ctx, beadItem, iteration, nil); err != nil {
 		return err
 	}
@@ -344,28 +338,6 @@ func (b *BeadLoop) commitAfterStage(ctx context.Context, beadItem *bead.Bead, sN
 	return b.stageCommitter.CommitStage(ctx, b.worktree, beadItem.ID, sName, iteration, decision)
 }
 
-// commitBeadWork commits any uncommitted changes after the review stage completes.
-// This ensures bead work survives crashes. Only commits if there are actual changes.
-func (b *BeadLoop) commitBeadWork(ctx context.Context, beadItem *bead.Bead) error {
-	if b.git == nil {
-		return nil
-	}
-	worktree := b.worktree
-	status, err := b.git.Status(ctx, worktree)
-	if err != nil {
-		return fmt.Errorf("git status: %w", err)
-	}
-	if strings.TrimSpace(status) == "" {
-		return nil
-	}
-	title := beadItem.Title
-	if title == "" {
-		title = beadItem.ID
-	}
-	message := fmt.Sprintf("[gromit] bead %s: %s", beadItem.ID, title)
-	_, err = b.git.Commit(ctx, worktree, message)
-	return err
-}
 
 func (b *BeadLoop) runStageEntry(ctx context.Context, beadItem *bead.Bead, iteration int, entries []stageEntry, nameIndex map[string]int, idx int, highestGen *int, generationLimit int, stopCh <-chan struct{}) error {
 	entry := entries[idx]
