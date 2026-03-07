@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/spf13/cobra"
 )
@@ -55,6 +56,37 @@ func readDebug2EventLog(wtPath string) ([]map[string]interface{}, error) {
 		events = append(events, entry)
 	}
 	return events, scanner.Err()
+}
+
+// buildDebug2Prompt assembles a diagnostic prompt from the spec name, worktree path,
+// events, and commit history. commits is a slice of [hash, message] pairs.
+func buildDebug2Prompt(specName, wtPath string, events []map[string]interface{}, commits [][2]string) string {
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("## Debug Session: %s\n\n", specName))
+	sb.WriteString(fmt.Sprintf("Worktree: %s\n\n", wtPath))
+
+	sb.WriteString("### Commit History\n\n")
+	for _, c := range commits {
+		sb.WriteString(fmt.Sprintf("  %s %s\n", c[0], c[1]))
+	}
+	sb.WriteString("\n")
+
+	sb.WriteString("### Event Log\n\n")
+	for _, e := range events {
+		data, _ := json.Marshal(e)
+		sb.WriteString(fmt.Sprintf("  %s\n", string(data)))
+	}
+	sb.WriteString("\n")
+
+	failEvent := findFailureEvent(events)
+	if failEvent != nil {
+		sb.WriteString("### Failure Point\n\n")
+		data, _ := json.Marshal(failEvent)
+		sb.WriteString(fmt.Sprintf("  %s\n\n", string(data)))
+	}
+
+	sb.WriteString("## Task\n\nDiagnose the failure above and produce a fix.\n")
+	return sb.String()
 }
 
 // findFailureEvent returns the first event with decision "Fail", or nil if none found.
