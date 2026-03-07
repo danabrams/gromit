@@ -37,15 +37,8 @@ func (a *ExecGitAdapter) Checkout(ctx context.Context, specID string) (string, e
 	// If a worktree already exists (e.g. preserved from a previous failed run),
 	// remove it before creating a fresh one.
 	if _, err := os.Stat(wtPath); err == nil {
-		rmCmd := exec.CommandContext(ctx, "git", "worktree", "remove", wtPath)
-		rmCmd.Dir = a.repoRoot
-		if _, err := rmCmd.CombinedOutput(); err != nil {
-			// Try force removal if normal remove fails.
-			forceCmd := exec.CommandContext(ctx, "git", "worktree", "remove", "--force", wtPath)
-			forceCmd.Dir = a.repoRoot
-			if out, err := forceCmd.CombinedOutput(); err != nil {
-				return "", fmt.Errorf("git worktree remove --force: %s: %w", out, err)
-			}
+		if removeErr := a.removeExistingWorktree(ctx, wtPath); removeErr != nil {
+			return "", removeErr
 		}
 	}
 
@@ -170,4 +163,44 @@ func (a *ExecGitAdapter) Status(ctx context.Context, worktree string) (string, e
 		return "", fmt.Errorf("git status --porcelain: %s: %w", out, err)
 	}
 	return string(out), nil
+}
+
+// removeExistingWorktree removes a pre-existing worktree directory, falling back
+// to manual removal + prune when git worktree remove fails (e.g. orphaned
+// worktrees with read-only Go module cache files).
+func (a *ExecGitAdapter) removeExistingWorktree(ctx context.Context, wtPath string) error {
+	rmCmd := exec.CommandContext(ctx, "git", "worktree", "remove", wtPath)
+	rmCmd.Dir = a.repoRoot
+	if _, err := rmCmd.CombinedOutput(); err == nil {
+		return nil
+	}
+
+	forceCmd := exec.CommandContext(ctx, "git", "worktree", "remove", "--force", wtPath)
+	forceCmd.Dir = a.repoRoot
+	if _, err := forceCmd.CombinedOutput(); err == nil {
+		return nil
+	}
+
+	// Fallback: manually remove the directory and prune the worktree registry.
+	// Go module caches inside worktrees have read-only permissions that prevent
+	// git's internal removal from succeeding.
+	_ = filepath.Walk(wtPath, func(path string, info os.FileInfo, walkErr error) error {
+		if walkErr != nil {
+			return nil // best-effort: skip inaccessible entries
+		}
+		if info.Mode().Perm()&0200 == 0 {
+			_ = os.Chmod(path, info.Mode()|0200)
+		}
+		return nil
+	})
+	if err := os.RemoveAll(wtPath); err != nil {
+		return fmt.Errorf("failed to remove orphaned worktree %s: %w", wtPath, err)
+	}
+
+	pruneCmd := exec.CommandContext(ctx, "git", "worktree", "prune")
+	pruneCmd.Dir = a.repoRoot
+	if out, err := pruneCmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("directory removed but git worktree prune failed: %s: %w", out, err)
+	}
+	return nil
 }
