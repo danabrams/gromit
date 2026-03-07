@@ -1807,3 +1807,31 @@ func TestBeadLoopCallsStageCommitterAfterSuccessfulStage(t *testing.T) {
 		t.Fatalf("first call iteration = %d, want 1", sc.calls[0].iteration)
 	}
 }
+
+func TestBeadLoopLegacyGitCommitRemovedWithoutStageCommitter(t *testing.T) {
+	t.Parallel()
+
+	git := &mockGitCommitter{statusOutput: " M file.go\n", commitHash: "abc123"}
+	cfg := BeadLoopConfig{
+		Gate:     newNoopStage("gate"),
+		Build:    newNoopStage("build"),
+		Validate: newNoopStage("validate"),
+		Review:   newNoopStage("review"),
+		Epilogue: newNoopStage("epilogue"),
+		Git:      git,
+		// No StageCommitter — legacy commitBeadWork should no longer exist
+	}
+	loop, err := NewBeadLoop(cfg)
+	if err != nil {
+		t.Fatalf("NewBeadLoop: %v", err)
+	}
+
+	beads := []*bead.Bead{{ID: "bead-2"}}
+	if _, err := loop.Run(context.Background(), beads, nil); err != nil {
+		t.Fatalf("Run failed: %v", err)
+	}
+
+	if git.statusCalls != 0 {
+		t.Fatalf("git.Status called %d times, want 0 (legacy commitBeadWork removed)", git.statusCalls)
+	}
+}
