@@ -1120,6 +1120,43 @@ func (f *fakeSpecStageCommitter) hasCall(stageName string) bool {
 	return false
 }
 
+func TestSpecLoopCommitsAfterPlanStage(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	specID := "spec-commit-plan"
+	cfg := &config.Config{}
+
+	sc := &fakeSpecStageCommitter{}
+	git := newFakeGitAdapter(t)
+	loopInstance, err := NewSpecLoop(
+		adapter.AdapterSet{
+			Git:         git,
+			LLM:         newFakeLLMAdapter(),
+			TaskTracker: newFakeTaskTrackerAdapter(),
+			Presenter:   newFakePresenterAdapter(t),
+		},
+		cfg, noopDependencyGate{},
+		WithStageCommitter(sc),
+		WithPlanStage(newFakePlanStage(specID)),
+		WithPresentStage(newFakePresentStage(), &present.SummaryContext{}),
+		WithDecomposeStage(newFakeDecomposeStage(specID)),
+		WithBeadLoop(newFakeBeadRunner()),
+		WithAcceptStage(newFakeAcceptStage()),
+	)
+	if err != nil {
+		t.Fatalf("create spec loop: %v", err)
+	}
+
+	if err := loopInstance.Run(ctx, specID, nil); err != nil {
+		t.Fatalf("run: %v", err)
+	}
+
+	if !sc.hasCall("plan") {
+		t.Fatalf("CommitStage not called with 'plan'; calls: %v", sc.calls)
+	}
+}
+
 func TestSpecLoopCreatesEventsFileWhenTypedEmitterSet(t *testing.T) {
 	t.Parallel()
 
