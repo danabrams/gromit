@@ -281,3 +281,67 @@ func TestRun_NoPriorFailures(t *testing.T) {
 	// Suppress unused import warning for fmt.
 	_ = fmt.Sprintf
 }
+
+func TestWithPromptTemplateOverridesDefault(t *testing.T) {
+	t.Parallel()
+
+	customTemplate := "Custom triage: %s %s %s %s"
+	fake := testutil.NewFakeLLM()
+	fake.SetResponse("", &llm.LLMResponse{
+		Success: true,
+		Output:  `{"category": "retry", "reasoning": "test"}`,
+	})
+	stage, err := triage.New(validConfig(), fake, triage.WithPromptTemplate(customTemplate))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	req := &stagepkg.Request{
+		Bead: stagepkg.BeadInfo{ID: "b1", Title: "test-bead"},
+		RetryContext: &stagepkg.RetryContext{PriorFailures: []string{"failed"}},
+	}
+	_, err = stage.Run(context.Background(), req)
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+
+	calls := fake.Calls
+	if len(calls) != 1 {
+		t.Fatalf("expected 1 LLM call, got %d", len(calls))
+	}
+	if !strings.HasPrefix(calls[0].Prompt, "Custom triage:") {
+		t.Fatalf("expected custom template in prompt, got: %q", calls[0].Prompt)
+	}
+}
+
+func TestWithPromptTemplateIgnoresEmpty(t *testing.T) {
+	t.Parallel()
+
+	fake := testutil.NewFakeLLM()
+	fake.SetResponse("", &llm.LLMResponse{
+		Success: true,
+		Output:  `{"category": "retry", "reasoning": "test"}`,
+	})
+	stage, err := triage.New(validConfig(), fake, triage.WithPromptTemplate("   "))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	req := &stagepkg.Request{
+		Bead: stagepkg.BeadInfo{ID: "b1", Title: "test-bead"},
+		RetryContext: &stagepkg.RetryContext{PriorFailures: []string{"failed"}},
+	}
+	_, err = stage.Run(context.Background(), req)
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+
+	// With empty template, should fall back to default which contains "triage system"
+	calls := fake.Calls
+	if len(calls) != 1 {
+		t.Fatalf("expected 1 LLM call, got %d", len(calls))
+	}
+	if !strings.Contains(calls[0].Prompt, "build failure triage system") {
+		t.Fatalf("expected default template in prompt, got: %q", calls[0].Prompt)
+	}
+}

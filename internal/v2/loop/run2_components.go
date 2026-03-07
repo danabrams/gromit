@@ -76,7 +76,13 @@ func NewRun2LoopComponents(cfg *config.Config, adapters adapter.AdapterSet, lega
 		return nil, err
 	}
 
-	planStage, err := planstage.New(cfg, adapters.LLM, baseInstructions, projectContext, fragments.Standard)
+	planFragment, err := loadPlanFragment(cfg.ProjectRoot)
+	if err != nil {
+		cleanup()
+		return nil, err
+	}
+
+	planStage, err := planstage.New(cfg, adapters.LLM, baseInstructions, projectContext, planFragment)
 	if err != nil {
 		cleanup()
 		return nil, err
@@ -88,7 +94,18 @@ func NewRun2LoopComponents(cfg *config.Config, adapters adapter.AdapterSet, lega
 		return nil, err
 	}
 
-	decomposeStage, err := decomposestage.New(cfg, adapters.LLM, adapters.TaskTracker)
+	decomposeTemplate, err := loadFragment(cfg.ProjectRoot, "decompose_v2.md")
+	if err != nil {
+		cleanup()
+		return nil, err
+	}
+
+	var decomposeOpts []decomposestage.Option
+	if decomposeTemplate != "" {
+		decomposeOpts = append(decomposeOpts, decomposestage.WithPromptTemplate(decomposeTemplate))
+	}
+
+	decomposeStage, err := decomposestage.New(cfg, adapters.LLM, adapters.TaskTracker, decomposeOpts...)
 	if err != nil {
 		cleanup()
 		return nil, err
@@ -112,14 +129,31 @@ func NewRun2LoopComponents(cfg *config.Config, adapters adapter.AdapterSet, lega
 		return nil, err
 	}
 
-	reviewStage, err := reviewstage.New(cfg, adapters.Git, adapters.LLM, adapters.TaskTracker, baseInstructions, projectContext, fragments.Standard)
+	reviewFragment, err := loadFragment(cfg.ProjectRoot, "review_v2.md")
+	if err != nil {
+		cleanup()
+		return nil, err
+	}
+
+	reviewStage, err := reviewstage.New(cfg, adapters.Git, adapters.LLM, adapters.TaskTracker, baseInstructions, projectContext, reviewFragment)
 	if err != nil {
 		cleanup()
 		return nil, err
 	}
 	reviewStage = reviewStage.WithEmitter(legacyEmitter)
 
-	triageStage, err := triagestage.New(cfg, adapters.LLM)
+	triageTemplate, err := loadFragment(cfg.ProjectRoot, "triage_v2.md")
+	if err != nil {
+		cleanup()
+		return nil, err
+	}
+
+	var triageOpts []triagestage.Option
+	if triageTemplate != "" {
+		triageOpts = append(triageOpts, triagestage.WithPromptTemplate(triageTemplate))
+	}
+
+	triageStage, err := triagestage.New(cfg, adapters.LLM, triageOpts...)
 	if err != nil {
 		cleanup()
 		return nil, err
@@ -148,7 +182,13 @@ func NewRun2LoopComponents(cfg *config.Config, adapters adapter.AdapterSet, lega
 		return nil, err
 	}
 
-	acceptStage, err := acceptstage.New(cfg, adapters.Git, adapters.LLM, baseInstructions, projectContext, fragments.Standard)
+	acceptFragment, err := loadFragment(cfg.ProjectRoot, "accept_v2.md")
+	if err != nil {
+		cleanup()
+		return nil, err
+	}
+
+	acceptStage, err := acceptstage.New(cfg, adapters.Git, adapters.LLM, baseInstructions, projectContext, acceptFragment)
 	if err != nil {
 		cleanup()
 		return nil, err
@@ -280,4 +320,21 @@ func loadMethodologyFragments(projectRoot string) (buildstage.PromptFragments, e
 	fragments.Refactor = string(refactorContent)
 
 	return fragments, nil
+}
+
+// loadFragment loads a prompt fragment file from the project root.
+func loadFragment(projectRoot, filename string) (string, error) {
+	content, err := os.ReadFile(filepath.Join(projectRoot, filename))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "", nil
+		}
+		return "", fmt.Errorf("reading %s: %w", filename, err)
+	}
+	return string(content), nil
+}
+
+// loadPlanFragment loads the plan stage prompt fragment from plan_v2.md in the project root.
+func loadPlanFragment(projectRoot string) (string, error) {
+	return loadFragment(projectRoot, "plan_v2.md")
 }

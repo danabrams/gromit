@@ -211,6 +211,41 @@ func TestNormalizeMaxValidationRetries(t *testing.T) {
 	}
 }
 
+func TestWithPromptTemplateOverridesDefault(t *testing.T) {
+	t.Parallel()
+
+	cfg := &config.Config{
+		Paths: config.PathsConfig{GromitDir: ".gromit"},
+	}
+
+	customTemplate := "Custom decompose: %s %s %s spec:%s"
+	stg, err := New(cfg, &fakeLLM{}, &fakeTracker{}, WithPromptTemplate(customTemplate))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if stg.promptTemplate != customTemplate {
+		t.Fatalf("expected custom template, got: %q", stg.promptTemplate)
+	}
+}
+
+func TestWithPromptTemplateIgnoresEmpty(t *testing.T) {
+	t.Parallel()
+
+	cfg := &config.Config{
+		Paths: config.PathsConfig{GromitDir: ".gromit"},
+	}
+
+	stg, err := New(cfg, &fakeLLM{}, &fakeTracker{}, WithPromptTemplate("   "))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if stg.promptTemplate != defaultDecomposePromptTemplate {
+		t.Fatalf("expected default template when given whitespace, got: %q", stg.promptTemplate)
+	}
+}
+
 func contains(slice []string, value string) bool {
 	for _, item := range slice {
 		if item == value {

@@ -30,26 +30,44 @@ type TriageArtifacts struct {
 
 // Stage executes the triage stage of the v2 run loop.
 type Stage struct {
-	name string
-	cfg  *config.Config
-	llm  llm.LLMProvider
+	name           string
+	cfg            *config.Config
+	llm            llm.LLMProvider
+	promptTemplate string
 }
 
 var _ stagepkg.Stage = (*Stage)(nil)
 
 // New constructs a triage stage with the provided dependencies.
-func New(cfg *config.Config, provider llm.LLMProvider) (*Stage, error) {
+func New(cfg *config.Config, provider llm.LLMProvider, opts ...Option) (*Stage, error) {
 	if cfg == nil {
 		return nil, fmt.Errorf("config required")
 	}
 	if provider == nil {
 		return nil, fmt.Errorf("llm provider required")
 	}
-	return &Stage{
-		name: stagedesc.Describe("triage", cfg),
-		cfg:  cfg,
-		llm:  provider,
-	}, nil
+	s := &Stage{
+		name:           stagedesc.Describe("triage", cfg),
+		cfg:            cfg,
+		llm:            provider,
+		promptTemplate: triagePromptTemplate,
+	}
+	for _, opt := range opts {
+		opt(s)
+	}
+	return s, nil
+}
+
+// Option configures optional triage stage parameters.
+type Option func(*Stage)
+
+// WithPromptTemplate overrides the default triage prompt template.
+func WithPromptTemplate(tmpl string) Option {
+	return func(s *Stage) {
+		if strings.TrimSpace(tmpl) != "" {
+			s.promptTemplate = tmpl
+		}
+	}
 }
 
 // Name returns the canonical stage name.
@@ -98,7 +116,7 @@ func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Resul
 		labels = "(none)"
 	}
 
-	promptText := fmt.Sprintf(triagePromptTemplate,
+	promptText := fmt.Sprintf(s.promptTemplate,
 		req.Bead.ID,
 		req.Bead.Title,
 		labels,

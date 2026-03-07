@@ -32,7 +32,7 @@ const (
 	providerOutputPreviewLimit  = 500
 )
 
-const decomposePromptTemplate = `# Decompose Plan: %s
+var defaultDecomposePromptTemplate = `# Decompose Plan: %s
 
 You are decomposing an implementation plan into bd beads following the gromit-decompose skill.
 
@@ -58,14 +58,15 @@ The spec label will be added automatically: spec:%s
 
 // Stage implements the decompose stage of the run loop.
 type Stage struct {
-	name    string
-	cfg     *config.Config
-	llm     llm.LLMProvider
-	tracker tasktracker.TaskTracker
+	name           string
+	cfg            *config.Config
+	llm            llm.LLMProvider
+	tracker        tasktracker.TaskTracker
+	promptTemplate string
 }
 
 // New constructs a decompose stage backed by the provided dependencies.
-func New(cfg *config.Config, provider llm.LLMProvider, tracker tasktracker.TaskTracker) (*Stage, error) {
+func New(cfg *config.Config, provider llm.LLMProvider, tracker tasktracker.TaskTracker, opts ...Option) (*Stage, error) {
 	if cfg == nil {
 		return nil, fmt.Errorf("config required")
 	}
@@ -75,12 +76,29 @@ func New(cfg *config.Config, provider llm.LLMProvider, tracker tasktracker.TaskT
 	if tracker == nil {
 		return nil, fmt.Errorf("task tracker required")
 	}
-	return &Stage{
-		name:    stagedesc.Describe("decompose", cfg),
-		cfg:     cfg,
-		llm:     provider,
-		tracker: tracker,
-	}, nil
+	s := &Stage{
+		name:           stagedesc.Describe("decompose", cfg),
+		cfg:            cfg,
+		llm:            provider,
+		tracker:        tracker,
+		promptTemplate: defaultDecomposePromptTemplate,
+	}
+	for _, opt := range opts {
+		opt(s)
+	}
+	return s, nil
+}
+
+// Option configures optional decompose stage parameters.
+type Option func(*Stage)
+
+// WithPromptTemplate overrides the default decompose prompt template.
+func WithPromptTemplate(tmpl string) Option {
+	return func(s *Stage) {
+		if strings.TrimSpace(tmpl) != "" {
+			s.promptTemplate = tmpl
+		}
+	}
 }
 
 var _ stagepkg.Stage = (*Stage)(nil)
@@ -113,7 +131,7 @@ func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Resul
 		return nil, fmt.Errorf("read plan: %w", err)
 	}
 
-	promptText := buildDecomposePrompt(specID, string(planBody), skills.DecomposeSkill)
+	promptText := fmt.Sprintf(s.promptTemplate, specID, string(planBody), skills.DecomposeSkill, specID)
 	model := s.modelForPhase()
 	currentPrompt := promptText
 	maxSubBeads := s.cfg.Validation.PlanMaxSubBeadsValue()
@@ -296,10 +314,6 @@ func dependencyList(ids []string) []bead.Dependency {
 
 func specLabel(specID string) string {
 	return fmt.Sprintf(specLabelFormat, specID)
-}
-
-func buildDecomposePrompt(planName, planBody, skillContent string) string {
-	return fmt.Sprintf(decomposePromptTemplate, planName, planBody, skillContent, planName)
 }
 
 func toBeadCandidates(defs []beadDef) []validate.BeadCandidate {

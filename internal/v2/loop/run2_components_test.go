@@ -264,6 +264,45 @@ func TestNewRun2LoopComponentsWiring(t *testing.T) {
 	}
 }
 
+func TestLoadPlanFragment(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+
+	planContent := "# Plan Instructions\nProduce an implementation plan"
+	if err := os.WriteFile(filepath.Join(tmpDir, "plan_v2.md"), []byte(planContent), 0644); err != nil {
+		t.Fatalf("write plan_v2.md: %v", err)
+	}
+
+	content, err := loadPlanFragment(tmpDir)
+	if err != nil {
+		t.Fatalf("loadPlanFragment error: %v", err)
+	}
+
+	if content == "" {
+		t.Fatal("expected non-empty content from plan_v2.md, got empty string")
+	}
+
+	if !strings.Contains(content, planContent) {
+		t.Fatalf("expected content to match plan_v2.md, got: %q", content)
+	}
+}
+
+func TestLoadPlanFragmentReturnsEmptyOnMissingFile(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+
+	content, err := loadPlanFragment(tmpDir)
+	if err != nil {
+		t.Fatalf("loadPlanFragment error: %v", err)
+	}
+
+	if content != "" {
+		t.Fatalf("expected empty string for missing plan_v2.md, got: %q", content)
+	}
+}
+
 func TestLoadMethodologyFragmentsReturnsFuncZeroOnMissingFiles(t *testing.T) {
 	t.Parallel()
 
