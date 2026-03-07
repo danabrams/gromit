@@ -210,6 +210,85 @@ func TestGitHubPresenterCreatesPRWhenNoneExists(t *testing.T) {
 	}
 }
 
+func TestPresent_PublishedURLComesFromCommandOutput(t *testing.T) {
+	t.Parallel()
+
+	// The spy runner returns a PR URL from the "gh pr view" command.
+	expectedURL := "https://github.com/owner/repo/pull/42"
+	runner := &spyCommandRunner{
+		prViewOutput: expectedURL,
+	}
+	presenter := NewGitHubPresenter(runner)
+
+	summary := presentation.PresentationSummary{
+		SpecName:          "spec-url-test",
+		SpecBranch:        "gromit/spec/url-test",
+		IntegrationBranch: "main",
+		Success:           true,
+		AcceptanceResults: []presentation.AcceptanceResult{
+			{
+				Title:       "Acceptance tests",
+				Description: "All green",
+			},
+		},
+	}
+
+	resp, err := presenter.Present(context.Background(), PresentRequest{
+		SpecID:          "spec-url-test",
+		Summary:         summary,
+		DestinationHint: "some-hint",
+	})
+	if err != nil {
+		t.Fatalf("Present failed: %v", err)
+	}
+
+	// PublishedURL should come from the command output, NOT from DestinationHint.
+	if resp.PublishedURL == "some-hint" {
+		t.Fatal("PublishedURL should not echo back the DestinationHint")
+	}
+	if resp.PublishedURL != expectedURL {
+		t.Fatalf("PublishedURL should be %q, got %q", expectedURL, resp.PublishedURL)
+	}
+}
+
+func TestPresent_PublishedURLFromCreateCommand(t *testing.T) {
+	t.Parallel()
+
+	// When no PR exists, the "gh pr create" command outputs the URL.
+	expectedURL := "https://github.com/owner/repo/pull/99"
+	runner := &spyCommandRunner{
+		prViewErr:     fmt.Errorf("no PR found"),
+		prCreateOutput: expectedURL,
+	}
+	presenter := NewGitHubPresenter(runner)
+
+	summary := presentation.PresentationSummary{
+		SpecName:          "spec-create-url",
+		SpecBranch:        "gromit/spec/create-url",
+		IntegrationBranch: "main",
+		Success:           true,
+		AcceptanceResults: []presentation.AcceptanceResult{
+			{
+				Title:       "Acceptance tests",
+				Description: "All green",
+			},
+		},
+	}
+
+	resp, err := presenter.Present(context.Background(), PresentRequest{
+		SpecID:          "spec-create-url",
+		Summary:         summary,
+		DestinationHint: "another-hint",
+	})
+	if err != nil {
+		t.Fatalf("Present failed: %v", err)
+	}
+
+	if resp.PublishedURL != expectedURL {
+		t.Fatalf("PublishedURL should be %q, got %q", expectedURL, resp.PublishedURL)
+	}
+}
+
 func assertArgMatches(args []string, flag, value string) bool {
 	for i := 0; i+1 < len(args); i++ {
 		if args[i] == flag && args[i+1] == value {
@@ -235,6 +314,12 @@ type spyCommandRunner struct {
 	// If non-nil, "gh pr view ..." will return this error (simulating no existing PR).
 	// If nil, "gh pr view ..." succeeds (simulating an existing PR).
 	prViewErr error
+
+	// prViewOutput is the stdout returned by successful "pr view" calls.
+	prViewOutput string
+
+	// prCreateOutput is the stdout returned by successful "pr create" calls.
+	prCreateOutput string
 }
 
 func (s *spyCommandRunner) Run(ctx context.Context, name string, args ...string) (string, error) {
@@ -242,9 +327,25 @@ func (s *spyCommandRunner) Run(ctx context.Context, name string, args ...string)
 	s.args = append([]string(nil), args...)
 	s.calls = append(s.calls, spyCall{name: name, args: append([]string(nil), args...)})
 
-	// If this is a "pr view" call, return the configured error.
+	// If this is a "pr view" call, return the configured error or output.
 	if len(args) >= 2 && args[0] == "pr" && args[1] == "view" {
-		return "", s.prViewErr
+		return s.prViewOutput, s.prViewErr
+	}
+
+	// If this is a "pr create" call, return the configured output.
+	if len(args) >= 2 && args[0] == "pr" && args[1] == "create" {
+		// Read body file before returning.
+		for i := 0; i+1 < len(args); i++ {
+			if args[i] == "--body-file" {
+				s.bodyFile = args[i+1]
+				data, err := os.ReadFile(s.bodyFile)
+				if err != nil {
+					return "", err
+				}
+				s.bodyContent = string(data)
+			}
+		}
+		return s.prCreateOutput, nil
 	}
 
 	for i := 0; i+1 < len(args); i++ {
