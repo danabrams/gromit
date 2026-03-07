@@ -1,1 +1,18 @@
 {"schema_version":1,"timestamp":"2026-03-07T15:34:50.539989-05:00","type":"spec.started","spec_id":"v2-loop-routing-and-resume","worktree":"/Users/dabrams/gromit/.gromit/spec-worktrees/v2-loop-routing-and-resume"}
+{"schema_version":1,"timestamp":"2026-03-07T15:41:52.723564-05:00","type":"bead.started","bead_id":"gromit-0xxdf","bead_title":"Add unit tests for gap analysis","iteration":1}
+{"schema_version":1,"timestamp":"2026-03-07T15:41:52.723575-05:00","type":"stage.started","stage_name":"gate:default","bead_id":"gromit-0xxdf","iteration":1}
+{"schema_version":1,"timestamp":"2026-03-07T15:41:52.868575-05:00","type":"stage.completed","stage_name":"gate:default","bead_id":"gromit-0xxdf","iteration":1,"success":true,"duration":144998916}
+{"schema_version":1,"timestamp":"2026-03-07T15:41:52.868582-05:00","type":"bead.completed","bead_id":"gromit-0xxdf","bead_title":"Add unit tests for gap analysis","iteration":1,"success":false}
+{"schema_version":1,"timestamp":"2026-03-07T15:41:52.868605-05:00","type":"bead.started","bead_id":"gromit-1b6ks","bead_title":"Add unit tests for Router ratio balancing and fallback","iteration":2}
+{"schema_version":1,"timestamp":"2026-03-07T15:41:52.868606-05:00","type":"stage.started","stage_name":"gate:default","bead_id":"gromit-1b6ks","iteration":2}
+{"schema_version":1,"timestamp":"2026-03-07T15:41:53.007742-05:00","type":"stage.completed","stage_name":"gate:default","bead_id":"gromit-1b6ks","iteration":2,"success":true,"duration":139134708}
+{"schema_version":1,"timestamp":"2026-03-07T15:41:53.007751-05:00","type":"bead.completed","bead_id":"gromit-1b6ks","bead_title":"Add unit tests for Router ratio balancing and fallback","iteration":2,"success":false}
+{"schema_version":1,"timestamp":"2026-03-07T15:41:53.007774-05:00","type":"bead.started","bead_id":"gromit-1fuf8","bead_title":"Add integration tests for gate re-queue on block","iteration":3}
+{"schema_version":1,"timestamp":"2026-03-07T15:41:53.007777-05:00","type":"stage.started","stage_name":"gate:default","bead_id":"gromit-1fuf8","iteration":3}
+{"schema_version":1,"timestamp":"2026-03-07T15:41:53.149926-05:00","type":"stage.completed","stage_name":"gate:default","bead_id":"gromit-1fuf8","iteration":3,"success":true,"duration":142148250}
+{"schema_version":1,"timestamp":"2026-03-07T15:41:53.149934-05:00","type":"bead.completed","bead_id":"gromit-1fuf8","bead_title":"Add integration tests for gate re-queue on block","iteration":3,"success":false}
+{"schema_version":1,"timestamp":"2026-03-07T15:41:53.149955-05:00","type":"bead.started","bead_id":"gromit-20962","bead_title":"Expand remediation runner signature for worktree propagation","iteration":4}
+{"schema_version":1,"timestamp":"2026-03-07T15:41:53.149957-05:00","type":"stage.started","stage_name":"gate:default","bead_id":"gromit-20962","iteration":4}
+{"schema_version":1,"timestamp":"2026-03-07T15:41:53.22076-05:00","type":"stage.completed","stage_name":"gate:default","bead_id":"gromit-20962","iteration":4,"success":true,"duration":70802833}
+{"schema_version":1,"timestamp":"2026-03-07T15:41:53.220774-05:00","type":"stage.started","stage_name":"build:default","bead_id":"gromit-20962","iteration":4}
+{"schema_version":1,"timestamp":"2026-03-07T15:46:28.774669-05:00","type":"stage.completed","stage_name":"build:default","bead_id":"gromit-20962","iteration":4,"success":true,"duration":275552838208}
