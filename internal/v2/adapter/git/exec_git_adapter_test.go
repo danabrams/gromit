@@ -234,6 +234,43 @@ func TestExecGitAdapterShowReturnsDiff(t *testing.T) {
 	}
 }
 
+func TestExecGitAdapterSquashCommitsCollapsesCommits(t *testing.T) {
+	t.Parallel()
+	repoDir := initTestRepo(t)
+	worktreesDir := t.TempDir()
+
+	a := NewExecGitAdapter(repoDir, worktreesDir)
+	ctx := context.Background()
+
+	wtPath, err := a.Checkout(ctx, "spec-squash-test")
+	if err != nil {
+		t.Fatalf("Checkout: %v", err)
+	}
+
+	// Add three commits.
+	for _, name := range []string{"a.txt", "b.txt", "c.txt"} {
+		if err := os.WriteFile(filepath.Join(wtPath, name), []byte(name), 0o644); err != nil {
+			t.Fatalf("WriteFile %s: %v", name, err)
+		}
+		runGitBinary(t, wtPath, "add", "-A")
+		runGitBinary(t, wtPath, "commit", "-m", "add "+name)
+	}
+
+	// Squash last 3 commits into 1.
+	if err := a.SquashCommits(ctx, wtPath, 3); err != nil {
+		t.Fatalf("SquashCommits: %v", err)
+	}
+
+	// After squash, git log should show only the initial commit (from initTestRepo) left.
+	entries, err := a.Log(ctx, wtPath, 10)
+	if err != nil {
+		t.Fatalf("Log after squash: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("expected 1 commit after squash, got %d: %v", len(entries), entries)
+	}
+}
+
 func TestExecGitAdapterRemoveWorktreeSetsDir(t *testing.T) {
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git not available")
