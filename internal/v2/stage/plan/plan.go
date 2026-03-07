@@ -160,8 +160,9 @@ func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Resul
 		return nil, fmt.Errorf("read spec %s: %w", specID, err)
 	}
 
+	model := s.selectModel(req, cfg)
 	promptPayload := prompt.NewPromptAssembler(s.base, s.project, string(specData), s.fragment).Assemble()
-	resp, err := s.llm.Invoke(ctx, llmtypes.LLMInvokeRequest{Prompt: promptPayload, Model: modelOpus})
+	resp, err := s.llm.Invoke(ctx, llmtypes.LLMInvokeRequest{Prompt: promptPayload, Model: model})
 	if err != nil {
 		return nil, fmt.Errorf("invoke llm: %w", err)
 	}
@@ -188,7 +189,7 @@ func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Resul
 			SpecID: specID,
 			Plan:   planText,
 			Path:   planPath,
-			Model:  modelOpus,
+			Model:  model,
 		},
 	}, nil
 }
@@ -202,6 +203,20 @@ func (s *Stage) resolveConfig(req *stagepkg.Request) (*config.Config, error) {
 		return nil, fmt.Errorf("config required")
 	}
 	return cfg, nil
+}
+
+func (s *Stage) selectModel(req *stagepkg.Request, cfg *config.Config) string {
+	if req != nil {
+		if trimmed := strings.TrimSpace(req.Model); trimmed != "" {
+			return trimmed
+		}
+	}
+	if cfg != nil {
+		if trimmed := strings.TrimSpace(cfg.Models.P0); trimmed != "" {
+			return trimmed
+		}
+	}
+	return modelOpus
 }
 
 func specFilePath(cfg *config.Config, specID string) (string, error) {

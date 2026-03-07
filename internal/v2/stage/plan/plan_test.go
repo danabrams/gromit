@@ -316,3 +316,83 @@ func TestRunFallsBackToStoredConfig(t *testing.T) {
 	}
 }
 
+func TestRunUsesReqModelOverride(t *testing.T) {
+	t.Parallel()
+
+	provider := &fakeLLMProvider{
+		response: &llm.LLMInvokeResponse{Success: true, Output: "planned with custom model"},
+	}
+	stageInstance, cfg, specID := setupPlanStage(t, provider)
+
+	req := &stagepkg.Request{
+		Bead:   stagepkg.BeadInfo{ID: specID},
+		Config: cfg,
+		Model:  "custom-model",
+	}
+	res, err := stageInstance.Run(context.Background(), req)
+	if err != nil {
+		t.Fatalf("run stage: %v", err)
+	}
+
+	artifacts, ok := res.Artifacts.(*PlanArtifacts)
+	if !ok {
+		t.Fatalf("unexpected artifacts type: %T", res.Artifacts)
+	}
+
+	if provider.lastRequest.Model != "custom-model" {
+		t.Fatalf("model sent to LLM = %q, want %q", provider.lastRequest.Model, "custom-model")
+	}
+	if artifacts.Model != "custom-model" {
+		t.Fatalf("artifacts.Model = %q, want %q", artifacts.Model, "custom-model")
+	}
+}
+
+func TestRunUsesConfigP0Model(t *testing.T) {
+	t.Parallel()
+
+	provider := &fakeLLMProvider{
+		response: &llm.LLMInvokeResponse{Success: true, Output: "planned with P0"},
+	}
+	stageInstance, cfg, specID := setupPlanStage(t, provider)
+
+	// Set a custom P0 model in config.
+	cfg.Models.P0 = "my-opus-variant"
+
+	req := &stagepkg.Request{
+		Bead:   stagepkg.BeadInfo{ID: specID},
+		Config: cfg,
+	}
+	_, err := stageInstance.Run(context.Background(), req)
+	if err != nil {
+		t.Fatalf("run stage: %v", err)
+	}
+
+	if provider.lastRequest.Model != "my-opus-variant" {
+		t.Fatalf("model sent to LLM = %q, want %q", provider.lastRequest.Model, "my-opus-variant")
+	}
+}
+
+func TestRunDefaultsToOpusWhenNoModelConfigured(t *testing.T) {
+	t.Parallel()
+
+	provider := &fakeLLMProvider{
+		response: &llm.LLMInvokeResponse{Success: true, Output: "planned with default"},
+	}
+	stageInstance, cfg, specID := setupPlanStage(t, provider)
+
+	// Clear P0 so it falls through to the default.
+	cfg.Models.P0 = ""
+
+	req := &stagepkg.Request{
+		Bead:   stagepkg.BeadInfo{ID: specID},
+		Config: cfg,
+	}
+	_, err := stageInstance.Run(context.Background(), req)
+	if err != nil {
+		t.Fatalf("run stage: %v", err)
+	}
+
+	if provider.lastRequest.Model != "opus" {
+		t.Fatalf("model sent to LLM = %q, want %q", provider.lastRequest.Model, "opus")
+	}
+}
