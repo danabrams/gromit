@@ -2,14 +2,29 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 
+	gitadapter "github.com/danabrams/gromit/internal/v2/adapter/git"
+	"github.com/danabrams/gromit/internal/v2/pipeline"
 	"github.com/spf13/cobra"
 )
+
+// debug2AgentLaunchFn is injectable for tests. It launches the agent with a prompt
+// file in the given directory.
+// t.Cleanup must restore the original value in tests that override this.
+var debug2AgentLaunchFn = func(promptPath, dir string) error {
+	cfg, _ := loadConfig()
+	selectedAgent, err := resolveCommandAgent(cfg, "debug", "", false)
+	if err != nil {
+		return fmt.Errorf("resolving agent: %w", err)
+	}
+	return selectedAgent.LaunchInDir(promptPath, dir)
+}
 
 var debug2Cmd = &cobra.Command{
 	Use:   "debug2 <spec-name>",
@@ -99,6 +114,55 @@ func findFailureEvent(events []map[string]interface{}) map[string]interface{} {
 	return nil
 }
 
+// debug2Impl contains the testable core of the debug2 command.
+func debug2Impl(specName, gromitDir string) error {
+	wtPath, err := resolveDebug2Worktree(gromitDir, specName)
+	if err != nil {
+		return err
+	}
+
+	events, err := readDebug2EventLog(wtPath)
+	if err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("reading event log: %w", err)
+	}
+
+	gitAdapter := gitadapter.NewExecGitAdapter(".", gromitDir)
+	logEntries, err := gitAdapter.Log(context.Background(), wtPath, 100)
+	if err != nil {
+		logEntries = nil // non-fatal: proceed without commit history
+	}
+
+	commits := make([][2]string, 0, len(logEntries))
+	for _, e := range logEntries {
+		hash := e.Hash
+		if len(hash) > 8 {
+			hash = hash[:8]
+		}
+		msg := e.Message
+		if _, ok := pipeline.ParseCommitMessage(e.Message); ok {
+			msg = e.Message
+		}
+		commits = append(commits, [2]string{hash, msg})
+	}
+
+	prompt := buildDebug2Prompt(specName, wtPath, events, commits)
+
+	tmpFile, err := os.CreateTemp("", "debug2-prompt-*.md")
+	if err != nil {
+		return fmt.Errorf("creating temp prompt file: %w", err)
+	}
+	promptPath := tmpFile.Name()
+	defer os.Remove(promptPath)
+
+	if _, err := tmpFile.WriteString(prompt); err != nil {
+		tmpFile.Close()
+		return fmt.Errorf("writing prompt file: %w", err)
+	}
+	tmpFile.Close()
+
+	return debug2AgentLaunchFn(promptPath, wtPath)
+}
+
 func debug2RunE(cmd *cobra.Command, args []string) error {
 	specName := args[0]
 	cfg, err := loadConfig()
@@ -106,12 +170,5 @@ func debug2RunE(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("loading config: %w", err)
 	}
 	gromitDir := resolveGromitDir(cfg)
-
-	wtPath, err := resolveDebug2Worktree(gromitDir, specName)
-	if err != nil {
-		return err
-	}
-
-	fmt.Fprintf(cmd.OutOrStdout(), "Spec: %s\nWorktree: %s\n", specName, wtPath)
-	return nil
+	return debug2Impl(specName, gromitDir)
 }
