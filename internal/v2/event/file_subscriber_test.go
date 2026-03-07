@@ -1,9 +1,11 @@
 package event
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 )
 
@@ -57,5 +59,35 @@ func TestSubscribeToRegistersHandlerWithEmitter(t *testing.T) {
 	}
 	if !strings.Contains(string(data), EventTypeStageStarted) {
 		t.Fatalf("expected event in file after SubscribeTo, got %q", string(data))
+	}
+}
+
+func TestHandleConcurrentWritesProduceValidJSONLines(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "concurrent.jsonl")
+	fs := NewFileSubscriber(path)
+
+	const n = 50
+	var wg sync.WaitGroup
+	wg.Add(n)
+	for i := 0; i < n; i++ {
+		go func() {
+			defer wg.Done()
+			fs.Handle(&StageStartedEvent{Event: Event{Type: EventTypeStageStarted}, StageName: "concurrent"})
+		}()
+	}
+	wg.Wait()
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("reading file: %v", err)
+	}
+	lines := strings.Split(strings.TrimRight(string(data), "\n"), "\n")
+	if len(lines) != n {
+		t.Fatalf("expected %d lines, got %d", n, len(lines))
+	}
+	for i, line := range lines {
+		if !json.Valid([]byte(line)) {
+			t.Fatalf("line %d is not valid JSON: %q", i, line)
+		}
 	}
 }
