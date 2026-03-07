@@ -37,3 +37,23 @@ func TestFlagChangedBeads_FlagsBeadsWithOverlappingFiles(t *testing.T) {
 		}
 	}
 }
+
+func TestFlagChangedBeads_NoOverlapReturnsEmpty(t *testing.T) {
+	t.Parallel()
+
+	beads := []*bead.Bead{
+		{ID: "bead-x"},
+		{ID: "bead-y"},
+	}
+	changedFiles := []string{"internal/other/other.go"}
+	beadFiles := map[string][]string{
+		"bead-x": {"internal/alpha/alpha.go"},
+		"bead-y": {"internal/beta/beta.go"},
+	}
+
+	flagged := FlagChangedBeads(beads, changedFiles, beadFiles)
+
+	if len(flagged) != 0 {
+		t.Fatalf("got %d flagged beads, want 0", len(flagged))
+	}
+}
