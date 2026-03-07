@@ -226,8 +226,57 @@ func TestReviewStageCreatesTaskTrackerBeads(t *testing.T) {
 	if !hasLabel(created.Labels, "gen:2") {
 		t.Fatalf("labels missing gen:2: %v", created.Labels)
 	}
-	if len(created.DependsOn) != 1 || created.DependsOn[0] != "spec-1" {
-		t.Fatalf("unexpected dependencies = %v", created.DependsOn)
+	if len(created.DependsOn) != 0 {
+		t.Fatalf("expected no dependencies, got %v", created.DependsOn)
+	}
+	if !hasLabel(created.Labels, "review-source:spec-1") {
+		t.Fatalf("labels missing review-source:spec-1: %v", created.Labels)
+	}
+}
+
+func TestReviewChildBeadsUseLabelsNotDependencies(t *testing.T) {
+	t.Parallel()
+	diff := "diff --git a/bar.go b/bar.go"
+	response := `{
+		"passed": false,
+		"beads_to_create": [
+			{"title": "Task A", "description": "desc A", "priority": 1, "labels": ["infra"]},
+			{"title": "Task B", "description": "desc B", "priority": 2, "labels": []}
+		],
+		"backlog_items": [],
+		"fixes_applied": [],
+		"summary": "issues found"
+	}`
+	git := &fakeGitAdapter{diff: diff}
+	llmStub := &fakeLLM{response: &llm.LLMResponse{Success: true, Output: response}}
+	tracker := &fakeTracker{}
+	cfg := &config.Config{Review: config.ReviewConfig{Enabled: true, Tier: "sonnet"}}
+	stageInst, err := review.New(cfg, git, llmStub, tracker, "", "", "")
+	if err != nil {
+		t.Fatalf("create stage: %v", err)
+	}
+
+	parentID := "parent-bead-42"
+	req := &stagepkg.Request{
+		Bead:     stagepkg.BeadInfo{ID: parentID, Labels: []string{"gen:1"}},
+		Worktree: t.TempDir(),
+		Config:   cfg,
+	}
+	if _, err := stageInst.Run(context.Background(), req); err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+
+	if len(tracker.created) != 2 {
+		t.Fatalf("created %d beads, want 2", len(tracker.created))
+	}
+	for i, bead := range tracker.created {
+		if len(bead.DependsOn) != 0 {
+			t.Errorf("bead[%d] %q: expected no dependencies, got %v", i, bead.Title, bead.DependsOn)
+		}
+		expectedLabel := "review-source:" + parentID
+		if !hasLabel(bead.Labels, expectedLabel) {
+			t.Errorf("bead[%d] %q: labels missing %q, got %v", i, bead.Title, expectedLabel, bead.Labels)
+		}
 	}
 }
 

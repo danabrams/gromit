@@ -33,7 +33,23 @@ func (a *ExecGitAdapter) Checkout(ctx context.Context, specID string) (string, e
 		return "", fmt.Errorf("creating worktrees dir: %w", err)
 	}
 
-	cmd := exec.CommandContext(ctx, "git", "worktree", "add", wtPath, "HEAD")
+	// If a worktree already exists (e.g. preserved from a previous failed run),
+	// remove it before creating a fresh one.
+	if _, err := os.Stat(wtPath); err == nil {
+		rmCmd := exec.CommandContext(ctx, "git", "worktree", "remove", wtPath)
+		rmCmd.Dir = a.repoRoot
+		if _, err := rmCmd.CombinedOutput(); err != nil {
+			// Try force removal if normal remove fails.
+			forceCmd := exec.CommandContext(ctx, "git", "worktree", "remove", "--force", wtPath)
+			forceCmd.Dir = a.repoRoot
+			if out, err := forceCmd.CombinedOutput(); err != nil {
+				return "", fmt.Errorf("git worktree remove --force: %s: %w", out, err)
+			}
+		}
+	}
+
+	branchName := "gromit/spec/" + specID
+	cmd := exec.CommandContext(ctx, "git", "worktree", "add", "-B", branchName, wtPath, "HEAD")
 	cmd.Dir = a.repoRoot
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return "", fmt.Errorf("git worktree add: %s: %w", out, err)

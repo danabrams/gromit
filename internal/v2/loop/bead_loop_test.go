@@ -17,8 +17,10 @@ import (
 	"github.com/danabrams/gromit/internal/v2/generation"
 	"github.com/danabrams/gromit/internal/v2/stage"
 	stagedesc "github.com/danabrams/gromit/internal/v2/stage/names"
+	epiloguestage "github.com/danabrams/gromit/internal/v2/stage/epilogue"
 	reviewstage "github.com/danabrams/gromit/internal/v2/stage/review"
 	"github.com/danabrams/gromit/internal/v2/stage/triage"
+	"github.com/danabrams/gromit/internal/v2/trackertypes"
 	stagevalidate "github.com/danabrams/gromit/internal/v2/stage/validate"
 )
 
@@ -1599,5 +1601,113 @@ func TestBeadLoopTriageRetryCapped(t *testing.T) {
 	// Build should not run indefinitely
 	if buildStage.runCount > maxTriageRetries+2 {
 		t.Fatalf("build run count = %d, should be capped", buildStage.runCount)
+	}
+}
+
+// closeTrackingTracker records CloseBead calls and implements trackertypes.TaskTracker.
+type closeTrackingTracker struct {
+	closeCalls []string
+	closeErr   error
+}
+
+func (t *closeTrackingTracker) NextBead(_ context.Context, _ trackertypes.TaskTrackerNextBeadRequest) (*trackertypes.TaskTrackerNextBeadResponse, error) {
+	return nil, nil
+}
+
+func (t *closeTrackingTracker) ShowBead(_ context.Context, _ string) (*trackertypes.Bead, error) {
+	return nil, nil
+}
+
+func (t *closeTrackingTracker) CreateBead(_ context.Context, _ trackertypes.TaskTrackerCreateBeadRequest) (*trackertypes.TaskTrackerCreateBeadResponse, error) {
+	return &trackertypes.TaskTrackerCreateBeadResponse{}, nil
+}
+
+func (t *closeTrackingTracker) CloseBead(_ context.Context, req trackertypes.TaskTrackerCloseBeadRequest) (*trackertypes.TaskTrackerCloseBeadResponse, error) {
+	t.closeCalls = append(t.closeCalls, req.BeadID)
+	if t.closeErr != nil {
+		return nil, t.closeErr
+	}
+	return &trackertypes.TaskTrackerCloseBeadResponse{Closed: true}, nil
+}
+
+func (t *closeTrackingTracker) QueryBeads(_ context.Context, _ trackertypes.TaskTrackerQueryBeadsRequest) (*trackertypes.TaskTrackerQueryBeadsResponse, error) {
+	return &trackertypes.TaskTrackerQueryBeadsResponse{}, nil
+}
+
+func TestBeadLoopClosesParentAfterReviewCreatesChildren(t *testing.T) {
+	t.Parallel()
+
+	parentID := "parent-1"
+
+	// Child beads created by review use review-source label, NOT dependencies.
+	childBeads := []*tasktracker.Bead{
+		{
+			ID:     "child-1",
+			Title:  "Fix naming",
+			Labels: []string{"review-source:" + parentID},
+		},
+		{
+			ID:     "child-2",
+			Title:  "Add tests",
+			Labels: []string{"review-source:" + parentID},
+		},
+	}
+
+	reviewStage := &scriptedReviewStage{
+		name: "review",
+		result: &stage.Result{
+			Decision: stage.DecisionProceed,
+			Artifacts: &reviewstage.ReviewArtifacts{
+				CreatedBeads: childBeads,
+			},
+		},
+	}
+
+	tracker := &closeTrackingTracker{}
+	epilogue, err := epiloguestage.New(&config.Config{}, tracker)
+	if err != nil {
+		t.Fatalf("epilogue.New: %v", err)
+	}
+
+	cfg := BeadLoopConfig{
+		Gate:     newNoopStage("gate"),
+		Build:    newNoopStage("build"),
+		Validate: newNoopStage("validate"),
+		Review:   reviewStage,
+		Epilogue: epilogue,
+	}
+	loop, err := NewBeadLoop(cfg)
+	if err != nil {
+		t.Fatalf("NewBeadLoop: %v", err)
+	}
+
+	beads := []*bead.Bead{{ID: parentID}}
+	_, err = loop.Run(context.Background(), beads, nil)
+	if err != nil {
+		t.Fatalf("Run failed: %v", err)
+	}
+
+	// Assert CloseBead was called for the parent bead.
+	if len(tracker.closeCalls) != 1 {
+		t.Fatalf("CloseBead call count = %d, want 1", len(tracker.closeCalls))
+	}
+	if tracker.closeCalls[0] != parentID {
+		t.Fatalf("CloseBead called with %q, want %q", tracker.closeCalls[0], parentID)
+	}
+
+	// Assert child beads have no dependencies on the parent bead.
+	for i, child := range childBeads {
+		if len(child.DependsOn) != 0 {
+			t.Fatalf("child[%d] %q has dependencies %v, want none", i, child.ID, child.DependsOn)
+		}
+		hasLabel := false
+		for _, label := range child.Labels {
+			if label == "review-source:"+parentID {
+				hasLabel = true
+			}
+		}
+		if !hasLabel {
+			t.Fatalf("child[%d] %q missing review-source:%s label", i, child.ID, parentID)
+		}
 	}
 }

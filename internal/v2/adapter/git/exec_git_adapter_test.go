@@ -73,6 +73,77 @@ func TestExecGitAdapterCheckoutSetsDir(t *testing.T) {
 	}
 }
 
+func TestExecGitAdapterCheckoutIdempotent(t *testing.T) {
+	repoDir := initTestRepo(t)
+	worktreesDir := t.TempDir()
+
+	adapter := NewExecGitAdapter(repoDir, worktreesDir)
+	ctx := context.Background()
+
+	// First checkout should succeed.
+	wtPath1, err := adapter.Checkout(ctx, "spec-idempotent")
+	if err != nil {
+		t.Fatalf("first Checkout failed: %v", err)
+	}
+
+	expected := filepath.Join(worktreesDir, "spec-idempotent")
+	if wtPath1 != expected {
+		t.Fatalf("unexpected worktree path: got %q, want %q", wtPath1, expected)
+	}
+
+	// Second checkout with the same specID should also succeed (not fail
+	// with "already exists"), simulating a retry after a preserved failure.
+	wtPath2, err := adapter.Checkout(ctx, "spec-idempotent")
+	if err != nil {
+		t.Fatalf("second Checkout failed: %v", err)
+	}
+
+	if wtPath2 != expected {
+		t.Fatalf("unexpected worktree path on second call: got %q, want %q", wtPath2, expected)
+	}
+
+	// Verify the worktree directory exists.
+	if _, err := os.Stat(wtPath2); err != nil {
+		t.Fatalf("worktree dir not created after second Checkout: %v", err)
+	}
+}
+
+func TestExecGitAdapterCheckoutCreatesBranch(t *testing.T) {
+	repoDir := initTestRepo(t)
+	worktreesDir := t.TempDir()
+
+	adapter := NewExecGitAdapter(repoDir, worktreesDir)
+	ctx := context.Background()
+
+	wtPath, err := adapter.Checkout(ctx, "my-spec")
+	if err != nil {
+		t.Fatalf("Checkout failed: %v", err)
+	}
+
+	// Verify the branch exists in the repo.
+	listCmd := exec.Command("git", "branch", "--list", "gromit/spec/my-spec")
+	listCmd.Dir = repoDir
+	listOut, err := listCmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("git branch --list failed: %v\n%s", err, listOut)
+	}
+	if len(listOut) == 0 {
+		t.Fatalf("expected branch gromit/spec/my-spec to exist, but git branch --list returned empty")
+	}
+
+	// Verify the worktree HEAD is on the named branch.
+	headCmd := exec.Command("git", "-C", wtPath, "rev-parse", "--abbrev-ref", "HEAD")
+	headOut, err := headCmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("git rev-parse --abbrev-ref HEAD failed: %v\n%s", err, headOut)
+	}
+	got := string(headOut)
+	got = got[:len(got)-1] // trim trailing newline
+	if got != "gromit/spec/my-spec" {
+		t.Fatalf("worktree HEAD branch: got %q, want %q", got, "gromit/spec/my-spec")
+	}
+}
+
 func TestExecGitAdapterRemoveWorktreeSetsDir(t *testing.T) {
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git not available")

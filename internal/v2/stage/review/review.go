@@ -365,19 +365,17 @@ func (s *Stage) createBeads(ctx context.Context, parentID string, proposals []*b
 	if len(proposals) == 0 {
 		return nil, nil
 	}
-	deps := copyStrings([]string{parentID})
-	if parentID == "" {
-		deps = nil
-	}
 	created := make([]*trackertypes.Bead, 0, len(proposals))
 	for _, proposal := range proposals {
 		labels := copyStrings(proposal.Labels)
+		if parentID != "" {
+			labels = append(labels, "review-source:"+parentID)
+		}
 		trackerResp, err := s.tracker.CreateBead(ctx, trackertypes.TaskTrackerCreateBeadRequest{
-			Title:        proposal.Title,
-			Description:  proposal.Description,
-			Priority:     proposal.Priority,
-			Labels:       labels,
-			Dependencies: deps,
+			Title:       proposal.Title,
+			Description: proposal.Description,
+			Priority:    proposal.Priority,
+			Labels:      labels,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("review: creating bead %q: %w", proposal.Title, err)

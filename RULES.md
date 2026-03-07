@@ -91,6 +91,11 @@ Usage accounting must use explicit before/after snapshots for every phase and on
 
 **Enforcement:** Runtime telemetry validator; experiment decision gate; unknown-attribution detector in post-run validation; iteration-level attribution guard; experiment.json schema validator on keep/revert/extend; pre-launch attribution contract tests; stratum validity gate (sample count + variance check); Study-Act data quality gate (>=10 post-change iterations with per-field diagnostics); ingestion-side quarantine gate for unknown-attribution rows.
 
+### State-preserving features must specify and test re-entry behavior
+Any feature that preserves state beyond a single run (worktrees, branches, queue entries, lock files, cached artifacts) must specify what happens when the same operation runs again with that state already present. Specs must address the full lifecycle: create → use → preserve → re-enter → cleanup. Acceptance tests must include a "re-run after prior failure" scenario exercising the re-entry path. Implementations that only handle the first-run case are incomplete.
+
+**Enforcement:** Spec review checklist for state-preserving features; acceptance tests must include re-entry scenarios for any preserved-state feature; code review rejects create-only paths without existence checks.
+
 ## Reliability
 
 ### Session worktree + MergeBack must use one cleanup owner, typed conflict classification, and validated queue transitions
@@ -164,6 +169,11 @@ Refactor guardrail tests must validate structural declarations (AST/compile-time
 Provider fixture governance must be schema-first: assertions must validate structured schema/records and deterministic provenance metadata; prose-token assertions are forbidden. Use structured fixture assertions (parse JSON/JSONL and ledger rows) instead of broad markdown/log token matching. Fixtures must be stored under `test/fixtures/gemini/` (or the relevant provider path) and validated with schema-first deterministic assertions including provenance metadata. Real-provider probe fixtures are canonical and should drive parser/schema updates rather than forcing fixtures back to stale assumptions.
 
 **Enforcement:** Code review on fixture changes; require structured schema/record assertions and provenance metadata checks in test review; grep for prose-token assertions in fixture test files.
+
+### Acceptance criteria must capture every behavioral requirement from the spec body
+Acceptance criteria must include a testable assertion for every specific behavior described in the spec body. If the spec body describes named branches, structured formats, specific event fields, or relationship semantics, the criteria must assert those specifics — not just the general capability. Vague criteria (e.g., "uses a worktree") that don't capture the spec's actual requirements (e.g., "worktree uses a named branch `gromit/spec/<specID>`") are incomplete. Acceptance tests written against incomplete criteria will pass while the implementation silently violates the spec.
+
+**Enforcement:** Spec review must cross-reference each body paragraph against the acceptance criteria list; any described behavior without a corresponding testable criterion is flagged. Acceptance test review must verify assertions match criteria specificity.
 
 ### LLM stage specs must include prompt verification acceptance criteria
 
