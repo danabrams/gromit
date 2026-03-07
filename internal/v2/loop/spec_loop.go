@@ -327,6 +327,9 @@ func (s *SpecLoop) Run(ctx context.Context, specID string, stopCh <-chan struct{
 		handleFailureCleaned = true
 		return s.handleFailure(ctx, specID, baseSummary, err)
 	}
+	if err := s.commitStage(ctx, worktree, specID, "accept", 0, "proceed"); err != nil {
+		return fmt.Errorf("commit after accept: %w", err)
+	}
 
 	summary := s.buildSuccessSummary(specID, worktree, plan, beads, acceptRes, beadResult.OutOfScopeFindings)
 
