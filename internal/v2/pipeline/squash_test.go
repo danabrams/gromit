@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/danabrams/gromit/internal/v2/adapter"
+	"github.com/danabrams/gromit/internal/v2/presentation"
 )
 
 type fakeSquashGit struct {
@@ -53,5 +54,27 @@ func TestSquashPerBead_noOpWhenNoStructuredCommits(t *testing.T) {
 	}
 	if len(fake.commitCalls) != 0 {
 		t.Errorf("expected no commit calls, got %v", fake.commitCalls)
+	}
+}
+
+func TestSquashPerBead_squashesStructuredCommitsAndCommits(t *testing.T) {
+	fake := &fakeSquashGit{
+		logEntries: []adapter.LogEntry{
+			{Hash: "ccc", Message: "[bead:001/validate/iter:1] Pass"},
+			{Hash: "bbb", Message: "[bead:001/build/iter:1] Proceed"},
+			{Hash: "aaa", Message: "initial commit"},
+		},
+	}
+	beads := []presentation.BeadSummary{{ID: "001", Title: "My Feature"}}
+
+	err := SquashPerBead(context.Background(), fake, "/tmp/wt", beads)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(fake.squashCalls) != 1 || fake.squashCalls[0] != 2 {
+		t.Errorf("squashCalls = %v, want [2]", fake.squashCalls)
+	}
+	if len(fake.commitCalls) != 1 || fake.commitCalls[0] != "bead 001: My Feature" {
+		t.Errorf("commitCalls = %v, want [\"bead 001: My Feature\"]", fake.commitCalls)
 	}
 }
