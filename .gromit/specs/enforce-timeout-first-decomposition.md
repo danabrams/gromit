@@ -1,6 +1,7 @@
 ---
 id: enforce-timeout-first-decomposition
 epic: run-loop-reliability
+accepted: true
 ---
 
 # Enforce Timeout-First Decomposition

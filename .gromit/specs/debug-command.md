@@ -3,6 +3,7 @@ id: debug-command
 source_ideas: []
 created: 2026-02-08
 epic: observability-and-diagnostics
+accepted: true
 ---
 
 # Debug Command

@@ -2,6 +2,7 @@
 id: spc-special-vs-common-cause-action-policy
 source_ideas: []
 created: 2026-02-28
+accepted: true
 ---
 
 # SPC Special-vs-Common Cause Classification and Auto-Triage

@@ -3,6 +3,7 @@ id: layered-failure-triage
 source_ideas: []
 created: 2026-02-15
 epic: observability-and-diagnostics
+accepted: true
 ---
 
 # Layered Failure Triage

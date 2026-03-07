@@ -3,6 +3,7 @@ id: plan-picker-filter
 source_ideas: []
 created: 2026-02-06
 epic: developer-experience
+accepted: true
 ---
 
 # Filter Already-Planned Specs from Plan Picker

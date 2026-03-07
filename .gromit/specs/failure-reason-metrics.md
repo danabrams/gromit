@@ -3,6 +3,7 @@ id: failure-reason-metrics
 source_ideas: []
 created: 2026-02-18
 epic: observability-and-diagnostics
+accepted: true
 ---
 
 # Add Failure Phase and Category to Iteration Metrics

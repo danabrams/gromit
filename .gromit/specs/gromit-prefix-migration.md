@@ -3,6 +3,7 @@ id: gromit-prefix-migration
 source_ideas: []
 created: 2026-02-07
 epic: codebase-health
+accepted: true
 ---
 
 # Gromit Prefix Migration

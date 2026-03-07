@@ -3,6 +3,7 @@ id: review-git-ops-injection
 source_ideas: []
 created: 2026-02-19
 epic: codebase-health
+accepted: true
 ---
 
 # Review Git Ops Injection and Bead ID Literal Matching

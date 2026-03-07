@@ -3,6 +3,7 @@ id: invocation-result-consolidation
 source_ideas: []
 created: 2026-02-18
 epic: codebase-health
+accepted: true
 ---
 
 # Invocation Result Consolidation

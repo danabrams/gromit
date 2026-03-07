@@ -5,6 +5,7 @@ created: 2026-02-28
 epic: multi-interface-architecture
 deprecated: 2026-03-05
 deprecated_reason: "TUI interface removed — internal/tui/ deleted per docs/plans/2026-03-04-deprecate-tui.md"
+accepted: true
 ---
 
 # TUI Explore/Refine Conversation Panel

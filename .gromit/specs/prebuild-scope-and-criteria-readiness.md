@@ -3,6 +3,7 @@ id: prebuild-scope-and-criteria-readiness
 source_ideas: [1]
 created: 2026-02-28
 epic: token-efficiency-program
+accepted: true
 ---
 
 # Pre-Build Scope and Criteria Readiness Gate

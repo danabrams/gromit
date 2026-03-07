@@ -3,6 +3,7 @@ id: atdd-prompt-context-budget
 source_ideas: []
 created: 2026-02-15
 epic: spec-first-atdd-execution
+accepted: true
 ---
 
 # ATDD Prompt Context Budget

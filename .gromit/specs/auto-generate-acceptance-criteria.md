@@ -2,6 +2,7 @@
 id: auto-generate-acceptance-criteria
 source_ideas: []
 created: 2026-03-02
+accepted: true
 ---
 
 # Auto-Generate Acceptance Criteria for Beads

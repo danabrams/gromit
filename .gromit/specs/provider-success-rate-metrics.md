@@ -2,6 +2,7 @@
 id: provider-success-rate-metrics
 source_ideas: []
 created: 2026-02-27
+accepted: true
 ---
 
 # Provider Success Rate Metrics

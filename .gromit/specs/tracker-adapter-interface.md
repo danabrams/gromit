@@ -4,6 +4,7 @@ source_ideas:
   - idea-1771591754839
 created: 2026-02-20
 epic: cross-project-portability
+accepted: true
 ---
 
 # Tracker Adapter Interface

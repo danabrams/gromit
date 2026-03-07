@@ -7,6 +7,7 @@ source_ideas:
   - idea-1771591754849
 created: 2026-02-20
 epic: codebase-health
+accepted: true
 ---
 
 # Migration Compatibility and Defaults

@@ -3,6 +3,7 @@ id: claude-timeout-classification-tests
 source_ideas: []
 created: 2026-02-26
 epic: test-quality
+accepted: true
 ---
 
 # Claude Client Timeout Classification Tests

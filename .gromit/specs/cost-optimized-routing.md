@@ -2,6 +2,7 @@
 id: cost-optimized-routing
 created: 2026-02-18
 epic: provider-ecosystem
+accepted: true
 ---
 
 # Cost-Optimized Routing

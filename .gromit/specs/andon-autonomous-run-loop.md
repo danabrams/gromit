@@ -3,6 +3,7 @@ id: andon-autonomous-run-loop
 source_ideas: []
 created: 2026-02-15
 epic: run-loop-reliability
+accepted: true
 ---
 
 # Andon-Style Autonomous Run Loop for Bead Failures

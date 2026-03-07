@@ -6,6 +6,7 @@ supersedes:
   - reduce-iteration-cost (Lever B only)
   - phase-isolated-methodology-contexts (Minimal Phase Prompts section only)
 epic: token-efficiency-program
+accepted: true
 ---
 
 # Phase-Aware Cost Optimization

@@ -3,6 +3,7 @@ id: learnings-provider-selection
 source_ideas: []
 created: 2026-02-26
 epic: provider-ecosystem
+accepted: true
 ---
 
 # Learnings Provider Selection Without Claude Hardcoding

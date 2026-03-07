@@ -3,6 +3,7 @@ id: end-of-loop-command
 source_ideas: []
 created: 2026-02-19
 epic: run-loop-reliability
+accepted: true
 ---
 
 # End-of-Loop Command

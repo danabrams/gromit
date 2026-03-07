@@ -3,6 +3,7 @@ id: git-auto-push
 source_ideas: []
 created: 2026-02-07
 epic: developer-experience
+accepted: true
 ---
 
 # Git Auto-Push After Bead Completion

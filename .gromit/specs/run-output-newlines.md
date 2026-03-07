@@ -3,6 +3,7 @@ id: run-output-newlines
 source_ideas: []
 created: 2026-02-07
 epic: observability-and-diagnostics
+accepted: true
 ---
 
 # Fix Missing Newlines in gromit run Output

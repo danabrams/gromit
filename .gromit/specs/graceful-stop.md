@@ -4,6 +4,7 @@ source_ideas: []
 created: 2026-02-13
 updated: 2026-02-18
 epic: run-loop-reliability
+accepted: true
 ---
 
 # Graceful Stop via SIGQUIT

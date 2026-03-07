@@ -3,6 +3,7 @@ id: touched-package-unit-tests
 source_ideas: []
 created: 2026-02-26
 epic: test-quality
+accepted: true
 ---
 
 # Runner Touched-Package Tracking Unit Tests

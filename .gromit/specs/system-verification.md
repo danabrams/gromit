@@ -3,6 +3,7 @@ id: system-verification
 source_ideas: []
 created: 2026-02-06
 epic: developer-experience
+accepted: true
 ---
 
 # System Verification

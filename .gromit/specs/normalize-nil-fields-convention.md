@@ -3,6 +3,7 @@ id: normalize-nil-fields-convention
 source_ideas: []
 created: 2026-02-26
 epic: codebase-health
+accepted: true
 ---
 
 # Normalize Nil Fields Naming Convention Policy

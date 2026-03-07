@@ -1,6 +1,7 @@
 ---
 id: orchestration-policy-interfaces
 epic: run-loop-reliability
+accepted: true
 ---
 
 # Orchestration Policy Interfaces

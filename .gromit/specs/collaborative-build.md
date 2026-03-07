@@ -2,6 +2,7 @@
 id: collaborative-build
 source_ideas: []
 created: 2026-03-02
+accepted: true
 ---
 
 # Collaborative Build

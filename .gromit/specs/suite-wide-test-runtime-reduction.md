@@ -3,6 +3,7 @@ id: suite-wide-test-runtime-reduction
 source_ideas: []
 created: 2026-02-18
 epic: test-quality
+accepted: true
 ---
 
 # Suite-Wide Test Runtime Reduction

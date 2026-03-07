@@ -3,6 +3,7 @@ id: gemini-cli-spike
 source_ideas: []
 created: 2026-02-20
 epic: provider-ecosystem
+accepted: true
 ---
 
 # Gemini CLI Spike

@@ -5,6 +5,7 @@ created: 2026-02-06
 superseded_by: gromit-prefix-migration
 superseded_at: 2026-02-07
 epic: codebase-health
+accepted: true
 ---
 
 # Ralph Reference Cleanup

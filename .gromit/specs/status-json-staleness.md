@@ -3,6 +3,7 @@ id: status-json-staleness
 source_ideas: [idea-1770462181900]
 created: 2026-02-07
 epic: codebase-health
+accepted: true
 ---
 
 # Status JSON Staleness Detection

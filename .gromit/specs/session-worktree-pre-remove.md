@@ -3,6 +3,7 @@ id: session-worktree-pre-remove
 source_ideas: []
 created: 2026-02-21
 epic: codebase-health
+accepted: true
 ---
 
 # Fix Session Worktree Lifecycle: Remove Worktree Before Merge

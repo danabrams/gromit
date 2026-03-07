@@ -3,6 +3,7 @@ id: list-with-label-all-statuses
 source_ideas: [idea-1770805560552]
 created: 2026-02-11
 epic: codebase-health
+accepted: true
 ---
 
 # Fix ListWithLabel to Return All Statuses and Unlimited Results

@@ -3,6 +3,7 @@ id: atdd-methodology
 source_ideas: [idea-1770457558357]
 created: 2026-02-07
 epic: codebase-health
+accepted: true
 ---
 
 # ATDD Methodology Support

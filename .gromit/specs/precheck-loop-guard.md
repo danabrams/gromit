@@ -3,6 +3,7 @@ id: precheck-loop-guard
 source_ideas: []
 created: 2026-02-07
 epic: run-loop-reliability
+accepted: true
 ---
 
 # Precheck Loop Guard

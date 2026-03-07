@@ -3,6 +3,7 @@ id: provider-neutral-wording
 source_ideas: []
 created: 2026-02-26
 epic: provider-ecosystem
+accepted: true
 ---
 
 # Provider-Neutral Wording in User-Facing Messages

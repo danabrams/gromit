@@ -3,6 +3,7 @@ id: run-scope-flags
 source_ideas: [integrate-spec-epic-scope-flags]
 created: 2026-02-11
 epic: spec-first-atdd-execution
+accepted: true
 ---
 
 # Run Command Scope Flags

@@ -3,6 +3,7 @@ id: debug-model-flag-warning
 source_ideas: []
 created: 2026-02-26
 epic: provider-ecosystem
+accepted: true
 ---
 
 # Debug --model Flag Warning for Non-Claude Agents

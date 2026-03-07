@@ -3,6 +3,7 @@ id: multi-provider-routing
 source_ideas: []
 created: 2026-02-11
 epic: provider-ecosystem
+accepted: true
 ---
 
 # Multi-Provider Routing for the Build Loop

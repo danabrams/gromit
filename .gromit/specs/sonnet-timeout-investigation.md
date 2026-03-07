@@ -1,6 +1,7 @@
 ---
 id: sonnet-timeout-investigation
 epic: run-loop-reliability
+accepted: true
 ---
 
 # Sonnet Timeout Investigation

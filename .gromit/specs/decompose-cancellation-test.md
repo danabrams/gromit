@@ -3,6 +3,7 @@ id: decompose-cancellation-test
 source_ideas: []
 created: 2026-02-26
 epic: test-quality
+accepted: true
 ---
 
 # Decompose Cancellation-Path Test

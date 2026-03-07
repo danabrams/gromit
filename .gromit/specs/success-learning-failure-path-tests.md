@@ -3,6 +3,7 @@ id: success-learning-failure-path-tests
 source_ideas: []
 created: 2026-02-26
 epic: test-quality
+accepted: true
 ---
 
 # Success-Learning Extraction Failure-Path Tests

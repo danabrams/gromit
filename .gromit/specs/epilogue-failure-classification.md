@@ -3,6 +3,7 @@ id: epilogue-failure-classification
 source_ideas: []
 created: 2026-02-27
 epic: multi-interface-architecture
+accepted: true
 ---
 
 # Epilogue Failure Classification

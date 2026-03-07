@@ -3,6 +3,7 @@ id: runner-test-runtime-reduction
 source_ideas: []
 created: 2026-02-16
 epic: test-quality
+accepted: true
 ---
 
 # Reduce internal/runner Test Runtime With Targeted Acceptance Gating

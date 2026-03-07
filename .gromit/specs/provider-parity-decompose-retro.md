@@ -3,6 +3,7 @@ id: provider-parity-decompose-retro
 source_ideas: []
 created: 2026-02-22
 epic: provider-ecosystem
+accepted: true
 ---
 
 # Provider Parity for Decompose and Retro Commands

@@ -3,6 +3,7 @@ id: explore-command-delegation-test
 source_ideas: []
 created: 2026-02-26
 epic: test-quality
+accepted: true
 ---
 
 # Explore Command Delegation Unit Test

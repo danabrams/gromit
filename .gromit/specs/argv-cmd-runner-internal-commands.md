@@ -3,6 +3,7 @@ id: argv-cmd-runner-internal-commands
 source_ideas: []
 created: 2026-02-19
 epic: codebase-health
+accepted: true
 ---
 
 # Argv Cmd Runner For Internal Commands

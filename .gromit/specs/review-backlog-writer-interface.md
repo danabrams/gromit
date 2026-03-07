@@ -3,6 +3,7 @@ id: review-backlog-writer-interface
 source_ideas: []
 created: 2026-02-26
 epic: codebase-health
+accepted: true
 ---
 
 # Narrow BacklogWriter Interface for Review Pipeline

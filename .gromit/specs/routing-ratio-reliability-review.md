@@ -3,6 +3,7 @@ id: routing-ratio-reliability-review
 source_ideas: []
 created: 2026-02-18
 epic: provider-ecosystem
+accepted: true
 ---
 
 # Routing Ratio Reliability Review

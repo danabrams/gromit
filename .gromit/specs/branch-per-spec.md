@@ -2,6 +2,7 @@
 id: branch-per-spec
 source_ideas: []
 created: 2026-02-26
+accepted: true
 ---
 
 # Branch per Spec ATDD Workflow

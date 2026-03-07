@@ -2,6 +2,7 @@
 id: vision-metrics-pr-template-and-ci-enforcement
 source_ideas: []
 created: 2026-02-28
+accepted: true
 ---
 
 # Vision Metrics PR Template and CI Enforcement

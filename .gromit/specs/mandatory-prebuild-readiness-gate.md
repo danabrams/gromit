@@ -3,6 +3,7 @@ id: mandatory-prebuild-readiness-gate
 source_ideas: []
 created: 2026-02-28
 epic: token-efficiency-program
+accepted: true
 ---
 
 # Mandatory Pre-Build Readiness Gate

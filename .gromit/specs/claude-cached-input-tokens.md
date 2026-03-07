@@ -3,6 +3,7 @@ id: claude-cached-input-tokens
 source_ideas: []
 created: 2026-02-26
 epic: provider-ecosystem
+accepted: true
 ---
 
 # Claude Provider CachedInputTokens Propagation

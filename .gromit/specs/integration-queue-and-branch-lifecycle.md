@@ -3,6 +3,7 @@ id: integration-queue-and-branch-lifecycle
 source_ideas: []
 created: 2026-02-28
 epic: codebase-health
+accepted: true
 ---
 
 # Integration Queue And Branch Lifecycle

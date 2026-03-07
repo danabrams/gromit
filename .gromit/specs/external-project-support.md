@@ -3,6 +3,7 @@ id: external-project-support
 source_ideas: []
 created: 2026-03-04
 epic: codebase-health
+accepted: true
 ---
 
 # External Project Support

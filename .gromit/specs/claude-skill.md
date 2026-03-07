@@ -3,6 +3,7 @@ id: claude-skill
 source_ideas: [idea-1770452824347]
 created: 2026-02-07
 epic: developer-experience
+accepted: true
 ---
 
 # Claude Code Orchestrator Skill

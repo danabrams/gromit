@@ -3,6 +3,7 @@ id: stats-merge-regression-tests
 source_ideas: []
 created: 2026-02-26
 epic: test-quality
+accepted: true
 ---
 
 # Global Stats Merge Regression Tests

@@ -2,6 +2,7 @@
 id: haiku-decompose-effectiveness-benchmark
 source_ideas: []
 created: 2026-02-28
+accepted: true
 ---
 
 # Haiku Decompose Effectiveness Benchmark

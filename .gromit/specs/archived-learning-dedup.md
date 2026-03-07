@@ -3,6 +3,7 @@ id: archived-learning-dedup
 source_ideas: [idea-1770741412407]
 created: 2026-02-11
 epic: codebase-health
+accepted: true
 ---
 
 # Archived Learning Dedup

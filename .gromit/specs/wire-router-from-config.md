@@ -3,6 +3,7 @@ id: wire-router-from-config
 source_ideas: []
 created: 2026-02-12
 epic: provider-ecosystem
+accepted: true
 ---
 
 # Wire Router from Providers Config

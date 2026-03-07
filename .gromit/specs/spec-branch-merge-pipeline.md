@@ -3,6 +3,7 @@ id: spec-branch-merge-pipeline
 source_ideas: []
 created: 2026-02-21
 epic: developer-experience
+accepted: true
 ---
 
 # Spec Branch Merge Pipeline

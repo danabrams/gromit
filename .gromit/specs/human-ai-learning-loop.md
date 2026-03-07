@@ -2,6 +2,7 @@
 id: human-ai-learning-loop
 source_ideas: []
 created: 2026-03-01
+accepted: true
 ---
 
 # Human-AI Learning Loop

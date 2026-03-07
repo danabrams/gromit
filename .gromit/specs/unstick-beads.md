@@ -2,6 +2,7 @@
 id: unstick-beads
 source_ideas: []
 created: 2026-03-02
+accepted: true
 ---
 
 # Unstick Beads

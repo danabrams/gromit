@@ -3,6 +3,7 @@ id: session-worktree-cleanup-before-merge
 source_ideas: []
 created: 2026-02-26
 epic: codebase-health
+accepted: true
 ---
 
 # Session Worktree Cleanup Before Merge Attempt

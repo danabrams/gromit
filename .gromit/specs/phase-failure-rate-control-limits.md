@@ -3,6 +3,7 @@ id: phase-failure-rate-control-limits
 source_ideas: []
 created: 2026-02-19
 epic: observability-and-diagnostics
+accepted: true
 ---
 
 # Add Phase-Specific Failure Rates to SPC Control Limits

@@ -2,6 +2,7 @@
 id: cost-per-spec-metric
 created: 2026-02-18
 epic: observability-and-diagnostics
+accepted: true
 ---
 
 # Cost-Per-Spec Metric

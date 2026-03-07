@@ -3,6 +3,7 @@ id: real-tests-for-chain-logic
 source_ideas: []
 created: 2026-02-07
 epic: test-quality
+accepted: true
 ---
 
 # Real Tests for Chain Logic

@@ -3,6 +3,7 @@ id: conflict-avoidance-lanes-and-rebase-policy
 source_ideas: []
 created: 2026-02-28
 epic: codebase-health
+accepted: true
 ---
 
 # Conflict Avoidance Lanes And Rebase Policy

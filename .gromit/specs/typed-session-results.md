@@ -3,6 +3,7 @@ id: typed-session-results
 source_ideas: []
 created: 2026-02-12
 epic: codebase-health
+accepted: true
 ---
 
 # Typed Session Results via Generics

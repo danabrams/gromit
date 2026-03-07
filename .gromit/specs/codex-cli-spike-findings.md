@@ -1,6 +1,7 @@
 ---
 id: codex-cli-spike-findings
 epic: provider-ecosystem
+accepted: true
 ---
 
 # Codex CLI Spike Findings

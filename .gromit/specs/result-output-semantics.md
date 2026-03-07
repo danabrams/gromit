@@ -3,6 +3,7 @@ id: result-output-semantics
 source_ideas: [idea-1771413407538]
 created: 2026-02-18
 epic: codebase-health
+accepted: true
 ---
 
 # Clean Result.Output Semantics

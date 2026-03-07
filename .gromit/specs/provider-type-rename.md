@@ -3,6 +3,7 @@ id: provider-type-rename
 source_ideas: []
 created: 2026-02-22
 epic: provider-ecosystem
+accepted: true
 ---
 
 # Provider Type Rename: Remove Claude-Specific Naming from Generic Interfaces

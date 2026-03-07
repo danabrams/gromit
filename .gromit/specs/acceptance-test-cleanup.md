@@ -2,6 +2,7 @@
 id: acceptance-test-cleanup
 created: 2026-02-10
 epic: test-quality
+accepted: true
 ---
 
 # Acceptance Test Cleanup: Proper ATDD Hygiene

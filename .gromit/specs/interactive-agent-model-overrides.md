@@ -2,6 +2,7 @@
 id: interactive-agent-model-overrides
 source_ideas: []
 created: 2026-02-26
+accepted: true
 ---
 
 # Interactive Agent Model Overrides

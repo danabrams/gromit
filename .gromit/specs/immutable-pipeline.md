@@ -2,6 +2,8 @@
 id: immutable-pipeline
 source_ideas: [gromit-v2-autonomous-product-engineer]
 created: 2026-03-05
+depends_on:
+  - v2-run-loop
 ---
 
 # Immutable Pipeline
@@ -112,6 +114,14 @@ The distinction: if the fix is "remember this pattern," debug handles it end-to-
 7. **Debug output form depends on root cause.** LEARNINGS entries are autonomous because they don't change system behavior — they inform future LLM invocations. Prompt fragments, code guards, and process changes alter how the system works and require human judgment. This distinction keeps debug useful without being dangerous.
 
 8. **Gate and Epilogue excluded from commits.** Gate is a pure eligibility check that produces no state changes worth preserving. Epilogue is bead bookkeeping (closing the bead in the task tracker). Neither produces artifacts that aid debugging. Including them would add noise to the commit history.
+
+## Architecture Direction
+
+This spec layers onto the v2 run loop infrastructure. The loop (`spec_loop` and `bead_loop`) is responsible for creating commits after each stage — stages remain stateless and unaware of commits. A new file-writing event subscriber writes to `.gromit/v2/events.jsonl` in the worktree, wired like existing CLI and API subscribers. The Present stage (or Git adapter) handles per-bead squash. `gromit debug` is a new CLI command (`cmd/gromit/debug2.go` during development) that operates on preserved worktree branches. No new packages — this extends `internal/v2/loop/`, `internal/v2/event/`, `internal/v2/stage/present/`, and `internal/v2/adapter/git/`.
+
+## Test Strategy
+
+Unit tests for structured commit message formatting and parsing. Unit tests for the event log file subscriber (append, cumulative correctness). Unit tests for per-bead squash logic in the Present stage or Git adapter. Integration tests for the commit-per-stage flow using a real git repo (no LLM): run a fake stage sequence through the loop and verify the resulting commit history matches expectations. Integration test for branch preservation on failure vs deletion on success. The debug command needs tests against a prepared worktree branch with known event log and commit history.
 
 ## Research & Context
 

@@ -5,6 +5,7 @@ created: 2026-02-22
 supersedes_decisions:
   - tdd-fresh-context-per-cycle#6
 epic: codebase-health
+accepted: true
 ---
 
 # TDD Cycle Granularity

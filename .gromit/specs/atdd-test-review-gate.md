@@ -6,6 +6,7 @@ status: retired
 retired: 2026-02-15
 superseded_by: atdd-simplification
 epic: spec-first-atdd-execution
+accepted: true
 ---
 
 # ATDD Test Review Gate

@@ -3,6 +3,7 @@ id: extract-status-display-package
 source_ideas: []
 created: 2026-02-26
 epic: codebase-health
+accepted: true
 ---
 
 # Extract Status Display Formatting into Own Package

@@ -3,6 +3,7 @@ id: decompose-complexity-estimation
 source_ideas: []
 created: 2026-02-14
 epic: codebase-health
+accepted: true
 ---
 
 # Pre-Build Complexity Estimation via File Count

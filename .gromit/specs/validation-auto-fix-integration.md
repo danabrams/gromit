@@ -2,6 +2,7 @@
 id: validation-auto-fix-integration
 source_ideas: ["idea-1772534537434"]
 created: 2026-03-03
+accepted: true
 ---
 
 # Integrated Validation Auto-Fixes

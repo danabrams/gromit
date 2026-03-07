@@ -2,6 +2,7 @@
 id: thin-cmd-wrappers
 source_ideas: []
 created: 2026-02-27
+accepted: true
 ---
 
 # Thin CMD Wrappers

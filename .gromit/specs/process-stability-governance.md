@@ -2,6 +2,7 @@
 id: process-stability-governance
 source_ideas: ["idea-1772245470239"]
 created: 2026-02-28
+accepted: true
 ---
 
 # Process Stability Governance

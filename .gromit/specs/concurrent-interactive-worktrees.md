@@ -3,6 +3,7 @@ id: concurrent-interactive-worktrees
 source_ideas: []
 created: 2026-02-12
 epic: codebase-health
+accepted: true
 ---
 
 # Concurrent Interactive Sessions via Git Worktrees

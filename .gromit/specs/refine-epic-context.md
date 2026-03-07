@@ -3,6 +3,7 @@ id: refine-epic-context
 source_ideas: []
 created: 2026-02-11
 epic: developer-experience
+accepted: true
 ---
 
 # Epic Context Injection for Refine

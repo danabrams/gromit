@@ -3,6 +3,7 @@ id: three-way-cross-review-routing
 source_ideas: []
 created: 2026-02-26
 epic: provider-ecosystem
+accepted: true
 ---
 
 # Three-Way Cross-Review Routing

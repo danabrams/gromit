@@ -2,6 +2,7 @@
 id: constancy-of-purpose-vision
 source_ideas: []
 created: 2026-02-28
+accepted: true
 ---
 
 # Constancy of Purpose Vision Artifact

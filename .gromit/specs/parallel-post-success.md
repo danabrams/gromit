@@ -3,6 +3,7 @@ id: parallel-post-success
 source_ideas: []
 created: 2026-02-08
 epic: developer-experience
+accepted: true
 ---
 
 # Parallel Post-Success Stage Execution

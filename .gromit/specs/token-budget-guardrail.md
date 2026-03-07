@@ -1,6 +1,7 @@
 ---
 id: token-budget-guardrail
 epic: run-loop-reliability
+accepted: true
 ---
 
 # Spec: Token Budget Guardrail

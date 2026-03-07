@@ -2,6 +2,7 @@
 id: explore-model-forwarding-non-claude
 source_ideas: []
 created: 2026-02-27
+accepted: true
 ---
 
 # Explore Model Forwarding For Non-Claude Agents

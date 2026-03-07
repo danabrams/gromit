@@ -2,6 +2,7 @@
 id: complexity-based-routing
 created: 2026-02-20
 epic: provider-ecosystem
+accepted: true
 ---
 
 # Complexity-Based Routing

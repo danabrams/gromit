@@ -3,6 +3,7 @@ id: decomposition-granularity
 source_ideas: [idea-1770482150013]
 created: 2026-02-11
 epic: developer-experience
+accepted: true
 ---
 
 # Decomposition Granularity

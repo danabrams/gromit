@@ -5,6 +5,7 @@ created: 2026-02-14
 supersedes: [atdd-test-review-gate]
 updates: [atdd-methodology]
 epic: spec-first-atdd-execution
+accepted: true
 ---
 
 # ATDD Simplification

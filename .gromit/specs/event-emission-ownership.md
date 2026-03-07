@@ -3,6 +3,7 @@ id: event-emission-ownership
 source_ideas: []
 created: 2026-02-27
 epic: multi-interface-architecture
+accepted: true
 ---
 
 # Event Emission Ownership: Stage-Only Convention

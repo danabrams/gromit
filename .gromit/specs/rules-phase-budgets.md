@@ -3,6 +3,7 @@ id: rules-phase-budgets
 source_ideas: []
 created: 2026-02-20
 epic: token-efficiency-program
+accepted: true
 ---
 
 # Per-Phase RULES.md Budget Tests and Section Re-Tagging

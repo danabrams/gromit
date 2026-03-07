@@ -2,6 +2,7 @@
 id: v2-run-loop
 source_ideas: [gromit-v2-autonomous-product-engineer]
 created: 2026-03-04
+accepted: true
 ---
 
 # V2 Run Loop

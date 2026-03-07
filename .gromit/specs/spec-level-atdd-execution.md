@@ -4,6 +4,7 @@ source_ideas: []
 created: 2026-02-15
 updates: [atdd-simplification, run-scope-flags]
 epic: spec-first-atdd-execution
+accepted: true
 ---
 
 # Spec-Level ATDD With Scoped Execution

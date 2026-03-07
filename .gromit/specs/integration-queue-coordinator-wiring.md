@@ -3,6 +3,7 @@ id: integration-queue-coordinator-wiring
 source_ideas: []
 created: 2026-03-01
 epic: codebase-health
+accepted: true
 ---
 
 # Integration Queue Coordinator Wiring

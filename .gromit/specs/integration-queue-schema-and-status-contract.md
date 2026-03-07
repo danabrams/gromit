@@ -3,6 +3,7 @@ id: integration-queue-schema-and-status-contract
 source_ideas: []
 created: 2026-02-28
 epic: codebase-health
+accepted: true
 ---
 
 # Integration Queue Schema And Status Contract

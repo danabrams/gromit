@@ -3,6 +3,7 @@ id: resolve-dir-consolidation
 source_ideas: [idea-1770406823736]
 created: 2026-02-06
 epic: codebase-health
+accepted: true
 ---
 
 # Consolidate resolve*Dir Helpers

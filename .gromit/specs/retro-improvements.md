@@ -1,6 +1,7 @@
 ---
 id: retro-improvements
 epic: codebase-health
+accepted: true
 ---
 
 # Retro Improvements Spec

@@ -3,6 +3,7 @@ id: spec-pr-review-gate
 source_ideas: []
 created: 2026-02-26
 epic: developer-experience
+accepted: true
 ---
 
 # Spec PR Review Gate

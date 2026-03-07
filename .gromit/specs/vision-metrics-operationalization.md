@@ -2,6 +2,7 @@
 id: vision-metrics-operationalization
 source_ideas: []
 created: 2026-02-28
+accepted: true
 ---
 
 # Vision Metrics Operationalization
