@@ -1120,6 +1120,42 @@ func (f *fakeSpecStageCommitter) hasCall(stageName string) bool {
 	return false
 }
 
+func TestSpecLoopCommitsAfterAcceptStage(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	specID := "spec-commit-accept"
+	cfg := &config.Config{}
+
+	sc := &fakeSpecStageCommitter{}
+	loopInstance, err := NewSpecLoop(
+		adapter.AdapterSet{
+			Git:         newFakeGitAdapter(t),
+			LLM:         newFakeLLMAdapter(),
+			TaskTracker: newFakeTaskTrackerAdapter(),
+			Presenter:   newFakePresenterAdapter(t),
+		},
+		cfg, noopDependencyGate{},
+		WithStageCommitter(sc),
+		WithPlanStage(newFakePlanStage(specID)),
+		WithPresentStage(newFakePresentStage(), &present.SummaryContext{}),
+		WithDecomposeStage(newFakeDecomposeStage(specID)),
+		WithBeadLoop(newFakeBeadRunner()),
+		WithAcceptStage(newFakeAcceptStage()),
+	)
+	if err != nil {
+		t.Fatalf("create spec loop: %v", err)
+	}
+
+	if err := loopInstance.Run(ctx, specID, nil); err != nil {
+		t.Fatalf("run: %v", err)
+	}
+
+	if !sc.hasCall("accept") {
+		t.Fatalf("CommitStage not called with 'accept'; calls: %v", sc.calls)
+	}
+}
+
 func TestSpecLoopCommitsAfterDecomposeStage(t *testing.T) {
 	t.Parallel()
 
