@@ -209,6 +209,42 @@ func TestRun2WiresRemediationRunner(t *testing.T) {
 	}
 }
 
+func TestRun2WiresStageCommitterAndTypedEmitter(t *testing.T) {
+	specsDir, cleanup := setupRun2TestEnv(t)
+	defer cleanup()
+
+	readySpec := writeSpecFile(t, specsDir, "ready-committer", map[string]string{"id": "ready-committer", "accepted": "true"})
+
+	stubSubscribers := startRun2SubscribersFn
+	startRun2SubscribersFn = func(ctx context.Context, emitter *events.Emitter, output io.Writer, logsDir string) (*sync.WaitGroup, error) {
+		return &sync.WaitGroup{}, nil
+	}
+	defer func() { startRun2SubscribersFn = stubSubscribers }()
+
+	stubLoop := newSpecLoopFn
+	newSpecLoopFn = func(adapters adapter.AdapterSet, cfg *config.Config, gate loop.DependencyGate, opts ...loop.SpecLoopOption) (specLoop, error) {
+		specLoopPtr := &loop.SpecLoop{}
+		for _, opt := range opts {
+			opt(specLoopPtr)
+		}
+		if fieldIsNil(specLoopPtr, "stageCommitter") {
+			t.Fatalf("expected stageCommitter option, got nil")
+		}
+		if fieldIsNil(specLoopPtr, "typedEmitter") {
+			t.Fatalf("expected typedEmitter option, got nil")
+		}
+		return &fakeSpecLoop{}, nil
+	}
+	defer func() { newSpecLoopFn = stubLoop }()
+
+	run2Cmd.SetOut(io.Discard)
+	run2Cmd.SetErr(io.Discard)
+
+	if err := run2Cmd.RunE(run2Cmd, []string{readySpec}); err != nil {
+		t.Fatalf("unexpected run error: %v", err)
+	}
+}
+
 func TestRun2EpicFlagRunsAllSpecs(t *testing.T) {
 	specsDir, cleanup := setupRun2TestEnv(t)
 	defer cleanup()
