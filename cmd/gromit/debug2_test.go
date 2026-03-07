@@ -7,6 +7,29 @@ import (
 	"testing"
 )
 
+func TestBuildDebug2Prompt_IncludesSpecNameAndEvents(t *testing.T) {
+	specName := "test-spec"
+	wtPath := "/tmp/worktrees/test-spec"
+	events := []map[string]interface{}{
+		{"type": "stage.completed", "stage_name": "validate", "decision": "Fail"},
+	}
+	commits := [][2]string{
+		{"abc12345", "[bead:b1/validate/iter:1] Fail"},
+	}
+
+	prompt := buildDebug2Prompt(specName, wtPath, events, commits)
+
+	if !strings.Contains(prompt, "test-spec") {
+		t.Error("prompt missing spec name")
+	}
+	if !strings.Contains(prompt, "validate") {
+		t.Error("prompt missing failure stage")
+	}
+	if !strings.Contains(prompt, "abc12345") {
+		t.Error("prompt missing commit hash")
+	}
+}
+
 func TestFindFailureEvent_FindsFailDecision(t *testing.T) {
 	events := []map[string]interface{}{
 		{"type": "stage.completed", "stage_name": "build", "decision": "Proceed"},
