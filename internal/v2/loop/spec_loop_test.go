@@ -1306,6 +1306,55 @@ func TestSpecLoopCreatesEventsFileWhenTypedEmitterSet(t *testing.T) {
 	}
 }
 
+func TestResumeWithGapAnalysis_FailureSummaryPopulated(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	specID := "spec-resume-gap-analysis"
+	cfg := &config.Config{}
+
+	git := newFakeGitAdapter(t)
+	git.planContent = "existing plan"
+	git.gapAnalysisContent = "remaining: implement step X"
+
+	taskTracker := newFakeTaskTrackerAdapter()
+	taskTracker.queryBeadsResponse = &tasktracker.TaskTrackerQueryBeadsResponse{
+		Beads: []tasktracker.Bead{
+			{ID: "bead-remaining", Title: "Remaining bead"},
+		},
+	}
+
+	fp := newFakePresenterAdapter(t)
+	presentStage, summaryCtx := newPresentStageForTest(t, cfg, fp)
+
+	// Accept fails once with no remediation runner — triggers handleFailure + gap analysis.
+	accept := newScriptedAcceptStage(stagepkg.Result{Decision: stagepkg.DecisionFail})
+
+	loopInstance, err := NewSpecLoop(
+		adapter.AdapterSet{
+			Git:         git,
+			LLM:         newFakeLLMAdapter(),
+			TaskTracker: taskTracker,
+			Presenter:   fp,
+		},
+		cfg, noopDependencyGate{},
+		WithPlanStage(newFakePlanStage(specID)),
+		WithPresentStage(presentStage, summaryCtx),
+		WithDecomposeStage(newFakeDecomposeStage(specID)),
+		WithBeadLoop(newFakeBeadRunner()),
+		WithAcceptStage(accept),
+	)
+	if err != nil {
+		t.Fatalf("create spec loop: %v", err)
+	}
+
+	if err := loopInstance.Run(ctx, specID, nil); err == nil {
+		t.Fatal("expected failure from accept stage")
+	}
+
+	requireGapAnalysisInFailureSummary(t, fp, "remaining: implement step X")
+}
+
 func TestResumeWithExistingPlanAndBeads_BeadListCorrect(t *testing.T) {
 	t.Parallel()
 
