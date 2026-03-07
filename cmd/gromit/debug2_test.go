@@ -7,6 +7,36 @@ import (
 	"testing"
 )
 
+func TestDebug2_InvokesAgentInWorktree(t *testing.T) {
+	tmpDir := t.TempDir()
+	specName := "test-spec"
+	wtPath := filepath.Join(tmpDir, "spec-worktrees", specName)
+
+	eventsDir := filepath.Join(wtPath, ".gromit", "v2")
+	if err := os.MkdirAll(eventsDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(eventsDir, "events.jsonl"),
+		[]byte(`{"type":"stage.completed","decision":"Fail"}`+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var capturedDir string
+	orig := debug2AgentLaunchFn
+	t.Cleanup(func() { debug2AgentLaunchFn = orig })
+	debug2AgentLaunchFn = func(promptPath, dir string) error {
+		capturedDir = dir
+		return nil
+	}
+
+	if err := debug2Impl(specName, tmpDir); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if capturedDir != wtPath {
+		t.Errorf("agent launched in %q, want %q", capturedDir, wtPath)
+	}
+}
+
 func TestBuildDebug2Prompt_IncludesSpecNameAndEvents(t *testing.T) {
 	specName := "test-spec"
 	wtPath := "/tmp/worktrees/test-spec"
