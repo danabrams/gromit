@@ -163,7 +163,9 @@ func (f *fakeLLMAdapter) planFor(specID string) string {
 	return specID + "-plan"
 }
 
-type fakeTaskTrackerAdapter struct{}
+type fakeTaskTrackerAdapter struct {
+	queryBeadsResponse *tasktracker.TaskTrackerQueryBeadsResponse
+}
 
 func newFakeTaskTrackerAdapter() *fakeTaskTrackerAdapter {
 	return &fakeTaskTrackerAdapter{}
@@ -186,6 +188,9 @@ func (f *fakeTaskTrackerAdapter) CloseBead(_ context.Context, _ tasktracker.Task
 }
 
 func (f *fakeTaskTrackerAdapter) QueryBeads(_ context.Context, _ tasktracker.TaskTrackerQueryBeadsRequest) (*tasktracker.TaskTrackerQueryBeadsResponse, error) {
+	if f.queryBeadsResponse != nil {
+		return f.queryBeadsResponse, nil
+	}
 	return &tasktracker.TaskTrackerQueryBeadsResponse{}, nil
 }
 
