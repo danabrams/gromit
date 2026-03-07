@@ -629,6 +629,9 @@
 {"issue_id":"gromit-7qr9","label":"spec:refine-epic-context"}
 {"issue_id":"gromit-7r3za","label":"from-review"}
 {"issue_id":"gromit-7ra21","label":"from-review"}
+{"issue_id":"gromit-7smak","label":"estimated-files:2"}
+{"issue_id":"gromit-7smak","label":"gen:0"}
+{"issue_id":"gromit-7smak","label":"spec:immutable-pipeline"}
 {"issue_id":"gromit-7snxt","label":"from-review"}
 {"issue_id":"gromit-7snxt","label":"refactor"}
 {"issue_id":"gromit-7ti5h","label":"estimated-files:2"}
