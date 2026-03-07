@@ -184,93 +184,56 @@ func TestCheckBeads_NoSiblingOverlap(t *testing.T) {
 	}
 }
 
-// TestCheckBeads_ScopeSignals_TitleKeywords tests that scope signal keywords in title are detected
-func TestCheckBeads_ScopeSignals_TitleKeywords(t *testing.T) {
-	tests := []struct {
-		name    string
-		title   string
-		wantHit bool
-	}{
-		{
-			name:    "refactor entire",
-			title:   "Refactor entire authentication system",
-			wantHit: true,
-		},
-		{
-			name:    "update all",
-			title:   "Update all database schemas",
-			wantHit: true,
-		},
-		{
-			name:    "across all packages",
-			title:   "Add logging across all packages",
-			wantHit: true,
-		},
-		{
-			name:    "and also",
-			title:   "Add feature X and also refactor Y",
-			wantHit: true,
-		},
-		{
-			name:    "normal title",
-			title:   "Add user login endpoint",
-			wantHit: false,
-		},
+// TestCheckBeads_ScopeSignals_NotHardViolation tests that scope signal keywords
+// do not produce hard violations in CheckBeads (they are complexity guidance only).
+func TestCheckBeads_ScopeSignals_NotHardViolation(t *testing.T) {
+	titles := []string{
+		"Refactor entire authentication system",
+		"Update all database schemas",
+		"Add logging across all packages",
+		"Add feature X and also refactor Y",
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, title := range titles {
+		t.Run(title, func(t *testing.T) {
 			beads := []BeadCandidate{
 				{
-					Title:              tt.title,
+					Title:              title,
 					Description:        "Test description",
 					AcceptanceCriteria: []string{"Criterion 1"},
+					ExpectedOutputs:    []string{"output"},
 				},
 			}
 
 			violations := CheckBeads(beads)
 
-			foundScopeSignal := false
 			for _, v := range violations {
 				if v.Rule == "scope_signals" {
-					foundScopeSignal = true
+					t.Errorf("scope_signals should not be a hard violation, but found one for title %q", title)
 				}
-			}
-
-			if tt.wantHit && !foundScopeSignal {
-				t.Errorf("expected scope_signals violation for title %q, got none", tt.title)
-			}
-			if !tt.wantHit && foundScopeSignal {
-				t.Errorf("unexpected scope_signals violation for title %q", tt.title)
 			}
 		})
 	}
 }
 
-// TestCheckBeads_ScopeSignals_DescriptionKeywords tests that scope signal keywords in description are detected
-func TestCheckBeads_ScopeSignals_DescriptionKeywords(t *testing.T) {
+// TestCheckBeads_ScopeSignals_DescriptionKeywords_NotHardViolation tests that scope signal
+// keywords in description do not produce hard violations (complexity guidance only).
+func TestCheckBeads_ScopeSignals_DescriptionKeywords_NotHardViolation(t *testing.T) {
 	beads := []BeadCandidate{
 		{
 			Title:              "Add feature",
 			Description:        "This bead will refactor entire codebase and also update all tests",
 			AcceptanceCriteria: []string{"Criterion 1"},
+			ExpectedOutputs:    []string{"output"},
 		},
 	}
 
 	violations := CheckBeads(beads)
 
-	foundScopeSignal := false
 	for _, v := range violations {
 		if v.Rule == "scope_signals" {
-			foundScopeSignal = true
-			if !strings.Contains(strings.ToLower(v.Message), "scope") {
-				t.Errorf("expected message to mention 'scope', got %q", v.Message)
-			}
+			t.Error("scope_signals should not be a hard violation from CheckBeads")
 		}
-	}
-
-	if !foundScopeSignal {
-		t.Error("expected scope_signals violation for description with keywords")
 	}
 }
 
@@ -291,9 +254,9 @@ func TestCheckBeads_MultipleViolations(t *testing.T) {
 
 	violations := CheckBeads(beads)
 
-	// Should have at least 2 violations: criteria_count and scope_signals
-	if len(violations) < 2 {
-		t.Errorf("expected at least 2 violations, got %d", len(violations))
+	// Should have criteria_count violation (scope_signals is complexity guidance, not a hard violation)
+	if len(violations) < 1 {
+		t.Errorf("expected at least 1 violation, got %d", len(violations))
 	}
 
 	rules := make(map[string]bool)
@@ -307,8 +270,8 @@ func TestCheckBeads_MultipleViolations(t *testing.T) {
 	if !rules["criteria_count"] {
 		t.Error("expected criteria_count violation")
 	}
-	if !rules["scope_signals"] {
-		t.Error("expected scope_signals violation")
+	if rules["scope_signals"] {
+		t.Error("scope_signals should not be a hard violation")
 	}
 }
 
@@ -403,27 +366,30 @@ func TestBeadCandidate_FieldsPresent(t *testing.T) {
 	}
 }
 
-// TestCheckBeads_ScopeSignals_CaseInsensitive tests that scope signal detection is case-insensitive
-func TestCheckBeads_ScopeSignals_CaseInsensitive(t *testing.T) {
-	beads := []BeadCandidate{
+// TestScopeSignals_CaseInsensitive_ComplexityOnly tests that scope signal detection
+// is case-insensitive via complexity classification (not hard violations).
+func TestScopeSignals_CaseInsensitive_ComplexityOnly(t *testing.T) {
+	candidates := []BeadCandidate{
 		{
 			Title:              "REFACTOR ENTIRE system",
 			Description:        "Test",
 			AcceptanceCriteria: []string{"Criterion 1"},
+			ExpectedOutputs:    []string{"output"},
 		},
 	}
 
-	violations := CheckBeads(beads)
-
-	foundScopeSignal := false
+	// Should NOT produce hard violations
+	violations := CheckBeads(candidates)
 	for _, v := range violations {
 		if v.Rule == "scope_signals" {
-			foundScopeSignal = true
+			t.Error("scope_signals should not be a hard violation from CheckBeads")
 		}
 	}
 
-	if !foundScopeSignal {
-		t.Error("expected scope_signals violation for uppercase keywords")
+	// Should still flag as high complexity
+	result := ValidateDecomposeCandidates(candidates)
+	if result.ComplexityOutcome.HighCount != 1 {
+		t.Errorf("expected 1 high-complexity candidate, got %d", result.ComplexityOutcome.HighCount)
 	}
 }
 
@@ -885,8 +851,8 @@ func TestValidateDecomposeCandidates_PreservesFormatScopeOverlapViolations(t *te
 	if !rules["criteria_count"] {
 		t.Fatal("expected criteria_count violation to remain present")
 	}
-	if !rules["scope_signals"] {
-		t.Fatal("expected scope_signals violation to remain present")
+	if rules["scope_signals"] {
+		t.Fatal("scope_signals should not be a hard violation")
 	}
 	if !rules["sibling_overlap"] {
 		t.Fatal("expected sibling_overlap violation to remain present")

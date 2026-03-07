@@ -237,15 +237,6 @@ func CheckBeads(beads []BeadCandidate) []Violation {
 			})
 		}
 
-		// Check for scope signals in title or description
-		if containsScopeSignal(bead.Title) || containsScopeSignal(bead.Description) {
-			violations = append(violations, Violation{
-				BeadIndex: i,
-				Rule:      "scope_signals",
-				Message:   "Bead contains scope signal keywords that may indicate over-scoping",
-			})
-		}
-
 		// Check for sibling overlap
 		for j, other := range beads {
 			if i >= j {
