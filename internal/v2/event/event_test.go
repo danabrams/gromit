@@ -48,11 +48,6 @@ func TestEventDefinitions(t *testing.T) {
 
 func TestEventJSONRoundTrip(t *testing.T) {
 	now := time.Date(2026, 3, 7, 12, 0, 0, 0, time.UTC)
-	base := Event{
-		SchemaVersion: SchemaVersion,
-		Timestamp:     now,
-		Type:          "test",
-	}
 
 	tests := []struct {
 		name           string
@@ -240,8 +235,6 @@ func TestEventJSONRoundTrip(t *testing.T) {
 		},
 	}
 
-	_ = base // base defined for reference; each case sets its own Event
-
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			data, err := json.Marshal(tc.event)
@@ -361,6 +354,102 @@ func TestEventJSONFieldNames(t *testing.T) {
 				HighestGeneration: 5,
 			},
 			expectedSnakeCase: []string{"generation_cap", "highest_generation"},
+		},
+		{
+			name: "SpecCompletedEvent",
+			event: SpecCompletedEvent{
+				Event:         Event{SchemaVersion: SchemaVersion, Timestamp: now, Type: EventTypeSpecCompleted},
+				SpecID:        "s1",
+				Worktree:      "/w",
+				Success:       true,
+				FailureReason: "r",
+			},
+			expectedSnakeCase: []string{"schema_version", "spec_id", "failure_reason"},
+		},
+		{
+			name: "SpecFailedEvent",
+			event: SpecFailedEvent{
+				Event:         Event{SchemaVersion: SchemaVersion, Timestamp: now, Type: EventTypeSpecFailed},
+				SpecID:        "s1",
+				Worktree:      "/w",
+				FailureReason: "timeout",
+			},
+			expectedSnakeCase: []string{"schema_version", "spec_id", "failure_reason"},
+		},
+		{
+			name: "BeadStartedEvent",
+			event: BeadStartedEvent{
+				Event:     Event{SchemaVersion: SchemaVersion, Timestamp: now, Type: EventTypeBeadStarted},
+				BeadID:    "b1",
+				BeadTitle: "t",
+				Iteration: 1,
+			},
+			expectedSnakeCase: []string{"bead_id", "bead_title"},
+		},
+		{
+			name: "StageStartedEvent",
+			event: StageStartedEvent{
+				Event:     Event{SchemaVersion: SchemaVersion, Timestamp: now, Type: EventTypeStageStarted},
+				StageName: "build",
+				BeadID:    "b1",
+				Iteration: 1,
+			},
+			expectedSnakeCase: []string{"stage_name", "bead_id"},
+		},
+		{
+			name: "StageFailedEvent",
+			event: StageFailedEvent{
+				Event:     Event{SchemaVersion: SchemaVersion, Timestamp: now, Type: EventTypeStageFailed},
+				StageName: "build",
+				BeadID:    "b1",
+				Iteration: 1,
+				Error:     "exit 1",
+			},
+			expectedSnakeCase: []string{"stage_name", "bead_id"},
+		},
+		{
+			name: "StageRetryingEvent",
+			event: StageRetryingEvent{
+				Event:     Event{SchemaVersion: SchemaVersion, Timestamp: now, Type: EventTypeStageRetrying},
+				StageName: "build",
+				BeadID:    "b1",
+				Attempt:   2,
+				Reason:    "escalating",
+			},
+			expectedSnakeCase: []string{"stage_name", "bead_id"},
+		},
+		{
+			name: "ScopeEvent",
+			event: ScopeEvent{
+				Event:      Event{SchemaVersion: SchemaVersion, Timestamp: now, Type: EventTypeScope},
+				BeadID:     "b1",
+				Complexity: "P1",
+				Approved:   true,
+				Reason:     "clear spec",
+			},
+			expectedSnakeCase: []string{"bead_id"},
+		},
+		{
+			name: "TriageStartedEvent",
+			event: TriageStartedEvent{
+				Event:     Event{SchemaVersion: SchemaVersion, Timestamp: now, Type: EventTypeTriageStarted},
+				BeadID:    "b1",
+				BeadTitle: "t",
+				Iteration: 1,
+			},
+			expectedSnakeCase: []string{"bead_id", "bead_title"},
+		},
+		{
+			name: "TriageCompletedEvent",
+			event: TriageCompletedEvent{
+				Event:     Event{SchemaVersion: SchemaVersion, Timestamp: now, Type: EventTypeTriageCompleted},
+				BeadID:    "b1",
+				BeadTitle: "t",
+				Iteration: 1,
+				Category:  "bug-fix",
+				Reasoning: "timing issue",
+			},
+			expectedSnakeCase: []string{"bead_id", "bead_title"},
 		},
 	}
 
