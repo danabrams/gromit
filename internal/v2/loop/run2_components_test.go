@@ -11,6 +11,7 @@ import (
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/events"
 	"github.com/danabrams/gromit/internal/v2/adapter"
+	"github.com/danabrams/gromit/internal/v2/presentation"
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
 	acceptstage "github.com/danabrams/gromit/internal/v2/stage/accept"
 	buildstage "github.com/danabrams/gromit/internal/v2/stage/build"
@@ -395,5 +396,50 @@ func TestLoadMethodologyFragmentsReturnsFuncZeroOnMissingFiles(t *testing.T) {
 	// Should return zero-valued PromptFragments
 	if fragments.Standard != "" || fragments.TDD != "" || fragments.Refactor != "" {
 		t.Fatalf("expected empty fragments for missing files, got: %+v", fragments)
+	}
+}
+
+func TestNewRun2LoopComponentsWiresSquasherIntoPresentStage(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	cfg := &config.Config{ProjectRoot: tmpDir}
+
+	fakeGit := testutil.NewFakeGit()
+	// Configure structured commits so SquashPerBead performs a squash
+	fakeGit.LogEntries = []adapter.LogEntry{
+		{Hash: "abc", Message: "[bead:001/build/iter:1] Proceed"},
+	}
+
+	adapters := adapter.AdapterSet{
+		Git:         fakeGit,
+		LLM:         newFakeLLMAdapter(),
+		TaskTracker: testutil.NewFakeTaskTracker(),
+		Presenter:   testutil.NewFakePresenter(),
+	}
+
+	legacyEmitter := events.NewEmitter()
+	defer legacyEmitter.Close()
+
+	var output bytes.Buffer
+	components, err := NewRun2LoopComponents(cfg, adapters, legacyEmitter, &output)
+	if err != nil {
+		t.Fatalf("NewRun2LoopComponents error: %v", err)
+	}
+
+	// Populate summary context so squasher has bead summaries and worktree
+	components.PresentSummaryContext.Worktree = "/tmp/wt"
+	components.PresentSummaryContext.BeadSummaries = []presentation.BeadSummary{
+		{ID: "001", Title: "Feature"},
+	}
+
+	req := &stagepkg.Request{Bead: stagepkg.BeadInfo{ID: "spec-123"}}
+	if _, err := components.PresentStage.Run(context.Background(), req); err != nil {
+		t.Fatalf("PresentStage.Run error: %v", err)
+	}
+
+	// Squasher must be wired: SquashCommits should have been called on the git adapter
+	if len(fakeGit.SquashCalls) == 0 {
+		t.Error("expected SquashCommits to be called via squasher wired in NewRun2LoopComponents, but it was not")
 	}
 }
