@@ -319,6 +319,46 @@ func TestExecGitAdapterSquashCommitsRejectsNonPositiveCount(t *testing.T) {
 	}
 }
 
+func TestExecGitAdapterCheckoutWithReadOnlyFiles(t *testing.T) {
+	t.Parallel()
+	repoDir := initTestRepo(t)
+	worktreesDir := t.TempDir()
+
+	a := NewExecGitAdapter(repoDir, worktreesDir)
+	ctx := context.Background()
+
+	// First checkout creates the worktree.
+	wtPath, err := a.Checkout(ctx, "spec-readonly")
+	if err != nil {
+		t.Fatalf("first Checkout: %v", err)
+	}
+
+	// Simulate Go module cache: create a nested directory with read-only files.
+	cacheDir := filepath.Join(wtPath, "vendor", "mod", "cache")
+	if err := os.MkdirAll(cacheDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll cache dir: %v", err)
+	}
+	readOnlyFile := filepath.Join(cacheDir, "module.go")
+	if err := os.WriteFile(readOnlyFile, []byte("package cache"), 0o444); err != nil {
+		t.Fatalf("WriteFile read-only: %v", err)
+	}
+	// Make the directory itself read-only too, to match Go module cache behavior.
+	if err := os.Chmod(cacheDir, 0o555); err != nil {
+		t.Fatalf("Chmod cache dir: %v", err)
+	}
+
+	// Second checkout should succeed despite the read-only files, exercising
+	// the removeExistingWorktree fallback chain.
+	wtPath2, err := a.Checkout(ctx, "spec-readonly")
+	if err != nil {
+		t.Fatalf("second Checkout with read-only files failed: %v", err)
+	}
+
+	if _, err := os.Stat(wtPath2); err != nil {
+		t.Fatalf("worktree dir not created after second Checkout: %v", err)
+	}
+}
+
 func TestExecGitAdapterRemoveWorktreeSetsDir(t *testing.T) {
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git not available")
