@@ -1738,6 +1738,39 @@ func (m *mockStageCommitter) CommitStage(ctx context.Context, worktree, beadID, 
 	return m.err
 }
 
+func TestBeadLoopSkipsLegacyCommitBeadWorkWhenStageCommitterConfigured(t *testing.T) {
+	t.Parallel()
+
+	git := &mockGitCommitter{statusOutput: " M file.go\n", commitHash: "abc123"}
+	sc := &mockStageCommitter{}
+	cfg := BeadLoopConfig{
+		Gate:           newNoopStage("gate"),
+		Build:          newNoopStage("build"),
+		Validate:       newNoopStage("validate"),
+		Review:         newNoopStage("review"),
+		Epilogue:       newNoopStage("epilogue"),
+		Git:            git,
+		StageCommitter: sc,
+	}
+	loop, err := NewBeadLoop(cfg)
+	if err != nil {
+		t.Fatalf("NewBeadLoop: %v", err)
+	}
+
+	beads := []*bead.Bead{{ID: "bead-sc"}}
+	if _, err := loop.Run(context.Background(), beads, nil); err != nil {
+		t.Fatalf("Run failed: %v", err)
+	}
+
+	// Legacy commitBeadWork should not be called when StageCommitter is set
+	if git.statusCalls != 0 {
+		t.Fatalf("git.Status called %d times, want 0 (legacy commit skipped)", git.statusCalls)
+	}
+	if len(git.commitCalls) != 0 {
+		t.Fatalf("git.Commit called %d times, want 0 (legacy commit skipped)", len(git.commitCalls))
+	}
+}
+
 func TestBeadLoopCallsStageCommitterAfterSuccessfulStage(t *testing.T) {
 	t.Parallel()
 
