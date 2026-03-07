@@ -158,6 +158,38 @@ func TestCloseWithoutHandleIsNoOp(t *testing.T) {
 	}
 }
 
+func TestHandleAfterCloseIsNoop(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "events.jsonl")
+	fs := NewFileSubscriber(path)
+
+	// Write one event to open the file, then close.
+	fs.Handle(&StageStartedEvent{Event: Event{Type: EventTypeStageStarted}, StageName: "before"})
+	if err := fs.Close(); err != nil {
+		t.Fatalf("Close returned error: %v", err)
+	}
+
+	// Handle after Close must not reopen the file or panic.
+	fs.Handle(&StageStartedEvent{Event: Event{Type: EventTypeStageStarted}, StageName: "after"})
+
+	// Verify the file handle was NOT reopened (still nil).
+	fs.mu.Lock()
+	reopened := fs.file != nil
+	fs.mu.Unlock()
+	if reopened {
+		t.Fatal("expected file to remain nil after Handle called post-Close, but it was reopened")
+	}
+
+	// Verify the file still contains only the original event (no second line).
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("reading file: %v", err)
+	}
+	lines := strings.Split(strings.TrimRight(string(data), "\n"), "\n")
+	if len(lines) != 1 {
+		t.Fatalf("expected 1 line, got %d", len(lines))
+	}
+}
+
 func TestHandleHoldsFileOpenAcrossCalls(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "events.jsonl")
 	fs := NewFileSubscriber(path)

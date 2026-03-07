@@ -21,6 +21,10 @@ const maxSquashLogEntries = 1000
 // SquashPerBead squashes per-stage commits into a single combined commit for PR
 // presentation. It is a no-op when the git log contains no structured commits.
 func SquashPerBead(ctx context.Context, git SquashGit, worktree string, beads []presentation.BeadSummary) error {
+	if len(beads) == 0 {
+		return nil
+	}
+
 	entries, err := git.Log(ctx, worktree, maxSquashLogEntries)
 	if err != nil {
 		return err

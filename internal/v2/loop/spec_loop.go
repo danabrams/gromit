@@ -526,7 +526,7 @@ func (s *SpecLoop) handleFailure(ctx context.Context, specID string, base presen
 	}
 
 	if err := s.presentSummary(ctx, specID, summary); err != nil {
-		return fmt.Errorf("present failure summary: %w", err)
+		log.Printf("warning: failed to present failure summary: %v", err)
 	}
 
 	if err := s.cleanupWorktree(ctx, specID, base.Worktree, false); err != nil {

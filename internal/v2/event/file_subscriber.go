@@ -10,9 +10,10 @@ import (
 
 // FileSubscriber appends JSON-encoded events to a JSONL file.
 type FileSubscriber struct {
-	path string
-	mu   sync.Mutex
-	file *os.File
+	path   string
+	mu     sync.Mutex
+	file   *os.File
+	closed bool
 }
 
 // NewFileSubscriber returns a FileSubscriber that writes to path.
@@ -38,6 +39,11 @@ func (f *FileSubscriber) Handle(evt TypedEvent) {
 
 	f.mu.Lock()
 	defer f.mu.Unlock()
+
+	if f.closed {
+		log.Printf("file subscriber: handle called after close: %s", f.path)
+		return
+	}
 
 	if f.file == nil {
 		if err := os.MkdirAll(filepath.Dir(f.path), 0o755); err != nil {
@@ -67,5 +73,6 @@ func (f *FileSubscriber) Close() error {
 	}
 	err := f.file.Close()
 	f.file = nil
+	f.closed = true
 	return err
 }

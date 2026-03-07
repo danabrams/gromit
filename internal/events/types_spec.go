@@ -2,8 +2,8 @@ package events
 
 // SpecStartedEvent is emitted when a spec loop begins execution.
 type SpecStartedEvent struct {
-	SpecID   string
-	Worktree string
+	SpecID   string `json:"spec_id"`
+	Worktree string `json:"worktree"`
 	TimeMixin
 }
 
@@ -13,10 +13,10 @@ func (e *SpecStartedEvent) EventType() string {
 
 // SpecCompletedEvent is emitted when a spec loop finishes.
 type SpecCompletedEvent struct {
-	SpecID        string
-	Worktree      string
-	Success       bool
-	FailureReason string
+	SpecID        string `json:"spec_id"`
+	Worktree      string `json:"worktree"`
+	Success       bool   `json:"success"`
+	FailureReason string `json:"failure_reason"`
 	TimeMixin
 }
 
@@ -26,9 +26,9 @@ func (e *SpecCompletedEvent) EventType() string {
 
 // SpecFailedEvent is emitted when a spec run cannot be remediated.
 type SpecFailedEvent struct {
-	SpecID        string
-	Worktree      string
-	FailureReason string
+	SpecID        string `json:"spec_id"`
+	Worktree      string `json:"worktree"`
+	FailureReason string `json:"failure_reason"`
 	TimeMixin
 }
 

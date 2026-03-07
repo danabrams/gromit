@@ -5,7 +5,6 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/danabrams/gromit/internal/v2/adapter"
 	"github.com/danabrams/gromit/internal/v2/presentation"
 	v2review "github.com/danabrams/gromit/internal/v2/review"
 	"github.com/danabrams/gromit/internal/v2/stage"
@@ -71,7 +70,7 @@ func TestPresentStageCallsPresenter(t *testing.T) {
 	}
 }
 
-var _ adapter.PresenterAdapter = (*spyPresenter)(nil)
+var _ Presenter = (*spyPresenter)(nil)
 
 func TestPresentStageHandlesPresenterError(t *testing.T) {
 	presenter := &spyPresenter{err: errors.New("boom")}

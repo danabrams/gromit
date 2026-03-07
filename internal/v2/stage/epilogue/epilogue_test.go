@@ -85,6 +85,51 @@ func TestEpilogueStageFailureEmitsFailureEventWithoutClosing(t *testing.T) {
 	}
 }
 
+func TestIsFailurePath_NilRequest(t *testing.T) {
+	t.Parallel()
+	if isFailurePath(nil) {
+		t.Fatal("nil request should not be a failure path")
+	}
+}
+
+func TestIsFailurePath_NilRetryContext(t *testing.T) {
+	t.Parallel()
+	req := &stagepkg.Request{
+		Bead: stagepkg.BeadInfo{ID: "bead-1"},
+	}
+	if isFailurePath(req) {
+		t.Fatal("nil RetryContext should not be a failure path")
+	}
+}
+
+func TestIsFailurePath_EmptyPriorFailures(t *testing.T) {
+	t.Parallel()
+	req := &stagepkg.Request{
+		Bead: stagepkg.BeadInfo{ID: "bead-1"},
+		RetryContext: &stagepkg.RetryContext{
+			Attempt:       1,
+			PriorFailures: []string{},
+		},
+	}
+	if isFailurePath(req) {
+		t.Fatal("RetryContext with empty PriorFailures should not be a failure path (successful retry)")
+	}
+}
+
+func TestIsFailurePath_WithPriorFailures(t *testing.T) {
+	t.Parallel()
+	req := &stagepkg.Request{
+		Bead: stagepkg.BeadInfo{ID: "bead-1"},
+		RetryContext: &stagepkg.RetryContext{
+			Attempt:       2,
+			PriorFailures: []string{"build failed"},
+		},
+	}
+	if !isFailurePath(req) {
+		t.Fatal("RetryContext with PriorFailures should be a failure path")
+	}
+}
+
 type fakeTracker struct {
 	closeCalls []string
 }

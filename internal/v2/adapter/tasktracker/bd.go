@@ -32,14 +32,20 @@ func (a *BDAdapter) NextBead(ctx context.Context, req NextBeadRequest) (*NextBea
 	if err != nil {
 		return nil, err
 	}
-	beadItem, err := client.Ready(ctx)
+	beads, err := client.ListReadyWork(ctx)
 	if err != nil {
 		return nil, err
 	}
-	if beadItem != nil && len(req.Labels) > 0 && !hasLabels(beadItem.Labels, req.Labels) {
-		return &NextBeadResponse{Bead: nil}, nil
+	for _, b := range beads {
+		if b == nil || b.Type == "epic" || strings.EqualFold(b.Status, "closed") {
+			continue
+		}
+		if len(req.Labels) > 0 && !hasLabels(b.Labels, req.Labels) {
+			continue
+		}
+		return &NextBeadResponse{Bead: convertBead(b)}, nil
 	}
-	return &NextBeadResponse{Bead: convertBead(beadItem)}, nil
+	return &NextBeadResponse{Bead: nil}, nil
 }
 
 // ShowBead returns metadata for the requested bead ID.

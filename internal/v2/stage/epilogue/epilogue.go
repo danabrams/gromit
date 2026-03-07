@@ -95,5 +95,5 @@ func failureSummary(req *stagepkg.Request) string {
 }
 
 func isFailurePath(req *stagepkg.Request) bool {
-	return req != nil && req.RetryContext != nil
+	return req != nil && req.RetryContext != nil && len(req.RetryContext.PriorFailures) > 0
 }

@@ -9,6 +9,7 @@ import (
 
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/v2/adapter"
+	"github.com/danabrams/gromit/internal/v2/presentation"
 	present "github.com/danabrams/gromit/internal/v2/stage/present"
 )
 
@@ -171,6 +172,43 @@ func TestRunWhenDependencyGateReturnsError(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "dependency gate") {
 		t.Fatalf("error = %q, want it to contain %q", err.Error(), "dependency gate")
+	}
+}
+
+func TestHandleFailureReturnsOriginalErrorWhenPresentStageIsNil(t *testing.T) {
+	t.Parallel()
+
+	gitAdapter := newFakeGitAdapter(t)
+	adapters := adapter.AdapterSet{
+		Git:         gitAdapter,
+		LLM:         newFakeLLMAdapter(),
+		TaskTracker: newFakeTaskTrackerAdapter(),
+		Presenter:   newFakePresenterAdapter(t),
+	}
+
+	// Deliberately omit WithPresentStage so presentStage is nil.
+	loopInstance, err := NewSpecLoop(adapters, &config.Config{}, noopDependencyGate{},
+		WithPlanStage(newFakePlanStage("spec-present-nil")),
+		WithDecomposeStage(newFakeDecomposeStage("spec-present-nil")),
+		WithBeadLoop(newFakeBeadRunner()),
+		WithAcceptStage(newFakeAcceptStage()),
+	)
+	if err != nil {
+		t.Fatalf("create spec loop: %v", err)
+	}
+
+	acceptErr := fmt.Errorf("acceptance criteria not met")
+	base := presentation.PresentationSummary{Worktree: t.TempDir()}
+
+	got := loopInstance.handleFailure(context.Background(), "spec-present-nil", base, acceptErr)
+	if got == nil {
+		t.Fatal("expected error from handleFailure")
+	}
+	if !errors.Is(got, acceptErr) {
+		t.Fatalf("error = %v, want wrapped %v", got, acceptErr)
+	}
+	if !strings.Contains(got.Error(), "accept failure") {
+		t.Fatalf("error = %q, want it to contain %q", got.Error(), "accept failure")
 	}
 }
 

@@ -57,6 +57,27 @@ func TestSquashPerBead_noOpWhenNoStructuredCommits(t *testing.T) {
 	}
 }
 
+func TestSquashPerBead_emptyBeadsIsNoop(t *testing.T) {
+	fake := &fakeSquashGit{
+		logEntries: []adapter.LogEntry{
+			{Hash: "ccc", Message: "[bead:001/validate/iter:1] Pass"},
+			{Hash: "bbb", Message: "[bead:001/build/iter:1] Proceed"},
+			{Hash: "aaa", Message: "initial commit"},
+		},
+	}
+
+	err := SquashPerBead(context.Background(), fake, "/tmp/wt", []presentation.BeadSummary{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(fake.squashCalls) != 0 {
+		t.Errorf("expected no squash calls, got %v", fake.squashCalls)
+	}
+	if len(fake.commitCalls) != 0 {
+		t.Errorf("expected no commit calls, got %v", fake.commitCalls)
+	}
+}
+
 func TestSquashPerBead_squashesStructuredCommitsAndCommits(t *testing.T) {
 	fake := &fakeSquashGit{
 		logEntries: []adapter.LogEntry{

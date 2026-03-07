@@ -323,6 +323,63 @@ func TestNextBead_EmptyLabelsReturnsUnfiltered(t *testing.T) {
 	}
 }
 
+func TestNextBead_SkipsNonMatchingAndReturnsFirstMatch(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	client := &bead.Client{
+		RunFn: func(args ...string) (string, error) {
+			if len(args) == 0 || args[0] != "ready" {
+				return "", fmt.Errorf("unexpected command: %v", args)
+			}
+			return `[
+				{
+					"id": "bead-no-match",
+					"title": "No Match",
+					"description": "desc",
+					"priority": 2,
+					"status": "open",
+					"labels": ["other-label"],
+					"depends_on": [],
+					"blocked_by": []
+				},
+				{
+					"id": "bead-match",
+					"title": "Match",
+					"description": "desc",
+					"priority": 2,
+					"status": "open",
+					"labels": ["spec:wanted"],
+					"depends_on": [],
+					"blocked_by": []
+				},
+				{
+					"id": "bead-also-match",
+					"title": "Also Match",
+					"description": "desc",
+					"priority": 2,
+					"status": "open",
+					"labels": ["spec:wanted"],
+					"depends_on": [],
+					"blocked_by": []
+				}
+			]`, nil
+		},
+	}
+
+	adapter := NewBDAdapter(client)
+	resp, err := adapter.NextBead(ctx, NextBeadRequest{Labels: []string{"spec:wanted"}})
+	if err != nil {
+		t.Fatalf("NextBead failed: %v", err)
+	}
+	if resp == nil || resp.Bead == nil {
+		t.Fatal("NextBead should return the first matching bead")
+	}
+	if resp.Bead.ID != "bead-match" {
+		t.Fatalf("expected bead-match, got %s", resp.Bead.ID)
+	}
+}
+
 func TestConvertBead_DependenciesWithBlocksType_MapsToBlockedBy(t *testing.T) {
 	t.Parallel()
 
