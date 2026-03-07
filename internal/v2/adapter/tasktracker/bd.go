@@ -121,6 +121,7 @@ func convertBead(b *bead.Bead) *Bead {
 	if b == nil {
 		return nil
 	}
+	blockers, dependents := splitDependenciesByType(b.Dependencies)
 	return &Bead{
 		ID:          b.ID,
 		Title:       b.Title,
@@ -129,9 +130,37 @@ func convertBead(b *bead.Bead) *Bead {
 		Status:      b.Status,
 		Labels:      copyStrings(b.Labels),
 		DependsOn:   dependencyIDs(b.DependsOn),
-		BlockedBy:   dependencyIDs(b.BlockedBy),
-		Dependents:  dependencyIDs(b.Dependencies),
+		BlockedBy:   appendIDs(dependencyIDs(b.BlockedBy), blockers),
+		Dependents:  dependents,
 	}
+}
+
+// splitDependenciesByType partitions b.Dependencies into blockers (entries with
+// dependency_type "blocks") and dependents (everything else).
+func splitDependenciesByType(deps []bead.Dependency) (blockers, dependents []string) {
+	for _, d := range deps {
+		id := strings.TrimSpace(d.ID)
+		if id == "" {
+			continue
+		}
+		if d.DependencyType == "blocks" {
+			blockers = append(blockers, id)
+		} else {
+			dependents = append(dependents, id)
+		}
+	}
+	return blockers, dependents
+}
+
+// appendIDs appends additional IDs to an existing slice, returning the combined result.
+func appendIDs(base, extra []string) []string {
+	if len(extra) == 0 {
+		return base
+	}
+	if len(base) == 0 {
+		return extra
+	}
+	return append(base, extra...)
 }
 
 func dependencyIDs(deps []bead.Dependency) []string {
