@@ -173,6 +173,13 @@ func (b *BeadLoop) Run(ctx context.Context, beads []*bead.Bead, stopCh <-chan st
 		b.resolver.Add(id, collectDependencies(beadItem))
 	}
 
+	// blockedThisPass tracks bead IDs blocked by the gate in the current pass.
+	// These are passed to the resolver as "effective completed" so it can
+	// return their dependents, but they are NOT in b.completed and will be
+	// retried at the start of the next pass if any progress was made.
+	var blockedThisPass []string
+	passProgress := 0
+
 	iteration := 1
 runLoop:
 	for {
@@ -190,12 +197,34 @@ runLoop:
 			default:
 			}
 		}
-		next, err := b.resolver.Next(b.completed)
+
+		// Build the effective completed set: real completed + blocked-this-pass
+		// so the resolver skips blocked beads and returns their dependents.
+		effectiveCompleted := b.completed
+		if len(blockedThisPass) > 0 {
+			effectiveCompleted = make([]string, 0, len(b.completed)+len(blockedThisPass))
+			effectiveCompleted = append(effectiveCompleted, b.completed...)
+			effectiveCompleted = append(effectiveCompleted, blockedThisPass...)
+		}
+
+		next, err := b.resolver.Next(effectiveCompleted)
 		if err != nil {
 			return BeadLoopResult{}, fmt.Errorf("resolve bead: %w", err)
 		}
 		if next == "" {
-			break
+			if len(blockedThisPass) == 0 {
+				// Normal completion — no blocked beads pending.
+				break
+			}
+			if passProgress == 0 {
+				// Full pass with zero progress: all remaining beads are blocked.
+				blockedIDs := strings.Join(blockedThisPass, ", ")
+				return BeadLoopResult{}, fmt.Errorf("bead loop: all remaining beads blocked with no progress: %s", blockedIDs)
+			}
+			// Progress was made this pass — retry the blocked beads.
+			blockedThisPass = nil
+			passProgress = 0
+			continue
 		}
 		beadItem, ok := b.beadMap[next]
 		if !ok {
@@ -211,15 +240,16 @@ runLoop:
 				// Gate skipped this bead — mark completed and continue to next
 				b.emitBeadCompleted(beadItem, iteration, true, 0)
 				b.completed = append(b.completed, next)
+				passProgress++
 				iteration++
 				continue
 			}
 			if errors.Is(err, errBeadBlocked) {
-				// Gate blocked this bead — mark completed so the resolver
-				// moves on. The bead is deferred to a future run, not
-				// retried within this loop invocation.
-				b.emitBeadCompleted(beadItem, iteration, false, 0)
-				b.completed = append(b.completed, next)
+				// Gate blocked this bead — re-queue to end of current pass.
+				// Do NOT mark completed; the bead will be retried after other
+				// beads in this pass make progress. If no progress is made
+				// after a full pass, the loop stops with an error.
+				blockedThisPass = append(blockedThisPass, next)
 				iteration++
 				continue
 			}
@@ -229,6 +259,7 @@ runLoop:
 			if errors.Is(err, errBeadFailed) {
 				log.Printf("bead %s failed (continuing loop): %v", next, err)
 				b.completed = append(b.completed, next)
+				passProgress++
 				iteration++
 				continue
 			}
@@ -238,6 +269,7 @@ runLoop:
 		}
 		b.emitBeadCompleted(beadItem, iteration, true, 0)
 		b.completed = append(b.completed, next)
+		passProgress++
 		iteration++
 	}
 	return BeadLoopResult{

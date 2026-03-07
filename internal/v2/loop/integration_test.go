@@ -252,7 +252,7 @@ func defaultIntegrationBeadLoopConfig() BeadLoopConfig {
 	}
 }
 
-func (r *integrationRemediationRunner) Run(ctx context.Context, specID string) error {
+func (r *integrationRemediationRunner) Run(ctx context.Context, specID, _ string) error {
 	r.calls++
 	if r.generationCap >= 0 {
 		r.emitGenerationCapEvents(specID)

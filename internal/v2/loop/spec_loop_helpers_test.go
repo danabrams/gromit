@@ -6,10 +6,12 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/events"
 	"github.com/danabrams/gromit/internal/v2/adapter"
 	"github.com/danabrams/gromit/internal/v2/adapter/llm"
@@ -17,6 +19,41 @@ import (
 	"github.com/danabrams/gromit/internal/v2/presentation"
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
 )
+
+// requireGapAnalysisInFailureSummary asserts the presenter's last failure summary contains wantSubstr.
+func requireGapAnalysisInFailureSummary(t *testing.T, presenter *fakePresenterAdapter, wantSubstr string) {
+	t.Helper()
+	summary := presenter.lastSummary
+	if summary.FailureSummary == "" {
+		t.Fatal("failure summary is empty")
+	}
+	if !strings.Contains(summary.FailureSummary, wantSubstr) {
+		t.Fatalf("failure summary = %q, want to contain %q", summary.FailureSummary, wantSubstr)
+	}
+}
+
+// requireBeadIDs asserts that the bead runner received exactly the given bead IDs in order.
+func requireBeadIDs(t *testing.T, runner *fakeBeadRunner, wantIDs []string) {
+	t.Helper()
+	if len(runner.lastBeads) != len(wantIDs) {
+		t.Fatalf("bead runner received %d beads, want %d: got IDs %v", len(runner.lastBeads), len(wantIDs), beadIDs(runner.lastBeads))
+	}
+	for i, want := range wantIDs {
+		if runner.lastBeads[i].ID != want {
+			t.Fatalf("bead[%d].ID = %q, want %q", i, runner.lastBeads[i].ID, want)
+		}
+	}
+}
+
+func beadIDs(beads []*bead.Bead) []string {
+	ids := make([]string, 0, len(beads))
+	for _, b := range beads {
+		if b != nil {
+			ids = append(ids, b.ID)
+		}
+	}
+	return ids
+}
 
 func requireStageSequence(t *testing.T, recorder *recordingStageRecorder) {
 	t.Helper()
@@ -234,9 +271,24 @@ type fakeRemediationRunner struct {
 	err   error
 }
 
-func (f *fakeRemediationRunner) Run(_ context.Context, _ string) error {
+func (f *fakeRemediationRunner) Run(_ context.Context, _, _ string) error {
 	f.calls++
 	return f.err
+}
+
+// recordingRemediationRunner captures the specID and worktree passed to Run.
+type recordingRemediationRunner struct {
+	calls        int
+	lastSpecID   string
+	lastWorktree string
+	err          error
+}
+
+func (r *recordingRemediationRunner) Run(_ context.Context, specID, worktree string) error {
+	r.calls++
+	r.lastSpecID = specID
+	r.lastWorktree = worktree
+	return r.err
 }
 
 type scriptedAcceptStage struct {

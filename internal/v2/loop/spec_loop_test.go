@@ -1306,6 +1306,157 @@ func TestSpecLoopCreatesEventsFileWhenTypedEmitterSet(t *testing.T) {
 	}
 }
 
+func TestResumeWithGapAnalysis_FailureSummaryPopulated(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	specID := "spec-resume-gap-analysis"
+	cfg := &config.Config{}
+
+	git := newFakeGitAdapter(t)
+	git.planContent = "existing plan"
+	git.gapAnalysisContent = "remaining: implement step X"
+
+	taskTracker := newFakeTaskTrackerAdapter()
+	taskTracker.queryBeadsResponse = &tasktracker.TaskTrackerQueryBeadsResponse{
+		Beads: []tasktracker.Bead{
+			{ID: "bead-remaining", Title: "Remaining bead"},
+		},
+	}
+
+	fp := newFakePresenterAdapter(t)
+	presentStage, summaryCtx := newPresentStageForTest(t, cfg, fp)
+
+	// Accept fails once with no remediation runner — triggers handleFailure + gap analysis.
+	accept := newScriptedAcceptStage(stagepkg.Result{Decision: stagepkg.DecisionFail})
+
+	loopInstance, err := NewSpecLoop(
+		adapter.AdapterSet{
+			Git:         git,
+			LLM:         newFakeLLMAdapter(),
+			TaskTracker: taskTracker,
+			Presenter:   fp,
+		},
+		cfg, noopDependencyGate{},
+		WithPlanStage(newFakePlanStage(specID)),
+		WithPresentStage(presentStage, summaryCtx),
+		WithDecomposeStage(newFakeDecomposeStage(specID)),
+		WithBeadLoop(newFakeBeadRunner()),
+		WithAcceptStage(accept),
+	)
+	if err != nil {
+		t.Fatalf("create spec loop: %v", err)
+	}
+
+	if err := loopInstance.Run(ctx, specID, nil); err == nil {
+		t.Fatal("expected failure from accept stage")
+	}
+
+	requireGapAnalysisInFailureSummary(t, fp, "remaining: implement step X")
+}
+
+func TestResumeWithExistingPlanAndBeads_BeadListCorrect(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	specID := "spec-resume-plan-and-beads"
+	cfg := &config.Config{}
+
+	git := newFakeGitAdapter(t)
+	git.planContent = "existing plan from prior run"
+
+	taskTracker := newFakeTaskTrackerAdapter()
+	taskTracker.queryBeadsResponse = &tasktracker.TaskTrackerQueryBeadsResponse{
+		Beads: []tasktracker.Bead{
+			{ID: "bead-alpha", Title: "Alpha bead"},
+			{ID: "bead-beta", Title: "Beta bead"},
+		},
+	}
+
+	planStage := newFakePlanStage(specID)
+	decompose := newFakeDecomposeStage(specID)
+	beadRunner := newFakeBeadRunner()
+
+	loopInstance, err := NewSpecLoop(
+		adapter.AdapterSet{
+			Git:         git,
+			LLM:         newFakeLLMAdapter(),
+			TaskTracker: taskTracker,
+			Presenter:   newFakePresenterAdapter(t),
+		},
+		cfg, noopDependencyGate{},
+		WithPlanStage(planStage),
+		WithPresentStage(newFakePresentStage(), &present.SummaryContext{}),
+		WithDecomposeStage(decompose),
+		WithBeadLoop(beadRunner),
+		WithAcceptStage(newFakeAcceptStage()),
+	)
+	if err != nil {
+		t.Fatalf("create spec loop: %v", err)
+	}
+
+	if err := loopInstance.Run(ctx, specID, nil); err != nil {
+		t.Fatalf("run spec loop: %v", err)
+	}
+
+	if planStage.called {
+		t.Fatal("plan stage should not be called when plan file exists")
+	}
+	if decompose.called {
+		t.Fatal("decompose stage should not be called when beads already exist")
+	}
+	requireBeadIDs(t, beadRunner, []string{"bead-alpha", "bead-beta"})
+}
+
+func TestRemediationRunnerReceivesCorrectWorktree(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	specID := "spec-remediation-worktree"
+	cfg := &config.Config{}
+
+	git := newFakeGitAdapter(t)
+	runner := &recordingRemediationRunner{}
+
+	accept := newScriptedAcceptStage(
+		stagepkg.Result{Decision: stagepkg.DecisionFail},
+		stagepkg.Result{Decision: stagepkg.DecisionProceed},
+	)
+
+	loopInstance, err := NewSpecLoop(
+		adapter.AdapterSet{
+			Git:         git,
+			LLM:         newFakeLLMAdapter(),
+			TaskTracker: newFakeTaskTrackerAdapter(),
+			Presenter:   newFakePresenterAdapter(t),
+		},
+		cfg, noopDependencyGate{},
+		WithPlanStage(newFakePlanStage(specID)),
+		WithPresentStage(newFakePresentStage(), &present.SummaryContext{}),
+		WithDecomposeStage(newFakeDecomposeStage(specID)),
+		WithBeadLoop(newFakeBeadRunner()),
+		WithAcceptStage(accept),
+		WithRemediationRunner(runner),
+	)
+	if err != nil {
+		t.Fatalf("create spec loop: %v", err)
+	}
+
+	if err := loopInstance.Run(ctx, specID, nil); err != nil {
+		t.Fatalf("run spec loop: %v", err)
+	}
+
+	if runner.calls != 1 {
+		t.Fatalf("remediation calls = %d, want 1", runner.calls)
+	}
+	if runner.lastWorktree != git.lastWorktree {
+		t.Fatalf("remediation worktree = %q, want %q", runner.lastWorktree, git.lastWorktree)
+	}
+	if runner.lastSpecID != specID {
+		t.Fatalf("remediation specID = %q, want %q", runner.lastSpecID, specID)
+	}
+}
+
 func newPresentStageForTest(t *testing.T, cfg *config.Config, presenter adapter.PresenterAdapter) (stagepkg.Stage, *present.SummaryContext) {
 	t.Helper()
 	summaryCtx := &present.SummaryContext{}
@@ -1314,4 +1465,171 @@ func newPresentStageForTest(t *testing.T, cfg *config.Config, presenter adapter.
 		t.Fatalf("create present stage: %v", err)
 	}
 	return stage, summaryCtx
+}
+
+func TestSelectiveRevalidation_RequeuesFailedBeads(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	specID := "spec-revalidation"
+	cfg := &config.Config{}
+
+	git := newFakeGitAdapter(t)
+	taskTracker := newFakeTaskTrackerAdapter()
+	taskTracker.queryBeadsResponse = &tasktracker.TaskTrackerQueryBeadsResponse{
+		Beads: []tasktracker.Bead{
+			{ID: "bead-open-1", Title: "Open bead"},
+		},
+	}
+
+	revalidatedBead := &bead.Bead{ID: "bead-completed-failed", Title: "Regressed bead"}
+	revalidator := &fakeSelectiveRevalidator{requeueBeads: []*bead.Bead{revalidatedBead}}
+
+	planStage := newFakePlanStage(specID)
+	decompose := newFakeDecomposeStage(specID)
+	beadRunner := newFakeBeadRunner()
+	accept := newFakeAcceptStage()
+	presentStage := newFakePresentStage()
+	summaryCtx := &present.SummaryContext{}
+
+	adapters := adapter.AdapterSet{
+		Git:         git,
+		LLM:         newFakeLLMAdapter(),
+		TaskTracker: taskTracker,
+		Presenter:   newFakePresenterAdapter(t),
+	}
+
+	loopInstance, err := NewSpecLoop(adapters, cfg, noopDependencyGate{},
+		WithPlanStage(planStage),
+		WithPresentStage(presentStage, summaryCtx),
+		WithDecomposeStage(decompose),
+		WithBeadLoop(beadRunner),
+		WithAcceptStage(accept),
+		WithSelectiveRevalidator(revalidator),
+	)
+	if err != nil {
+		t.Fatalf("create spec loop: %v", err)
+	}
+
+	if err := loopInstance.Run(ctx, specID, nil); err != nil {
+		t.Fatalf("run spec loop: %v", err)
+	}
+
+	wantIDs := []string{"bead-open-1", "bead-completed-failed"}
+	requireBeadIDs(t, beadRunner, wantIDs)
+}
+
+func TestSelectiveRevalidation_ErrorPropagates(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	specID := "spec-revalidation-error"
+	cfg := &config.Config{}
+
+	git := newFakeGitAdapter(t)
+	taskTracker := newFakeTaskTrackerAdapter()
+	taskTracker.queryBeadsResponse = &tasktracker.TaskTrackerQueryBeadsResponse{
+		Beads: []tasktracker.Bead{
+			{ID: "bead-1", Title: "A bead"},
+		},
+	}
+
+	revalidator := &fakeSelectiveRevalidator{err: fmt.Errorf("validation infrastructure failed")}
+
+	planStage := newFakePlanStage(specID)
+	decompose := newFakeDecomposeStage(specID)
+	beadRunner := newFakeBeadRunner()
+	accept := newFakeAcceptStage()
+	presentStage := newFakePresentStage()
+	summaryCtx := &present.SummaryContext{}
+
+	adapters := adapter.AdapterSet{
+		Git:         git,
+		LLM:         newFakeLLMAdapter(),
+		TaskTracker: taskTracker,
+		Presenter:   newFakePresenterAdapter(t),
+	}
+
+	loopInstance, err := NewSpecLoop(adapters, cfg, noopDependencyGate{},
+		WithPlanStage(planStage),
+		WithPresentStage(presentStage, summaryCtx),
+		WithDecomposeStage(decompose),
+		WithBeadLoop(beadRunner),
+		WithAcceptStage(accept),
+		WithSelectiveRevalidator(revalidator),
+	)
+	if err != nil {
+		t.Fatalf("create spec loop: %v", err)
+	}
+
+	err = loopInstance.Run(ctx, specID, nil)
+	if err == nil {
+		t.Fatal("expected error from revalidator, got nil")
+	}
+	if !strings.Contains(err.Error(), "selective revalidation") {
+		t.Fatalf("error = %q, want to contain 'selective revalidation'", err.Error())
+	}
+}
+
+func TestSelectiveRevalidation_SkippedOnFreshRun(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	specID := "spec-fresh-revalidation"
+	cfg := &config.Config{}
+
+	git := newFakeGitAdapter(t)
+	taskTracker := newFakeTaskTrackerAdapter()
+	// No queryBeadsResponse — fresh run, no existing beads
+
+	revalidator := &fakeSelectiveRevalidator{}
+
+	planStage := newFakePlanStage(specID)
+	decompose := newFakeDecomposeStage(specID)
+	beadRunner := newFakeBeadRunner()
+	accept := newFakeAcceptStage()
+	presentStage := newFakePresentStage()
+	summaryCtx := &present.SummaryContext{}
+
+	adapters := adapter.AdapterSet{
+		Git:         git,
+		LLM:         newFakeLLMAdapter(),
+		TaskTracker: taskTracker,
+		Presenter:   newFakePresenterAdapter(t),
+	}
+
+	loopInstance, err := NewSpecLoop(adapters, cfg, noopDependencyGate{},
+		WithPlanStage(planStage),
+		WithPresentStage(presentStage, summaryCtx),
+		WithDecomposeStage(decompose),
+		WithBeadLoop(beadRunner),
+		WithAcceptStage(accept),
+		WithSelectiveRevalidator(revalidator),
+	)
+	if err != nil {
+		t.Fatalf("create spec loop: %v", err)
+	}
+
+	if err := loopInstance.Run(ctx, specID, nil); err != nil {
+		t.Fatalf("run spec loop: %v", err)
+	}
+
+	if revalidator.calls != 0 {
+		t.Fatalf("revalidator called %d times on fresh run, want 0", revalidator.calls)
+	}
+}
+
+type fakeSelectiveRevalidator struct {
+	requeueBeads []*bead.Bead
+	err          error
+	calls        int
+	lastBeads    []*bead.Bead
+	lastWorktree string
+}
+
+func (f *fakeSelectiveRevalidator) Revalidate(ctx context.Context, beads []*bead.Bead, worktree string) ([]*bead.Bead, error) {
+	f.calls++
+	f.lastBeads = append([]*bead.Bead(nil), beads...)
+	f.lastWorktree = worktree
+	return f.requeueBeads, f.err
 }
