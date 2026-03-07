@@ -239,6 +239,21 @@ func (f *fakeRemediationRunner) Run(_ context.Context, _, _ string) error {
 	return f.err
 }
 
+// recordingRemediationRunner captures the specID and worktree passed to Run.
+type recordingRemediationRunner struct {
+	calls        int
+	lastSpecID   string
+	lastWorktree string
+	err          error
+}
+
+func (r *recordingRemediationRunner) Run(_ context.Context, specID, worktree string) error {
+	r.calls++
+	r.lastSpecID = specID
+	r.lastWorktree = worktree
+	return r.err
+}
+
 type scriptedAcceptStage struct {
 	calls   int
 	results []stagepkg.Result
