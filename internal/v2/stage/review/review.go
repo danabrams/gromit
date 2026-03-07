@@ -211,7 +211,7 @@ func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Resul
 		return nil, err
 	}
 
-	resp, err := s.llm.Invoke(ctx, llmtypes.LLMInvokeRequest{Prompt: promptText, Model: model})
+	resp, err := s.llm.Invoke(ctx, llmtypes.LLMInvokeRequest{Prompt: promptText, Model: model, Dir: req.Worktree})
 	if err != nil {
 		return nil, fmt.Errorf("review: invoking llm: %w", err)
 	}

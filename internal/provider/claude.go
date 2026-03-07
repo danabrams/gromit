@@ -17,7 +17,7 @@ const (
 // This allows for easier testing with mock implementations.
 type claudeClient interface {
 	Run(ctx context.Context, prompt string, model string) (*claude.Result, error)
-	StreamRun(ctx context.Context, prompt string, model string, output io.Writer, handler claude.EventHandler, onToolCall claude.ToolCallHandler) (*claude.Result, error)
+	StreamRun(ctx context.Context, prompt string, model string, output io.Writer, handler claude.EventHandler, onToolCall claude.ToolCallHandler, opts ...claude.RunOption) (*claude.Result, error)
 	RunValidation(ctx context.Context, commands []string, model string, workDir string) (*claude.Result, error)
 }
 

@@ -43,7 +43,7 @@ func (a *claudeAdapter) Invoke(ctx context.Context, req InvokeRequest) (*LLMResp
 	args := []string{"-p", "--model", req.Model, "--output-format", "json"}
 	args = append(args, a.flags...)
 
-	stdout, duration, err := a.runOnce(ctx, args, req.Prompt)
+	stdout, duration, err := a.runOnce(ctx, args, req.Prompt, strings.TrimSpace(req.Dir))
 	if err != nil {
 		return nil, err
 	}
@@ -83,7 +83,12 @@ func (a *claudeAdapter) StreamInvoke(ctx context.Context, req StreamInvokeReques
 		return nil, err
 	}
 
-	result, err := client.StreamRun(ctx, req.Prompt, req.Model, output, nil, nil)
+	var runOpts []claude.RunOption
+	if dir := strings.TrimSpace(req.Dir); dir != "" {
+		runOpts = append(runOpts, claude.WithDir(dir))
+	}
+
+	result, err := client.StreamRun(ctx, req.Prompt, req.Model, output, nil, nil, runOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -97,7 +102,7 @@ func (a *claudeAdapter) StreamInvoke(ctx context.Context, req StreamInvokeReques
 	}, nil
 }
 
-func (a *claudeAdapter) runOnce(ctx context.Context, args []string, prompt string) (string, time.Duration, error) {
+func (a *claudeAdapter) runOnce(ctx context.Context, args []string, prompt string, dir string) (string, time.Duration, error) {
 	ctx, cancel := context.WithTimeout(ctx, a.timeout)
 	defer cancel()
 
@@ -108,6 +113,9 @@ func (a *claudeAdapter) runOnce(ctx context.Context, args []string, prompt strin
 	cmd := exec.CommandContext(ctx, a.binary, args...)
 	procutil.SetProcessGroupKill(cmd)
 	cmd.Env = procutil.SubprocessEnv()
+	if dir != "" {
+		cmd.Dir = dir
+	}
 
 	var stdout strings.Builder
 	var stderr strings.Builder

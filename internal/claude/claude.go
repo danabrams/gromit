@@ -44,6 +44,20 @@ type ToolEvent struct {
 	Timestamp time.Time
 }
 
+// RunOption configures optional behavior for a Client invocation.
+type RunOption func(*runOptions)
+
+type runOptions struct {
+	dir string
+}
+
+// WithDir sets the working directory for the Claude CLI process.
+func WithDir(dir string) RunOption {
+	return func(o *runOptions) {
+		o.dir = strings.TrimSpace(dir)
+	}
+}
+
 // Client wraps the Claude CLI
 type Client struct {
 	binary  string
@@ -312,12 +326,16 @@ type ToolCallHandler func(event ToolEvent)
 // StreamRun invokes Claude and streams output to the provided writer.
 // Always uses --output-format stream-json --verbose to capture cost/token data.
 // Handler and onToolCall may be nil; text is written to output regardless.
-func (c *Client) StreamRun(ctx context.Context, prompt string, model string, output io.Writer, handler EventHandler, onToolCall ToolCallHandler) (*Result, error) {
+func (c *Client) StreamRun(ctx context.Context, prompt string, model string, output io.Writer, handler EventHandler, onToolCall ToolCallHandler, opts ...RunOption) (*Result, error) {
 	if c == nil {
 		return nil, fmt.Errorf("claude client is nil")
 	}
 	if output == nil {
 		output = os.Stdout
+	}
+	var ro runOptions
+	for _, opt := range opts {
+		opt(&ro)
 	}
 	start := time.Now()
 
@@ -335,6 +353,9 @@ func (c *Client) StreamRun(ctx context.Context, prompt string, model string, out
 	cmd := execCommandContext(ctx, c.binary, args...)
 	cmd.WaitDelay = 100 * time.Millisecond
 	cmd.Env = subprocessEnvFn()
+	if ro.dir != "" {
+		cmd.Dir = ro.dir
+	}
 	fmt.Fprintf(output, "  cmd: %s %s\n", c.binary, strings.Join(args, " "))
 	fmt.Fprintf(output, "  prompt length: %d bytes\n", len(prompt))
 

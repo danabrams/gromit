@@ -139,7 +139,7 @@ func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Resul
 
 	var beadDefs []beadDef
 	for attempt := 0; ; attempt++ {
-		defs, err := s.invokeProvider(ctx, currentPrompt, model)
+		defs, err := s.invokeProvider(ctx, currentPrompt, model, req.Worktree)
 		if err != nil {
 			return nil, err
 		}
@@ -228,8 +228,8 @@ func (s *Stage) modelForPhase() string {
 	return provider.TierToLegacyModel(tier)
 }
 
-func (s *Stage) invokeProvider(ctx context.Context, prompt, model string) ([]beadDef, error) {
-	resp, err := s.llm.Invoke(ctx, llmtypes.LLMInvokeRequest{Prompt: prompt, Model: model})
+func (s *Stage) invokeProvider(ctx context.Context, prompt, model, dir string) ([]beadDef, error) {
+	resp, err := s.llm.Invoke(ctx, llmtypes.LLMInvokeRequest{Prompt: prompt, Model: model, Dir: dir})
 	if err != nil {
 		return nil, fmt.Errorf("invoking provider: %w", err)
 	}

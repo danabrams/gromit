@@ -10,6 +10,7 @@ import (
 type LLMInvokeRequest struct {
 	Prompt   string
 	Model    string
+	Dir      string // working directory for the LLM process
 	Metadata map[string]string
 }
 
@@ -18,6 +19,7 @@ type LLMStreamInvokeRequest struct {
 	Prompt   string
 	Model    string
 	Output   io.Writer
+	Dir      string // working directory for the LLM process
 	Metadata map[string]string
 }
 

@@ -230,7 +230,7 @@ func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Resul
 
 	model := s.selectModel(req, cfg)
 
-	resp, finalModel, invokeErr := s.invokeWithEscalation(ctx, promptText, model, cfg)
+	resp, finalModel, invokeErr := s.invokeWithEscalation(ctx, promptText, model, cfg, req.Worktree)
 	if invokeErr != nil {
 		return nil, fmt.Errorf("build: %w", invokeErr)
 	}
@@ -376,7 +376,7 @@ func (s *Stage) writer() io.Writer {
 	return io.Discard
 }
 
-func (s *Stage) invokeWithEscalation(ctx context.Context, prompt, initialModel string, cfg *config.Config) (*llmtypes.LLMInvokeResponse, string, error) {
+func (s *Stage) invokeWithEscalation(ctx context.Context, prompt, initialModel string, cfg *config.Config, dir string) (*llmtypes.LLMInvokeResponse, string, error) {
 	model := initialModel
 	escalationCfg := cfg
 	if escalationCfg == nil {
@@ -391,7 +391,7 @@ func (s *Stage) invokeWithEscalation(ctx context.Context, prompt, initialModel s
 	maxIter := chainLen + 1 // safety bound
 
 	for i := 0; i < maxIter; i++ {
-		resp, err := s.llm.StreamInvoke(ctx, llmtypes.LLMStreamInvokeRequest{Prompt: prompt, Model: model, Output: s.writer()})
+		resp, err := s.llm.StreamInvoke(ctx, llmtypes.LLMStreamInvokeRequest{Prompt: prompt, Model: model, Output: s.writer(), Dir: dir})
 		if err == nil && resp != nil && resp.Success {
 			return resp, model, nil
 		}

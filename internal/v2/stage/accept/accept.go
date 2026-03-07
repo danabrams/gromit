@@ -155,7 +155,7 @@ func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Resul
 		promptText := s.buildPrompt(specID, criterion, diff)
 		model := s.selectModel(cfg, req)
 
-		resp, err := s.llm.Invoke(ctx, llmtypes.LLMInvokeRequest{Prompt: promptText, Model: model})
+		resp, err := s.llm.Invoke(ctx, llmtypes.LLMInvokeRequest{Prompt: promptText, Model: model, Dir: req.Worktree})
 		if err != nil {
 			return nil, fmt.Errorf("evaluate criterion %d: %w", criterion.Number, err)
 		}
