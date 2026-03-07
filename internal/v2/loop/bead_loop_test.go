@@ -1714,3 +1714,63 @@ func TestBeadLoopClosesParentAfterReviewCreatesChildren(t *testing.T) {
 		}
 	}
 }
+
+// mockStageCommitter records CommitStage calls for testing.
+type mockStageCommitter struct {
+	calls []stageCommitCall
+	err   error
+}
+
+type stageCommitCall struct {
+	beadID    string
+	stageName string
+	iteration int
+	decision  string
+}
+
+func (m *mockStageCommitter) CommitStage(ctx context.Context, worktree, beadID, stageName string, iteration int, decision string) error {
+	m.calls = append(m.calls, stageCommitCall{
+		beadID:    beadID,
+		stageName: stageName,
+		iteration: iteration,
+		decision:  decision,
+	})
+	return m.err
+}
+
+func TestBeadLoopCallsStageCommitterAfterSuccessfulStage(t *testing.T) {
+	t.Parallel()
+
+	sc := &mockStageCommitter{}
+	cfg := BeadLoopConfig{
+		Gate:           newNoopStage("gate"),
+		Build:          newNoopStage("build"),
+		Validate:       newNoopStage("validate"),
+		Review:         newNoopStage("review"),
+		Epilogue:       newNoopStage("epilogue"),
+		StageCommitter: sc,
+	}
+	loop, err := NewBeadLoop(cfg)
+	if err != nil {
+		t.Fatalf("NewBeadLoop: %v", err)
+	}
+
+	beads := []*bead.Bead{{ID: "bead-1"}}
+	if _, err := loop.Run(context.Background(), beads, nil); err != nil {
+		t.Fatalf("Run failed: %v", err)
+	}
+
+	// Should have been called after build, validate, review (3 pipeline stages)
+	if len(sc.calls) != 3 {
+		t.Fatalf("CommitStage called %d times, want 3", len(sc.calls))
+	}
+	if sc.calls[0].stageName != "build" {
+		t.Fatalf("first call stage = %q, want %q", sc.calls[0].stageName, "build")
+	}
+	if sc.calls[0].beadID != "bead-1" {
+		t.Fatalf("first call bead ID = %q, want %q", sc.calls[0].beadID, "bead-1")
+	}
+	if sc.calls[0].iteration != 1 {
+		t.Fatalf("first call iteration = %d, want 1", sc.calls[0].iteration)
+	}
+}
