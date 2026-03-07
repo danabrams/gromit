@@ -23,6 +23,7 @@ type GitAdapter interface {
 	Status(ctx context.Context, worktree string) (string, error)
 	Log(ctx context.Context, worktree string, n int) ([]LogEntry, error)
 	Show(ctx context.Context, worktree, hash string) (string, error)
+	SquashCommits(ctx context.Context, worktree string, count int) error
 }
 
 // LLMAdapter provides LLM operations for the run loop.

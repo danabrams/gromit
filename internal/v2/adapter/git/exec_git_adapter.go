@@ -132,6 +132,19 @@ func (a *ExecGitAdapter) Log(ctx context.Context, worktree string, n int) ([]ada
 	return entries, nil
 }
 
+func (a *ExecGitAdapter) SquashCommits(ctx context.Context, worktree string, count int) error {
+	trimmed := strings.TrimSpace(worktree)
+	if trimmed == "" {
+		return fmt.Errorf("worktree required")
+	}
+	ref := "HEAD~" + strconv.Itoa(count)
+	out, err := runGitCommand(ctx, trimmed, "reset", "--soft", ref)
+	if err != nil {
+		return fmt.Errorf("git reset --soft: %s: %w", out, err)
+	}
+	return nil
+}
+
 func (a *ExecGitAdapter) Show(ctx context.Context, worktree, hash string) (string, error) {
 	trimmed := strings.TrimSpace(worktree)
 	if trimmed == "" {

@@ -137,6 +137,10 @@ func (f *fakeGitAdapter) Show(_ context.Context, _, _ string) (string, error) {
 	return "", nil
 }
 
+func (f *fakeGitAdapter) SquashCommits(_ context.Context, _ string, _ int) error {
+	return nil
+}
+
 type fakeLLMAdapter struct{}
 
 func newFakeLLMAdapter() *fakeLLMAdapter {

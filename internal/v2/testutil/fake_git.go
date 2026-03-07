@@ -27,6 +27,7 @@ type FakeGit struct {
 	LogEntries          []adapter.LogEntry
 	ShowCalls           []string
 	ShowOutput          string
+	SquashCalls         []string
 
 	// Error injection fields — when non-nil the corresponding method
 	// returns the configured error.
@@ -38,6 +39,7 @@ type FakeGit struct {
 	StatusErr          error
 	LogErr             error
 	ShowErr            error
+	SquashErr          error
 }
 
 // NewFakeGit returns a fake Git adapter with defaults.
@@ -112,6 +114,13 @@ func (f *FakeGit) Status(_ context.Context, worktree string) (string, error) {
 		return "", f.StatusErr
 	}
 	return "", nil
+}
+
+func (f *FakeGit) SquashCommits(_ context.Context, worktree string, _ int) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.SquashCalls = append(f.SquashCalls, worktree)
+	return f.SquashErr
 }
 
 func (f *FakeGit) Show(_ context.Context, worktree, _ string) (string, error) {
