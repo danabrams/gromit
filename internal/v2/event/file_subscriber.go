@@ -18,6 +18,11 @@ func NewFileSubscriber(path string) *FileSubscriber {
 	return &FileSubscriber{path: path}
 }
 
+// SubscribeTo registers Handle as a subscriber on emitter.
+func (f *FileSubscriber) SubscribeTo(emitter *Emitter) {
+	emitter.Subscribe(f.Handle)
+}
+
 // Handle appends the event as a JSON line to the JSONL file.
 // Parent directories are created automatically.
 func (f *FileSubscriber) Handle(evt TypedEvent) {
