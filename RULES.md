@@ -170,6 +170,11 @@ Provider fixture governance must be schema-first: assertions must validate struc
 
 **Enforcement:** Code review on fixture changes; require structured schema/record assertions and provenance metadata checks in test review; grep for prose-token assertions in fixture test files.
 
+### Adapter boundary tests must use realistic external system output
+Adapter tests must include contract tests using realistic external system output (actual JSON from bd, actual git output, actual LLM responses), not hand-constructed fixtures that may not match real behavior. When an adapter translates between an external schema and internal types, at least one test must round-trip through the real external format and verify the internal types are populated correctly for all downstream consumers (e.g., Gate, Epilogue). Hand-constructed fakes that skip the adapter layer do not satisfy this requirement.
+
+**Enforcement:** Code review on adapter changes; contract test required for each adapter that translates external schemas; CI gate on adapter test coverage including realistic-format round-trip tests.
+
 ### Acceptance criteria must capture every behavioral requirement from the spec body
 Acceptance criteria must include a testable assertion for every specific behavior described in the spec body. If the spec body describes named branches, structured formats, specific event fields, or relationship semantics, the criteria must assert those specifics — not just the general capability. Vague criteria (e.g., "uses a worktree") that don't capture the spec's actual requirements (e.g., "worktree uses a named branch `gromit/spec/<specID>`") are incomplete. Acceptance tests written against incomplete criteria will pass while the implementation silently violates the spec.
 

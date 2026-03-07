@@ -221,6 +221,101 @@ func TestQueryBeads_FiltersByLabelsAndParent(t *testing.T) {
 	}
 }
 
+func TestConvertBead_DependenciesWithBlocksType_MapsToBlockedBy(t *testing.T) {
+	t.Parallel()
+
+	b := &bead.Bead{
+		ID:     "test-bead",
+		Title:  "Test",
+		Status: "open",
+		Dependencies: []bead.Dependency{
+			{ID: "dep-1", DependencyType: "blocks"},
+			{ID: "dep-2", DependencyType: "depends"},
+		},
+	}
+
+	result := convertBead(b)
+	if result == nil {
+		t.Fatal("convertBead returned nil")
+	}
+	if !containsString(result.BlockedBy, "dep-1") {
+		t.Fatalf("BlockedBy should contain dep-1, got %v", result.BlockedBy)
+	}
+	if containsString(result.BlockedBy, "dep-2") {
+		t.Fatalf("BlockedBy should not contain dep-2, got %v", result.BlockedBy)
+	}
+	if !containsString(result.Dependents, "dep-2") {
+		t.Fatalf("Dependents should contain dep-2, got %v", result.Dependents)
+	}
+	if containsString(result.Dependents, "dep-1") {
+		t.Fatalf("Dependents should not contain dep-1, got %v", result.Dependents)
+	}
+	if len(result.DependsOn) != 0 {
+		t.Fatalf("DependsOn should be empty, got %v", result.DependsOn)
+	}
+}
+
+func TestConvertBead_RealBDDependencyFormat_GateSeesBlockers(t *testing.T) {
+	t.Parallel()
+
+	// Simulate real bd JSON output where dependencies with dependency_type "blocks"
+	// represent beads that block the current bead (prerequisites).
+	b := &bead.Bead{
+		ID:     "gromit-b5p6k",
+		Title:  "Implement feature",
+		Status: "open",
+		Dependencies: []bead.Dependency{
+			{ID: "gromit-ns5fp", DependencyType: "blocks", Title: "Prerequisite 1", Status: "open"},
+			{ID: "gromit-ziybi", DependencyType: "blocks", Title: "Prerequisite 2", Status: "open"},
+		},
+	}
+
+	result := convertBead(b)
+	if result == nil {
+		t.Fatal("convertBead returned nil")
+	}
+	if len(result.BlockedBy) != 2 {
+		t.Fatalf("BlockedBy should have 2 entries, got %v", result.BlockedBy)
+	}
+	if !containsString(result.BlockedBy, "gromit-ns5fp") {
+		t.Fatalf("BlockedBy missing gromit-ns5fp, got %v", result.BlockedBy)
+	}
+	if !containsString(result.BlockedBy, "gromit-ziybi") {
+		t.Fatalf("BlockedBy missing gromit-ziybi, got %v", result.BlockedBy)
+	}
+	if len(result.Dependents) != 0 {
+		t.Fatalf("Dependents should be empty for blocks-only deps, got %v", result.Dependents)
+	}
+}
+
+func TestConvertBead_BlockedByMergesExplicitAndDependencies(t *testing.T) {
+	t.Parallel()
+
+	// When both b.BlockedBy and b.Dependencies contain blockers, they should merge.
+	b := &bead.Bead{
+		ID:     "merge-test",
+		Title:  "Merge test",
+		Status: "open",
+		BlockedBy: []bead.Dependency{
+			{ID: "explicit-blocker"},
+		},
+		Dependencies: []bead.Dependency{
+			{ID: "dep-blocker", DependencyType: "blocks"},
+		},
+	}
+
+	result := convertBead(b)
+	if result == nil {
+		t.Fatal("convertBead returned nil")
+	}
+	if !containsString(result.BlockedBy, "explicit-blocker") {
+		t.Fatalf("BlockedBy missing explicit-blocker, got %v", result.BlockedBy)
+	}
+	if !containsString(result.BlockedBy, "dep-blocker") {
+		t.Fatalf("BlockedBy missing dep-blocker, got %v", result.BlockedBy)
+	}
+}
+
 func containsString(list []string, value string) bool {
 	for _, item := range list {
 		if item == value {
