@@ -7,7 +7,7 @@ import (
 	v2review "github.com/danabrams/gromit/internal/v2/review"
 )
 
-const specBranchPrefix = "gromit/spec-"
+const specBranchPrefix = "gromit/spec/"
 
 // AcceptanceResult captures a single acceptance check outcome.
 type AcceptanceResult struct {

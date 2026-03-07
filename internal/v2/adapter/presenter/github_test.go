@@ -19,7 +19,7 @@ func TestGitHubPresenterCreatesPR(t *testing.T) {
 
 	summary := presentation.PresentationSummary{
 		SpecName:          "spec-success",
-		SpecBranch:        "gromit/spec-spec-success",
+		SpecBranch:        "gromit/spec/spec-success",
 		IntegrationBranch: "main",
 		Success:           true,
 		AcceptanceResults: []presentation.AcceptanceResult{
@@ -35,8 +35,13 @@ func TestGitHubPresenterCreatesPR(t *testing.T) {
 		t.Fatalf("present summary: %v", err)
 	}
 
+	// First call should be git push.
+	if len(runner.calls) < 1 || runner.calls[0].name != "git" {
+		t.Fatalf("first call should be git push, got %+v", runner.calls)
+	}
+
 	if runner.name != "gh" {
-		t.Fatalf("unexpected command %q", runner.name)
+		t.Fatalf("unexpected last command %q", runner.name)
 	}
 	if !assertArgMatches(runner.args, "--head", summary.SpecBranch) {
 		t.Fatalf("head flag missing or incorrect: %v", runner.args)
@@ -60,7 +65,7 @@ func TestGitHubPresenterUsesBodyFile(t *testing.T) {
 
 	summary := presentation.PresentationSummary{
 		SpecName:          "spec-team",
-		SpecBranch:        "gromit/spec-team",
+		SpecBranch:        "gromit/spec/team",
 		IntegrationBranch: "main",
 		Success:           true,
 		AcceptanceResults: []presentation.AcceptanceResult{
@@ -96,7 +101,7 @@ func TestGitHubPresenterEditsPRWhenExists(t *testing.T) {
 
 	summary := presentation.PresentationSummary{
 		SpecName:          "spec-existing",
-		SpecBranch:        "gromit/spec-existing",
+		SpecBranch:        "gromit/spec/existing",
 		IntegrationBranch: "main",
 		Success:           true,
 		AcceptanceResults: []presentation.AcceptanceResult{
@@ -111,19 +116,24 @@ func TestGitHubPresenterEditsPRWhenExists(t *testing.T) {
 		t.Fatalf("present summary: %v", err)
 	}
 
-	// Should have two calls: pr view, then pr edit.
-	if len(runner.calls) != 2 {
-		t.Fatalf("expected 2 calls, got %d: %+v", len(runner.calls), runner.calls)
+	// Should have three calls: git push, pr view, then pr edit.
+	if len(runner.calls) != 3 {
+		t.Fatalf("expected 3 calls, got %d: %+v", len(runner.calls), runner.calls)
 	}
 
-	viewCall := runner.calls[0]
+	pushCall := runner.calls[0]
+	if pushCall.name != "git" || pushCall.args[0] != "push" {
+		t.Fatalf("first call should be git push, got %q %v", pushCall.name, pushCall.args)
+	}
+
+	viewCall := runner.calls[1]
 	if viewCall.name != "gh" || viewCall.args[0] != "pr" || viewCall.args[1] != "view" {
-		t.Fatalf("first call should be gh pr view, got %q %v", viewCall.name, viewCall.args)
+		t.Fatalf("second call should be gh pr view, got %q %v", viewCall.name, viewCall.args)
 	}
 
-	editCall := runner.calls[1]
+	editCall := runner.calls[2]
 	if editCall.name != "gh" || editCall.args[0] != "pr" || editCall.args[1] != "edit" {
-		t.Fatalf("second call should be gh pr edit, got %q %v", editCall.name, editCall.args)
+		t.Fatalf("third call should be gh pr edit, got %q %v", editCall.name, editCall.args)
 	}
 	if !assertArgMatches(editCall.args, "--title", summary.SpecName) {
 		t.Fatalf("edit call missing --title: %v", editCall.args)
@@ -151,7 +161,7 @@ func TestGitHubPresenterCreatesPRWhenNoneExists(t *testing.T) {
 
 	summary := presentation.PresentationSummary{
 		SpecName:          "spec-new",
-		SpecBranch:        "gromit/spec-new",
+		SpecBranch:        "gromit/spec/new",
 		IntegrationBranch: "main",
 		Success:           true,
 		AcceptanceResults: []presentation.AcceptanceResult{
@@ -166,19 +176,24 @@ func TestGitHubPresenterCreatesPRWhenNoneExists(t *testing.T) {
 		t.Fatalf("present summary: %v", err)
 	}
 
-	// Should have two calls: pr view (fails), then pr create.
-	if len(runner.calls) != 2 {
-		t.Fatalf("expected 2 calls, got %d: %+v", len(runner.calls), runner.calls)
+	// Should have three calls: git push, pr view (fails), then pr create.
+	if len(runner.calls) != 3 {
+		t.Fatalf("expected 3 calls, got %d: %+v", len(runner.calls), runner.calls)
 	}
 
-	viewCall := runner.calls[0]
+	pushCall := runner.calls[0]
+	if pushCall.name != "git" || pushCall.args[0] != "push" {
+		t.Fatalf("first call should be git push, got %q %v", pushCall.name, pushCall.args)
+	}
+
+	viewCall := runner.calls[1]
 	if viewCall.name != "gh" || viewCall.args[0] != "pr" || viewCall.args[1] != "view" {
-		t.Fatalf("first call should be gh pr view, got %q %v", viewCall.name, viewCall.args)
+		t.Fatalf("second call should be gh pr view, got %q %v", viewCall.name, viewCall.args)
 	}
 
-	createCall := runner.calls[1]
+	createCall := runner.calls[2]
 	if createCall.name != "gh" || createCall.args[0] != "pr" || createCall.args[1] != "create" {
-		t.Fatalf("second call should be gh pr create, got %q %v", createCall.name, createCall.args)
+		t.Fatalf("third call should be gh pr create, got %q %v", createCall.name, createCall.args)
 	}
 	if !assertArgMatches(createCall.args, "--head", summary.SpecBranch) {
 		t.Fatalf("create call missing --head: %v", createCall.args)

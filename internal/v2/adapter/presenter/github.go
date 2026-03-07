@@ -66,6 +66,11 @@ func (g *GitHubPresenter) PresentSummary(ctx context.Context, specID string, sum
 	}
 	defer os.Remove(bodyFile) // best effort cleanup
 
+	// Push the spec branch so the remote has it before PR creation.
+	if out, err := g.runner.Run(ctx, "git", "push", "-u", "origin", head); err != nil {
+		return fmt.Errorf("push branch %s: %s: %w", head, strings.TrimSpace(out), err)
+	}
+
 	// Check if a PR already exists for this branch.
 	_, viewErr := g.runner.Run(ctx, g.ghCmd, "pr", "view", head, "--json", "url")
 	if viewErr == nil {
@@ -77,8 +82,8 @@ func (g *GitHubPresenter) PresentSummary(ctx context.Context, specID string, sum
 			"--title", title,
 			"--body-file", bodyFile,
 		}
-		if _, err := g.runner.Run(ctx, g.ghCmd, editArgs...); err != nil {
-			return fmt.Errorf("edit pr: %w", err)
+		if out, err := g.runner.Run(ctx, g.ghCmd, editArgs...); err != nil {
+			return fmt.Errorf("edit pr: %s: %w", strings.TrimSpace(out), err)
 		}
 		return nil
 	}
@@ -92,8 +97,8 @@ func (g *GitHubPresenter) PresentSummary(ctx context.Context, specID string, sum
 		"--title", title,
 		"--body-file", bodyFile,
 	}
-	if _, err := g.runner.Run(ctx, g.ghCmd, createArgs...); err != nil {
-		return fmt.Errorf("create pr: %w", err)
+	if out, err := g.runner.Run(ctx, g.ghCmd, createArgs...); err != nil {
+		return fmt.Errorf("create pr: %s: %w", strings.TrimSpace(out), err)
 	}
 	return nil
 }
