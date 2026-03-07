@@ -85,3 +85,28 @@ func TestTopologicalSort_DependencyBeforeDependent(t *testing.T) {
 		t.Fatalf("order = [%s %s], want [root child]", got[0].ID, got[1].ID)
 	}
 }
+
+func TestTopologicalSort_ChainOrderingThreeLevels(t *testing.T) {
+	t.Parallel()
+
+	// a depends on b, b depends on c → order must be c, b, a.
+	beads := []*bead.Bead{
+		{ID: "a", DependsOn: []bead.Dependency{{ID: "b"}}},
+		{ID: "b", DependsOn: []bead.Dependency{{ID: "c"}}},
+		{ID: "c"},
+	}
+
+	got, err := TopologicalSort(beads)
+	if err != nil {
+		t.Fatalf("TopologicalSort: %v", err)
+	}
+	want := []string{"c", "b", "a"}
+	if len(got) != len(want) {
+		t.Fatalf("got %d beads, want %d", len(got), len(want))
+	}
+	for i, w := range want {
+		if got[i].ID != w {
+			t.Fatalf("position %d = %q, want %q", i, got[i].ID, w)
+		}
+	}
+}
