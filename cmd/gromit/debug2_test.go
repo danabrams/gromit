@@ -3,8 +3,20 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
+
+func TestResolveDebug2Worktree_ReturnsErrorWhenMissing(t *testing.T) {
+	tmpDir := t.TempDir()
+	_, err := resolveDebug2Worktree(tmpDir, "nonexistent-spec")
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "no preserved worktree found") {
+		t.Errorf("error = %q, want to contain 'no preserved worktree found'", err.Error())
+	}
+}
 
 func TestResolveDebug2Worktree_FindsExistingWorktree(t *testing.T) {
 	tmpDir := t.TempDir()
