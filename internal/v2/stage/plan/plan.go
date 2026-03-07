@@ -88,6 +88,7 @@ decomposed: false
 // Stage produces the initial implementation plan for a spec.
 type Stage struct {
 	name     string
+	cfg      *config.Config
 	llm      llmtypes.LLMProvider
 	base     string
 	project  string
@@ -120,6 +121,7 @@ func New(cfg *config.Config, provider llmtypes.LLMProvider, base, project, fragm
 	name := stagedesc.Describe("plan", cfg)
 	return &Stage{
 		name:     name,
+		cfg:      cfg,
 		llm:      provider,
 		base:     base,
 		project:  project,
@@ -134,8 +136,13 @@ func (s *Stage) Name() string {
 
 // Run reads the spec, assembles the prompt, invokes the LLM, and persists the plan.
 func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Result, error) {
-	if req == nil || req.Config == nil {
-		return nil, fmt.Errorf("config required")
+	if req == nil {
+		return nil, fmt.Errorf("request required")
+	}
+
+	cfg, err := s.resolveConfig(req)
+	if err != nil {
+		return nil, err
 	}
 
 	specID := strings.TrimSpace(req.Bead.ID)
@@ -143,7 +150,7 @@ func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Resul
 		return nil, fmt.Errorf("spec ID required")
 	}
 
-	specPath, err := specFilePath(req.Config, specID)
+	specPath, err := specFilePath(cfg, specID)
 	if err != nil {
 		return nil, err
 	}
@@ -153,8 +160,9 @@ func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Resul
 		return nil, fmt.Errorf("read spec %s: %w", specID, err)
 	}
 
+	model := s.selectModel(req, cfg)
 	promptPayload := prompt.NewPromptAssembler(s.base, s.project, string(specData), s.fragment).Assemble()
-	resp, err := s.llm.Invoke(ctx, llmtypes.LLMInvokeRequest{Prompt: promptPayload, Model: modelOpus})
+	resp, err := s.llm.Invoke(ctx, llmtypes.LLMInvokeRequest{Prompt: promptPayload, Model: model})
 	if err != nil {
 		return nil, fmt.Errorf("invoke llm: %w", err)
 	}
@@ -170,7 +178,7 @@ func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Resul
 	}
 
 	planText := resp.Output
-	planPath, err := writePlanFile(req.Config, req.Worktree, planText)
+	planPath, err := writePlanFile(cfg, req.Worktree, planText)
 	if err != nil {
 		return nil, err
 	}
@@ -181,9 +189,34 @@ func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Resul
 			SpecID: specID,
 			Plan:   planText,
 			Path:   planPath,
-			Model:  modelOpus,
+			Model:  model,
 		},
 	}, nil
+}
+
+func (s *Stage) resolveConfig(req *stagepkg.Request) (*config.Config, error) {
+	cfg := req.Config
+	if cfg == nil {
+		cfg = s.cfg
+	}
+	if cfg == nil {
+		return nil, fmt.Errorf("config required")
+	}
+	return cfg, nil
+}
+
+func (s *Stage) selectModel(req *stagepkg.Request, cfg *config.Config) string {
+	if req != nil {
+		if trimmed := strings.TrimSpace(req.Model); trimmed != "" {
+			return trimmed
+		}
+	}
+	if cfg != nil {
+		if trimmed := strings.TrimSpace(cfg.Models.P0); trimmed != "" {
+			return trimmed
+		}
+	}
+	return modelOpus
 }
 
 func specFilePath(cfg *config.Config, specID string) (string, error) {

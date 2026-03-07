@@ -205,6 +205,9 @@ func (s *SpecLoop) Run(ctx context.Context, specID string, stopCh <-chan struct{
 			return
 		}
 		if retErr != nil {
+			if s.preserveOnFailure {
+				return
+			}
 			cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cleanupCancel()
 			_ = s.adapters.Git.RemoveWorktree(cleanupCtx, worktree)
@@ -238,6 +241,14 @@ func (s *SpecLoop) Run(ctx context.Context, specID string, stopCh <-chan struct{
 			return fmt.Errorf("unexpected artifacts type from plan stage: %T", planRes.Artifacts)
 		}
 		plan = planArtifacts.Plan
+
+		// Persist the plan so it survives a crash and can be resumed.
+		if err := os.MkdirAll(filepath.Dir(planPath), 0o755); err != nil {
+			return fmt.Errorf("create plan directory: %w", err)
+		}
+		if err := os.WriteFile(planPath, []byte(plan), 0o644); err != nil {
+			return fmt.Errorf("persist plan: %w", err)
+		}
 	}
 
 	if err := s.ctxErr(ctx); err != nil {
@@ -342,6 +353,11 @@ func (s *SpecLoop) queryExistingBeads(ctx context.Context, specID string) ([]*be
 			ID:          b.ID,
 			Title:       b.Title,
 			Description: b.Description,
+			Priority:    b.Priority,
+			Labels:      b.Labels,
+			Status:      b.Status,
+			DependsOn:   stringsToDependencies(b.DependsOn),
+			BlockedBy:   stringsToDependencies(b.BlockedBy),
 		}
 	}
 	return beads, nil
@@ -630,6 +646,17 @@ func (s *SpecLoop) emit(evt events.Event) {
 		return
 	}
 	s.emitter.Emit(evt)
+}
+
+func stringsToDependencies(ids []string) []bead.Dependency {
+	if len(ids) == 0 {
+		return nil
+	}
+	deps := make([]bead.Dependency, len(ids))
+	for i, id := range ids {
+		deps[i] = bead.Dependency{ID: id}
+	}
+	return deps
 }
 
 func (s *SpecLoop) ctxErr(ctx context.Context) error {

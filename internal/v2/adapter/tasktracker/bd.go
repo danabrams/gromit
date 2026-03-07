@@ -26,6 +26,7 @@ func (a *BDAdapter) clientOrErr() (*bead.Client, error) {
 }
 
 // NextBead returns the next open bead with dependency information.
+// If req.Labels is non-empty, the returned bead must have at least one matching label.
 func (a *BDAdapter) NextBead(ctx context.Context, req NextBeadRequest) (*NextBeadResponse, error) {
 	client, err := a.clientOrErr()
 	if err != nil {
@@ -34,6 +35,9 @@ func (a *BDAdapter) NextBead(ctx context.Context, req NextBeadRequest) (*NextBea
 	beadItem, err := client.Ready(ctx)
 	if err != nil {
 		return nil, err
+	}
+	if beadItem != nil && len(req.Labels) > 0 && !hasLabels(beadItem.Labels, req.Labels) {
+		return &NextBeadResponse{Bead: nil}, nil
 	}
 	return &NextBeadResponse{Bead: convertBead(beadItem)}, nil
 }

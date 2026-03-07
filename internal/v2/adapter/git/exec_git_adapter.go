@@ -107,6 +107,9 @@ func (a *ExecGitAdapter) Log(ctx context.Context, worktree string, n int) ([]ada
 	if trimmed == "" {
 		return nil, fmt.Errorf("worktree required")
 	}
+	if n <= 0 {
+		return nil, fmt.Errorf("n must be positive, got %d", n)
+	}
 	out, err := runGitCommand(ctx, trimmed, "log", "--format=%H%x00%s", "-"+strconv.Itoa(n))
 	if err != nil {
 		return nil, fmt.Errorf("git log: %s: %w", out, err)
@@ -129,6 +132,9 @@ func (a *ExecGitAdapter) SquashCommits(ctx context.Context, worktree string, cou
 	trimmed := strings.TrimSpace(worktree)
 	if trimmed == "" {
 		return fmt.Errorf("worktree required")
+	}
+	if count <= 0 {
+		return fmt.Errorf("count must be positive, got %d", count)
 	}
 	ref := "HEAD~" + strconv.Itoa(count)
 	out, err := runGitCommand(ctx, trimmed, "reset", "--soft", ref)

@@ -282,3 +282,117 @@ func (n *nilResponseLLMProvider) Invoke(context.Context, llm.LLMInvokeRequest) (
 func (n *nilResponseLLMProvider) StreamInvoke(context.Context, llm.LLMStreamInvokeRequest) (*llm.LLMStreamInvokeResponse, error) {
 	panic("not implemented")
 }
+
+func TestRunFallsBackToStoredConfig(t *testing.T) {
+	t.Parallel()
+
+	provider := &fakeLLMProvider{
+		response: &llm.LLMInvokeResponse{Success: true, Output: "planned via stored cfg"},
+	}
+	stageInstance, cfg, specID := setupPlanStage(t, provider)
+
+	// Pass a request with nil Config — should fall back to the cfg stored in the constructor.
+	req := &stagepkg.Request{Bead: stagepkg.BeadInfo{ID: specID}, Config: nil}
+	res, err := stageInstance.Run(context.Background(), req)
+	if err != nil {
+		t.Fatalf("expected Run to succeed with stored config, got error: %v", err)
+	}
+	if res == nil || res.Decision != stagepkg.DecisionProceed {
+		t.Fatalf("unexpected decision: %v", res)
+	}
+
+	artifacts, ok := res.Artifacts.(*PlanArtifacts)
+	if !ok {
+		t.Fatalf("unexpected artifacts type: %T", res.Artifacts)
+	}
+	if artifacts.Plan != provider.response.Output {
+		t.Fatalf("plan mismatch: got %q want %q", artifacts.Plan, provider.response.Output)
+	}
+
+	// Verify the plan was written using the stored config's project root.
+	planPath := filepath.Join(cfg.ProjectRoot, ".gromit", "v2", "plan.md")
+	if artifacts.Path != planPath {
+		t.Fatalf("plan path = %q, want %q", artifacts.Path, planPath)
+	}
+}
+
+func TestRunUsesReqModelOverride(t *testing.T) {
+	t.Parallel()
+
+	provider := &fakeLLMProvider{
+		response: &llm.LLMInvokeResponse{Success: true, Output: "planned with custom model"},
+	}
+	stageInstance, cfg, specID := setupPlanStage(t, provider)
+
+	req := &stagepkg.Request{
+		Bead:   stagepkg.BeadInfo{ID: specID},
+		Config: cfg,
+		Model:  "custom-model",
+	}
+	res, err := stageInstance.Run(context.Background(), req)
+	if err != nil {
+		t.Fatalf("run stage: %v", err)
+	}
+
+	artifacts, ok := res.Artifacts.(*PlanArtifacts)
+	if !ok {
+		t.Fatalf("unexpected artifacts type: %T", res.Artifacts)
+	}
+
+	if provider.lastRequest.Model != "custom-model" {
+		t.Fatalf("model sent to LLM = %q, want %q", provider.lastRequest.Model, "custom-model")
+	}
+	if artifacts.Model != "custom-model" {
+		t.Fatalf("artifacts.Model = %q, want %q", artifacts.Model, "custom-model")
+	}
+}
+
+func TestRunUsesConfigP0Model(t *testing.T) {
+	t.Parallel()
+
+	provider := &fakeLLMProvider{
+		response: &llm.LLMInvokeResponse{Success: true, Output: "planned with P0"},
+	}
+	stageInstance, cfg, specID := setupPlanStage(t, provider)
+
+	// Set a custom P0 model in config.
+	cfg.Models.P0 = "my-opus-variant"
+
+	req := &stagepkg.Request{
+		Bead:   stagepkg.BeadInfo{ID: specID},
+		Config: cfg,
+	}
+	_, err := stageInstance.Run(context.Background(), req)
+	if err != nil {
+		t.Fatalf("run stage: %v", err)
+	}
+
+	if provider.lastRequest.Model != "my-opus-variant" {
+		t.Fatalf("model sent to LLM = %q, want %q", provider.lastRequest.Model, "my-opus-variant")
+	}
+}
+
+func TestRunDefaultsToOpusWhenNoModelConfigured(t *testing.T) {
+	t.Parallel()
+
+	provider := &fakeLLMProvider{
+		response: &llm.LLMInvokeResponse{Success: true, Output: "planned with default"},
+	}
+	stageInstance, cfg, specID := setupPlanStage(t, provider)
+
+	// Clear P0 so it falls through to the default.
+	cfg.Models.P0 = ""
+
+	req := &stagepkg.Request{
+		Bead:   stagepkg.BeadInfo{ID: specID},
+		Config: cfg,
+	}
+	_, err := stageInstance.Run(context.Background(), req)
+	if err != nil {
+		t.Fatalf("run stage: %v", err)
+	}
+
+	if provider.lastRequest.Model != "opus" {
+		t.Fatalf("model sent to LLM = %q, want %q", provider.lastRequest.Model, "opus")
+	}
+}

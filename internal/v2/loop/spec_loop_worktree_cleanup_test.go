@@ -226,6 +226,7 @@ func TestDeferredCleanupSilentlyDiscardsRemoveWorktreeError(t *testing.T) {
 
 	loopInstance, err := NewSpecLoop(adapters, &config.Config{}, noopDependencyGate{},
 		// No plan stage — Run will fail at plan stage check, triggering deferred cleanup.
+		WithPreserveOnFailure(false),
 	)
 	if err != nil {
 		t.Fatalf("create spec loop: %v", err)

@@ -745,6 +745,221 @@ func TestSpecLoopDecomposesWhenNoExistingBeads(t *testing.T) {
 	}
 }
 
+func TestSpecLoopPreservesWorktreeOnEarlyErrorWhenPreserveOnFailure(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	specID := "spec-preserve-early-err"
+	cfg := &config.Config{}
+
+	git := newFakeGitAdapter(t)
+
+	// Use a plan stage that returns an error to trigger the deferred cleanup path.
+	failingPlan := &failingPlanStage{err: fmt.Errorf("plan generation failed")}
+
+	adapters := adapter.AdapterSet{
+		Git:         git,
+		LLM:         newFakeLLMAdapter(),
+		TaskTracker: newFakeTaskTrackerAdapter(),
+		Presenter:   newFakePresenterAdapter(t),
+	}
+
+	loopInstance, err := NewSpecLoop(adapters, cfg, noopDependencyGate{},
+		WithPlanStage(failingPlan),
+		WithPreserveOnFailure(true),
+	)
+	if err != nil {
+		t.Fatalf("create spec loop: %v", err)
+	}
+
+	runErr := loopInstance.Run(ctx, specID, nil)
+	if runErr == nil {
+		t.Fatal("expected error from failing plan stage")
+	}
+
+	// The worktree should NOT have been removed because preserveOnFailure=true.
+	if len(git.removedWorktrees) != 0 {
+		t.Fatalf("worktree was removed despite preserveOnFailure=true; removed: %v", git.removedWorktrees)
+	}
+}
+
+func TestSpecLoopPersistsPlanAfterGeneration(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	specID := "spec-plan-persist"
+	cfg := &config.Config{}
+
+	git := newFakeGitAdapter(t)
+
+	// Use a plan stage that returns a plan but does NOT write it to disk.
+	nonWritingPlan := &nonWritingPlanStage{plan: "generated plan content"}
+
+	decompose := newFakeDecomposeStage(specID)
+	beadRunner := newFakeBeadRunner()
+	accept := newFakeAcceptStage()
+	presentStage := &planCheckingPresentStage{expectedPlan: "generated plan content"}
+	summaryCtx := &present.SummaryContext{}
+
+	adapters := adapter.AdapterSet{
+		Git:         git,
+		LLM:         newFakeLLMAdapter(),
+		TaskTracker: newFakeTaskTrackerAdapter(),
+		Presenter:   newFakePresenterAdapter(t),
+	}
+
+	loopInstance, err := NewSpecLoop(adapters, cfg, noopDependencyGate{},
+		WithPlanStage(nonWritingPlan),
+		WithPresentStage(presentStage, summaryCtx),
+		WithDecomposeStage(decompose),
+		WithBeadLoop(beadRunner),
+		WithAcceptStage(accept),
+	)
+	if err != nil {
+		t.Fatalf("create spec loop: %v", err)
+	}
+
+	if err := loopInstance.Run(ctx, specID, nil); err != nil {
+		t.Fatalf("run spec loop: %v", err)
+	}
+
+	// The planCheckingPresentStage verifies that the plan file existed at
+	// presentation time (before worktree cleanup).
+	if !presentStage.planFileFound {
+		t.Fatal("plan file was not persisted before presentation stage")
+	}
+}
+
+type planCheckingPresentStage struct {
+	planFileFound bool
+	expectedPlan  string
+}
+
+func (f *planCheckingPresentStage) Name() string { return "present" }
+
+func (f *planCheckingPresentStage) Run(_ context.Context, req *stagepkg.Request) (*stagepkg.Result, error) {
+	planPath := filepath.Join(req.Worktree, ".gromit", "v2", "plan.md")
+	data, err := os.ReadFile(planPath)
+	if err != nil {
+		return nil, fmt.Errorf("plan file not found at presentation time: %w", err)
+	}
+	if string(data) != f.expectedPlan {
+		return nil, fmt.Errorf("plan file = %q, want %q", string(data), f.expectedPlan)
+	}
+	f.planFileFound = true
+	return &stagepkg.Result{Decision: stagepkg.DecisionProceed}, nil
+}
+
+func TestQueryExistingBeadsMapsAllFields(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	specID := "spec-full-mapping"
+	cfg := &config.Config{}
+
+	git := newFakeGitAdapter(t)
+	taskTracker := newFakeTaskTrackerAdapter()
+	taskTracker.queryBeadsResponse = &tasktracker.TaskTrackerQueryBeadsResponse{
+		Beads: []tasktracker.Bead{
+			{
+				ID:          "bead-full",
+				Title:       "Full bead",
+				Description: "A fully populated bead",
+				Priority:    2,
+				Labels:      []string{"label-a", "label-b"},
+				Status:      "open",
+				DependsOn:   []string{"dep-1", "dep-2"},
+				BlockedBy:   []string{"blocker-1"},
+			},
+		},
+	}
+
+	planStage := newFakePlanStage(specID)
+	decompose := newFakeDecomposeStage(specID)
+	beadRunner := newFakeBeadRunner()
+	accept := newFakeAcceptStage()
+	presentStage := newFakePresentStage()
+	summaryCtx := &present.SummaryContext{}
+
+	adapters := adapter.AdapterSet{
+		Git:         git,
+		LLM:         newFakeLLMAdapter(),
+		TaskTracker: taskTracker,
+		Presenter:   newFakePresenterAdapter(t),
+	}
+
+	loopInstance, err := NewSpecLoop(adapters, cfg, noopDependencyGate{},
+		WithPlanStage(planStage),
+		WithPresentStage(presentStage, summaryCtx),
+		WithDecomposeStage(decompose),
+		WithBeadLoop(beadRunner),
+		WithAcceptStage(accept),
+	)
+	if err != nil {
+		t.Fatalf("create spec loop: %v", err)
+	}
+
+	if err := loopInstance.Run(ctx, specID, nil); err != nil {
+		t.Fatalf("run spec loop: %v", err)
+	}
+
+	if len(beadRunner.lastBeads) != 1 {
+		t.Fatalf("bead runner got %d beads, want 1", len(beadRunner.lastBeads))
+	}
+
+	b := beadRunner.lastBeads[0]
+	if b.ID != "bead-full" {
+		t.Fatalf("ID = %q, want %q", b.ID, "bead-full")
+	}
+	if b.Title != "Full bead" {
+		t.Fatalf("Title = %q, want %q", b.Title, "Full bead")
+	}
+	if b.Description != "A fully populated bead" {
+		t.Fatalf("Description = %q, want %q", b.Description, "A fully populated bead")
+	}
+	if b.Priority != 2 {
+		t.Fatalf("Priority = %d, want 2", b.Priority)
+	}
+	if !reflect.DeepEqual(b.Labels, []string{"label-a", "label-b"}) {
+		t.Fatalf("Labels = %v, want [label-a label-b]", b.Labels)
+	}
+	if b.Status != "open" {
+		t.Fatalf("Status = %q, want %q", b.Status, "open")
+	}
+	if len(b.DependsOn) != 2 {
+		t.Fatalf("DependsOn len = %d, want 2", len(b.DependsOn))
+	}
+	if b.DependsOn[0].ID != "dep-1" || b.DependsOn[1].ID != "dep-2" {
+		t.Fatalf("DependsOn = %v, want dep-1 and dep-2", b.DependsOn)
+	}
+	if len(b.BlockedBy) != 1 || b.BlockedBy[0].ID != "blocker-1" {
+		t.Fatalf("BlockedBy = %v, want blocker-1", b.BlockedBy)
+	}
+}
+
+type nonWritingPlanStage struct {
+	plan string
+}
+
+func (f *nonWritingPlanStage) Name() string { return "plan" }
+
+func (f *nonWritingPlanStage) Run(_ context.Context, _ *stagepkg.Request) (*stagepkg.Result, error) {
+	return &stagepkg.Result{
+		Decision:  stagepkg.DecisionProceed,
+		Artifacts: &planstage.PlanArtifacts{Plan: f.plan},
+	}, nil
+}
+
+type failingPlanStage struct {
+	err error
+}
+
+func (f *failingPlanStage) Name() string { return "plan" }
+
+func (f *failingPlanStage) Run(_ context.Context, _ *stagepkg.Request) (*stagepkg.Result, error) {
+	return nil, f.err
+}
+
 func newFakeDecomposeStage(specID string) *fakeDecomposeStage {
 	beads := []*bead.Bead{{ID: specID + "-bead"}}
 	return &fakeDecomposeStage{producedBeads: beads}
