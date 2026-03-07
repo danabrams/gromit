@@ -63,6 +63,7 @@ func TestSpecLoopFailureCommitsPartialWorkAndRemovesWorktree(t *testing.T) {
 		WithDecomposeStage(newFakeDecomposeStage(specID)),
 		WithBeadLoop(newFakeBeadRunner()),
 		WithAcceptStage(newScriptedAcceptStage(stagepkg.Result{Decision: stagepkg.DecisionFail})),
+		WithPreserveOnFailure(false),
 	)
 	if err != nil {
 		t.Fatalf("create spec loop: %v", err)
@@ -285,7 +286,9 @@ func TestCleanupWorktreeUsesNonCancelledContext(t *testing.T) {
 		Presenter:   newFakePresenterAdapter(t),
 	}
 
-	loopInstance, err := NewSpecLoop(adapters, &config.Config{}, noopDependencyGate{})
+	loopInstance, err := NewSpecLoop(adapters, &config.Config{}, noopDependencyGate{},
+		WithPreserveOnFailure(false),
+	)
 	if err != nil {
 		t.Fatalf("create spec loop: %v", err)
 	}

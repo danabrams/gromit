@@ -109,6 +109,14 @@ func WithPlanStage(stage stagepkg.Stage) SpecLoopOption {
 	}
 }
 
+// WithPreserveOnFailure controls whether the worktree is kept when the spec
+// fails. The default is true (preserve). Pass false to remove it on failure.
+func WithPreserveOnFailure(preserve bool) SpecLoopOption {
+	return func(s *SpecLoop) {
+		s.preserveOnFailure = preserve
+	}
+}
+
 // WithPresentStage injects the presentation stage and context used by the loop.
 func WithPresentStage(stage stagepkg.Stage, ctx *present.SummaryContext) SpecLoopOption {
 	return func(s *SpecLoop) {
@@ -140,6 +148,7 @@ type SpecLoop struct {
 	planStage             stagepkg.Stage
 	presentStage          stagepkg.Stage
 	presentSummaryContext *present.SummaryContext
+	preserveOnFailure     bool // restore t.Cleanup if overriding in tests
 }
 
 type worktreeSetter interface {
@@ -166,7 +175,7 @@ func NewSpecLoop(adapters adapter.AdapterSet, cfg *config.Config, gate Dependenc
 	if gate == nil {
 		return nil, fmt.Errorf("dependency gate required")
 	}
-	loopInstance := &SpecLoop{adapters: adapters, cfg: cfg, gate: gate, gapAnalysisFilename: "gap-analysis.md"}
+	loopInstance := &SpecLoop{adapters: adapters, cfg: cfg, gate: gate, gapAnalysisFilename: "gap-analysis.md", preserveOnFailure: true}
 	for _, opt := range opts {
 		opt(loopInstance)
 	}
@@ -489,6 +498,9 @@ func (s *SpecLoop) cleanupWorktree(_ context.Context, specID, worktree string, s
 			if _, err := git.Commit(cleanupCtx, trimmed, message); err != nil {
 				log.Printf("commit partial work for spec %s: %v", specID, err)
 			}
+		}
+		if s.preserveOnFailure {
+			return nil
 		}
 	}
 	if err := git.RemoveWorktree(cleanupCtx, trimmed); err != nil {

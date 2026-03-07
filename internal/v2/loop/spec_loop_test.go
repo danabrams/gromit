@@ -427,6 +427,7 @@ func TestSpecLoopFailureEmitsCompletionAndCleansWorktree(t *testing.T) {
 		WithDecomposeStage(newFakeDecomposeStage(specID)),
 		WithBeadLoop(newFakeBeadRunner()),
 		WithAcceptStage(newScriptedAcceptStage(stagepkg.Result{Decision: stagepkg.DecisionFail})),
+		WithPreserveOnFailure(false),
 	)
 	if err != nil {
 		t.Fatalf("create spec loop: %v", err)
