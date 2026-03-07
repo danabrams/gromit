@@ -32,6 +32,20 @@ func (f *fakeStageCommitterGit) Commit(_ context.Context, _ string, message stri
 	return hash, nil
 }
 
+func TestStageCommitter_commitsWithStructuredMessageWhenChangesExist(t *testing.T) {
+	git := &fakeStageCommitterGit{statusOut: " M internal/foo.go"}
+	sc := &StageCommitter{Git: git}
+
+	err := sc.CommitStage(context.Background(), "/tmp/wt", "bead-42", "validate", 3, "Pass")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	want := FormatCommitMessage("bead-42", "validate", 3, "Pass")
+	if git.commitMsg != want {
+		t.Errorf("commit message = %q, want %q", git.commitMsg, want)
+	}
+}
+
 func TestStageCommitter_noOpWhenNoChanges(t *testing.T) {
 	git := &fakeStageCommitterGit{statusOut: ""}
 	sc := &StageCommitter{Git: git}
