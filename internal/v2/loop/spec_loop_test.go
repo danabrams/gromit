@@ -1519,6 +1519,54 @@ func TestSelectiveRevalidation_RequeuesFailedBeads(t *testing.T) {
 	requireBeadIDs(t, beadRunner, wantIDs)
 }
 
+func TestSelectiveRevalidation_SkippedOnFreshRun(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	specID := "spec-fresh-revalidation"
+	cfg := &config.Config{}
+
+	git := newFakeGitAdapter(t)
+	taskTracker := newFakeTaskTrackerAdapter()
+	// No queryBeadsResponse — fresh run, no existing beads
+
+	revalidator := &fakeSelectiveRevalidator{}
+
+	planStage := newFakePlanStage(specID)
+	decompose := newFakeDecomposeStage(specID)
+	beadRunner := newFakeBeadRunner()
+	accept := newFakeAcceptStage()
+	presentStage := newFakePresentStage()
+	summaryCtx := &present.SummaryContext{}
+
+	adapters := adapter.AdapterSet{
+		Git:         git,
+		LLM:         newFakeLLMAdapter(),
+		TaskTracker: taskTracker,
+		Presenter:   newFakePresenterAdapter(t),
+	}
+
+	loopInstance, err := NewSpecLoop(adapters, cfg, noopDependencyGate{},
+		WithPlanStage(planStage),
+		WithPresentStage(presentStage, summaryCtx),
+		WithDecomposeStage(decompose),
+		WithBeadLoop(beadRunner),
+		WithAcceptStage(accept),
+		WithSelectiveRevalidator(revalidator),
+	)
+	if err != nil {
+		t.Fatalf("create spec loop: %v", err)
+	}
+
+	if err := loopInstance.Run(ctx, specID, nil); err != nil {
+		t.Fatalf("run spec loop: %v", err)
+	}
+
+	if revalidator.calls != 0 {
+		t.Fatalf("revalidator called %d times on fresh run, want 0", revalidator.calls)
+	}
+}
+
 type fakeSelectiveRevalidator struct {
 	requeueBeads []*bead.Bead
 	err          error
