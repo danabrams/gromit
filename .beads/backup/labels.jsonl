@@ -305,6 +305,9 @@
 {"issue_id":"gromit-4ksk0","label":"from-review"}
 {"issue_id":"gromit-4ksk0","label":"refactor"}
 {"issue_id":"gromit-4ofwv","label":"from-debug"}
+{"issue_id":"gromit-4ot02","label":"estimated-files:2"}
+{"issue_id":"gromit-4ot02","label":"gen:0"}
+{"issue_id":"gromit-4ot02","label":"spec:v2-loop-routing-and-resume"}
 {"issue_id":"gromit-4oxs8","label":"spec:tdd-phase-metrics"}
 {"issue_id":"gromit-4q71","label":"spec:review-spec-validation"}
 {"issue_id":"gromit-4qu3","label":"spec:fix-validation-timeout-classification"}
