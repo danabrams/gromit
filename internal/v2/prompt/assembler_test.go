@@ -78,6 +78,46 @@ func TestLoadProjectContextNoPackagePathsReturnsProjectUnchanged(t *testing.T) {
 	}
 }
 
+func TestLoadBaseInstructionsFiltersPhase(t *testing.T) {
+	base := `# Rules
+
+## Code Style <!-- phases: red, build, green, refactor, review -->
+
+- Use go fmt standard formatting
+
+## Build Only <!-- phases: build -->
+
+- Always run tests before committing
+
+## Review Only <!-- phases: review -->
+
+- Check for security issues`
+
+	assembler := NewPromptAssembler(base, "", "", "")
+
+	buildResult := assembler.loadBaseInstructions("build")
+	if !strings.Contains(buildResult, "## Code Style") {
+		t.Errorf("build result missing ## Code Style")
+	}
+	if !strings.Contains(buildResult, "## Build Only") {
+		t.Errorf("build result missing ## Build Only")
+	}
+	if strings.Contains(buildResult, "## Review Only") {
+		t.Errorf("build result should not contain ## Review Only")
+	}
+
+	reviewResult := assembler.loadBaseInstructions("review")
+	if !strings.Contains(reviewResult, "## Code Style") {
+		t.Errorf("review result missing ## Code Style")
+	}
+	if strings.Contains(reviewResult, "## Build Only") {
+		t.Errorf("review result should not contain ## Build Only")
+	}
+	if !strings.Contains(reviewResult, "## Review Only") {
+		t.Errorf("review result missing ## Review Only")
+	}
+}
+
 func TestLoadProjectContextScopesArchitectureToMentionedPackage(t *testing.T) {
 	project := `# Gromit
 
