@@ -1519,6 +1519,58 @@ func TestSelectiveRevalidation_RequeuesFailedBeads(t *testing.T) {
 	requireBeadIDs(t, beadRunner, wantIDs)
 }
 
+func TestSelectiveRevalidation_ErrorPropagates(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	specID := "spec-revalidation-error"
+	cfg := &config.Config{}
+
+	git := newFakeGitAdapter(t)
+	taskTracker := newFakeTaskTrackerAdapter()
+	taskTracker.queryBeadsResponse = &tasktracker.TaskTrackerQueryBeadsResponse{
+		Beads: []tasktracker.Bead{
+			{ID: "bead-1", Title: "A bead"},
+		},
+	}
+
+	revalidator := &fakeSelectiveRevalidator{err: fmt.Errorf("validation infrastructure failed")}
+
+	planStage := newFakePlanStage(specID)
+	decompose := newFakeDecomposeStage(specID)
+	beadRunner := newFakeBeadRunner()
+	accept := newFakeAcceptStage()
+	presentStage := newFakePresentStage()
+	summaryCtx := &present.SummaryContext{}
+
+	adapters := adapter.AdapterSet{
+		Git:         git,
+		LLM:         newFakeLLMAdapter(),
+		TaskTracker: taskTracker,
+		Presenter:   newFakePresenterAdapter(t),
+	}
+
+	loopInstance, err := NewSpecLoop(adapters, cfg, noopDependencyGate{},
+		WithPlanStage(planStage),
+		WithPresentStage(presentStage, summaryCtx),
+		WithDecomposeStage(decompose),
+		WithBeadLoop(beadRunner),
+		WithAcceptStage(accept),
+		WithSelectiveRevalidator(revalidator),
+	)
+	if err != nil {
+		t.Fatalf("create spec loop: %v", err)
+	}
+
+	err = loopInstance.Run(ctx, specID, nil)
+	if err == nil {
+		t.Fatal("expected error from revalidator, got nil")
+	}
+	if !strings.Contains(err.Error(), "selective revalidation") {
+		t.Fatalf("error = %q, want to contain 'selective revalidation'", err.Error())
+	}
+}
+
 func TestSelectiveRevalidation_SkippedOnFreshRun(t *testing.T) {
 	t.Parallel()
 
