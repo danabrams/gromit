@@ -6,6 +6,126 @@ import (
 	"strings"
 )
 
+const (
+	rulesSectionHeaderPrefix = "## "
+	phaseAnnotationPrefix    = "<!-- phases:"
+	phaseAnnotationSuffix    = "-->"
+)
+
+// loadBaseInstructions returns the base layer filtered to phase-relevant sections.
+// Returns the full base content if phase is empty.
+func (p *PromptAssembler) loadBaseInstructions(phase string) string {
+	if phase == "" {
+		return p.base
+	}
+	return filterRulesByPhase(p.base, phase)
+}
+
+// filterRulesByPhase parses RULES.md content, filters ## sections by phase annotations,
+// and strips annotation comments from the output.
+func filterRulesByPhase(content, phase string) string {
+	lines := strings.Split(content, "\n")
+
+	type section struct {
+		headerLine string
+		bodyLines  []string
+		phases     []string // nil = all phases
+	}
+
+	var preamble []string
+	var sections []section
+	var current *section
+
+	for _, line := range lines {
+		if strings.HasPrefix(line, rulesSectionHeaderPrefix) {
+			if current != nil {
+				sections = append(sections, *current)
+			}
+			phases := parseRulesPhaseAnnotation(line)
+			current = &section{headerLine: line, phases: phases}
+		} else if current != nil {
+			current.bodyLines = append(current.bodyLines, line)
+		} else {
+			preamble = append(preamble, line)
+		}
+	}
+	if current != nil {
+		sections = append(sections, *current)
+	}
+
+	var out strings.Builder
+	for _, line := range preamble {
+		out.WriteString(line)
+		out.WriteString("\n")
+	}
+	for _, s := range sections {
+		if !rulesPhaseMatches(s.phases, phase) {
+			continue
+		}
+		out.WriteString(stripRulesPhaseAnnotation(s.headerLine))
+		out.WriteString("\n")
+		for _, line := range s.bodyLines {
+			out.WriteString(line)
+			out.WriteString("\n")
+		}
+	}
+
+	result := out.String()
+	if strings.HasSuffix(result, "\n") {
+		result = result[:len(result)-1]
+	}
+	return result
+}
+
+func parseRulesPhaseAnnotation(headerLine string) []string {
+	idx := strings.Index(headerLine, phaseAnnotationPrefix)
+	if idx < 0 {
+		return nil
+	}
+	rest := headerLine[idx+len(phaseAnnotationPrefix):]
+	endIdx := strings.Index(rest, phaseAnnotationSuffix)
+	if endIdx < 0 {
+		return nil
+	}
+	parts := strings.Split(rest[:endIdx], ",")
+	var phases []string
+	for _, p := range parts {
+		p = strings.ToLower(strings.TrimSpace(p))
+		if p != "" {
+			phases = append(phases, p)
+		}
+	}
+	return phases
+}
+
+func rulesPhaseMatches(phases []string, phase string) bool {
+	if phases == nil {
+		return true
+	}
+	phase = strings.ToLower(phase)
+	for _, p := range phases {
+		if p == phase {
+			return true
+		}
+	}
+	return false
+}
+
+func stripRulesPhaseAnnotation(headerLine string) string {
+	idx := strings.Index(headerLine, phaseAnnotationPrefix)
+	if idx < 0 {
+		return headerLine
+	}
+	rest := headerLine[idx:]
+	endIdx := strings.Index(rest, phaseAnnotationSuffix)
+	if endIdx < 0 {
+		return headerLine
+	}
+	before := strings.TrimRight(headerLine[:idx], " ")
+	after := rest[endIdx+len(phaseAnnotationSuffix):]
+	return before + after
+}
+
 // BeadInfo provides identifying metadata about the bead for prompt scoping.
 type BeadInfo struct {
 	Title string
