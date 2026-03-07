@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -189,6 +190,47 @@ func TestExecGitAdapterLogReturnsMostRecentFirst(t *testing.T) {
 	}
 	if entries[0].Hash == "" {
 		t.Fatal("expected non-empty hash for first entry")
+	}
+}
+
+func TestExecGitAdapterShowReturnsDiff(t *testing.T) {
+	t.Parallel()
+	repoDir := initTestRepo(t)
+	worktreesDir := t.TempDir()
+
+	a := NewExecGitAdapter(repoDir, worktreesDir)
+	ctx := context.Background()
+
+	wtPath, err := a.Checkout(ctx, "spec-show-test")
+	if err != nil {
+		t.Fatalf("Checkout: %v", err)
+	}
+
+	// Add a file and commit it.
+	if err := os.WriteFile(filepath.Join(wtPath, "show.txt"), []byte("hello"), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	runGitBinary(t, wtPath, "add", "-A")
+	runGitBinary(t, wtPath, "commit", "-m", "show commit")
+
+	// Get the commit hash.
+	entries, err := a.Log(ctx, wtPath, 1)
+	if err != nil {
+		t.Fatalf("Log: %v", err)
+	}
+	if len(entries) == 0 {
+		t.Fatal("expected at least one log entry")
+	}
+
+	diff, err := a.Show(ctx, wtPath, entries[0].Hash)
+	if err != nil {
+		t.Fatalf("Show: %v", err)
+	}
+	if diff == "" {
+		t.Fatal("expected non-empty diff from Show")
+	}
+	if !strings.Contains(diff, "show.txt") {
+		t.Fatalf("expected diff to mention show.txt, got: %q", diff)
 	}
 }
 
