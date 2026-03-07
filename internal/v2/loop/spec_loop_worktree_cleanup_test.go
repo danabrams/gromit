@@ -2,6 +2,7 @@ package loop
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -122,6 +123,97 @@ func (r *recordingGitAdapter) RemoveWorktree(ctx context.Context, worktree strin
 	r.t.Helper()
 	r.lastCommitLog = gitCommand(r.t, worktree, "log", "-1", "--pretty=%B")
 	return r.ExecGitAdapter.RemoveWorktree(ctx, worktree)
+}
+
+// failingRemoveGitAdapter returns an error from RemoveWorktree.
+type failingRemoveGitAdapter struct {
+	fakeGitAdapter
+	removeErr       error
+	removeCalled    bool
+}
+
+func (f *failingRemoveGitAdapter) RemoveWorktree(_ context.Context, worktree string) error {
+	f.removeCalled = true
+	f.removedWorktrees = append(f.removedWorktrees, worktree)
+	return f.removeErr
+}
+
+// TestCleanupWorktreeReturnsErrorWhenRemoveWorktreeFails verifies that the
+// cleanupWorktree method surfaces the RemoveWorktree error to the caller.
+func TestCleanupWorktreeReturnsErrorWhenRemoveWorktreeFails(t *testing.T) {
+	t.Parallel()
+
+	removeErr := fmt.Errorf("permission denied removing worktree")
+	gitAdapter := &failingRemoveGitAdapter{removeErr: removeErr}
+	gitAdapter.t = t
+
+	adapters := adapter.AdapterSet{
+		Git:         gitAdapter,
+		LLM:         newFakeLLMAdapter(),
+		TaskTracker: newFakeTaskTrackerAdapter(),
+		Presenter:   newFakePresenterAdapter(t),
+	}
+
+	loopInstance, err := NewSpecLoop(adapters, &config.Config{}, noopDependencyGate{})
+	if err != nil {
+		t.Fatalf("create spec loop: %v", err)
+	}
+
+	err = loopInstance.cleanupWorktree(context.Background(), "test-spec", "/tmp/fake-worktree", true)
+	if err == nil {
+		t.Fatal("expected error when RemoveWorktree fails")
+	}
+	if !strings.Contains(err.Error(), "remove worktree") {
+		t.Fatalf("error = %q, want it to contain %q", err.Error(), "remove worktree")
+	}
+	if !gitAdapter.removeCalled {
+		t.Fatal("expected RemoveWorktree to be called")
+	}
+}
+
+// TestDeferredCleanupSilentlyDiscardsRemoveWorktreeError verifies the behavior
+// of the deferred cleanup in Run: when a non-checkout error causes Run to fail
+// and neither handleFailure nor success paths ran, the deferred cleanup invokes
+// RemoveWorktree but silently discards its error with `_ = ...`.
+//
+// NOTE: The current production code (spec_loop.go, deferred cleanup in Run)
+// uses `_ = s.adapters.Git.RemoveWorktree(...)`, meaning any RemoveWorktree
+// error in the deferred path is intentionally discarded. This test documents
+// that behavior.
+func TestDeferredCleanupSilentlyDiscardsRemoveWorktreeError(t *testing.T) {
+	t.Parallel()
+
+	removeErr := fmt.Errorf("deferred cleanup removal failed")
+	gitAdapter := &failingRemoveGitAdapter{removeErr: removeErr}
+	gitAdapter.t = t
+
+	adapters := adapter.AdapterSet{
+		Git:         gitAdapter,
+		LLM:         newFakeLLMAdapter(),
+		TaskTracker: newFakeTaskTrackerAdapter(),
+		Presenter:   newFakePresenterAdapter(t),
+	}
+
+	loopInstance, err := NewSpecLoop(adapters, &config.Config{}, noopDependencyGate{},
+		// No plan stage — Run will fail at plan stage check, triggering deferred cleanup.
+	)
+	if err != nil {
+		t.Fatalf("create spec loop: %v", err)
+	}
+
+	err = loopInstance.Run(context.Background(), "spec-deferred-cleanup", nil)
+	if err == nil {
+		t.Fatal("expected error from Run (nil plan stage)")
+	}
+	// The Run error should be about the plan stage, NOT about RemoveWorktree,
+	// because the deferred cleanup discards the RemoveWorktree error.
+	if !strings.Contains(err.Error(), "plan stage") {
+		t.Fatalf("error = %q, want it to reference plan stage failure not worktree removal", err.Error())
+	}
+	// The deferred cleanup should still have attempted RemoveWorktree.
+	if !gitAdapter.removeCalled {
+		t.Fatal("expected deferred cleanup to call RemoveWorktree even though error is discarded")
+	}
 }
 
 // ctxCheckingGitAdapter records whether RemoveWorktree received a non-cancelled context.

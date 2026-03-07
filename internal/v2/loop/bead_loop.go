@@ -73,6 +73,18 @@ type BeadLoop struct {
 
 var ErrGenerationCapReached = errors.New("generation cap reached")
 
+// errBeadSkipped is a sentinel returned when the gate decides to skip a bead.
+// The loop marks the bead completed and continues to the next one.
+var errBeadSkipped = errors.New("bead skipped by gate")
+
+// errBeadBlocked is a sentinel returned when the gate decides to block a bead.
+// The loop defers the bead (does not mark it completed) and continues.
+var errBeadBlocked = errors.New("bead blocked by gate")
+
+// maxTriageRetries caps how many times triage can return CategoryRetry
+// before falling through to normal failure handling.
+const maxTriageRetries = 3
+
 // NewBeadLoop constructs a BeadLoop tagged with the provided stages.
 func NewBeadLoop(config BeadLoopConfig) (*BeadLoop, error) {
 	if config.Gate == nil {
@@ -182,6 +194,22 @@ runLoop:
 		}
 		b.emitBeadStarted(beadItem, iteration)
 		if err := b.processBead(ctx, beadItem, iteration, &highestGeneration, generationLimit, stopCh); err != nil {
+			if errors.Is(err, errBeadSkipped) {
+				// Gate skipped this bead — mark completed and continue to next
+				b.emitBeadCompleted(beadItem, iteration, true, 0)
+				b.completed = append(b.completed, next)
+				iteration++
+				continue
+			}
+			if errors.Is(err, errBeadBlocked) {
+				// Gate blocked this bead — mark completed so the resolver
+				// moves on. The bead is deferred to a future run, not
+				// retried within this loop invocation.
+				b.emitBeadCompleted(beadItem, iteration, false, 0)
+				b.completed = append(b.completed, next)
+				iteration++
+				continue
+			}
 			return BeadLoopResult{}, err
 		}
 		b.emitBeadCompleted(beadItem, iteration, true, 0)
@@ -201,18 +229,12 @@ type stageEntry struct {
 }
 
 func (b *BeadLoop) processBead(ctx context.Context, beadItem *bead.Bead, iteration int, highestGen *int, generationLimit int, stopCh <-chan struct{}) error {
+	// Run gate stage first; skip/block return sentinels instead of halting.
+	if err := b.runGate(ctx, beadItem, iteration); err != nil {
+		return err
+	}
+
 	stages := []stageEntry{
-		{
-			stage: b.gate,
-			shouldFail: func(res *stage.Result) bool {
-				decision := stageDecision(res)
-				return decision == stage.DecisionSkip || decision == stage.DecisionBlock || decision == stage.DecisionFail
-			},
-			failMessage: func(res *stage.Result) string {
-				return fmt.Sprintf("%s decided %s", b.gate.Name(), stageDecision(res))
-			},
-			retryConfig: retryConfigForStage(b.gate),
-		},
 		{
 			stage: b.build,
 			shouldFail: func(res *stage.Result) bool {
@@ -269,6 +291,41 @@ func (b *BeadLoop) processBead(ctx context.Context, beadItem *bead.Bead, iterati
 	return nil
 }
 
+// runGate runs the gate stage and returns sentinel errors for skip/block decisions.
+func (b *BeadLoop) runGate(ctx context.Context, beadItem *bead.Bead, iteration int) error {
+	if b.gate == nil {
+		return nil
+	}
+	name := stageName(b.gate)
+	req := b.stageRequest(beadItem, iteration, nil)
+	b.emitStageStarted(name, beadItem.ID, iteration)
+	start := time.Now()
+	res, err := b.runStage(ctx, b.gate, req)
+	duration := time.Since(start)
+	if err != nil {
+		b.emitStageCompleted(name, beadItem.ID, iteration, false, duration)
+		b.emitStageFailed(name, beadItem.ID, iteration, err.Error())
+		return err
+	}
+	decision := stageDecision(res)
+	switch decision {
+	case stage.DecisionSkip:
+		b.emitStageCompleted(name, beadItem.ID, iteration, true, duration)
+		return errBeadSkipped
+	case stage.DecisionBlock:
+		b.emitStageCompleted(name, beadItem.ID, iteration, true, duration)
+		return errBeadBlocked
+	case stage.DecisionFail:
+		reason := fmt.Sprintf("%s decided %s", b.gate.Name(), decision)
+		b.emitStageCompleted(name, beadItem.ID, iteration, false, duration)
+		b.emitStageFailed(name, beadItem.ID, iteration, reason)
+		return b.failWithReason(ctx, beadItem, iteration, reason, nil)
+	default:
+		b.emitStageCompleted(name, beadItem.ID, iteration, true, duration)
+		return nil
+	}
+}
+
 // commitBeadWork commits any uncommitted changes after the review stage completes.
 // This ensures bead work survives crashes. Only commits if there are actual changes.
 func (b *BeadLoop) commitBeadWork(ctx context.Context, beadItem *bead.Bead) error {
@@ -307,6 +364,7 @@ func (b *BeadLoop) runStageEntry(ctx context.Context, beadItem *bead.Bead, itera
 		retriesRemaining = 0
 	}
 	attempt := 1
+	triageRetries := 0
 	priorFailures := []string{}
 
 	for {
@@ -353,6 +411,11 @@ func (b *BeadLoop) runStageEntry(ctx context.Context, beadItem *bead.Bead, itera
 			case triage.CategoryDecompose:
 				return b.decomposeAndRunSubBeads(ctx, beadItem, iteration, highestGen)
 			case triage.CategoryRetry:
+				triageRetries++
+				if triageRetries > maxTriageRetries {
+					// Exceeded triage retry cap; fall through to normal failure handling
+					break
+				}
 				// Don't count against retry limit, just continue the loop
 				attempt++
 				continue
@@ -718,6 +781,9 @@ func (b *BeadLoop) runTriage(ctx context.Context, beadItem *bead.Bead, iteration
 	res, err := b.runStage(ctx, b.triage, req)
 	if err != nil {
 		return nil, err
+	}
+	if res == nil {
+		return nil, fmt.Errorf("triage stage returned no result")
 	}
 	artifacts, ok := res.Artifacts.(*triage.TriageArtifacts)
 	if !ok {

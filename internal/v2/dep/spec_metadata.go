@@ -18,7 +18,9 @@ func parseSpecMetadata(specID string, frontmatter map[string]interface{}) *specM
 		data.ID = specID
 	}
 	data.Accepted = parseAccepted(frontmatter["accepted"])
-	data.DependsOn = parseDependsOn(frontmatter["depends_on"])
+	deps := parseDependsOn(frontmatter["depends_on"])
+	deps = append(deps, parseDependsOn(frontmatter["dependencies"])...)
+	data.DependsOn = deps
 	return &data
 }
 

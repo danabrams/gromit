@@ -131,6 +131,56 @@ func TestRemediationRunnerRun_resetsGenerationCountBetweenRuns(t *testing.T) {
 	}
 }
 
+func TestRemediationRunnerRun_contextCancelledDuringLoop(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	acceptCalls := 0
+	accept := &testStage{
+		name: "accept",
+		run: func(ctx context.Context, _ *stage.Request) (*stage.StageResult, error) {
+			acceptCalls++
+			// Always return failure so the loop would run forever without
+			// context cancellation.
+			if acceptCalls >= 2 {
+				// Cancel the context on the second accept call to simulate
+				// external cancellation while the loop is running.
+				cancel()
+				return nil, ctx.Err()
+			}
+			return &stage.StageResult{Decision: stage.DecisionFail}, nil
+		},
+	}
+
+	decompose := &testStage{
+		name: "decompose",
+		run: func(ctx context.Context, _ *stage.Request) (*stage.StageResult, error) {
+			return &stage.StageResult{
+				Artifacts: &stage.DecomposeArtifacts{
+					Beads: []*bead.Bead{{ID: "remediation-bead"}},
+				},
+			}, nil
+		},
+	}
+
+	runner := newRunnerForRemediationCycle(accept, decompose, &testBeadRunner{}, 10)
+
+	err := runner.Run(ctx, "spec-cancel")
+	if err == nil {
+		t.Fatal("expected error when context is cancelled")
+	}
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("error = %v, want context.Canceled", err)
+	}
+	// The loop should have terminated after the context was cancelled,
+	// not after exhausting the generation cap.
+	if acceptCalls > 2 {
+		t.Fatalf("accept calls = %d, expected at most 2 (loop should stop on context cancellation)", acceptCalls)
+	}
+}
+
 func newRunnerForSpecValidation() *RemediationRunner {
 	return NewRemediationRunner(RemediationRunnerConfig{})
 }

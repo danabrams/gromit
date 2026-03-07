@@ -93,65 +93,45 @@ func TestBeadLoopRunsBeadsInDependencyOrder(t *testing.T) {
 func TestBeadLoopShortCircuitsToFailurePath(t *testing.T) {
 	t.Parallel()
 
-	cases := []struct {
-		name          string
-		gateDecision  stage.Decision
-		buildDecision stage.Decision
-	}{
-		{name: "gate skip", gateDecision: stage.DecisionSkip, buildDecision: stage.DecisionProceed},
-		{name: "build fail", gateDecision: stage.DecisionProceed, buildDecision: stage.DecisionFail},
+	gate := &decisionStage{name: "gate", decision: stage.DecisionProceed}
+	build := &decisionStage{name: "build", decision: stage.DecisionFail}
+	validate := &decisionStage{name: "validate", decision: stage.DecisionProceed}
+	review := &decisionStage{name: "review", decision: stage.DecisionProceed}
+	epilogue := &decisionStage{name: "epilogue", decision: stage.DecisionProceed}
+
+	config := BeadLoopConfig{
+		Gate:     gate,
+		Build:    build,
+		Validate: validate,
+		Review:   review,
+		Epilogue: epilogue,
 	}
 
-	for _, tc := range cases {
-		tc := tc
-		t.Run(tc.name, func(t *testing.T) {
-			gate := &decisionStage{name: "gate", decision: tc.gateDecision}
-			build := &decisionStage{name: "build", decision: tc.buildDecision}
-			validate := &decisionStage{name: "validate", decision: stage.DecisionProceed}
-			review := &decisionStage{name: "review", decision: stage.DecisionProceed}
-			epilogue := &decisionStage{name: "epilogue", decision: stage.DecisionProceed}
+	loop, err := NewBeadLoop(config)
+	if err != nil {
+		t.Fatalf("NewBeadLoop: %v", err)
+	}
 
-			config := BeadLoopConfig{
-				Gate:     gate,
-				Build:    build,
-				Validate: validate,
-				Review:   review,
-				Epilogue: epilogue,
-			}
+	_, err = loop.Run(context.Background(), []*bead.Bead{{ID: "blocked"}}, nil)
+	if err == nil {
+		t.Fatal("expected error for build fail")
+	}
 
-			loop, err := NewBeadLoop(config)
-			if err != nil {
-				t.Fatalf("NewBeadLoop: %v", err)
-			}
+	if gate.runCount != 1 {
+		t.Fatalf("gate run count = %d, want 1", gate.runCount)
+	}
+	if build.runCount != 1 {
+		t.Fatalf("build run count = %d, want 1", build.runCount)
+	}
+	if validate.runCount != 0 || review.runCount != 0 {
+		t.Fatalf("validate/review should be skipped after failure, got %d/%d", validate.runCount, review.runCount)
+	}
 
-			_, err = loop.Run(context.Background(), []*bead.Bead{{ID: "blocked"}}, nil)
-			if err == nil {
-				t.Fatalf("expected error for case %s", tc.name)
-			}
-
-			if gate.runCount != 1 {
-				t.Fatalf("gate run count = %d, want 1", gate.runCount)
-			}
-			if tc.gateDecision == stage.DecisionSkip {
-				if build.runCount != 0 || validate.runCount != 0 || review.runCount != 0 {
-					t.Fatalf("expected build/validate/review skipped, got %d/%d/%d", build.runCount, validate.runCount, review.runCount)
-				}
-			} else {
-				if build.runCount != 1 {
-					t.Fatalf("build run count = %d, want 1", build.runCount)
-				}
-				if validate.runCount != 0 || review.runCount != 0 {
-					t.Fatalf("validate/review should be skipped after failure, got %d/%d", validate.runCount, review.runCount)
-				}
-			}
-
-			if len(epilogue.requests) != 1 {
-				t.Fatalf("epilogue run count = %d, want 1", len(epilogue.requests))
-			}
-			if epilogue.requests[0].RetryContext == nil {
-				t.Fatalf("epilogue called without retry context")
-			}
-		})
+	if len(epilogue.requests) != 1 {
+		t.Fatalf("epilogue run count = %d, want 1", len(epilogue.requests))
+	}
+	if epilogue.requests[0].RetryContext == nil {
+		t.Fatalf("epilogue called without retry context")
 	}
 }
 
@@ -1422,4 +1402,202 @@ func (s *scriptedBuildStage) Run(_ context.Context, req *stage.Request) (*stage.
 		return &stage.Result{Decision: stage.DecisionFail}, nil
 	}
 	return &stage.Result{Decision: stage.DecisionProceed}, nil
+}
+
+// nilResultTriageStage returns (nil, nil) from runStage to exercise nil-result guard.
+type nilResultTriageStage struct {
+	name     string
+	runCount int
+}
+
+func (s *nilResultTriageStage) Name() string { return s.name }
+
+func (s *nilResultTriageStage) Run(_ context.Context, _ *stage.Request) (*stage.Result, error) {
+	s.runCount++
+	return nil, nil
+}
+
+// --- Bug C1: Triage returns nil result ---
+
+func TestBeadLoopTriageNilResultReturnsError(t *testing.T) {
+	t.Parallel()
+
+	buildStage := &decisionStage{name: "build", decision: stage.DecisionFail}
+	triageStage := &nilResultTriageStage{name: "triage"}
+
+	cfg := BeadLoopConfig{
+		Gate:     newNoopStage("gate"),
+		Build:    buildStage,
+		Validate: newNoopStage("validate"),
+		Review:   newNoopStage("review"),
+		Epilogue: newNoopStage("epilogue"),
+		Triage:   triageStage,
+	}
+
+	loop, err := NewBeadLoop(cfg)
+	if err != nil {
+		t.Fatalf("NewBeadLoop: %v", err)
+	}
+
+	_, err = loop.Run(context.Background(), []*bead.Bead{{ID: "nil-triage"}}, nil)
+	if err == nil {
+		t.Fatal("expected error when triage returns nil result, got nil")
+	}
+	if !strings.Contains(err.Error(), "triage stage returned no result") {
+		t.Fatalf("error should mention nil result, got: %v", err)
+	}
+	if triageStage.runCount != 1 {
+		t.Fatalf("triage run count = %d, want 1", triageStage.runCount)
+	}
+}
+
+// --- Bug I1: Gate skip/block should not halt the loop ---
+
+func TestBeadLoopGateSkipContinuesLoop(t *testing.T) {
+	t.Parallel()
+
+	// Gate that skips the first bead, proceeds for the second
+	gateStage := &scriptedGateStage{
+		name:      "gate",
+		decisions: map[string]stage.Decision{"skip-me": stage.DecisionSkip},
+	}
+	build := &decisionStage{name: "build", decision: stage.DecisionProceed}
+	epilogue := &decisionStage{name: "epilogue", decision: stage.DecisionProceed}
+
+	cfg := BeadLoopConfig{
+		Gate:     gateStage,
+		Build:    build,
+		Validate: newNoopStage("validate"),
+		Review:   newNoopStage("review"),
+		Epilogue: epilogue,
+	}
+
+	loop, err := NewBeadLoop(cfg)
+	if err != nil {
+		t.Fatalf("NewBeadLoop: %v", err)
+	}
+
+	beads := []*bead.Bead{
+		{ID: "skip-me"},
+		{ID: "run-me"},
+	}
+	_, err = loop.Run(context.Background(), beads, nil)
+	if err != nil {
+		t.Fatalf("Run should succeed, got: %v", err)
+	}
+
+	// Build should only run for "run-me", not "skip-me"
+	if build.runCount != 1 {
+		t.Fatalf("build run count = %d, want 1 (only run-me)", build.runCount)
+	}
+	// Gate should have been called twice
+	if gateStage.runCount != 2 {
+		t.Fatalf("gate run count = %d, want 2", gateStage.runCount)
+	}
+}
+
+func TestBeadLoopGateBlockDefersBeadAndContinues(t *testing.T) {
+	t.Parallel()
+
+	// Gate that blocks the first bead, proceeds for the second
+	gateStage := &scriptedGateStage{
+		name:      "gate",
+		decisions: map[string]stage.Decision{"block-me": stage.DecisionBlock},
+	}
+	build := &decisionStage{name: "build", decision: stage.DecisionProceed}
+
+	cfg := BeadLoopConfig{
+		Gate:     gateStage,
+		Build:    build,
+		Validate: newNoopStage("validate"),
+		Review:   newNoopStage("review"),
+		Epilogue: newNoopStage("epilogue"),
+	}
+
+	loop, err := NewBeadLoop(cfg)
+	if err != nil {
+		t.Fatalf("NewBeadLoop: %v", err)
+	}
+
+	// block-me has no deps, run-me depends on nothing
+	beads := []*bead.Bead{
+		{ID: "run-me"},
+		{ID: "block-me"},
+	}
+	_, err = loop.Run(context.Background(), beads, nil)
+	if err != nil {
+		t.Fatalf("Run should succeed, got: %v", err)
+	}
+
+	// Build should only run for "run-me"
+	if build.runCount != 1 {
+		t.Fatalf("build run count = %d, want 1 (only run-me)", build.runCount)
+	}
+}
+
+// scriptedGateStage returns configured decisions per bead ID; defaults to Proceed.
+type scriptedGateStage struct {
+	name      string
+	decisions map[string]stage.Decision
+	runCount  int
+}
+
+func (s *scriptedGateStage) Name() string { return s.name }
+
+func (s *scriptedGateStage) Run(_ context.Context, req *stage.Request) (*stage.Result, error) {
+	s.runCount++
+	if d, ok := s.decisions[req.Bead.ID]; ok {
+		return &stage.Result{Decision: d}, nil
+	}
+	return &stage.Result{Decision: stage.DecisionProceed}, nil
+}
+
+// --- Bug M4: Triage retry capped ---
+
+func TestBeadLoopTriageRetryCapped(t *testing.T) {
+	t.Parallel()
+
+	// Build always fails
+	buildStage := &decisionStage{name: "build", decision: stage.DecisionFail}
+
+	// Triage always returns retry
+	triageStage := &fakeTriageStage{
+		name:      "triage",
+		category:  triage.CategoryRetry,
+		reasoning: "transient error",
+	}
+
+	epilogue := &decisionStage{name: "epilogue", decision: stage.DecisionProceed}
+
+	cfg := BeadLoopConfig{
+		Gate:     newNoopStage("gate"),
+		Build:    buildStage,
+		Validate: newNoopStage("validate"),
+		Review:   newNoopStage("review"),
+		Epilogue: epilogue,
+		Triage:   triageStage,
+	}
+
+	loop, err := NewBeadLoop(cfg)
+	if err != nil {
+		t.Fatalf("NewBeadLoop: %v", err)
+	}
+
+	_, err = loop.Run(context.Background(), []*bead.Bead{{ID: "stuck"}}, nil)
+	if err == nil {
+		t.Fatal("expected error when triage retry is exhausted, got nil")
+	}
+
+	// maxTriageRetries is 3, so triage should be called at most maxTriageRetries+1 times
+	// (the +1 is the call that exceeds the cap).
+	// Build attempts: 1 initial + 3 retries (from triage) + 0 from cap exceeded = 4
+	// then the 4th failure triggers triage again (4th triage call) which exceeds cap,
+	// falls through to failWithReason.
+	if triageStage.runCount > maxTriageRetries+1 {
+		t.Fatalf("triage run count = %d, want at most %d (capped)", triageStage.runCount, maxTriageRetries+1)
+	}
+	// Build should not run indefinitely
+	if buildStage.runCount > maxTriageRetries+2 {
+		t.Fatalf("build run count = %d, should be capped", buildStage.runCount)
+	}
 }
