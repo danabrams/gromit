@@ -69,6 +69,7 @@ type fakeGitAdapter struct {
 	t                  *testing.T
 	lastWorktree       string
 	gapAnalysisContent string
+	planContent        string
 	commitMessages     []string
 	removedWorktrees   []string
 	statusCalls        []string
@@ -92,6 +93,15 @@ func (f *fakeGitAdapter) Checkout(ctx context.Context, specID string) (string, e
 		path := filepath.Join(gromitPath, "gap-analysis.md")
 		if err := os.WriteFile(path, []byte(f.gapAnalysisContent), 0o644); err != nil {
 			f.t.Fatalf("write gap analysis: %v", err)
+		}
+	}
+	if f.planContent != "" {
+		planPath := filepath.Join(worktree, ".gromit", "v2")
+		if err := os.MkdirAll(planPath, 0o755); err != nil {
+			f.t.Fatalf("create plan dir: %v", err)
+		}
+		if err := os.WriteFile(filepath.Join(planPath, "plan.md"), []byte(f.planContent), 0o644); err != nil {
+			f.t.Fatalf("write plan content: %v", err)
 		}
 	}
 	f.lastWorktree = worktree
@@ -139,7 +149,9 @@ func (f *fakeLLMAdapter) planFor(specID string) string {
 	return specID + "-plan"
 }
 
-type fakeTaskTrackerAdapter struct{}
+type fakeTaskTrackerAdapter struct {
+	queryBeadsResponse *tasktracker.TaskTrackerQueryBeadsResponse
+}
 
 func newFakeTaskTrackerAdapter() *fakeTaskTrackerAdapter {
 	return &fakeTaskTrackerAdapter{}
@@ -162,6 +174,9 @@ func (f *fakeTaskTrackerAdapter) CloseBead(_ context.Context, _ tasktracker.Task
 }
 
 func (f *fakeTaskTrackerAdapter) QueryBeads(_ context.Context, _ tasktracker.TaskTrackerQueryBeadsRequest) (*tasktracker.TaskTrackerQueryBeadsResponse, error) {
+	if f.queryBeadsResponse != nil {
+		return f.queryBeadsResponse, nil
+	}
 	return &tasktracker.TaskTrackerQueryBeadsResponse{}, nil
 }
 

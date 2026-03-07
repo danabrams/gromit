@@ -14,6 +14,7 @@ import (
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/events"
 	"github.com/danabrams/gromit/internal/v2/adapter"
+	"github.com/danabrams/gromit/internal/v2/trackertypes"
 	"github.com/danabrams/gromit/internal/v2/presentation"
 	v2review "github.com/danabrams/gromit/internal/v2/review"
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
@@ -220,27 +221,43 @@ func (s *SpecLoop) Run(ctx context.Context, specID string, stopCh <-chan struct{
 
 	var plan string
 	s.recordStage("plan")
-	planRes, err := s.runPlanStage(ctx, req)
-	if err != nil {
-		return fmt.Errorf("plan stage: %w", err)
+	planPath := s.planFilePath(worktree)
+	if existingPlan, readErr := os.ReadFile(planPath); readErr == nil && len(strings.TrimSpace(string(existingPlan))) > 0 {
+		plan = string(existingPlan)
+		s.emit(&events.PlanResumedEvent{SpecID: specID, Path: planPath})
+	} else {
+		planRes, err := s.runPlanStage(ctx, req)
+		if err != nil {
+			return fmt.Errorf("plan stage: %w", err)
+		}
+		if planRes == nil || planRes.Artifacts == nil {
+			return fmt.Errorf("plan stage returned no artifacts")
+		}
+		planArtifacts, ok := planRes.Artifacts.(*planstage.PlanArtifacts)
+		if !ok {
+			return fmt.Errorf("unexpected artifacts type from plan stage: %T", planRes.Artifacts)
+		}
+		plan = planArtifacts.Plan
 	}
-	if planRes == nil || planRes.Artifacts == nil {
-		return fmt.Errorf("plan stage returned no artifacts")
-	}
-	planArtifacts, ok := planRes.Artifacts.(*planstage.PlanArtifacts)
-	if !ok {
-		return fmt.Errorf("unexpected artifacts type from plan stage: %T", planRes.Artifacts)
-	}
-	plan = planArtifacts.Plan
 
 	if err := s.ctxErr(ctx); err != nil {
 		return err
 	}
 
 	s.recordStage("decompose")
-	beads, err := s.runDecompose(ctx, req)
+	var beads []*bead.Bead
+	existingBeads, err := s.queryExistingBeads(ctx, specID)
 	if err != nil {
-		return err
+		return fmt.Errorf("query existing beads: %w", err)
+	}
+	if len(existingBeads) > 0 {
+		beads = existingBeads
+		s.emit(&events.DecomposeResumedEvent{SpecID: specID, BeadCount: len(beads)})
+	} else {
+		beads, err = s.runDecompose(ctx, req)
+		if err != nil {
+			return err
+		}
 	}
 
 	if err := s.ctxErr(ctx); err != nil {
@@ -302,6 +319,40 @@ func (s *SpecLoop) runDecompose(ctx context.Context, req stagepkg.Request) ([]*b
 		return nil, fmt.Errorf("unexpected artifacts type from decompose stage")
 	}
 	return append([]*bead.Bead(nil), artifacts.Beads...), nil
+}
+
+func (s *SpecLoop) queryExistingBeads(ctx context.Context, specID string) ([]*bead.Bead, error) {
+	if s.adapters.TaskTracker == nil {
+		return nil, nil
+	}
+	label := fmt.Sprintf("spec:%s", specID)
+	resp, err := s.adapters.TaskTracker.QueryBeads(ctx, trackertypes.TaskTrackerQueryBeadsRequest{
+		Labels: []string{label},
+		Status: "open",
+	})
+	if err != nil {
+		return nil, err
+	}
+	if resp == nil || len(resp.Beads) == 0 {
+		return nil, nil
+	}
+	beads := make([]*bead.Bead, len(resp.Beads))
+	for i, b := range resp.Beads {
+		beads[i] = &bead.Bead{
+			ID:          b.ID,
+			Title:       b.Title,
+			Description: b.Description,
+		}
+	}
+	return beads, nil
+}
+
+func (s *SpecLoop) planFilePath(worktree string) string {
+	gromitDir := s.cfg.Paths.GromitDir
+	if gromitDir == "" {
+		gromitDir = defaultGromitDir
+	}
+	return filepath.Join(worktree, gromitDir, v2DirName, "plan.md")
 }
 
 func (s *SpecLoop) runPlanStage(ctx context.Context, req stagepkg.Request) (*stagepkg.Result, error) {
