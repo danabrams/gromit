@@ -133,6 +133,10 @@ func (f *fakeGitAdapter) Log(_ context.Context, _ string, _ int) ([]adapter.LogE
 	return nil, nil
 }
 
+func (f *fakeGitAdapter) Show(_ context.Context, _, _ string) (string, error) {
+	return "", nil
+}
+
 type fakeLLMAdapter struct{}
 
 func newFakeLLMAdapter() *fakeLLMAdapter {

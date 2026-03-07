@@ -22,6 +22,7 @@ type GitAdapter interface {
 	RemoveWorktree(ctx context.Context, worktree string) error
 	Status(ctx context.Context, worktree string) (string, error)
 	Log(ctx context.Context, worktree string, n int) ([]LogEntry, error)
+	Show(ctx context.Context, worktree, hash string) (string, error)
 }
 
 // LLMAdapter provides LLM operations for the run loop.

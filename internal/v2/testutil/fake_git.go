@@ -25,6 +25,8 @@ type FakeGit struct {
 	StatusCalls         []string
 	LogCalls            []string
 	LogEntries          []adapter.LogEntry
+	ShowCalls           []string
+	ShowOutput          string
 
 	// Error injection fields — when non-nil the corresponding method
 	// returns the configured error.
@@ -35,6 +37,7 @@ type FakeGit struct {
 	RemoveWorktreeErr  error
 	StatusErr          error
 	LogErr             error
+	ShowErr            error
 }
 
 // NewFakeGit returns a fake Git adapter with defaults.
@@ -109,6 +112,16 @@ func (f *FakeGit) Status(_ context.Context, worktree string) (string, error) {
 		return "", f.StatusErr
 	}
 	return "", nil
+}
+
+func (f *FakeGit) Show(_ context.Context, worktree, _ string) (string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.ShowCalls = append(f.ShowCalls, worktree)
+	if f.ShowErr != nil {
+		return "", f.ShowErr
+	}
+	return f.ShowOutput, nil
 }
 
 func (f *FakeGit) Log(_ context.Context, worktree string, _ int) ([]adapter.LogEntry, error) {

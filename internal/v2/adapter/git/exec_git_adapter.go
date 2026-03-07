@@ -132,6 +132,21 @@ func (a *ExecGitAdapter) Log(ctx context.Context, worktree string, n int) ([]ada
 	return entries, nil
 }
 
+func (a *ExecGitAdapter) Show(ctx context.Context, worktree, hash string) (string, error) {
+	trimmed := strings.TrimSpace(worktree)
+	if trimmed == "" {
+		return "", fmt.Errorf("worktree required")
+	}
+	if strings.TrimSpace(hash) == "" {
+		return "", fmt.Errorf("hash required")
+	}
+	out, err := runGitCommand(ctx, trimmed, "show", hash)
+	if err != nil {
+		return "", fmt.Errorf("git show: %s: %w", out, err)
+	}
+	return string(out), nil
+}
+
 func (a *ExecGitAdapter) Status(ctx context.Context, worktree string) (string, error) {
 	trimmed := strings.TrimSpace(worktree)
 	if trimmed == "" {
