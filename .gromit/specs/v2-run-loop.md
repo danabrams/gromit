@@ -353,3 +353,126 @@ Each step produces a testable increment. V1 runs throughout, including as the to
 ### Epic Context
 
 This spec implements the "Goal-Oriented Orchestration" and foundational infrastructure from the `gromit-v2-autonomous-product-engineer` epic. Other epic outcomes (Immutable Pipeline, Recursive Quality/Andon escalation, Integration Coordinator) will be separate specs layered on top of this core loop.
+
+## Appendix: Post-Merge Stabilization Fixes
+
+The following fixes were applied to main after the v2-run-loop spec was merged (`92de3b36`). They are not part of the immutable-pipeline spec or any other spec — they were discovered during the first real execution of the v2 loop. If the branch needed to be rebuilt from this spec alone, these fixes would need to be re-applied. Each entry includes acceptance criteria sufficient to reproduce the fix.
+
+### A1. Mark v1-executed specs as accepted (`4add0543`)
+
+**Problem:** The v2 dependency gate checked spec `accepted` status, but 182 specs completed under v1 were never marked accepted in their frontmatter. This blocked all v2 specs that depended on prior work.
+
+**Acceptance criteria:**
+- All spec files in `.gromit/specs/` that were executed under v1 have `accepted: true` in their frontmatter
+- `gromit ready` lists v2 specs whose v1 dependencies are now satisfied
+
+### A2. Include provider error details in invocation errors (`5d3e0ab9`)
+
+**Problem:** When the LLM provider returned an unsuccessful result, the error message was generic ("provider reported unsuccessful result") with no detail from the provider's output.
+
+**Acceptance criteria:**
+- When `LLMInvokeResponse.Success` is false, the error message includes the trimmed `Output` field content
+- When output is empty, error says "no detail available"
+
+### A3. Embedded default prompts for all v2 LLM stages (`e5b026e1`)
+
+**Problem:** V2 stages (build, review, accept, plan, triage, decompose) had no default prompt fragments. The build stage worked because it had hardcoded defaults, but others silently sent empty prompts.
+
+**Acceptance criteria:**
+- Each LLM-invoking stage (build, review, accept, plan, triage, decompose) has an embedded default prompt fragment used when no external fragment file is loaded
+- External fragment files (e.g., `build_standard.md`, `review_v2.md`) override defaults when present
+- Stages produce meaningful LLM output without any fragment files on disk
+
+### A4. Extract shared types, fix import cycles, race conditions, and generation cap (`610374d4`)
+
+**Problem:** (a) Import cycle between `adapter/llm` and `stage/build` caused by shared types. (b) Race condition in bead loop when emitter and legacy emitter bridge concurrently. (c) Generation cap compared absolute generation instead of window-relative generation.
+
+**Acceptance criteria:**
+- Shared LLM types (`LLMInvokeRequest`, `LLMStreamInvokeRequest`, `LLMInvokeResponse`, `LLMProvider`) live in `internal/v2/llmtypes/` with type aliases in `adapter/llm/` for backward compatibility
+- `go vet ./...` passes with no race warnings
+- Generation cap uses `start_generation + cap` as the limit, not `cap` alone
+- `go build ./...` succeeds with no import cycles
+
+### A5. Worktree re-entry, named branches, and review bead DAG (`7073ebc5`)
+
+**Problem:** (a) `Checkout` failed when a worktree already existed from a previous failed run. (b) Worktree branches used anonymous HEAD instead of named `gromit/spec/<id>` branches. (c) Review-created beads had no dependency wiring into the DAG.
+
+**Acceptance criteria:**
+- `Checkout` removes an existing worktree before creating a fresh one (idempotent)
+- `git worktree add` uses `-B gromit/spec/<specID>` for named branches
+- Review-created beads are wired into the dependency resolver and picked up by subsequent loop iterations
+- Worktree removal handles read-only files (Go module cache) with chmod fallback + prune
+
+### A6. bd dependency field mapping — Gate sees blocking dependencies (`1ac40d41`)
+
+**Problem:** `queryExistingBeads` mapped `ID`, `Title`, `Description` but not `DependsOn`/`BlockedBy`/`Labels`/`Status`/`Priority`. The Gate stage couldn't see bead dependencies, so all beads appeared unblocked.
+
+**Acceptance criteria:**
+- `queryExistingBeads` maps all bead fields: `ID`, `Title`, `Description`, `Priority`, `Labels`, `Status`, `DependsOn`, `BlockedBy`
+- Gate correctly blocks beads whose dependencies are not yet completed
+
+### A7. Contract tests for review output and event serialization (`76fa83fe`)
+
+**Problem:** No tests verified that Review stage artifacts and event JSON serialization matched their schema contracts.
+
+**Acceptance criteria:**
+- Tests verify `ReviewArtifacts` fields (`CreatedBeads`, `OutOfScope`) serialize/deserialize correctly
+- Tests verify event types (stage started/completed/failed, bead started/completed) produce valid JSON with `schema_version`
+- Tests cover both positive and empty cases
+
+### A8. Batch fix for review findings (`ff2dba3b`)
+
+**Problem:** Accumulated code review findings across multiple commits needed a consolidated fix pass (naming, error handling, nil safety, documentation).
+
+**Acceptance criteria:**
+- `go vet ./...` passes
+- All exported functions in `internal/v2/` packages have nil-safe receiver checks where applicable
+- Error messages include sufficient context for diagnosis
+
+### A9. Resume from existing plan and beads on run2 rerun (`8516480d`)
+
+**Problem:** When `gromit run2` was re-run on a spec that had partially completed (e.g., after a failure with preserved worktree), the spec loop re-ran Plan and Decompose from scratch instead of resuming from the existing plan and beads.
+
+**Acceptance criteria:**
+- If `.gromit/v2/plan.md` exists in the worktree and is non-empty, the plan stage is skipped and the existing plan is used
+- If open beads with label `spec:<specID>` exist in the task tracker, the decompose stage is skipped and existing beads are used
+- Plan and decompose resume emit `PlanResumedEvent` and `DecomposeResumedEvent` respectively
+- Fresh runs (no existing plan or beads) still execute Plan and Decompose normally
+
+### A10. Demote scope_signals from hard violation to guidance (`a07ba08f`)
+
+**Problem:** Decompose rejected bead lists when `scope_signals` (estimated file count, complexity keywords) exceeded thresholds, causing valid decompositions to fail validation.
+
+**Acceptance criteria:**
+- `scope_signals` are used for complexity scoring and prioritization, not hard rejection
+- Decomposition validation focuses on structural requirements (non-empty titles, bounded child count, dependency validity)
+- Valid decompositions with high scope_signals are accepted with appropriate complexity classification
+
+### A11. Remove artificial spec dependency (`dfc3bc33`)
+
+**Problem:** The `v2-loop-routing-and-resume` spec declared a dependency on `immutable-pipeline`, but the two specs are independent. This blocked execution ordering unnecessarily.
+
+**Acceptance criteria:**
+- `v2-loop-routing-and-resume` spec frontmatter does not list `immutable-pipeline` as a dependency
+- Both specs can be run independently
+
+### A12. Investigation report for worktree dir bug (`0a824c4e`)
+
+**Problem:** Documentation only. Records the investigation that discovered the Claude CLI was running in the wrong directory.
+
+**Acceptance criteria:**
+- `.gromit/reports/debug-20260307-150000.md` exists with root cause analysis
+- `.gromit/plans/fix-llm-worktree-dir.md` exists with implementation plan
+
+### A13. Thread worktree Dir through LLM invocation chain (`835dd54a`)
+
+**Problem:** The Claude CLI process launched by all LLM-invoking stages inherited the gromit process CWD (main repo root) instead of running in the spec worktree. All code changes from build iterations landed in the wrong directory. The StageCommitter found nothing to commit in the worktree, so the spec branch had zero unique commits.
+
+**Acceptance criteria:**
+- `LLMInvokeRequest` and `LLMStreamInvokeRequest` have a `Dir string` field
+- `claude.Client.StreamRun` accepts `RunOption` variadic; `WithDir(dir)` sets `cmd.Dir` on the subprocess
+- `claudeAdapter.StreamInvoke` passes `req.Dir` to `StreamRun` via `WithDir`
+- `claudeAdapter.runOnce` accepts and applies a `dir` parameter to `cmd.Dir`
+- All LLM-invoking stages (build, review, accept, plan, triage, decompose) set `Dir: req.Worktree` in their LLM requests
+- The `claudeClient` interface in `internal/provider/claude.go` matches the updated `StreamRun` signature
+- `go build ./...` and `go test ./...` pass
