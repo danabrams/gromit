@@ -82,13 +82,6 @@ func TestListWithLabel_InvalidLabel(t *testing.T) {
 // TestListWithLabel_ValidLabels tests that ListWithLabel() accepts valid label formats
 func TestListWithLabel_ValidLabels(t *testing.T) {
 	t.Parallel()
-	var gotArgs []string
-	c := &Client{
-		RunFn: func(args ...string) (string, error) {
-			gotArgs = append([]string(nil), args...)
-			return "[]", nil
-		},
-	}
 
 	tests := []struct {
 		name  string
@@ -123,7 +116,13 @@ func TestListWithLabel_ValidLabels(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			gotArgs = nil
+			var gotArgs []string
+			c := &Client{
+				RunFn: func(args ...string) (string, error) {
+					gotArgs = append([]string(nil), args...)
+					return "[]", nil
+				},
+			}
 
 			_, err := c.ListWithLabel(context.Background(), tt.label)
 			if err != nil {

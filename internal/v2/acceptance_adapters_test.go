@@ -62,6 +62,14 @@ type acceptanceLLMAdapter struct {
 	fake *testutil.FakeLLM
 }
 
+func (a *acceptanceLLMAdapter) Invoke(ctx context.Context, req llm.InvokeRequest) (*llm.LLMResponse, error) {
+	return a.fake.Invoke(ctx, req)
+}
+
+func (a *acceptanceLLMAdapter) StreamInvoke(ctx context.Context, req llm.StreamInvokeRequest) (*llm.LLMResponse, error) {
+	return a.fake.StreamInvoke(ctx, req)
+}
+
 func (a *acceptanceLLMAdapter) GeneratePlan(ctx context.Context, specID string) (string, error) {
 	resp, err := a.fake.Invoke(ctx, llm.InvokeRequest{Prompt: specID})
 	if err != nil {

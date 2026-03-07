@@ -10,8 +10,8 @@ import (
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/events"
-	"github.com/danabrams/gromit/internal/v2/adapter/llm"
 	"github.com/danabrams/gromit/internal/v2/event"
+	"github.com/danabrams/gromit/internal/v2/llmtypes"
 	"github.com/danabrams/gromit/internal/v2/prompt"
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
 	stagedesc "github.com/danabrams/gromit/internal/v2/stage/names"
@@ -172,7 +172,7 @@ type BuildArtifacts struct {
 type Stage struct {
 	name      string
 	cfg       *config.Config
-	llm       llm.LLMProvider
+	llm       llmtypes.LLMProvider
 	base      string
 	project   string
 	fragments PromptFragments
@@ -181,7 +181,7 @@ type Stage struct {
 }
 
 // New constructs a build stage backed by the provided dependencies.
-func New(cfg *config.Config, provider llm.LLMProvider, base, project string, fragments PromptFragments, output io.Writer) (*Stage, error) {
+func New(cfg *config.Config, provider llmtypes.LLMProvider, base, project string, fragments PromptFragments, output io.Writer) (*Stage, error) {
 	if cfg == nil {
 		return nil, fmt.Errorf("config required")
 	}
@@ -376,7 +376,7 @@ func (s *Stage) writer() io.Writer {
 	return io.Discard
 }
 
-func (s *Stage) invokeWithEscalation(ctx context.Context, prompt, initialModel string, cfg *config.Config) (*llm.LLMResponse, string, error) {
+func (s *Stage) invokeWithEscalation(ctx context.Context, prompt, initialModel string, cfg *config.Config) (*llmtypes.LLMInvokeResponse, string, error) {
 	model := initialModel
 	escalationCfg := cfg
 	if escalationCfg == nil {
@@ -384,7 +384,7 @@ func (s *Stage) invokeWithEscalation(ctx context.Context, prompt, initialModel s
 	}
 
 	for {
-		resp, err := s.llm.StreamInvoke(ctx, llm.StreamInvokeRequest{Prompt: prompt, Model: model, Output: s.writer()})
+		resp, err := s.llm.StreamInvoke(ctx, llmtypes.LLMStreamInvokeRequest{Prompt: prompt, Model: model, Output: s.writer()})
 		if err == nil && resp != nil && resp.Success {
 			return resp, model, nil
 		}

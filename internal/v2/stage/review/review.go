@@ -12,13 +12,12 @@ import (
 	"github.com/danabrams/gromit/internal/coverage"
 	"github.com/danabrams/gromit/internal/events"
 	legacyReview "github.com/danabrams/gromit/internal/review"
-	"github.com/danabrams/gromit/internal/v2/adapter"
-	"github.com/danabrams/gromit/internal/v2/adapter/llm"
-	"github.com/danabrams/gromit/internal/v2/adapter/tasktracker"
+	"github.com/danabrams/gromit/internal/v2/llmtypes"
 	"github.com/danabrams/gromit/internal/v2/prompt"
 	v2review "github.com/danabrams/gromit/internal/v2/review"
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
 	stagedesc "github.com/danabrams/gromit/internal/v2/stage/names"
+	"github.com/danabrams/gromit/internal/v2/trackertypes"
 )
 
 const defaultReviewFragment = `# Post-Build Code Review Instructions
@@ -105,9 +104,14 @@ Notes:
 Respond with ONLY the JSON object. No markdown wrapper, no explanation.
 `
 
+// GitDiffer provides the git diff capability needed by the review stage.
+type GitDiffer interface {
+	Diff(ctx context.Context, worktree string) (string, error)
+}
+
 // ReviewArtifacts captures data emitted by the review stage.
 type ReviewArtifacts struct {
-	CreatedBeads []*tasktracker.Bead
+	CreatedBeads []*trackertypes.Bead
 	OutOfScope   []v2review.Finding
 }
 
@@ -115,9 +119,9 @@ type ReviewArtifacts struct {
 type Stage struct {
 	name     string
 	cfg      *config.Config
-	git      adapter.GitAdapter
-	llm      llm.LLMProvider
-	tracker  tasktracker.TaskTracker
+	git      GitDiffer
+	llm      llmtypes.LLMProvider
+	tracker  trackertypes.TaskTracker
 	base     string
 	project  string
 	fragment string
@@ -125,7 +129,7 @@ type Stage struct {
 }
 
 // New constructs a review stage with the provided dependencies.
-func New(cfg *config.Config, gitAdapter adapter.GitAdapter, provider llm.LLMProvider, tracker tasktracker.TaskTracker, base, project, fragment string) (*Stage, error) {
+func New(cfg *config.Config, gitAdapter GitDiffer, provider llmtypes.LLMProvider, tracker trackertypes.TaskTracker, base, project, fragment string) (*Stage, error) {
 	if cfg == nil {
 		return nil, fmt.Errorf("config required")
 	}
@@ -207,7 +211,7 @@ func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Resul
 		return nil, err
 	}
 
-	resp, err := s.llm.Invoke(ctx, llm.InvokeRequest{Prompt: promptText, Model: model})
+	resp, err := s.llm.Invoke(ctx, llmtypes.LLMInvokeRequest{Prompt: promptText, Model: model})
 	if err != nil {
 		return nil, fmt.Errorf("review: invoking llm: %w", err)
 	}
@@ -357,7 +361,7 @@ func convertToFindings(result *legacyReview.ReviewResult) []v2review.Finding {
 	return findings
 }
 
-func (s *Stage) createBeads(ctx context.Context, parentID string, proposals []*bead.Bead) ([]*tasktracker.Bead, error) {
+func (s *Stage) createBeads(ctx context.Context, parentID string, proposals []*bead.Bead) ([]*trackertypes.Bead, error) {
 	if len(proposals) == 0 {
 		return nil, nil
 	}
@@ -365,10 +369,10 @@ func (s *Stage) createBeads(ctx context.Context, parentID string, proposals []*b
 	if parentID == "" {
 		deps = nil
 	}
-	created := make([]*tasktracker.Bead, 0, len(proposals))
+	created := make([]*trackertypes.Bead, 0, len(proposals))
 	for _, proposal := range proposals {
 		labels := copyStrings(proposal.Labels)
-		trackerResp, err := s.tracker.CreateBead(ctx, tasktracker.CreateBeadRequest{
+		trackerResp, err := s.tracker.CreateBead(ctx, trackertypes.TaskTrackerCreateBeadRequest{
 			Title:        proposal.Title,
 			Description:  proposal.Description,
 			Priority:     proposal.Priority,

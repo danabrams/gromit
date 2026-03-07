@@ -79,13 +79,6 @@ func TestReadyWithLabel_InvalidLabel(t *testing.T) {
 // TestReadyWithLabel_ValidLabels tests that ReadyWithLabel() accepts valid label formats
 func TestReadyWithLabel_ValidLabels(t *testing.T) {
 	t.Parallel()
-	var gotArgs []string
-	c := &Client{
-		RunFn: func(args ...string) (string, error) {
-			gotArgs = append([]string(nil), args...)
-			return "[]", nil
-		},
-	}
 
 	tests := []struct {
 		name  string
@@ -118,9 +111,16 @@ func TestReadyWithLabel_ValidLabels(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			gotArgs = nil
+			var gotArgs []string
+			c := &Client{
+				RunFn: func(args ...string) (string, error) {
+					gotArgs = append([]string(nil), args...)
+					return "[]", nil
+				},
+			}
 
 			_, err := c.ReadyWithLabel(context.Background(), tt.label)
 			if err != nil {

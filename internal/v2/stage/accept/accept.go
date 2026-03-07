@@ -10,8 +10,7 @@ import (
 
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/coverage"
-	"github.com/danabrams/gromit/internal/v2/adapter"
-	"github.com/danabrams/gromit/internal/v2/adapter/llm"
+	"github.com/danabrams/gromit/internal/v2/llmtypes"
 	"github.com/danabrams/gromit/internal/v2/presentation"
 	v2prompt "github.com/danabrams/gromit/internal/v2/prompt"
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
@@ -50,6 +49,11 @@ Output ONLY a JSON object:
 Do NOT output markdown or anything other than the JSON object.
 `
 
+// GitDiffer provides the git diff capability needed by the accept stage.
+type GitDiffer interface {
+	Diff(ctx context.Context, worktree string) (string, error)
+}
+
 // AcceptArtifacts captures acceptance evaluation results produced by the stage.
 type AcceptArtifacts struct {
 	Results    []presentation.AcceptanceResult
@@ -60,15 +64,15 @@ type AcceptArtifacts struct {
 type Stage struct {
 	name     string
 	cfg      *config.Config
-	git      adapter.GitAdapter
-	llm      llm.LLMProvider
+	git      GitDiffer
+	llm      llmtypes.LLMProvider
 	base     string
 	project  string
 	fragment string
 }
 
 // New constructs an accept stage with the provided dependencies.
-func New(cfg *config.Config, git adapter.GitAdapter, provider llm.LLMProvider, base, project, fragment string) (*Stage, error) {
+func New(cfg *config.Config, git GitDiffer, provider llmtypes.LLMProvider, base, project, fragment string) (*Stage, error) {
 	if cfg == nil {
 		return nil, fmt.Errorf("config required")
 	}
@@ -151,7 +155,7 @@ func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Resul
 		promptText := s.buildPrompt(specID, criterion, diff)
 		model := s.selectModel(cfg, req)
 
-		resp, err := s.llm.Invoke(ctx, llm.InvokeRequest{Prompt: promptText, Model: model})
+		resp, err := s.llm.Invoke(ctx, llmtypes.LLMInvokeRequest{Prompt: promptText, Model: model})
 		if err != nil {
 			return nil, fmt.Errorf("evaluate criterion %d: %w", criterion.Number, err)
 		}

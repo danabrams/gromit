@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/danabrams/gromit/internal/config"
-	"github.com/danabrams/gromit/internal/v2/adapter/llm"
+	"github.com/danabrams/gromit/internal/v2/llmtypes"
 	"github.com/danabrams/gromit/internal/v2/prompt"
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
 	stagedesc "github.com/danabrams/gromit/internal/v2/stage/names"
@@ -88,7 +88,7 @@ decomposed: false
 // Stage produces the initial implementation plan for a spec.
 type Stage struct {
 	name     string
-	llm      llm.LLMProvider
+	llm      llmtypes.LLMProvider
 	base     string
 	project  string
 	fragment string
@@ -105,7 +105,7 @@ type PlanArtifacts struct {
 }
 
 // New constructs a plan stage backed by the provided configuration.
-func New(cfg *config.Config, provider llm.LLMProvider, base, project, fragment string) (*Stage, error) {
+func New(cfg *config.Config, provider llmtypes.LLMProvider, base, project, fragment string) (*Stage, error) {
 	if cfg == nil {
 		return nil, fmt.Errorf("config required")
 	}
@@ -154,7 +154,7 @@ func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Resul
 	}
 
 	promptPayload := prompt.NewPromptAssembler(s.base, s.project, string(specData), s.fragment).Assemble()
-	resp, err := s.llm.Invoke(ctx, llm.InvokeRequest{Prompt: promptPayload, Model: modelOpus})
+	resp, err := s.llm.Invoke(ctx, llmtypes.LLMInvokeRequest{Prompt: promptPayload, Model: modelOpus})
 	if err != nil {
 		return nil, fmt.Errorf("invoke llm: %w", err)
 	}

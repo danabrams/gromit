@@ -7,7 +7,7 @@ import (
 
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/jsonutil"
-	"github.com/danabrams/gromit/internal/v2/adapter/llm"
+	"github.com/danabrams/gromit/internal/v2/llmtypes"
 	"github.com/danabrams/gromit/internal/v2/prompt"
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
 	stagedesc "github.com/danabrams/gromit/internal/v2/stage/names"
@@ -17,10 +17,10 @@ import (
 type Category string
 
 const (
-	CategoryDecompose  Category = "decompose"    // task too complex, break it down
-	CategoryRetry      Category = "retry"        // transient error, retry same model
+	CategoryDecompose   Category = "decompose"    // task too complex, break it down
+	CategoryRetry       Category = "retry"        // transient error, retry same model
 	CategoryUnclearSpec Category = "unclear_spec" // spec is ambiguous, surface to human
-	CategoryUnsafe     Category = "unsafe"       // dangerous operation, hard stop
+	CategoryUnsafe      Category = "unsafe"       // dangerous operation, hard stop
 )
 
 // TriageArtifacts captures the triage decision.
@@ -33,7 +33,7 @@ type TriageArtifacts struct {
 type Stage struct {
 	name     string
 	cfg      *config.Config
-	llm      llm.LLMProvider
+	llm      llmtypes.LLMProvider
 	base     string
 	project  string
 	fragment string
@@ -44,7 +44,7 @@ var _ stagepkg.Stage = (*Stage)(nil)
 // New constructs a triage stage with the provided dependencies.
 // base, project, and fragment are prompt layers passed to the PromptAssembler.
 // If fragment is empty, defaultTriageFragment is used as a fallback.
-func New(cfg *config.Config, provider llm.LLMProvider, base, project, fragment string) (*Stage, error) {
+func New(cfg *config.Config, provider llmtypes.LLMProvider, base, project, fragment string) (*Stage, error) {
 	if cfg == nil {
 		return nil, fmt.Errorf("config required")
 	}
@@ -121,7 +121,7 @@ func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Resul
 		model = config.ModelHaiku
 	}
 
-	resp, err := s.llm.Invoke(ctx, llm.InvokeRequest{Prompt: promptText, Model: model})
+	resp, err := s.llm.Invoke(ctx, llmtypes.LLMInvokeRequest{Prompt: promptText, Model: model})
 	if err != nil {
 		return nil, fmt.Errorf("triage: invoking llm: %w", err)
 	}

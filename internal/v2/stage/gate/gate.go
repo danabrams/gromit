@@ -7,19 +7,19 @@ import (
 
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/tracker"
-	"github.com/danabrams/gromit/internal/v2/adapter/tasktracker"
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
 	stagedesc "github.com/danabrams/gromit/internal/v2/stage/names"
+	"github.com/danabrams/gromit/internal/v2/trackertypes"
 )
 
 // Stage evaluates bead readiness before build work begins.
 type Stage struct {
 	name    string
-	tracker tasktracker.TaskTracker
+	tracker trackertypes.TaskTracker
 }
 
 // New constructs a gate stage backed by the provided configuration and tracker.
-func New(cfg *config.Config, tracker tasktracker.TaskTracker) (*Stage, error) {
+func New(cfg *config.Config, tracker trackertypes.TaskTracker) (*Stage, error) {
 	if cfg == nil {
 		return nil, fmt.Errorf("config required")
 	}
@@ -82,7 +82,7 @@ func isClosed(status string) bool {
 	return strings.EqualFold(normalized, "completed")
 }
 
-func (s *Stage) hasPendingDependencies(ctx context.Context, b *tasktracker.Bead) (bool, error) {
+func (s *Stage) hasPendingDependencies(ctx context.Context, b *trackertypes.Bead) (bool, error) {
 	if b == nil {
 		return false, nil
 	}
@@ -102,7 +102,7 @@ func (s *Stage) hasPendingDependencies(ctx context.Context, b *tasktracker.Bead)
 	return false, nil
 }
 
-func dependencyIDs(b *tasktracker.Bead) []string {
+func dependencyIDs(b *trackertypes.Bead) []string {
 	if b == nil {
 		return nil
 	}

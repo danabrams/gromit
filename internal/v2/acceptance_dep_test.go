@@ -82,7 +82,7 @@ func TestListReadyOnlyIncludesEligibleSpecs(t *testing.T) {
 	ctx := context.Background()
 	specsDir := createSpecsDir(t)
 
-	writeSpecFile(t, specsDir, "done-parent", "done", nil)
+	writeSpecFileAccepted(t, specsDir, "done-parent", nil)
 	writeSpecFile(t, specsDir, "child-ready", "", []string{"done-parent"})
 	writeSpecFile(t, specsDir, "pending", "", nil)
 	writeSpecFile(t, specsDir, "blocked-child", "", []string{"pending"})
@@ -159,6 +159,27 @@ func createSpecsDir(t *testing.T) string {
 		t.Fatalf("failed to create specs dir: %v", err)
 	}
 	return specsDir
+}
+
+func writeSpecFileAccepted(t *testing.T, specsDir, id string, depends []string) {
+	t.Helper()
+	var sb strings.Builder
+	sb.WriteString("---\n")
+	sb.WriteString(fmt.Sprintf("id: %s\n", id))
+	sb.WriteString("accepted: true\n")
+	if len(depends) > 0 {
+		sb.WriteString("depends_on:\n")
+		for _, dep := range depends {
+			sb.WriteString(fmt.Sprintf("  - %s\n", dep))
+		}
+	}
+	sb.WriteString("---\n")
+	sb.WriteString("# spec body\n")
+
+	path := filepath.Join(specsDir, id+".md")
+	if err := os.WriteFile(path, []byte(sb.String()), 0o644); err != nil {
+		t.Fatalf("writing spec file: %v", err)
+	}
 }
 
 func writeSpecFile(t *testing.T, specsDir, id, stage string, depends []string) {

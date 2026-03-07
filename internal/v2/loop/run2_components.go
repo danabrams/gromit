@@ -13,20 +13,20 @@ import (
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/events"
-	v2remediation "github.com/danabrams/gromit/internal/v2/remediation"
 	"github.com/danabrams/gromit/internal/v2/adapter"
 	"github.com/danabrams/gromit/internal/v2/adapter/llm"
 	"github.com/danabrams/gromit/internal/v2/event"
+	v2remediation "github.com/danabrams/gromit/internal/v2/remediation"
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
 	acceptstage "github.com/danabrams/gromit/internal/v2/stage/accept"
 	buildstage "github.com/danabrams/gromit/internal/v2/stage/build"
 	decomposestage "github.com/danabrams/gromit/internal/v2/stage/decompose"
 	epiloguestage "github.com/danabrams/gromit/internal/v2/stage/epilogue"
-	triagestage "github.com/danabrams/gromit/internal/v2/stage/triage"
 	gatestage "github.com/danabrams/gromit/internal/v2/stage/gate"
 	planstage "github.com/danabrams/gromit/internal/v2/stage/plan"
 	present "github.com/danabrams/gromit/internal/v2/stage/present"
 	reviewstage "github.com/danabrams/gromit/internal/v2/stage/review"
+	triagestage "github.com/danabrams/gromit/internal/v2/stage/triage"
 	stagevalidate "github.com/danabrams/gromit/internal/v2/stage/validate"
 )
 
@@ -110,7 +110,18 @@ func NewRun2LoopComponents(cfg *config.Config, adapters adapter.AdapterSet, lega
 		return nil, err
 	}
 
-	decomposeStage, err := decomposestage.New(cfg, adapters.LLM, adapters.TaskTracker)
+	decomposeTemplate, err := loadFragment(cfg.ProjectRoot, "decompose_v2.md")
+	if err != nil {
+		cleanup()
+		return nil, err
+	}
+
+	var decomposeOpts []decomposestage.Option
+	if decomposeTemplate != "" {
+		decomposeOpts = append(decomposeOpts, decomposestage.WithPromptTemplate(decomposeTemplate))
+	}
+
+	decomposeStage, err := decomposestage.New(cfg, adapters.LLM, adapters.TaskTracker, decomposeOpts...)
 	if err != nil {
 		cleanup()
 		return nil, err

@@ -47,6 +47,80 @@ EOF
 	}
 }
 
+func TestClaudeAdapter_InvokeParsesIsErrorFalse(t *testing.T) {
+	tmpDir := t.TempDir()
+	fake := filepath.Join(tmpDir, "claude")
+	// Claude CLI uses "is_error" instead of "success" in --output-format json
+	script := `#!/usr/bin/env sh
+cat > /dev/null
+cat <<'EOF'
+{"is_error": false, "result": "plan output", "total_cost_usd": 0.10, "input_tokens": 5, "output_tokens": 3}
+EOF
+`
+	if err := os.WriteFile(fake, []byte(script), 0o755); err != nil {
+		t.Fatalf("write fake claude: %v", err)
+	}
+
+	provider := NewClaudeAdapter(fake, nil, 5*time.Second)
+	resp, err := provider.Invoke(context.Background(), InvokeRequest{Prompt: "test", Model: "opus"})
+	if err != nil {
+		t.Fatalf("Invoke returned error: %v", err)
+	}
+	if !resp.Success {
+		t.Fatal("Success should be true when is_error is false")
+	}
+	if resp.Output != "plan output" {
+		t.Fatalf("output = %q, want %q", resp.Output, "plan output")
+	}
+}
+
+func TestClaudeAdapter_InvokeParsesIsErrorTrue(t *testing.T) {
+	tmpDir := t.TempDir()
+	fake := filepath.Join(tmpDir, "claude")
+	script := `#!/usr/bin/env sh
+cat > /dev/null
+cat <<'EOF'
+{"is_error": true, "result": "something went wrong", "total_cost_usd": 0.01, "input_tokens": 1, "output_tokens": 1}
+EOF
+`
+	if err := os.WriteFile(fake, []byte(script), 0o755); err != nil {
+		t.Fatalf("write fake claude: %v", err)
+	}
+
+	provider := NewClaudeAdapter(fake, nil, 5*time.Second)
+	resp, err := provider.Invoke(context.Background(), InvokeRequest{Prompt: "test", Model: "opus"})
+	if err != nil {
+		t.Fatalf("Invoke returned error: %v", err)
+	}
+	if resp.Success {
+		t.Fatal("Success should be false when is_error is true")
+	}
+}
+
+func TestClaudeAdapter_InvokeNoSuccessNoIsError(t *testing.T) {
+	tmpDir := t.TempDir()
+	fake := filepath.Join(tmpDir, "claude")
+	// Neither "success" nor "is_error" present — should default to success
+	script := `#!/usr/bin/env sh
+cat > /dev/null
+cat <<'EOF'
+{"result": "some output", "total_cost_usd": 0.05, "input_tokens": 2, "output_tokens": 2}
+EOF
+`
+	if err := os.WriteFile(fake, []byte(script), 0o755); err != nil {
+		t.Fatalf("write fake claude: %v", err)
+	}
+
+	provider := NewClaudeAdapter(fake, nil, 5*time.Second)
+	resp, err := provider.Invoke(context.Background(), InvokeRequest{Prompt: "test", Model: "opus"})
+	if err != nil {
+		t.Fatalf("Invoke returned error: %v", err)
+	}
+	if !resp.Success {
+		t.Fatal("Success should be true when neither success nor is_error is present")
+	}
+}
+
 func TestClaudeAdapter_StreamInvokeStreamsOutput(t *testing.T) {
 	tmpDir := t.TempDir()
 	fake := filepath.Join(tmpDir, "claude")

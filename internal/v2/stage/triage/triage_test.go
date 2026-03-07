@@ -281,3 +281,67 @@ func TestRun_NoPriorFailures(t *testing.T) {
 	// Suppress unused import warning for fmt.
 	_ = fmt.Sprintf
 }
+
+func TestCustomFragmentAppearsInPrompt(t *testing.T) {
+	t.Parallel()
+
+	customFragment := "Custom triage instructions for testing"
+	fake := testutil.NewFakeLLM()
+	fake.SetResponse("", &llm.LLMResponse{
+		Success: true,
+		Output:  `{"category": "retry", "reasoning": "test"}`,
+	})
+	stage, err := triage.New(validConfig(), fake, "", "", customFragment)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	req := &stagepkg.Request{
+		Bead:         stagepkg.BeadInfo{ID: "b1", Title: "test-bead"},
+		RetryContext: &stagepkg.RetryContext{PriorFailures: []string{"failed"}},
+	}
+	_, err = stage.Run(context.Background(), req)
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+
+	calls := fake.Calls
+	if len(calls) != 1 {
+		t.Fatalf("expected 1 LLM call, got %d", len(calls))
+	}
+	if !strings.Contains(calls[0].Prompt, "Custom triage instructions") {
+		t.Fatalf("expected custom fragment in prompt, got: %q", calls[0].Prompt)
+	}
+}
+
+func TestEmptyFragmentFallsBackToDefault(t *testing.T) {
+	t.Parallel()
+
+	fake := testutil.NewFakeLLM()
+	fake.SetResponse("", &llm.LLMResponse{
+		Success: true,
+		Output:  `{"category": "retry", "reasoning": "test"}`,
+	})
+	stage, err := triage.New(validConfig(), fake, "", "", "   ")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	req := &stagepkg.Request{
+		Bead:         stagepkg.BeadInfo{ID: "b1", Title: "test-bead"},
+		RetryContext: &stagepkg.RetryContext{PriorFailures: []string{"failed"}},
+	}
+	_, err = stage.Run(context.Background(), req)
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+
+	// With empty fragment, should fall back to default which contains "Build Failure Triage"
+	calls := fake.Calls
+	if len(calls) != 1 {
+		t.Fatalf("expected 1 LLM call, got %d", len(calls))
+	}
+	if !strings.Contains(calls[0].Prompt, "Build Failure Triage") {
+		t.Fatalf("expected default fragment in prompt, got: %q", calls[0].Prompt)
+	}
+}

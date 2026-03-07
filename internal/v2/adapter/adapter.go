@@ -3,9 +3,9 @@ package adapter
 import (
 	"context"
 
-	"github.com/danabrams/gromit/internal/v2/adapter/llm"
-	"github.com/danabrams/gromit/internal/v2/adapter/tasktracker"
+	"github.com/danabrams/gromit/internal/v2/llmtypes"
 	"github.com/danabrams/gromit/internal/v2/presentation"
+	"github.com/danabrams/gromit/internal/v2/trackertypes"
 )
 
 // GitAdapter performs git operations required by the run loop.
@@ -20,13 +20,13 @@ type GitAdapter interface {
 // LLMAdapter provides LLM operations for the run loop.
 // It embeds llm.LLMProvider (Invoke, StreamInvoke) and adds GeneratePlan.
 type LLMAdapter interface {
-	llm.LLMProvider
+	llmtypes.LLMProvider
 	GeneratePlan(ctx context.Context, specID string) (plan string, err error)
 }
 
 // TaskTrackerAdapter provides task-tracker operations for the run loop.
 type TaskTrackerAdapter interface {
-	tasktracker.TaskTracker
+	trackertypes.TaskTracker
 }
 
 // PresenterAdapter surfaces completed specs to product owners.

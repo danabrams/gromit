@@ -7,12 +7,16 @@ import (
 	"strings"
 
 	"github.com/danabrams/gromit/internal/config"
-	"github.com/danabrams/gromit/internal/v2/adapter"
 	"github.com/danabrams/gromit/internal/v2/presentation"
 	v2review "github.com/danabrams/gromit/internal/v2/review"
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
 	stagedesc "github.com/danabrams/gromit/internal/v2/stage/names"
 )
+
+// Presenter surfaces completed specs to product owners.
+type Presenter interface {
+	PresentSummary(ctx context.Context, specID string, summary presentation.PresentationSummary) error
+}
 
 // SummaryContext captures the accumulated data the presentation stage surfaces.
 type SummaryContext struct {
@@ -32,12 +36,12 @@ type SummaryContext struct {
 // Stage implements the presentation stage of the run loop.
 type Stage struct {
 	name      string
-	presenter adapter.PresenterAdapter
+	presenter Presenter
 	ctx       *SummaryContext
 }
 
 // New creates a present stage backed by the provided presenter and accumulated context.
-func New(cfg *config.Config, presenter adapter.PresenterAdapter, ctx *SummaryContext) (*Stage, error) {
+func New(cfg *config.Config, presenter Presenter, ctx *SummaryContext) (*Stage, error) {
 	if presenter == nil {
 		return nil, errors.New("presenter required")
 	}

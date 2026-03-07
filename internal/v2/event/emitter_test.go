@@ -276,10 +276,11 @@ func TestEmitterLogsRecoveredSubscriberPanics(t *testing.T) {
 		close(nonPanicDone)
 	})
 
+	var mu sync.Mutex
 	var buf bytes.Buffer
 	origOutput := log.Writer()
 	origFlags := log.Flags()
-	log.SetOutput(&buf)
+	log.SetOutput(&lockedWriter{mu: &mu, w: &buf})
 	log.SetFlags(0)
 	defer func() {
 		log.SetOutput(origOutput)
@@ -300,14 +301,18 @@ func TestEmitterLogsRecoveredSubscriberPanics(t *testing.T) {
 
 	deadline := time.Now().Add(time.Second)
 	for time.Now().Before(deadline) {
+		mu.Lock()
 		logOutput := buf.String()
+		mu.Unlock()
 		if strings.Contains(logOutput, "subscriber panic recovered") && strings.Contains(logOutput, "boom") {
 			return
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
 
+	mu.Lock()
 	logOutput := buf.String()
+	mu.Unlock()
 	t.Fatalf("expected panic log with subscriber panic, got %q", logOutput)
 }
 
@@ -377,6 +382,17 @@ func TestEmitterCloseIsIdempotent(t *testing.T) {
 
 	emitter.Close()
 	emitter.Close() // second call must not panic
+}
+
+type lockedWriter struct {
+	mu *sync.Mutex
+	w  *bytes.Buffer
+}
+
+func (lw *lockedWriter) Write(p []byte) (int, error) {
+	lw.mu.Lock()
+	defer lw.mu.Unlock()
+	return lw.w.Write(p)
 }
 
 func waitForGoroutines(t *testing.T, target int) {

@@ -6,16 +6,16 @@ import (
 	"strings"
 
 	"github.com/danabrams/gromit/internal/config"
-	"github.com/danabrams/gromit/internal/v2/adapter/tasktracker"
 	"github.com/danabrams/gromit/internal/v2/event"
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
 	stagedesc "github.com/danabrams/gromit/internal/v2/stage/names"
+	"github.com/danabrams/gromit/internal/v2/trackertypes"
 )
 
 // Stage handles the final bookkeeping for a completed bead iteration.
 type Stage struct {
 	name    string
-	tracker tasktracker.TaskTracker
+	tracker trackertypes.TaskTracker
 }
 
 // EpilogueArtifacts exposes outcome metadata for downstream consumers.
@@ -25,7 +25,7 @@ type EpilogueArtifacts struct {
 }
 
 // New constructs an epilogue stage backed by the provided adapter set.
-func New(cfg *config.Config, tracker tasktracker.TaskTracker) (*Stage, error) {
+func New(cfg *config.Config, tracker trackertypes.TaskTracker) (*Stage, error) {
 	if cfg == nil {
 		return nil, fmt.Errorf("config required")
 	}
@@ -67,7 +67,7 @@ func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Resul
 		}, nil
 	}
 
-	closeResp, err := s.tracker.CloseBead(ctx, tasktracker.CloseBeadRequest{BeadID: beadID})
+	closeResp, err := s.tracker.CloseBead(ctx, trackertypes.TaskTrackerCloseBeadRequest{BeadID: beadID})
 	if err != nil {
 		return nil, fmt.Errorf("close bead %s: %w", beadID, err)
 	}

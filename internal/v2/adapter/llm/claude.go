@@ -160,6 +160,7 @@ func parseInvokeResult(raw string) (*LLMResponse, error) {
 
 	var payload struct {
 		Success bool   `json:"success"`
+		IsError bool   `json:"is_error"`
 		Result  string `json:"result"`
 		Output  string `json:"output"`
 		Message *struct {
@@ -209,8 +210,15 @@ func parseInvokeResult(raw string) (*LLMResponse, error) {
 		outputTokens = payload.Usage.OutputTokens
 	}
 
+	// Claude CLI uses "is_error" (not "success") in --output-format json.
+	// When "success" is absent it defaults to false; fall back to !is_error.
+	success := payload.Success
+	if !success {
+		success = !payload.IsError
+	}
+
 	return &LLMResponse{
-		Success: payload.Success,
+		Success: success,
 		Output:  text,
 		Tokens:  inputTokens + outputTokens,
 		CostUSD: cost,
