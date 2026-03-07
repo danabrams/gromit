@@ -62,6 +62,29 @@ func TestSubscribeToRegistersHandlerWithEmitter(t *testing.T) {
 	}
 }
 
+func TestHandleDoesNotPanicOnInvalidPath(t *testing.T) {
+	// Use a path that cannot be written to (null byte in path is invalid on all OSes).
+	fs := NewFileSubscriber("/dev/null/\x00/impossible/events.jsonl")
+
+	// Must not panic — errors should be logged, not swallowed silently or cause crashes.
+	evt := &StageStartedEvent{Event: Event{Type: EventTypeStageStarted}, StageName: "build"}
+	fs.Handle(evt)
+}
+
+func TestHandleDoesNotPanicOnReadOnlyPath(t *testing.T) {
+	dir := t.TempDir()
+	readOnlyDir := filepath.Join(dir, "readonly")
+	if err := os.MkdirAll(readOnlyDir, 0o555); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	path := filepath.Join(readOnlyDir, "subdir", "events.jsonl")
+	fs := NewFileSubscriber(path)
+
+	// Must not panic when the parent directory cannot be created.
+	evt := &StageStartedEvent{Event: Event{Type: EventTypeStageStarted}, StageName: "build"}
+	fs.Handle(evt)
+}
+
 func TestHandleConcurrentWritesProduceValidJSONLines(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "concurrent.jsonl")
 	fs := NewFileSubscriber(path)

@@ -2,6 +2,7 @@ package event
 
 import (
 	"encoding/json"
+	"log"
 	"os"
 	"path/filepath"
 	"sync"
@@ -9,8 +10,10 @@ import (
 
 // FileSubscriber appends JSON-encoded events to a JSONL file.
 type FileSubscriber struct {
-	path string
-	mu   sync.Mutex
+	path    string
+	mu      sync.Mutex
+	mkdirOnce sync.Once
+	mkdirErr  error
 }
 
 // NewFileSubscriber returns a FileSubscriber that writes to path.
@@ -28,6 +31,7 @@ func (f *FileSubscriber) SubscribeTo(emitter *Emitter) {
 func (f *FileSubscriber) Handle(evt TypedEvent) {
 	data, err := json.Marshal(evt)
 	if err != nil {
+		log.Printf("file subscriber: marshal %s: %v", f.path, err)
 		return
 	}
 	data = append(data, '\n')
@@ -35,13 +39,20 @@ func (f *FileSubscriber) Handle(evt TypedEvent) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	if err := os.MkdirAll(filepath.Dir(f.path), 0o755); err != nil {
+	f.mkdirOnce.Do(func() {
+		f.mkdirErr = os.MkdirAll(filepath.Dir(f.path), 0o755)
+	})
+	if f.mkdirErr != nil {
+		log.Printf("file subscriber: mkdir %s: %v", f.path, f.mkdirErr)
 		return
 	}
 	file, err := os.OpenFile(f.path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
 	if err != nil {
+		log.Printf("file subscriber: open %s: %v", f.path, err)
 		return
 	}
 	defer file.Close()
-	_, _ = file.Write(data)
+	if _, err := file.Write(data); err != nil {
+		log.Printf("file subscriber: write %s: %v", f.path, err)
+	}
 }
