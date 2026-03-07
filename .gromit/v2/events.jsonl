@@ -136,3 +136,11 @@
 {"schema_version":1,"timestamp":"2026-03-07T16:28:52.608368-05:00","type":"stage.completed","stage_name":"validate:default","bead_id":"gromit-uulh1","iteration":19,"success":true,"duration":40113709}
 {"schema_version":1,"timestamp":"2026-03-07T16:28:52.656542-05:00","type":"stage.started","stage_name":"review:default","bead_id":"gromit-uulh1","iteration":19}
 {"schema_version":1,"timestamp":"2026-03-07T16:28:52.656556-05:00","type":"stage.completed","stage_name":"review:default","bead_id":"gromit-uulh1","iteration":19,"success":true,"duration":2667}
+{"schema_version":1,"timestamp":"2026-03-07T16:28:52.703754-05:00","type":"stage.started","stage_name":"epilogue:default","bead_id":"gromit-uulh1","iteration":19}
+{"schema_version":1,"timestamp":"2026-03-07T16:28:52.86201-05:00","type":"stage.completed","stage_name":"epilogue:default","bead_id":"gromit-uulh1","iteration":19,"success":true,"duration":158246917}
+{"schema_version":1,"timestamp":"2026-03-07T16:28:52.862025-05:00","type":"bead.completed","bead_id":"gromit-uulh1","bead_title":"Add unit tests for tier resolution","iteration":19,"success":true}
+{"schema_version":1,"timestamp":"2026-03-07T16:28:52.862049-05:00","type":"bead.started","bead_id":"gromit-v1j2u","bead_title":"Add phase filtering to rules loading in PromptAssembler","iteration":20}
+{"schema_version":1,"timestamp":"2026-03-07T16:28:52.862051-05:00","type":"stage.started","stage_name":"gate:default","bead_id":"gromit-v1j2u","iteration":20}
+{"schema_version":1,"timestamp":"2026-03-07T16:28:52.939682-05:00","type":"stage.completed","stage_name":"gate:default","bead_id":"gromit-v1j2u","iteration":20,"success":true,"duration":77630125}
+{"schema_version":1,"timestamp":"2026-03-07T16:28:52.939691-05:00","type":"stage.started","stage_name":"build:default","bead_id":"gromit-v1j2u","iteration":20}
+{"schema_version":1,"timestamp":"2026-03-07T16:32:29.372451-05:00","type":"stage.completed","stage_name":"build:default","bead_id":"gromit-v1j2u","iteration":20,"success":true,"duration":216431930875}
