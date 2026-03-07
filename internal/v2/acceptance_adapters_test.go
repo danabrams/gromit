@@ -72,3 +72,11 @@ func (a *acceptanceLLMAdapter) GeneratePlan(ctx context.Context, specID string) 
 	}
 	return fmt.Sprintf("%s-plan", specID), nil
 }
+
+func (a *acceptanceLLMAdapter) Invoke(ctx context.Context, req llm.LLMInvokeRequest) (*llm.LLMInvokeResponse, error) {
+	return a.fake.Invoke(ctx, req)
+}
+
+func (a *acceptanceLLMAdapter) StreamInvoke(ctx context.Context, req llm.LLMStreamInvokeRequest) (*llm.LLMStreamInvokeResponse, error) {
+	return a.fake.StreamInvoke(ctx, req)
+}

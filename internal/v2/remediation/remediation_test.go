@@ -50,7 +50,7 @@ func TestRemediationRunnerRun_requiresValidDecomposeArtifacts(t *testing.T) {
 	}
 }
 
-func TestRemediationRunnerUsesDefaultGenerationCapWhenZero(t *testing.T) {
+func TestRemediationRunnerUsesDefaultGenerationCapWhenNegative(t *testing.T) {
 	ctx := context.Background()
 
 	failuresRemaining := 3
@@ -78,7 +78,7 @@ func TestRemediationRunnerUsesDefaultGenerationCapWhenZero(t *testing.T) {
 		},
 	}
 
-	runner := newRunnerForRemediationCycle(accept, decompose, &testBeadRunner{}, 0)
+	runner := newRunnerForRemediationCycle(accept, decompose, &testBeadRunner{}, -1)
 	if err := runner.Run(ctx, "spec-id"); err != nil {
 		t.Fatalf("remediation run failed: %v", err)
 	}

@@ -172,7 +172,9 @@ func writeSpecFile(t *testing.T, specsDir, id, stage string, depends []string) {
 			sb.WriteString(fmt.Sprintf("  - %s\n", dep))
 		}
 	}
-	if stage != "" {
+	if stage == "done" {
+		sb.WriteString("accepted: true\n")
+	} else if stage != "" {
 		sb.WriteString(fmt.Sprintf("stage: %s\n", stage))
 	}
 	sb.WriteString("---\n")

@@ -23,9 +23,9 @@ import (
 )
 
 const (
-	defaultGromitDir     = ".gromit"
-	v2DirName            = "v2"
-	maxAcceptanceRetries = 5
+	defaultGromitDir                = ".gromit"
+	v2DirName                       = "v2"
+	defaultMaxAcceptanceRetries     = 5
 )
 
 // StageSequence lists the canonical stages the spec loop emits.
@@ -322,8 +322,18 @@ func (s *SpecLoop) runBeadLoop(ctx context.Context, beads []*bead.Bead, worktree
 	return s.beadRunner.Run(ctx, beads, stopCh)
 }
 
+func (s *SpecLoop) maxAcceptanceRetries() int {
+	if s.cfg != nil {
+		if n := s.cfg.Methodology.SpecGateMaxRetries; n > 0 {
+			return n
+		}
+	}
+	return defaultMaxAcceptanceRetries
+}
+
 func (s *SpecLoop) ensureAcceptance(ctx context.Context, req *stagepkg.Request, specID string) (*stagepkg.Result, error) {
-	retriesRemaining := maxAcceptanceRetries
+	limit := s.maxAcceptanceRetries()
+	retriesRemaining := limit
 	for {
 		if err := s.ctxErr(ctx); err != nil {
 			return nil, err
@@ -340,7 +350,7 @@ func (s *SpecLoop) ensureAcceptance(ctx context.Context, req *stagepkg.Request, 
 			return res, fmt.Errorf("accept failed")
 		}
 		if retriesRemaining <= 0 {
-			return res, fmt.Errorf("%w: limit %d reached", ErrAcceptanceRetriesExceeded, maxAcceptanceRetries)
+			return res, fmt.Errorf("%w: limit %d reached", ErrAcceptanceRetriesExceeded, limit)
 		}
 		if err := s.remediationRunner.Run(ctx, specID); err != nil {
 			return res, err

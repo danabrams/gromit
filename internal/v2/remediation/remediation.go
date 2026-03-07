@@ -122,7 +122,7 @@ func (r *RemediationRunner) executeRemediation(ctx context.Context, req *stage.R
 }
 
 func (r *RemediationRunner) generationCap() int {
-	if cap := r.cfg.GenerationCap; cap > 0 {
+	if cap := r.cfg.GenerationCap; cap >= 0 {
 		return cap
 	}
 	return DefaultGenerationCap

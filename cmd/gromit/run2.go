@@ -134,10 +134,6 @@ func run2(cmd *cobra.Command, args []string) error {
 		loop.WithRemediationRunner(components.RemediationRunner),
 	}
 	for _, specFile := range specFiles {
-		if err := specFile.CheckDependencies(specsDir); err != nil {
-			return fmt.Errorf("checking dependencies for %s: %w", specFile.ID, err)
-		}
-
 		loopOpts := append([]loop.SpecLoopOption{
 			loop.WithStageRecorder(newSpecLoopStageRecorder(emitter, specFile.ID)),
 		}, baseOpts...)

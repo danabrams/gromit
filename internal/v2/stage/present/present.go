@@ -60,6 +60,9 @@ func (s *Stage) Name() string {
 
 // Run builds the presentation summary and forwards it to the presenter.
 func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Result, error) {
+	if req == nil {
+		return nil, fmt.Errorf("request required")
+	}
 	summary := s.buildPresentation(req)
 	if err := s.presenter.PresentSummary(ctx, beadID(req), summary); err != nil {
 		return nil, fmt.Errorf("present summary: %w", err)

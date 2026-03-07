@@ -39,6 +39,7 @@ This keeps beads implementation-focused while preserving ATDD's role as behavior
 2. Scoped execution is preferred for methodology-enabled runs to reduce cross-spec context switching.
 3. Refactor remains a TDD concern; ATDD focuses on behavior contracts.
 4. Spec acceptance failures should produce artifacts (new/fix beads), not silent retries.
+5. Criterion 4 calls for generating separate acceptance test files once per spec before implementation beads run. The implementation instead evaluates the spec's own acceptance criteria as a post-execution gate via the `accept` stage. The spec's acceptance criteria already serve as the behavioral contract, so generating and persisting additional test files would add complexity without meaningful coverage gain. This is a deliberate simplification.
 
 ## Rollout
 

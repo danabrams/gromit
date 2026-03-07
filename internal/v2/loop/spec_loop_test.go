@@ -529,7 +529,7 @@ func TestEnsureAcceptanceStopsAfterMaxRetries(t *testing.T) {
 	ctx := context.Background()
 	specID := "spec-loop-ensure-acceptance-max-retries"
 
-	failures := make([]stagepkg.Result, maxAcceptanceRetries+1)
+	failures := make([]stagepkg.Result, defaultMaxAcceptanceRetries+1)
 	for i := range failures {
 		failures[i].Decision = stagepkg.DecisionFail
 	}
@@ -551,11 +551,11 @@ func TestEnsureAcceptanceStopsAfterMaxRetries(t *testing.T) {
 	if res == nil || res.Decision != stagepkg.DecisionFail {
 		t.Fatalf("accept decision = %v, want fail", res)
 	}
-	if accept.calls != maxAcceptanceRetries+1 {
-		t.Fatalf("accept stage calls = %d, want %d", accept.calls, maxAcceptanceRetries+1)
+	if accept.calls != defaultMaxAcceptanceRetries+1 {
+		t.Fatalf("accept stage calls = %d, want %d", accept.calls, defaultMaxAcceptanceRetries+1)
 	}
-	if runner.calls != maxAcceptanceRetries {
-		t.Fatalf("remediation runner calls = %d, want %d", runner.calls, maxAcceptanceRetries)
+	if runner.calls != defaultMaxAcceptanceRetries {
+		t.Fatalf("remediation runner calls = %d, want %d", runner.calls, defaultMaxAcceptanceRetries)
 	}
 }
 

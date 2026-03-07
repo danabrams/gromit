@@ -10,7 +10,6 @@ import (
 
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/coverage"
-	"github.com/danabrams/gromit/internal/v2/adapter"
 	"github.com/danabrams/gromit/internal/v2/adapter/llm"
 	"github.com/danabrams/gromit/internal/v2/presentation"
 	v2prompt "github.com/danabrams/gromit/internal/v2/prompt"
@@ -32,11 +31,16 @@ type AcceptArtifacts struct {
 	GapSummary string
 }
 
+// GitDiffer provides the git diff capability needed by the accept stage.
+type GitDiffer interface {
+	Diff(ctx context.Context, worktree string) (string, error)
+}
+
 // Stage evaluates acceptance criteria against the current worktree.
 type Stage struct {
 	name     string
 	cfg      *config.Config
-	git      adapter.GitAdapter
+	git      GitDiffer
 	llm      llm.LLMProvider
 	base     string
 	project  string
@@ -44,7 +48,7 @@ type Stage struct {
 }
 
 // New constructs an accept stage with the provided dependencies.
-func New(cfg *config.Config, git adapter.GitAdapter, provider llm.LLMProvider, base, project, fragment string) (*Stage, error) {
+func New(cfg *config.Config, git GitDiffer, provider llm.LLMProvider, base, project, fragment string) (*Stage, error) {
 	if cfg == nil {
 		return nil, fmt.Errorf("config required")
 	}

@@ -245,11 +245,11 @@ func newFakeBeadRunner() *acceptanceFakeBeadRunner {
 	return &acceptanceFakeBeadRunner{}
 }
 
-func (f *acceptanceFakeBeadRunner) Run(ctx context.Context, beads []*bead.Bead, stopCh <-chan struct{}) error {
+func (f *acceptanceFakeBeadRunner) Run(ctx context.Context, beads []*bead.Bead, stopCh <-chan struct{}) (loop.BeadLoopResult, error) {
 	_ = ctx
 	_ = beads
 	_ = stopCh
-	return nil
+	return loop.BeadLoopResult{}, nil
 }
 
 type fakeAcceptStage struct {

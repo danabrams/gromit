@@ -2,11 +2,11 @@ package main
 
 import (
 	"context"
-	"errors"
 	"io"
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"sync"
 	"testing"
 	"unsafe"
@@ -15,7 +15,6 @@ import (
 	"github.com/danabrams/gromit/internal/events"
 	"github.com/danabrams/gromit/internal/v2/adapter"
 	"github.com/danabrams/gromit/internal/v2/loop"
-	v2spec "github.com/danabrams/gromit/internal/v2/spec"
 )
 
 func TestRun2FailsWhenDependenciesBlocked(t *testing.T) {
@@ -34,9 +33,12 @@ func TestRun2FailsWhenDependenciesBlocked(t *testing.T) {
 	}
 	defer func() { startRun2SubscribersFn = stubSubscribers }()
 
+	// Capture the gate wired by run2 and use it as the fake loop's
+	// dependency check — this mirrors the real SpecLoop.Run behaviour
+	// where the gate is called at the top of Run().
 	stubLoop := newSpecLoopFn
 	newSpecLoopFn = func(adapters adapter.AdapterSet, cfg *config.Config, gate loop.DependencyGate, opts ...loop.SpecLoopOption) (specLoop, error) {
-		return &fakeSpecLoop{}, nil
+		return &gatedFakeSpecLoop{gate: gate}, nil
 	}
 	defer func() { newSpecLoopFn = stubLoop }()
 
@@ -47,9 +49,8 @@ func TestRun2FailsWhenDependenciesBlocked(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected dependency error")
 	}
-	var depErr *v2spec.SpecDependenciesError
-	if !errors.As(err, &depErr) {
-		t.Fatalf("expected SpecDependenciesError, got %v", err)
+	if !strings.Contains(err.Error(), "blocked by dependencies") {
+		t.Fatalf("expected blocked-by-dependencies error, got %v", err)
 	}
 }
 
@@ -327,6 +328,21 @@ func (f *fakeSpecLoop) Run(ctx context.Context, specID string, stopCh <-chan str
 	f.called = true
 	f.runSpecID = specID
 	f.stopCh = stopCh
+	return nil
+}
+
+// gatedFakeSpecLoop delegates the dependency check to the injected gate,
+// mirroring how the real SpecLoop.Run calls gate.EnsureSpecReady at entry.
+type gatedFakeSpecLoop struct {
+	gate loop.DependencyGate
+}
+
+func (g *gatedFakeSpecLoop) Run(ctx context.Context, specID string, stopCh <-chan struct{}) error {
+	if g.gate != nil {
+		if err := g.gate.EnsureSpecReady(ctx, specID); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
