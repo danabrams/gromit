@@ -12,13 +12,29 @@ const (
 	phaseAnnotationSuffix    = "-->"
 )
 
-// loadBaseInstructions returns the base layer filtered to phase-relevant sections.
+// rulesPhaseMaxChars maps phase names to their character caps for the base rules layer.
+var rulesPhaseMaxChars = map[string]int{
+	"build":    12800,
+	"red":      8500,
+	"green":    8500,
+	"refactor": 8500,
+	"review":   8500,
+	"plan":     5000,
+	"validate": 5000,
+}
+
+// loadBaseInstructions returns the base layer filtered to phase-relevant sections
+// and capped at the phase-specific character limit.
 // Returns the full base content if phase is empty.
 func (p *PromptAssembler) loadBaseInstructions(phase string) string {
 	if phase == "" {
 		return p.base
 	}
-	return filterRulesByPhase(p.base, phase)
+	filtered := filterRulesByPhase(p.base, phase)
+	if cap, ok := rulesPhaseMaxChars[strings.ToLower(phase)]; ok && len(filtered) > cap {
+		filtered = filtered[:cap]
+	}
+	return filtered
 }
 
 // filterRulesByPhase parses RULES.md content, filters ## sections by phase annotations,
