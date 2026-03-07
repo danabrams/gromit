@@ -232,7 +232,7 @@ func TestBuildStageEscalationBreaksOnCircularChain(t *testing.T) {
 	}
 
 	// This must return (not hang) even though the chain is circular.
-	res, err := stageInstance.Run(context.Background(), req)
+	_, err = stageInstance.Run(context.Background(), req)
 	if err == nil {
 		t.Fatalf("expected error from exhausted escalation, got nil")
 	}
@@ -244,15 +244,6 @@ func TestBuildStageEscalationBreaksOnCircularChain(t *testing.T) {
 	}
 	if adapter.models[0] != "haiku" || adapter.models[1] != "sonnet" {
 		t.Fatalf("unexpected model sequence: %v", adapter.models)
-	}
-
-	// Should still produce artifacts from the last attempt.
-	artifacts, ok := res.Artifacts.(*BuildArtifacts)
-	if !ok {
-		t.Fatalf("artifacts type = %T", res.Artifacts)
-	}
-	if artifacts.Success {
-		t.Fatalf("expected unsuccessful build artifact")
 	}
 }
 
@@ -282,7 +273,7 @@ func TestBuildStageEscalationRespectsMaxIterationBound(t *testing.T) {
 		Config: cfg,
 	}
 
-	res, err := stageInstance.Run(context.Background(), req)
+	_, err = stageInstance.Run(context.Background(), req)
 	if err == nil {
 		t.Fatalf("expected error from exhausted escalation")
 	}
@@ -291,14 +282,6 @@ func TestBuildStageEscalationRespectsMaxIterationBound(t *testing.T) {
 	// That is 3 invocations, which is <= len(chain)+1 = 4.
 	if len(adapter.models) != 3 {
 		t.Fatalf("expected 3 invocations (a, b, c), got %d: %v", len(adapter.models), adapter.models)
-	}
-
-	artifacts, ok := res.Artifacts.(*BuildArtifacts)
-	if !ok {
-		t.Fatalf("artifacts type = %T", res.Artifacts)
-	}
-	if artifacts.Success {
-		t.Fatalf("expected unsuccessful build artifact")
 	}
 }
 

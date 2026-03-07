@@ -383,7 +383,14 @@ func (s *Stage) invokeWithEscalation(ctx context.Context, prompt, initialModel s
 		escalationCfg = s.cfg
 	}
 
-	for {
+	seen := map[string]bool{model: true}
+	chainLen := 0
+	if escalationCfg != nil {
+		chainLen = len(escalationCfg.Escalation.Chain)
+	}
+	maxIter := chainLen + 1 // safety bound
+
+	for i := 0; i < maxIter; i++ {
 		resp, err := s.llm.StreamInvoke(ctx, llmtypes.LLMStreamInvokeRequest{Prompt: prompt, Model: model, Output: s.writer()})
 		if err == nil && resp != nil && resp.Success {
 			return resp, model, nil
@@ -407,11 +414,15 @@ func (s *Stage) invokeWithEscalation(ctx context.Context, prompt, initialModel s
 		}
 
 		nextModel := escalationCfg.NextEscalationModel(model)
-		if nextModel == "" {
+		if nextModel == "" || seen[nextModel] {
 			return resp, model, reason
 		}
+		seen[nextModel] = true
 		model = nextModel
 	}
+
+	// Should not be reached, but return the last state as a safety net.
+	return nil, model, fmt.Errorf("escalation exhausted after %d iterations", maxIter)
 }
 
 // WithEmitter attaches an emitter for downstream consumers.
