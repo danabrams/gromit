@@ -1466,3 +1466,70 @@ func newPresentStageForTest(t *testing.T, cfg *config.Config, presenter adapter.
 	}
 	return stage, summaryCtx
 }
+
+func TestSelectiveRevalidation_RequeuesFailedBeads(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	specID := "spec-revalidation"
+	cfg := &config.Config{}
+
+	git := newFakeGitAdapter(t)
+	taskTracker := newFakeTaskTrackerAdapter()
+	taskTracker.queryBeadsResponse = &tasktracker.TaskTrackerQueryBeadsResponse{
+		Beads: []tasktracker.Bead{
+			{ID: "bead-open-1", Title: "Open bead"},
+		},
+	}
+
+	revalidatedBead := &bead.Bead{ID: "bead-completed-failed", Title: "Regressed bead"}
+	revalidator := &fakeSelectiveRevalidator{requeueBeads: []*bead.Bead{revalidatedBead}}
+
+	planStage := newFakePlanStage(specID)
+	decompose := newFakeDecomposeStage(specID)
+	beadRunner := newFakeBeadRunner()
+	accept := newFakeAcceptStage()
+	presentStage := newFakePresentStage()
+	summaryCtx := &present.SummaryContext{}
+
+	adapters := adapter.AdapterSet{
+		Git:         git,
+		LLM:         newFakeLLMAdapter(),
+		TaskTracker: taskTracker,
+		Presenter:   newFakePresenterAdapter(t),
+	}
+
+	loopInstance, err := NewSpecLoop(adapters, cfg, noopDependencyGate{},
+		WithPlanStage(planStage),
+		WithPresentStage(presentStage, summaryCtx),
+		WithDecomposeStage(decompose),
+		WithBeadLoop(beadRunner),
+		WithAcceptStage(accept),
+		WithSelectiveRevalidator(revalidator),
+	)
+	if err != nil {
+		t.Fatalf("create spec loop: %v", err)
+	}
+
+	if err := loopInstance.Run(ctx, specID, nil); err != nil {
+		t.Fatalf("run spec loop: %v", err)
+	}
+
+	wantIDs := []string{"bead-open-1", "bead-completed-failed"}
+	requireBeadIDs(t, beadRunner, wantIDs)
+}
+
+type fakeSelectiveRevalidator struct {
+	requeueBeads []*bead.Bead
+	err          error
+	calls        int
+	lastBeads    []*bead.Bead
+	lastWorktree string
+}
+
+func (f *fakeSelectiveRevalidator) Revalidate(ctx context.Context, beads []*bead.Bead, worktree string) ([]*bead.Bead, error) {
+	f.calls++
+	f.lastBeads = append([]*bead.Bead(nil), beads...)
+	f.lastWorktree = worktree
+	return f.requeueBeads, f.err
+}
