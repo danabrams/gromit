@@ -16,6 +16,7 @@ import (
 	"github.com/danabrams/gromit/internal/v2/adapter"
 	"github.com/danabrams/gromit/internal/v2/adapter/llm"
 	"github.com/danabrams/gromit/internal/v2/event"
+	"github.com/danabrams/gromit/internal/v2/pipeline"
 	v2remediation "github.com/danabrams/gromit/internal/v2/remediation"
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
 	acceptstage "github.com/danabrams/gromit/internal/v2/stage/accept"
@@ -48,6 +49,8 @@ type Run2LoopComponents struct {
 	AcceptStage           stagepkg.Stage
 	RemediationRunner     remediationRunner
 	Emitter               Run2LoopEmitter
+	StageCommitter        StageCommitter
+	TypedEmitter          *event.Emitter
 }
 
 // NewRun2LoopComponents builds the stages and bead loop that power the Run2 command.
@@ -164,17 +167,20 @@ func NewRun2LoopComponents(cfg *config.Config, adapters adapter.AdapterSet, lega
 		return nil, err
 	}
 
+	sc := &pipeline.StageCommitter{Git: adapters.Git}
+
 	beadLoop, err := NewBeadLoop(BeadLoopConfig{
-		Gate:          gateStage,
-		Build:         buildStage,
-		Validate:      validateStage,
-		Review:        reviewStage,
-		Epilogue:      epilogueStage,
-		Triage:        triageStage,
-		Decompose:     decomposeStage,
-		Emitter:       typedEmitter,
-		LegacyEmitter: legacyEmitter,
-		Git:           adapters.Git,
+		Gate:           gateStage,
+		Build:          buildStage,
+		Validate:       validateStage,
+		Review:         reviewStage,
+		Epilogue:       epilogueStage,
+		Triage:         triageStage,
+		Decompose:      decomposeStage,
+		Emitter:        typedEmitter,
+		LegacyEmitter:  legacyEmitter,
+		Git:            adapters.Git,
+		StageCommitter: sc,
 	})
 	if err != nil {
 		cleanup()
@@ -205,6 +211,8 @@ func NewRun2LoopComponents(cfg *config.Config, adapters adapter.AdapterSet, lega
 		AcceptStage:           acceptStage,
 		RemediationRunner:     remediationRunner,
 		Emitter:               typedEmitter,
+		StageCommitter:        sc,
+		TypedEmitter:          typedEmitter,
 	}, nil
 }
 
