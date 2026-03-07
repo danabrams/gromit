@@ -7,6 +7,20 @@ import (
 	"testing"
 )
 
+func TestFindFailureEvent_FindsFailDecision(t *testing.T) {
+	events := []map[string]interface{}{
+		{"type": "stage.completed", "stage_name": "build", "decision": "Proceed"},
+		{"type": "stage.completed", "stage_name": "validate", "decision": "Fail"},
+	}
+	result := findFailureEvent(events)
+	if result == nil {
+		t.Fatal("expected failure event, got nil")
+	}
+	if result["stage_name"] != "validate" {
+		t.Errorf("stage_name = %q, want %q", result["stage_name"], "validate")
+	}
+}
+
 func TestReadDebug2EventLog_ParsesJSONL(t *testing.T) {
 	tmpDir := t.TempDir()
 	eventsDir := filepath.Join(tmpDir, ".gromit", "v2")
