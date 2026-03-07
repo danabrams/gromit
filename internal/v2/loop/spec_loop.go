@@ -300,6 +300,9 @@ func (s *SpecLoop) Run(ctx context.Context, specID string, stopCh <-chan struct{
 		if err != nil {
 			return err
 		}
+		if err := s.commitStage(ctx, worktree, specID, "decompose", 0, "proceed"); err != nil {
+			return fmt.Errorf("commit after decompose: %w", err)
+		}
 	}
 
 	if err := s.ctxErr(ctx); err != nil {
