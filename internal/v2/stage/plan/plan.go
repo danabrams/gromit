@@ -95,7 +95,11 @@ func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Resul
 		return nil, fmt.Errorf("invoke llm: provider returned nil response")
 	}
 	if !resp.Success {
-		return nil, fmt.Errorf("invoke llm: provider reported unsuccessful invocation")
+		detail := strings.TrimSpace(resp.Output)
+		if detail == "" {
+			detail = "no detail available"
+		}
+		return nil, fmt.Errorf("invoke llm: provider reported unsuccessful invocation: %s", detail)
 	}
 
 	planText := resp.Output

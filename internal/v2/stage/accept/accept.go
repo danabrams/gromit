@@ -132,7 +132,11 @@ func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Resul
 			return nil, fmt.Errorf("evaluate criterion %d: provider returned nil response", criterion.Number)
 		}
 		if !resp.Success {
-			return nil, fmt.Errorf("evaluate criterion %d: provider reported unsuccessful invocation", criterion.Number)
+			detail := strings.TrimSpace(resp.Output)
+			if detail == "" {
+				detail = "no detail available"
+			}
+			return nil, fmt.Errorf("evaluate criterion %d: provider reported unsuccessful invocation: %s", criterion.Number, detail)
 		}
 
 		pass, summary, parseErr := parseEvaluation(resp.Output)

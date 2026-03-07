@@ -265,7 +265,11 @@ func (s *Stage) invokeWithEscalation(ctx context.Context, prompt, initialModel s
 		} else if resp == nil {
 			reason = fmt.Errorf("provider returned nil response")
 		} else if !resp.Success {
-			reason = fmt.Errorf("provider reported unsuccessful result")
+			detail := strings.TrimSpace(resp.Output)
+			if detail == "" {
+				detail = "no detail available"
+			}
+			reason = fmt.Errorf("provider reported unsuccessful result: %s", detail)
 		}
 
 		if escalationCfg == nil || !escalationCfg.Escalation.Enabled {

@@ -110,7 +110,9 @@ func (a *claudeAdapter) runOnce(ctx context.Context, args []string, prompt strin
 	cmd.Env = procutil.SubprocessEnv()
 
 	var stdout strings.Builder
+	var stderr strings.Builder
 	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
 
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
@@ -139,6 +141,11 @@ func (a *claudeAdapter) runOnce(ctx context.Context, args []string, prompt strin
 		}
 		if _, ok := err.(*exec.ExitError); !ok {
 			return "", 0, fmt.Errorf("running claude: %w", err)
+		}
+		// Include stderr in output for debugging failed invocations.
+		if stderr.Len() > 0 {
+			stdout.WriteString("\n\nSTDERR:\n")
+			stdout.WriteString(stderr.String())
 		}
 	}
 

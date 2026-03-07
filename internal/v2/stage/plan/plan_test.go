@@ -268,6 +268,9 @@ func TestRunReturnsErrorWhenLLMReportsFailure(t *testing.T) {
 	if !strings.Contains(err.Error(), "unsuccessful") {
 		t.Fatalf("error should mention unsuccessful, got: %v", err)
 	}
+	if !strings.Contains(err.Error(), "budget exceeded") {
+		t.Fatalf("error should include provider output detail, got: %v", err)
+	}
 }
 
 type nilResponseLLMProvider struct{}
