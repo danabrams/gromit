@@ -15,6 +15,7 @@ import (
 	"github.com/danabrams/gromit/internal/events"
 	"github.com/danabrams/gromit/internal/v2/adapter"
 	"github.com/danabrams/gromit/internal/v2/adapter/tasktracker"
+	"github.com/danabrams/gromit/internal/v2/event"
 	"github.com/danabrams/gromit/internal/v2/presentation"
 	v2review "github.com/danabrams/gromit/internal/v2/review"
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
@@ -1072,6 +1073,17 @@ func (f *fakePresentStage) Name() string { return "present" }
 func (f *fakePresentStage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Result, error) {
 	f.called = true
 	return &stagepkg.Result{Decision: stagepkg.DecisionProceed}, nil
+}
+
+func TestWithTypedEmitterSetsField(t *testing.T) {
+	t.Parallel()
+	em := event.NewEmitter()
+	defer em.Close()
+	s := &SpecLoop{}
+	WithTypedEmitter(em)(s)
+	if s.typedEmitter != em {
+		t.Fatalf("typedEmitter not set")
+	}
 }
 
 func newPresentStageForTest(t *testing.T, cfg *config.Config, presenter adapter.PresenterAdapter) (stagepkg.Stage, *present.SummaryContext) {
