@@ -1306,6 +1306,55 @@ func TestSpecLoopCreatesEventsFileWhenTypedEmitterSet(t *testing.T) {
 	}
 }
 
+func TestRemediationRunnerReceivesCorrectWorktree(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	specID := "spec-remediation-worktree"
+	cfg := &config.Config{}
+
+	git := newFakeGitAdapter(t)
+	runner := &recordingRemediationRunner{}
+
+	accept := newScriptedAcceptStage(
+		stagepkg.Result{Decision: stagepkg.DecisionFail},
+		stagepkg.Result{Decision: stagepkg.DecisionProceed},
+	)
+
+	loopInstance, err := NewSpecLoop(
+		adapter.AdapterSet{
+			Git:         git,
+			LLM:         newFakeLLMAdapter(),
+			TaskTracker: newFakeTaskTrackerAdapter(),
+			Presenter:   newFakePresenterAdapter(t),
+		},
+		cfg, noopDependencyGate{},
+		WithPlanStage(newFakePlanStage(specID)),
+		WithPresentStage(newFakePresentStage(), &present.SummaryContext{}),
+		WithDecomposeStage(newFakeDecomposeStage(specID)),
+		WithBeadLoop(newFakeBeadRunner()),
+		WithAcceptStage(accept),
+		WithRemediationRunner(runner),
+	)
+	if err != nil {
+		t.Fatalf("create spec loop: %v", err)
+	}
+
+	if err := loopInstance.Run(ctx, specID, nil); err != nil {
+		t.Fatalf("run spec loop: %v", err)
+	}
+
+	if runner.calls != 1 {
+		t.Fatalf("remediation calls = %d, want 1", runner.calls)
+	}
+	if runner.lastWorktree != git.lastWorktree {
+		t.Fatalf("remediation worktree = %q, want %q", runner.lastWorktree, git.lastWorktree)
+	}
+	if runner.lastSpecID != specID {
+		t.Fatalf("remediation specID = %q, want %q", runner.lastSpecID, specID)
+	}
+}
+
 func newPresentStageForTest(t *testing.T, cfg *config.Config, presenter adapter.PresenterAdapter) (stagepkg.Stage, *present.SummaryContext) {
 	t.Helper()
 	summaryCtx := &present.SummaryContext{}
