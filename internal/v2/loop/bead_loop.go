@@ -88,6 +88,11 @@ var errBeadSkipped = errors.New("bead skipped by gate")
 // The loop defers the bead (does not mark it completed) and continues.
 var errBeadBlocked = errors.New("bead blocked by gate")
 
+// errBeadFailed is a sentinel returned when a bead fails its stage pipeline
+// (build timeout, validation failure, etc.) but the loop can continue to
+// process remaining beads.
+var errBeadFailed = errors.New("bead failed")
+
 // maxTriageRetries caps how many times triage can return CategoryRetry
 // before falling through to normal failure handling.
 const maxTriageRetries = 3
@@ -218,6 +223,17 @@ runLoop:
 				iteration++
 				continue
 			}
+			// Recoverable per-bead failure (build timeout, stage exhaustion,
+			// etc.) — the bead's epilogue already ran and events were
+			// emitted by failWithReason. Log, mark completed, continue.
+			if errors.Is(err, errBeadFailed) {
+				log.Printf("bead %s failed (continuing loop): %v", next, err)
+				b.completed = append(b.completed, next)
+				iteration++
+				continue
+			}
+			// All other errors (triage unsafe, gate infrastructure failure,
+			// context cancellation, generation cap) are fatal.
 			return BeadLoopResult{}, err
 		}
 		b.emitBeadCompleted(beadItem, iteration, true, 0)
@@ -504,7 +520,7 @@ func (b *BeadLoop) failWithReason(ctx context.Context, beadItem *bead.Bead, iter
 		retryAttempt = 1
 	}
 	b.emitBeadCompleted(beadItem, iteration, false, retryAttempt)
-	return fmt.Errorf("bead %s failed: %s", beadItem.ID, reason)
+	return fmt.Errorf("bead %s failed: %s: %w", beadItem.ID, reason, errBeadFailed)
 }
 
 func (b *BeadLoop) runEpilogue(ctx context.Context, beadItem *bead.Bead, iteration int, retryCtx *stage.RetryContext) error {

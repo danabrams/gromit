@@ -212,6 +212,18 @@ func (s *Stage) Name() string {
 	return s.name
 }
 
+// RetryConfig returns the retry configuration for the build stage.
+func (s *Stage) RetryConfig() stagepkg.RetryConfig {
+	if s == nil || s.cfg == nil {
+		return stagepkg.RetryConfig{}
+	}
+	maxRetries := s.cfg.Escalation.MaxRetriesPerModel
+	if maxRetries <= 0 {
+		maxRetries = 1
+	}
+	return stagepkg.RetryConfig{MaxRetries: maxRetries}
+}
+
 // Run executes the build LLM invocation, handles model escalation, and reports results.
 func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Result, error) {
 	if req == nil {
