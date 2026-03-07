@@ -289,8 +289,10 @@ func (b *BeadLoop) processBead(ctx context.Context, beadItem *bead.Bead, iterati
 		}
 	}
 
-	if err := b.commitBeadWork(ctx, beadItem); err != nil {
-		return fmt.Errorf("git commit after bead %s: %w", beadItem.ID, err)
+	if b.stageCommitter == nil {
+		if err := b.commitBeadWork(ctx, beadItem); err != nil {
+			return fmt.Errorf("git commit after bead %s: %w", beadItem.ID, err)
+		}
 	}
 
 	if err := b.runEpilogue(ctx, beadItem, iteration, nil); err != nil {
