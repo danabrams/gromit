@@ -68,3 +68,12 @@ func TestPromptAssemblerSkipsWhitespaceOnlyLayers(t *testing.T) {
 		t.Fatalf("fragment section missing")
 	}
 }
+
+func TestLoadProjectContextNoPackagePathsReturnsProjectUnchanged(t *testing.T) {
+	project := "# Project\nSome instructions"
+	assembler := NewPromptAssembler("base", project, "instance", "fragment")
+	got := assembler.loadProjectContext(BeadInfo{Title: "add some feature"})
+	if got != project {
+		t.Errorf("expected project unchanged, got %q", got)
+	}
+}
