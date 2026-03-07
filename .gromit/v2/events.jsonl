@@ -160,3 +160,15 @@
 {"schema_version":1,"timestamp":"2026-03-07T16:36:59.627255-05:00","type":"stage.completed","stage_name":"validate:default","bead_id":"gromit-v46qz","iteration":21,"success":true,"duration":39986667}
 {"schema_version":1,"timestamp":"2026-03-07T16:36:59.675529-05:00","type":"stage.started","stage_name":"review:default","bead_id":"gromit-v46qz","iteration":21}
 {"schema_version":1,"timestamp":"2026-03-07T16:36:59.675547-05:00","type":"stage.completed","stage_name":"review:default","bead_id":"gromit-v46qz","iteration":21,"success":true,"duration":7250}
+{"schema_version":1,"timestamp":"2026-03-07T16:36:59.723145-05:00","type":"stage.started","stage_name":"epilogue:default","bead_id":"gromit-v46qz","iteration":21}
+{"schema_version":1,"timestamp":"2026-03-07T16:36:59.879055-05:00","type":"stage.completed","stage_name":"epilogue:default","bead_id":"gromit-v46qz","iteration":21,"success":true,"duration":155903125}
+{"schema_version":1,"timestamp":"2026-03-07T16:36:59.879072-05:00","type":"bead.completed","bead_id":"gromit-v46qz","bead_title":"Add unit tests for topological sort","iteration":21,"success":true}
+{"schema_version":1,"timestamp":"2026-03-07T16:36:59.879095-05:00","type":"bead.started","bead_id":"gromit-w1200","bead_title":"Wire Router into bead loop routing seam","iteration":22}
+{"schema_version":1,"timestamp":"2026-03-07T16:36:59.879096-05:00","type":"stage.started","stage_name":"gate:default","bead_id":"gromit-w1200","iteration":22}
+{"schema_version":1,"timestamp":"2026-03-07T16:37:00.009157-05:00","type":"stage.completed","stage_name":"gate:default","bead_id":"gromit-w1200","iteration":22,"success":true,"duration":130058583}
+{"schema_version":1,"timestamp":"2026-03-07T16:37:00.009166-05:00","type":"bead.completed","bead_id":"gromit-w1200","bead_title":"Wire Router into bead loop routing seam","iteration":22,"success":false}
+{"schema_version":1,"timestamp":"2026-03-07T16:37:00.009183-05:00","type":"bead.started","bead_id":"gromit-w83pd","bead_title":"Implement gap analysis for resume","iteration":23}
+{"schema_version":1,"timestamp":"2026-03-07T16:37:00.009184-05:00","type":"stage.started","stage_name":"gate:default","bead_id":"gromit-w83pd","iteration":23}
+{"schema_version":1,"timestamp":"2026-03-07T16:37:00.066977-05:00","type":"stage.completed","stage_name":"gate:default","bead_id":"gromit-w83pd","iteration":23,"success":true,"duration":57793000}
+{"schema_version":1,"timestamp":"2026-03-07T16:37:00.066987-05:00","type":"stage.started","stage_name":"build:default","bead_id":"gromit-w83pd","iteration":23}
+{"schema_version":1,"timestamp":"2026-03-07T16:40:03.694684-05:00","type":"stage.completed","stage_name":"build:default","bead_id":"gromit-w83pd","iteration":23,"success":true,"duration":183626276584}
