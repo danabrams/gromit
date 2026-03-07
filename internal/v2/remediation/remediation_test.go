@@ -181,6 +181,28 @@ func TestRemediationRunnerRun_contextCancelledDuringLoop(t *testing.T) {
 	}
 }
 
+func TestRemediationRunnerRun_worktreePopulatedInRequest(t *testing.T) {
+	worktree := "/tmp/test-worktree"
+	var capturedWorktree string
+
+	accept := &testStage{
+		name: "accept",
+		run: func(ctx context.Context, req *stage.Request) (*stage.StageResult, error) {
+			capturedWorktree = req.Worktree
+			return &stage.StageResult{Decision: stage.DecisionProceed}, nil
+		},
+	}
+
+	runner := NewRemediationRunner(RemediationRunnerConfig{AcceptStage: accept})
+	if err := runner.Run(context.Background(), "spec-id", worktree); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if capturedWorktree != worktree {
+		t.Fatalf("request worktree = %q, want %q", capturedWorktree, worktree)
+	}
+}
+
 func newRunnerForSpecValidation() *RemediationRunner {
 	return NewRemediationRunner(RemediationRunnerConfig{})
 }
