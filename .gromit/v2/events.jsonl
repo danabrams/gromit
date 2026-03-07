@@ -108,3 +108,11 @@
 {"schema_version":1,"timestamp":"2026-03-07T16:23:30.266801-05:00","type":"stage.completed","stage_name":"validate:default","bead_id":"gromit-jv6ns","iteration":16,"success":true,"duration":39797250}
 {"schema_version":1,"timestamp":"2026-03-07T16:23:30.314517-05:00","type":"stage.started","stage_name":"review:default","bead_id":"gromit-jv6ns","iteration":16}
 {"schema_version":1,"timestamp":"2026-03-07T16:23:30.314526-05:00","type":"stage.completed","stage_name":"review:default","bead_id":"gromit-jv6ns","iteration":16,"success":true,"duration":2208}
+{"schema_version":1,"timestamp":"2026-03-07T16:23:30.361882-05:00","type":"stage.started","stage_name":"epilogue:default","bead_id":"gromit-jv6ns","iteration":16}
+{"schema_version":1,"timestamp":"2026-03-07T16:23:30.513717-05:00","type":"stage.completed","stage_name":"epilogue:default","bead_id":"gromit-jv6ns","iteration":16,"success":true,"duration":151828917}
+{"schema_version":1,"timestamp":"2026-03-07T16:23:30.51373-05:00","type":"bead.completed","bead_id":"gromit-jv6ns","bead_title":"Create Router interface and stub in v2/routing","iteration":16,"success":true}
+{"schema_version":1,"timestamp":"2026-03-07T16:23:30.513753-05:00","type":"bead.started","bead_id":"gromit-jzbe3","bead_title":"Implement tier resolution in internal/v2/routing/tier.go","iteration":17}
+{"schema_version":1,"timestamp":"2026-03-07T16:23:30.513756-05:00","type":"stage.started","stage_name":"gate:default","bead_id":"gromit-jzbe3","iteration":17}
+{"schema_version":1,"timestamp":"2026-03-07T16:23:30.590854-05:00","type":"stage.completed","stage_name":"gate:default","bead_id":"gromit-jzbe3","iteration":17,"success":true,"duration":77095916}
+{"schema_version":1,"timestamp":"2026-03-07T16:23:30.590861-05:00","type":"stage.started","stage_name":"build:default","bead_id":"gromit-jzbe3","iteration":17}
+{"schema_version":1,"timestamp":"2026-03-07T16:26:46.084705-05:00","type":"stage.completed","stage_name":"build:default","bead_id":"gromit-jzbe3","iteration":17,"success":true,"duration":195493094042}
