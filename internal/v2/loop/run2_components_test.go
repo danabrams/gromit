@@ -269,6 +269,48 @@ func TestNewRun2LoopComponentsWiring(t *testing.T) {
 	}
 }
 
+func TestNewRun2LoopComponentsWiresStageCommitterAndTypedEmitter(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+
+	cfg := &config.Config{
+		ProjectRoot: tmpDir,
+	}
+
+	adapters := adapter.AdapterSet{
+		Git:         testutil.NewFakeGit(),
+		LLM:         newFakeLLMAdapter(),
+		TaskTracker: testutil.NewFakeTaskTracker(),
+		Presenter:   testutil.NewFakePresenter(),
+	}
+
+	legacyEmitter := events.NewEmitter()
+	defer legacyEmitter.Close()
+
+	var output bytes.Buffer
+
+	components, err := NewRun2LoopComponents(cfg, adapters, legacyEmitter, &output)
+	if err != nil {
+		t.Fatalf("NewRun2LoopComponents returned error: %v", err)
+	}
+
+	// StageCommitter must be exposed and non-nil.
+	if components.StageCommitter == nil {
+		t.Error("StageCommitter is nil")
+	}
+
+	// TypedEmitter must be exposed and non-nil.
+	if components.TypedEmitter == nil {
+		t.Error("TypedEmitter is nil")
+	}
+
+	// StageCommitter must also be wired into the BeadLoop.
+	if components.BeadLoop.stageCommitter == nil {
+		t.Error("BeadLoop.stageCommitter is nil")
+	}
+}
+
 func TestContractPromptFragmentFallbacks(t *testing.T) {
 	t.Parallel()
 
