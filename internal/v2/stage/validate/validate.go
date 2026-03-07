@@ -58,7 +58,10 @@ func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Resul
 		return nil, err
 	}
 
-	commands := cfg.EffectiveValidationCommands()
+	commands := cfg.Validation.FastCommandsOrDefault()
+	if len(commands) == 0 {
+		commands = cfg.EffectiveValidationCommands()
+	}
 	snapshot := append([]string(nil), commands...)
 	worktree := strings.TrimSpace(req.Worktree)
 	for _, cmd := range commands {
