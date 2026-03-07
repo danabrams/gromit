@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/events"
 	"github.com/danabrams/gromit/internal/v2/adapter"
 	"github.com/danabrams/gromit/internal/v2/adapter/llm"
@@ -17,6 +18,29 @@ import (
 	"github.com/danabrams/gromit/internal/v2/presentation"
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
 )
+
+// requireBeadIDs asserts that the bead runner received exactly the given bead IDs in order.
+func requireBeadIDs(t *testing.T, runner *fakeBeadRunner, wantIDs []string) {
+	t.Helper()
+	if len(runner.lastBeads) != len(wantIDs) {
+		t.Fatalf("bead runner received %d beads, want %d: got IDs %v", len(runner.lastBeads), len(wantIDs), beadIDs(runner.lastBeads))
+	}
+	for i, want := range wantIDs {
+		if runner.lastBeads[i].ID != want {
+			t.Fatalf("bead[%d].ID = %q, want %q", i, runner.lastBeads[i].ID, want)
+		}
+	}
+}
+
+func beadIDs(beads []*bead.Bead) []string {
+	ids := make([]string, 0, len(beads))
+	for _, b := range beads {
+		if b != nil {
+			ids = append(ids, b.ID)
+		}
+	}
+	return ids
+}
 
 func requireStageSequence(t *testing.T, recorder *recordingStageRecorder) {
 	t.Helper()
