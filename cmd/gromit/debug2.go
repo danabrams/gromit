@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bufio"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -27,6 +29,32 @@ func resolveDebug2Worktree(gromitDir, specName string) (string, error) {
 		return "", fmt.Errorf("no preserved worktree found for spec %q at %s", specName, wtPath)
 	}
 	return wtPath, nil
+}
+
+// readDebug2EventLog reads and parses the JSONL event log from a spec worktree.
+// Each line is decoded as a map[string]interface{}.
+func readDebug2EventLog(wtPath string) ([]map[string]interface{}, error) {
+	eventsPath := filepath.Join(wtPath, ".gromit", "v2", "events.jsonl")
+	f, err := os.Open(eventsPath)
+	if err != nil {
+		return nil, fmt.Errorf("opening event log: %w", err)
+	}
+	defer f.Close()
+
+	var events []map[string]interface{}
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if line == "" {
+			continue
+		}
+		var entry map[string]interface{}
+		if err := json.Unmarshal([]byte(line), &entry); err != nil {
+			return nil, fmt.Errorf("parsing event line: %w", err)
+		}
+		events = append(events, entry)
+	}
+	return events, scanner.Err()
 }
 
 func debug2RunE(cmd *cobra.Command, args []string) error {
