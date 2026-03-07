@@ -1466,6 +1466,47 @@ func TestBeadLoopGateBlockDefersBeadAndContinues(t *testing.T) {
 	}
 }
 
+// TestBeadLoopAllBeadsBlockedReturnsError verifies that when all beads are
+// blocked by the gate in a full pass with no progress, the loop stops with
+// a descriptive error instead of completing silently.
+func TestBeadLoopAllBeadsBlockedReturnsError(t *testing.T) {
+	t.Parallel()
+
+	gateStage := &scriptedGateStage{
+		name: "gate",
+		decisions: map[string]stage.Decision{
+			"bead-1": stage.DecisionBlock,
+			"bead-2": stage.DecisionBlock,
+		},
+	}
+
+	cfg := BeadLoopConfig{
+		Gate:     gateStage,
+		Build:    newNoopStage("build"),
+		Validate: newNoopStage("validate"),
+		Review:   newNoopStage("review"),
+		Epilogue: newNoopStage("epilogue"),
+	}
+
+	loop, err := NewBeadLoop(cfg)
+	if err != nil {
+		t.Fatalf("NewBeadLoop: %v", err)
+	}
+
+	beads := []*bead.Bead{
+		{ID: "bead-1"},
+		{ID: "bead-2"},
+	}
+
+	_, err = loop.Run(context.Background(), beads, nil)
+	if err == nil {
+		t.Fatal("expected error when all beads blocked, got nil")
+	}
+	if !strings.Contains(err.Error(), "blocked") {
+		t.Fatalf("expected error to mention 'blocked', got: %v", err)
+	}
+}
+
 // scriptedGateStage returns configured decisions per bead ID; defaults to Proceed.
 type scriptedGateStage struct {
 	name      string
