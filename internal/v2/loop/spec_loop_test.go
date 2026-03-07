@@ -1120,6 +1120,46 @@ func (f *fakeSpecStageCommitter) hasCall(stageName string) bool {
 	return false
 }
 
+func TestSpecLoopCreatesEventsFileWhenTypedEmitterSet(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	specID := "spec-events-file"
+	cfg := &config.Config{}
+
+	em := event.NewEmitter()
+
+	git := newFakeGitAdapter(t)
+	loopInstance, err := NewSpecLoop(
+		adapter.AdapterSet{
+			Git:         git,
+			LLM:         newFakeLLMAdapter(),
+			TaskTracker: newFakeTaskTrackerAdapter(),
+			Presenter:   newFakePresenterAdapter(t),
+		},
+		cfg, noopDependencyGate{},
+		WithTypedEmitter(em),
+		WithPlanStage(newFakePlanStage(specID)),
+		WithPresentStage(newFakePresentStage(), &present.SummaryContext{}),
+		WithDecomposeStage(newFakeDecomposeStage(specID)),
+		WithBeadLoop(newFakeBeadRunner()),
+		WithAcceptStage(newFakeAcceptStage()),
+	)
+	if err != nil {
+		t.Fatalf("create spec loop: %v", err)
+	}
+
+	if err := loopInstance.Run(ctx, specID, nil); err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	em.Close() // flush all events to disk
+
+	eventsPath := filepath.Join(git.lastWorktree, ".gromit", "v2", "events.jsonl")
+	if _, statErr := os.Stat(eventsPath); os.IsNotExist(statErr) {
+		t.Fatalf("events file not created at %s", eventsPath)
+	}
+}
+
 func newPresentStageForTest(t *testing.T, cfg *config.Config, presenter adapter.PresenterAdapter) (stagepkg.Stage, *present.SummaryContext) {
 	t.Helper()
 	summaryCtx := &present.SummaryContext{}
