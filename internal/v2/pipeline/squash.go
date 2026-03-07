@@ -2,6 +2,8 @@ package pipeline
 
 import (
 	"context"
+	"fmt"
+	"strings"
 
 	"github.com/danabrams/gromit/internal/v2/adapter"
 	"github.com/danabrams/gromit/internal/v2/presentation"
@@ -36,6 +38,24 @@ func SquashPerBead(ctx context.Context, git SquashGit, worktree string, beads []
 		return nil
 	}
 
-	_ = beads
+	msg := squashMessage(beads)
+	if err := git.SquashCommits(ctx, worktree, count); err != nil {
+		return fmt.Errorf("squash commits: %w", err)
+	}
+	if _, err := git.Commit(ctx, worktree, msg); err != nil {
+		return fmt.Errorf("commit squash: %w", err)
+	}
 	return nil
+}
+
+func squashMessage(beads []presentation.BeadSummary) string {
+	if len(beads) == 1 {
+		return fmt.Sprintf("bead %s: %s", beads[0].ID, beads[0].Title)
+	}
+	var b strings.Builder
+	b.WriteString(fmt.Sprintf("squash %d beads", len(beads)))
+	for _, bead := range beads {
+		b.WriteString(fmt.Sprintf("\n- bead %s: %s", bead.ID, bead.Title))
+	}
+	return b.String()
 }
