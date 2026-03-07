@@ -204,6 +204,104 @@ func TestBuildStageEscalationHonorsRequestConfig(t *testing.T) {
 	}
 }
 
+func TestBuildStageEscalationBreaksOnCircularChain(t *testing.T) {
+	// Chain contains a cycle: haiku -> sonnet -> haiku -> sonnet -> ...
+	// Without the seen-set guard, invokeWithEscalation would loop forever.
+	cfg := &config.Config{
+		Escalation: config.EscalationConfig{Enabled: true, Chain: []string{"haiku", "sonnet", "haiku"}},
+	}
+	fragments := PromptFragments{Standard: "standard"}
+	// All responses fail, so escalation keeps trying.
+	adapter := &sequencedLLM{responses: []*llm.LLMResponse{
+		{Success: false, Output: "fail-1"},
+		{Success: false, Output: "fail-2"},
+		{Success: false, Output: "fail-3"},
+		{Success: false, Output: "fail-4"},
+		{Success: false, Output: "fail-5"},
+	}}
+
+	stageInstance, err := New(cfg, adapter, "base", "project", fragments, io.Discard)
+	if err != nil {
+		t.Fatalf("unexpected constructor error: %v", err)
+	}
+
+	req := &stagepkg.Request{
+		Bead:   stagepkg.BeadInfo{ID: "circular-bead"},
+		Model:  "haiku",
+		Config: cfg,
+	}
+
+	// This must return (not hang) even though the chain is circular.
+	res, err := stageInstance.Run(context.Background(), req)
+	if err == nil {
+		t.Fatalf("expected error from exhausted escalation, got nil")
+	}
+
+	// The loop should have tried haiku then sonnet, then stopped when haiku
+	// was seen again. That means exactly 2 invocations.
+	if len(adapter.models) != 2 {
+		t.Fatalf("expected 2 invocations (haiku, sonnet), got %d: %v", len(adapter.models), adapter.models)
+	}
+	if adapter.models[0] != "haiku" || adapter.models[1] != "sonnet" {
+		t.Fatalf("unexpected model sequence: %v", adapter.models)
+	}
+
+	// Should still produce artifacts from the last attempt.
+	artifacts, ok := res.Artifacts.(*BuildArtifacts)
+	if !ok {
+		t.Fatalf("artifacts type = %T", res.Artifacts)
+	}
+	if artifacts.Success {
+		t.Fatalf("expected unsuccessful build artifact")
+	}
+}
+
+func TestBuildStageEscalationRespectsMaxIterationBound(t *testing.T) {
+	// Even without a literal cycle, the safety bound of len(chain)+1 should cap iterations.
+	cfg := &config.Config{
+		Escalation: config.EscalationConfig{Enabled: true, Chain: []string{"a", "b", "c"}},
+	}
+	fragments := PromptFragments{Standard: "standard"}
+	// Provide many failing responses; the loop must not consume them all.
+	adapter := &sequencedLLM{responses: []*llm.LLMResponse{
+		{Success: false, Output: "fail-a"},
+		{Success: false, Output: "fail-b"},
+		{Success: false, Output: "fail-c"},
+		{Success: false, Output: "fail-d"},
+		{Success: false, Output: "fail-e"},
+	}}
+
+	stageInstance, err := New(cfg, adapter, "base", "project", fragments, io.Discard)
+	if err != nil {
+		t.Fatalf("unexpected constructor error: %v", err)
+	}
+
+	req := &stagepkg.Request{
+		Bead:   stagepkg.BeadInfo{ID: "bound-bead"},
+		Model:  "a",
+		Config: cfg,
+	}
+
+	res, err := stageInstance.Run(context.Background(), req)
+	if err == nil {
+		t.Fatalf("expected error from exhausted escalation")
+	}
+
+	// Chain is [a, b, c], starting at "a". Escalation: a->b->c->(end).
+	// That is 3 invocations, which is <= len(chain)+1 = 4.
+	if len(adapter.models) != 3 {
+		t.Fatalf("expected 3 invocations (a, b, c), got %d: %v", len(adapter.models), adapter.models)
+	}
+
+	artifacts, ok := res.Artifacts.(*BuildArtifacts)
+	if !ok {
+		t.Fatalf("artifacts type = %T", res.Artifacts)
+	}
+	if artifacts.Success {
+		t.Fatalf("expected unsuccessful build artifact")
+	}
+}
+
 type noopLLM struct{}
 
 func (noopLLM) Invoke(_ context.Context, _ llm.InvokeRequest) (*llm.LLMResponse, error) {
