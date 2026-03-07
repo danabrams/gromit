@@ -1152,6 +1152,9 @@
 {"issue_id":"gromit-fewb","label":"spec:andon-autonomous-run-loop"}
 {"issue_id":"gromit-ffu","label":"spec:refine-blank-idea"}
 {"issue_id":"gromit-fgty","label":"spec:phase-isolated-methodology-contexts"}
+{"issue_id":"gromit-fh4cu","label":"estimated-files:2"}
+{"issue_id":"gromit-fh4cu","label":"gen:0"}
+{"issue_id":"gromit-fh4cu","label":"spec:immutable-pipeline"}
 {"issue_id":"gromit-fj1ad","label":"estimated-files:2"}
 {"issue_id":"gromit-fj1ad","label":"spec:v2-run-loop"}
 {"issue_id":"gromit-fj9i","label":"spec:acceptance-runtime-optimization"}
