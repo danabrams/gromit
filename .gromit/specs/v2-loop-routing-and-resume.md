@@ -2,8 +2,7 @@
 id: v2-loop-routing-and-resume
 source_ideas: []
 created: 2026-03-07
-depends_on:
-  - immutable-pipeline
+depends_on: []
 ---
 
 # V2 Loop Routing and Resume
