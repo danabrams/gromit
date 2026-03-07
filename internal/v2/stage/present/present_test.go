@@ -132,6 +132,24 @@ func TestPresentStageCallsSquasher(t *testing.T) {
 	}
 }
 
+func TestPresentStageSquasherErrorPropagates(t *testing.T) {
+	squashErr := errors.New("squash failed")
+	squasher := func(ctx context.Context) error { return squashErr }
+	ctx := &SummaryContext{Plan: "p", Worktree: "/tmp/w"}
+	presenter := &spyPresenter{}
+	stageInstance, err := New(nil, presenter, ctx, WithSquasher(squasher))
+	if err != nil {
+		t.Fatalf("unexpected error creating stage: %v", err)
+	}
+	_, runErr := stageInstance.Run(context.Background(), &stage.Request{Bead: stage.BeadInfo{ID: "spec-sq-err"}})
+	if runErr == nil {
+		t.Fatal("expected error from squasher, got nil")
+	}
+	if presenter.lastSpec != "" {
+		t.Fatal("presenter should not be called when squasher errors")
+	}
+}
+
 func TestPresentStageTrimsLinks(t *testing.T) {
 	ctx := &SummaryContext{
 		Plan:              "plan details",
