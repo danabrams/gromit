@@ -1515,6 +1515,68 @@ func TestBeadLoopAllBeadsBlockedReturnsError(t *testing.T) {
 	}
 }
 
+// TestBeadLoopBlockedBeadRetriedAfterProgress verifies that a bead blocked by
+// the gate is retried in the next pass after another bead makes progress.
+// If the previously-blocked bead proceeds on retry, the loop completes without error.
+func TestBeadLoopBlockedBeadRetriedAfterProgress(t *testing.T) {
+	t.Parallel()
+
+	// Gate that blocks "retry-me" on the first call, proceeds on subsequent calls.
+	callCounts := map[string]int{}
+	gateStage := &callCountingGateStage{
+		name:       "gate",
+		callCounts: callCounts,
+		// Block "retry-me" only on its first gate invocation
+		firstCallBlock: map[string]bool{"retry-me": true},
+	}
+
+	cfg := BeadLoopConfig{
+		Gate:     gateStage,
+		Build:    newNoopStage("build"),
+		Validate: newNoopStage("validate"),
+		Review:   newNoopStage("review"),
+		Epilogue: newNoopStage("epilogue"),
+	}
+
+	loop, err := NewBeadLoop(cfg)
+	if err != nil {
+		t.Fatalf("NewBeadLoop: %v", err)
+	}
+
+	beads := []*bead.Bead{
+		{ID: "proceed-me"},
+		{ID: "retry-me"},
+	}
+
+	_, err = loop.Run(context.Background(), beads, nil)
+	if err != nil {
+		t.Fatalf("expected loop to succeed after blocked bead unblocks on retry, got: %v", err)
+	}
+
+	// Gate should have been called twice for "retry-me": once blocked, once proceeds
+	if callCounts["retry-me"] != 2 {
+		t.Fatalf("gate call count for retry-me = %d, want 2 (blocked then proceed)", callCounts["retry-me"])
+	}
+}
+
+// callCountingGateStage is a gate that blocks a bead on its first invocation
+// and proceeds on all subsequent invocations.
+type callCountingGateStage struct {
+	name           string
+	callCounts     map[string]int
+	firstCallBlock map[string]bool
+}
+
+func (s *callCountingGateStage) Name() string { return s.name }
+
+func (s *callCountingGateStage) Run(_ context.Context, req *stage.Request) (*stage.Result, error) {
+	s.callCounts[req.Bead.ID]++
+	if s.firstCallBlock[req.Bead.ID] && s.callCounts[req.Bead.ID] == 1 {
+		return &stage.Result{Decision: stage.DecisionBlock}, nil
+	}
+	return &stage.Result{Decision: stage.DecisionProceed}, nil
+}
+
 // scriptedGateStage returns configured decisions per bead ID; defaults to Proceed.
 type scriptedGateStage struct {
 	name      string
