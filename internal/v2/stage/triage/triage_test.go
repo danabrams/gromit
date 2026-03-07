@@ -19,7 +19,7 @@ func validConfig() *config.Config {
 
 func TestNew_NilConfig(t *testing.T) {
 	t.Parallel()
-	_, err := triage.New(nil, testutil.NewFakeLLM())
+	_, err := triage.New(nil, testutil.NewFakeLLM(), "", "", "")
 	if err == nil {
 		t.Fatal("expected error for nil config, got nil")
 	}
@@ -30,7 +30,7 @@ func TestNew_NilConfig(t *testing.T) {
 
 func TestNew_NilProvider(t *testing.T) {
 	t.Parallel()
-	_, err := triage.New(validConfig(), nil)
+	_, err := triage.New(validConfig(), nil, "", "", "")
 	if err == nil {
 		t.Fatal("expected error for nil provider, got nil")
 	}
@@ -41,7 +41,7 @@ func TestNew_NilProvider(t *testing.T) {
 
 func TestNew_Valid(t *testing.T) {
 	t.Parallel()
-	stage, err := triage.New(validConfig(), testutil.NewFakeLLM())
+	stage, err := triage.New(validConfig(), testutil.NewFakeLLM(), "", "", "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -52,7 +52,7 @@ func TestNew_Valid(t *testing.T) {
 
 func TestRun_NilRequest(t *testing.T) {
 	t.Parallel()
-	stage, err := triage.New(validConfig(), testutil.NewFakeLLM())
+	stage, err := triage.New(validConfig(), testutil.NewFakeLLM(), "", "", "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -72,7 +72,7 @@ func TestRun_DecomposeCategory(t *testing.T) {
 		Success: true,
 		Output:  `{"category": "decompose", "reasoning": "too many files to change"}`,
 	})
-	stage, err := triage.New(validConfig(), fake)
+	stage, err := triage.New(validConfig(), fake, "", "", "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -107,7 +107,7 @@ func TestRun_RetryCategory(t *testing.T) {
 		Success: true,
 		Output:  `{"category": "retry", "reasoning": "network timeout"}`,
 	})
-	stage, err := triage.New(validConfig(), fake)
+	stage, err := triage.New(validConfig(), fake, "", "", "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -136,7 +136,7 @@ func TestRun_UnclearSpecCategory(t *testing.T) {
 		Success: true,
 		Output:  `{"category": "unclear_spec", "reasoning": "requirements are contradictory"}`,
 	})
-	stage, err := triage.New(validConfig(), fake)
+	stage, err := triage.New(validConfig(), fake, "", "", "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -165,7 +165,7 @@ func TestRun_UnsafeCategory(t *testing.T) {
 		Success: true,
 		Output:  `{"category": "unsafe", "reasoning": "would delete production database"}`,
 	})
-	stage, err := triage.New(validConfig(), fake)
+	stage, err := triage.New(validConfig(), fake, "", "", "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -191,7 +191,7 @@ func TestRun_LLMError(t *testing.T) {
 	t.Parallel()
 	fake := testutil.NewFakeLLM()
 	// No response set — FakeLLM returns error when no match found.
-	stage, err := triage.New(validConfig(), fake)
+	stage, err := triage.New(validConfig(), fake, "", "", "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -218,7 +218,7 @@ func TestRun_InvalidJSON(t *testing.T) {
 		Success: true,
 		Output:  "this is not json at all",
 	})
-	stage, err := triage.New(validConfig(), fake)
+	stage, err := triage.New(validConfig(), fake, "", "", "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -245,7 +245,7 @@ func TestRun_NoPriorFailures(t *testing.T) {
 		Success: true,
 		Output:  `{"category": "retry", "reasoning": "no explicit failure, treating as transient"}`,
 	})
-	stage, err := triage.New(validConfig(), fake)
+	stage, err := triage.New(validConfig(), fake, "", "", "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

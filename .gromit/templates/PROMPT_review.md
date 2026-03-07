@@ -38,7 +38,7 @@ These commands passed:
 
 ## Your Job
 
-Review the changes above across **6 dimensions**:
+Review the changes above across **7 dimensions**:
 
 ### 1. Intent & Spec Drift
 - Do changes fulfill the bead's intent, not just pass tests?
@@ -71,6 +71,11 @@ Review the changes above across **6 dimensions**:
 - Poor variable/function naming?
 - Missing or incorrect error handling?
 - Overly complex logic that should be simplified?
+
+### 7. Wiring Completeness
+- Are new interfaces/stages actually called with real data, not empty/placeholder values?
+- Are prompt layers, config fields, and dependency injections populated with meaningful content?
+- Does the integration point (where components are assembled) pass the same quality of data that tests assume?
 
 ## Issue Triage
 

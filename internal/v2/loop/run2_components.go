@@ -76,7 +76,29 @@ func NewRun2LoopComponents(cfg *config.Config, adapters adapter.AdapterSet, lega
 		return nil, err
 	}
 
-	planStage, err := planstage.New(cfg, adapters.LLM, baseInstructions, projectContext, fragments.Standard)
+	// Load stage-specific fragments
+	reviewFragment, err := loadFragment(cfg.ProjectRoot, "review_v2.md")
+	if err != nil {
+		cleanup()
+		return nil, err
+	}
+	acceptFragment, err := loadFragment(cfg.ProjectRoot, "accept_v2.md")
+	if err != nil {
+		cleanup()
+		return nil, err
+	}
+	triageFragment, err := loadFragment(cfg.ProjectRoot, "triage_v2.md")
+	if err != nil {
+		cleanup()
+		return nil, err
+	}
+	planFragment, err := loadFragment(cfg.ProjectRoot, "plan_v2.md")
+	if err != nil {
+		cleanup()
+		return nil, err
+	}
+
+	planStage, err := planstage.New(cfg, adapters.LLM, baseInstructions, projectContext, planFragment)
 	if err != nil {
 		cleanup()
 		return nil, err
@@ -112,14 +134,14 @@ func NewRun2LoopComponents(cfg *config.Config, adapters adapter.AdapterSet, lega
 		return nil, err
 	}
 
-	reviewStage, err := reviewstage.New(cfg, adapters.Git, adapters.LLM, adapters.TaskTracker, baseInstructions, projectContext, fragments.Standard)
+	reviewStage, err := reviewstage.New(cfg, adapters.Git, adapters.LLM, adapters.TaskTracker, baseInstructions, projectContext, reviewFragment)
 	if err != nil {
 		cleanup()
 		return nil, err
 	}
 	reviewStage = reviewStage.WithEmitter(legacyEmitter)
 
-	triageStage, err := triagestage.New(cfg, adapters.LLM)
+	triageStage, err := triagestage.New(cfg, adapters.LLM, baseInstructions, projectContext, triageFragment)
 	if err != nil {
 		cleanup()
 		return nil, err
@@ -148,7 +170,7 @@ func NewRun2LoopComponents(cfg *config.Config, adapters adapter.AdapterSet, lega
 		return nil, err
 	}
 
-	acceptStage, err := acceptstage.New(cfg, adapters.Git, adapters.LLM, baseInstructions, projectContext, fragments.Standard)
+	acceptStage, err := acceptstage.New(cfg, adapters.Git, adapters.LLM, baseInstructions, projectContext, acceptFragment)
 	if err != nil {
 		cleanup()
 		return nil, err
@@ -280,4 +302,17 @@ func loadMethodologyFragments(projectRoot string) (buildstage.PromptFragments, e
 	fragments.Refactor = string(refactorContent)
 
 	return fragments, nil
+}
+
+// loadFragment loads a single prompt fragment file from the project root.
+// Returns empty string if the file does not exist.
+func loadFragment(projectRoot, filename string) (string, error) {
+	content, err := os.ReadFile(filepath.Join(projectRoot, filename))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "", nil
+		}
+		return "", fmt.Errorf("reading %s: %w", filename, err)
+	}
+	return string(content), nil
 }

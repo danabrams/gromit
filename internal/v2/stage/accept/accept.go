@@ -26,6 +26,30 @@ const (
 	defaultPromptBase = "You are evaluating a single acceptance criterion. Use the provided diff and criterion text to determine whether the implementation satisfies the criterion. Respond with a JSON object containing \"pass\" (true/false) and \"summary\" (explain your reasoning). Output only the JSON object."
 )
 
+const defaultAcceptFragment = `# Acceptance Criterion Evaluation Instructions
+
+You are evaluating whether a single acceptance criterion has been satisfied by the implementation.
+
+## Evaluation Process
+
+1. Read the criterion text carefully
+2. Examine the diff for evidence that the criterion is met
+3. Consider edge cases — does the implementation fully satisfy the criterion?
+4. Check that the implementation matches the spirit of the criterion
+
+## Decision Rules
+
+- PASS: The diff clearly demonstrates the criterion is satisfied
+- FAIL: The criterion is not met, only partially met, or does not match the spec's intent
+
+## Output Format
+
+Output ONLY a JSON object:
+{"pass": true, "summary": "Brief explanation."}
+
+Do NOT output markdown or anything other than the JSON object.
+`
+
 // AcceptArtifacts captures acceptance evaluation results produced by the stage.
 type AcceptArtifacts struct {
 	Results    []presentation.AcceptanceResult
@@ -53,6 +77,9 @@ func New(cfg *config.Config, git adapter.GitAdapter, provider llm.LLMProvider, b
 	}
 	if provider == nil {
 		return nil, fmt.Errorf("llm provider required")
+	}
+	if strings.TrimSpace(fragment) == "" {
+		fragment = defaultAcceptFragment
 	}
 	return &Stage{
 		name:     stagedesc.Describe("accept", cfg),

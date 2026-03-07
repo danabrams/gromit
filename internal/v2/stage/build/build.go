@@ -33,6 +33,130 @@ const (
 	MethodologyRefactor Methodology = "refactor"
 )
 
+const defaultBuildFragment = `# Build Instructions — Standard Methodology
+
+You are executing a single task from the work queue. Focus only on this task.
+
+## Scope Boundary
+
+Your scope is EXACTLY the bead described in the instance context above.
+
+- Implement ONLY what the bead title describes
+- Do NOT add features beyond the task scope
+- Note follow-on work in commit messages, do not do it
+
+## Instructions
+
+1. Study the codebase before making changes
+2. Implement the task following existing patterns
+3. Write tests if the task involves new functionality
+4. Self-check — run go test and go vet scoped to touched packages. Fix failures before committing
+5. Commit your changes with a clear commit message
+
+Do NOT ask questions or request confirmation — execute the task directly.
+`
+
+const defaultBuildTDDFragment = `# Build Instructions — TDD Methodology
+
+You are executing a single task using Test-Driven Development (TDD). Focus only on this task.
+
+## Scope Boundary
+
+Your scope is EXACTLY the bead described in the instance context above.
+
+- Implement ONLY what the bead title describes — nothing upstream or downstream
+- Do NOT implement consumers, CLI flags, or wiring for the thing you're adding
+- Do NOT add features that "would be nice to have" alongside the task
+
+## Instructions — Red-Green-Refactor Discipline
+
+You MUST follow red-green-refactor strictly. Each cycle is small and committed separately.
+
+### The Cycle (repeat for each requirement)
+
+**1. RED — Write ONE failing test**
+- Write a single test function or test case that calls code which doesn't exist yet or doesn't behave correctly yet
+- Run tests: they MUST fail (compilation errors count as failing)
+- Commit: ` + "`red: test for <what the test verifies>`" + `
+- Do NOT write any production code in this step
+
+**2. GREEN — Write minimum production code**
+- Write only enough production code to make the failing test pass
+- Do NOT modify the test you just wrote
+- Do NOT add anything beyond what this one test requires
+- Run tests: they MUST pass
+- Commit: ` + "`green: implement <what you added>`" + `
+
+**3. COMMIT and move to next requirement** — refactoring happens in a separate phase
+
+### Non-Negotiable Rules
+
+- ONE test per red step. Stop after writing it.
+- MINIMUM code per green step. No "while I'm here" additions.
+- SEPARATE commits for red and green. Each commit message starts with ` + "`red:`" + ` or ` + "`green:`" + `.
+- Do NOT batch multiple requirements into one cycle.
+- Before completing, run ` + "`go test`" + ` and ` + "`go vet`" + ` scoped to touched packages (not ` + "`./...`" + `). Fix any failures before committing.
+- After all requirements are covered, stop — refactoring happens in a separate phase.
+
+## Completion
+
+When complete:
+- Multiple small commits exist, alternating ` + "`red:`" + ` and ` + "`green:`" + ` prefixes
+- All tests pass
+- Each requirement has a corresponding test
+- No gold plating — minimum viable implementation only
+
+Do NOT output any special completion markers — just complete the task and exit.
+Do NOT ask questions or request confirmation — execute the task directly.
+`
+
+const defaultBuildRefactorFragment = `# Build Instructions — Refactor Methodology
+
+You are refactoring the implementation after tests pass. Your goal is to improve code quality without changing behavior.
+
+## CRITICAL CONSTRAINT
+
+You are in the **REFACTOR phase** of TDD. All tests are passing. You may improve code structure but you MUST NOT change behavior.
+
+**After you finish, tests will run automatically. Tests MUST still PASS.** If any test fails, your refactoring is reverted.
+
+**What you CAN do:**
+- Rename variables, functions, or types for clarity
+- Extract helpers or reduce duplication
+- Simplify control flow or error handling
+- Add constants for magic values
+- Reorganize code within files
+
+**What you MUST NOT do:**
+- Add new features or new test cases — that's the next red phase
+- Change what any function returns for a given input
+- Delete or skip tests
+- Make large rewrites — keep changes small and safe
+
+## Instructions
+
+1. **Review** the implementation for readability, duplication, naming, and adherence to project patterns
+2. **Refactor** only what genuinely improves clarity — if the code is already clean, make no changes and say so
+3. **Verify** by running scoped tests: ` + "`go test`" + ` and ` + "`go vet`" + ` on touched packages only (not ` + "`./...`" + `)
+4. **Commit** with message: ` + "`refactor: <what you improved>`" + `
+
+## Important Notes
+
+- Only refactor code touched by this task, not the entire codebase
+- Follow the project's existing patterns — don't introduce new conventions
+- Small, safe improvements only — not wholesale rewrites
+
+## Completion
+
+When complete:
+- Code quality improvements are committed (if any were needed)
+- All tests still pass (behavior unchanged)
+- Changes follow project conventions
+
+Do NOT output any special completion markers — just complete the task and exit.
+Do NOT ask questions or request confirmation — execute the task directly.
+`
+
 // BuildArtifacts exposes telemetry and output returned by the build stage.
 type BuildArtifacts struct {
 	Model    string
@@ -141,12 +265,18 @@ func (s *Stage) fragmentFor(methodology Methodology) string {
 		if s.fragments.TDD != "" {
 			return s.fragments.TDD
 		}
+		return defaultBuildTDDFragment
 	case MethodologyRefactor:
 		if s.fragments.Refactor != "" {
 			return s.fragments.Refactor
 		}
+		return defaultBuildRefactorFragment
+	default:
+		if s.fragments.Standard != "" {
+			return s.fragments.Standard
+		}
+		return defaultBuildFragment
 	}
-	return s.fragments.Standard
 }
 
 func (s *Stage) resolveMethodology(labels []string, cfg *config.Config) Methodology {

@@ -39,6 +39,11 @@ Any bead touching usage attribution or stream-event merge semantics must land a 
 
 **Enforcement:** Bead scope tagging for attribution/merge paths; CI gate requiring reducer contract test pass before integration merge.
 
+### Stage constructors must fail fast on empty prompt layers
+Stage constructors that accept prompt layers (base, project, fragment) must validate that the assembled prompt contains stage-specific instructions before invoking the LLM. Silent acceptance of all-empty prompt layers is forbidden; either fail fast in the constructor or use an embedded default fallback. New LLM-invoking stages must ship with both an externalizable fragment file and an embedded default constant.
+
+**Enforcement:** Code review on new LLM-invoking stage constructors; CI check for embedded default constant presence alongside fragment files.
+
 ## Process
 
 ### Beads touching telemetry or usage paths require telemetry contract validation
@@ -159,3 +164,9 @@ Refactor guardrail tests must validate structural declarations (AST/compile-time
 Provider fixture governance must be schema-first: assertions must validate structured schema/records and deterministic provenance metadata; prose-token assertions are forbidden. Use structured fixture assertions (parse JSON/JSONL and ledger rows) instead of broad markdown/log token matching. Fixtures must be stored under `test/fixtures/gemini/` (or the relevant provider path) and validated with schema-first deterministic assertions including provenance metadata. Real-provider probe fixtures are canonical and should drive parser/schema updates rather than forcing fixtures back to stale assumptions.
 
 **Enforcement:** Code review on fixture changes; require structured schema/record assertions and provenance metadata checks in test review; grep for prose-token assertions in fixture test files.
+
+### LLM stage specs must include prompt verification acceptance criteria
+
+Specs that add or modify LLM-invoking stages must include acceptance criteria verifying that assembled prompts contain stage-specific instructions, not just project context. Integration tests must assert prompt non-emptiness at the wiring layer (see also: Architecture rule on stage constructor fail-fast).
+
+**Enforcement:** Spec review checks for prompt-verification acceptance criteria; contract tests in `run2_components_test.go` verify fragment fallback behavior for all LLM-invoking stages.

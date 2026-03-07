@@ -12,6 +12,11 @@ import (
 	"github.com/danabrams/gromit/internal/events"
 	"github.com/danabrams/gromit/internal/v2/adapter"
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
+	acceptstage "github.com/danabrams/gromit/internal/v2/stage/accept"
+	buildstage "github.com/danabrams/gromit/internal/v2/stage/build"
+	planstage "github.com/danabrams/gromit/internal/v2/stage/plan"
+	reviewstage "github.com/danabrams/gromit/internal/v2/stage/review"
+	triagestage "github.com/danabrams/gromit/internal/v2/stage/triage"
 	stagevalidate "github.com/danabrams/gromit/internal/v2/stage/validate"
 	"github.com/danabrams/gromit/internal/v2/testutil"
 )
@@ -261,6 +266,74 @@ func TestNewRun2LoopComponentsWiring(t *testing.T) {
 	}
 	if components.BeadLoop.decompose == nil {
 		t.Error("BeadLoop.decompose is nil")
+	}
+}
+
+func TestContractPromptFragmentFallbacks(t *testing.T) {
+	t.Parallel()
+
+	// Verify loadFragment returns empty string for missing files,
+	// which triggers embedded default fallbacks in each stage constructor.
+	tmpDir := t.TempDir()
+
+	fragments := []string{
+		"plan_v2.md",
+		"review_v2.md",
+		"accept_v2.md",
+		"triage_v2.md",
+		"build_standard.md",
+		"build_tdd.md",
+		"build_refactor.md",
+	}
+
+	for _, name := range fragments {
+		content, err := loadFragment(tmpDir, name)
+		if err != nil {
+			t.Fatalf("loadFragment(%q) error: %v", name, err)
+		}
+		if content != "" {
+			t.Fatalf("loadFragment(%q) returned non-empty for missing file", name)
+		}
+	}
+}
+
+func TestContractStageConstructorsAcceptEmptyFragments(t *testing.T) {
+	t.Parallel()
+
+	cfg := &config.Config{
+		ProjectRoot: t.TempDir(),
+		Paths:       config.PathsConfig{GromitDir: ".gromit", Specs: ".gromit/specs"},
+		Review:      config.ReviewConfig{Enabled: true, Tier: "sonnet"},
+	}
+
+	// Plan stage with empty fragment should use embedded default
+	_, err := planstage.New(cfg, newFakeLLMAdapter(), "", "", "")
+	if err != nil {
+		t.Fatalf("plan stage rejected empty fragment: %v", err)
+	}
+
+	// Build stage with empty fragments should use embedded default
+	_, err = buildstage.New(cfg, newFakeLLMAdapter(), "", "", buildstage.PromptFragments{}, os.Stdout)
+	if err != nil {
+		t.Fatalf("build stage rejected empty fragments: %v", err)
+	}
+
+	// Review stage with empty fragment should use embedded default
+	_, err = reviewstage.New(cfg, testutil.NewFakeGit(), newFakeLLMAdapter(), testutil.NewFakeTaskTracker(), "", "", "")
+	if err != nil {
+		t.Fatalf("review stage rejected empty fragment: %v", err)
+	}
+
+	// Accept stage with empty fragment should use embedded default
+	_, err = acceptstage.New(cfg, testutil.NewFakeGit(), newFakeLLMAdapter(), "", "", "")
+	if err != nil {
+		t.Fatalf("accept stage rejected empty fragment: %v", err)
+	}
+
+	// Triage stage with empty fragment should use embedded default
+	_, err = triagestage.New(cfg, newFakeLLMAdapter(), "", "", "")
+	if err != nil {
+		t.Fatalf("triage stage rejected empty fragment: %v", err)
 	}
 }
 
