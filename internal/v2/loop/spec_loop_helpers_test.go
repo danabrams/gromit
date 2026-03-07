@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -18,6 +19,18 @@ import (
 	"github.com/danabrams/gromit/internal/v2/presentation"
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
 )
+
+// requireGapAnalysisInFailureSummary asserts the presenter's last failure summary contains wantSubstr.
+func requireGapAnalysisInFailureSummary(t *testing.T, presenter *fakePresenterAdapter, wantSubstr string) {
+	t.Helper()
+	summary := presenter.lastSummary
+	if summary.FailureSummary == "" {
+		t.Fatal("failure summary is empty")
+	}
+	if !strings.Contains(summary.FailureSummary, wantSubstr) {
+		t.Fatalf("failure summary = %q, want to contain %q", summary.FailureSummary, wantSubstr)
+	}
+}
 
 // requireBeadIDs asserts that the bead runner received exactly the given bead IDs in order.
 func requireBeadIDs(t *testing.T, runner *fakeBeadRunner, wantIDs []string) {
