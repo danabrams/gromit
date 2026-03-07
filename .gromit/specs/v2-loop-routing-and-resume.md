@@ -218,3 +218,23 @@ After shaping: ~5-6 KB for small beads, ~8-10 KB for medium, ~11-13 KB for large
 - `multi-provider-routing` -- V1 multi-provider routing spec (accepted). This spec ports the same capabilities into v2 natively.
 - `immutable-pipeline` -- V2 pipeline spec this depends on for worktree branch lifecycle, stage commits, and event logging.
 - `complexity-based-routing` -- V1 complexity-based tier selection. V2 tier resolution draws from the same config knobs.
+
+## Appendix: Bug Fixes (2026-03-07)
+
+### Bead Loop Recovery from Per-Bead Failures
+
+The bead loop (`internal/v2/loop/bead_loop.go`) previously treated ALL errors from `processBead` as fatal, aborting the entire run when any single bead failed (build timeout, validation failure, etc.). This is incorrect — per-bead failures should be recoverable so the loop can continue processing remaining beads.
+
+**Fix:** Introduced `errBeadFailed` sentinel error. `failWithReason()` (called when build/validate/review stages exhaust retries) wraps this sentinel. The `Run()` method catches `errBeadFailed`, logs the failure, marks the bead completed, and continues to the next bead. Fatal errors (context cancellation, generation cap, triage unsafe/unclear, gate/epilogue infrastructure failures) still abort the loop.
+
+### Build Stage Retry Configuration
+
+The v2 build stage (`internal/v2/stage/build/build.go`) did not implement `retryConfigurer`, so `retryConfigForStage(b.build)` returned `MaxRetries: 0`. Build failures went directly to `failWithReason` with no retry attempts.
+
+**Fix:** Added `RetryConfig()` method to the v2 build stage. Returns `MaxRetries` from `cfg.Escalation.MaxRetriesPerModel` (minimum 1), allowing the bead loop to retry the build stage before giving up.
+
+### Git Push Non-Fast-Forward on Spec Branches
+
+The GitHub presenter (`internal/v2/adapter/presenter/github.go`) used `git push -u origin` which fails with non-fast-forward rejection when a previous run already pushed to the same spec branch (e.g., after squash-per-bead rewrites history).
+
+**Fix:** Changed to `git push --force-with-lease -u origin`. Safe because spec branches are owned exclusively by gromit, and `--force-with-lease` rejects if the remote has unexpected commits from other sources.

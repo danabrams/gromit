@@ -73,7 +73,11 @@ func (g *GitHubPresenter) presentSummaryURL(ctx context.Context, specID string, 
 	defer os.Remove(bodyFile) // best effort cleanup
 
 	// Push the spec branch so the remote has it before PR creation.
-	if out, err := g.runner.Run(ctx, "git", "push", "-u", "origin", head); err != nil {
+	// Use --force-with-lease so re-runs of the same spec can update the
+	// remote branch even when history has been rewritten (e.g. squash per
+	// bead). This is safe because spec branches are owned by gromit and
+	// --force-with-lease rejects if the remote has unexpected commits.
+	if out, err := g.runner.Run(ctx, "git", "push", "--force-with-lease", "-u", "origin", head); err != nil {
 		return "", fmt.Errorf("push branch %s: %s: %w", head, strings.TrimSpace(out), err)
 	}
 

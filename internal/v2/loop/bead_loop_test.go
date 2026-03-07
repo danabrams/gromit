@@ -114,9 +114,11 @@ func TestBeadLoopShortCircuitsToFailurePath(t *testing.T) {
 		t.Fatalf("NewBeadLoop: %v", err)
 	}
 
+	// Build failure is recoverable — the loop completes without error
+	// after skipping the failed bead.
 	_, err = loop.Run(context.Background(), []*bead.Bead{{ID: "blocked"}}, nil)
-	if err == nil {
-		t.Fatal("expected error for build fail")
+	if err != nil {
+		t.Fatalf("expected loop to continue past build fail, got error: %v", err)
 	}
 
 	if gate.runCount != 1 {
@@ -326,19 +328,17 @@ func TestBeadLoopStageErrorPropagation(t *testing.T) {
 
 	stageErr := fmt.Errorf("infrastructure failure")
 
-	cases := []struct {
+	// Fatal errors: gate and epilogue infrastructure errors abort the loop.
+	fatalCases := []struct {
 		name       string
 		errStage   string
 		wantSubstr string
 	}{
 		{name: "gate error", errStage: "gate", wantSubstr: "gate"},
-		{name: "build error", errStage: "build", wantSubstr: "build"},
-		{name: "validate error", errStage: "validate", wantSubstr: "validate"},
-		{name: "review error", errStage: "review", wantSubstr: "review"},
 		{name: "epilogue error", errStage: "epilogue", wantSubstr: "epilogue"},
 	}
 
-	for _, tc := range cases {
+	for _, tc := range fatalCases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -372,6 +372,49 @@ func TestBeadLoopStageErrorPropagation(t *testing.T) {
 			}
 			if !errors.Is(err, stageErr) && !strings.Contains(err.Error(), stageErr.Error()) {
 				t.Fatalf("error %q should contain original error %q", err.Error(), stageErr.Error())
+			}
+		})
+	}
+
+	// Recoverable errors: build/validate/review failures skip the bead
+	// and the loop completes without error.
+	recoverableCases := []struct {
+		name     string
+		errStage string
+	}{
+		{name: "build error", errStage: "build"},
+		{name: "validate error", errStage: "validate"},
+		{name: "review error", errStage: "review"},
+	}
+
+	for _, tc := range recoverableCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			makeStage := func(name string) stage.Stage {
+				if name == tc.errStage {
+					return &decisionStage{name: name, err: stageErr}
+				}
+				return newNoopStage(name)
+			}
+
+			cfg := BeadLoopConfig{
+				Gate:     makeStage("gate"),
+				Build:    makeStage("build"),
+				Validate: makeStage("validate"),
+				Review:   makeStage("review"),
+				Epilogue: makeStage("epilogue"),
+			}
+
+			loop, err := NewBeadLoop(cfg)
+			if err != nil {
+				t.Fatalf("NewBeadLoop: %v", err)
+			}
+
+			_, err = loop.Run(context.Background(), []*bead.Bead{{ID: "err-bead"}}, nil)
+			if err != nil {
+				t.Fatalf("expected loop to continue past %s failure, got error: %v", tc.errStage, err)
 			}
 		})
 	}
@@ -1206,12 +1249,10 @@ func TestBeadLoopTriageNotConfiguredFallsBackToExistingBehavior(t *testing.T) {
 		t.Fatalf("NewBeadLoop: %v", err)
 	}
 
+	// Build failure without triage is recoverable — loop completes.
 	_, err = loop.Run(context.Background(), []*bead.Bead{{ID: "no-triage"}}, nil)
-	if err == nil {
-		t.Fatal("expected error from build failure, got nil")
-	}
-	if !strings.Contains(err.Error(), "bead no-triage failed") {
-		t.Fatalf("error should report bead failure, got: %v", err)
+	if err != nil {
+		t.Fatalf("expected loop to continue past build failure, got: %v", err)
 	}
 	// Epilogue should have been called with retry context (existing behavior)
 	if len(epilogueStage.requests) != 1 {
@@ -1473,9 +1514,11 @@ func TestBeadLoopTriageRetryCapped(t *testing.T) {
 		t.Fatalf("NewBeadLoop: %v", err)
 	}
 
+	// Triage retry exhaustion goes through failWithReason, which is
+	// recoverable — the loop completes after skipping the failed bead.
 	_, err = loop.Run(context.Background(), []*bead.Bead{{ID: "stuck"}}, nil)
-	if err == nil {
-		t.Fatal("expected error when triage retry is exhausted, got nil")
+	if err != nil {
+		t.Fatalf("expected loop to continue past triage retry exhaustion, got: %v", err)
 	}
 
 	// maxTriageRetries is 3, so triage should be called at most maxTriageRetries+1 times
