@@ -60,3 +60,23 @@
 {"schema_version":1,"timestamp":"2026-03-07T16:04:06.889062-05:00","type":"stage.completed","stage_name":"validate:default","bead_id":"gromit-cufx0","iteration":10,"success":true,"duration":39529375}
 {"schema_version":1,"timestamp":"2026-03-07T16:04:06.937184-05:00","type":"stage.started","stage_name":"review:default","bead_id":"gromit-cufx0","iteration":10}
 {"schema_version":1,"timestamp":"2026-03-07T16:04:06.937206-05:00","type":"stage.completed","stage_name":"review:default","bead_id":"gromit-cufx0","iteration":10,"success":true,"duration":13334}
+{"schema_version":1,"timestamp":"2026-03-07T16:04:06.98495-05:00","type":"stage.started","stage_name":"epilogue:default","bead_id":"gromit-cufx0","iteration":10}
+{"schema_version":1,"timestamp":"2026-03-07T16:04:07.131506-05:00","type":"stage.completed","stage_name":"epilogue:default","bead_id":"gromit-cufx0","iteration":10,"success":true,"duration":146545875}
+{"schema_version":1,"timestamp":"2026-03-07T16:04:07.131522-05:00","type":"bead.completed","bead_id":"gromit-cufx0","bead_title":"Add integration tests for resume with gap analysis and revalidation","iteration":10,"success":true}
+{"schema_version":1,"timestamp":"2026-03-07T16:04:07.131574-05:00","type":"bead.started","bead_id":"gromit-d2rpx","bead_title":"Instantiate and wire Router in run2 command","iteration":11}
+{"schema_version":1,"timestamp":"2026-03-07T16:04:07.131578-05:00","type":"stage.started","stage_name":"gate:default","bead_id":"gromit-d2rpx","iteration":11}
+{"schema_version":1,"timestamp":"2026-03-07T16:04:07.2793-05:00","type":"stage.completed","stage_name":"gate:default","bead_id":"gromit-d2rpx","iteration":11,"success":true,"duration":147720292}
+{"schema_version":1,"timestamp":"2026-03-07T16:04:07.279308-05:00","type":"bead.completed","bead_id":"gromit-d2rpx","bead_title":"Instantiate and wire Router in run2 command","iteration":11,"success":false}
+{"schema_version":1,"timestamp":"2026-03-07T16:04:07.279323-05:00","type":"bead.started","bead_id":"gromit-d4134","bead_title":"Add integration tests for bead loop routing and escalation","iteration":12}
+{"schema_version":1,"timestamp":"2026-03-07T16:04:07.279324-05:00","type":"stage.started","stage_name":"gate:default","bead_id":"gromit-d4134","iteration":12}
+{"schema_version":1,"timestamp":"2026-03-07T16:04:07.423585-05:00","type":"stage.completed","stage_name":"gate:default","bead_id":"gromit-d4134","iteration":12,"success":true,"duration":144260083}
+{"schema_version":1,"timestamp":"2026-03-07T16:04:07.42359-05:00","type":"bead.completed","bead_id":"gromit-d4134","bead_title":"Add integration tests for bead loop routing and escalation","iteration":12,"success":false}
+{"schema_version":1,"timestamp":"2026-03-07T16:04:07.423608-05:00","type":"bead.started","bead_id":"gromit-ew1l8","bead_title":"Implement Router ratio balancing and phase preferences logic","iteration":13}
+{"schema_version":1,"timestamp":"2026-03-07T16:04:07.423608-05:00","type":"stage.started","stage_name":"gate:default","bead_id":"gromit-ew1l8","iteration":13}
+{"schema_version":1,"timestamp":"2026-03-07T16:04:07.569431-05:00","type":"stage.completed","stage_name":"gate:default","bead_id":"gromit-ew1l8","iteration":13,"success":true,"duration":145821958}
+{"schema_version":1,"timestamp":"2026-03-07T16:04:07.569434-05:00","type":"bead.completed","bead_id":"gromit-ew1l8","bead_title":"Implement Router ratio balancing and phase preferences logic","iteration":13,"success":false}
+{"schema_version":1,"timestamp":"2026-03-07T16:04:07.569444-05:00","type":"bead.started","bead_id":"gromit-f4ouz","bead_title":"Add scoped CLAUDE.md loading to PromptAssembler","iteration":14}
+{"schema_version":1,"timestamp":"2026-03-07T16:04:07.569445-05:00","type":"stage.started","stage_name":"gate:default","bead_id":"gromit-f4ouz","iteration":14}
+{"schema_version":1,"timestamp":"2026-03-07T16:04:07.641385-05:00","type":"stage.completed","stage_name":"gate:default","bead_id":"gromit-f4ouz","iteration":14,"success":true,"duration":71936792}
+{"schema_version":1,"timestamp":"2026-03-07T16:04:07.641393-05:00","type":"stage.started","stage_name":"build:default","bead_id":"gromit-f4ouz","iteration":14}
+{"schema_version":1,"timestamp":"2026-03-07T16:09:43.426401-05:00","type":"stage.completed","stage_name":"build:default","bead_id":"gromit-f4ouz","iteration":14,"success":true,"duration":335783719542}
