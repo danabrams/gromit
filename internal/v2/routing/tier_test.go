@@ -28,3 +28,23 @@ func TestTierForPhaseFallsBackWhenNoOverride(t *testing.T) {
 		t.Fatalf("TierForPhase(%q) = %q, want %q", "validate", got, "medium")
 	}
 }
+
+func TestResolveModelMapsAbstractTierToProviderModel(t *testing.T) {
+	models := map[string]string{
+		"low":    "claude-haiku-4-5-20251001",
+		"medium": "claude-sonnet-4-6",
+		"high":   "claude-opus-4-6",
+	}
+
+	got := routing.ResolveModel("low", models)
+	if got != "claude-haiku-4-5-20251001" {
+		t.Fatalf("ResolveModel(%q) = %q, want %q", "low", got, "claude-haiku-4-5-20251001")
+	}
+}
+
+func TestResolveModelReturnsTierWhenNoMapping(t *testing.T) {
+	got := routing.ResolveModel("medium", map[string]string{})
+	if got != "medium" {
+		t.Fatalf("ResolveModel with empty map = %q, want %q", got, "medium")
+	}
+}
