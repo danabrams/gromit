@@ -275,8 +275,13 @@ func (c *CommandValidationRunner) Run(ctx context.Context, command, worktree str
 	return nil
 }
 
+// learningsCharCap is the maximum characters of learnings to include in build prompts.
+// Matches v1's defaultPromptLearningCharsCap. Only Confirmed and Provisional sections
+// are considered; Emerging and Archived are excluded entirely.
+const learningsCharCap = 2000
+
 // loadProjectContext loads the project context from CLAUDE.md in the project root,
-// and appends any learnings from .gromit/LEARNINGS.md.
+// and appends a capped subset of learnings from .gromit/LEARNINGS.md.
 func loadProjectContext(projectRoot string) (string, error) {
 	claudeMDPath := filepath.Join(projectRoot, "CLAUDE.md")
 	content, err := os.ReadFile(claudeMDPath)
@@ -289,16 +294,54 @@ func loadProjectContext(projectRoot string) (string, error) {
 
 	result := string(content)
 
-	// Append learnings if available. The raw LEARNINGS.md file includes
-	// confirmed and provisional sections; the assembler's budget shaping
-	// will trim if the combined prompt exceeds the character cap.
 	learningsPath := filepath.Join(projectRoot, ".gromit", "LEARNINGS.md")
 	learningsContent, err := os.ReadFile(learningsPath)
 	if err == nil && len(learningsContent) > 0 {
-		result += "\n\n## Learnings\n\n" + string(learningsContent)
+		scoped := scopeLearnings(string(learningsContent), learningsCharCap)
+		if scoped != "" {
+			result += "\n\n## Learnings\n\n" + scoped
+		}
 	}
 
 	return result, nil
+}
+
+// scopeLearnings extracts only the Confirmed and Provisional sections from
+// LEARNINGS.md, excluding Emerging and Archived, then caps to maxChars.
+func scopeLearnings(raw string, maxChars int) string {
+	lines := strings.Split(raw, "\n")
+	var kept []string
+	include := false
+
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "## ") {
+			heading := strings.ToLower(strings.TrimPrefix(trimmed, "## "))
+			switch {
+			case strings.HasPrefix(heading, "confirmed"), strings.HasPrefix(heading, "provisional"):
+				include = true
+			default:
+				// Emerging, Archived, or unknown — skip
+				include = false
+			}
+		}
+		if include {
+			kept = append(kept, line)
+		}
+	}
+
+	result := strings.Join(kept, "\n")
+	result = strings.TrimSpace(result)
+
+	if len(result) > maxChars {
+		result = result[:maxChars]
+		// Truncate at last complete line to avoid partial entries.
+		if idx := strings.LastIndex(result, "\n"); idx > 0 {
+			result = result[:idx]
+		}
+	}
+
+	return result
 }
 
 // loadBaseInstructions loads the base instructions from RULES.md in the project root.

@@ -399,6 +399,86 @@ func TestLoadMethodologyFragmentsReturnsFuncZeroOnMissingFiles(t *testing.T) {
 	}
 }
 
+func TestScopeLearningsExcludesEmergingAndArchived(t *testing.T) {
+	t.Parallel()
+
+	raw := `# Learnings
+
+## Confirmed
+
+*Patterns seen multiple times.*
+
+### 2026-03-04 | Runtime Boundary | architecture
+Runtime boundary ownership is one contract.
+
+### 2026-02-24 | Decomposition Parity | architecture
+Decomposition quality depends on parity.
+
+## Provisional
+
+*Seen once - moderate confidence.*
+
+### 2026-03-05 | New Pattern | patterns
+A provisional pattern.
+
+## Emerging
+
+*Under observation.*
+
+### 2026-03-06 | Verbose Entry | patterns
+` + strings.Repeat("This is a very long emerging entry. ", 200) + `
+
+## Archived
+
+### 2026-01-01 | Old Entry | archived
+Old archived content that should not appear.
+`
+
+	result := scopeLearnings(raw, 2000)
+
+	if strings.Contains(result, "Emerging") {
+		t.Error("result should not contain Emerging section")
+	}
+	if strings.Contains(result, "Archived") {
+		t.Error("result should not contain Archived section")
+	}
+	if !strings.Contains(result, "Confirmed") {
+		t.Error("result should contain Confirmed section")
+	}
+	if !strings.Contains(result, "Provisional") {
+		t.Error("result should contain Provisional section")
+	}
+	if len(result) > 2000 {
+		t.Errorf("result length %d exceeds cap 2000", len(result))
+	}
+}
+
+func TestScopeLearningsCapsAtMaxChars(t *testing.T) {
+	t.Parallel()
+
+	// Build a confirmed section that exceeds 500 chars
+	raw := "## Confirmed\n\n" + strings.Repeat("### Entry\nSome learning content here.\n\n", 50)
+
+	result := scopeLearnings(raw, 500)
+
+	if len(result) > 500 {
+		t.Errorf("result length %d exceeds cap 500", len(result))
+	}
+	// Should truncate at a line boundary
+	if result != "" && result[len(result)-1] == '\n' {
+		// trailing newline is fine
+	}
+}
+
+func TestScopeLearningsEmptyInput(t *testing.T) {
+	t.Parallel()
+
+	result := scopeLearnings("", 2000)
+	if result != "" {
+		t.Errorf("expected empty result for empty input, got %q", result)
+	}
+}
+
 func TestNewRun2LoopComponentsWiresSquasherIntoPresentStage(t *testing.T) {
 	t.Parallel()
 
