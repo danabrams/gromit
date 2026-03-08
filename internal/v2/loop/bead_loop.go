@@ -431,8 +431,9 @@ func (b *BeadLoop) commitAfterStage(ctx context.Context, beadItem *bead.Bead, sN
 	if b.stageCommitter == nil {
 		return nil
 	}
-	stageIteration := b.nextStageIteration(beadItem.ID, sName)
-	return b.stageCommitter.CommitStage(ctx, b.worktree, beadItem.ID, sName, stageIteration, decision)
+	commitStageName := barePhase(sName)
+	stageIteration := b.nextStageIteration(beadItem.ID, commitStageName)
+	return b.stageCommitter.CommitStage(ctx, b.worktree, beadItem.ID, commitStageName, stageIteration, decision)
 }
 
 func (b *BeadLoop) nextStageIteration(beadID, stageName string) int {
