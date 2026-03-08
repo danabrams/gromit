@@ -1,6 +1,7 @@
 package events
 
 import (
+	"context"
 	"sync"
 )
 
@@ -11,6 +12,7 @@ const subscriberBufferSize = 100
 type Emitter struct {
 	mu          sync.RWMutex
 	subscribers map[chan Event]bool
+	waiters     chan struct{}
 	closed      bool
 }
 
@@ -18,6 +20,7 @@ type Emitter struct {
 func NewEmitter() *Emitter {
 	return &Emitter{
 		subscribers: make(map[chan Event]bool),
+		waiters:     make(chan struct{}),
 	}
 }
 
@@ -35,6 +38,7 @@ func (e *Emitter) Subscribe() chan Event {
 		return ch
 	}
 	e.subscribers[ch] = true
+	e.notifyWaitersLocked()
 	return ch
 }
 
@@ -47,6 +51,7 @@ func (e *Emitter) Unsubscribe(ch chan Event) {
 	if _, exists := e.subscribers[ch]; exists {
 		delete(e.subscribers, ch)
 		close(ch)
+		e.notifyWaitersLocked()
 	}
 }
 
@@ -78,6 +83,34 @@ func (e *Emitter) HasSubscribers() bool {
 	return !e.closed && len(e.subscribers) > 0
 }
 
+// WaitForSubscribers blocks until there is at least one active subscriber or ctx expires.
+func (e *Emitter) WaitForSubscribers(ctx context.Context) error {
+	if ctx == nil {
+		return nil
+	}
+	for {
+		e.mu.RLock()
+		hasSubscribers := !e.closed && len(e.subscribers) > 0
+		closed := e.closed
+		waiters := e.waiters
+		e.mu.RUnlock()
+
+		if hasSubscribers || closed {
+			return nil
+		}
+
+		select {
+		case <-ctx.Done():
+			// Re-check in case subscribe won the race with context cancellation.
+			if e.HasSubscribers() {
+				return nil
+			}
+			return ctx.Err()
+		case <-waiters:
+		}
+	}
+}
+
 // Close shuts down the emitter and closes all subscriber channels.
 // It is safe to call multiple times.
 func (e *Emitter) Close() {
@@ -93,4 +126,10 @@ func (e *Emitter) Close() {
 		close(ch)
 	}
 	e.subscribers = make(map[chan Event]bool)
+	e.notifyWaitersLocked()
+}
+
+func (e *Emitter) notifyWaitersLocked() {
+	close(e.waiters)
+	e.waiters = make(chan struct{})
 }
