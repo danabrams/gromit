@@ -79,3 +79,10 @@ func TestParseCommitMessageRejectsNonPositiveIteration(t *testing.T) {
 		t.Fatal("ParseCommitMessage() ok = true, want false")
 	}
 }
+
+func TestParseCommitMessageRejectsInvalidBeadID(t *testing.T) {
+	_, ok := ParseCommitMessage("[bead:gromit mo15p/review/iter:1] Retry")
+	if ok {
+		t.Fatal("ParseCommitMessage() ok = true, want false")
+	}
+}
