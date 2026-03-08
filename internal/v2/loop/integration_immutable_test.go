@@ -79,6 +79,24 @@ func TestIntegrationImmutable_RetriesPreservePriorAttemptCommits(t *testing.T) {
 	assertRetryHistoryPreserved(t, result, "bead-001")
 }
 
+func TestIntegrationImmutable_PerBeadSquashCombinesStageCommits(t *testing.T) {
+	t.Parallel()
+
+	result := runImmutableSpec(t, immutableSpecConfig{
+		specID:       "immutable-per-bead-squash",
+		enableSquash: true,
+		beads: immutableBeads(
+			immutableBead("bead-001", "First bead"),
+			immutableBead("bead-002", "Second bead"),
+		),
+	})
+
+	assertPerBeadSquashHistory(t, result, []string{
+		"bead 002: Second bead",
+		"bead 001: First bead",
+	})
+}
+
 type immutableSpecConfig struct {
 	specID            string
 	beads             []*bead.Bead
