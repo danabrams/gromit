@@ -455,6 +455,7 @@ func (b *BeadLoop) runStageEntry(ctx context.Context, beadItem *bead.Bead, itera
 			escalationLevel = req.RetryContext.EscalationLevel
 		}
 		tier := routing.EscalationTier(startTier, escalationLevel)
+		req.Tier = string(tier)
 		providerName := ""
 		if b.router != nil {
 			provider, model, pName, routeErr := b.router.Select(phase, tier)

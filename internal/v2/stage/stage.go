@@ -20,6 +20,7 @@ type Stage interface {
 type StageRequest struct {
 	Bead         BeadInfo
 	Model        string
+	Tier         string // routing tier (e.g. "low", "medium", "high")
 	Provider     llmtypes.LLMProvider
 	Iteration    int
 	Config       *config.Config
