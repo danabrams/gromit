@@ -62,6 +62,9 @@ func (f *FileSubscriber) Handle(evt TypedEvent) {
 		log.Printf("file subscriber: marshal %s: %v", f.path, err)
 		return
 	}
+	if len(data) == 0 {
+		return
+	}
 	data = append(data, '\n')
 
 	if f.file == nil {
@@ -85,6 +88,9 @@ func (f *FileSubscriber) marshalWithCorrelation(evt TypedEvent) ([]byte, error) 
 	data, err := json.Marshal(evt)
 	if err != nil {
 		return nil, err
+	}
+	if string(data) == "null" {
+		return nil, nil
 	}
 
 	var payload map[string]json.RawMessage
