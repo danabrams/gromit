@@ -106,6 +106,25 @@ func TestIntegrationImmutable_RetryHistoryKeepsPreviousCommits(t *testing.T) {
 	assertRetryHistoryPreserved(t, result, "bead-001")
 }
 
+func TestIntegrationImmutable_RetryEventLoggedForValidation(t *testing.T) {
+	t.Parallel()
+
+	result := runImmutableSpec(t, immutableSpecConfig{
+		specID: "immutable-stage-retry-events",
+		beads: immutableBeads(
+			immutableBead("bead-001", "Retry bead"),
+		),
+		validateDecisions: []stagepkg.Decision{stagepkg.DecisionFail, stagepkg.DecisionProceed},
+		validateRetry: stagepkg.RetryConfig{
+			MaxRetries: 1,
+			RetryWith:  []string{"build"},
+		},
+	})
+
+	commits := collectStructuredStageCommits(t, result.repoRoot, result.sourceBranch, 64)
+	assertRetryEventLogged(t, result.repoRoot, commits, "bead-001", "validate", 2)
+}
+
 func TestIntegrationImmutable_PerBeadSquashCombinesStageCommits(t *testing.T) {
 	t.Parallel()
 
