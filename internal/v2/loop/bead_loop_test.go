@@ -1963,6 +1963,50 @@ func TestBeadLoopStageCommitterUsesPerStageIterationOnRetry(t *testing.T) {
 	}
 }
 
+func TestBeadLoopStageCommitterCommitsEachBuildRetryAttempt(t *testing.T) {
+	t.Parallel()
+
+	sc := &mockStageCommitter{}
+	build := newRetryStage("build", 1, nil)
+	build.retryConfig = stage.RetryConfig{
+		MaxRetries: 1,
+	}
+
+	cfg := BeadLoopConfig{
+		Gate:           newNoopStage("gate"),
+		Build:          build,
+		Validate:       newNoopStage("validate"),
+		Review:         newNoopStage("review"),
+		Epilogue:       newNoopStage("epilogue"),
+		StageCommitter: sc,
+	}
+	loop, err := NewBeadLoop(cfg)
+	if err != nil {
+		t.Fatalf("NewBeadLoop: %v", err)
+	}
+
+	beads := []*bead.Bead{{ID: "bead-build-retry"}}
+	if _, err := loop.Run(context.Background(), beads, nil); err != nil {
+		t.Fatalf("Run failed: %v", err)
+	}
+
+	if len(sc.calls) != 4 {
+		t.Fatalf("CommitStage called %d times, want 4", len(sc.calls))
+	}
+
+	want := []stageCommitCall{
+		{beadID: "bead-build-retry", stageName: "build", iteration: 1, decision: stage.DecisionFail.String()},
+		{beadID: "bead-build-retry", stageName: "build", iteration: 2, decision: stage.DecisionProceed.String()},
+		{beadID: "bead-build-retry", stageName: "validate", iteration: 1, decision: stage.DecisionProceed.String()},
+		{beadID: "bead-build-retry", stageName: "review", iteration: 1, decision: stage.DecisionProceed.String()},
+	}
+	for i := range want {
+		if sc.calls[i] != want[i] {
+			t.Fatalf("call[%d] = %+v, want %+v", i, sc.calls[i], want[i])
+		}
+	}
+}
+
 func TestBeadLoopUsesLegacyCommitBeadWorkWhenStageCommitterMissing(t *testing.T) {
 	t.Parallel()
 
