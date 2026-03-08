@@ -84,6 +84,70 @@ func TestSpecLoopFailureCommitsPartialWorkAndRemovesWorktree(t *testing.T) {
 	}
 }
 
+func TestSpecLoopSuccessRemovesWorktreeAndDeletesBranch(t *testing.T) {
+	t.Helper()
+
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not available")
+	}
+
+	repoRoot := t.TempDir()
+	initGitRepo(t, repoRoot)
+
+	oldWd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	if err := os.Chdir(repoRoot); err != nil {
+		t.Fatalf("chdir repo: %v", err)
+	}
+	defer func() {
+		if cdErr := os.Chdir(oldWd); cdErr != nil {
+			t.Fatalf("restore cwd: %v", cdErr)
+		}
+	}()
+
+	specID := "spec-loop-worktree-success-cleanup"
+	worktreesDir := filepath.Join(repoRoot, ".gromit", "spec-worktrees")
+	gitAdapter := gitadapter.NewExecGitAdapter(repoRoot, worktreesDir)
+
+	adapters := adapter.AdapterSet{
+		Git:         gitAdapter,
+		LLM:         newFakeLLMAdapter(),
+		TaskTracker: newFakeTaskTrackerAdapter(),
+		Presenter:   newFakePresenterAdapter(t),
+	}
+
+	planStage := newFakePlanStage(specID)
+	presentStage := newFakePresentStage()
+	summaryCtx := &present.SummaryContext{}
+	loopInstance, err := NewSpecLoop(adapters, &config.Config{}, noopDependencyGate{},
+		WithPlanStage(planStage),
+		WithPresentStage(presentStage, summaryCtx),
+		WithDecomposeStage(newFakeDecomposeStage(specID)),
+		WithBeadLoop(newFakeBeadRunner()),
+		WithAcceptStage(newScriptedAcceptStage(stagepkg.Result{Decision: stagepkg.DecisionProceed})),
+	)
+	if err != nil {
+		t.Fatalf("create spec loop: %v", err)
+	}
+
+	if err := loopInstance.Run(context.Background(), specID, nil); err != nil {
+		t.Fatalf("run spec loop: %v", err)
+	}
+
+	worktreePath := filepath.Join(worktreesDir, specID)
+	if worktreeRegistered(t, repoRoot, worktreePath) {
+		t.Fatalf("worktree %s should have been removed from git worktree list", worktreePath)
+	}
+
+	branchName := "gromit/spec/" + specID
+	branchList := strings.TrimSpace(gitCommand(t, repoRoot, "branch", "--list", branchName))
+	if branchList != "" {
+		t.Fatalf("branch %q should be deleted on successful completion, got %q", branchName, branchList)
+	}
+}
+
 func initGitRepo(t *testing.T, repoRoot string) {
 	t.Helper()
 	gitCommand(t, repoRoot, "init")
