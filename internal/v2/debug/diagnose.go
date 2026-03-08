@@ -47,8 +47,14 @@ func Diagnose(input Input) Diagnosis {
 		diag.RootCause = classifyRootCause(evt, diag.Stage)
 	}
 
-	if commit := findFailureCommit(input.LogEntries); commit != "" {
+	if commit, stage := findFailureCommit(input.LogEntries); commit != "" {
 		diag.FailureCommit = commit
+		if diag.Stage == defaultFailureStage && stage != "" {
+			diag.Stage = stage
+			if diag.FailureEvent == nil {
+				diag.RootCause = classifyRootCauseFromStage(stage)
+			}
+		}
 	}
 
 	return diag
@@ -94,17 +100,17 @@ func classifyRootCause(event map[string]interface{}, stage string) RootCause {
 	return RootCauseBadBuildOutput
 }
 
-func findFailureCommit(entries []adapter.LogEntry) string {
+func findFailureCommit(entries []adapter.LogEntry) (string, string) {
 	for _, entry := range entries {
 		info, ok := pipeline.ParseCommitMessage(entry.Message)
 		if !ok {
 			continue
 		}
 		if strings.EqualFold(strings.TrimSpace(info.Decision), "Fail") {
-			return entry.Hash
+			return entry.Hash, strings.TrimSpace(info.StageName)
 		}
 	}
-	return ""
+	return "", ""
 }
 
 func valueAsString(v interface{}) string {
@@ -112,4 +118,15 @@ func valueAsString(v interface{}) string {
 		return s
 	}
 	return ""
+}
+
+func classifyRootCauseFromStage(stage string) RootCause {
+	switch strings.ToLower(strings.TrimSpace(stage)) {
+	case "validate":
+		return RootCauseFlakyTest
+	case "decompose":
+		return RootCauseBadDecomposition
+	default:
+		return RootCauseBadBuildOutput
+	}
 }
