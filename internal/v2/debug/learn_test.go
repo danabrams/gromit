@@ -47,6 +47,30 @@ func TestExtractLearning_SystemicEntryUsesRecommendationPath(t *testing.T) {
 	}
 }
 
+func TestExtractLearning_DerivesEntryFromDiagnosis(t *testing.T) {
+	diag := Diagnosis{
+		StageTrace: StageTrace{
+			StageName:      "build",
+			FailureMessage: "syntax error: missing return value",
+		},
+		RootCause: RootCauseBadBuildOutput,
+	}
+
+	output := ExtractLearning(LearningExtractionInput{
+		Diagnosis: &diag,
+	})
+
+	if !output.Autonomous {
+		t.Fatal("Autonomous = false, want true")
+	}
+	if output.SystemicRecommendation != "" {
+		t.Fatalf("SystemicRecommendation = %q, want empty", output.SystemicRecommendation)
+	}
+	if !strings.Contains(output.LearningsEntry, "Capture syntax-error build diagnostics") {
+		t.Fatalf("LearningsEntry = %q, want pattern description", output.LearningsEntry)
+	}
+}
+
 func TestExtractLearning_SystemicRootCauseGeneratesRecommendation(t *testing.T) {
 	input := LearningExtractionInput{
 		RootCause: RootCauseUnclearBead,
