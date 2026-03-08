@@ -1,10 +1,12 @@
 package loop
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -14,6 +16,7 @@ import (
 	"github.com/danabrams/gromit/internal/v2/adapter"
 	"github.com/danabrams/gromit/internal/v2/adapter/llm"
 	"github.com/danabrams/gromit/internal/v2/adapter/tasktracker"
+	"github.com/danabrams/gromit/internal/v2/event"
 	"github.com/danabrams/gromit/internal/v2/generation"
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
 	"github.com/danabrams/gromit/internal/v2/testutil"
@@ -322,6 +325,7 @@ type integrationGitAdapter struct {
 	t                  *testing.T
 	gapAnalysisContent string
 	planContent        string
+	lastWorktree       string
 }
 
 func newIntegrationGitAdapter(t *testing.T) *integrationGitAdapter {
@@ -337,6 +341,7 @@ func (g *integrationGitAdapter) Checkout(ctx context.Context, specID string) (st
 	if err != nil {
 		return "", err
 	}
+	g.lastWorktree = worktree
 	gromitPath := filepath.Join(worktree, ".gromit", "v2")
 	if g.gapAnalysisContent != "" || g.planContent != "" {
 		if err := os.MkdirAll(gromitPath, 0o755); err != nil {
@@ -542,6 +547,100 @@ func TestIntegration_ResumeWithGapAnalysisAndRevalidation(t *testing.T) {
 	}
 
 	assertPresenterSuccess(t, presenter, true)
+}
+
+func TestIntegration_FileSubscriberPreservesLegacySubscriberFlow(t *testing.T) {
+	t.Parallel()
+
+	const warmupTimeout = 5 * time.Second
+	ctx := context.Background()
+	specID := "spec-file-subscriber-flow"
+	cfg := &config.Config{}
+
+	typedEmitter := event.NewEmitter()
+	defer typedEmitter.Close()
+
+	legacyEmitter := events.NewEmitter()
+	got := make(chan events.Event, 4)
+	var wg sync.WaitGroup
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		time.Sleep(200 * time.Millisecond)
+		sub := legacyEmitter.Subscribe()
+		defer legacyEmitter.Unsubscribe(sub)
+		for evt := range sub {
+			got <- evt
+		}
+	}()
+	defer func() {
+		legacyEmitter.Close()
+		wg.Wait()
+		close(got)
+	}()
+
+	git := newIntegrationGitAdapter(t)
+
+	planStage := newFakePlanStage(specID)
+	presenter := newIntegrationPresenterAdapter(t)
+	presentStage, summaryCtx := newPresentStageForTest(t, cfg, presenter)
+	accept := newScriptedAcceptStage(stagepkg.Result{Decision: stagepkg.DecisionProceed})
+
+	beadLoop, err := NewBeadLoop(BeadLoopConfig{
+		Gate:          newNoopStage("gate"),
+		Build:         newNoopStage("build"),
+		Validate:      newNoopStage("validate"),
+		Review:        newNoopStage("review"),
+		Epilogue:      newNoopStage("epilogue"),
+		Emitter:       typedEmitter,
+		LegacyEmitter: legacyEmitter,
+	})
+	if err != nil {
+		t.Fatalf("create bead loop: %v", err)
+	}
+
+	adapters := adapter.AdapterSet{
+		Git:         git,
+		LLM:         newIntegrationLLMAdapter(),
+		TaskTracker: newIntegrationTaskTrackerAdapter(),
+		Presenter:   presenter,
+	}
+
+	loopInstance, err := NewSpecLoop(adapters, cfg, noopDependencyGate{},
+		WithEmitter(legacyEmitter),
+		WithTypedEmitter(typedEmitter),
+		WithPlanStage(planStage),
+		WithPresentStage(presentStage, summaryCtx),
+		WithDecomposeStage(newFakeDecomposeStage(specID)),
+		WithBeadLoop(beadLoop),
+		WithAcceptStage(accept),
+	)
+	if err != nil {
+		t.Fatalf("create spec loop: %v", err)
+	}
+
+	if err := loopInstance.Run(ctx, specID, nil); err != nil {
+		t.Fatalf("run spec loop: %v", err)
+	}
+
+	select {
+	case evt := <-got:
+		if _, ok := evt.(*events.SpecStartedEvent); !ok {
+			t.Fatalf("warmup event type = %T, want *events.SpecStartedEvent", evt)
+		}
+	case <-time.After(warmupTimeout):
+		t.Fatalf("warmup event did not reach legacy subscribers")
+	}
+
+	eventsPath := filepath.Join(git.lastWorktree, ".gromit", "v2", "events.jsonl")
+	data, err := os.ReadFile(eventsPath)
+	if err != nil {
+		t.Fatalf("read events file: %v", err)
+	}
+	if len(bytes.TrimSpace(data)) == 0 {
+		t.Fatalf("events file is empty")
+	}
 }
 
 func drainEvents(ch chan events.Event) []events.Event {
