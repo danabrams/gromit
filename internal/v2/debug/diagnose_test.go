@@ -81,3 +81,24 @@ func TestDiagnose_ClassifiesConfiguredRootCauses(t *testing.T) {
 		})
 	}
 }
+
+func TestDiagnose_FallsBackToGitHistoryForStageAndRootCause(t *testing.T) {
+	logEntries := []adapter.LogEntry{
+		{Hash: "abc11111", Message: "[bead:b1/build/iter:1] Proceed"},
+		{Hash: "abc22222", Message: "[bead:b1/decompose/iter:2] Fail"},
+	}
+
+	diagnosis := Diagnose(Input{
+		LogEntries: logEntries,
+	})
+
+	if diagnosis.Stage != "decompose" {
+		t.Fatalf("diagnosis.Stage = %q, want %q", diagnosis.Stage, "decompose")
+	}
+	if diagnosis.FailureCommit != "abc22222" {
+		t.Fatalf("diagnosis.FailureCommit = %q, want %q", diagnosis.FailureCommit, "abc22222")
+	}
+	if diagnosis.RootCause != RootCauseBadDecomposition {
+		t.Fatalf("diagnosis.RootCause = %q, want %q", diagnosis.RootCause, RootCauseBadDecomposition)
+	}
+}
