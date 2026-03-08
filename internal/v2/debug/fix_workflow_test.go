@@ -50,8 +50,8 @@ func TestApplySystemicFix_RecommendsHumanReviewForSystemicPatch(t *testing.T) {
 	if result == nil {
 		t.Fatalf("result = nil")
 	}
-	if result.Applied {
-		t.Fatalf("expected systemic patch not to apply automatically")
+	if !result.Applied {
+		t.Fatalf("expected systemic patch to apply automatically")
 	}
 	if result.SystemicRecommendation == "" {
 		t.Fatalf("systemic recommendation empty, want guidance")
@@ -59,13 +59,16 @@ func TestApplySystemicFix_RecommendsHumanReviewForSystemicPatch(t *testing.T) {
 	if !strings.Contains(strings.ToLower(result.SystemicRecommendation), "human review") {
 		t.Fatalf("recommendation = %q, want human-review reminder", result.SystemicRecommendation)
 	}
+	if !strings.Contains(result.SystemicRecommendation, ".gromit/fragments/build.md") {
+		t.Fatalf("recommendation = %q, want affected files listed", result.SystemicRecommendation)
+	}
 
 	updated, err := os.ReadFile(fragmentPath)
 	if err != nil {
 		t.Fatalf("read fragment: %v", err)
 	}
-	if strings.Contains(string(updated), "new") {
-		t.Fatalf("fragment unexpectedly changed, got %q", string(updated))
+	if !strings.Contains(string(updated), "new") {
+		t.Fatalf("fragment not updated, got %q", string(updated))
 	}
 }
 
