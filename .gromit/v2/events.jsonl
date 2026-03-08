@@ -204,3 +204,27 @@
 {"schema_version":1,"timestamp":"2026-03-07T22:45:47.079388-05:00","type":"stage.completed","stage_name":"validate:default","bead_id":"gromit-htng6","iteration":2,"success":true,"duration":367287833}
 {"schema_version":1,"timestamp":"2026-03-07T22:45:47.139665-05:00","type":"stage.started","stage_name":"review:default","bead_id":"gromit-htng6","iteration":2}
 {"schema_version":1,"timestamp":"2026-03-07T22:45:47.139673-05:00","type":"stage.completed","stage_name":"review:default","bead_id":"gromit-htng6","iteration":2,"success":true,"duration":1459}
+{"schema_version":1,"timestamp":"2026-03-07T22:45:47.188342-05:00","type":"stage.started","stage_name":"epilogue:default","bead_id":"gromit-htng6","iteration":2}
+{"schema_version":1,"timestamp":"2026-03-07T22:45:47.34536-05:00","type":"stage.completed","stage_name":"epilogue:default","bead_id":"gromit-htng6","iteration":2,"success":true,"duration":157010000}
+{"schema_version":1,"timestamp":"2026-03-07T22:45:47.345378-05:00","type":"bead.completed","bead_id":"gromit-htng6","bead_title":"Add gromit debug2 command for v2 worktree debugging","iteration":2,"success":true}
+{"schema_version":1,"timestamp":"2026-03-07T22:45:47.345393-05:00","type":"bead.started","bead_id":"gromit-ll4qr","bead_title":"Implement per-bead commit squash in present stage","iteration":3}
+{"schema_version":1,"timestamp":"2026-03-07T22:45:47.345402-05:00","type":"stage.started","stage_name":"gate:default","bead_id":"gromit-ll4qr","iteration":3}
+{"schema_version":1,"timestamp":"2026-03-07T22:45:47.642284-05:00","type":"stage.completed","stage_name":"gate:default","bead_id":"gromit-ll4qr","iteration":3,"success":true,"duration":296879291}
+{"schema_version":1,"timestamp":"2026-03-07T22:45:47.642293-05:00","type":"bead.started","bead_id":"gromit-mn2uh","bead_title":"Implement debug command: diagnose and LLM invocation","iteration":4}
+{"schema_version":1,"timestamp":"2026-03-07T22:45:47.642294-05:00","type":"stage.started","stage_name":"gate:default","bead_id":"gromit-mn2uh","iteration":4}
+{"schema_version":1,"timestamp":"2026-03-07T22:45:47.858371-05:00","type":"stage.completed","stage_name":"gate:default","bead_id":"gromit-mn2uh","iteration":4,"success":true,"duration":216076208}
+{"schema_version":1,"timestamp":"2026-03-07T22:45:47.858385-05:00","type":"bead.started","bead_id":"gromit-q6qkd","bead_title":"Implement integration test for immutable pipeline","iteration":5}
+{"schema_version":1,"timestamp":"2026-03-07T22:45:47.858386-05:00","type":"stage.started","stage_name":"gate:default","bead_id":"gromit-q6qkd","iteration":5}
+{"schema_version":1,"timestamp":"2026-03-07T22:45:48.070911-05:00","type":"stage.completed","stage_name":"gate:default","bead_id":"gromit-q6qkd","iteration":5,"success":true,"duration":212523959}
+{"schema_version":1,"timestamp":"2026-03-07T22:45:48.070921-05:00","type":"bead.started","bead_id":"gromit-tivjt","bead_title":"Implement debug fix and learning output","iteration":6}
+{"schema_version":1,"timestamp":"2026-03-07T22:45:48.070922-05:00","type":"stage.started","stage_name":"gate:default","bead_id":"gromit-tivjt","iteration":6}
+{"schema_version":1,"timestamp":"2026-03-07T22:45:48.216588-05:00","type":"stage.completed","stage_name":"gate:default","bead_id":"gromit-tivjt","iteration":6,"success":true,"duration":145664958}
+{"schema_version":1,"timestamp":"2026-03-07T22:45:48.216602-05:00","type":"bead.started","bead_id":"gromit-ziybi","bead_title":"Wire stage committer into bead loop with iteration tracking","iteration":7}
+{"schema_version":1,"timestamp":"2026-03-07T22:45:48.216603-05:00","type":"stage.started","stage_name":"gate:default","bead_id":"gromit-ziybi","iteration":7}
+{"schema_version":1,"timestamp":"2026-03-07T22:45:48.581136-05:00","type":"stage.completed","stage_name":"gate:default","bead_id":"gromit-ziybi","iteration":7,"success":true,"duration":364530292}
+{"schema_version":1,"timestamp":"2026-03-07T22:45:48.581148-05:00","type":"stage.started","stage_name":"build:default","bead_id":"gromit-ziybi","iteration":7}
+{"schema_version":1,"timestamp":"2026-03-07T22:45:52.67666-05:00","type":"stage.completed","stage_name":"build:default","bead_id":"gromit-ziybi","iteration":7,"success":false,"duration":4095491500}
+{"schema_version":1,"timestamp":"2026-03-07T22:45:52.676677-05:00","type":"stage.failed","stage_name":"build:default","bead_id":"gromit-ziybi","iteration":7,"error":"stage build:default: build: provider reported unsuccessful result: no detail available"}
+{"schema_version":1,"timestamp":"2026-03-07T22:45:52.676695-05:00","type":"triage.started","bead_id":"gromit-ziybi","bead_title":"Wire stage committer into bead loop with iteration tracking","iteration":7}
+{"schema_version":1,"timestamp":"2026-03-07T22:46:05.213-05:00","type":"triage.completed","bead_id":"gromit-ziybi","bead_title":"Wire stage committer into bead loop with iteration tracking","iteration":7,"category":"retry","reasoning":"The failure is a provider-level unsuccessful result with no diagnostic detail, which indicates a likely transient execution/environment issue rather than scope, spec clarity, or safety concerns."}
+{"schema_version":1,"timestamp":"2026-03-07T22:46:05.21305-05:00","type":"stage.started","stage_name":"build:default","bead_id":"gromit-ziybi","iteration":7}
