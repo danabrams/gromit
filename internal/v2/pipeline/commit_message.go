@@ -9,7 +9,7 @@ import (
 
 // CommitInfo holds the parsed fields from a structured commit message.
 type CommitInfo struct {
-	BeadID    string // empty string for spec-level stages
+	BeadID    string
 	StageName string
 	Iteration int
 	Decision  string
@@ -24,7 +24,7 @@ func FormatCommitMessage(beadID, stageName string, iteration int, decision strin
 	return fmt.Sprintf("[bead:%s/%s/iter:%d] %s", beadID, stageName, iteration, decision)
 }
 
-var commitMessageRe = regexp.MustCompile(`^\[(bead:([^/]+)|spec)/([^/]+)/iter:(\d+)\]\s+(.+)$`)
+var commitMessageRe = regexp.MustCompile(`^\[bead:([^/]+)/([^/]+)/iter:(\d+)\]\s+(.+)$`)
 
 // ParseCommitMessage extracts structured fields from a commit message.
 // Returns false if the message does not match the expected format.
@@ -33,11 +33,11 @@ func ParseCommitMessage(msg string) (CommitInfo, bool) {
 	if m == nil {
 		return CommitInfo{}, false
 	}
-	iter, _ := strconv.Atoi(m[4])
+	iter, _ := strconv.Atoi(m[3])
 	return CommitInfo{
-		BeadID:    m[2], // empty when scope is "spec"
-		StageName: m[3],
+		BeadID:    m[1],
+		StageName: m[2],
 		Iteration: iter,
-		Decision:  m[5],
+		Decision:  m[4],
 	}, true
 }
