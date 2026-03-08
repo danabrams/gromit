@@ -18,6 +18,7 @@ import (
 	v2review "github.com/danabrams/gromit/internal/v2/review"
 	"github.com/danabrams/gromit/internal/v2/routing"
 	"github.com/danabrams/gromit/internal/v2/stage"
+	buildstage "github.com/danabrams/gromit/internal/v2/stage/build"
 	reviewstage "github.com/danabrams/gromit/internal/v2/stage/review"
 	"github.com/danabrams/gromit/internal/v2/stage/triage"
 )
@@ -488,13 +489,18 @@ func (b *BeadLoop) runStageEntry(ctx context.Context, beadItem *bead.Bead, itera
 			escalationLevel = req.RetryContext.EscalationLevel
 		}
 		tier := routing.EscalationTier(startTier, escalationLevel)
+		providerName := ""
 		if b.router != nil {
-			provider, model, _, routeErr := b.router.Select(phase, tier)
+			provider, model, pName, routeErr := b.router.Select(phase, tier)
 			if routeErr != nil {
 				log.Printf("WARNING: routing failed for stage %s tier %s: %v (using default provider)", stageName, tier, routeErr)
 			} else if provider != nil {
 				req.Provider = provider
 				req.Model = model
+				providerName = pName
+				if entry.stage == b.build {
+					b.emitModelSelected(beadItem.ID, model, providerName, string(tier), "router")
+				}
 			}
 		} else if req.Model == "" {
 			// No router configured — resolve tier to model name so the
@@ -503,6 +509,9 @@ func (b *BeadLoop) runStageEntry(ctx context.Context, beadItem *bead.Bead, itera
 		}
 
 		b.emitStageStarted(stageName, beadItem.ID, iteration)
+		if entry.stage == b.build {
+			b.emitBuildInvocationStart(beadItem.ID, req.Model, providerName, string(tier), attempt, retriesRemaining+attempt, 0)
+		}
 		start := time.Now()
 		res, err := b.runStage(ctx, entry.stage, req)
 		duration := time.Since(start)
@@ -515,6 +524,19 @@ func (b *BeadLoop) runStageEntry(ctx context.Context, beadItem *bead.Bead, itera
 		} else if entry.shouldFail != nil && entry.shouldFail(res) {
 			failed = true
 			reason = entry.failMessage(res)
+		}
+
+		if entry.stage == b.build {
+			var costUSD float64
+			var inputTokens, outputTokens int
+			if res != nil && res.Artifacts != nil {
+				if ba, ok := res.Artifacts.(*buildstage.BuildArtifacts); ok {
+					costUSD = ba.CostUSD
+					inputTokens = ba.Tokens
+					outputTokens = 0
+				}
+			}
+			b.emitBuildInvocationComplete(beadItem.ID, req.Model, providerName, !failed, duration, costUSD, inputTokens, outputTokens)
 		}
 
 		b.emitStageCompleted(stageName, beadItem.ID, iteration, !failed, duration)
@@ -1050,6 +1072,65 @@ func (b *BeadLoop) emitTriageStarted(beadID, beadTitle string, iteration int) {
 		BeadID:    beadID,
 		BeadTitle: beadTitle,
 		Iteration: iteration,
+	})
+}
+
+func (b *BeadLoop) emitModelSelected(beadID, model, provider, tier, reason string) {
+	if b.emitter == nil {
+		return
+	}
+	b.emitter.Emit(event.ModelSelectedEvent{
+		Event: event.Event{
+			SchemaVersion: event.SchemaVersion,
+			Timestamp:     time.Now(),
+			Type:          event.EventTypeModelSelected,
+		},
+		BeadID:   beadID,
+		Model:    model,
+		Provider: provider,
+		Tier:     tier,
+		Reason:   reason,
+	})
+}
+
+func (b *BeadLoop) emitBuildInvocationStart(beadID, model, provider, tier string, attempt, maxAttempts, promptSize int) {
+	if b.emitter == nil {
+		return
+	}
+	b.emitter.Emit(event.BuildInvocationStartEvent{
+		Event: event.Event{
+			SchemaVersion: event.SchemaVersion,
+			Timestamp:     time.Now(),
+			Type:          event.EventTypeBuildInvocationStart,
+		},
+		BeadID:      beadID,
+		Model:       model,
+		Provider:    provider,
+		Tier:        tier,
+		Attempt:     attempt,
+		MaxAttempts: maxAttempts,
+		PromptSize:  promptSize,
+	})
+}
+
+func (b *BeadLoop) emitBuildInvocationComplete(beadID, model, provider string, success bool, duration time.Duration, costUSD float64, inputTokens, outputTokens int) {
+	if b.emitter == nil {
+		return
+	}
+	b.emitter.Emit(event.BuildInvocationCompleteEvent{
+		Event: event.Event{
+			SchemaVersion: event.SchemaVersion,
+			Timestamp:     time.Now(),
+			Type:          event.EventTypeBuildInvocationComplete,
+		},
+		BeadID:       beadID,
+		Model:        model,
+		Provider:     provider,
+		Success:      success,
+		Duration:     duration,
+		CostUSD:      costUSD,
+		InputTokens:  inputTokens,
+		OutputTokens: outputTokens,
 	})
 }
 
