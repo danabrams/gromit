@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 )
 
@@ -28,6 +29,16 @@ func NewFileSubscriber(path string) *FileSubscriber {
 		path:        path,
 		beadContext: make(map[string]eventCorrelation),
 	}
+}
+
+// NewWorktreeFileSubscriber returns a FileSubscriber that writes to
+// <worktree>/.gromit/v2/events.jsonl.
+func NewWorktreeFileSubscriber(worktree string) *FileSubscriber {
+	worktree = strings.TrimSpace(worktree)
+	if worktree == "" {
+		worktree = "."
+	}
+	return NewFileSubscriber(filepath.Join(worktree, ".gromit", "v2", "events.jsonl"))
 }
 
 // SubscribeTo registers Handle as a subscriber on emitter and returns
