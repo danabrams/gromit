@@ -134,7 +134,8 @@ func NewRun2LoopComponents(cfg *config.Config, adapters adapter.AdapterSet, lega
 		return nil, err
 	}
 
-	gateStage, err := gatestage.New(cfg, adapters.TaskTracker)
+	gateStage, err := gatestage.New(cfg, adapters.TaskTracker,
+		gatestage.WithSatisfactionCheck(adapters.LLM, adapters.Git))
 	if err != nil {
 		cleanup()
 		return nil, err
