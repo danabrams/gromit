@@ -516,6 +516,62 @@ func TestDebug2Impl_AppendsLearningsEntry(t *testing.T) {
 	}
 }
 
+func TestDebug2Impl_AppendsAutonomousLearningFromRootCausePattern(t *testing.T) {
+	tmpDir := t.TempDir()
+	specName := "test-spec"
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	wtPath := filepath.Join(gromitDir, "spec-worktrees", specName)
+
+	eventsDir := filepath.Join(wtPath, ".gromit", "v2")
+	if err := os.MkdirAll(eventsDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(
+		filepath.Join(eventsDir, "events.jsonl"),
+		[]byte(`{"type":"stage.failed","stage_name":"build","error":"provider reported unsuccessful result: no detail available"}`+"\n"),
+		0o644,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	learningsPath := filepath.Join(wtPath, "LEARNINGS.md")
+	initialLearnings := "# LEARNINGS\n\n## Confirmed Learnings\n\n## Provisional Learnings\n\n*No provisional learnings at this time.*\n"
+	if err := os.WriteFile(learningsPath, []byte(initialLearnings), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	origInvoke := debug2InvokeLLMFn
+	t.Cleanup(func() { debug2InvokeLLMFn = origInvoke })
+	debug2InvokeLLMFn = func(ctx context.Context, prompt, dir string, cfg *config.Config) (string, error) {
+		return `{"code_patch":"","learnings_entry":"","systemic_recommendation":""}`, nil
+	}
+
+	origRunValidation := debug2RunValidationFn
+	t.Cleanup(func() { debug2RunValidationFn = origRunValidation })
+	debug2RunValidationFn = func(ctx context.Context, dir, command string) error {
+		return nil
+	}
+
+	cfg := &config.Config{}
+	cfg.SetDefaults()
+
+	if err := debug2Impl(context.Background(), specName, gromitDir, cfg); err != nil {
+		t.Fatalf("debug2Impl() error = %v", err)
+	}
+
+	updated, err := os.ReadFile(learningsPath)
+	if err != nil {
+		t.Fatalf("reading LEARNINGS.md: %v", err)
+	}
+	updatedStr := string(updated)
+	if !strings.Contains(updatedStr, "Capture build failure diagnostics before retries") {
+		t.Fatalf("LEARNINGS.md missing root-cause learning pattern, got:\n%s", updatedStr)
+	}
+	if !strings.Contains(updatedStr, "*Autonomous: true*") {
+		t.Fatalf("LEARNINGS.md missing autonomous marker, got:\n%s", updatedStr)
+	}
+}
+
 func TestDebug2Impl_WritesSystemicRecommendationToStderr(t *testing.T) {
 	tmpDir := t.TempDir()
 	specName := "test-spec"
