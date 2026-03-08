@@ -609,6 +609,7 @@ func TestIntegration_FileSubscriberPreservesLegacySubscriberFlow(t *testing.T) {
 
 	loopInstance, err := NewSpecLoop(adapters, cfg, noopDependencyGate{},
 		WithEmitter(legacyEmitter),
+		WithLegacySubscriberWarmup(),
 		WithTypedEmitter(typedEmitter),
 		WithPlanStage(planStage),
 		WithPresentStage(presentStage, summaryCtx),
@@ -624,13 +625,8 @@ func TestIntegration_FileSubscriberPreservesLegacySubscriberFlow(t *testing.T) {
 		t.Fatalf("run spec loop: %v", err)
 	}
 
-	select {
-	case evt := <-got:
-		if _, ok := evt.(*events.SpecStartedEvent); !ok {
-			t.Fatalf("warmup event type = %T, want *events.SpecStartedEvent", evt)
-		}
-	case <-time.After(warmupTimeout):
-		t.Fatalf("warmup event did not reach legacy subscribers")
+	if _, err := waitForLegacyEventType[*events.SpecStartedEvent](got, warmupTimeout); err != nil {
+		t.Fatalf("warmup event did not reach legacy subscribers: %v", err)
 	}
 
 	eventsPath := filepath.Join(git.lastWorktree, ".gromit", "v2", "events.jsonl")
