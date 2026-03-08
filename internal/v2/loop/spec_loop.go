@@ -440,27 +440,13 @@ func (s *SpecLoop) Run(ctx context.Context, specID string, stopCh <-chan struct{
 	s.emitTypedSpecStageStarted("accept")
 	acceptStart := time.Now()
 	acceptRes, err := s.ensureAcceptance(ctx, &req, specID)
-	acceptDecision := stagepkg.DecisionProceed.String()
-	if acceptRes != nil {
-		acceptDecision = acceptRes.Decision.String()
-	}
 	if err != nil {
 		s.emitTypedSpecStageCompleted("accept", false, time.Since(acceptStart))
 		s.emitTypedSpecStageFailed("accept", err.Error())
-		if acceptRes == nil {
-			acceptDecision = stagepkg.DecisionFail.String()
-		}
-		if commitErr := s.commitStage(ctx, worktree, "accept", 1, acceptDecision); commitErr != nil {
-			return fmt.Errorf("commit after accept: %w", commitErr)
-		}
 		handleFailureCleaned = true
 		return s.handleFailure(ctx, specID, baseSummary, err)
 	}
 	s.emitTypedSpecStageCompleted("accept", true, time.Since(acceptStart))
-	if err := s.commitStage(ctx, worktree, "accept", 1, acceptDecision); err != nil {
-		return fmt.Errorf("commit after accept: %w", err)
-	}
-
 	summary := s.buildSuccessSummary(specID, worktree, plan, beads, acceptRes, beadResult.OutOfScopeFindings)
 
 	if err := s.ctxErr(ctx); err != nil {
@@ -704,9 +690,6 @@ func (s *SpecLoop) presentSummary(ctx context.Context, specID string, summary pr
 		return fmt.Errorf("present stage failed")
 	}
 	s.emitTypedSpecStageCompleted("present", true, time.Since(presentStart))
-	if err := s.commitStage(ctx, summary.Worktree, "present", 1, "proceed"); err != nil {
-		return fmt.Errorf("commit after present: %w", err)
-	}
 	return nil
 }
 
@@ -760,7 +743,7 @@ func (s *SpecLoop) commitStage(ctx context.Context, worktree, stageName string, 
 
 func isSpecCommittableStage(stageName string) bool {
 	switch barePhase(strings.TrimSpace(stageName)) {
-	case "plan", "decompose", "accept", "present":
+	case "plan", "decompose":
 		return true
 	default:
 		return false

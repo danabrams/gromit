@@ -79,8 +79,6 @@ func TestIntegration_CommitPerStageFlow_RealGitLoopHistory(t *testing.T) {
 
 	got := gitLogSubjects(t, repoRoot, "gromit/spec/"+specID, 10)
 	want := []string{
-		"[bead:spec/present/iter:1] proceed",
-		"[bead:spec/accept/iter:1] proceed",
 		"[bead:bead-001/review/iter:1] proceed",
 		"[bead:bead-001/validate/iter:1] proceed",
 		"[bead:bead-001/build/iter:1] proceed",
