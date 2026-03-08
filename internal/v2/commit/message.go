@@ -24,34 +24,53 @@ func FormatMessage(beadID, stageName string, iteration int, decision string) str
 	return fmt.Sprintf("[bead:%s/%s/iter:%d] %s", normalizedBeadID, stageName, iteration, decision)
 }
 
-var messageRe = regexp.MustCompile(`^\[bead:([^/]+)/([^/]+)/iter:(\d+)\]\s+(.+)$`)
+var (
+	beadMessageRe = regexp.MustCompile(`^\[bead:([^/]+)/([^/]+)/iter:(\d+)\]\s+(.+)$`)
+	specMessageRe = regexp.MustCompile(`^\[spec/([^/]+)/iter:(\d+)\]\s+(.+)$`)
+)
 
 // ParseMessage decodes a structured commit message into its components.
 func ParseMessage(msg string) (Message, error) {
-	matches := messageRe.FindStringSubmatch(msg)
-	if matches == nil {
-		return Message{}, fmt.Errorf("invalid commit message format")
+	if matches := beadMessageRe.FindStringSubmatch(msg); matches != nil {
+		iteration, err := strconv.Atoi(matches[3])
+		if err != nil {
+			return Message{}, fmt.Errorf("invalid iteration: %w", err)
+		}
+
+		parsed := Message{
+			BeadID:    matches[1],
+			StageName: matches[2],
+			Iteration: iteration,
+			Decision:  matches[4],
+		}
+		if err := validateRequiredFields(parsed); err != nil {
+			return Message{}, err
+		}
+		return parsed, nil
 	}
 
-	iteration, err := strconv.Atoi(matches[3])
-	if err != nil {
-		return Message{}, fmt.Errorf("invalid iteration: %w", err)
+	if matches := specMessageRe.FindStringSubmatch(msg); matches != nil {
+		iteration, err := strconv.Atoi(matches[2])
+		if err != nil {
+			return Message{}, fmt.Errorf("invalid iteration: %w", err)
+		}
+
+		parsed := Message{
+			StageName: matches[1],
+			Iteration: iteration,
+			Decision:  matches[3],
+		}
+		if err := validateRequiredFields(parsed); err != nil {
+			return Message{}, err
+		}
+		return parsed, nil
 	}
 
-	parsed := Message{
-		BeadID:    matches[1],
-		StageName: matches[2],
-		Iteration: iteration,
-		Decision:  matches[4],
-	}
-	if err := validateRequiredFields(parsed); err != nil {
-		return Message{}, err
-	}
-	return parsed, nil
+	return Message{}, fmt.Errorf("invalid commit message format")
 }
 
 func validateRequiredFields(msg Message) error {
-	if strings.TrimSpace(msg.BeadID) == "" {
+	if msg.BeadID != "" && strings.TrimSpace(msg.BeadID) == "" {
 		return fmt.Errorf("bead ID is required")
 	}
 	if strings.TrimSpace(msg.StageName) == "" {
