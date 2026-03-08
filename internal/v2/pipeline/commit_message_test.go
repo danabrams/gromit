@@ -25,7 +25,7 @@ func TestFormatCommitMessage(t *testing.T) {
 			stageName: "plan",
 			iteration: 1,
 			decision:  "Proceed",
-			want:      "[spec/plan/iter:1] Proceed",
+			want:      "[bead:spec/plan/iter:1] Proceed",
 		},
 		{
 			name:      "validation failure",
