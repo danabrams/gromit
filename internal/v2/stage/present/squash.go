@@ -91,10 +91,7 @@ func collectBeadGroups(entries []adapter.LogEntry, allowedBeads map[string]struc
 		if !ok {
 			break
 		}
-		if info.BeadID == "" {
-			continue
-		}
-		if _, ok := allowedBeads[info.BeadID]; !ok {
+		if !isSquashCandidate(info, allowedBeads) {
 			continue
 		}
 		if len(groups) == 0 || groups[len(groups)-1].beadID != info.BeadID {
@@ -167,7 +164,7 @@ func buildSquashSegments(prefix []adapter.LogEntry, allowedBeads map[string]stru
 			pending = append(pending, entry.Hash)
 			continue
 		}
-		if _, ok := allowedBeads[info.BeadID]; !ok {
+		if !isSquashCandidate(info, allowedBeads) {
 			continue
 		}
 		if len(segments) > 0 && segments[len(segments)-1].beadID == info.BeadID && len(pending) == 0 {
@@ -184,6 +181,21 @@ func buildSquashSegments(prefix []adapter.LogEntry, allowedBeads map[string]stru
 		})
 	}
 	return segments
+}
+
+func isSquashCandidate(info pipeline.CommitInfo, allowedBeads map[string]struct{}) bool {
+	if strings.TrimSpace(info.BeadID) == "" {
+		return false
+	}
+	if _, ok := allowedBeads[info.BeadID]; !ok {
+		return false
+	}
+	switch strings.ToLower(strings.TrimSpace(info.StageName)) {
+	case "build", "validate", "review", "present":
+		return true
+	default:
+		return false
+	}
 }
 
 func canRewriteHistory(ctx context.Context, worktree string) bool {
