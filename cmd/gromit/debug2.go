@@ -413,6 +413,9 @@ func debug2Impl(ctx context.Context, specName, gromitDir string, cfg *config.Con
 	if err := appendDebug2LearningsEntry(wtPath, response.LearningsEntry); err != nil {
 		return err
 	}
+	if response.SystemicRecommendation != "" {
+		fmt.Fprintf(debug2Stderr, "Systemic recommendation (not auto-applied):\n%s\n", response.SystemicRecommendation)
+	}
 	return nil
 }
 
