@@ -293,9 +293,15 @@ func assertRetryHistoryPreserved(t *testing.T, result immutableRunResult, beadID
 	t.Helper()
 
 	commits := immutableBranchCommits(t, result.repoRoot, result.sourceBranch, 64)
+	if len(commits) == 0 {
+		t.Fatal("expected source branch commits, got none")
+	}
 	buildIter1 := -1
+	buildIter1Hash := ""
 	buildIter2 := -1
-	validateIter1 := -1
+	buildIter2Hash := ""
+	validateIter1Fail := -1
+	validateIter2Proceed := -1
 
 	for idx, commit := range commits {
 		parsed, ok := pipeline.ParseCommitMessage(commit.Subject)
@@ -304,12 +310,17 @@ func assertRetryHistoryPreserved(t *testing.T, result immutableRunResult, beadID
 		}
 		if parsed.StageName == "build" && parsed.Iteration == 1 && parsed.Decision == "proceed" {
 			buildIter1 = idx
+			buildIter1Hash = commit.Hash
 		}
 		if parsed.StageName == "build" && parsed.Iteration == 2 && parsed.Decision == "proceed" {
 			buildIter2 = idx
+			buildIter2Hash = commit.Hash
 		}
-		if parsed.StageName == "validate" && parsed.Iteration == 1 && parsed.Decision == "proceed" {
-			validateIter1 = idx
+		if parsed.StageName == "validate" && parsed.Iteration == 1 && parsed.Decision == "fail" {
+			validateIter1Fail = idx
+		}
+		if parsed.StageName == "validate" && parsed.Iteration == 2 && parsed.Decision == "proceed" {
+			validateIter2Proceed = idx
 		}
 	}
 
@@ -319,11 +330,61 @@ func assertRetryHistoryPreserved(t *testing.T, result immutableRunResult, beadID
 	if buildIter2 < 0 {
 		t.Fatalf("missing build iteration 2 commit for bead %s", beadID)
 	}
-	if validateIter1 < 0 {
-		t.Fatalf("missing validate iteration 1 commit for bead %s", beadID)
+	if validateIter1Fail < 0 {
+		t.Fatalf("missing validate iteration 1 fail commit for bead %s", beadID)
+	}
+	if validateIter2Proceed < 0 {
+		t.Fatalf("missing validate iteration 2 proceed commit for bead %s", beadID)
 	}
 	if buildIter2 >= buildIter1 {
 		t.Fatalf("build iteration ordering invalid: iter2 index=%d, iter1 index=%d", buildIter2, buildIter1)
+	}
+
+	buildIter1Snapshot := immutableShowFileAtCommit(t, result.repoRoot, buildIter1Hash, filepath.Join("beads", beadID+".log"))
+	if !strings.Contains(buildIter1Snapshot, "build-1") {
+		t.Fatalf("build iteration 1 snapshot missing build-1 output: %q", buildIter1Snapshot)
+	}
+	if strings.Contains(buildIter1Snapshot, "build-2") {
+		t.Fatalf("build iteration 1 snapshot unexpectedly contains build-2 output: %q", buildIter1Snapshot)
+	}
+
+	buildIter2Snapshot := immutableShowFileAtCommit(t, result.repoRoot, buildIter2Hash, filepath.Join("beads", beadID+".log"))
+	if !strings.Contains(buildIter2Snapshot, "build-1") || !strings.Contains(buildIter2Snapshot, "build-2") {
+		t.Fatalf("build iteration 2 snapshot missing retry history output: %q", buildIter2Snapshot)
+	}
+
+	eventsContent := immutableShowFileAtCommit(t, result.repoRoot, commits[0].Hash, ".gromit/v2/events.jsonl")
+	lines := immutableJSONLLines(t, eventsContent)
+	retryEventFound := false
+	for i, line := range lines {
+		var decoded map[string]interface{}
+		if err := json.Unmarshal([]byte(line), &decoded); err != nil {
+			t.Fatalf("events line %d decode: %v", i, err)
+		}
+		if decoded["type"] != event.EventTypeStageRetrying {
+			continue
+		}
+		if decoded["bead_id"] != beadID || decoded["stage_name"] != "validate" {
+			continue
+		}
+		retryEventFound = true
+		attempt, ok := decoded["attempt"].(float64)
+		if !ok {
+			t.Fatalf("retry event attempt type = %T, want number", decoded["attempt"])
+		}
+		if int(attempt) != 2 {
+			t.Fatalf("retry event attempt = %v, want 2", decoded["attempt"])
+		}
+		iteration, ok := decoded["iteration"].(float64)
+		if !ok {
+			t.Fatalf("retry event iteration type = %T, want number", decoded["iteration"])
+		}
+		if int(iteration) != 2 {
+			t.Fatalf("retry event iteration = %v, want 2", decoded["iteration"])
+		}
+	}
+	if !retryEventFound {
+		t.Fatalf("missing stage.retrying event for bead %s", beadID)
 	}
 }
 
