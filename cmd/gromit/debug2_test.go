@@ -156,6 +156,53 @@ func TestDebug2Impl_DisplaysEventLogEntries(t *testing.T) {
 	}
 }
 
+func TestDebug2Impl_DisplaysGitHistoryCommands(t *testing.T) {
+	tmpDir := t.TempDir()
+	specName := "history-spec"
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	wtPath := filepath.Join(gromitDir, "spec-worktrees", specName)
+	eventsPath := filepath.Join(wtPath, ".gromit", "v2", "events.jsonl")
+
+	if err := os.MkdirAll(filepath.Dir(eventsPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(eventsPath, []byte(`{"type":"stage.failed","stage_name":"build","error":"boom"}`+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	origInvoke := debug2InvokeLLMFn
+	t.Cleanup(func() { debug2InvokeLLMFn = origInvoke })
+	debug2InvokeLLMFn = func(ctx context.Context, prompt, dir string, cfg *config.Config) (string, error) {
+		return `{"code_patch":"","learnings_entry":"","systemic_recommendation":""}`, nil
+	}
+
+	origRunValidation := debug2RunValidationFn
+	t.Cleanup(func() { debug2RunValidationFn = origRunValidation })
+	debug2RunValidationFn = func(ctx context.Context, dir, command string) error {
+		return nil
+	}
+
+	var stdout bytes.Buffer
+	origStdout := debug2Stdout
+	t.Cleanup(func() { debug2Stdout = origStdout })
+	debug2Stdout = &stdout
+
+	if err := debug2Impl(context.Background(), specName, gromitDir, nil); err != nil {
+		t.Fatalf("debug2Impl() error = %v", err)
+	}
+
+	got := stdout.String()
+	if !strings.Contains(got, "Git history commands (worktree branch gromit/spec/history-spec):") {
+		t.Fatalf("stdout missing git history header, got:\n%s", got)
+	}
+	if !strings.Contains(got, fmt.Sprintf("git -C %s log --oneline", wtPath)) {
+		t.Fatalf("stdout missing git log command, got:\n%s", got)
+	}
+	if !strings.Contains(got, fmt.Sprintf("git -C %s show <commit-hash>", wtPath)) {
+		t.Fatalf("stdout missing git show command, got:\n%s", got)
+	}
+}
+
 func TestResolveDebug2Worktree_ReturnsErrorWhenMissing(t *testing.T) {
 	tmpDir := t.TempDir()
 	specName := "nonexistent-spec"
