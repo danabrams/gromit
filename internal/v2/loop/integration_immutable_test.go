@@ -130,6 +130,11 @@ type immutableCommit struct {
 	Subject string
 }
 
+type immutableStructuredCommit struct {
+	Commit immutableCommit
+	Info   pipeline.CommitInfo
+}
+
 type immutableCommitExpectation struct {
 	BeadID    string
 	StageName string
@@ -162,10 +167,10 @@ func runImmutableSpec(t *testing.T, cfg immutableSpecConfig) immutableRunResult 
 
 	buildStage := &immutableBeadStage{name: "build", delay: 15 * time.Millisecond}
 	validateStage := &immutableBeadStage{
-		name:       "validate",
-		delay:      15 * time.Millisecond,
-		decisions:  append([]stagepkg.Decision(nil), cfg.validateDecisions...),
-		retry:      cfg.validateRetry,
+		name:      "validate",
+		delay:     15 * time.Millisecond,
+		decisions: append([]stagepkg.Decision(nil), cfg.validateDecisions...),
+		retry:     cfg.validateRetry,
 	}
 	reviewStage := &immutableBeadStage{name: "review", delay: 15 * time.Millisecond}
 	beadLoop, err := NewBeadLoop(BeadLoopConfig{
@@ -495,6 +500,58 @@ func immutableBranchCommits(t *testing.T, repoRoot, branch string, n int) []immu
 		commits = append(commits, immutableCommit{Hash: parts[0], Subject: parts[1]})
 	}
 	return commits
+}
+
+func collectStructuredStageCommits(t *testing.T, repoRoot, branch string, n int) []immutableStructuredCommit {
+	t.Helper()
+
+	if n <= 0 {
+		n = 64
+	}
+	commits := immutableBranchCommits(t, repoRoot, branch, n)
+	structured := make([]immutableStructuredCommit, 0, len(commits))
+	for i := len(commits) - 1; i >= 0; i-- {
+		if info, ok := pipeline.ParseCommitMessage(commits[i].Subject); ok {
+			structured = append(structured, immutableStructuredCommit{Commit: commits[i], Info: info})
+		}
+	}
+	return structured
+}
+
+func assertStageSequencePerBead(t *testing.T, commits []immutableStructuredCommit, stageOrder, beadIDs []string) {
+	t.Helper()
+
+	if len(stageOrder) == 0 {
+		t.Fatalf("no stage order provided")
+	}
+	expected := make(map[string]int, len(beadIDs))
+	for _, beadID := range beadIDs {
+		expected[beadID] = 0
+	}
+
+	for _, entry := range commits {
+		beadID := entry.Info.BeadID
+		if beadID == "spec" {
+			continue
+		}
+		nextIdx, ok := expected[beadID]
+		if !ok {
+			t.Fatalf("unexpected bead ID %q in structured commits", beadID)
+		}
+		if nextIdx >= len(stageOrder) {
+			t.Fatalf("extra stage commit %q for bead %q beyond expected stages", entry.Info.StageName, beadID)
+		}
+		if entry.Info.StageName != stageOrder[nextIdx] {
+			t.Fatalf("bead %q stage order mismatch: got %q (index %d), want %q", beadID, entry.Info.StageName, nextIdx, stageOrder[nextIdx])
+		}
+		expected[beadID] = nextIdx + 1
+	}
+
+	for _, beadID := range beadIDs {
+		if expected[beadID] != len(stageOrder) {
+			t.Fatalf("bead %q completed %d/%d stages", beadID, expected[beadID], len(stageOrder))
+		}
+	}
 }
 
 func immutableShowFileAtCommit(t *testing.T, repoRoot, hash, filePath string) string {
