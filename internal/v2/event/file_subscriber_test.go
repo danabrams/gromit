@@ -17,6 +17,15 @@ func TestNewFileSubscriberStoresPath(t *testing.T) {
 	}
 }
 
+func TestNewWorktreeFileSubscriberUsesDefaultEventsPath(t *testing.T) {
+	worktree := t.TempDir()
+	fs := NewWorktreeFileSubscriber(worktree)
+	want := filepath.Join(worktree, ".gromit", "v2", "events.jsonl")
+	if fs.path != want {
+		t.Fatalf("expected path %q, got %q", want, fs.path)
+	}
+}
+
 func TestHandleAppendsJSONLineToFile(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "sub", "events.jsonl")
