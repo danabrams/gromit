@@ -33,6 +33,12 @@ func WireWorktreeFileSubscriber(emitter *Emitter, worktree string) func() {
 	}
 }
 
+// StartWorktreeEventLogSubscriber wires a subscriber that appends typed events to
+// <worktree>/.gromit/v2/events.jsonl, preserving any existing log records.
+func StartWorktreeEventLogSubscriber(emitter *Emitter, worktree string) func() {
+	return WireWorktreeFileSubscriber(emitter, worktree)
+}
+
 // StartLegacyEventSubscribers wires the CLI and API subscribers to emitter and
 // returns the wait group that tracks those goroutines.
 func StartLegacyEventSubscribers(ctx context.Context, emitter *events.Emitter, output io.Writer, logsDir string) (*sync.WaitGroup, error) {
