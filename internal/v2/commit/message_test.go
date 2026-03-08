@@ -28,3 +28,16 @@ func TestParseMessage(t *testing.T) {
 		t.Fatalf("Decision = %q, want %q", parsed.Decision, "Retry")
 	}
 }
+
+func TestParseMessageValidatesRequiredFields(t *testing.T) {
+	tests := []string{
+		"[bead:gromit-o00gs/review/iter:0] Retry",
+		"[bead:gromit-o00gs/review/iter:3]    ",
+	}
+
+	for _, input := range tests {
+		if _, err := ParseMessage(input); err == nil {
+			t.Fatalf("ParseMessage(%q) error = nil, want non-nil", input)
+		}
+	}
+}
