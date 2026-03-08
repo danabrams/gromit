@@ -1,18 +1,14 @@
 package loop
 
 import (
-	"bytes"
 	"context"
-	"errors"
 	"fmt"
-	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 
-	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/v2/adapter"
 	gitadapter "github.com/danabrams/gromit/internal/v2/adapter/git"
@@ -20,7 +16,7 @@ import (
 	present "github.com/danabrams/gromit/internal/v2/stage/present"
 )
 
-func TestSpecLoopFailureCommitsPartialWorkAndPreservesWorktree(t *testing.T) {
+func TestSpecLoopFailureCommitsPartialWorkAndRemovesWorktree(t *testing.T) {
 	t.Helper()
 
 	if _, err := exec.LookPath("git"); err != nil {
@@ -83,130 +79,8 @@ func TestSpecLoopFailureCommitsPartialWorkAndPreservesWorktree(t *testing.T) {
 	}
 
 	worktreePath := filepath.Join(worktreesDir, specID)
-	if !worktreeRegistered(t, repoRoot, worktreePath) {
-		t.Fatalf("worktree %s should be preserved for debugging", worktreePath)
-	}
-}
-
-func TestSpecLoopSuccessRemovesWorktreeAndDeletesBranch(t *testing.T) {
-	t.Helper()
-
-	if _, err := exec.LookPath("git"); err != nil {
-		t.Skip("git not available")
-	}
-
-	repoRoot := t.TempDir()
-	initGitRepo(t, repoRoot)
-
-	oldWd, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("getwd: %v", err)
-	}
-	if err := os.Chdir(repoRoot); err != nil {
-		t.Fatalf("chdir repo: %v", err)
-	}
-	defer func() {
-		if cdErr := os.Chdir(oldWd); cdErr != nil {
-			t.Fatalf("restore cwd: %v", cdErr)
-		}
-	}()
-
-	specID := "spec-loop-worktree-success-cleanup"
-	worktreesDir := filepath.Join(repoRoot, ".gromit", "spec-worktrees")
-	gitAdapter := gitadapter.NewExecGitAdapter(repoRoot, worktreesDir)
-
-	adapters := adapter.AdapterSet{
-		Git:         gitAdapter,
-		LLM:         newFakeLLMAdapter(),
-		TaskTracker: newFakeTaskTrackerAdapter(),
-		Presenter:   newFakePresenterAdapter(t),
-	}
-
-	planStage := newFakePlanStage(specID)
-	presentStage := newFakePresentStage()
-	summaryCtx := &present.SummaryContext{}
-	loopInstance, err := NewSpecLoop(adapters, &config.Config{}, noopDependencyGate{},
-		WithPlanStage(planStage),
-		WithPresentStage(presentStage, summaryCtx),
-		WithDecomposeStage(newFakeDecomposeStage(specID)),
-		WithBeadLoop(newFakeBeadRunner()),
-		WithAcceptStage(newScriptedAcceptStage(stagepkg.Result{Decision: stagepkg.DecisionProceed})),
-	)
-	if err != nil {
-		t.Fatalf("create spec loop: %v", err)
-	}
-
-	if err := loopInstance.Run(context.Background(), specID, nil); err != nil {
-		t.Fatalf("run spec loop: %v", err)
-	}
-
-	worktreePath := filepath.Join(worktreesDir, specID)
 	if worktreeRegistered(t, repoRoot, worktreePath) {
 		t.Fatalf("worktree %s should have been removed from git worktree list", worktreePath)
-	}
-
-	branchName := "gromit/spec/" + specID
-	branchList := strings.TrimSpace(gitCommand(t, repoRoot, "branch", "--list", branchName))
-	if branchList != "" {
-		t.Fatalf("branch %q should be deleted on successful completion, got %q", branchName, branchList)
-	}
-}
-
-func TestSpecLoopFailurePreservesBranch(t *testing.T) {
-	t.Helper()
-
-	if _, err := exec.LookPath("git"); err != nil {
-		t.Skip("git not available")
-	}
-
-	repoRoot := t.TempDir()
-	initGitRepo(t, repoRoot)
-
-	oldWd, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("getwd: %v", err)
-	}
-	if err := os.Chdir(repoRoot); err != nil {
-		t.Fatalf("chdir repo: %v", err)
-	}
-	defer func() {
-		if cdErr := os.Chdir(oldWd); cdErr != nil {
-			t.Fatalf("restore cwd: %v", cdErr)
-		}
-	}()
-
-	specID := "spec-loop-worktree-failure-preserve"
-	worktreesDir := filepath.Join(repoRoot, ".gromit", "spec-worktrees")
-	gitAdapter := gitadapter.NewExecGitAdapter(repoRoot, worktreesDir)
-
-	adapters := adapter.AdapterSet{
-		Git:         gitAdapter,
-		LLM:         newFakeLLMAdapter(),
-		TaskTracker: newFakeTaskTrackerAdapter(),
-		Presenter:   newFakePresenterAdapter(t),
-	}
-
-	planStage := newFakePlanStage(specID)
-	presentStage := newFakePresentStage()
-	summaryCtx := &present.SummaryContext{}
-	loopInstance, err := NewSpecLoop(adapters, &config.Config{}, noopDependencyGate{},
-		WithPlanStage(planStage),
-		WithPresentStage(presentStage, summaryCtx),
-		WithDecomposeStage(newFakeDecomposeStage(specID)),
-		WithBeadLoop(newFakeBeadRunner()),
-		WithAcceptStage(newScriptedAcceptStage(stagepkg.Result{Decision: stagepkg.DecisionFail})),
-	)
-	if err != nil {
-		t.Fatalf("create spec loop: %v", err)
-	}
-
-	if err := loopInstance.Run(context.Background(), specID, nil); err == nil {
-		t.Fatal("expected accept failure")
-	}
-
-	branchName := "gromit/spec/" + specID
-	if !branchExistsInRepo(t, repoRoot, branchName) {
-		t.Fatalf("branch %q should be preserved on failure", branchName)
 	}
 }
 
@@ -233,12 +107,6 @@ func gitCommand(t *testing.T, dir string, args ...string) string {
 	return string(out)
 }
 
-func branchExistsInRepo(t *testing.T, repoRoot, branchName string) bool {
-	t.Helper()
-	branchList := strings.TrimSpace(gitCommand(t, repoRoot, "branch", "--list", branchName))
-	return branchList != ""
-}
-
 func worktreeRegistered(t *testing.T, repoRoot, worktree string) bool {
 	t.Helper()
 	out := gitCommand(t, repoRoot, "worktree", "list", "--porcelain")
@@ -254,20 +122,15 @@ type recordingGitAdapter struct {
 
 func (r *recordingGitAdapter) RemoveWorktree(ctx context.Context, worktree string) error {
 	r.t.Helper()
+	r.lastCommitLog = gitCommand(r.t, worktree, "log", "-1", "--pretty=%B")
 	return r.ExecGitAdapter.RemoveWorktree(ctx, worktree)
-}
-
-func (r *recordingGitAdapter) Commit(ctx context.Context, worktree, message string) (string, error) {
-	r.t.Helper()
-	r.lastCommitLog = message
-	return r.ExecGitAdapter.Commit(ctx, worktree, message)
 }
 
 // failingRemoveGitAdapter returns an error from RemoveWorktree.
 type failingRemoveGitAdapter struct {
 	fakeGitAdapter
-	removeErr    error
-	removeCalled bool
+	removeErr       error
+	removeCalled    bool
 }
 
 func (f *failingRemoveGitAdapter) RemoveWorktree(_ context.Context, worktree string) error {
@@ -297,7 +160,7 @@ func TestCleanupWorktreePreservesWorktreeWhenPreserveOnFailureIsDefault(t *testi
 		t.Fatalf("create spec loop: %v", err)
 	}
 
-	if err := loopInstance.cleanupWorktree(context.Background(), "test-spec", "/tmp/fake-worktree", false, cleanupOptions{}); err != nil {
+	if err := loopInstance.cleanupWorktree(context.Background(), "test-spec", "/tmp/fake-worktree", false); err != nil {
 		t.Fatalf("cleanupWorktree should not error when preserving on failure, got: %v", err)
 	}
 	if gitAdapter.removeCalled {
@@ -326,7 +189,7 @@ func TestCleanupWorktreeReturnsErrorWhenRemoveWorktreeFails(t *testing.T) {
 		t.Fatalf("create spec loop: %v", err)
 	}
 
-	err = loopInstance.cleanupWorktree(context.Background(), "test-spec", "/tmp/fake-worktree", true, cleanupOptions{})
+	err = loopInstance.cleanupWorktree(context.Background(), "test-spec", "/tmp/fake-worktree", true)
 	if err == nil {
 		t.Fatal("expected error when RemoveWorktree fails")
 	}
@@ -463,7 +326,7 @@ func TestCleanupWorktreeUsesNonCancelledContext(t *testing.T) {
 	cancel()
 
 	// cleanupWorktree should succeed because it creates a fresh context internally.
-	if err := loopInstance.cleanupWorktree(ctx, "test-spec", "/tmp/fake-worktree", false, cleanupOptions{}); err != nil {
+	if err := loopInstance.cleanupWorktree(ctx, "test-spec", "/tmp/fake-worktree", false); err != nil {
 		t.Fatalf("cleanupWorktree should succeed with cancelled context, got: %v", err)
 	}
 
@@ -486,135 +349,42 @@ func TestCleanupWorktreeUsesNonCancelledContext(t *testing.T) {
 	}
 }
 
-type dirtyStatusGitAdapter struct {
-	fakeGitAdapter
+// branchManagingGitAdapter records calls to PreserveBranch and DeleteBranch.
+type branchManagingGitAdapter struct {
+	*gitadapter.ExecGitAdapter
+	t                *testing.T
+	preservedBranches []string
+	deletedBranches  []string
 }
 
-func (d *dirtyStatusGitAdapter) Status(ctx context.Context, worktree string) (string, error) {
-	if ctx.Err() != nil {
-		return "", ctx.Err()
-	}
-	d.statusCalls = append(d.statusCalls, worktree)
-	return "M .gromit/v2/events.jsonl", nil
+func (b *branchManagingGitAdapter) PreserveBranch(ctx context.Context, specID string) error {
+	b.preservedBranches = append(b.preservedBranches, specID)
+	return b.ExecGitAdapter.PreserveBranch(ctx, specID)
 }
 
-func (d *dirtyStatusGitAdapter) Commit(ctx context.Context, worktree, message string) (string, error) {
-	if ctx.Err() != nil {
-		return "", ctx.Err()
-	}
-	d.commitMessages = append(d.commitMessages, message)
-	return "fake-sha", nil
+func (b *branchManagingGitAdapter) DeleteBranch(ctx context.Context, specID string) error {
+	b.deletedBranches = append(b.deletedBranches, specID)
+	return b.ExecGitAdapter.DeleteBranch(ctx, specID)
 }
 
-type branchDeletingGitAdapter struct {
-	fakeGitAdapter
-	removedBranches []string
-}
-
-func (b *branchDeletingGitAdapter) RemoveWorktreeAndBranch(ctx context.Context, worktree string) error {
-	b.removedBranches = append(b.removedBranches, worktree)
-	return b.RemoveWorktree(ctx, worktree)
-}
-
-type generationCapBeadRunner struct{}
-
-func (generationCapBeadRunner) Run(context.Context, []*bead.Bead, <-chan struct{}) (BeadLoopResult, error) {
-	return BeadLoopResult{}, ErrGenerationCapReached
-}
-
-func TestSpecLoopGenerationCapPreservesBranchWithPartialWorkCommit(t *testing.T) {
+// TestCleanupWorktreePreservesBranchOnFailure verifies that cleanupWorktree
+// calls PreserveBranch when success=false.
+func TestCleanupWorktreePreservesBranchOnFailure(t *testing.T) {
 	t.Parallel()
 
-	specID := "spec-generation-cap-preserve"
-	gitAdapter := &dirtyStatusGitAdapter{}
-	gitAdapter.t = t
-
-	adapters := adapter.AdapterSet{
-		Git:         gitAdapter,
-		LLM:         newFakeLLMAdapter(),
-		TaskTracker: newFakeTaskTrackerAdapter(),
-		Presenter:   newFakePresenterAdapter(t),
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not available")
 	}
 
-	loopInstance, err := NewSpecLoop(adapters, &config.Config{}, noopDependencyGate{},
-		WithPlanStage(newFakePlanStage(specID)),
-		WithDecomposeStage(newFakeDecomposeStage(specID)),
-		WithBeadLoop(generationCapBeadRunner{}),
-	)
-	if err != nil {
-		t.Fatalf("create spec loop: %v", err)
-	}
+	repoRoot := t.TempDir()
+	initGitRepo(t, repoRoot)
 
-	err = loopInstance.Run(context.Background(), specID, nil)
-	if !errors.Is(err, ErrGenerationCapReached) {
-		t.Fatalf("Run error = %v, want %v", err, ErrGenerationCapReached)
+	specID := "spec-branch-preserve"
+	worktreesDir := filepath.Join(repoRoot, ".gromit", "spec-worktrees")
+	gitAdapter := &branchManagingGitAdapter{
+		ExecGitAdapter: gitadapter.NewExecGitAdapter(repoRoot, worktreesDir),
+		t:              t,
 	}
-	if len(gitAdapter.commitMessages) != 1 {
-		t.Fatalf("expected partial-work commit on generation-cap failure, got %d commits", len(gitAdapter.commitMessages))
-	}
-	if want := "[gromit: partial work] spec " + specID; !strings.Contains(gitAdapter.commitMessages[0], want) {
-		t.Fatalf("commit message %q missing %q", gitAdapter.commitMessages[0], want)
-	}
-	if len(gitAdapter.removedWorktrees) != 0 {
-		t.Fatalf("expected preserved worktree on generation-cap failure, removed=%v", gitAdapter.removedWorktrees)
-	}
-}
-
-func TestSpecLoopFailurePreservesBranchWhenFailureSummaryPresentationFails(t *testing.T) {
-	t.Parallel()
-
-	specID := "spec-failure-summary-present-error"
-	gitAdapter := &dirtyStatusGitAdapter{}
-	gitAdapter.t = t
-
-	adapters := adapter.AdapterSet{
-		Git:         gitAdapter,
-		LLM:         newFakeLLMAdapter(),
-		TaskTracker: newFakeTaskTrackerAdapter(),
-		Presenter:   newFakePresenterAdapter(t),
-	}
-
-	loopInstance, err := NewSpecLoop(adapters, &config.Config{}, noopDependencyGate{},
-		WithPlanStage(newFakePlanStage(specID)),
-		WithDecomposeStage(newFakeDecomposeStage(specID)),
-		WithBeadLoop(newFakeBeadRunner()),
-		WithAcceptStage(newScriptedAcceptStage(stagepkg.Result{Decision: stagepkg.DecisionFail})),
-	)
-	if err != nil {
-		t.Fatalf("create spec loop: %v", err)
-	}
-
-	err = loopInstance.Run(context.Background(), specID, nil)
-	if err == nil {
-		t.Fatal("expected run error")
-	}
-	if len(gitAdapter.commitMessages) != 1 {
-		t.Fatalf("expected partial-work commit even when failure summary presentation fails, got %d commits", len(gitAdapter.commitMessages))
-	}
-	if want := "[gromit: partial work] spec " + specID; !strings.Contains(gitAdapter.commitMessages[0], want) {
-		t.Fatalf("commit message %q missing %q", gitAdapter.commitMessages[0], want)
-	}
-	if len(gitAdapter.removedWorktrees) != 0 {
-		t.Fatalf("expected preserved worktree on failure, removed=%v", gitAdapter.removedWorktrees)
-	}
-}
-
-func TestCleanupWorktreeLogsPreserveDecisionOnFailure(t *testing.T) {
-	var buf bytes.Buffer
-	oldOutput := log.Writer()
-	oldPrefix := log.Prefix()
-	oldFlags := log.Flags()
-	log.SetOutput(&buf)
-	log.SetPrefix("")
-	log.SetFlags(0)
-	defer func() {
-		log.SetOutput(oldOutput)
-		log.SetPrefix(oldPrefix)
-		log.SetFlags(oldFlags)
-	}()
-
-	gitAdapter := &failingRemoveGitAdapter{removeErr: fmt.Errorf("should not be called")}
-	gitAdapter.t = t
 
 	adapters := adapter.AdapterSet{
 		Git:         gitAdapter,
@@ -628,32 +398,50 @@ func TestCleanupWorktreeLogsPreserveDecisionOnFailure(t *testing.T) {
 		t.Fatalf("create spec loop: %v", err)
 	}
 
-	if err := loopInstance.cleanupWorktree(context.Background(), "test-spec", "/tmp/fake-worktree", false, cleanupOptions{}); err != nil {
-		t.Fatalf("cleanupWorktree should not error when preserving on failure, got: %v", err)
+	// Create a worktree
+	wtPath, err := gitAdapter.Checkout(context.Background(), specID)
+	if err != nil {
+		t.Fatalf("Checkout: %v", err)
 	}
 
-	want := "preserving failed spec worktree branch for spec test-spec"
-	if !strings.Contains(buf.String(), want) {
-		t.Fatalf("log output = %q, want it to contain %q", buf.String(), want)
+	// Call cleanupWorktree on failure (success=false)
+	err = loopInstance.cleanupWorktree(context.Background(), specID, wtPath, false)
+	if err != nil {
+		t.Fatalf("cleanupWorktree: %v", err)
+	}
+
+	// Verify PreserveBranch was called
+	if len(gitAdapter.preservedBranches) != 1 {
+		t.Fatalf("expected PreserveBranch to be called once, got %d times", len(gitAdapter.preservedBranches))
+	}
+	if gitAdapter.preservedBranches[0] != specID {
+		t.Fatalf("PreserveBranch called with %q, expected %q", gitAdapter.preservedBranches[0], specID)
+	}
+
+	// Verify DeleteBranch was NOT called
+	if len(gitAdapter.deletedBranches) != 0 {
+		t.Fatalf("expected DeleteBranch not to be called, but was called %d times", len(gitAdapter.deletedBranches))
 	}
 }
 
-func TestCleanupWorktreeLogsPreserveReasonWhenForced(t *testing.T) {
-	var buf bytes.Buffer
-	oldOutput := log.Writer()
-	oldPrefix := log.Prefix()
-	oldFlags := log.Flags()
-	log.SetOutput(&buf)
-	log.SetPrefix("")
-	log.SetFlags(0)
-	defer func() {
-		log.SetOutput(oldOutput)
-		log.SetPrefix(oldPrefix)
-		log.SetFlags(oldFlags)
-	}()
+// TestCleanupWorktreeDeletesBranchOnSuccess verifies that cleanupWorktree
+// calls DeleteBranch when success=true.
+func TestCleanupWorktreeDeletesBranchOnSuccess(t *testing.T) {
+	t.Parallel()
 
-	gitAdapter := &failingRemoveGitAdapter{removeErr: fmt.Errorf("should not be called")}
-	gitAdapter.t = t
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not available")
+	}
+
+	repoRoot := t.TempDir()
+	initGitRepo(t, repoRoot)
+
+	specID := "spec-branch-delete"
+	worktreesDir := filepath.Join(repoRoot, ".gromit", "spec-worktrees")
+	gitAdapter := &branchManagingGitAdapter{
+		ExecGitAdapter: gitadapter.NewExecGitAdapter(repoRoot, worktreesDir),
+		t:              t,
+	}
 
 	adapters := adapter.AdapterSet{
 		Git:         gitAdapter,
@@ -669,54 +457,28 @@ func TestCleanupWorktreeLogsPreserveReasonWhenForced(t *testing.T) {
 		t.Fatalf("create spec loop: %v", err)
 	}
 
-	opts := cleanupOptions{reason: cleanupReasonAndon, forcePreserveBranch: true}
-	if err := loopInstance.cleanupWorktree(context.Background(), "test-spec", "/tmp/fake-worktree", false, opts); err != nil {
-		t.Fatalf("cleanupWorktree should not error when preserving on forced failure, got: %v", err)
-	}
-	if gitAdapter.removeCalled {
-		t.Fatal("RemoveWorktree should not be called when forced preserve option is set")
-	}
-	if !strings.Contains(buf.String(), "Andon") {
-		t.Fatalf("log output = %q, want it to mention Andon", buf.String())
-	}
-}
-
-func TestCleanupWorktreeLogsDeletionReasonOnSuccess(t *testing.T) {
-	var buf bytes.Buffer
-	oldOutput := log.Writer()
-	oldPrefix := log.Prefix()
-	oldFlags := log.Flags()
-	log.SetOutput(&buf)
-	log.SetPrefix("")
-	log.SetFlags(0)
-	defer func() {
-		log.SetOutput(oldOutput)
-		log.SetPrefix(oldPrefix)
-		log.SetFlags(oldFlags)
-	}()
-
-	gitAdapter := &branchDeletingGitAdapter{}
-	gitAdapter.t = t
-
-	adapters := adapter.AdapterSet{
-		Git:         gitAdapter,
-		LLM:         newFakeLLMAdapter(),
-		TaskTracker: newFakeTaskTrackerAdapter(),
-		Presenter:   newFakePresenterAdapter(t),
-	}
-
-	loopInstance, err := NewSpecLoop(adapters, &config.Config{}, noopDependencyGate{})
+	// Create a worktree
+	wtPath, err := gitAdapter.Checkout(context.Background(), specID)
 	if err != nil {
-		t.Fatalf("create spec loop: %v", err)
+		t.Fatalf("Checkout: %v", err)
 	}
 
-	if err := loopInstance.cleanupWorktree(context.Background(), "test-spec", "/tmp/fake-worktree", true, cleanupOptions{reason: cleanupReasonSuccess}); err != nil {
-		t.Fatalf("cleanupWorktree should not error on success, got: %v", err)
+	// Call cleanupWorktree on success (success=true)
+	err = loopInstance.cleanupWorktree(context.Background(), specID, wtPath, true)
+	if err != nil {
+		t.Fatalf("cleanupWorktree: %v", err)
 	}
-	if len(gitAdapter.removedBranches) != 1 {
-		t.Fatalf("expected branch to be deleted once, got %d", len(gitAdapter.removedBranches))
+
+	// Verify DeleteBranch was called
+	if len(gitAdapter.deletedBranches) != 1 {
+		t.Fatalf("expected DeleteBranch to be called once, got %d times", len(gitAdapter.deletedBranches))
 	}
-	if !strings.Contains(buf.String(), "successfully deleted worktree and branch") {
-		t.Fatalf("log output = %q, want it to mention successful deletion", buf.String())
+	if gitAdapter.deletedBranches[0] != specID {
+		t.Fatalf("DeleteBranch called with %q, expected %q", gitAdapter.deletedBranches[0], specID)
+	}
+
+	// Verify PreserveBranch was NOT called
+	if len(gitAdapter.preservedBranches) != 0 {
+		t.Fatalf("expected PreserveBranch not to be called, but was called %d times", len(gitAdapter.preservedBranches))
 	}
 }
