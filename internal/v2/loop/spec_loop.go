@@ -303,7 +303,7 @@ func (s *SpecLoop) Run(ctx context.Context, specID string, stopCh <-chan struct{
 		if handleFailureCleaned || succeeded || retErr == nil {
 			return
 		}
-		if err := s.cleanupWorktree(ctx, specID, worktree, false); err != nil {
+		if err := s.cleanupWorktree(ctx, specID, worktree, false, cleanupOptions{}); err != nil {
 			log.Printf("cleanup failed worktree for spec %s: %v", specID, err)
 		}
 	}()
@@ -427,6 +427,13 @@ func (s *SpecLoop) Run(ctx context.Context, specID string, stopCh <-chan struct{
 	s.recordBeadStages()
 	beadResult, err := s.runBeadLoop(ctx, beads, worktree, stopCh)
 	if err != nil {
+		if errors.Is(err, ErrGenerationCapReached) {
+			handleFailureCleaned = true
+			s.emitGenerationCapReached()
+			if cleanupErr := s.cleanupWorktree(ctx, specID, worktree, false, cleanupOptions{reason: cleanupReasonGenerationCap, forcePreserveBranch: true}); cleanupErr != nil {
+				log.Printf("cleanup failed worktree for spec %s: %v", specID, cleanupErr)
+			}
+		}
 		return err
 	}
 
@@ -457,7 +464,7 @@ func (s *SpecLoop) Run(ctx context.Context, specID string, stopCh <-chan struct{
 		return err
 	}
 
-	if err := s.cleanupWorktree(ctx, specID, worktree, true); err != nil {
+	if err := s.cleanupWorktree(ctx, specID, worktree, true, cleanupOptions{reason: cleanupReasonSuccess}); err != nil {
 		return err
 	}
 

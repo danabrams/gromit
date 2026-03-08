@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/danabrams/gromit/internal/events"
+	gitpkg "github.com/danabrams/gromit/internal/v2/adapter/git"
 	"github.com/danabrams/gromit/internal/v2/event"
 	"github.com/danabrams/gromit/internal/v2/presentation"
 )
@@ -44,7 +45,11 @@ func (s *SpecLoop) handleFailure(ctx context.Context, specID string, base presen
 		resultErr = errors.Join(resultErr, fmt.Errorf("present failure summary: %w", err))
 	}
 
-	if err := s.cleanupWorktree(ctx, specID, base.Worktree, false); err != nil {
+	cleanupOpts := cleanupOptions{reason: cleanupReasonAndon, forcePreserveBranch: true}
+	if errors.Is(failure, ErrGenerationCapReached) {
+		cleanupOpts.reason = cleanupReasonGenerationCap
+	}
+	if err := s.cleanupWorktree(ctx, specID, base.Worktree, false, cleanupOpts); err != nil {
 		resultErr = errors.Join(resultErr, err)
 	}
 
@@ -71,7 +76,38 @@ func (s *SpecLoop) emitGenerationCapReached() {
 	})
 }
 
-func (s *SpecLoop) cleanupWorktree(_ context.Context, specID, worktree string, success bool) error {
+type cleanupReason int
+
+const (
+	cleanupReasonUnknown cleanupReason = iota
+	cleanupReasonAndon
+	cleanupReasonGenerationCap
+	cleanupReasonSuccess
+)
+
+func (r cleanupReason) description() string {
+	switch r {
+	case cleanupReasonAndon:
+		return "Andon triggered"
+	case cleanupReasonGenerationCap:
+		return "generation cap reached"
+	case cleanupReasonSuccess:
+		return "successful PR merge"
+	default:
+		return ""
+	}
+}
+
+type cleanupOptions struct {
+	reason              cleanupReason
+	forcePreserveBranch bool
+}
+
+func (opts cleanupOptions) reasonString() string {
+	return opts.reason.description()
+}
+
+func (s *SpecLoop) cleanupWorktree(_ context.Context, specID, worktree string, success bool, opts cleanupOptions) error {
 	trimmed := strings.TrimSpace(worktree)
 	if trimmed == "" {
 		log.Printf("worktree cleanup skipped for spec %s: empty worktree path", specID)
@@ -81,10 +117,9 @@ func (s *SpecLoop) cleanupWorktree(_ context.Context, specID, worktree string, s
 	if git == nil {
 		return fmt.Errorf("git adapter required for cleanup")
 	}
-	// Use a fresh context so cleanup succeeds even when the caller's context
-	// has been cancelled (exec.CommandContext fails immediately otherwise).
 	cleanupCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
+	reason := opts.reasonString()
 	if !success {
 		status, err := git.Status(cleanupCtx, trimmed)
 		if err != nil {
@@ -98,23 +133,21 @@ func (s *SpecLoop) cleanupWorktree(_ context.Context, specID, worktree string, s
 				log.Printf("committed partial work for spec %s at %s", specID, strings.TrimSpace(hash))
 			}
 		}
-		if s.preserveOnFailure {
-			log.Printf("preserving failed spec worktree branch for spec %s at %s", specID, trimmed)
+		if opts.forcePreserveBranch || s.preserveOnFailure {
+			log.Print(gitpkg.PreserveBranchMessage(specID, trimmed, reason))
 			return nil
 		}
-		log.Printf("removing failed spec worktree for spec %s at %s (preserve_on_failure=false)", specID, trimmed)
-	}
-	if success {
+		log.Print(gitpkg.RemoveFailedWorktreeMessage(specID, trimmed, reason))
+	} else {
 		if remover, ok := git.(worktreeBranchRemover); ok {
-			log.Printf("removing worktree and deleting branch after successful presentation for spec %s at %s", specID, trimmed)
+			log.Print(gitpkg.DeleteBranchMessage(specID, trimmed, reason))
 			if err := remover.RemoveWorktreeAndBranch(cleanupCtx, trimmed); err != nil {
 				return fmt.Errorf("remove worktree and branch: %w", err)
 			}
 			return nil
 		}
-		log.Printf("git adapter cannot delete branches; removing worktree only for successful spec %s at %s", specID, trimmed)
+		log.Print(gitpkg.RemoveWorktreeMessage(specID, trimmed, reason))
 	}
-	log.Printf("removing worktree for spec %s at %s", specID, trimmed)
 	if err := git.RemoveWorktree(cleanupCtx, trimmed); err != nil {
 		return fmt.Errorf("remove worktree: %w", err)
 	}

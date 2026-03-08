@@ -261,8 +261,8 @@ func (r *recordingGitAdapter) RemoveWorktree(ctx context.Context, worktree strin
 // failingRemoveGitAdapter returns an error from RemoveWorktree.
 type failingRemoveGitAdapter struct {
 	fakeGitAdapter
-	removeErr       error
-	removeCalled    bool
+	removeErr    error
+	removeCalled bool
 }
 
 func (f *failingRemoveGitAdapter) RemoveWorktree(_ context.Context, worktree string) error {
@@ -292,7 +292,7 @@ func TestCleanupWorktreePreservesWorktreeWhenPreserveOnFailureIsDefault(t *testi
 		t.Fatalf("create spec loop: %v", err)
 	}
 
-	if err := loopInstance.cleanupWorktree(context.Background(), "test-spec", "/tmp/fake-worktree", false); err != nil {
+	if err := loopInstance.cleanupWorktree(context.Background(), "test-spec", "/tmp/fake-worktree", false, cleanupOptions{}); err != nil {
 		t.Fatalf("cleanupWorktree should not error when preserving on failure, got: %v", err)
 	}
 	if gitAdapter.removeCalled {
@@ -321,7 +321,7 @@ func TestCleanupWorktreeReturnsErrorWhenRemoveWorktreeFails(t *testing.T) {
 		t.Fatalf("create spec loop: %v", err)
 	}
 
-	err = loopInstance.cleanupWorktree(context.Background(), "test-spec", "/tmp/fake-worktree", true)
+	err = loopInstance.cleanupWorktree(context.Background(), "test-spec", "/tmp/fake-worktree", true, cleanupOptions{})
 	if err == nil {
 		t.Fatal("expected error when RemoveWorktree fails")
 	}
@@ -458,7 +458,7 @@ func TestCleanupWorktreeUsesNonCancelledContext(t *testing.T) {
 	cancel()
 
 	// cleanupWorktree should succeed because it creates a fresh context internally.
-	if err := loopInstance.cleanupWorktree(ctx, "test-spec", "/tmp/fake-worktree", false); err != nil {
+	if err := loopInstance.cleanupWorktree(ctx, "test-spec", "/tmp/fake-worktree", false, cleanupOptions{}); err != nil {
 		t.Fatalf("cleanupWorktree should succeed with cancelled context, got: %v", err)
 	}
 
@@ -613,7 +613,7 @@ func TestCleanupWorktreeLogsPreserveDecisionOnFailure(t *testing.T) {
 		t.Fatalf("create spec loop: %v", err)
 	}
 
-	if err := loopInstance.cleanupWorktree(context.Background(), "test-spec", "/tmp/fake-worktree", false); err != nil {
+	if err := loopInstance.cleanupWorktree(context.Background(), "test-spec", "/tmp/fake-worktree", false, cleanupOptions{}); err != nil {
 		t.Fatalf("cleanupWorktree should not error when preserving on failure, got: %v", err)
 	}
 
