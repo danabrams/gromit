@@ -24,11 +24,14 @@ func ExtractLearning(input LearningExtractionInput) LearningExtraction {
 	systemicRecommendation := strings.TrimSpace(input.SystemicRecommendation)
 
 	if systemicRecommendation == "" && isSystemicLearning(learningsEntry) {
-		systemicRecommendation = learningsEntry
+		systemicRecommendation = BuildSystemicRecommendation(input.RootCause, learningsEntry)
+		if systemicRecommendation == "" {
+			systemicRecommendation = learningsEntry
+		}
 		learningsEntry = ""
 	}
 	if systemicRecommendation == "" {
-		systemicRecommendation = BuildSystemicRecommendation(input.RootCause)
+		systemicRecommendation = BuildSystemicRecommendation(input.RootCause, learningsEntry)
 	}
 
 	if systemicRecommendation != "" {
