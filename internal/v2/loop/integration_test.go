@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sync"
 	"testing"
 	"time"
 
@@ -552,6 +551,7 @@ func TestIntegration_ResumeWithGapAnalysisAndRevalidation(t *testing.T) {
 func TestIntegration_FileSubscriberPreservesLegacySubscriberFlow(t *testing.T) {
 	t.Parallel()
 
+	const subscriptionDelay = 1200 * time.Millisecond
 	const warmupTimeout = 5 * time.Second
 	ctx := context.Background()
 	specID := "spec-file-subscriber-flow"
@@ -561,23 +561,20 @@ func TestIntegration_FileSubscriberPreservesLegacySubscriberFlow(t *testing.T) {
 	defer typedEmitter.Close()
 
 	legacyEmitter := events.NewEmitter()
-	got := make(chan events.Event, 4)
-	var wg sync.WaitGroup
-
-	wg.Add(1)
+	legacyResult := make(chan error, 1)
+	legacyDone := make(chan struct{})
 	go func() {
-		defer wg.Done()
-		time.Sleep(200 * time.Millisecond)
+		defer close(legacyDone)
+		time.Sleep(subscriptionDelay)
 		sub := legacyEmitter.Subscribe()
 		defer legacyEmitter.Unsubscribe(sub)
-		for evt := range sub {
-			got <- evt
-		}
+
+		_, err := waitForLegacyEventType[*events.SpecStartedEvent](sub, warmupTimeout)
+		legacyResult <- err
 	}()
 	defer func() {
 		legacyEmitter.Close()
-		wg.Wait()
-		close(got)
+		<-legacyDone
 	}()
 
 	git := newIntegrationGitAdapter(t)
@@ -625,7 +622,7 @@ func TestIntegration_FileSubscriberPreservesLegacySubscriberFlow(t *testing.T) {
 		t.Fatalf("run spec loop: %v", err)
 	}
 
-	if _, err := waitForLegacyEventType[*events.SpecStartedEvent](got, warmupTimeout); err != nil {
+	if err := <-legacyResult; err != nil {
 		t.Fatalf("warmup event did not reach legacy subscribers: %v", err)
 	}
 
@@ -648,6 +645,27 @@ func drainEvents(ch chan events.Event) []events.Event {
 			evts = append(evts, evt)
 		case <-deadline:
 			return evts
+		}
+	}
+}
+
+func waitForLegacyEventType[T events.Event](ch <-chan events.Event, timeout time.Duration) (T, error) {
+	var zero T
+	if timeout <= 0 {
+		timeout = 5 * time.Second
+	}
+	deadline := time.After(timeout)
+	for {
+		select {
+		case evt, ok := <-ch:
+			if !ok {
+				return zero, fmt.Errorf("legacy event channel closed")
+			}
+			if typed, ok := evt.(T); ok {
+				return typed, nil
+			}
+		case <-deadline:
+			return zero, context.DeadlineExceeded
 		}
 	}
 }
