@@ -1849,6 +1849,38 @@ func TestBeadLoopCallsStageCommitterAfterSuccessfulStage(t *testing.T) {
 	}
 }
 
+func TestBeadLoopStageCommitterUsesCanonicalStageNames(t *testing.T) {
+	t.Parallel()
+
+	sc := &mockStageCommitter{}
+	cfg := BeadLoopConfig{
+		Gate:           newNoopStage("gate:default"),
+		Build:          newNoopStage("build:default"),
+		Validate:       newNoopStage("validate:default"),
+		Review:         newNoopStage("review:default"),
+		Epilogue:       newNoopStage("epilogue:default"),
+		StageCommitter: sc,
+	}
+	loop, err := NewBeadLoop(cfg)
+	if err != nil {
+		t.Fatalf("NewBeadLoop: %v", err)
+	}
+
+	if _, err := loop.Run(context.Background(), []*bead.Bead{{ID: "bead-canonical"}}, nil); err != nil {
+		t.Fatalf("Run failed: %v", err)
+	}
+
+	if len(sc.calls) != 3 {
+		t.Fatalf("CommitStage called %d times, want 3", len(sc.calls))
+	}
+	wantStages := []string{"build", "validate", "review"}
+	for i, want := range wantStages {
+		if sc.calls[i].stageName != want {
+			t.Fatalf("call[%d] stage = %q, want %q", i, sc.calls[i].stageName, want)
+		}
+	}
+}
+
 func TestBeadLoopCallsStageCommitterAfterFailedStage(t *testing.T) {
 	t.Parallel()
 
