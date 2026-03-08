@@ -56,14 +56,15 @@ func squashPerBead(ctx context.Context, git pipeline.SquashGit, worktree string,
 		return err
 	}
 
-	groups := collectBeadGroups(entries)
+	titles := beadTitleMap(beads)
+	allowedBeads := beadAllowlist(titles)
+	groups := collectBeadGroups(entries, allowedBeads)
 	if len(groups) == 0 {
 		return nil
 	}
 
-	titles := beadTitleMap(beads)
 	if canRewriteHistory(ctx, worktree) {
-		return squashWithHistoryRewrite(ctx, worktree, entries, titles)
+		return squashWithHistoryRewrite(ctx, worktree, entries, titles, allowedBeads)
 	}
 
 	for _, group := range groups {
@@ -83,7 +84,7 @@ type beadGroup struct {
 	count  int
 }
 
-func collectBeadGroups(entries []adapter.LogEntry) []beadGroup {
+func collectBeadGroups(entries []adapter.LogEntry, allowedBeads map[string]struct{}) []beadGroup {
 	var groups []beadGroup
 	for _, entry := range entries {
 		info, ok := pipeline.ParseCommitMessage(entry.Message)
@@ -91,6 +92,9 @@ func collectBeadGroups(entries []adapter.LogEntry) []beadGroup {
 			break
 		}
 		if info.BeadID == "" {
+			continue
+		}
+		if _, ok := allowedBeads[info.BeadID]; !ok {
 			continue
 		}
 		if len(groups) == 0 || groups[len(groups)-1].beadID != info.BeadID {
@@ -107,7 +111,7 @@ type squashSegment struct {
 	hashes []string
 }
 
-func squashWithHistoryRewrite(ctx context.Context, worktree string, entries []adapter.LogEntry, titles map[string]string) error {
+func squashWithHistoryRewrite(ctx context.Context, worktree string, entries []adapter.LogEntry, titles map[string]string, allowedBeads map[string]struct{}) error {
 	prefix := structuredPrefix(entries)
 	if len(prefix) == 0 {
 		return nil
@@ -118,7 +122,7 @@ func squashWithHistoryRewrite(ctx context.Context, worktree string, entries []ad
 		return fmt.Errorf("structured commits require a non-structured base commit")
 	}
 	baseHash := entries[baseIdx].Hash
-	segments := buildSquashSegments(prefix)
+	segments := buildSquashSegments(prefix, allowedBeads)
 	if len(segments) == 0 {
 		return nil
 	}
@@ -153,7 +157,7 @@ func structuredPrefix(entries []adapter.LogEntry) []adapter.LogEntry {
 	return prefix
 }
 
-func buildSquashSegments(prefix []adapter.LogEntry) []squashSegment {
+func buildSquashSegments(prefix []adapter.LogEntry, allowedBeads map[string]struct{}) []squashSegment {
 	segments := make([]squashSegment, 0, len(prefix))
 	pending := make([]string, 0)
 	for i := len(prefix) - 1; i >= 0; i-- {
@@ -161,6 +165,9 @@ func buildSquashSegments(prefix []adapter.LogEntry) []squashSegment {
 		info, _ := pipeline.ParseCommitMessage(entry.Message)
 		if info.BeadID == "" {
 			pending = append(pending, entry.Hash)
+			continue
+		}
+		if _, ok := allowedBeads[info.BeadID]; !ok {
 			continue
 		}
 		if len(segments) > 0 && segments[len(segments)-1].beadID == info.BeadID && len(pending) == 0 {
@@ -219,6 +226,17 @@ func beadTitleMap(beads []presentation.BeadSummary) map[string]string {
 		titles[bead.ID] = strings.TrimSpace(bead.Title)
 	}
 	return titles
+}
+
+func beadAllowlist(titles map[string]string) map[string]struct{} {
+	allowed := make(map[string]struct{}, len(titles))
+	for beadID := range titles {
+		if strings.TrimSpace(beadID) == "" {
+			continue
+		}
+		allowed[beadID] = struct{}{}
+	}
+	return allowed
 }
 
 func beadCommitMessage(beadID string, titles map[string]string) string {
