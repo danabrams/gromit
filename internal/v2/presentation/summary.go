@@ -8,6 +8,7 @@ import (
 )
 
 const specBranchPrefix = "gromit/spec/"
+const specPRBranchPrefix = "gromit/pr/"
 
 // AcceptanceResult captures a single acceptance check outcome.
 type AcceptanceResult struct {
@@ -46,6 +47,15 @@ func SpecBranchName(specName string) string {
 		return ""
 	}
 	return specBranchPrefix + trimmed
+}
+
+// SpecPRBranchName returns the PR branch used for squashed presentation commits.
+func SpecPRBranchName(specName string) string {
+	trimmed := strings.TrimSpace(specName)
+	if trimmed == "" {
+		return ""
+	}
+	return specPRBranchPrefix + trimmed
 }
 
 // DefaultIntegrationBranch returns the branch that should receive spec worktree merges by default.

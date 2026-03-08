@@ -88,24 +88,26 @@ func (s *Stage) Name() string {
 
 // Run builds the presentation summary and forwards it to the presenter.
 func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Result, error) {
-	if err := s.squash(ctx); err != nil {
-		return nil, fmt.Errorf("squash: %w", err)
-	}
 	summary := s.buildPresentation(req)
+	if branch, err := s.squash(ctx, beadID(req)); err != nil {
+		return nil, fmt.Errorf("squash: %w", err)
+	} else if strings.TrimSpace(branch) != "" {
+		summary.SpecBranch = branch
+	}
 	if err := s.presenter.PresentSummary(ctx, beadID(req), summary); err != nil {
 		return nil, fmt.Errorf("present summary: %w", err)
 	}
 	return &stagepkg.Result{Decision: stagepkg.DecisionProceed}, nil
 }
 
-func (s *Stage) squash(ctx context.Context) error {
+func (s *Stage) squash(ctx context.Context, specID string) (string, error) {
 	if s.squasher != nil {
-		return s.squasher(ctx)
+		return "", s.squasher(ctx)
 	}
 	if s.squashGit == nil {
-		return nil
+		return "", nil
 	}
-	return pipeline.SquashPerBead(ctx, s.squashGit, s.ctx.Worktree, s.ctx.BeadSummaries)
+	return pipeline.SquashPerBeadForPresentation(ctx, s.squashGit, s.ctx.Worktree, specID, s.ctx.BeadSummaries)
 }
 
 func (s *Stage) buildPresentation(req *stagepkg.Request) presentation.PresentationSummary {

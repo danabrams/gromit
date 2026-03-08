@@ -19,6 +19,41 @@ type SquashGit interface {
 
 const maxSquashLogEntries = 1000
 
+// SquashPerBeadForPresentation creates or resets a dedicated PR branch,
+// squashes stage commits there, and restores the original worktree branch.
+// The returned branch name should be used as PR head branch.
+func SquashPerBeadForPresentation(ctx context.Context, git SquashGit, worktree, specID string, beads []presentation.BeadSummary) (string, error) {
+	if !canRewriteHistory(ctx, worktree) {
+		return "", SquashPerBead(ctx, git, worktree, beads)
+	}
+
+	sourceBranch, err := currentWorktreeBranch(ctx, worktree)
+	if err != nil {
+		return "", err
+	}
+	prBranch := presentation.SpecPRBranchName(specID)
+	if prBranch == "" {
+		return "", SquashPerBead(ctx, git, worktree, beads)
+	}
+
+	if err := runGitInWorktree(ctx, worktree, "checkout", "-B", prBranch, sourceBranch); err != nil {
+		return "", fmt.Errorf("checkout pr branch %s: %w", prBranch, err)
+	}
+
+	squashErr := SquashPerBead(ctx, git, worktree, beads)
+	restoreErr := runGitInWorktree(ctx, worktree, "checkout", sourceBranch)
+	if squashErr != nil {
+		if restoreErr != nil {
+			return "", fmt.Errorf("squash per bead: %w (restore %s: %v)", squashErr, sourceBranch, restoreErr)
+		}
+		return "", squashErr
+	}
+	if restoreErr != nil {
+		return "", fmt.Errorf("restore source branch %s: %w", sourceBranch, restoreErr)
+	}
+	return prBranch, nil
+}
+
 // SquashPerBead squashes per-stage commits into a single combined commit for PR
 // presentation. It is a no-op when the git log contains no structured commits.
 func SquashPerBead(ctx context.Context, git SquashGit, worktree string, beads []presentation.BeadSummary) error {
@@ -158,14 +193,30 @@ func canRewriteHistory(ctx context.Context, worktree string) bool {
 	return cmd.Run() == nil
 }
 
+func currentWorktreeBranch(ctx context.Context, worktree string) (string, error) {
+	branch, err := runGitOutputInWorktree(ctx, worktree, "rev-parse", "--abbrev-ref", "HEAD")
+	if err != nil {
+		return "", fmt.Errorf("resolve current branch: %w", err)
+	}
+	if branch == "" || branch == "HEAD" {
+		return "", fmt.Errorf("worktree %s is not on a named branch", worktree)
+	}
+	return branch, nil
+}
+
 func runGitInWorktree(ctx context.Context, worktree string, args ...string) error {
+	_, err := runGitOutputInWorktree(ctx, worktree, args...)
+	return err
+}
+
+func runGitOutputInWorktree(ctx context.Context, worktree string, args ...string) (string, error) {
 	cmdArgs := append([]string{"-C", worktree}, args...)
 	cmd := exec.CommandContext(ctx, "git", cmdArgs...)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("git %s: %s: %w", strings.Join(args, " "), strings.TrimSpace(string(out)), err)
+		return "", fmt.Errorf("git %s: %s: %w", strings.Join(args, " "), strings.TrimSpace(string(out)), err)
 	}
-	return nil
+	return strings.TrimSpace(string(out)), nil
 }
 
 func beadTitleMap(beads []presentation.BeadSummary) map[string]string {
