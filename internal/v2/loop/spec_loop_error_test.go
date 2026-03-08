@@ -78,6 +78,30 @@ func TestRunWhenGitCheckoutFails(t *testing.T) {
 	}
 }
 
+func TestRunWhenGitCheckoutReturnsEmptyWorktreePath(t *testing.T) {
+	t.Parallel()
+
+	adapters := adapter.AdapterSet{
+		Git:         emptyWorktreeGitAdapter{},
+		LLM:         newFakeLLMAdapter(),
+		TaskTracker: newFakeTaskTrackerAdapter(),
+		Presenter:   newFakePresenterAdapter(t),
+	}
+
+	loopInstance, err := NewSpecLoop(adapters, &config.Config{}, noopDependencyGate{})
+	if err != nil {
+		t.Fatalf("create spec loop: %v", err)
+	}
+
+	err = loopInstance.Run(context.Background(), "spec-empty-worktree", nil)
+	if err == nil {
+		t.Fatal("expected error when checkout returns empty worktree path")
+	}
+	if !strings.Contains(err.Error(), "empty worktree path") {
+		t.Fatalf("error = %q, want it to contain %q", err.Error(), "empty worktree path")
+	}
+}
+
 func TestRunWhenPlanStageIsNil(t *testing.T) {
 	t.Parallel()
 
@@ -184,6 +208,40 @@ type errorGitAdapter struct {
 
 func (e *errorGitAdapter) Checkout(_ context.Context, _ string) (string, error) {
 	return "", e.checkoutErr
+}
+
+type emptyWorktreeGitAdapter struct{}
+
+func (emptyWorktreeGitAdapter) Checkout(_ context.Context, _ string) (string, error) {
+	return " \t", nil
+}
+
+func (emptyWorktreeGitAdapter) Diff(context.Context, string) (string, error) {
+	return "", nil
+}
+
+func (emptyWorktreeGitAdapter) Commit(context.Context, string, string) (string, error) {
+	return "", nil
+}
+
+func (emptyWorktreeGitAdapter) RemoveWorktree(context.Context, string) error {
+	return nil
+}
+
+func (emptyWorktreeGitAdapter) Status(context.Context, string) (string, error) {
+	return "", nil
+}
+
+func (emptyWorktreeGitAdapter) Log(context.Context, string, int) ([]adapter.LogEntry, error) {
+	return nil, nil
+}
+
+func (emptyWorktreeGitAdapter) Show(context.Context, string, string) (string, error) {
+	return "", nil
+}
+
+func (emptyWorktreeGitAdapter) SquashCommits(context.Context, string, int) error {
+	return nil
 }
 
 // errorDependencyGate always returns the configured error.
