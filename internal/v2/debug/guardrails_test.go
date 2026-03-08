@@ -1,7 +1,9 @@
 package debug
 
 import (
+	"bytes"
 	"errors"
+	"log"
 	"strings"
 	"testing"
 )
@@ -92,5 +94,36 @@ func TestEnforceSystemicChangeGuardrails_BlocksPromptFragmentYAMLWithoutApproval
 	}
 	if !strings.Contains(strings.ToLower(err.Error()), "prompt fragment") {
 		t.Fatalf("error = %q, want prompt fragment category", err.Error())
+	}
+}
+
+func TestEnforceSystemicChangeGuardrails_LogsBlockedChangesForAudit(t *testing.T) {
+	var buf bytes.Buffer
+	orig := log.Writer()
+	log.SetOutput(&buf)
+	t.Cleanup(func() {
+		log.SetOutput(orig)
+	})
+
+	patch := strings.Join([]string{
+		"diff --git a/.gromit/fragments/build.md b/.gromit/fragments/build.md",
+		"--- a/.gromit/fragments/build.md",
+		"+++ b/.gromit/fragments/build.md",
+		"@@ -1 +1 @@",
+		"-old",
+		"+new",
+	}, "\n")
+
+	err := EnforceSystemicChangeGuardrails(patch, false, nil)
+	if !errors.Is(err, ErrSystemicChangeApprovalRequired) {
+		t.Fatalf("EnforceSystemicChangeGuardrails() error = %v, want approval-required error", err)
+	}
+
+	logContents := buf.String()
+	if !strings.Contains(strings.ToLower(logContents), "blocked systemic change") {
+		t.Fatalf("log = %q, want audit entry for blocked systemic change", logContents)
+	}
+	if !strings.Contains(logContents, ".gromit/fragments/build.md") {
+		t.Fatalf("log = %q, want audit entry to mention modified path", logContents)
 	}
 }
