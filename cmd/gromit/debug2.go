@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -67,10 +68,19 @@ func resolveDebug2Worktree(gromitDir, specName string) (string, error) {
 	wtPath := filepath.Join(gromitDir, "spec-worktrees", specName)
 	if _, err := os.Stat(wtPath); err == nil {
 		return wtPath, nil
+	} else if !os.IsNotExist(err) {
+		return "", fmt.Errorf("checking preserved worktree path %q: %w", wtPath, err)
 	}
 
 	// Worktree directory not found; try to find the branch instead
-	return debug2BranchWorktreeFn(gromitDir, specName)
+	wtPath, err := debug2BranchWorktreeFn(gromitDir, specName)
+	if err != nil {
+		if errors.Is(err, debugpkg.ErrPreservedWorktreeBranchNotFound) {
+			return "", fmt.Errorf("no preserved worktree or branch found for spec %q", specName)
+		}
+		return "", err
+	}
+	return wtPath, nil
 }
 
 // readDebug2EventLog reads and parses the JSONL event log from a spec worktree.

@@ -1,6 +1,7 @@
 package debug
 
 import (
+	"errors"
 	"fmt"
 	"os/exec"
 	"path/filepath"
@@ -10,6 +11,8 @@ import (
 )
 
 var debugFinderSpecNamePattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*$`)
+
+var ErrPreservedWorktreeBranchNotFound = errors.New("preserved worktree branch not found")
 
 // FindPreservedWorktreeBranch finds the preserved worktree path for gromit/spec/<specName>.
 func FindPreservedWorktreeBranch(gromitDir, specName string) (string, error) {
@@ -30,7 +33,7 @@ func FindPreservedWorktreeBranch(gromitDir, specName string) (string, error) {
 
 	worktreePath, found := findPreservedWorktreePath(string(out), targetBranch)
 	if !found {
-		return "", fmt.Errorf("no preserved worktree found for branch %q", targetBranch)
+		return "", fmt.Errorf("%w: %q", ErrPreservedWorktreeBranchNotFound, targetBranch)
 	}
 	return worktreePath, nil
 }
