@@ -7,26 +7,51 @@ import (
 
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/tracker"
+	"github.com/danabrams/gromit/internal/v2/generation"
+	"github.com/danabrams/gromit/internal/v2/llmtypes"
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
 	stagedesc "github.com/danabrams/gromit/internal/v2/stage/names"
 	"github.com/danabrams/gromit/internal/v2/trackertypes"
 )
 
+// SatisfactionDiffer provides a diff from the branch base for satisfaction checks.
+type SatisfactionDiffer interface {
+	DiffFromBase(ctx context.Context, worktree string) (string, error)
+}
+
 // Stage evaluates bead readiness before build work begins.
 type Stage struct {
 	name    string
 	tracker trackertypes.TaskTracker
+	llm     llmtypes.LLMProvider   // optional
+	git     SatisfactionDiffer     // optional
+}
+
+// Option configures optional Stage behavior.
+type Option func(*Stage)
+
+// WithSatisfactionCheck enables pre-build satisfaction checking using the
+// provided LLM and git differ.
+func WithSatisfactionCheck(llm llmtypes.LLMProvider, git SatisfactionDiffer) Option {
+	return func(s *Stage) {
+		s.llm = llm
+		s.git = git
+	}
 }
 
 // New constructs a gate stage backed by the provided configuration and tracker.
-func New(cfg *config.Config, tracker trackertypes.TaskTracker) (*Stage, error) {
+func New(cfg *config.Config, tracker trackertypes.TaskTracker, opts ...Option) (*Stage, error) {
 	if cfg == nil {
 		return nil, fmt.Errorf("config required")
 	}
 	if tracker == nil {
 		return nil, fmt.Errorf("task tracker required")
 	}
-	return &Stage{name: stagedesc.Describe("gate", cfg), tracker: tracker}, nil
+	s := &Stage{name: stagedesc.Describe("gate", cfg), tracker: tracker}
+	for _, opt := range opts {
+		opt(s)
+	}
+	return s, nil
 }
 
 var _ stagepkg.Stage = (*Stage)(nil)
@@ -68,6 +93,13 @@ func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Resul
 		return &stagepkg.Result{Decision: stagepkg.DecisionBlock}, nil
 	}
 
+	if satisfied, err := s.trySatisfactionCheck(ctx, req); err != nil {
+		return nil, fmt.Errorf("gate: satisfaction check: %w", err)
+	} else if satisfied {
+		_, _ = s.tracker.CloseBead(ctx, trackertypes.TaskTrackerCloseBeadRequest{BeadID: beadID})
+		return &stagepkg.Result{Decision: stagepkg.DecisionSkip}, nil
+	}
+
 	return &stagepkg.Result{Decision: stagepkg.DecisionProceed}, nil
 }
 
@@ -100,6 +132,55 @@ func (s *Stage) hasPendingDependencies(ctx context.Context, b *trackertypes.Bead
 	}
 
 	return false, nil
+}
+
+func (s *Stage) trySatisfactionCheck(ctx context.Context, req *stagepkg.Request) (bool, error) {
+	if s.llm == nil || s.git == nil {
+		return false, nil
+	}
+	gen := generation.Current(req.Bead.Labels)
+	tier := satisfactionTier(gen)
+	if tier == "" {
+		return false, nil
+	}
+	if isStructuralBead(req.Bead.Title, req.Bead.Description) {
+		return false, nil
+	}
+	worktree := strings.TrimSpace(req.Worktree)
+	if worktree == "" {
+		return false, nil
+	}
+	diff, err := s.git.DiffFromBase(ctx, worktree)
+	if err != nil {
+		return false, err
+	}
+	if strings.TrimSpace(diff) == "" {
+		return false, nil
+	}
+	criteria := extractCriteria(req.Bead.Description)
+	return checkSatisfaction(ctx, s.llm, tier, diff, req.Bead.ID, criteria)
+}
+
+func extractCriteria(description string) []string {
+	var criteria []string
+	inCriteria := false
+	for _, line := range strings.Split(description, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if strings.Contains(strings.ToLower(trimmed), "acceptance criteria") {
+			inCriteria = true
+			continue
+		}
+		if inCriteria {
+			if strings.HasPrefix(trimmed, "- ") {
+				criteria = append(criteria, strings.TrimPrefix(trimmed, "- "))
+			} else if trimmed == "" {
+				continue
+			} else if strings.HasPrefix(trimmed, "#") {
+				break
+			}
+		}
+	}
+	return criteria
 }
 
 func dependencyIDs(b *trackertypes.Bead) []string {
