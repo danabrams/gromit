@@ -265,8 +265,11 @@ func (s *SpecLoop) Run(ctx context.Context, specID string, stopCh <-chan struct{
 
 	if s.typedEmitter != nil {
 		fs := event.NewFileSubscriber(s.eventsFilePath(worktree))
-		fs.SubscribeTo(s.typedEmitter)
-		defer fs.Close()
+		unsubscribe := fs.SubscribeTo(s.typedEmitter)
+		defer func() {
+			unsubscribe()
+			_ = fs.Close()
+		}()
 		s.typedEmitter.Emit(event.SpecStartedEvent{
 			Event:    event.Event{SchemaVersion: event.SchemaVersion, Timestamp: time.Now(), Type: event.EventTypeSpecStarted},
 			SpecID:   specID,

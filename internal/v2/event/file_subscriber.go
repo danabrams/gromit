@@ -20,9 +20,13 @@ func NewFileSubscriber(path string) *FileSubscriber {
 	return &FileSubscriber{path: path}
 }
 
-// SubscribeTo registers Handle as a subscriber on emitter.
-func (f *FileSubscriber) SubscribeTo(emitter *Emitter) {
-	emitter.Subscribe(f.Handle)
+// SubscribeTo registers Handle as a subscriber on emitter and returns
+// an unsubscribe callback.
+func (f *FileSubscriber) SubscribeTo(emitter *Emitter) func() {
+	if emitter == nil {
+		return func() {}
+	}
+	return emitter.Subscribe(f.Handle)
 }
 
 // Handle appends the event as a JSON line to the JSONL file.

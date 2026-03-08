@@ -12,6 +12,7 @@ type subscriber struct {
 	queue  []TypedEvent
 	notify chan struct{}
 	done   chan struct{}
+	once   sync.Once
 }
 
 func newSubscriber(fn func(TypedEvent), wg *sync.WaitGroup) *subscriber {
@@ -101,6 +102,12 @@ func (s *subscriber) dispatch(evt TypedEvent) {
 	s.fn(evt)
 }
 
+func (s *subscriber) stop() {
+	s.once.Do(func() {
+		close(s.done)
+	})
+}
+
 // Emitter fans out events to registered subscribers.
 type Emitter struct {
 	mu          sync.RWMutex
@@ -119,12 +126,22 @@ func NewEmitter() *Emitter {
 }
 
 // Subscribe registers fn to receive emitted events.
-func (e *Emitter) Subscribe(fn func(TypedEvent)) {
+// The returned function may be called to unsubscribe.
+func (e *Emitter) Subscribe(fn func(TypedEvent)) func() {
 	sub := newSubscriber(fn, &e.wg)
 
 	e.mu.Lock()
 	e.subscribers[sub] = struct{}{}
 	e.mu.Unlock()
+
+	return func() {
+		e.mu.Lock()
+		if _, ok := e.subscribers[sub]; ok {
+			delete(e.subscribers, sub)
+			sub.stop()
+		}
+		e.mu.Unlock()
+	}
 }
 
 // Emit delivers evt to all subscribers without waiting for them to complete.
@@ -143,7 +160,8 @@ func (e *Emitter) Close() {
 	e.closeOnce.Do(func() {
 		e.mu.Lock()
 		for sub := range e.subscribers {
-			close(sub.done)
+			delete(e.subscribers, sub)
+			sub.stop()
 		}
 		e.mu.Unlock()
 		e.wg.Wait()
