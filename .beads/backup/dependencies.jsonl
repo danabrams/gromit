@@ -904,6 +904,7 @@
 {"created_at":"2026-02-15T20:28:47Z","created_by":"Dan Abrams","depends_on_id":"gromit-n1fp","issue_id":"gromit-hw51","type":"blocks"}
 {"created_at":"2026-02-19T03:20:55Z","created_by":"Dan Abrams","depends_on_id":"gromit-ulsic","issue_id":"gromit-hwg9s","type":"blocks"}
 {"created_at":"2026-02-14T20:46:03Z","created_by":"Dan Abrams","depends_on_id":"gromit-7fem","issue_id":"gromit-hxqv","type":"blocks"}
+{"created_at":"2026-03-08T08:17:32Z","created_by":"Dan Abrams","depends_on_id":"gromit-mgwxq","issue_id":"gromit-i7b2g","type":"discovered-from"}
 {"created_at":"2026-02-07T03:41:56Z","created_by":"Dan Abrams","depends_on_id":"gromit-cfo","issue_id":"gromit-i9j","type":"blocks"}
 {"created_at":"2026-02-07T03:41:56Z","created_by":"Dan Abrams","depends_on_id":"gromit-pwz","issue_id":"gromit-i9j","type":"blocks"}
 {"created_at":"2026-02-15T20:17:39Z","created_by":"Dan Abrams","depends_on_id":"gromit-12n0","issue_id":"gromit-ia2o","type":"blocks"}
