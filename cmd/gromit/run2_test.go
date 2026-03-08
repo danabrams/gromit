@@ -394,3 +394,25 @@ func fieldIsNil(specLoop *loop.SpecLoop, fieldName string) bool {
 		return false
 	}
 }
+
+func TestIsCodexBinary(t *testing.T) {
+	tests := []struct {
+		binary string
+		want   bool
+	}{
+		{"codex", true},
+		{"/usr/local/bin/codex", true},
+		{"claude", false},
+		{"/usr/local/bin/claude", false},
+		{"my-codex-wrapper", true},
+		{"Codex", true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.binary, func(t *testing.T) {
+			got := isCodexBinary(tt.binary)
+			if got != tt.want {
+				t.Errorf("isCodexBinary(%q) = %v, want %v", tt.binary, got, tt.want)
+			}
+		})
+	}
+}

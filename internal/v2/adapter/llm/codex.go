@@ -26,6 +26,8 @@ const (
 	codexRetryBackoffDefault     = 1500 * time.Millisecond
 )
 
+var _ LLMProvider = (*codexAdapter)(nil)
+
 // CodexOption configures a codexAdapter.
 type CodexOption func(*codexAdapter)
 

@@ -79,7 +79,20 @@ func run2(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("dependency gate: %w", err)
 	}
 
-	llmAdapter, err := llm.NewPlanLLMAdapter(cfg, specsDir)
+	planBinary := "claude"
+	if strings.TrimSpace(cfg.Claude.Binary) != "" {
+		planBinary = strings.TrimSpace(cfg.Claude.Binary)
+	}
+	planFlags := []string{}
+	if len(cfg.Claude.Flags) > 0 {
+		planFlags = append(planFlags, cfg.Claude.Flags...)
+	}
+	planTimeout := 15 * time.Minute
+	if cfg.Claude.Timeout > 0 {
+		planTimeout = time.Duration(cfg.Claude.Timeout) * time.Second
+	}
+	planProvider := llm.NewClaudeAdapter(planBinary, planFlags, planTimeout)
+	llmAdapter, err := llm.NewPlanLLMAdapter(planProvider, specsDir)
 	if err != nil {
 		return fmt.Errorf("create plan adapter: %w", err)
 	}
@@ -307,7 +320,15 @@ func buildRouter(cfg *config.Config) (*routing.Router, map[string]string) {
 		if len(def.Flags) > 0 {
 			provFlags = append([]string(nil), def.Flags...)
 		}
-		providers[name] = llm.NewClaudeAdapter(provBinary, provFlags, timeout)
+		if isCodexBinary(provBinary) {
+			var opts []llm.CodexOption
+			if len(def.ReasoningEffort) > 0 {
+				opts = append(opts, llm.WithReasoningEffort(def.ReasoningEffort))
+			}
+			providers[name] = llm.NewCodexAdapter(provBinary, provFlags, timeout, opts...)
+		} else {
+			providers[name] = llm.NewClaudeAdapter(provBinary, provFlags, timeout)
+		}
 		if len(def.Models) > 0 {
 			models[name] = def.Models
 		}
@@ -331,6 +352,12 @@ func buildRouter(cfg *config.Config) (*routing.Router, map[string]string) {
 	})
 
 	return router, phaseModels
+}
+
+// isCodexBinary returns true if the binary name indicates a Codex CLI.
+func isCodexBinary(binary string) bool {
+	base := strings.ToLower(filepath.Base(binary))
+	return strings.Contains(base, "codex")
 }
 
 // phaseModelsFromConfig converts the structured PhaseModelsConfig into a
