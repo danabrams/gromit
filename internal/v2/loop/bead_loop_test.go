@@ -1921,6 +1921,42 @@ func TestBeadLoopCommitAfterStageSkipsGateAndEpilogue(t *testing.T) {
 	}
 }
 
+func TestBeadLoopCommitAfterStageIncludesAcceptAndPresent(t *testing.T) {
+	t.Parallel()
+
+	sc := &mockStageCommitter{}
+	cfg := BeadLoopConfig{
+		Gate:           newNoopStage("gate"),
+		Build:          newNoopStage("build"),
+		Validate:       newNoopStage("validate"),
+		Review:         newNoopStage("review"),
+		Epilogue:       newNoopStage("epilogue"),
+		StageCommitter: sc,
+	}
+	loop, err := NewBeadLoop(cfg)
+	if err != nil {
+		t.Fatalf("NewBeadLoop: %v", err)
+	}
+
+	beadItem := &bead.Bead{ID: "bead-accept-present"}
+	if err := loop.commitAfterStage(context.Background(), beadItem, "accept", stage.DecisionProceed.String()); err != nil {
+		t.Fatalf("commit accept stage: %v", err)
+	}
+	if err := loop.commitAfterStage(context.Background(), beadItem, "present", stage.DecisionProceed.String()); err != nil {
+		t.Fatalf("commit present stage: %v", err)
+	}
+
+	if len(sc.calls) != 2 {
+		t.Fatalf("CommitStage called %d times, want 2", len(sc.calls))
+	}
+	if sc.calls[0].stageName != "accept" {
+		t.Fatalf("first committed stage = %q, want %q", sc.calls[0].stageName, "accept")
+	}
+	if sc.calls[1].stageName != "present" {
+		t.Fatalf("second committed stage = %q, want %q", sc.calls[1].stageName, "present")
+	}
+}
+
 func TestBeadLoopCallsStageCommitterAfterFailedStage(t *testing.T) {
 	t.Parallel()
 
