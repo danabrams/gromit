@@ -58,6 +58,18 @@ func verifyFailureBranchLifecycle(t *testing.T, repoRoot, specID string) {
     assertEventsFilePopulated(t, eventsPath)
 }
 
+func verifySuccessBranchDeleted(t *testing.T, repoRoot, specID string) {
+    t.Helper()
+
+    worktree, err := runIntegrationSpecLoop(t, repoRoot, specID, newFakeAcceptStage())
+    if err != nil {
+        t.Fatalf("expected spec loop success, got: %v", err)
+    }
+
+    assertBranchDeleted(t, repoRoot, specID)
+    assertWorktreeRemoved(t, worktree)
+}
+
 func runIntegrationSpecLoop(t *testing.T, repoRoot, specID string, accept stagepkg.Stage) (string, error) {
     t.Helper()
 
@@ -109,6 +121,25 @@ func assertBranchExists(t *testing.T, repoRoot, specID string) {
     branch := presentation.SpecBranchName(specID)
     if _, err := runGitCommand(repoRoot, "rev-parse", "--verify", branch); err != nil {
         t.Fatalf("branch %s not found: %v", branch, err)
+    }
+}
+
+func assertBranchDeleted(t *testing.T, repoRoot, specID string) {
+    t.Helper()
+
+    branch := presentation.SpecBranchName(specID)
+    if _, err := runGitCommand(repoRoot, "rev-parse", "--verify", branch); err == nil {
+        t.Fatalf("branch %s still exists", branch)
+    }
+}
+
+func assertWorktreeRemoved(t *testing.T, worktree string) {
+    t.Helper()
+
+    if _, err := os.Stat(worktree); err == nil {
+        t.Fatalf("worktree still exists at %s", worktree)
+    } else if !os.IsNotExist(err) {
+        t.Fatalf("checking worktree removal: %v", err)
     }
 }
 
