@@ -219,6 +219,27 @@ func TestSelectDebug2FailureCommit_PicksMostRecentStructuredFail(t *testing.T) {
 	}
 }
 
+func TestDebug2Diagnose_UsesCommitStageWhenFailureEventStageMissing(t *testing.T) {
+	diagnosis := debugpkg.Diagnose(debugpkg.Input{
+		Events: []map[string]interface{}{
+			{
+				"type":  "stage.failed",
+				"error": "provider reported unsuccessful result: no detail available",
+			},
+		},
+		LogEntries: []adapter.LogEntry{
+			{Hash: "abc12345", Message: "[bead:b1/validate/iter:2] Fail"},
+		},
+	})
+
+	if diagnosis.Stage != "validate" {
+		t.Fatalf("diagnosis.Stage = %q, want %q", diagnosis.Stage, "validate")
+	}
+	if diagnosis.RootCause != debugpkg.RootCauseFlakyTest {
+		t.Fatalf("diagnosis.RootCause = %q, want %q", diagnosis.RootCause, debugpkg.RootCauseFlakyTest)
+	}
+}
+
 func runGitDebug2(t *testing.T, dir string, args ...string) {
 	t.Helper()
 	cmd := exec.Command("git", args...)
