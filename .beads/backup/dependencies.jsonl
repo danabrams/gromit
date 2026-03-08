@@ -197,6 +197,7 @@
 {"created_at":"2026-03-08T09:37:57Z","created_by":"Dan Abrams","depends_on_id":"gromit-7v10e","issue_id":"gromit-4u03e","type":"blocks"}
 {"created_at":"2026-03-08T09:37:57Z","created_by":"Dan Abrams","depends_on_id":"gromit-rc6q8","issue_id":"gromit-4u03e","type":"blocks"}
 {"created_at":"2026-02-07T18:00:51Z","created_by":"Dan Abrams","depends_on_id":"gromit-y2w","issue_id":"gromit-4u2","type":"blocks"}
+{"created_at":"2026-03-08T10:12:37Z","created_by":"Dan Abrams","depends_on_id":"gromit-opths","issue_id":"gromit-4u2a0","type":"discovered-from"}
 {"created_at":"2026-02-18T16:03:19Z","created_by":"Dan Abrams","depends_on_id":"gromit-36p1","issue_id":"gromit-4wbs","type":"blocks"}
 {"created_at":"2026-02-18T16:03:19Z","created_by":"Dan Abrams","depends_on_id":"gromit-9atb","issue_id":"gromit-4wbs","type":"blocks"}
 {"created_at":"2026-02-08T17:00:34Z","created_by":"Dan Abrams","depends_on_id":"gromit-o5py","issue_id":"gromit-4y8h","type":"blocks"}
