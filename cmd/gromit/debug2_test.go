@@ -864,6 +864,20 @@ func TestApplyDebug2Patch_BlocksSystemicWithoutApproval(t *testing.T) {
 	}
 }
 
+func TestDebug2Cmd_ApproveSystemicFlag(t *testing.T) {
+	orig := debug2ApproveSystemicChanges
+	t.Cleanup(func() {
+		debug2ApproveSystemicChanges = orig
+	})
+
+	if err := debug2Cmd.Flags().Set("approve-systemic-changes", "true"); err != nil {
+		t.Fatalf("setting approve-systemic-changes flag: %v", err)
+	}
+	if !debug2ApproveSystemicChanges {
+		t.Fatalf("expected debug2ApproveSystemicChanges to be true after flag set")
+	}
+}
+
 func TestDebug2RunE_ThreadsCommandContext(t *testing.T) {
 	repoRoot, err := findProjectRoot()
 	if err != nil {
