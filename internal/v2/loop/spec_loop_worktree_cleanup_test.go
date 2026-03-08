@@ -129,8 +129,8 @@ func (r *recordingGitAdapter) RemoveWorktree(ctx context.Context, worktree strin
 // failingRemoveGitAdapter returns an error from RemoveWorktree.
 type failingRemoveGitAdapter struct {
 	fakeGitAdapter
-	removeErr       error
-	removeCalled    bool
+	removeErr    error
+	removeCalled bool
 }
 
 func (f *failingRemoveGitAdapter) RemoveWorktree(_ context.Context, worktree string) error {
@@ -160,7 +160,7 @@ func TestCleanupWorktreePreservesWorktreeWhenPreserveOnFailureIsDefault(t *testi
 		t.Fatalf("create spec loop: %v", err)
 	}
 
-	if err := loopInstance.cleanupWorktree(context.Background(), "test-spec", "/tmp/fake-worktree", false); err != nil {
+	if err := loopInstance.cleanupWorktree(context.Background(), "test-spec", "/tmp/fake-worktree", false, cleanupOptions{}); err != nil {
 		t.Fatalf("cleanupWorktree should not error when preserving on failure, got: %v", err)
 	}
 	if gitAdapter.removeCalled {
@@ -189,7 +189,7 @@ func TestCleanupWorktreeReturnsErrorWhenRemoveWorktreeFails(t *testing.T) {
 		t.Fatalf("create spec loop: %v", err)
 	}
 
-	err = loopInstance.cleanupWorktree(context.Background(), "test-spec", "/tmp/fake-worktree", true)
+	err = loopInstance.cleanupWorktree(context.Background(), "test-spec", "/tmp/fake-worktree", true, cleanupOptions{})
 	if err == nil {
 		t.Fatal("expected error when RemoveWorktree fails")
 	}
@@ -326,7 +326,7 @@ func TestCleanupWorktreeUsesNonCancelledContext(t *testing.T) {
 	cancel()
 
 	// cleanupWorktree should succeed because it creates a fresh context internally.
-	if err := loopInstance.cleanupWorktree(ctx, "test-spec", "/tmp/fake-worktree", false); err != nil {
+	if err := loopInstance.cleanupWorktree(ctx, "test-spec", "/tmp/fake-worktree", false, cleanupOptions{}); err != nil {
 		t.Fatalf("cleanupWorktree should succeed with cancelled context, got: %v", err)
 	}
 
@@ -352,9 +352,9 @@ func TestCleanupWorktreeUsesNonCancelledContext(t *testing.T) {
 // branchManagingGitAdapter records calls to PreserveBranch and DeleteBranch.
 type branchManagingGitAdapter struct {
 	*gitadapter.ExecGitAdapter
-	t                *testing.T
+	t                 *testing.T
 	preservedBranches []string
-	deletedBranches  []string
+	deletedBranches   []string
 }
 
 func (b *branchManagingGitAdapter) PreserveBranch(ctx context.Context, specID string) error {
@@ -365,6 +365,23 @@ func (b *branchManagingGitAdapter) PreserveBranch(ctx context.Context, specID st
 func (b *branchManagingGitAdapter) DeleteBranch(ctx context.Context, specID string) error {
 	b.deletedBranches = append(b.deletedBranches, specID)
 	return b.ExecGitAdapter.DeleteBranch(ctx, specID)
+}
+
+// branchManagingFakeGitAdapter records branch manager calls without invoking git.
+type branchManagingFakeGitAdapter struct {
+	*fakeGitAdapter
+	preservedBranches []string
+	deletedBranches   []string
+}
+
+func (b *branchManagingFakeGitAdapter) PreserveBranch(_ context.Context, specID string) error {
+	b.preservedBranches = append(b.preservedBranches, specID)
+	return nil
+}
+
+func (b *branchManagingFakeGitAdapter) DeleteBranch(_ context.Context, specID string) error {
+	b.deletedBranches = append(b.deletedBranches, specID)
+	return nil
 }
 
 // TestCleanupWorktreePreservesBranchOnFailure verifies that cleanupWorktree
@@ -405,7 +422,7 @@ func TestCleanupWorktreePreservesBranchOnFailure(t *testing.T) {
 	}
 
 	// Call cleanupWorktree on failure (success=false)
-	err = loopInstance.cleanupWorktree(context.Background(), specID, wtPath, false)
+	err = loopInstance.cleanupWorktree(context.Background(), specID, wtPath, false, cleanupOptions{})
 	if err != nil {
 		t.Fatalf("cleanupWorktree: %v", err)
 	}
@@ -464,7 +481,7 @@ func TestCleanupWorktreeDeletesBranchOnSuccess(t *testing.T) {
 	}
 
 	// Call cleanupWorktree on success (success=true)
-	err = loopInstance.cleanupWorktree(context.Background(), specID, wtPath, true)
+	err = loopInstance.cleanupWorktree(context.Background(), specID, wtPath, true, cleanupOptions{})
 	if err != nil {
 		t.Fatalf("cleanupWorktree: %v", err)
 	}
@@ -480,5 +497,47 @@ func TestCleanupWorktreeDeletesBranchOnSuccess(t *testing.T) {
 	// Verify PreserveBranch was NOT called
 	if len(gitAdapter.preservedBranches) != 0 {
 		t.Fatalf("expected PreserveBranch not to be called, but was called %d times", len(gitAdapter.preservedBranches))
+	}
+}
+
+// TestCleanupWorktreeDeleteBranchCalledWithBranchManager verifies delete branch is
+// triggered when a branch manager is configured, even without RemoveWorktreeAndBranch.
+func TestCleanupWorktreeDeleteBranchCalledWithBranchManager(t *testing.T) {
+	t.Parallel()
+
+	gitAdapter := &branchManagingFakeGitAdapter{fakeGitAdapter: newFakeGitAdapter(t)}
+
+	adapters := adapter.AdapterSet{
+		Git:         gitAdapter,
+		LLM:         newFakeLLMAdapter(),
+		TaskTracker: newFakeTaskTrackerAdapter(),
+		Presenter:   newFakePresenterAdapter(t),
+	}
+
+	loopInstance, err := NewSpecLoop(adapters, &config.Config{}, noopDependencyGate{},
+		WithPreserveOnFailure(false),
+	)
+	if err != nil {
+		t.Fatalf("create spec loop: %v", err)
+	}
+
+	specID := "spec-branch-delete-fake"
+	worktree, err := gitAdapter.Checkout(context.Background(), specID)
+	if err != nil {
+		t.Fatalf("Checkout: %v", err)
+	}
+
+	if err := loopInstance.cleanupWorktree(context.Background(), specID, worktree, true, cleanupOptions{}); err != nil {
+		t.Fatalf("cleanupWorktree: %v", err)
+	}
+
+	if len(gitAdapter.deletedBranches) != 1 {
+		t.Fatalf("expected DeleteBranch called once, got %d", len(gitAdapter.deletedBranches))
+	}
+	if gitAdapter.deletedBranches[0] != specID {
+		t.Fatalf("DeleteBranch called with %q, want %q", gitAdapter.deletedBranches[0], specID)
+	}
+	if len(gitAdapter.preservedBranches) != 0 {
+		t.Fatalf("expected PreserveBranch not to be called, got %d", len(gitAdapter.preservedBranches))
 	}
 }
