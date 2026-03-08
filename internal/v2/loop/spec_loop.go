@@ -284,16 +284,11 @@ func (s *SpecLoop) Run(ctx context.Context, specID string, stopCh <-chan struct{
 	var handleFailureCleaned bool
 	var succeeded bool
 	defer func() {
-		if handleFailureCleaned || succeeded {
+		if handleFailureCleaned || succeeded || retErr == nil {
 			return
 		}
-		if retErr != nil {
-			if s.preserveOnFailure {
-				return
-			}
-			cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 30*time.Second)
-			defer cleanupCancel()
-			_ = s.adapters.Git.RemoveWorktree(cleanupCtx, worktree)
+		if err := s.cleanupWorktree(ctx, specID, worktree, false); err != nil {
+			log.Printf("cleanup failed worktree for spec %s: %v", specID, err)
 		}
 	}()
 
