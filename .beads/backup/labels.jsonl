@@ -1183,6 +1183,8 @@
 {"issue_id":"gromit-ew1l8","label":"estimated-files:3"}
 {"issue_id":"gromit-ew1l8","label":"gen:0"}
 {"issue_id":"gromit-ew1l8","label":"spec:v2-loop-routing-and-resume"}
+{"issue_id":"gromit-ew2p9","label":"gen:0"}
+{"issue_id":"gromit-ew2p9","label":"spec:immutable-pipeline"}
 {"issue_id":"gromit-ewl","label":"spec:harden-fake-claude-writes"}
 {"issue_id":"gromit-eww","label":"complexity:low"}
 {"issue_id":"gromit-ex7","label":"complexity:low"}
