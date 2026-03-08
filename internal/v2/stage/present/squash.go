@@ -230,13 +230,31 @@ func structuredPrefix(entries []adapter.LogEntry) []adapter.LogEntry {
 }
 
 func buildSquashSegments(prefix []adapter.LogEntry, allowedBeads map[string]struct{}) []squashSegment {
-	order := make([]string, 0, len(prefix))
-	seen := make(map[string]struct{}, len(prefix))
-	hashesByBead := make(map[string][]string, len(prefix))
-	for i := len(prefix) - 1; i >= 0; i-- {
-		entry := prefix[i]
-		info, _ := pipeline.ParseCommitMessage(entry.Message)
-		if !isSquashCandidate(info, allowedBeads) {
+	order, hashesByBead := collectBeadCommitHashes(prefix, allowedBeads)
+	if len(order) == 0 {
+		return nil
+	}
+
+	segments := make([]squashSegment, 0, len(order))
+	for _, beadID := range order {
+		if beadHashes := hashesByBead[beadID]; len(beadHashes) > 0 {
+			segments = append(segments, squashSegment{
+				beadID: beadID,
+				hashes: beadHashes,
+			})
+		}
+	}
+	return segments
+}
+
+func collectBeadCommitHashes(entries []adapter.LogEntry, allowedBeads map[string]struct{}) ([]string, map[string][]string) {
+	order := make([]string, 0, len(entries))
+	seen := make(map[string]struct{}, len(entries))
+	hashesByBead := make(map[string][]string, len(entries))
+	for i := len(entries) - 1; i >= 0; i-- {
+		entry := entries[i]
+		info, ok := pipeline.ParseCommitMessage(entry.Message)
+		if !ok || !isSquashCandidate(info, allowedBeads) {
 			continue
 		}
 		if _, ok := seen[info.BeadID]; !ok {
@@ -245,19 +263,7 @@ func buildSquashSegments(prefix []adapter.LogEntry, allowedBeads map[string]stru
 		}
 		hashesByBead[info.BeadID] = append(hashesByBead[info.BeadID], entry.Hash)
 	}
-
-	if len(order) == 0 {
-		return nil
-	}
-
-	segments := make([]squashSegment, 0, len(order))
-	for _, beadID := range order {
-		segments = append(segments, squashSegment{
-			beadID: beadID,
-			hashes: hashesByBead[beadID],
-		})
-	}
-	return segments
+	return order, hashesByBead
 }
 
 func isSquashCandidate(info pipeline.CommitInfo, allowedBeads map[string]struct{}) bool {
