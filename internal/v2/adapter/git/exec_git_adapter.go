@@ -92,6 +92,14 @@ func (a *ExecGitAdapter) Commit(ctx context.Context, worktree, message string) (
 	if out, err := runGitCommand(ctx, trimmed, "add", "-A"); err != nil {
 		return "", fmt.Errorf("git add: %s: %w", out, err)
 	}
+	const eventsLogPath = ".gromit/v2/events.jsonl"
+	if _, statErr := os.Stat(filepath.Join(trimmed, eventsLogPath)); statErr == nil {
+		if out, err := runGitCommand(ctx, trimmed, "add", "-f", "--", eventsLogPath); err != nil {
+			return "", fmt.Errorf("git add events log: %s: %w", out, err)
+		}
+	} else if !os.IsNotExist(statErr) {
+		return "", fmt.Errorf("stat events log: %w", statErr)
+	}
 	if out, err := runGitCommand(ctx, trimmed, "commit", "-m", msg); err != nil {
 		return "", fmt.Errorf("git commit: %s: %w", out, err)
 	}
