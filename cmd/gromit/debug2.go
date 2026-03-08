@@ -194,9 +194,14 @@ func buildDebug2Prompt(specName, wtPath string, events []map[string]interface{},
 	return sb.String()
 }
 
-// findFailureEvent returns the first event with decision "Fail", or nil if none found.
+// findFailureEvent returns the first event indicating a failure, or nil if none found.
 func findFailureEvent(events []map[string]interface{}) map[string]interface{} {
 	for _, e := range events {
+		// Check for new v2 event format (type: "stage.failed")
+		if e["type"] == "stage.failed" {
+			return e
+		}
+		// Fall back to legacy format (decision: "Fail")
 		if e["decision"] == "Fail" {
 			return e
 		}
@@ -550,4 +555,9 @@ func getStringField(m map[string]interface{}, key string) string {
 		}
 	}
 	return ""
+}
+
+// debug2PersistLearningToFile persists a learning entry to the LEARNINGS.md file.
+func debug2PersistLearningToFile(learningsPath, entry string) error {
+	return debug.PersistLearning(learningsPath, entry)
 }
