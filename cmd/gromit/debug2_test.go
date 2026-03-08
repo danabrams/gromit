@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -181,5 +182,84 @@ func TestSelectDebug2FailureCommit_PicksMostRecentStructuredFail(t *testing.T) {
 	}
 	if info.Decision != "Fail" {
 		t.Fatalf("decision = %q, want %q", info.Decision, "Fail")
+	}
+}
+
+func runGitDebug2(t *testing.T, dir string, args ...string) {
+	t.Helper()
+	cmd := exec.Command("git", args...)
+	cmd.Dir = dir
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git %v failed: %v\n%s", args, err, out)
+	}
+}
+
+func TestDebug2Impl_PromptIncludesEventTailAndFailureDiff(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not available")
+	}
+
+	rootDir := t.TempDir()
+	gromitDir := filepath.Join(rootDir, ".gromit")
+	specName := "spec-a"
+	wtPath := filepath.Join(gromitDir, "spec-worktrees", specName)
+	if err := os.MkdirAll(wtPath, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	runGitDebug2(t, wtPath, "init")
+	runGitDebug2(t, wtPath, "config", "user.email", "tester@example.com")
+	runGitDebug2(t, wtPath, "config", "user.name", "Test User")
+	runGitDebug2(t, wtPath, "commit", "--allow-empty", "-m", "init")
+
+	if err := os.WriteFile(filepath.Join(wtPath, "failing.txt"), []byte("boom\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	runGitDebug2(t, wtPath, "add", "-A")
+	runGitDebug2(t, wtPath, "commit", "-m", "[bead:b1/validate/iter:1] Fail")
+
+	if err := os.WriteFile(filepath.Join(wtPath, "good.txt"), []byte("ok\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	runGitDebug2(t, wtPath, "add", "-A")
+	runGitDebug2(t, wtPath, "commit", "-m", "[bead:b1/build/iter:2] Proceed")
+
+	eventsPath := filepath.Join(wtPath, ".gromit", "v2", "events.jsonl")
+	if err := os.MkdirAll(filepath.Dir(eventsPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	events := strings.Join([]string{
+		`{"event":"old","decision":"Proceed"}`,
+		`{"event":"mid","decision":"Proceed"}`,
+		`{"event":"new","decision":"Fail"}`,
+	}, "\n") + "\n"
+	if err := os.WriteFile(eventsPath, []byte(events), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var promptText string
+	origLaunch := debug2AgentLaunchFn
+	t.Cleanup(func() { debug2AgentLaunchFn = origLaunch })
+	debug2AgentLaunchFn = func(promptPath, dir string) error {
+		data, err := os.ReadFile(promptPath)
+		if err != nil {
+			return err
+		}
+		promptText = string(data)
+		return nil
+	}
+
+	if err := debug2Impl(specName, gromitDir); err != nil {
+		t.Fatalf("debug2Impl() error = %v", err)
+	}
+
+	if !strings.Contains(promptText, "### Failure Diff") {
+		t.Fatalf("prompt missing failure diff section: %q", promptText)
+	}
+	if !strings.Contains(promptText, "failing.txt") {
+		t.Fatalf("prompt missing failure diff contents: %q", promptText)
+	}
+	if strings.Contains(promptText, `{"event":"old","decision":"Proceed"}`) {
+		t.Fatalf("prompt should include event tail only, but contained oldest event: %q", promptText)
 	}
 }
