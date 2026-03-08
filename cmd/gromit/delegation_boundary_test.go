@@ -54,7 +54,10 @@ var allowedCommandInternalImports = map[string]struct{}{
 	"github.com/danabrams/gromit/internal/v2/adapter/presenter":   {},
 	"github.com/danabrams/gromit/internal/v2/adapter/tasktracker": {},
 	"github.com/danabrams/gromit/internal/v2/dep":                 {},
+	"github.com/danabrams/gromit/internal/v2/llmtypes":            {},
 	"github.com/danabrams/gromit/internal/v2/loop":                {},
+	"github.com/danabrams/gromit/internal/v2/pipeline":            {},
+	"github.com/danabrams/gromit/internal/v2/routing":             {},
 	"github.com/danabrams/gromit/internal/v2/spec":                {},
 }
 
@@ -70,7 +73,9 @@ func TestAllowedCommandInternalImportsIncludesRun2Dependencies(t *testing.T) {
 		"github.com/danabrams/gromit/internal/v2/adapter/presenter",
 		"github.com/danabrams/gromit/internal/v2/adapter/tasktracker",
 		"github.com/danabrams/gromit/internal/v2/dep",
+		"github.com/danabrams/gromit/internal/v2/llmtypes",
 		"github.com/danabrams/gromit/internal/v2/loop",
+		"github.com/danabrams/gromit/internal/v2/routing",
 		"github.com/danabrams/gromit/internal/v2/spec",
 	} {
 		if _, ok := allowedCommandInternalImports[pkg]; !ok {

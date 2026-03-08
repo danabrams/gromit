@@ -243,7 +243,7 @@ func specFilePath(cfg *config.Config, root, specID string) (string, error) {
 func (s *Stage) buildPrompt(specID string, criterion coverage.Criterion, diff string) string {
 	instance := s.buildInstanceLayer(specID, criterion, diff)
 	assembler := v2prompt.NewPromptAssembler(s.baseLayer(), s.project, instance, s.fragment)
-	return assembler.Assemble()
+	return assembler.Assemble("", v2prompt.BeadInfo{})
 }
 
 func (s *Stage) baseLayer() string {

@@ -36,7 +36,7 @@ func TestRemediationCycleTriggersGapAnalysis(t *testing.T) {
 		GenerationCap:  3,
 	})
 
-	if err := runner.Run(context.Background(), "spec-remediate"); err != nil {
+	if err := runner.Run(context.Background(), "spec-remediate", ""); err != nil {
 		t.Fatalf("remediation run failed: %v", err)
 	}
 
@@ -74,7 +74,7 @@ func TestGenerationCapStopsRemediation(t *testing.T) {
 		WorktreeCleaner: cleaner,
 	})
 
-	if err := runner.Run(ctx, "spec-cap"); err == nil {
+	if err := runner.Run(ctx, "spec-cap", ""); err == nil {
 		t.Fatal("expected remediation to fail when cap reached")
 	}
 

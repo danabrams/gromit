@@ -17,6 +17,7 @@ import (
 	"github.com/danabrams/gromit/internal/v2/adapter/llm"
 	"github.com/danabrams/gromit/internal/v2/event"
 	"github.com/danabrams/gromit/internal/v2/pipeline"
+	"github.com/danabrams/gromit/internal/v2/routing"
 	v2remediation "github.com/danabrams/gromit/internal/v2/remediation"
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
 	acceptstage "github.com/danabrams/gromit/internal/v2/stage/accept"
@@ -54,7 +55,7 @@ type Run2LoopComponents struct {
 }
 
 // NewRun2LoopComponents builds the stages and bead loop that power the Run2 command.
-func NewRun2LoopComponents(cfg *config.Config, adapters adapter.AdapterSet, legacyEmitter *events.Emitter, output io.Writer) (*Run2LoopComponents, error) {
+func NewRun2LoopComponents(cfg *config.Config, adapters adapter.AdapterSet, legacyEmitter *events.Emitter, output io.Writer, router *routing.Router, phaseModels map[string]string) (*Run2LoopComponents, error) {
 	typedEmitter := event.NewEmitter()
 	cleanup := func() {
 		typedEmitter.Close()
@@ -184,6 +185,8 @@ func NewRun2LoopComponents(cfg *config.Config, adapters adapter.AdapterSet, lega
 		LegacyEmitter:  legacyEmitter,
 		Git:            adapters.Git,
 		StageCommitter: sc,
+		Router:         router,
+		PhaseModels:    phaseModels,
 	})
 	if err != nil {
 		cleanup()

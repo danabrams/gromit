@@ -285,6 +285,34 @@ func TestBuildStageEscalationRespectsMaxIterationBound(t *testing.T) {
 	}
 }
 
+func TestBuildStageRetryConfigReturnsConfiguredMaxRetries(t *testing.T) {
+	t.Parallel()
+
+	fragments := PromptFragments{Standard: "standard"}
+
+	// Test with configured MaxRetriesPerModel = 3.
+	cfg := &config.Config{Escalation: config.EscalationConfig{MaxRetriesPerModel: 3}}
+	stage, err := New(cfg, noopLLM{}, "base", "project", fragments, io.Discard)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	rc := stage.RetryConfig()
+	if rc.MaxRetries != 3 {
+		t.Fatalf("RetryConfig().MaxRetries = %d, want 3", rc.MaxRetries)
+	}
+
+	// Test minimum-1 default when MaxRetriesPerModel is 0.
+	cfgZero := &config.Config{Escalation: config.EscalationConfig{MaxRetriesPerModel: 0}}
+	stageZero, err := New(cfgZero, noopLLM{}, "base", "project", fragments, io.Discard)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	rcZero := stageZero.RetryConfig()
+	if rcZero.MaxRetries != 1 {
+		t.Fatalf("RetryConfig().MaxRetries = %d, want 1 (minimum default)", rcZero.MaxRetries)
+	}
+}
+
 type noopLLM struct{}
 
 func (noopLLM) Invoke(_ context.Context, _ llm.InvokeRequest) (*llm.LLMResponse, error) {

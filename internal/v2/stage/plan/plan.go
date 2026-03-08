@@ -161,7 +161,7 @@ func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Resul
 	}
 
 	model := s.selectModel(req, cfg)
-	promptPayload := prompt.NewPromptAssembler(s.base, s.project, string(specData), s.fragment).Assemble()
+	promptPayload := prompt.NewPromptAssembler(s.base, s.project, string(specData), s.fragment).Assemble("", prompt.BeadInfo{})
 	resp, err := s.llm.Invoke(ctx, llmtypes.LLMInvokeRequest{Prompt: promptPayload, Model: model, Dir: req.Worktree})
 	if err != nil {
 		return nil, fmt.Errorf("invoke llm: %w", err)

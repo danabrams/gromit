@@ -15,6 +15,7 @@ import (
 	"github.com/danabrams/gromit/internal/events"
 	"github.com/danabrams/gromit/internal/v2/adapter"
 	"github.com/danabrams/gromit/internal/v2/event"
+	"github.com/danabrams/gromit/internal/v2/routing"
 	"github.com/danabrams/gromit/internal/v2/trackertypes"
 	"github.com/danabrams/gromit/internal/v2/presentation"
 	v2review "github.com/danabrams/gromit/internal/v2/review"
@@ -56,7 +57,20 @@ type BeadRunner interface {
 }
 
 type remediationRunner interface {
-	Run(ctx context.Context, specID string) error
+	Run(ctx context.Context, specID, worktree string) error
+}
+
+// SelectiveRevalidator checks beads for regressions and returns the subset
+// that failed validation and need to be re-queued in the bead loop.
+type SelectiveRevalidator interface {
+	Revalidate(ctx context.Context, beads []*bead.Bead, worktree string) ([]*bead.Bead, error)
+}
+
+// GapAnalyzer provides the data needed for resume gap analysis: the set of
+// files that changed since the last run and a mapping from bead ID to the
+// files each bead touched.
+type GapAnalyzer interface {
+	Analyze(ctx context.Context, worktree string, beads []*bead.Bead) (changedFiles []string, beadFileMap map[string][]string, err error)
 }
 
 // SpecLoopOption configures optional behavior when constructing a SpecLoop.
@@ -125,6 +139,36 @@ func WithPlanStage(stage stagepkg.Stage) SpecLoopOption {
 	}
 }
 
+// WithSelectiveRevalidator installs a revalidator that checks completed beads
+// for regressions before the bead loop starts on resume.
+func WithSelectiveRevalidator(r SelectiveRevalidator) SpecLoopOption {
+	return func(s *SpecLoop) {
+		s.selectiveRevalidator = r
+	}
+}
+
+// WithGapAnalyzer installs the gap analyzer used to identify which completed
+// beads have changed files and need selective revalidation on resume.
+func WithGapAnalyzer(a GapAnalyzer) SpecLoopOption {
+	return func(s *SpecLoop) {
+		s.gapAnalyzer = a
+	}
+}
+
+// WithRouter configures the routing engine for provider/model selection.
+func WithRouter(r *routing.Router) SpecLoopOption {
+	return func(s *SpecLoop) {
+		s.router = r
+	}
+}
+
+// WithPhaseModels sets the phase-to-tier mapping for routing.
+func WithPhaseModels(pm map[string]string) SpecLoopOption {
+	return func(s *SpecLoop) {
+		s.phaseModels = pm
+	}
+}
+
 // WithPreserveOnFailure controls whether the worktree is kept when the spec
 // fails. The default is true (preserve). Pass false to remove it on failure.
 func WithPreserveOnFailure(preserve bool) SpecLoopOption {
@@ -167,6 +211,10 @@ type SpecLoop struct {
 	presentStage          stagepkg.Stage
 	presentSummaryContext *present.SummaryContext
 	preserveOnFailure     bool // restore t.Cleanup if overriding in tests
+	selectiveRevalidator  SelectiveRevalidator
+	gapAnalyzer           GapAnalyzer
+	router                *routing.Router
+	phaseModels           map[string]string
 }
 
 type worktreeSetter interface {
@@ -257,6 +305,7 @@ func (s *SpecLoop) Run(ctx context.Context, specID string, stopCh <-chan struct{
 		plan = string(existingPlan)
 		s.emit(&events.PlanResumedEvent{SpecID: specID, Path: planPath})
 	} else {
+		s.applyRouting(&req, "plan")
 		planRes, err := s.runPlanStage(ctx, req)
 		if err != nil {
 			return fmt.Errorf("plan stage: %w", err)
@@ -295,7 +344,37 @@ func (s *SpecLoop) Run(ctx context.Context, specID string, stopCh <-chan struct{
 	if len(existingBeads) > 0 {
 		beads = existingBeads
 		s.emit(&events.DecomposeResumedEvent{SpecID: specID, BeadCount: len(beads)})
+		if s.selectiveRevalidator != nil {
+			// Gap analysis: identify which beads touched files that changed.
+			revalidationCandidates := beads
+			if s.gapAnalyzer != nil {
+				changedFiles, beadFileMap, err := s.gapAnalyzer.Analyze(ctx, worktree, beads)
+				if err != nil {
+					return fmt.Errorf("gap analysis: %w", err)
+				}
+				if flagged := FlagChangedBeads(beads, changedFiles, beadFileMap); len(flagged) > 0 {
+					revalidationCandidates = flagged
+				}
+			}
+			requeueBeads, err := s.selectiveRevalidator.Revalidate(ctx, revalidationCandidates, worktree)
+			if err != nil {
+				return fmt.Errorf("selective revalidation: %w", err)
+			}
+			// Merge re-queued beads: mark existing ones in-place, append truly new ones.
+			existingIDs := make(map[string]*bead.Bead, len(beads))
+			for _, b := range beads {
+				existingIDs[b.ID] = b
+			}
+			for _, rb := range requeueBeads {
+				if existing, ok := existingIDs[rb.ID]; ok {
+					existing.Status = "open"
+				} else {
+					beads = append(beads, rb)
+				}
+			}
+		}
 	} else {
+		s.applyRouting(&req, "decompose")
 		beads, err = s.runDecompose(ctx, req)
 		if err != nil {
 			return err
@@ -450,6 +529,7 @@ func (s *SpecLoop) ensureAcceptance(ctx context.Context, req *stagepkg.Request, 
 			return nil, err
 		}
 
+		s.applyRouting(req, "accept")
 		res, err := s.runAcceptStage(ctx, req)
 		if err != nil {
 			return res, err
@@ -463,7 +543,7 @@ func (s *SpecLoop) ensureAcceptance(ctx context.Context, req *stagepkg.Request, 
 		if retriesRemaining <= 0 {
 			return res, fmt.Errorf("%w: limit %d reached", ErrAcceptanceRetriesExceeded, maxAcceptanceRetries)
 		}
-		if err := s.remediationRunner.Run(ctx, specID); err != nil {
+		if err := s.remediationRunner.Run(ctx, specID, req.Worktree); err != nil {
 			return res, err
 		}
 		retriesRemaining--
@@ -723,5 +803,20 @@ func (s *SpecLoop) ctxErr(ctx context.Context) error {
 		return ctx.Err()
 	default:
 		return nil
+	}
+}
+
+// applyRouting populates req.Provider and req.Model via the Router, if configured.
+func (s *SpecLoop) applyRouting(req *stagepkg.Request, phase string) {
+	if s.router == nil {
+		return
+	}
+	tier := routing.TierForPhase(phase, s.phaseModels, routing.TierMedium)
+	provider, model, err := s.router.Select(phase, tier)
+	if err != nil {
+		log.Printf("WARNING: routing failed for phase %s tier %s: %v (using default provider)", phase, tier, err)
+	} else if provider != nil {
+		req.Provider = provider
+		req.Model = model
 	}
 }

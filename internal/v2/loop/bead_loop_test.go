@@ -1430,7 +1430,10 @@ func TestBeadLoopGateSkipContinuesLoop(t *testing.T) {
 func TestBeadLoopGateBlockDefersBeadAndContinues(t *testing.T) {
 	t.Parallel()
 
-	// Gate that blocks the first bead, proceeds for the second
+	// Gate that blocks "block-me" on every call, proceeds for everything else.
+	// With re-queue logic: "run-me" makes progress in pass 1, "block-me" is
+	// re-queued, then retried in pass 2 where it still blocks with no
+	// progress → loop returns a descriptive error.
 	gateStage := &scriptedGateStage{
 		name:      "gate",
 		decisions: map[string]stage.Decision{"block-me": stage.DecisionBlock},
@@ -1456,14 +1459,122 @@ func TestBeadLoopGateBlockDefersBeadAndContinues(t *testing.T) {
 		{ID: "block-me"},
 	}
 	_, err = loop.Run(context.Background(), beads, nil)
-	if err != nil {
-		t.Fatalf("Run should succeed, got: %v", err)
+	// "run-me" makes progress in pass 1; "block-me" is retried in pass 2
+	// and still blocks → loop returns error for permanently blocked bead.
+	if err == nil {
+		t.Fatal("expected error when blocked bead cannot proceed after retry, got nil")
+	}
+	if !strings.Contains(err.Error(), "blocked") {
+		t.Fatalf("expected error to mention 'blocked', got: %v", err)
 	}
 
-	// Build should only run for "run-me"
+	// Build should only run for "run-me" — never for the blocked bead
 	if build.runCount != 1 {
 		t.Fatalf("build run count = %d, want 1 (only run-me)", build.runCount)
 	}
+}
+
+// TestBeadLoopAllBeadsBlockedReturnsError verifies that when all beads are
+// blocked by the gate in a full pass with no progress, the loop stops with
+// a descriptive error instead of completing silently.
+func TestBeadLoopAllBeadsBlockedReturnsError(t *testing.T) {
+	t.Parallel()
+
+	gateStage := &scriptedGateStage{
+		name: "gate",
+		decisions: map[string]stage.Decision{
+			"bead-1": stage.DecisionBlock,
+			"bead-2": stage.DecisionBlock,
+		},
+	}
+
+	cfg := BeadLoopConfig{
+		Gate:     gateStage,
+		Build:    newNoopStage("build"),
+		Validate: newNoopStage("validate"),
+		Review:   newNoopStage("review"),
+		Epilogue: newNoopStage("epilogue"),
+	}
+
+	loop, err := NewBeadLoop(cfg)
+	if err != nil {
+		t.Fatalf("NewBeadLoop: %v", err)
+	}
+
+	beads := []*bead.Bead{
+		{ID: "bead-1"},
+		{ID: "bead-2"},
+	}
+
+	_, err = loop.Run(context.Background(), beads, nil)
+	if err == nil {
+		t.Fatal("expected error when all beads blocked, got nil")
+	}
+	if !strings.Contains(err.Error(), "blocked") {
+		t.Fatalf("expected error to mention 'blocked', got: %v", err)
+	}
+}
+
+// TestBeadLoopBlockedBeadRetriedAfterProgress verifies that a bead blocked by
+// the gate is retried in the next pass after another bead makes progress.
+// If the previously-blocked bead proceeds on retry, the loop completes without error.
+func TestBeadLoopBlockedBeadRetriedAfterProgress(t *testing.T) {
+	t.Parallel()
+
+	// Gate that blocks "retry-me" on the first call, proceeds on subsequent calls.
+	callCounts := map[string]int{}
+	gateStage := &callCountingGateStage{
+		name:       "gate",
+		callCounts: callCounts,
+		// Block "retry-me" only on its first gate invocation
+		firstCallBlock: map[string]bool{"retry-me": true},
+	}
+
+	cfg := BeadLoopConfig{
+		Gate:     gateStage,
+		Build:    newNoopStage("build"),
+		Validate: newNoopStage("validate"),
+		Review:   newNoopStage("review"),
+		Epilogue: newNoopStage("epilogue"),
+	}
+
+	loop, err := NewBeadLoop(cfg)
+	if err != nil {
+		t.Fatalf("NewBeadLoop: %v", err)
+	}
+
+	beads := []*bead.Bead{
+		{ID: "proceed-me"},
+		{ID: "retry-me"},
+	}
+
+	_, err = loop.Run(context.Background(), beads, nil)
+	if err != nil {
+		t.Fatalf("expected loop to succeed after blocked bead unblocks on retry, got: %v", err)
+	}
+
+	// Gate should have been called twice for "retry-me": once blocked, once proceeds
+	if callCounts["retry-me"] != 2 {
+		t.Fatalf("gate call count for retry-me = %d, want 2 (blocked then proceed)", callCounts["retry-me"])
+	}
+}
+
+// callCountingGateStage is a gate that blocks a bead on its first invocation
+// and proceeds on all subsequent invocations.
+type callCountingGateStage struct {
+	name           string
+	callCounts     map[string]int
+	firstCallBlock map[string]bool
+}
+
+func (s *callCountingGateStage) Name() string { return s.name }
+
+func (s *callCountingGateStage) Run(_ context.Context, req *stage.Request) (*stage.Result, error) {
+	s.callCounts[req.Bead.ID]++
+	if s.firstCallBlock[req.Bead.ID] && s.callCounts[req.Bead.ID] == 1 {
+		return &stage.Result{Decision: stage.DecisionBlock}, nil
+	}
+	return &stage.Result{Decision: stage.DecisionProceed}, nil
 }
 
 // scriptedGateStage returns configured decisions per bead ID; defaults to Proceed.
@@ -1764,5 +1875,36 @@ func TestBeadLoopLegacyGitCommitRemovedWithoutStageCommitter(t *testing.T) {
 
 	if git.statusCalls != 0 {
 		t.Fatalf("git.Status called %d times, want 0 (legacy commitBeadWork removed)", git.statusCalls)
+	}
+}
+
+// TestCheckBudgetIsNoOpStub documents that checkBudget is a no-op stub
+// returning nil. It will be replaced with real budget policy checks when
+// the Andon spec is implemented. This test ensures the stub contract is
+// explicit: checkBudget must not block the pipeline or return an error.
+func TestCheckBudgetIsNoOpStub(t *testing.T) {
+	t.Parallel()
+
+	loop, err := NewBeadLoop(BeadLoopConfig{
+		Gate:     newRecordingStage("gate", nil),
+		Build:    newRecordingStage("build", nil),
+		Validate: newRecordingStage("validate", nil),
+		Review:   newRecordingStage("review", nil),
+		Epilogue: newRecordingStage("epilogue", nil),
+	})
+	if err != nil {
+		t.Fatalf("NewBeadLoop: %v", err)
+	}
+
+	// checkBudget is a no-op stub for future Andon budget policy.
+	// It must return nil so it never blocks the bead pipeline.
+	if err := loop.checkBudget(context.Background()); err != nil {
+		t.Fatalf("checkBudget returned error: %v (expected nil — no-op stub)", err)
+	}
+
+	// Also verify it handles a nil context without panicking,
+	// matching the guard pattern used elsewhere in the loop.
+	if err := loop.checkBudget(nil); err != nil {
+		t.Fatalf("checkBudget(nil ctx) returned error: %v (expected nil — no-op stub)", err)
 	}
 }

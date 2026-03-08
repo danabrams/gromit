@@ -35,9 +35,12 @@ func TestGitHubPresenterCreatesPR(t *testing.T) {
 		t.Fatalf("present summary: %v", err)
 	}
 
-	// First call should be git push.
+	// First call should be git push with --force-with-lease.
 	if len(runner.calls) < 1 || runner.calls[0].name != "git" {
 		t.Fatalf("first call should be git push, got %+v", runner.calls)
+	}
+	if !containsArg(runner.calls[0].args, "--force-with-lease") {
+		t.Fatalf("push call missing --force-with-lease: %v", runner.calls[0].args)
 	}
 
 	if runner.name != "gh" {
@@ -125,6 +128,9 @@ func TestGitHubPresenterEditsPRWhenExists(t *testing.T) {
 	if pushCall.name != "git" || pushCall.args[0] != "push" {
 		t.Fatalf("first call should be git push, got %q %v", pushCall.name, pushCall.args)
 	}
+	if !containsArg(pushCall.args, "--force-with-lease") {
+		t.Fatalf("push call missing --force-with-lease: %v", pushCall.args)
+	}
 
 	viewCall := runner.calls[1]
 	if viewCall.name != "gh" || viewCall.args[0] != "pr" || viewCall.args[1] != "view" {
@@ -184,6 +190,9 @@ func TestGitHubPresenterCreatesPRWhenNoneExists(t *testing.T) {
 	pushCall := runner.calls[0]
 	if pushCall.name != "git" || pushCall.args[0] != "push" {
 		t.Fatalf("first call should be git push, got %q %v", pushCall.name, pushCall.args)
+	}
+	if !containsArg(pushCall.args, "--force-with-lease") {
+		t.Fatalf("push call missing --force-with-lease: %v", pushCall.args)
 	}
 
 	viewCall := runner.calls[1]
@@ -287,6 +296,15 @@ func TestPresent_PublishedURLFromCreateCommand(t *testing.T) {
 	if resp.PublishedURL != expectedURL {
 		t.Fatalf("PublishedURL should be %q, got %q", expectedURL, resp.PublishedURL)
 	}
+}
+
+func containsArg(args []string, flag string) bool {
+	for _, a := range args {
+		if a == flag {
+			return true
+		}
+	}
+	return false
 }
 
 func assertArgMatches(args []string, flag, value string) bool {

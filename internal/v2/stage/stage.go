@@ -7,6 +7,7 @@ import (
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/v2/event"
+	"github.com/danabrams/gromit/internal/v2/llmtypes"
 )
 
 // Stage defines a single beam within the run loop.
@@ -19,6 +20,7 @@ type Stage interface {
 type StageRequest struct {
 	Bead         BeadInfo
 	Model        string
+	Provider     llmtypes.LLMProvider
 	Iteration    int
 	Config       *config.Config
 	Worktree     string
