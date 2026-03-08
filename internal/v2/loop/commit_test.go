@@ -35,3 +35,10 @@ func TestParseCommitMessage(t *testing.T) {
 		t.Fatalf("Decision = %q, want %q", got.Decision, "Retry")
 	}
 }
+
+func TestParseCommitMessageRejectsNonPositiveIteration(t *testing.T) {
+	_, ok := ParseCommitMessage("[bead:gromit-mo15p/review/iter:0] Retry")
+	if ok {
+		t.Fatal("ParseCommitMessage() ok = true, want false")
+	}
+}
