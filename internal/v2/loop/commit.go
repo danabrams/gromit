@@ -15,13 +15,18 @@ type CommitMessage struct {
 	Decision  string
 }
 
-// Build renders the structured stage commit message string.
-func (m CommitMessage) Build() string {
+// BuildCommitMessage renders the structured stage commit message string.
+func BuildCommitMessage(m CommitMessage) string {
 	beadID := m.BeadID
 	if beadID == "" {
 		beadID = "spec"
 	}
 	return fmt.Sprintf("[bead:%s/%s/iter:%d] %s", beadID, m.StageName, m.Iteration, m.Decision)
+}
+
+// Build renders the structured stage commit message string.
+func (m CommitMessage) Build() string {
+	return BuildCommitMessage(m)
 }
 
 var commitMessageRe = regexp.MustCompile(`^\[bead:([^/]+)/([^/]+)/iter:(\d+)\]\s+(.+)$`)
