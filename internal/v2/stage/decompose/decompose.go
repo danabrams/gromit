@@ -132,14 +132,24 @@ func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Resul
 	}
 
 	promptText := fmt.Sprintf(s.promptTemplate, specID, string(planBody), skills.DecomposeSkill, specID)
-	model := s.modelForPhase()
+	// Resolve provider: prefer req.Provider, fall back to s.llm.
+	resolvedProvider := s.llm
+	if req.Provider != nil {
+		resolvedProvider = req.Provider
+	}
+
+	// Resolve model: prefer req.Model, fall back to s.modelForPhase().
+	model := strings.TrimSpace(req.Model)
+	if model == "" {
+		model = s.modelForPhase()
+	}
 	currentPrompt := promptText
 	maxSubBeads := s.cfg.Validation.PlanMaxSubBeadsValue()
 	maxRetries := normalizeMaxValidationRetries(s.cfg.Validation.MaxValidationRetries)
 
 	var beadDefs []beadDef
 	for attempt := 0; ; attempt++ {
-		defs, err := s.invokeProvider(ctx, currentPrompt, model, req.Worktree)
+		defs, err := s.invokeProvider(ctx, resolvedProvider, currentPrompt, model, req.Worktree)
 		if err != nil {
 			return nil, err
 		}
@@ -228,8 +238,8 @@ func (s *Stage) modelForPhase() string {
 	return provider.TierToLegacyModel(tier)
 }
 
-func (s *Stage) invokeProvider(ctx context.Context, prompt, model, dir string) ([]beadDef, error) {
-	resp, err := s.llm.Invoke(ctx, llmtypes.LLMInvokeRequest{Prompt: prompt, Model: model, Dir: dir})
+func (s *Stage) invokeProvider(ctx context.Context, p llmtypes.LLMProvider, prompt, model, dir string) ([]beadDef, error) {
+	resp, err := p.Invoke(ctx, llmtypes.LLMInvokeRequest{Prompt: prompt, Model: model, Dir: dir})
 	if err != nil {
 		return nil, fmt.Errorf("invoking provider: %w", err)
 	}

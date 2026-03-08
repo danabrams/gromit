@@ -238,11 +238,18 @@ func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Resul
 	methodology := s.resolveMethodology(req.Bead.Labels, cfg)
 	fragment := s.fragmentFor(methodology)
 	instance := buildInstanceLayer(req)
-	promptText := prompt.NewPromptAssembler(s.base, s.project, instance, fragment).Assemble("", prompt.BeadInfo{})
+	promptText := prompt.NewPromptAssembler(s.base, s.project, instance, fragment).Assemble("build", prompt.BeadInfo{
+		Title: req.Bead.Title,
+	})
 
 	model := s.selectModel(req, cfg)
 
-	resp, finalModel, invokeErr := s.invokeWithEscalation(ctx, promptText, model, cfg, req.Worktree)
+	provider := s.llm
+	if req.Provider != nil {
+		provider = req.Provider
+	}
+
+	resp, finalModel, invokeErr := s.invokeWithEscalation(ctx, provider, promptText, model, cfg, req.Worktree)
 	if invokeErr != nil {
 		return nil, fmt.Errorf("build: %w", invokeErr)
 	}
@@ -388,7 +395,7 @@ func (s *Stage) writer() io.Writer {
 	return io.Discard
 }
 
-func (s *Stage) invokeWithEscalation(ctx context.Context, prompt, initialModel string, cfg *config.Config, dir string) (*llmtypes.LLMInvokeResponse, string, error) {
+func (s *Stage) invokeWithEscalation(ctx context.Context, provider llmtypes.LLMProvider, prompt, initialModel string, cfg *config.Config, dir string) (*llmtypes.LLMInvokeResponse, string, error) {
 	model := initialModel
 	escalationCfg := cfg
 	if escalationCfg == nil {
@@ -403,7 +410,7 @@ func (s *Stage) invokeWithEscalation(ctx context.Context, prompt, initialModel s
 	maxIter := chainLen + 1 // safety bound
 
 	for i := 0; i < maxIter; i++ {
-		resp, err := s.llm.StreamInvoke(ctx, llmtypes.LLMStreamInvokeRequest{Prompt: prompt, Model: model, Output: s.writer(), Dir: dir})
+		resp, err := provider.StreamInvoke(ctx, llmtypes.LLMStreamInvokeRequest{Prompt: prompt, Model: model, Output: s.writer(), Dir: dir})
 		if err == nil && resp != nil && resp.Success {
 			return resp, model, nil
 		}
