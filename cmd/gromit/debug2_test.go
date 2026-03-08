@@ -6,9 +6,11 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
+	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/v2/adapter"
 	"github.com/spf13/cobra"
 )
@@ -279,7 +281,7 @@ func TestDebug2Impl_PromptIncludesEventTailAndFailureDiff(t *testing.T) {
 		return nil
 	}
 
-	if err := debug2Impl(context.Background(), specName, gromitDir); err != nil {
+	if err := debug2Impl(context.Background(), specName, gromitDir, nil); err != nil {
 		t.Fatalf("debug2Impl() error = %v", err)
 	}
 
@@ -291,6 +293,63 @@ func TestDebug2Impl_PromptIncludesEventTailAndFailureDiff(t *testing.T) {
 	}
 	if strings.Contains(promptText, `{"event":"old","decision":"Proceed"}`) {
 		t.Fatalf("prompt should include event tail only, but contained oldest event: %q", promptText)
+	}
+}
+
+func TestDebug2Impl_AppliesPatchAndRunsValidation(t *testing.T) {
+	tmpDir := t.TempDir()
+	specName := "test-spec"
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	wtPath := filepath.Join(gromitDir, "spec-worktrees", specName)
+
+	eventsDir := filepath.Join(wtPath, ".gromit", "v2")
+	if err := os.MkdirAll(eventsDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(eventsDir, "events.jsonl"),
+		[]byte(`{"type":"stage.completed","decision":"Fail"}`+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	wantPatch := "diff --git a/a.txt b/a.txt\n--- a/a.txt\n+++ b/a.txt\n@@ -0,0 +1 @@\n+fixed\n"
+	llmOutput := fmt.Sprintf(`{"code_patch": %q, "learnings_entry": "", "systemic_recommendation": ""}`, wantPatch)
+
+	origInvoke := debug2InvokeLLMFn
+	t.Cleanup(func() { debug2InvokeLLMFn = origInvoke })
+	debug2InvokeLLMFn = func(ctx context.Context, prompt, dir string, cfg *config.Config) (string, error) {
+		return llmOutput, nil
+	}
+
+	var gotPatch string
+	origApplyPatch := debug2ApplyPatchFn
+	t.Cleanup(func() { debug2ApplyPatchFn = origApplyPatch })
+	debug2ApplyPatchFn = func(ctx context.Context, dir, patch string) error {
+		gotPatch = patch
+		return nil
+	}
+
+	var ranCommands []string
+	origRunValidation := debug2RunValidationFn
+	t.Cleanup(func() { debug2RunValidationFn = origRunValidation })
+	debug2RunValidationFn = func(ctx context.Context, dir, command string) error {
+		ranCommands = append(ranCommands, command)
+		return nil
+	}
+
+	cfg := &config.Config{}
+	cfg.SetDefaults()
+	cfg.Validation.Commands = []string{"go test ./cmd/gromit", "go vet ./cmd/gromit"}
+
+	if err := debug2Impl(context.Background(), specName, gromitDir, cfg); err != nil {
+		t.Fatalf("debug2Impl() error = %v", err)
+	}
+
+	if gotPatch != wantPatch {
+		t.Fatalf("applied patch = %q, want %q", gotPatch, wantPatch)
+	}
+	wantCommands := []string{"go test ./cmd/gromit", "go vet ./cmd/gromit"}
+	if !reflect.DeepEqual(ranCommands, wantCommands) {
+		t.Fatalf("validation commands = %#v, want %#v", ranCommands, wantCommands)
 	}
 }
 
@@ -306,7 +365,7 @@ func TestDebug2RunE_ThreadsCommandContext(t *testing.T) {
 	var captured context.Context
 	origImpl := debug2ImplFn
 	t.Cleanup(func() { debug2ImplFn = origImpl })
-	debug2ImplFn = func(ctx context.Context, specName, gromitDir string) error {
+	debug2ImplFn = func(ctx context.Context, specName, gromitDir string, cfg *config.Config) error {
 		captured = ctx
 		return nil
 	}
