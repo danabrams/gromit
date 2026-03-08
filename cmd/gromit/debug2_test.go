@@ -35,7 +35,7 @@ func TestDebug2_InvokesAgentInWorktree(t *testing.T) {
 		return nil
 	}
 
-	if err := debug2Impl(specName, tmpDir); err != nil {
+	if err := debug2Impl(context.Background(), specName, tmpDir); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if capturedDir != wtPath {
@@ -279,7 +279,7 @@ func TestDebug2Impl_PromptIncludesEventTailAndFailureDiff(t *testing.T) {
 		return nil
 	}
 
-	if err := debug2Impl(specName, gromitDir); err != nil {
+	if err := debug2Impl(context.Background(), specName, gromitDir); err != nil {
 		t.Fatalf("debug2Impl() error = %v", err)
 	}
 
@@ -295,6 +295,14 @@ func TestDebug2Impl_PromptIncludesEventTailAndFailureDiff(t *testing.T) {
 }
 
 func TestDebug2RunE_ThreadsCommandContext(t *testing.T) {
+	repoRoot, err := findProjectRoot()
+	if err != nil {
+		t.Fatalf("findProjectRoot() error = %v", err)
+	}
+	origConfigPath := configPath
+	t.Cleanup(func() { configPath = origConfigPath })
+	configPath = filepath.Join(repoRoot, "gromit.yaml")
+
 	var captured context.Context
 	origImpl := debug2ImplFn
 	t.Cleanup(func() { debug2ImplFn = origImpl })

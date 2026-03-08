@@ -70,6 +70,8 @@ var debug2Cmd = &cobra.Command{
 
 const debug2EventTailCount = 2
 
+var debug2ImplFn = debug2Impl
+
 func init() {
 	rootCmd.AddCommand(debug2Cmd)
 }
@@ -196,7 +198,11 @@ func normalizeDebug2WorktreePath(path string) string {
 }
 
 // debug2Impl contains the testable core of the debug2 command.
-func debug2Impl(specName, gromitDir string) error {
+func debug2Impl(ctx context.Context, specName, gromitDir string) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
 	wtPath, err := resolveDebug2Worktree(gromitDir, specName)
 	if err != nil {
 		return err
@@ -208,7 +214,7 @@ func debug2Impl(specName, gromitDir string) error {
 	}
 
 	gitAdapter := gitadapter.NewExecGitAdapter(".", gromitDir)
-	logEntries, err := gitAdapter.Log(context.Background(), wtPath, 100)
+	logEntries, err := gitAdapter.Log(ctx, wtPath, 100)
 	if err != nil {
 		logEntries = nil // non-fatal: proceed without commit history
 	}
@@ -224,7 +230,7 @@ func debug2Impl(specName, gromitDir string) error {
 
 	failureDiff := ""
 	if failureCommit, _, ok := selectDebug2FailureCommit(logEntries); ok {
-		diff, showErr := gitAdapter.Show(context.Background(), wtPath, failureCommit.Hash)
+		diff, showErr := gitAdapter.Show(ctx, wtPath, failureCommit.Hash)
 		if showErr == nil {
 			failureDiff = diff
 		}
@@ -255,5 +261,5 @@ func debug2RunE(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("loading config: %w", err)
 	}
 	gromitDir := resolveGromitDir(cfg)
-	return debug2Impl(specName, gromitDir)
+	return debug2ImplFn(cmd.Context(), specName, gromitDir)
 }
