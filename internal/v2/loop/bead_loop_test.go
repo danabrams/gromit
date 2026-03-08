@@ -1946,14 +1946,15 @@ func TestBeadLoopStageCommitterUsesPerStageIterationOnRetry(t *testing.T) {
 		t.Fatalf("Run failed: %v", err)
 	}
 
-	if len(sc.calls) != 4 {
-		t.Fatalf("CommitStage called %d times, want 4", len(sc.calls))
+	if len(sc.calls) != 5 {
+		t.Fatalf("CommitStage called %d times, want 5", len(sc.calls))
 	}
 
 	want := []stageCommitCall{
 		{beadID: "bead-retry", stageName: "build", iteration: 1, decision: stage.DecisionProceed.String()},
+		{beadID: "bead-retry", stageName: "validate", iteration: 1, decision: stage.DecisionFail.String()},
 		{beadID: "bead-retry", stageName: "build", iteration: 2, decision: stage.DecisionProceed.String()},
-		{beadID: "bead-retry", stageName: "validate", iteration: 1, decision: stage.DecisionProceed.String()},
+		{beadID: "bead-retry", stageName: "validate", iteration: 2, decision: stage.DecisionProceed.String()},
 		{beadID: "bead-retry", stageName: "review", iteration: 1, decision: stage.DecisionProceed.String()},
 	}
 	for i := range want {

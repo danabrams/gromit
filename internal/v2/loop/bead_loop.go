@@ -100,11 +100,6 @@ type BeadLoop struct {
 	stageIterations map[stageIterationKey]int
 }
 
-type stageIterationKey struct {
-	beadID    string
-	stageName string
-}
-
 var ErrGenerationCapReached = errors.New("generation cap reached")
 
 // errBeadSkipped is a sentinel returned when the gate decides to skip a bead.
@@ -426,7 +421,7 @@ func (b *BeadLoop) runGate(ctx context.Context, beadItem *bead.Bead, iteration i
 	}
 }
 
-// commitAfterStage calls StageCommitter.CommitStage after a successful stage run.
+// commitAfterStage calls StageCommitter.CommitStage after each stage attempt.
 func (b *BeadLoop) commitAfterStage(ctx context.Context, beadItem *bead.Bead, sName string, decision string) error {
 	if b.stageCommitter == nil {
 		return nil
@@ -434,12 +429,6 @@ func (b *BeadLoop) commitAfterStage(ctx context.Context, beadItem *bead.Bead, sN
 	commitStageName := barePhase(sName)
 	stageIteration := b.nextStageIteration(beadItem.ID, commitStageName)
 	return b.stageCommitter.CommitStage(ctx, b.worktree, beadItem.ID, commitStageName, stageIteration, decision)
-}
-
-func (b *BeadLoop) nextStageIteration(beadID, stageName string) int {
-	key := stageIterationKey{beadID: beadID, stageName: stageName}
-	b.stageIterations[key]++
-	return b.stageIterations[key]
 }
 
 // commitBeadWork commits any uncommitted changes after the review stage completes.
@@ -553,8 +542,15 @@ func (b *BeadLoop) runStageEntry(ctx context.Context, beadItem *bead.Bead, itera
 		}
 
 		b.emitStageCompleted(stageName, beadItem.ID, iteration, !failed, duration)
+		decision := stageDecision(res).String()
+		if err != nil {
+			decision = stage.DecisionFail.String()
+		}
 		if failed {
 			b.emitStageFailed(stageName, beadItem.ID, iteration, reason)
+			if commitErr := b.commitAfterStage(ctx, beadItem, stageName, decision); commitErr != nil {
+				return fmt.Errorf("stage commit after %s: %w", stageName, commitErr)
+			}
 		} else {
 			// Capture build artifacts for bead-level reporting.
 			if entry.stage == b.build && res != nil && res.Artifacts != nil {
@@ -569,7 +565,6 @@ func (b *BeadLoop) runStageEntry(ctx context.Context, beadItem *bead.Bead, itera
 					return ErrGenerationCapReached
 				}
 			}
-			decision := stageDecision(res).String()
 			if err := b.commitAfterStage(ctx, beadItem, stageName, decision); err != nil {
 				return fmt.Errorf("stage commit after %s: %w", stageName, err)
 			}
@@ -579,13 +574,6 @@ func (b *BeadLoop) runStageEntry(ctx context.Context, beadItem *bead.Bead, itera
 		priorFailures = append(priorFailures, reason)
 
 		if retriesRemaining <= 0 {
-			decision := stageDecision(res).String()
-			if err != nil {
-				decision = stage.DecisionFail.String()
-			}
-			if commitErr := b.commitAfterStage(ctx, beadItem, stageName, decision); commitErr != nil {
-				return fmt.Errorf("stage commit after %s: %w", stageName, commitErr)
-			}
 			// When the build stage fails, retries are exhausted, and triage
 			// is configured, run triage to decide how to proceed instead of
 			// immediately failing.
