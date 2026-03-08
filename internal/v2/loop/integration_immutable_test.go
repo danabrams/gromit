@@ -269,6 +269,44 @@ func assertEventsCumulativeAcrossCommits(t *testing.T, result immutableRunResult
 	}
 }
 
+func assertRetryHistoryPreserved(t *testing.T, result immutableRunResult, beadID string) {
+	t.Helper()
+
+	commits := immutableBranchCommits(t, result.repoRoot, result.sourceBranch, 64)
+	buildIter1 := -1
+	buildIter2 := -1
+	validateIter1 := -1
+
+	for idx, commit := range commits {
+		parsed, ok := pipeline.ParseCommitMessage(commit.Subject)
+		if !ok || parsed.BeadID != beadID {
+			continue
+		}
+		if parsed.StageName == "build" && parsed.Iteration == 1 && parsed.Decision == "proceed" {
+			buildIter1 = idx
+		}
+		if parsed.StageName == "build" && parsed.Iteration == 2 && parsed.Decision == "proceed" {
+			buildIter2 = idx
+		}
+		if parsed.StageName == "validate" && parsed.Iteration == 1 && parsed.Decision == "proceed" {
+			validateIter1 = idx
+		}
+	}
+
+	if buildIter1 < 0 {
+		t.Fatalf("missing build iteration 1 commit for bead %s", beadID)
+	}
+	if buildIter2 < 0 {
+		t.Fatalf("missing build iteration 2 commit for bead %s", beadID)
+	}
+	if validateIter1 < 0 {
+		t.Fatalf("missing validate iteration 1 commit for bead %s", beadID)
+	}
+	if buildIter2 >= buildIter1 {
+		t.Fatalf("build iteration ordering invalid: iter2 index=%d, iter1 index=%d", buildIter2, buildIter1)
+	}
+}
+
 func immutableBead(id, title string) *bead.Bead {
 	return &bead.Bead{ID: id, Title: title}
 }
