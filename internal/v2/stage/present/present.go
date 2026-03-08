@@ -90,16 +90,16 @@ func (s *Stage) Name() string {
 // Run builds the presentation summary and forwards it to the presenter.
 func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Result, error) {
 	specID := beadID(req)
-	summary := s.buildPresentation(req)
 	branch, err := s.squash(ctx, specID)
 	if err != nil {
 		return nil, fmt.Errorf("squash: %w", err)
 	}
 	branch = strings.TrimSpace(branch)
+	s.ctx.PRBranch = branch
+	summary := s.buildPresentation(req)
 	if branch != "" {
 		summary.SpecBranch = branch
 	}
-	s.ctx.PRBranch = branch
 	if err := s.presenter.PresentSummary(ctx, specID, summary); err != nil {
 		return nil, fmt.Errorf("present summary: %w", err)
 	}

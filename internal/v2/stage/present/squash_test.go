@@ -2,6 +2,7 @@ package present
 
 import (
 	"context"
+	"fmt"
 	"os/exec"
 	"path/filepath"
 	"reflect"
@@ -258,4 +259,26 @@ func TestSquashPerBeadForPresentation_preservesWorktreeHistory(t *testing.T) {
 	if len(prSubjects) == 0 || prSubjects[0] != "bead 001: Feature" {
 		t.Fatalf("pr branch head commit = %v, want bead squash message", prSubjects)
 	}
+}
+
+func logSubjects(t *testing.T, worktree, branch string, limit int) []string {
+	t.Helper()
+	if limit <= 0 {
+		limit = 1
+	}
+	args := []string{"log", "--format=%s", branch, fmt.Sprintf("-%d", limit)}
+	out := strings.TrimSpace(runGitInDir(t, worktree, args...))
+	if out == "" {
+		return nil
+	}
+	lines := strings.Split(out, "\n")
+	subjects := make([]string, 0, len(lines))
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" {
+			continue
+		}
+		subjects = append(subjects, trimmed)
+	}
+	return subjects
 }
