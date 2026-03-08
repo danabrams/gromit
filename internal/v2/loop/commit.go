@@ -31,6 +31,7 @@ func (m CommitMessage) Build() string {
 
 var commitMessageRe = regexp.MustCompile(`^\[bead:([^/]+)/([^/]+)/iter:(\d+)\]\s+(.+)$`)
 var commitMessageBeadIDRe = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]*$`)
+var commitMessageStageNameRe = regexp.MustCompile(`^[a-z][a-z0-9_-]*$`)
 
 // ParseCommitMessage parses a structured stage commit message into machine fields.
 func ParseCommitMessage(msg string) (CommitMessage, bool) {
@@ -40,6 +41,10 @@ func ParseCommitMessage(msg string) (CommitMessage, bool) {
 	}
 	beadID := matches[1]
 	if !commitMessageBeadIDRe.MatchString(beadID) {
+		return CommitMessage{}, false
+	}
+	stageName := matches[2]
+	if !commitMessageStageNameRe.MatchString(stageName) {
 		return CommitMessage{}, false
 	}
 
@@ -53,7 +58,7 @@ func ParseCommitMessage(msg string) (CommitMessage, bool) {
 
 	return CommitMessage{
 		BeadID:    beadID,
-		StageName: matches[2],
+		StageName: stageName,
 		Iteration: iteration,
 		Decision:  matches[4],
 	}, true
