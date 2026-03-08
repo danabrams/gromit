@@ -22,6 +22,11 @@ func ExtractLearning(input LearningExtractionInput) LearningExtraction {
 	learningsEntry := strings.TrimSpace(input.LearningsEntry)
 	systemicRecommendation := strings.TrimSpace(input.SystemicRecommendation)
 
+	if systemicRecommendation == "" && isSystemicLearning(learningsEntry) {
+		systemicRecommendation = learningsEntry
+		learningsEntry = ""
+	}
+
 	if systemicRecommendation != "" {
 		return LearningExtraction{
 			SystemicRecommendation: systemicRecommendation,
@@ -39,4 +44,27 @@ func ExtractLearning(input LearningExtractionInput) LearningExtraction {
 		LearningsEntry: learningsEntry,
 		Autonomous:     true,
 	}
+}
+
+func isSystemicLearning(text string) bool {
+	normalized := strings.ToLower(strings.TrimSpace(text))
+	if normalized == "" {
+		return false
+	}
+
+	keywords := []string{
+		"prompt fragment",
+		"code guard",
+		"process change",
+		"rule update",
+		"rules.md",
+		"pipeline guard",
+	}
+
+	for _, keyword := range keywords {
+		if strings.Contains(normalized, keyword) {
+			return true
+		}
+	}
+	return false
 }
