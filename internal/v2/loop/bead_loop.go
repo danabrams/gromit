@@ -18,6 +18,7 @@ import (
 	v2review "github.com/danabrams/gromit/internal/v2/review"
 	"github.com/danabrams/gromit/internal/v2/routing"
 	"github.com/danabrams/gromit/internal/v2/stage"
+	buildstage "github.com/danabrams/gromit/internal/v2/stage/build"
 	reviewstage "github.com/danabrams/gromit/internal/v2/stage/review"
 	"github.com/danabrams/gromit/internal/v2/stage/triage"
 )
@@ -85,6 +86,13 @@ type BeadLoop struct {
 	stageCommitter             StageCommitter
 	router                     *routing.Router
 	phaseModels                map[string]string
+	// lastBuildArtifacts stores the build artifacts from the most recent
+	// successful build stage run for the current bead. Reset at the start
+	// of each processBead call.
+	lastBuildArtifacts *buildstage.BuildArtifacts
+	// lastBuildProvider stores the provider name from the most recent
+	// successful build stage run for the current bead.
+	lastBuildProvider string
 	// run-scoped state for in-loop decomposition
 	resolver  *dep.Resolver
 	beadMap   map[string]*bead.Bead
@@ -310,6 +318,8 @@ type stageEntry struct {
 }
 
 func (b *BeadLoop) processBead(ctx context.Context, beadItem *bead.Bead, iteration int, highestGen *int, generationLimit int, stopCh <-chan struct{}) error {
+	b.lastBuildArtifacts = nil // reset for each bead
+	b.lastBuildProvider = ""
 	// Run gate stage first; skip/block return sentinels instead of halting.
 	if err := b.runGate(ctx, beadItem, iteration); err != nil {
 		return err
@@ -445,13 +455,18 @@ func (b *BeadLoop) runStageEntry(ctx context.Context, beadItem *bead.Bead, itera
 			escalationLevel = req.RetryContext.EscalationLevel
 		}
 		tier := routing.EscalationTier(startTier, escalationLevel)
+		providerName := ""
 		if b.router != nil {
-			provider, model, routeErr := b.router.Select(phase, tier)
+			provider, model, pName, routeErr := b.router.Select(phase, tier)
 			if routeErr != nil {
 				log.Printf("WARNING: routing failed for stage %s tier %s: %v (using default provider)", stageName, tier, routeErr)
 			} else if provider != nil {
 				req.Provider = provider
 				req.Model = model
+				providerName = pName
+				if entry.stage == b.build {
+					b.emitModelSelected(beadItem.ID, model, providerName, string(tier), "router")
+				}
 			}
 		} else if req.Model == "" {
 			// No router configured — resolve tier to model name so the
@@ -460,6 +475,9 @@ func (b *BeadLoop) runStageEntry(ctx context.Context, beadItem *bead.Bead, itera
 		}
 
 		b.emitStageStarted(stageName, beadItem.ID, iteration)
+		if entry.stage == b.build {
+			b.emitBuildInvocationStart(beadItem.ID, req.Model, providerName, string(tier), attempt, retriesRemaining+attempt)
+		}
 		start := time.Now()
 		res, err := b.runStage(ctx, entry.stage, req)
 		duration := time.Since(start)
@@ -474,10 +492,33 @@ func (b *BeadLoop) runStageEntry(ctx context.Context, beadItem *bead.Bead, itera
 			reason = entry.failMessage(res)
 		}
 
+		if entry.stage == b.build {
+			var costUSD float64
+			var inputTokens int
+			var outputTokens int
+			var promptSize int
+			if res != nil && res.Artifacts != nil {
+				if ba, ok := res.Artifacts.(*buildstage.BuildArtifacts); ok {
+					costUSD = ba.CostUSD
+					inputTokens = ba.Tokens
+					outputTokens = ba.OutputTokens
+					promptSize = len(ba.Prompt)
+				}
+			}
+			b.emitBuildInvocationComplete(beadItem.ID, req.Model, providerName, !failed, duration, costUSD, inputTokens, outputTokens, promptSize)
+		}
+
 		b.emitStageCompleted(stageName, beadItem.ID, iteration, !failed, duration)
 		if failed {
 			b.emitStageFailed(stageName, beadItem.ID, iteration, reason)
 		} else {
+			// Capture build artifacts for bead-level reporting.
+			if entry.stage == b.build && res != nil && res.Artifacts != nil {
+				if artifacts, ok := res.Artifacts.(*buildstage.BuildArtifacts); ok {
+					b.lastBuildArtifacts = artifacts
+					b.lastBuildProvider = providerName
+				}
+			}
 			if entry.stage == b.review {
 				b.collectOutOfScopeFindings(res)
 				if b.handleGenerationCapFromReview(res, highestGen, generationLimit) {
@@ -703,7 +744,7 @@ func (b *BeadLoop) emitBeadCompleted(beadItem *bead.Bead, iteration int, success
 	if b.emitter == nil || beadItem == nil {
 		return
 	}
-	b.emitter.Emit(event.BeadCompletedEvent{
+	evt := event.BeadCompletedEvent{
 		Event: event.Event{
 			SchemaVersion: event.SchemaVersion,
 			Timestamp:     time.Now(),
@@ -714,7 +755,16 @@ func (b *BeadLoop) emitBeadCompleted(beadItem *bead.Bead, iteration int, success
 		Iteration:    iteration,
 		Success:      success,
 		RetryAttempt: retryAttempt,
-	})
+	}
+	if b.lastBuildArtifacts != nil {
+		evt.Model = b.lastBuildArtifacts.Model
+		evt.Provider = b.lastBuildProvider
+		evt.CostUSD = b.lastBuildArtifacts.CostUSD
+		evt.InputTokens = b.lastBuildArtifacts.Tokens
+		evt.OutputTokens = b.lastBuildArtifacts.OutputTokens
+		evt.Duration = b.lastBuildArtifacts.Duration
+	}
+	b.emitter.Emit(evt)
 }
 
 func (b *BeadLoop) emitStageStarted(stageName, beadID string, iteration int) {
@@ -896,7 +946,7 @@ func (b *BeadLoop) runTriage(ctx context.Context, beadItem *bead.Bead, iteration
 	// Apply routing to triage stage.
 	triageTier := routing.TierForPhase("triage", b.phaseModels, routing.TierMedium)
 	if b.router != nil {
-		provider, model, routeErr := b.router.Select("triage", triageTier)
+		provider, model, _, routeErr := b.router.Select("triage", triageTier)
 		if routeErr != nil {
 			log.Printf("WARNING: routing failed for triage tier %s: %v (using default provider)", triageTier, routeErr)
 		} else if provider != nil {
@@ -936,7 +986,7 @@ func (b *BeadLoop) decomposeAndRunSubBeads(ctx context.Context, beadItem *bead.B
 	// Apply routing to decompose stage.
 	decomposeTier := routing.TierForPhase("decompose", b.phaseModels, routing.TierMedium)
 	if b.router != nil {
-		provider, model, routeErr := b.router.Select("decompose", decomposeTier)
+		provider, model, _, routeErr := b.router.Select("decompose", decomposeTier)
 		if routeErr != nil {
 			log.Printf("WARNING: routing failed for decompose tier %s: %v (using default provider)", decomposeTier, routeErr)
 		} else if provider != nil {
@@ -1007,6 +1057,65 @@ func (b *BeadLoop) emitTriageStarted(beadID, beadTitle string, iteration int) {
 		BeadID:    beadID,
 		BeadTitle: beadTitle,
 		Iteration: iteration,
+	})
+}
+
+func (b *BeadLoop) emitModelSelected(beadID, model, provider, tier, reason string) {
+	if b.emitter == nil {
+		return
+	}
+	b.emitter.Emit(event.ModelSelectedEvent{
+		Event: event.Event{
+			SchemaVersion: event.SchemaVersion,
+			Timestamp:     time.Now(),
+			Type:          event.EventTypeModelSelected,
+		},
+		BeadID:   beadID,
+		Model:    model,
+		Provider: provider,
+		Tier:     tier,
+		Reason:   reason,
+	})
+}
+
+func (b *BeadLoop) emitBuildInvocationStart(beadID, model, provider, tier string, attempt, maxAttempts int) {
+	if b.emitter == nil {
+		return
+	}
+	b.emitter.Emit(event.BuildInvocationStartEvent{
+		Event: event.Event{
+			SchemaVersion: event.SchemaVersion,
+			Timestamp:     time.Now(),
+			Type:          event.EventTypeBuildInvocationStart,
+		},
+		BeadID:      beadID,
+		Model:       model,
+		Provider:    provider,
+		Tier:        tier,
+		Attempt:     attempt,
+		MaxAttempts: maxAttempts,
+	})
+}
+
+func (b *BeadLoop) emitBuildInvocationComplete(beadID, model, provider string, success bool, duration time.Duration, costUSD float64, inputTokens, outputTokens, promptSize int) {
+	if b.emitter == nil {
+		return
+	}
+	b.emitter.Emit(event.BuildInvocationCompleteEvent{
+		Event: event.Event{
+			SchemaVersion: event.SchemaVersion,
+			Timestamp:     time.Now(),
+			Type:          event.EventTypeBuildInvocationComplete,
+		},
+		BeadID:       beadID,
+		Model:        model,
+		Provider:     provider,
+		Success:      success,
+		Duration:     duration,
+		CostUSD:      costUSD,
+		InputTokens:  inputTokens,
+		OutputTokens: outputTokens,
+		PromptSize:   promptSize,
 	})
 }
 

@@ -261,11 +261,13 @@ func (a *codexAdapter) runOnce(ctx context.Context, args []string, prompt, dir s
 	text, usage := parseCodexJSONLOutput(stdout.String())
 
 	return &LLMResponse{
-		Success:  true,
-		Output:   text,
-		Tokens:   codexUsageTokens(usage),
-		CostUSD:  codexUsageCost(usage),
-		Duration: duration,
+		Success:      true,
+		Output:       text,
+		Tokens:       codexUsageTokens(usage),
+		InputTokens:  codexInputTokens(usage),
+		OutputTokens: codexOutputTokens(usage),
+		CostUSD:      codexUsageCost(usage),
+		Duration:     duration,
 	}, nil
 }
 
@@ -332,11 +334,13 @@ func (a *codexAdapter) streamRunOnce(ctx context.Context, args []string, prompt,
 	}
 
 	return &LLMResponse{
-		Success:  true,
-		Output:   text,
-		Tokens:   codexUsageTokens(usage),
-		CostUSD:  codexUsageCost(usage),
-		Duration: duration,
+		Success:      true,
+		Output:       text,
+		Tokens:       codexUsageTokens(usage),
+		InputTokens:  codexInputTokens(usage),
+		OutputTokens: codexOutputTokens(usage),
+		CostUSD:      codexUsageCost(usage),
+		Duration:     duration,
 	}, nil
 }
 
@@ -422,6 +426,20 @@ func codexUsageTokens(u *codexJSONLUsage) int {
 		return 0
 	}
 	return u.InputTokens + u.OutputTokens
+}
+
+func codexInputTokens(u *codexJSONLUsage) int {
+	if u == nil {
+		return 0
+	}
+	return u.InputTokens
+}
+
+func codexOutputTokens(u *codexJSONLUsage) int {
+	if u == nil {
+		return 0
+	}
+	return u.OutputTokens
 }
 
 func codexUsageCost(u *codexJSONLUsage) float64 {

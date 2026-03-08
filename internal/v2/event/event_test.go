@@ -44,6 +44,12 @@ func TestEventDefinitions(t *testing.T) {
 		expectEmbeddedEvent(t, reflect.TypeOf(ScopeEvent{}))
 		expectEmbeddedEvent(t, reflect.TypeOf(TelemetryEvent{}))
 	})
+
+	t.Run("BuildInvocationAndModelEventsEmbedBase", func(t *testing.T) {
+		expectEmbeddedEvent(t, reflect.TypeOf(BuildInvocationStartEvent{}))
+		expectEmbeddedEvent(t, reflect.TypeOf(BuildInvocationCompleteEvent{}))
+		expectEmbeddedEvent(t, reflect.TypeOf(ModelSelectedEvent{}))
+	})
 }
 
 func TestEventJSONRoundTrip(t *testing.T) {
@@ -103,8 +109,14 @@ func TestEventJSONRoundTrip(t *testing.T) {
 				Iteration:    2,
 				Success:      true,
 				RetryAttempt: 1,
+				Model:        "claude-sonnet-4-20250514",
+				Provider:     "anthropic",
+				CostUSD:      0.042,
+				InputTokens:  15000,
+				OutputTokens: 3200,
+				Duration:     2 * time.Minute,
 			},
-			expectedFields: []string{"schema_version", "bead_id", "bead_title", "iteration", "success", "retry_attempt"},
+			expectedFields: []string{"schema_version", "bead_id", "bead_title", "iteration", "success", "retry_attempt", "model", "provider", "cost_usd", "input_tokens", "output_tokens", "duration"},
 		},
 		{
 			name: "StageStartedEvent",
@@ -233,6 +245,47 @@ func TestEventJSONRoundTrip(t *testing.T) {
 			},
 			expectedFields: []string{"schema_version", "bead_id", "bead_title", "category", "reasoning"},
 		},
+		{
+			name: "BuildInvocationStartEvent",
+			event: BuildInvocationStartEvent{
+				Event:       Event{SchemaVersion: SchemaVersion, Timestamp: now, Type: EventTypeBuildInvocationStart},
+				BeadID:      "gromit-abc12",
+				Model:       "claude-sonnet-4-20250514",
+				Provider:    "anthropic",
+				Tier:        "P1",
+				Attempt:     1,
+				MaxAttempts: 3,
+			},
+			expectedFields: []string{"schema_version", "bead_id", "model", "provider", "tier", "attempt", "max_attempts"},
+		},
+		{
+			name: "BuildInvocationCompleteEvent",
+			event: BuildInvocationCompleteEvent{
+				Event:        Event{SchemaVersion: SchemaVersion, Timestamp: now, Type: EventTypeBuildInvocationComplete},
+				BeadID:       "gromit-abc12",
+				Model:        "claude-sonnet-4-20250514",
+				Provider:     "anthropic",
+				Success:      true,
+				Duration:     2 * time.Minute,
+				CostUSD:      0.042,
+				InputTokens:  15000,
+				OutputTokens: 3200,
+				PromptSize:   48000,
+			},
+			expectedFields: []string{"schema_version", "bead_id", "model", "provider", "success", "duration", "cost_usd", "input_tokens", "output_tokens", "prompt_size"},
+		},
+		{
+			name: "ModelSelectedEvent",
+			event: ModelSelectedEvent{
+				Event:    Event{SchemaVersion: SchemaVersion, Timestamp: now, Type: EventTypeModelSelected},
+				BeadID:   "gromit-abc12",
+				Model:    "claude-sonnet-4-20250514",
+				Provider: "anthropic",
+				Tier:     "P1",
+				Reason:   "complexity-based selection",
+			},
+			expectedFields: []string{"schema_version", "bead_id", "model", "provider", "tier", "reason"},
+		},
 	}
 
 	for _, tc := range tests {
@@ -290,8 +343,14 @@ func TestEventJSONFieldNames(t *testing.T) {
 				Iteration:    1,
 				Success:      true,
 				RetryAttempt: 1,
+				Model:        "m",
+				Provider:     "p",
+				CostUSD:      0.01,
+				InputTokens:  100,
+				OutputTokens: 50,
+				Duration:     time.Second,
 			},
-			expectedSnakeCase: []string{"bead_id", "bead_title", "retry_attempt"},
+			expectedSnakeCase: []string{"bead_id", "bead_title", "retry_attempt", "cost_usd", "input_tokens", "output_tokens"},
 		},
 		{
 			name: "StageCompletedEvent",
@@ -451,6 +510,47 @@ func TestEventJSONFieldNames(t *testing.T) {
 			},
 			expectedSnakeCase: []string{"bead_id", "bead_title"},
 		},
+		{
+			name: "BuildInvocationStartEvent",
+			event: BuildInvocationStartEvent{
+				Event:       Event{SchemaVersion: SchemaVersion, Timestamp: now, Type: EventTypeBuildInvocationStart},
+				BeadID:      "b1",
+				Model:       "m",
+				Provider:    "p",
+				Tier:        "P1",
+				Attempt:     1,
+				MaxAttempts: 3,
+			},
+			expectedSnakeCase: []string{"bead_id", "max_attempts"},
+		},
+		{
+			name: "BuildInvocationCompleteEvent",
+			event: BuildInvocationCompleteEvent{
+				Event:        Event{SchemaVersion: SchemaVersion, Timestamp: now, Type: EventTypeBuildInvocationComplete},
+				BeadID:       "b1",
+				Model:        "m",
+				Provider:     "p",
+				Success:      true,
+				Duration:     time.Second,
+				CostUSD:      0.01,
+				InputTokens:  100,
+				OutputTokens: 50,
+				PromptSize:   5000,
+			},
+			expectedSnakeCase: []string{"bead_id", "cost_usd", "input_tokens", "output_tokens", "prompt_size"},
+		},
+		{
+			name: "ModelSelectedEvent",
+			event: ModelSelectedEvent{
+				Event:    Event{SchemaVersion: SchemaVersion, Timestamp: now, Type: EventTypeModelSelected},
+				BeadID:   "b1",
+				Model:    "m",
+				Provider: "p",
+				Tier:     "P1",
+				Reason:   "complexity",
+			},
+			expectedSnakeCase: []string{"bead_id"},
+		},
 	}
 
 	for _, tc := range events {
@@ -494,6 +594,22 @@ func containsCamelCase(s string) bool {
 		prev = r
 	}
 	return false
+}
+
+func TestEventTypeConstants(t *testing.T) {
+	tests := []struct {
+		event    TypedEvent
+		expected string
+	}{
+		{BuildInvocationStartEvent{}, EventTypeBuildInvocationStart},
+		{BuildInvocationCompleteEvent{}, EventTypeBuildInvocationComplete},
+		{ModelSelectedEvent{}, EventTypeModelSelected},
+	}
+	for _, tc := range tests {
+		if got := tc.event.EventType(); got != tc.expected {
+			t.Errorf("EventType() = %q, want %q", got, tc.expected)
+		}
+	}
 }
 
 func expectEmbeddedEvent(t *testing.T, typ reflect.Type) {

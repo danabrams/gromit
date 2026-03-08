@@ -54,11 +54,13 @@ func (a *claudeAdapter) Invoke(ctx context.Context, req InvokeRequest) (*LLMResp
 	}
 
 	return &LLMResponse{
-		Success:  parsed.Success,
-		Output:   parsed.Output,
-		Tokens:   parsed.Tokens,
-		CostUSD:  parsed.CostUSD,
-		Duration: duration,
+		Success:      parsed.Success,
+		Output:       parsed.Output,
+		Tokens:       parsed.Tokens,
+		InputTokens:  parsed.InputTokens,
+		OutputTokens: parsed.OutputTokens,
+		CostUSD:      parsed.CostUSD,
+		Duration:     duration,
 	}, nil
 }
 
@@ -94,11 +96,13 @@ func (a *claudeAdapter) StreamInvoke(ctx context.Context, req StreamInvokeReques
 	}
 
 	return &LLMResponse{
-		Success:  result.Success,
-		Output:   strings.TrimSpace(result.Output),
-		Tokens:   result.InputTokens + result.OutputTokens,
-		CostUSD:  result.CostUSD,
-		Duration: result.Duration,
+		Success:      result.Success,
+		Output:       strings.TrimSpace(result.Output),
+		Tokens:       result.InputTokens + result.OutputTokens,
+		InputTokens:  result.InputTokens,
+		OutputTokens: result.OutputTokens,
+		CostUSD:      result.CostUSD,
+		Duration:     result.Duration,
 	}, nil
 }
 
@@ -230,10 +234,12 @@ func parseInvokeResult(raw string) (*LLMResponse, error) {
 	}
 
 	return &LLMResponse{
-		Success: success,
-		Output:  text,
-		Tokens:  inputTokens + outputTokens,
-		CostUSD: cost,
+		Success:      success,
+		Output:       text,
+		Tokens:       inputTokens + outputTokens,
+		InputTokens:  inputTokens,
+		OutputTokens: outputTokens,
+		CostUSD:      cost,
 	}, nil
 }
 
