@@ -5,7 +5,7 @@ import "strings"
 // BuildSystemicRecommendation produces a human-review recommendation when the
 // diagnosed root cause or failure signal implies a system-level change.
 func BuildSystemicRecommendation(rootCause RootCause, failureSignal string) string {
-	category := detectSystemicCategory(rootCause, failureSignal)
+	category := DetectSystemicCategory(rootCause, failureSignal)
 	if category == "" {
 		return ""
 	}
@@ -18,7 +18,9 @@ func BuildSystemicRecommendation(rootCause RootCause, failureSignal string) stri
 	return recommendation + " Observed signal: " + trimmedSignal
 }
 
-func detectSystemicCategory(rootCause RootCause, failureSignal string) string {
+// DetectSystemicCategory determines whether the root cause or failure signal
+// maps to a systemic change category that should trigger human review.
+func DetectSystemicCategory(rootCause RootCause, failureSignal string) string {
 	normalized := strings.ToLower(strings.TrimSpace(failureSignal))
 	switch {
 	case strings.Contains(normalized, "prompt fragment"),
