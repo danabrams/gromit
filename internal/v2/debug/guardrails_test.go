@@ -75,3 +75,22 @@ func TestEnforceSystemicChangeGuardrails_UsesInteractiveApprovalPrompt(t *testin
 		t.Fatalf("prompt = %q, want --approve guidance", prompt)
 	}
 }
+
+func TestEnforceSystemicChangeGuardrails_BlocksPromptFragmentYAMLWithoutApproval(t *testing.T) {
+	patch := strings.Join([]string{
+		"diff --git a/.gromit/fragments/build.yaml b/.gromit/fragments/build.yaml",
+		"--- a/.gromit/fragments/build.yaml",
+		"+++ b/.gromit/fragments/build.yaml",
+		"@@ -1 +1 @@",
+		"-old",
+		"+new",
+	}, "\n")
+
+	err := EnforceSystemicChangeGuardrails(patch, false, nil)
+	if !errors.Is(err, ErrSystemicChangeApprovalRequired) {
+		t.Fatalf("EnforceSystemicChangeGuardrails() error = %v, want approval-required error", err)
+	}
+	if !strings.Contains(strings.ToLower(err.Error()), "prompt fragment") {
+		t.Fatalf("error = %q, want prompt fragment category", err.Error())
+	}
+}
