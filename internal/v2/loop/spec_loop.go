@@ -725,6 +725,7 @@ func (s *SpecLoop) populatePresentationContext(summary presentation.Presentation
 	ctx.RemainingWork = summary.RemainingWork
 	ctx.BranchLink = summary.BranchLink
 	ctx.DiffLink = summary.DiffLink
+	ctx.PRBranch = summary.SpecBranch
 	ctx.IntegrationBranch = summary.IntegrationBranch
 }
 

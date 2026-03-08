@@ -312,6 +312,48 @@ func TestPresentStageUsesSquashedPRBranchAndKeepsWorktreeHistory(t *testing.T) {
 	}
 }
 
+func TestPresentStageRecordsSquashedPRBranchInContext(t *testing.T) {
+	t.Parallel()
+
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not available")
+	}
+
+	repoDir := initPresentTestRepo(t)
+	worktreesDir := t.TempDir()
+	gitAdapter := execgit.NewExecGitAdapter(repoDir, worktreesDir)
+	committer := &pipeline.StageCommitter{Git: gitAdapter}
+
+	const specID = "spec-present-record-pr-branch"
+	wtPath, err := gitAdapter.Checkout(context.Background(), specID)
+	if err != nil {
+		t.Fatalf("checkout: %v", err)
+	}
+
+	writeFile(t, filepath.Join(wtPath, "bead.txt"), "build")
+	if err := committer.CommitStage(context.Background(), wtPath, "001", "build", 1, "Proceed"); err != nil {
+		t.Fatalf("commit build stage: %v", err)
+	}
+
+	ctx := &SummaryContext{
+		Worktree:      wtPath,
+		BeadSummaries: []presentation.BeadSummary{{ID: "001", Title: "Feature"}},
+	}
+	presenter := &spyPresenter{}
+	stageInstance, err := New(nil, presenter, ctx, WithSquashGit(gitAdapter))
+	if err != nil {
+		t.Fatalf("new present stage: %v", err)
+	}
+
+	if _, err := stageInstance.Run(context.Background(), &stage.Request{Bead: stage.BeadInfo{ID: specID}}); err != nil {
+		t.Fatalf("present run: %v", err)
+	}
+
+	if got, want := ctx.PRBranch, presentation.SpecPRBranchName(specID); got != want {
+		t.Fatalf("summary context PR branch = %q, want %q", got, want)
+	}
+}
+
 func TestPresentStageSquashOnlyIncludesBeadSummaries(t *testing.T) {
 	t.Parallel()
 

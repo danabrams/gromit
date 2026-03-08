@@ -32,6 +32,7 @@ type SummaryContext struct {
 	FailureSummary     string
 	RemainingWork      []string
 	IntegrationBranch  string
+	PRBranch           string
 }
 
 // Stage implements the presentation stage of the run loop.
@@ -90,11 +91,15 @@ func (s *Stage) Name() string {
 func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Result, error) {
 	specID := beadID(req)
 	summary := s.buildPresentation(req)
-	if branch, err := s.squash(ctx, specID); err != nil {
+	branch, err := s.squash(ctx, specID)
+	if err != nil {
 		return nil, fmt.Errorf("squash: %w", err)
-	} else if strings.TrimSpace(branch) != "" {
+	}
+	branch = strings.TrimSpace(branch)
+	if branch != "" {
 		summary.SpecBranch = branch
 	}
+	s.ctx.PRBranch = branch
 	if err := s.presenter.PresentSummary(ctx, specID, summary); err != nil {
 		return nil, fmt.Errorf("present summary: %w", err)
 	}
