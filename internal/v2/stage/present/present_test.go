@@ -387,6 +387,91 @@ func TestPresentStageSquashOnlyIncludesBeadSummaries(t *testing.T) {
 	}
 }
 
+func TestPresentStageRerunSquashKeepsPRBranchFastForwardAndSpecHistory(t *testing.T) {
+	t.Parallel()
+
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not available")
+	}
+
+	repoDir := initPresentTestRepo(t)
+	worktreesDir := t.TempDir()
+	gitAdapter := execgit.NewExecGitAdapter(repoDir, worktreesDir)
+	committer := &pipeline.StageCommitter{Git: gitAdapter}
+
+	const specID = "spec-present-rerun-history"
+	wtPath, err := gitAdapter.Checkout(context.Background(), specID)
+	if err != nil {
+		t.Fatalf("checkout: %v", err)
+	}
+
+	writeFile(t, filepath.Join(wtPath, "bead.txt"), "build")
+	if err := committer.CommitStage(context.Background(), wtPath, "001", "build", 1, "Proceed"); err != nil {
+		t.Fatalf("commit build stage: %v", err)
+	}
+	writeFile(t, filepath.Join(wtPath, "bead.txt"), "review")
+	if err := committer.CommitStage(context.Background(), wtPath, "001", "review", 1, "Proceed"); err != nil {
+		t.Fatalf("commit review stage: %v", err)
+	}
+
+	ctx := &SummaryContext{
+		Worktree:      wtPath,
+		BeadSummaries: []presentation.BeadSummary{{ID: "001", Title: "Feature"}},
+	}
+	presenter := &spyPresenter{}
+	stageInstance, err := New(nil, presenter, ctx, WithSquashGit(gitAdapter))
+	if err != nil {
+		t.Fatalf("new present stage: %v", err)
+	}
+
+	req := &stage.Request{Bead: stage.BeadInfo{ID: specID}}
+	if _, err := stageInstance.Run(context.Background(), req); err != nil {
+		t.Fatalf("present run 1: %v", err)
+	}
+
+	prBranch := presentation.SpecPRBranchName(specID)
+	firstPRHead := strings.TrimSpace(runGitInDir(t, wtPath, "rev-parse", prBranch))
+	if firstPRHead == "" {
+		t.Fatal("missing first pr branch head")
+	}
+
+	writeFile(t, filepath.Join(wtPath, "bead.txt"), "validate")
+	if err := committer.CommitStage(context.Background(), wtPath, "001", "validate", 1, "Proceed"); err != nil {
+		t.Fatalf("commit validate stage: %v", err)
+	}
+
+	if _, err := stageInstance.Run(context.Background(), req); err != nil {
+		t.Fatalf("present run 2: %v", err)
+	}
+
+	secondPRHead := strings.TrimSpace(runGitInDir(t, wtPath, "rev-parse", prBranch))
+	if secondPRHead == "" {
+		t.Fatal("missing second pr branch head")
+	}
+
+	mergeBaseCmd := exec.Command("git", "merge-base", "--is-ancestor", firstPRHead, secondPRHead)
+	mergeBaseCmd.Dir = wtPath
+	if out, err := mergeBaseCmd.CombinedOutput(); err != nil {
+		t.Fatalf("expected PR branch rerun to fast-forward: %v (%s)", err, strings.TrimSpace(string(out)))
+	}
+
+	sourceBranch := presentation.SpecBranchName(specID)
+	sourceSubjects := strings.Split(strings.TrimSpace(runGitInDir(t, wtPath, "log", "--format=%s", sourceBranch, "-4")), "\n")
+	if len(sourceSubjects) < 4 {
+		t.Fatalf("expected source branch stage history plus base commit, got %v", sourceSubjects)
+	}
+
+	for i := 0; i < 3; i++ {
+		info, ok := pipeline.ParseCommitMessage(sourceSubjects[i])
+		if !ok {
+			t.Fatalf("source commit %d is not a structured stage commit: %q", i, sourceSubjects[i])
+		}
+		if info.BeadID != "001" {
+			t.Fatalf("source commit %d bead ID = %q, want %q", i, info.BeadID, "001")
+		}
+	}
+}
+
 func TestPresentStageDeletesMergedWorktreeBranchOnSuccess(t *testing.T) {
 	t.Parallel()
 
