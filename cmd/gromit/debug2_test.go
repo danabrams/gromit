@@ -350,6 +350,82 @@ func TestDebug2Impl_AppliesPatchAndRunsValidation(t *testing.T) {
 	}
 }
 
+func TestDebug2Impl_ChecksOutDiagnosedFailureCommitBeforePatch(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not available")
+	}
+
+	tmpDir := t.TempDir()
+	specName := "test-spec"
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	wtPath := filepath.Join(gromitDir, "spec-worktrees", specName)
+	if err := os.MkdirAll(filepath.Join(wtPath, ".gromit", "v2"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(wtPath, ".gromit", "v2", "events.jsonl"),
+		[]byte(`{"type":"stage.failed","stage_name":"build","error":"provider reported unsuccessful result: no detail available"}`+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	runGitDebug2(t, wtPath, "init")
+	runGitDebug2(t, wtPath, "config", "user.email", "tester@example.com")
+	runGitDebug2(t, wtPath, "config", "user.name", "Test User")
+	runGitDebug2(t, wtPath, "commit", "--allow-empty", "-m", "init")
+
+	if err := os.WriteFile(filepath.Join(wtPath, "bad.txt"), []byte("bad\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	runGitDebug2(t, wtPath, "add", "-A")
+	runGitDebug2(t, wtPath, "commit", "-m", "[bead:b1/build/iter:1] Fail")
+
+	failHashCmd := exec.Command("git", "rev-parse", "HEAD")
+	failHashCmd.Dir = wtPath
+	out, err := failHashCmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("rev-parse failure hash: %v\n%s", err, out)
+	}
+	wantFailureHash := strings.TrimSpace(string(out))
+
+	runGitDebug2(t, wtPath, "commit", "--allow-empty", "-m", "[bead:b1/build/iter:2] Proceed")
+
+	llmOutput := `{"code_patch":"diff --git a/a.txt b/a.txt\n--- a/a.txt\n+++ b/a.txt\n@@ -0,0 +1 @@\n+fixed\n","learnings_entry":"","systemic_recommendation":""}`
+	origInvoke := debug2InvokeLLMFn
+	t.Cleanup(func() { debug2InvokeLLMFn = origInvoke })
+	debug2InvokeLLMFn = func(ctx context.Context, prompt, dir string, cfg *config.Config) (string, error) {
+		return llmOutput, nil
+	}
+
+	var checkedOut string
+	origCheckout := debug2CheckoutFailureFn
+	t.Cleanup(func() { debug2CheckoutFailureFn = origCheckout })
+	debug2CheckoutFailureFn = func(ctx context.Context, dir, commit string) error {
+		checkedOut = commit
+		return nil
+	}
+
+	origApplyPatch := debug2ApplyPatchFn
+	t.Cleanup(func() { debug2ApplyPatchFn = origApplyPatch })
+	debug2ApplyPatchFn = func(ctx context.Context, dir, patch string) error {
+		return nil
+	}
+
+	origRunValidation := debug2RunValidationFn
+	t.Cleanup(func() { debug2RunValidationFn = origRunValidation })
+	debug2RunValidationFn = func(ctx context.Context, dir, command string) error {
+		return nil
+	}
+
+	cfg := &config.Config{}
+	cfg.SetDefaults()
+
+	if err := debug2Impl(context.Background(), specName, gromitDir, cfg); err != nil {
+		t.Fatalf("debug2Impl() error = %v", err)
+	}
+	if checkedOut != wantFailureHash {
+		t.Fatalf("checked out commit = %q, want %q", checkedOut, wantFailureHash)
+	}
+}
+
 func TestDebug2Impl_AppendsLearningsEntry(t *testing.T) {
 	tmpDir := t.TempDir()
 	specName := "test-spec"
