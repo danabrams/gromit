@@ -26,36 +26,60 @@ func SquashPerBead(ctx context.Context, git SquashGit, worktree string, beads []
 		return err
 	}
 
-	count := 0
-	for _, e := range entries {
-		if _, ok := ParseCommitMessage(e.Message); !ok {
-			break
-		}
-		count++
-	}
-
-	if count == 0 {
+	groups := collectBeadGroups(entries)
+	if len(groups) == 0 {
 		return nil
 	}
 
-	msg := squashMessage(beads)
-	if err := git.SquashCommits(ctx, worktree, count); err != nil {
-		return fmt.Errorf("squash commits: %w", err)
-	}
-	if _, err := git.Commit(ctx, worktree, msg); err != nil {
-		return fmt.Errorf("commit squash: %w", err)
+	titles := beadTitleMap(beads)
+	for _, group := range groups {
+		msg := beadCommitMessage(group.beadID, titles)
+		if err := git.SquashCommits(ctx, worktree, group.count); err != nil {
+			return fmt.Errorf("squash commits for bead %s: %w", group.beadID, err)
+		}
+		if _, err := git.Commit(ctx, worktree, msg); err != nil {
+			return fmt.Errorf("commit squash for bead %s: %w", group.beadID, err)
+		}
 	}
 	return nil
 }
 
-func squashMessage(beads []presentation.BeadSummary) string {
-	if len(beads) == 1 {
-		return fmt.Sprintf("bead %s: %s", beads[0].ID, beads[0].Title)
+type beadGroup struct {
+	beadID string
+	count  int
+}
+
+func collectBeadGroups(entries []adapter.LogEntry) []beadGroup {
+	var groups []beadGroup
+	for _, entry := range entries {
+		info, ok := ParseCommitMessage(entry.Message)
+		if !ok {
+			break
+		}
+		if info.BeadID == "" {
+			continue
+		}
+		if len(groups) == 0 || groups[len(groups)-1].beadID != info.BeadID {
+			groups = append(groups, beadGroup{beadID: info.BeadID, count: 1})
+			continue
+		}
+		groups[len(groups)-1].count++
 	}
-	var b strings.Builder
-	b.WriteString(fmt.Sprintf("squash %d beads", len(beads)))
+	return groups
+}
+
+func beadTitleMap(beads []presentation.BeadSummary) map[string]string {
+	titles := make(map[string]string, len(beads))
 	for _, bead := range beads {
-		b.WriteString(fmt.Sprintf("\n- bead %s: %s", bead.ID, bead.Title))
+		titles[bead.ID] = strings.TrimSpace(bead.Title)
 	}
-	return b.String()
+	return titles
+}
+
+func beadCommitMessage(beadID string, titles map[string]string) string {
+	title := strings.TrimSpace(titles[beadID])
+	if title == "" {
+		title = beadID
+	}
+	return fmt.Sprintf("bead %s: %s", beadID, title)
 }
