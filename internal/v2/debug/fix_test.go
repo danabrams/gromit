@@ -175,6 +175,71 @@ func TestApplyFix_ChecksOutSpecBranchAtFailurePoint(t *testing.T) {
 	}
 }
 
+func TestApplyAutonomousFix_RecordsLearningAndValidatesStage(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not available")
+	}
+
+	tmpDir := t.TempDir()
+	runGitFix(t, tmpDir, "init")
+	runGitFix(t, tmpDir, "config", "user.email", "tester@example.com")
+	runGitFix(t, tmpDir, "config", "user.name", "Test User")
+
+	mainFile := filepath.Join(tmpDir, "main.go")
+	if err := os.WriteFile(mainFile, []byte("package main\n\nfunc main() {}\n"), 0o644); err != nil {
+		t.Fatalf("write main.go: %v", err)
+	}
+	runGitFix(t, tmpDir, "add", ".")
+	runGitFix(t, tmpDir, "commit", "-m", "initial commit")
+
+	learningsPath := filepath.Join(tmpDir, "LEARNINGS.md")
+	if err := os.WriteFile(learningsPath, []byte("# LEARNINGS\n\n"), 0o644); err != nil {
+		t.Fatalf("write learnings header: %v", err)
+	}
+
+	fixCtx := &FixContext{
+		FailedStage:  "build",
+		ErrorMsg:     "syntax error: unexpected )",
+		WorktreeRoot: tmpDir,
+	}
+	validateCtx := &ValidateContext{
+		WorktreeRoot: tmpDir,
+		FailedStage:  "build",
+		ValidateCmd:  "true",
+	}
+	input := &AutonomousFixInput{
+		FixCtx:        fixCtx,
+		ValidateCtx:   validateCtx,
+		FailureSignal: fixCtx.ErrorMsg,
+		RootCause:     RootCauseBadBuildOutput,
+	}
+
+	result, err := ApplyAutonomousFix(context.Background(), input)
+	if err != nil {
+		t.Fatalf("ApplyAutonomousFix failed: %v", err)
+	}
+	if result == nil {
+		t.Fatalf("ApplyAutonomousFix returned nil result")
+	}
+	if !result.Applied {
+		t.Fatal("expected fix to be applied")
+	}
+	if result.ValidateResult == nil || !result.ValidateResult.Passed {
+		t.Fatalf("expected validation to pass, got %+v", result.ValidateResult)
+	}
+	if result.LearningEntry == "" {
+		t.Fatal("expected learning entry")
+	}
+
+	content, err := os.ReadFile(learningsPath)
+	if err != nil {
+		t.Fatalf("reading LEARNINGS.md: %v", err)
+	}
+	if !strings.Contains(string(content), "syntax error") {
+		t.Fatalf("LEARNINGS.md missing entry, got:\n%s", string(content))
+	}
+}
+
 func TestApplyFix_ValidatesFilesInvolvedPatch(t *testing.T) {
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git not available")
