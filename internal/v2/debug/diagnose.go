@@ -69,13 +69,23 @@ func findFailureEvent(events []map[string]interface{}) map[string]interface{} {
 
 func classifyRootCause(event map[string]interface{}, stage string) RootCause {
 	text := strings.ToLower(strings.TrimSpace(valueAsString(event["error"])))
-	if strings.Contains(text, "flaky") || strings.Contains(text, "timeout") {
+	if strings.Contains(text, "flaky") ||
+		strings.Contains(text, "timeout") ||
+		(strings.EqualFold(stage, "validate") && strings.Contains(text, "retry")) ||
+		(strings.EqualFold(stage, "validate") && strings.Contains(text, "transient")) {
 		return RootCauseFlakyTest
 	}
-	if strings.Contains(text, "decompose") || strings.Contains(text, "decomposition") {
+	if strings.Contains(text, "decompose") ||
+		strings.Contains(text, "decomposition") ||
+		(strings.EqualFold(stage, "decompose") && strings.Contains(text, "split")) ||
+		(strings.EqualFold(stage, "decompose") && strings.Contains(text, "broad")) {
 		return RootCauseBadDecomposition
 	}
-	if strings.Contains(text, "unclear") || strings.Contains(text, "ambiguous") {
+	if strings.Contains(text, "unclear") ||
+		strings.Contains(text, "ambiguous") ||
+		strings.Contains(text, "bead description") ||
+		strings.Contains(text, "acceptance criteria") ||
+		strings.Contains(text, "expected outputs") {
 		return RootCauseUnclearBead
 	}
 	if stage == "build" {
