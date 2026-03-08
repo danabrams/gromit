@@ -14,6 +14,9 @@ func cleanupMergedWorktreeBranch(ctx context.Context, worktree, specID, integrat
 	if strings.TrimSpace(worktree) == "" {
 		return nil
 	}
+	if !canRewriteHistory(ctx, worktree) {
+		return nil
+	}
 
 	specBranch := presentation.SpecBranchName(specID)
 	if specBranch == "" {

@@ -88,14 +88,20 @@ func (s *Stage) Name() string {
 
 // Run builds the presentation summary and forwards it to the presenter.
 func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Result, error) {
+	specID := beadID(req)
 	summary := s.buildPresentation(req)
-	if branch, err := s.squash(ctx, beadID(req)); err != nil {
+	if branch, err := s.squash(ctx, specID); err != nil {
 		return nil, fmt.Errorf("squash: %w", err)
 	} else if strings.TrimSpace(branch) != "" {
 		summary.SpecBranch = branch
 	}
-	if err := s.presenter.PresentSummary(ctx, beadID(req), summary); err != nil {
+	if err := s.presenter.PresentSummary(ctx, specID, summary); err != nil {
 		return nil, fmt.Errorf("present summary: %w", err)
+	}
+	if summary.Success {
+		if err := cleanupMergedWorktreeBranch(ctx, summary.Worktree, specID, summary.IntegrationBranch); err != nil {
+			return nil, fmt.Errorf("cleanup merged worktree branch: %w", err)
+		}
 	}
 	return &stagepkg.Result{Decision: stagepkg.DecisionProceed}, nil
 }
