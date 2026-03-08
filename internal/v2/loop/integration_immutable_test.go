@@ -143,6 +143,24 @@ func TestIntegrationImmutable_PerBeadSquashCombinesStageCommits(t *testing.T) {
 	})
 }
 
+func TestIntegrationImmutable_SquashPurgesStructuredStageCommits(t *testing.T) {
+	t.Parallel()
+
+	result := runImmutableSpec(t, immutableSpecConfig{
+		specID:       "immutable-squash-commits",
+		enableSquash: true,
+		beads: immutableBeads(
+			immutableBead("bead-001", "First bead"),
+			immutableBead("bead-002", "Second bead"),
+		),
+	})
+
+	assertSquashRemovesStructuredCommits(t, result, []string{
+		"bead 002: Second bead",
+		"bead 001: First bead",
+	})
+}
+
 type immutableSpecConfig struct {
 	specID            string
 	beads             []*bead.Bead
