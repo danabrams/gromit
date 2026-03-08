@@ -513,6 +513,19 @@ The following fixes were applied to main after the v2-run-loop spec was merged (
 - Integration test verifies gap analysis flows from accept through remediation runner to decompose
 - `go build ./...` and `go test ./internal/v2/...` pass
 
+### A18. Plan stage must validate LLM output structure (`pending`)
+
+**Problem:** The plan stage wrote the LLM response directly to `.gromit/v2/plan.md` without validating it contained actual plan content. When Claude returned a meta-statement (e.g., "All three exploration agents have completed. The plan is finalized at `.gromit/v2/plan.md`.") instead of a real plan, this one-liner was saved as the plan file. The downstream decompose stage then failed with "could not extract JSON using any strategy" because it received a one-line placeholder instead of structured plan content with tasks.
+
+**Acceptance criteria:**
+- Plan stage validates LLM output before writing to disk
+- Validation checks minimum content length (200 chars)
+- Validation checks for required section headers (`## Implementation Tasks`, `### Task N`, or `## Architecture`)
+- When validation fails, the error message includes a truncated preview of what the LLM returned
+- When validation fails, no plan file is written (decompose never sees invalid content)
+- Re-running `gromit run2` retries the plan stage from scratch since no valid plan was persisted
+- `go build ./...` and `go test ./internal/v2/stage/plan/...` pass
+
 ### A17. Review-created beads missing spec label (`pending`)
 
 **Problem:** When the review stage creates new beads from code review findings, it labels them with `from-review`, `gen:<N>`, and `review-source:<parentID>`, but does not add the `spec:<specID>` label. The spec ID is available (extracted from the parent bead's labels), but is not propagated to created beads. This means review beads are invisible to spec completion queries that filter by `spec:<name>` label, and are not counted as work belonging to the spec.

@@ -14,6 +14,30 @@ import (
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
 )
 
+const validPlanOutput = `---
+id: test-spec
+source_spec: test-spec
+created: 2026-03-08
+decomposed: false
+---
+
+# Test Spec Implementation Plan
+
+**Goal:** Implement the test spec feature.
+**Architecture:** Simple layered approach.
+
+## Architecture
+
+The system uses a service layer that communicates with a data layer through interfaces.
+
+## Implementation Tasks
+
+### Task 1: Add core types
+**Files:** types.go
+**What to Do:** Define the core types for the feature.
+**Acceptance Criteria:** Types compile and are exported.
+`
+
 func TestStageWritesPlanAndInvokesLLM(t *testing.T) {
 	t.Parallel()
 
@@ -45,7 +69,7 @@ func TestStageWritesPlanAndInvokesLLM(t *testing.T) {
 	fake := &fakeLLMProvider{
 		response: &llm.LLMInvokeResponse{
 			Success: true,
-			Output:  "planned!",
+			Output:  validPlanOutput,
 		},
 	}
 
@@ -128,7 +152,7 @@ func TestStageUsesLLMProvider(t *testing.T) {
 	projectLayer := "project"
 	fragmentLayer := "fragment"
 	provider := &fakeLLMProvider{
-		resetResponse: "llm plan",
+		resetResponse: validPlanOutput,
 	}
 
 	stageInstance, err := New(cfg, provider, baseLayer, projectLayer, fragmentLayer)
@@ -287,7 +311,7 @@ func TestRunFallsBackToStoredConfig(t *testing.T) {
 	t.Parallel()
 
 	provider := &fakeLLMProvider{
-		response: &llm.LLMInvokeResponse{Success: true, Output: "planned via stored cfg"},
+		response: &llm.LLMInvokeResponse{Success: true, Output: validPlanOutput},
 	}
 	stageInstance, cfg, specID := setupPlanStage(t, provider)
 
@@ -320,7 +344,7 @@ func TestRunUsesReqModelOverride(t *testing.T) {
 	t.Parallel()
 
 	provider := &fakeLLMProvider{
-		response: &llm.LLMInvokeResponse{Success: true, Output: "planned with custom model"},
+		response: &llm.LLMInvokeResponse{Success: true, Output: validPlanOutput},
 	}
 	stageInstance, cfg, specID := setupPlanStage(t, provider)
 
@@ -351,7 +375,7 @@ func TestRunUsesConfigP0Model(t *testing.T) {
 	t.Parallel()
 
 	provider := &fakeLLMProvider{
-		response: &llm.LLMInvokeResponse{Success: true, Output: "planned with P0"},
+		response: &llm.LLMInvokeResponse{Success: true, Output: validPlanOutput},
 	}
 	stageInstance, cfg, specID := setupPlanStage(t, provider)
 
@@ -376,7 +400,7 @@ func TestRunDefaultsToOpusWhenNoModelConfigured(t *testing.T) {
 	t.Parallel()
 
 	provider := &fakeLLMProvider{
-		response: &llm.LLMInvokeResponse{Success: true, Output: "planned with default"},
+		response: &llm.LLMInvokeResponse{Success: true, Output: validPlanOutput},
 	}
 	stageInstance, cfg, specID := setupPlanStage(t, provider)
 
@@ -394,5 +418,126 @@ func TestRunDefaultsToOpusWhenNoModelConfigured(t *testing.T) {
 
 	if provider.lastRequest.Model != "opus" {
 		t.Fatalf("model sent to LLM = %q, want %q", provider.lastRequest.Model, "opus")
+	}
+}
+
+func TestValidatePlanContent(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		input   string
+		wantErr bool
+	}{
+		{
+			name:    "rejects empty string",
+			input:   "",
+			wantErr: true,
+		},
+		{
+			name:    "rejects meta-statement one-liner",
+			input:   "All three exploration agents have completed. The plan is finalized at `.gromit/v2/plan.md`.",
+			wantErr: true,
+		},
+		{
+			name:    "rejects short text without structure",
+			input:   "Here is a plan for the feature. It should work well.",
+			wantErr: true,
+		},
+		{
+			name: "accepts valid plan with frontmatter and tasks",
+			input: `---
+id: cool-feature
+source_spec: cool-feature
+created: 2026-03-08
+decomposed: false
+---
+
+# Cool Feature Implementation Plan
+
+**Goal:** Implement the cool feature.
+**Architecture:** Simple service layer.
+
+## Architecture
+
+Components and data flow here.
+
+## Implementation Tasks
+
+### Task 1: Add types
+**Files:** types.go
+**What to Do:** Define the types.
+**Acceptance Criteria:** Types compile.
+`,
+			wantErr: false,
+		},
+		{
+			name: "accepts plan with Task sections but no frontmatter",
+			input: `# Implementation Plan
+
+## Implementation Tasks
+
+### Task 1: Set up the module
+**Files:** go.mod, main.go
+**What to Do:** Initialize the Go module.
+**Acceptance Criteria:** Module compiles.
+
+### Task 2: Add handler
+**Files:** handler.go
+**What to Do:** Add HTTP handler.
+**Acceptance Criteria:** Handler responds to requests.
+`,
+			wantErr: false,
+		},
+		{
+			name: "accepts plan with Architecture section",
+			input: `---
+id: feature
+---
+
+# Plan
+
+## Architecture
+
+The system uses a layered architecture with clear separation of concerns.
+Components include the API layer, service layer, and data layer.
+Each layer communicates through well-defined interfaces.
+`,
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			err := validatePlanContent(tt.input)
+			if tt.wantErr && err == nil {
+				t.Fatalf("expected error for input %q, got nil", tt.input)
+			}
+			if !tt.wantErr && err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+		})
+	}
+}
+
+func TestRunReturnsErrorForMetaStatementOutput(t *testing.T) {
+	t.Parallel()
+
+	provider := &fakeLLMProvider{
+		response: &llm.LLMInvokeResponse{
+			Success: true,
+			Output:  "All three exploration agents have completed. The plan is finalized at `.gromit/v2/plan.md`.",
+		},
+	}
+	stageInstance, cfg, specID := setupPlanStage(t, provider)
+
+	req := &stagepkg.Request{Bead: stagepkg.BeadInfo{ID: specID}, Config: cfg}
+	_, err := stageInstance.Run(context.Background(), req)
+	if err == nil {
+		t.Fatal("expected error when LLM returns meta-statement instead of plan, got nil")
+	}
+	if !strings.Contains(err.Error(), "plan content validation") {
+		t.Fatalf("error should mention plan content validation, got: %v", err)
 	}
 }

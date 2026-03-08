@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/danabrams/gromit/internal/config"
@@ -184,6 +185,9 @@ func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Resul
 	}
 
 	planText := resp.Output
+	if err := validatePlanContent(planText); err != nil {
+		return nil, err
+	}
 	planPath, err := writePlanFile(cfg, req.Worktree, planText)
 	if err != nil {
 		return nil, err
@@ -238,6 +242,29 @@ func specFilePath(cfg *config.Config, specID string) (string, error) {
 	}
 
 	return filepath.Join(specDir, specName), nil
+}
+
+var planSectionPattern = regexp.MustCompile(`(?m)^##[#]?\s+(Implementation Tasks|Task\s+\d|Architecture)`)
+
+const minPlanLength = 200
+
+func validatePlanContent(content string) error {
+	trimmed := strings.TrimSpace(content)
+	if len(trimmed) < minPlanLength {
+		preview := trimmed
+		if len(preview) > 120 {
+			preview = preview[:120] + "..."
+		}
+		return fmt.Errorf("plan content validation failed: output too short (%d chars, need %d); got: %q", len(trimmed), minPlanLength, preview)
+	}
+	if !planSectionPattern.MatchString(trimmed) {
+		preview := trimmed
+		if len(preview) > 120 {
+			preview = preview[:120] + "..."
+		}
+		return fmt.Errorf("plan content validation failed: missing required section headers (expected '## Implementation Tasks', '### Task N', or '## Architecture'); got: %q", preview)
+	}
+	return nil
 }
 
 func writePlanFile(cfg *config.Config, worktree string, plan string) (string, error) {
