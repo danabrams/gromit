@@ -219,6 +219,24 @@ func displayDebug2HistoryCommands(w io.Writer, specName, wtPath string) {
 	fmt.Fprintln(w)
 }
 
+func displayDebug2DiagnosisSummary(w io.Writer, diagnosis debugpkg.Diagnosis) {
+	if w == nil {
+		return
+	}
+	if diagnosis.Summary == "" && diagnosis.RootCause == "" {
+		return
+	}
+
+	fmt.Fprintln(w, "Diagnosis summary:")
+	if diagnosis.Summary != "" {
+		fmt.Fprintf(w, "  %s\n", diagnosis.Summary)
+	}
+	if diagnosis.RootCause != "" {
+		fmt.Fprintf(w, "  Root cause: %s\n", diagnosis.RootCause)
+	}
+	fmt.Fprintln(w)
+}
+
 func marshalDebug2EventForDisplay(event map[string]interface{}) string {
 	if event == nil {
 		return "{}"
@@ -481,6 +499,7 @@ func debug2Impl(ctx context.Context, specName, gromitDir string, cfg *config.Con
 		Events:     events,
 		LogEntries: logEntries,
 	})
+	displayDebug2DiagnosisSummary(debug2Stdout, diagnosis)
 
 	commits := make([][2]string, 0, len(logEntries))
 	for _, e := range logEntries {
