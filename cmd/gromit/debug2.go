@@ -26,6 +26,13 @@ var debug2AgentLaunchFn = func(promptPath, dir string) error {
 	return selectedAgent.LaunchInDir(promptPath, dir)
 }
 
+// debug2BranchWorktreeFn is injectable for tests. It attempts to find and resolve
+// a worktree from the branch gromit/spec/<specName> when the directory is missing.
+// t.Cleanup must restore the original value in tests that override this.
+var debug2BranchWorktreeFn = func(gromitDir, specName string) (string, error) {
+	return "", fmt.Errorf("branch lookup not implemented")
+}
+
 var debug2Cmd = &cobra.Command{
 	Use:   "debug2 <spec-name>",
 	Short: "Diagnose and fix a failed v2 spec execution",
@@ -37,14 +44,17 @@ func init() {
 	rootCmd.AddCommand(debug2Cmd)
 }
 
-// resolveDebug2Worktree returns the path to the preserved spec worktree, or
-// an error if no such worktree exists.
+// resolveDebug2Worktree returns the path to the preserved spec worktree. It first
+// tries to find the worktree at .gromit/spec-worktrees/<specName>. If that doesn't
+// exist, it falls back to trying to find the branch gromit/spec/<specName>.
 func resolveDebug2Worktree(gromitDir, specName string) (string, error) {
 	wtPath := filepath.Join(gromitDir, "spec-worktrees", specName)
-	if _, err := os.Stat(wtPath); os.IsNotExist(err) {
-		return "", fmt.Errorf("no preserved worktree found for spec %q at %s", specName, wtPath)
+	if _, err := os.Stat(wtPath); err == nil {
+		return wtPath, nil
 	}
-	return wtPath, nil
+
+	// Worktree directory not found; try to find the branch instead
+	return debug2BranchWorktreeFn(gromitDir, specName)
 }
 
 // readDebug2EventLog reads and parses the JSONL event log from a spec worktree.

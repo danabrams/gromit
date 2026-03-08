@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -100,12 +101,21 @@ func TestReadDebug2EventLog_ParsesJSONL(t *testing.T) {
 
 func TestResolveDebug2Worktree_ReturnsErrorWhenMissing(t *testing.T) {
 	tmpDir := t.TempDir()
-	_, err := resolveDebug2Worktree(tmpDir, "nonexistent-spec")
+	specName := "nonexistent-spec"
+
+	// Mock branch finder to return an error when both worktree and branch are missing
+	orig := debug2BranchWorktreeFn
+	t.Cleanup(func() { debug2BranchWorktreeFn = orig })
+	debug2BranchWorktreeFn = func(gromitDir, specName string) (string, error) {
+		return "", fmt.Errorf("no preserved worktree or branch found for spec %q", specName)
+	}
+
+	_, err := resolveDebug2Worktree(tmpDir, specName)
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
-	if !strings.Contains(err.Error(), "no preserved worktree found") {
-		t.Errorf("error = %q, want to contain 'no preserved worktree found'", err.Error())
+	if !strings.Contains(err.Error(), "no preserved worktree or branch found") {
+		t.Errorf("error = %q, want to contain 'no preserved worktree or branch found'", err.Error())
 	}
 }
 
@@ -115,6 +125,29 @@ func TestResolveDebug2Worktree_FindsExistingWorktree(t *testing.T) {
 	wtPath := filepath.Join(tmpDir, "spec-worktrees", specName)
 	if err := os.MkdirAll(wtPath, 0o755); err != nil {
 		t.Fatal(err)
+	}
+
+	got, err := resolveDebug2Worktree(tmpDir, specName)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got != wtPath {
+		t.Errorf("got %q, want %q", got, wtPath)
+	}
+}
+
+func TestResolveDebug2Worktree_FallsBackToBranchWhenWorktreeMissing(t *testing.T) {
+	tmpDir := t.TempDir()
+	specName := "fallback-spec"
+	wtPath := filepath.Join(tmpDir, "spec-worktrees", specName)
+	// Don't create the worktree directory
+
+	// Mock the branch finder to return a valid path when worktree is missing
+	orig := debug2BranchWorktreeFn
+	t.Cleanup(func() { debug2BranchWorktreeFn = orig })
+	debug2BranchWorktreeFn = func(gromitDir, specName string) (string, error) {
+		// Simulate finding branch and returning a valid path
+		return wtPath, nil
 	}
 
 	got, err := resolveDebug2Worktree(tmpDir, specName)
