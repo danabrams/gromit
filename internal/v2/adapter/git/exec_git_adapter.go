@@ -3,6 +3,7 @@ package git
 import (
 	"context"
 	"fmt"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -124,8 +125,10 @@ func (a *ExecGitAdapter) RemoveWorktreeAndBranch(ctx context.Context, worktree s
 		return err
 	}
 	if !strings.HasPrefix(branch, "gromit/spec/") {
+		log.Printf("preserving non-gromit branch %s while removing worktree %s", branch, trimmed)
 		return nil
 	}
+	log.Printf("deleting managed spec branch %s after removing worktree %s", branch, trimmed)
 	out, err := runGitCommand(ctx, a.repoRoot, "branch", "-D", branch)
 	if err != nil {
 		return fmt.Errorf("git branch -D %s: %s: %w", branch, out, err)
