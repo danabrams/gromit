@@ -1349,6 +1349,74 @@ func TestSpecLoopCreatesEventsFileWhenTypedEmitterSet(t *testing.T) {
 	}
 }
 
+func TestSpecLoopTypedEventLogsStayScopedPerSpecRun(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	cfg := &config.Config{}
+
+	em := event.NewEmitter()
+	t.Cleanup(func() { em.Close() })
+
+	git := newFakeGitAdapter(t)
+	git.noRemove = true // preserve worktrees so logs survive for assertions
+	loopInstance, err := NewSpecLoop(
+		adapter.AdapterSet{
+			Git:         git,
+			LLM:         newFakeLLMAdapter(),
+			TaskTracker: newFakeTaskTrackerAdapter(),
+			Presenter:   newFakePresenterAdapter(t),
+		},
+		cfg, noopDependencyGate{},
+		WithTypedEmitter(em),
+		WithPlanStage(newFakePlanStage("spec-one")),
+		WithPresentStage(newFakePresentStage(), &present.SummaryContext{}),
+		WithDecomposeStage(newFakeDecomposeStage("spec-one")),
+		WithBeadLoop(newFakeBeadRunner()),
+		WithAcceptStage(newFakeAcceptStage()),
+	)
+	if err != nil {
+		t.Fatalf("create spec loop: %v", err)
+	}
+
+	if err := loopInstance.Run(ctx, "spec-one", nil); err != nil {
+		t.Fatalf("run spec-one: %v", err)
+	}
+	firstWorktree := git.lastWorktree
+	firstEventsPath := filepath.Join(firstWorktree, ".gromit", "v2", "events.jsonl")
+	if _, statErr := os.Stat(firstEventsPath); statErr != nil {
+		t.Fatalf("first events file missing: %v", statErr)
+	}
+
+	if err := loopInstance.Run(ctx, "spec-two", nil); err != nil {
+		t.Fatalf("run spec-two: %v", err)
+	}
+	secondWorktree := git.lastWorktree
+	if secondWorktree == firstWorktree {
+		t.Fatalf("expected distinct worktrees, got both %q", secondWorktree)
+	}
+	secondEventsPath := filepath.Join(secondWorktree, ".gromit", "v2", "events.jsonl")
+
+	// Ensure all queued events are drained before reading files.
+	em.Close()
+
+	firstData, err := os.ReadFile(firstEventsPath)
+	if err != nil {
+		t.Fatalf("read first events file: %v", err)
+	}
+	secondData, err := os.ReadFile(secondEventsPath)
+	if err != nil {
+		t.Fatalf("read second events file: %v", err)
+	}
+
+	if strings.Contains(string(firstData), "\"spec_id\":\"spec-two\"") {
+		t.Fatalf("first spec log should not contain second spec events: %s", firstData)
+	}
+	if !strings.Contains(string(secondData), "\"spec_id\":\"spec-two\"") {
+		t.Fatalf("second spec log missing its own events: %s", secondData)
+	}
+}
+
 func TestResumeWithGapAnalysis_FailureSummaryPopulated(t *testing.T) {
 	t.Parallel()
 
