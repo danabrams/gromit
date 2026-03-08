@@ -107,7 +107,7 @@ func (s *Stage) squash(ctx context.Context, specID string) (string, error) {
 	if s.squashGit == nil {
 		return "", nil
 	}
-	return pipeline.SquashPerBeadForPresentation(ctx, s.squashGit, s.ctx.Worktree, specID, s.ctx.BeadSummaries)
+	return squashPerBeadForPresentation(ctx, s.squashGit, s.ctx.Worktree, specID, s.ctx.BeadSummaries)
 }
 
 func (s *Stage) buildPresentation(req *stagepkg.Request) presentation.PresentationSummary {
