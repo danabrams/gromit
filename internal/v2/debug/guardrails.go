@@ -119,6 +119,9 @@ func extractPatchPaths(codePatch string) []string {
 func isPromptFragmentPath(path string) bool {
 	base := strings.ToLower(filepath.Base(path))
 
+	if strings.Contains(path, ".gromit/fragments/") || strings.Contains(path, "prompt/fragments/") {
+		return true
+	}
 	if strings.Contains(path, "fragments/") && strings.HasSuffix(base, ".md") {
 		return true
 	}
