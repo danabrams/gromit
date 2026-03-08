@@ -222,6 +222,17 @@ func displayDebug2EventLog(w io.Writer, events []map[string]interface{}) {
 	fmt.Fprintln(w)
 }
 
+func displayDebug2HistoryCommands(w io.Writer, specName, wtPath string) {
+	if w == nil {
+		return
+	}
+	branch := "gromit/spec/" + strings.TrimSpace(specName)
+	fmt.Fprintf(w, "Git history commands (worktree branch %s):\n", branch)
+	fmt.Fprintf(w, "  git -C %s log --oneline\n", wtPath)
+	fmt.Fprintf(w, "  git -C %s show <commit-hash>\n", wtPath)
+	fmt.Fprintln(w)
+}
+
 func marshalDebug2EventForDisplay(event map[string]interface{}) string {
 	if event == nil {
 		return "{}"
@@ -455,6 +466,7 @@ func debug2Impl(ctx context.Context, specName, gromitDir string, cfg *config.Con
 		return fmt.Errorf("reading event log: %w", err)
 	}
 	displayDebug2EventLog(debug2Stdout, events)
+	displayDebug2HistoryCommands(debug2Stdout, specName, wtPath)
 
 	gitAdapter := gitadapter.NewExecGitAdapter(".", gromitDir)
 	logEntries, err := gitAdapter.Log(ctx, wtPath, 100)
