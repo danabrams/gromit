@@ -3,9 +3,15 @@ package present
 import (
 	"context"
 	"errors"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/v2/adapter"
+	execgit "github.com/danabrams/gromit/internal/v2/adapter/git"
+	"github.com/danabrams/gromit/internal/v2/pipeline"
 	"github.com/danabrams/gromit/internal/v2/presentation"
 	v2review "github.com/danabrams/gromit/internal/v2/review"
 	"github.com/danabrams/gromit/internal/v2/stage"
@@ -223,5 +229,125 @@ func TestPresentStageSquashesPerBeadBeforePresenter(t *testing.T) {
 	}
 	if presenter.lastSpec != "spec-squash" {
 		t.Fatalf("presenter called with spec %q", presenter.lastSpec)
+	}
+}
+
+func TestPresentStageUsesSquashedPRBranchAndKeepsWorktreeHistory(t *testing.T) {
+	t.Parallel()
+
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not available")
+	}
+
+	repoDir := initPresentTestRepo(t)
+	worktreesDir := t.TempDir()
+	gitAdapter := execgit.NewExecGitAdapter(repoDir, worktreesDir)
+	committer := &pipeline.StageCommitter{Git: gitAdapter}
+
+	const specID = "spec-present-squash"
+	wtPath, err := gitAdapter.Checkout(context.Background(), specID)
+	if err != nil {
+		t.Fatalf("checkout: %v", err)
+	}
+
+	writeFile(t, filepath.Join(wtPath, "bead.txt"), "build")
+	if err := committer.CommitStage(context.Background(), wtPath, "001", "build", 1, "Proceed"); err != nil {
+		t.Fatalf("commit build stage: %v", err)
+	}
+	writeFile(t, filepath.Join(wtPath, "bead.txt"), "review")
+	if err := committer.CommitStage(context.Background(), wtPath, "001", "review", 1, "Proceed"); err != nil {
+		t.Fatalf("commit review stage: %v", err)
+	}
+
+	before, err := gitAdapter.Log(context.Background(), wtPath, 10)
+	if err != nil {
+		t.Fatalf("log before present: %v", err)
+	}
+	if len(before) < 3 {
+		t.Fatalf("expected at least 3 commits before present, got %d", len(before))
+	}
+
+	ctx := &SummaryContext{
+		Worktree:      wtPath,
+		BeadSummaries: []presentation.BeadSummary{{ID: "001", Title: "Feature"}},
+	}
+	presenter := &spyPresenter{}
+	stageInstance, err := New(nil, presenter, ctx, WithSquashGit(gitAdapter))
+	if err != nil {
+		t.Fatalf("new present stage: %v", err)
+	}
+
+	if _, err := stageInstance.Run(context.Background(), &stage.Request{Bead: stage.BeadInfo{ID: specID}}); err != nil {
+		t.Fatalf("present run: %v", err)
+	}
+
+	wantWorktreeBranch := presentation.SpecBranchName(specID)
+	gotWorktreeBranch := strings.TrimSpace(runGitInDir(t, wtPath, "rev-parse", "--abbrev-ref", "HEAD"))
+	if gotWorktreeBranch != wantWorktreeBranch {
+		t.Fatalf("worktree branch = %q, want %q", gotWorktreeBranch, wantWorktreeBranch)
+	}
+
+	after, err := gitAdapter.Log(context.Background(), wtPath, 10)
+	if err != nil {
+		t.Fatalf("log after present: %v", err)
+	}
+	if after[0].Message != before[0].Message || after[1].Message != before[1].Message {
+		t.Fatalf("worktree history changed: before=%q/%q after=%q/%q", before[0].Message, before[1].Message, after[0].Message, after[1].Message)
+	}
+
+	wantPRBranch := presentation.SpecPRBranchName(specID)
+	if presenter.lastSummary.SpecBranch != wantPRBranch {
+		t.Fatalf("summary.SpecBranch = %q, want %q", presenter.lastSummary.SpecBranch, wantPRBranch)
+	}
+
+	prSubjects := strings.Split(strings.TrimSpace(runGitInDir(t, wtPath, "log", "--format=%s", wantPRBranch, "-3")), "\n")
+	if len(prSubjects) < 2 {
+		t.Fatalf("pr branch commits = %v", prSubjects)
+	}
+	if prSubjects[0] != "bead 001: Feature" {
+		t.Fatalf("pr branch head commit = %q, want bead squash message", prSubjects[0])
+	}
+	if _, ok := pipeline.ParseCommitMessage(prSubjects[0]); ok {
+		t.Fatalf("pr branch head should not be structured stage commit: %q", prSubjects[0])
+	}
+}
+
+func initPresentTestRepo(t *testing.T) string {
+	t.Helper()
+	repoDir := t.TempDir()
+	for _, args := range [][]string{
+		{"init"},
+		{"config", "user.email", "test@example.com"},
+		{"config", "user.name", "Test User"},
+		{"commit", "--allow-empty", "-m", "initial"},
+	} {
+		runGitInDirWithRepo(t, repoDir, args...)
+	}
+	return repoDir
+}
+
+func runGitInDir(t *testing.T, dir string, args ...string) string {
+	t.Helper()
+	cmd := exec.Command("git", args...)
+	cmd.Dir = dir
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("git %v failed: %v\n%s", args, err, out)
+	}
+	return string(out)
+}
+
+func runGitInDirWithRepo(t *testing.T, repoDir string, args ...string) {
+	t.Helper()
+	_ = runGitInDir(t, repoDir, args...)
+}
+
+func writeFile(t *testing.T, path, content string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("write file: %v", err)
 	}
 }
