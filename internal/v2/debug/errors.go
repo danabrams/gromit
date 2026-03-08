@@ -6,4 +6,5 @@ var (
 	ErrNilFixContext      = errors.New("fix context is nil")
 	ErrNilLearnContext    = errors.New("learn context is nil")
 	ErrNilValidateContext = errors.New("validate context is nil")
+	ErrEmptyPath          = errors.New("path is empty")
 )
