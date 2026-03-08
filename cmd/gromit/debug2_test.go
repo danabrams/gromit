@@ -162,6 +162,34 @@ func TestResolveDebug2Worktree_FallsBackToBranchWhenWorktreeMissing(t *testing.T
 	}
 }
 
+func TestDebug2BranchWorktreeFn_FindsWorktreeForSpecBranch(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not available")
+	}
+
+	repoDir := t.TempDir()
+	gromitDir := filepath.Join(repoDir, ".gromit")
+	if err := os.MkdirAll(gromitDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	runGitDebug2(t, repoDir, "init")
+	runGitDebug2(t, repoDir, "config", "user.email", "tester@example.com")
+	runGitDebug2(t, repoDir, "config", "user.name", "Test User")
+	runGitDebug2(t, repoDir, "commit", "--allow-empty", "-m", "init")
+
+	altWorktree := filepath.Join(repoDir, "other-worktree")
+	runGitDebug2(t, repoDir, "worktree", "add", "-B", "gromit/spec/spec-x", altWorktree, "HEAD")
+
+	got, err := debug2BranchWorktreeFn(gromitDir, "spec-x")
+	if err != nil {
+		t.Fatalf("debug2BranchWorktreeFn() error = %v", err)
+	}
+	if got != altWorktree {
+		t.Fatalf("worktree path = %q, want %q", got, altWorktree)
+	}
+}
+
 func TestSelectDebug2FailureCommit_PicksMostRecentStructuredFail(t *testing.T) {
 	entries := []adapter.LogEntry{
 		{Hash: "hash1", Message: "not structured"},
