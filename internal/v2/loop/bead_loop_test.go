@@ -1881,6 +1881,46 @@ func TestBeadLoopStageCommitterUsesCanonicalStageNames(t *testing.T) {
 	}
 }
 
+func TestBeadLoopCommitAfterStageSkipsGateAndEpilogue(t *testing.T) {
+	t.Parallel()
+
+	sc := &mockStageCommitter{}
+	cfg := BeadLoopConfig{
+		Gate:           newNoopStage("gate"),
+		Build:          newNoopStage("build"),
+		Validate:       newNoopStage("validate"),
+		Review:         newNoopStage("review"),
+		Epilogue:       newNoopStage("epilogue"),
+		StageCommitter: sc,
+	}
+	loop, err := NewBeadLoop(cfg)
+	if err != nil {
+		t.Fatalf("NewBeadLoop: %v", err)
+	}
+	loop.stageIterations = make(map[stageIterationKey]int)
+
+	beadItem := &bead.Bead{ID: "bead-filter"}
+	if err := loop.commitAfterStage(context.Background(), beadItem, "gate", stage.DecisionProceed.String()); err != nil {
+		t.Fatalf("commit gate stage: %v", err)
+	}
+	if err := loop.commitAfterStage(context.Background(), beadItem, "epilogue", stage.DecisionProceed.String()); err != nil {
+		t.Fatalf("commit epilogue stage: %v", err)
+	}
+	if len(sc.calls) != 0 {
+		t.Fatalf("CommitStage called %d times for excluded stages, want 0", len(sc.calls))
+	}
+
+	if err := loop.commitAfterStage(context.Background(), beadItem, "build", stage.DecisionProceed.String()); err != nil {
+		t.Fatalf("commit build stage: %v", err)
+	}
+	if len(sc.calls) != 1 {
+		t.Fatalf("CommitStage called %d times after build, want 1", len(sc.calls))
+	}
+	if sc.calls[0].stageName != "build" {
+		t.Fatalf("committed stage = %q, want %q", sc.calls[0].stageName, "build")
+	}
+}
+
 func TestBeadLoopCallsStageCommitterAfterFailedStage(t *testing.T) {
 	t.Parallel()
 
