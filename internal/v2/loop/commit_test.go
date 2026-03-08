@@ -16,3 +16,22 @@ func TestCommitMessageBuild(t *testing.T) {
 		t.Fatalf("Build() = %q, want %q", got, want)
 	}
 }
+
+func TestParseCommitMessage(t *testing.T) {
+	got, ok := ParseCommitMessage("[bead:gromit-mo15p/review/iter:3] Retry")
+	if !ok {
+		t.Fatal("ParseCommitMessage() ok = false, want true")
+	}
+	if got.BeadID != "gromit-mo15p" {
+		t.Fatalf("BeadID = %q, want %q", got.BeadID, "gromit-mo15p")
+	}
+	if got.StageName != "review" {
+		t.Fatalf("StageName = %q, want %q", got.StageName, "review")
+	}
+	if got.Iteration != 3 {
+		t.Fatalf("Iteration = %d, want %d", got.Iteration, 3)
+	}
+	if got.Decision != "Retry" {
+		t.Fatalf("Decision = %q, want %q", got.Decision, "Retry")
+	}
+}
