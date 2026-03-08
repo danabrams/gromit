@@ -56,6 +56,36 @@ depends_on_index: array of 0-based indices of prerequisite beads in THIS output 
 The spec label will be added automatically: spec:%s
 `
 
+var remediationDecomposePromptTemplate = `# Remediation Decompose: %s
+
+You are creating TARGETED beads to address specific unmet acceptance criteria. Do NOT re-implement work that already exists.
+
+## Full Plan (for architectural context only)
+
+%s
+
+## Unmet Acceptance Criteria (create beads ONLY for these)
+
+%s
+
+## Skill Instructions
+
+%s
+
+## Output
+
+ONLY create beads that directly address the unmet criteria listed above. Do not create beads for criteria that have already been satisfied.
+
+Output ONLY a JSON array of bead definitions. No markdown, no explanations, no wrapper.
+Each bead must include: title, description, priority, acceptance_criteria, expected_outputs, covers_tasks, depends_on_index.
+
+expected_outputs: list each individual deliverable, function, or independently testable item as a separate entry.
+covers_tasks: list the 1-based Task numbers from the plan that this bead covers (only tasks related to the unmet criteria).
+depends_on_index: array of 0-based indices of prerequisite beads in THIS output array.
+
+The spec label will be added automatically: spec:%s
+`
+
 // Stage implements the decompose stage of the run loop.
 type Stage struct {
 	name           string
@@ -131,7 +161,13 @@ func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Resul
 		return nil, fmt.Errorf("read plan: %w", err)
 	}
 
-	promptText := fmt.Sprintf(s.promptTemplate, specID, string(planBody), skills.DecomposeSkill, specID)
+	var promptText string
+	gapAnalysis := s.resolveGapAnalysis(req)
+	if req.Remediation && gapAnalysis != "" {
+		promptText = fmt.Sprintf(remediationDecomposePromptTemplate, specID, string(planBody), gapAnalysis, skills.DecomposeSkill, specID)
+	} else {
+		promptText = fmt.Sprintf(s.promptTemplate, specID, string(planBody), skills.DecomposeSkill, specID)
+	}
 	// Resolve provider: prefer req.Provider, fall back to s.llm.
 	resolvedProvider := s.llm
 	if req.Provider != nil {
@@ -224,6 +260,40 @@ func (s *Stage) planPath(req *stagepkg.Request) (string, error) {
 		gromitDir = defaultGromitDir
 	}
 	return filepath.Join(root, gromitDir, v2DirName, planFileName), nil
+}
+
+func (s *Stage) resolveGapAnalysis(req *stagepkg.Request) string {
+	if ga := strings.TrimSpace(req.GapAnalysis); ga != "" {
+		return ga
+	}
+	if !req.Remediation {
+		return ""
+	}
+	path := s.gapAnalysisPath(req)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(data))
+}
+
+func (s *Stage) gapAnalysisPath(req *stagepkg.Request) string {
+	cfg := req.Config
+	if cfg == nil {
+		cfg = s.cfg
+	}
+	root := strings.TrimSpace(req.Worktree)
+	if root == "" && cfg != nil {
+		root = cfg.ProjectRoot
+	}
+	if root == "" {
+		root = "."
+	}
+	gromitDir := defaultGromitDir
+	if cfg != nil && cfg.Paths.GromitDir != "" {
+		gromitDir = cfg.Paths.GromitDir
+	}
+	return filepath.Join(root, gromitDir, v2DirName, gapFileName)
 }
 
 func (s *Stage) modelForPhase() string {

@@ -34,6 +34,11 @@ type WorktreeCleaner interface {
 	Cleanup(ctx context.Context, specID string) error
 }
 
+// gapSummaryProvider is implemented by artifacts that carry a gap analysis summary.
+type gapSummaryProvider interface {
+	GetGapSummary() string
+}
+
 var (
 	ErrSpecIDRequired               = errors.New("spec ID required")
 	ErrAcceptStageRequired          = errors.New("accept stage required")
@@ -73,7 +78,8 @@ func (r *RemediationRunner) Run(ctx context.Context, specID, worktree string) er
 			return err
 		}
 		if res != nil && res.Decision == stage.DecisionFail {
-			if err := r.executeRemediation(ctx, &req); err != nil {
+			gapAnalysis := extractGapSummary(res)
+			if err := r.executeRemediation(ctx, &req, gapAnalysis); err != nil {
 				return err
 			}
 			continue
@@ -92,13 +98,24 @@ func (r *RemediationRunner) cleanup(ctx context.Context, specID string) error {
 	return nil
 }
 
-func (r *RemediationRunner) executeRemediation(ctx context.Context, req *stage.Request) error {
+func extractGapSummary(res *stage.Result) string {
+	if res == nil || res.Artifacts == nil {
+		return ""
+	}
+	if gp, ok := res.Artifacts.(gapSummaryProvider); ok {
+		return gp.GetGapSummary()
+	}
+	return ""
+}
+
+func (r *RemediationRunner) executeRemediation(ctx context.Context, req *stage.Request, gapAnalysis string) error {
 	specID := req.Bead.ID
 	if !r.canRemediate() {
 		return r.handleGenerationCap(ctx, specID)
 	}
 
 	req.Remediation = true
+	req.GapAnalysis = gapAnalysis
 
 	if r.cfg.GapStage != nil {
 		if _, err := r.cfg.GapStage.Run(ctx, req); err != nil {

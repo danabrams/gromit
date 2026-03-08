@@ -118,7 +118,10 @@ func TestRunCreatesBeadsFromPlan(t *testing.T) {
 	}
 }
 
-func TestRunUsesGapAnalysisWhenRemediation(t *testing.T) {
+// TestRunIncrementsGenerationWhenRemediation verifies that Remediation=true increments the gen label.
+// Gap-scoped prompt behavior is tested in TestRunUsesGapScopedPromptWhenGapAnalysisProvided
+// and TestRunReadsGapAnalysisFromDiskWhenFieldEmpty.
+func TestRunIncrementsGenerationWhenRemediation(t *testing.T) {
 	t.Parallel()
 
 	tmpDir := t.TempDir()
@@ -243,6 +246,152 @@ func TestWithPromptTemplateIgnoresEmpty(t *testing.T) {
 
 	if stg.promptTemplate != defaultDecomposePromptTemplate {
 		t.Fatalf("expected default template when given whitespace, got: %q", stg.promptTemplate)
+	}
+}
+
+func TestRunUsesGapScopedPromptWhenGapAnalysisProvided(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	planDir := filepath.Join(tmpDir, ".gromit", "v2")
+	if err := os.MkdirAll(planDir, 0o755); err != nil {
+		t.Fatalf("mkdir plan dir: %v", err)
+	}
+	planContent := "# Full Plan\nTask 1: Build widget\nTask 2: Build gadget"
+	if err := os.WriteFile(filepath.Join(planDir, "plan.md"), []byte(planContent), 0o644); err != nil {
+		t.Fatalf("write plan: %v", err)
+	}
+
+	gapContent := "Criterion 3 failed: widgets don't commit events"
+
+	cfg := &config.Config{
+		ProjectRoot: tmpDir,
+		Paths:       config.PathsConfig{GromitDir: ".gromit"},
+	}
+
+	llmFake := &fakeLLM{
+		responses: []*llm.LLMResponse{{Success: true, Output: `[
+			{
+				"title": "fix widget commits",
+				"description": "add event commits to widgets",
+				"priority": "P1",
+				"acceptance_criteria": ["widgets commit events"],
+				"expected_outputs": ["commit after widget stage"],
+				"covers_tasks": [1],
+				"depends_on_index": []
+			},
+			{
+				"title": "verify widget events",
+				"description": "add tests for widget event commits",
+				"priority": "P1",
+				"acceptance_criteria": ["widget event tests pass"],
+				"expected_outputs": ["widget event test file"],
+				"covers_tasks": [2],
+				"depends_on_index": [0]
+			}
+		]`}},
+	}
+	tracker := &fakeTracker{}
+	stg, err := New(cfg, llmFake, tracker)
+	if err != nil {
+		t.Fatalf("create stage: %v", err)
+	}
+
+	req := &stagepkg.Request{
+		Bead:        stagepkg.BeadInfo{ID: "spec", Labels: []string{"gen:0"}},
+		Config:      cfg,
+		Remediation: true,
+		GapAnalysis: gapContent,
+	}
+
+	_, err = stg.Run(context.Background(), req)
+	if err != nil {
+		t.Fatalf("run stage: %v", err)
+	}
+
+	if len(llmFake.calls) == 0 {
+		t.Fatal("expected llm invocation")
+	}
+	prompt := llmFake.calls[0].Prompt
+	if !strings.Contains(prompt, planContent) {
+		t.Fatal("prompt missing plan content for context")
+	}
+	if !strings.Contains(prompt, gapContent) {
+		t.Fatal("prompt missing gap analysis content for scoping")
+	}
+	if !strings.Contains(prompt, "ONLY create beads") {
+		t.Fatal("prompt missing gap-scoping instruction")
+	}
+}
+
+func TestRunReadsGapAnalysisFromDiskWhenFieldEmpty(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	planDir := filepath.Join(tmpDir, ".gromit", "v2")
+	if err := os.MkdirAll(planDir, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	planContent := "# Plan\nTask 1: Build thing"
+	if err := os.WriteFile(filepath.Join(planDir, "plan.md"), []byte(planContent), 0o644); err != nil {
+		t.Fatalf("write plan: %v", err)
+	}
+	gapContent := "Criterion 5 failed: retries not preserved"
+	if err := os.WriteFile(filepath.Join(planDir, "gap-analysis.md"), []byte(gapContent), 0o644); err != nil {
+		t.Fatalf("write gap file: %v", err)
+	}
+
+	cfg := &config.Config{
+		ProjectRoot: tmpDir,
+		Paths:       config.PathsConfig{GromitDir: ".gromit"},
+	}
+
+	llmFake := &fakeLLM{
+		responses: []*llm.LLMResponse{{Success: true, Output: `[
+			{
+				"title": "preserve retries",
+				"description": "keep retry commits",
+				"priority": "P1",
+				"acceptance_criteria": ["retries preserved"],
+				"expected_outputs": ["separate retry commits"],
+				"covers_tasks": [1],
+				"depends_on_index": []
+			},
+			{
+				"title": "verify retry preservation",
+				"description": "add tests for retry preservation",
+				"priority": "P1",
+				"acceptance_criteria": ["retry tests pass"],
+				"expected_outputs": ["retry test file"],
+				"covers_tasks": [1],
+				"depends_on_index": [0]
+			}
+		]`}},
+	}
+	tracker := &fakeTracker{}
+	stg, err := New(cfg, llmFake, tracker)
+	if err != nil {
+		t.Fatalf("create stage: %v", err)
+	}
+
+	req := &stagepkg.Request{
+		Bead:        stagepkg.BeadInfo{ID: "spec", Labels: []string{"gen:0"}},
+		Config:      cfg,
+		Remediation: true,
+		// GapAnalysis intentionally empty — should fall back to disk
+	}
+
+	_, err = stg.Run(context.Background(), req)
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+
+	prompt := llmFake.calls[0].Prompt
+	if !strings.Contains(prompt, gapContent) {
+		t.Fatal("prompt missing gap content from disk fallback")
+	}
+	if !strings.Contains(prompt, "ONLY create beads") {
+		t.Fatal("prompt missing gap-scoping instruction from disk fallback")
 	}
 }
 

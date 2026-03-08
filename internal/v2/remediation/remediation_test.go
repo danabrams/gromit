@@ -203,6 +203,107 @@ func TestRemediationRunnerRun_worktreePopulatedInRequest(t *testing.T) {
 	}
 }
 
+func TestRemediationRunnerPassesGapAnalysisToDecompose(t *testing.T) {
+	t.Parallel()
+
+	gapText := "Criterion 1 failed: commits not produced"
+
+	acceptCalls := 0
+	accept := &testStage{
+		name: "accept",
+		run: func(ctx context.Context, req *stage.Request) (*stage.Result, error) {
+			acceptCalls++
+			if acceptCalls == 1 {
+				return &stage.Result{
+					Decision:  stage.DecisionFail,
+					Artifacts: &gapArtifacts{gap: gapText},
+				}, nil
+			}
+			return &stage.Result{Decision: stage.DecisionProceed}, nil
+		},
+	}
+
+	var capturedGap string
+	decompose := &testStage{
+		name: "decompose",
+		run: func(ctx context.Context, req *stage.Request) (*stage.Result, error) {
+			capturedGap = req.GapAnalysis
+			return &stage.Result{
+				Artifacts: &stage.DecomposeArtifacts{
+					Beads: []*bead.Bead{{ID: "gap-bead"}},
+				},
+			}, nil
+		},
+	}
+
+	runner := newRunnerForRemediationCycle(accept, decompose, &testBeadRunner{}, 1)
+	if err := runner.Run(context.Background(), "spec-gap", ""); err != nil {
+		t.Fatalf("run failed: %v", err)
+	}
+
+	if capturedGap != gapText {
+		t.Fatalf("gap analysis = %q, want %q", capturedGap, gapText)
+	}
+}
+
+func TestRemediationRunnerGapAnalysisFlowsToDecompose(t *testing.T) {
+	t.Parallel()
+
+	gapText := "Criterion 1 failed: no stage commits\nCriterion 3 failed: no event log"
+
+	acceptCalls := 0
+	accept := &testStage{
+		name: "accept",
+		run: func(ctx context.Context, req *stage.Request) (*stage.Result, error) {
+			acceptCalls++
+			if acceptCalls == 1 {
+				return &stage.Result{
+					Decision:  stage.DecisionFail,
+					Artifacts: &gapArtifacts{gap: gapText},
+				}, nil
+			}
+			return &stage.Result{Decision: stage.DecisionProceed}, nil
+		},
+	}
+
+	var capturedReq *stage.Request
+	decompose := &testStage{
+		name: "decompose",
+		run: func(ctx context.Context, req *stage.Request) (*stage.Result, error) {
+			capturedReq = req
+			return &stage.Result{
+				Artifacts: &stage.DecomposeArtifacts{
+					Beads: []*bead.Bead{{ID: "targeted-bead"}},
+				},
+			}, nil
+		},
+	}
+
+	runner := newRunnerForRemediationCycle(accept, decompose, &testBeadRunner{}, 1)
+	if err := runner.Run(context.Background(), "spec-gap-flow", ""); err != nil {
+		t.Fatalf("run failed: %v", err)
+	}
+
+	if capturedReq == nil {
+		t.Fatal("decompose was not called")
+	}
+	if capturedReq.GapAnalysis != gapText {
+		t.Fatalf("GapAnalysis = %q, want %q", capturedReq.GapAnalysis, gapText)
+	}
+	if !capturedReq.Remediation {
+		t.Fatal("Remediation flag not set")
+	}
+}
+
+// gapArtifacts is a test helper implementing the gapSummaryProvider interface.
+type gapArtifacts struct {
+	gap string
+}
+
+func (g *gapArtifacts) GetGapSummary() string {
+	return g.gap
+}
+
 func newRunnerForSpecValidation() *RemediationRunner {
 	return NewRemediationRunner(RemediationRunnerConfig{})
 }
