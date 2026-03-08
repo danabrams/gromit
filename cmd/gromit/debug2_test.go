@@ -196,6 +196,22 @@ func TestDebug2BranchWorktreeFn_FindsWorktreeForSpecBranch(t *testing.T) {
 	}
 }
 
+func TestDebug2BranchWorktreeFn_RejectsInvalidSpecName(t *testing.T) {
+	tmpDir := t.TempDir()
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	if err := os.MkdirAll(gromitDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := debug2BranchWorktreeFn(gromitDir, "../bad-spec")
+	if err == nil {
+		t.Fatal("expected error for invalid spec name, got nil")
+	}
+	if !strings.Contains(err.Error(), "invalid spec name") {
+		t.Fatalf("error = %q, want to contain %q", err.Error(), "invalid spec name")
+	}
+}
+
 func TestSelectDebug2FailureCommit_PicksMostRecentStructuredFail(t *testing.T) {
 	entries := []adapter.LogEntry{
 		{Hash: "hash1", Message: "not structured"},
