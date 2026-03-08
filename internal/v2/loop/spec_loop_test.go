@@ -1109,10 +1109,11 @@ type fakeSpecStageCommitter struct {
 type specStageCommitCall struct {
 	stageName string
 	beadID    string
+	iteration int
 }
 
-func (f *fakeSpecStageCommitter) CommitStage(_ context.Context, _, beadID, stageName string, _ int, _ string) error {
-	f.calls = append(f.calls, specStageCommitCall{stageName: stageName, beadID: beadID})
+func (f *fakeSpecStageCommitter) CommitStage(_ context.Context, _, beadID, stageName string, iteration int, _ string) error {
+	f.calls = append(f.calls, specStageCommitCall{stageName: stageName, beadID: beadID, iteration: iteration})
 	return nil
 }
 
@@ -1342,6 +1343,44 @@ func TestSpecLoopCommitsAfterPlanStage(t *testing.T) {
 
 	if !sc.hasCall("plan") {
 		t.Fatalf("CommitStage not called with 'plan'; calls: %v", sc.calls)
+	}
+}
+
+func TestSpecLoopCommitsUsePositiveIterationForSpecStages(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	specID := "spec-commit-positive-iteration"
+	cfg := &config.Config{}
+
+	sc := &fakeSpecStageCommitter{}
+	loopInstance, err := NewSpecLoop(
+		adapter.AdapterSet{
+			Git:         newFakeGitAdapter(t),
+			LLM:         newFakeLLMAdapter(),
+			TaskTracker: newFakeTaskTrackerAdapter(),
+			Presenter:   newFakePresenterAdapter(t),
+		},
+		cfg, noopDependencyGate{},
+		WithStageCommitter(sc),
+		WithPlanStage(newFakePlanStage(specID)),
+		WithPresentStage(newFakePresentStage(), &present.SummaryContext{}),
+		WithDecomposeStage(newFakeDecomposeStage(specID)),
+		WithBeadLoop(newFakeBeadRunner()),
+		WithAcceptStage(newFakeAcceptStage()),
+	)
+	if err != nil {
+		t.Fatalf("create spec loop: %v", err)
+	}
+
+	if err := loopInstance.Run(ctx, specID, nil); err != nil {
+		t.Fatalf("run: %v", err)
+	}
+
+	for _, call := range sc.calls {
+		if call.iteration <= 0 {
+			t.Fatalf("stage %q iteration = %d, want > 0", call.stageName, call.iteration)
+		}
 	}
 }
 
