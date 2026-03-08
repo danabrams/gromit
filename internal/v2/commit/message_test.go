@@ -42,6 +42,19 @@ func TestParseMessageValidatesRequiredFields(t *testing.T) {
 	}
 }
 
+func TestParseMessageRejectsInvalidBeadID(t *testing.T) {
+	tests := []string{
+		"[bead:gromit mo15p/review/iter:1] Retry",
+		"[bead:InvalidID/review/iter:1] Retry",
+	}
+
+	for _, input := range tests {
+		if _, err := ParseMessage(input); err == nil {
+			t.Fatalf("ParseMessage(%q) error = nil, want non-nil", input)
+		}
+	}
+}
+
 func TestFormatMessageSpecStage(t *testing.T) {
 	got := FormatMessage("", "plan", 1, "Proceed")
 	want := "[spec/plan/iter:1] Proceed"
