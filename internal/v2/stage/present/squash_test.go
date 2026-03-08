@@ -102,3 +102,50 @@ func TestBuildSquashSegments_onlyIncludesPerBeadStages(t *testing.T) {
 		}
 	}
 }
+
+func TestBuildSquashSegments_groupsInterleavedCommitsByBeadID(t *testing.T) {
+	allowedBeads := map[string]struct{}{
+		"001": {},
+		"002": {},
+	}
+
+	prefix := []adapter.LogEntry{
+		{Hash: "h6", Message: "[bead:001/review/iter:1] Proceed"},
+		{Hash: "h5", Message: "[bead:002/validate/iter:1] Proceed"},
+		{Hash: "h4", Message: "[bead:001/validate/iter:1] Proceed"},
+		{Hash: "h3", Message: "[bead:002/build/iter:1] Proceed"},
+		{Hash: "h2", Message: "[bead:001/build/iter:1] Proceed"},
+		{Hash: "h1", Message: "[bead:spec/plan/iter:1] Proceed"},
+	}
+
+	segments := buildSquashSegments(prefix, allowedBeads)
+	if len(segments) != 2 {
+		t.Fatalf("segments len = %d, want 2 (%v)", len(segments), segments)
+	}
+
+	if segments[0].beadID != "001" {
+		t.Fatalf("segments[0].beadID = %q, want %q", segments[0].beadID, "001")
+	}
+	want001 := []string{"h2", "h4", "h6"}
+	if len(segments[0].hashes) != len(want001) {
+		t.Fatalf("segments[0].hashes len = %d, want %d", len(segments[0].hashes), len(want001))
+	}
+	for i := range want001 {
+		if segments[0].hashes[i] != want001[i] {
+			t.Fatalf("segments[0].hashes[%d] = %q, want %q", i, segments[0].hashes[i], want001[i])
+		}
+	}
+
+	if segments[1].beadID != "002" {
+		t.Fatalf("segments[1].beadID = %q, want %q", segments[1].beadID, "002")
+	}
+	want002 := []string{"h3", "h5"}
+	if len(segments[1].hashes) != len(want002) {
+		t.Fatalf("segments[1].hashes len = %d, want %d", len(segments[1].hashes), len(want002))
+	}
+	for i := range want002 {
+		if segments[1].hashes[i] != want002[i] {
+			t.Fatalf("segments[1].hashes[%d] = %q, want %q", i, segments[1].hashes[i], want002[i])
+		}
+	}
+}
