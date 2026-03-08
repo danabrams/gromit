@@ -22,7 +22,7 @@ import (
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
 )
 
-func TestIntegration_FileSubscriberPreservesLegacySubscriberFlow(t *testing.T) {
+func TestIntegration_FileSubscriberPreservesLegacySubscriberFlowCompat(t *testing.T) {
 	t.Parallel()
 
 	specID := "spec-subscriber-compat"

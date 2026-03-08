@@ -1386,6 +1386,49 @@ func TestSpecLoopCommitsAfterPlanStage(t *testing.T) {
 	}
 }
 
+func TestSpecLoopCommitsOnlyPlanAndDecomposeStages(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	specID := "spec-commit-plan-decompose-only"
+	cfg := &config.Config{}
+
+	sc := &fakeSpecStageCommitter{}
+	loopInstance, err := NewSpecLoop(
+		adapter.AdapterSet{
+			Git:         newFakeGitAdapter(t),
+			LLM:         newFakeLLMAdapter(),
+			TaskTracker: newFakeTaskTrackerAdapter(),
+			Presenter:   newFakePresenterAdapter(t),
+		},
+		cfg, noopDependencyGate{},
+		WithStageCommitter(sc),
+		WithPlanStage(newFakePlanStage(specID)),
+		WithPresentStage(newFakePresentStage(), &present.SummaryContext{}),
+		WithDecomposeStage(newFakeDecomposeStage(specID)),
+		WithBeadLoop(newFakeBeadRunner()),
+		WithAcceptStage(newFakeAcceptStage()),
+	)
+	if err != nil {
+		t.Fatalf("create spec loop: %v", err)
+	}
+
+	if err := loopInstance.Run(ctx, specID, nil); err != nil {
+		t.Fatalf("run: %v", err)
+	}
+
+	if len(sc.calls) != 2 {
+		t.Fatalf("CommitStage called %d times, want 2 (plan + decompose)", len(sc.calls))
+	}
+	stages := map[string]bool{}
+	for _, call := range sc.calls {
+		stages[call.stageName] = true
+	}
+	if !stages["plan"] || !stages["decompose"] {
+		t.Fatalf("CommitStage stages = %v, want plan + decompose only", sc.calls)
+	}
+}
+
 func TestSpecLoopCommitsUsePositiveIterationForSpecStages(t *testing.T) {
 	t.Parallel()
 
