@@ -46,6 +46,21 @@ func TestIntegrationImmutable_CommitPerStageFlowCreatesStructuredCommits(t *test
 	})
 }
 
+func TestIntegrationImmutable_StructuredCommitsFollowStageOrderPerBead(t *testing.T) {
+	t.Parallel()
+
+	result := runImmutableSpec(t, immutableSpecConfig{
+		specID: "immutable-stage-order-multi-bead",
+		beads: immutableBeads(
+			immutableBead("bead-001", "First bead"),
+			immutableBead("bead-002", "Second bead"),
+		),
+	})
+
+	commits := collectStructuredStageCommits(t, result.repoRoot, result.sourceBranch, 64)
+	assertStageSequencePerBead(t, commits, []string{"build", "validate", "review"}, []string{"bead-001", "bead-002"})
+}
+
 func TestIntegrationImmutable_EventLogSnapshotsRemainCumulative(t *testing.T) {
 	t.Parallel()
 
