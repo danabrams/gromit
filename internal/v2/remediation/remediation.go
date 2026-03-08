@@ -98,6 +98,8 @@ func (r *RemediationRunner) executeRemediation(ctx context.Context, req *stage.R
 		return r.handleGenerationCap(ctx, specID)
 	}
 
+	req.Remediation = true
+
 	if r.cfg.GapStage != nil {
 		if _, err := r.cfg.GapStage.Run(ctx, req); err != nil {
 			return err
