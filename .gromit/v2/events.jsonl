@@ -1,0 +1,193 @@
+{"schema_version":1,"timestamp":"2026-03-07T15:34:50.539989-05:00","type":"spec.started","spec_id":"v2-loop-routing-and-resume","worktree":"/Users/dabrams/gromit/.gromit/spec-worktrees/v2-loop-routing-and-resume"}
+{"schema_version":1,"timestamp":"2026-03-07T15:41:52.723564-05:00","type":"bead.started","bead_id":"gromit-0xxdf","bead_title":"Add unit tests for gap analysis","iteration":1}
+{"schema_version":1,"timestamp":"2026-03-07T15:41:52.723575-05:00","type":"stage.started","stage_name":"gate:default","bead_id":"gromit-0xxdf","iteration":1}
+{"schema_version":1,"timestamp":"2026-03-07T15:41:52.868575-05:00","type":"stage.completed","stage_name":"gate:default","bead_id":"gromit-0xxdf","iteration":1,"success":true,"duration":144998916}
+{"schema_version":1,"timestamp":"2026-03-07T15:41:52.868582-05:00","type":"bead.completed","bead_id":"gromit-0xxdf","bead_title":"Add unit tests for gap analysis","iteration":1,"success":false}
+{"schema_version":1,"timestamp":"2026-03-07T15:41:52.868605-05:00","type":"bead.started","bead_id":"gromit-1b6ks","bead_title":"Add unit tests for Router ratio balancing and fallback","iteration":2}
+{"schema_version":1,"timestamp":"2026-03-07T15:41:52.868606-05:00","type":"stage.started","stage_name":"gate:default","bead_id":"gromit-1b6ks","iteration":2}
+{"schema_version":1,"timestamp":"2026-03-07T15:41:53.007742-05:00","type":"stage.completed","stage_name":"gate:default","bead_id":"gromit-1b6ks","iteration":2,"success":true,"duration":139134708}
+{"schema_version":1,"timestamp":"2026-03-07T15:41:53.007751-05:00","type":"bead.completed","bead_id":"gromit-1b6ks","bead_title":"Add unit tests for Router ratio balancing and fallback","iteration":2,"success":false}
+{"schema_version":1,"timestamp":"2026-03-07T15:41:53.007774-05:00","type":"bead.started","bead_id":"gromit-1fuf8","bead_title":"Add integration tests for gate re-queue on block","iteration":3}
+{"schema_version":1,"timestamp":"2026-03-07T15:41:53.007777-05:00","type":"stage.started","stage_name":"gate:default","bead_id":"gromit-1fuf8","iteration":3}
+{"schema_version":1,"timestamp":"2026-03-07T15:41:53.149926-05:00","type":"stage.completed","stage_name":"gate:default","bead_id":"gromit-1fuf8","iteration":3,"success":true,"duration":142148250}
+{"schema_version":1,"timestamp":"2026-03-07T15:41:53.149934-05:00","type":"bead.completed","bead_id":"gromit-1fuf8","bead_title":"Add integration tests for gate re-queue on block","iteration":3,"success":false}
+{"schema_version":1,"timestamp":"2026-03-07T15:41:53.149955-05:00","type":"bead.started","bead_id":"gromit-20962","bead_title":"Expand remediation runner signature for worktree propagation","iteration":4}
+{"schema_version":1,"timestamp":"2026-03-07T15:41:53.149957-05:00","type":"stage.started","stage_name":"gate:default","bead_id":"gromit-20962","iteration":4}
+{"schema_version":1,"timestamp":"2026-03-07T15:41:53.22076-05:00","type":"stage.completed","stage_name":"gate:default","bead_id":"gromit-20962","iteration":4,"success":true,"duration":70802833}
+{"schema_version":1,"timestamp":"2026-03-07T15:41:53.220774-05:00","type":"stage.started","stage_name":"build:default","bead_id":"gromit-20962","iteration":4}
+{"schema_version":1,"timestamp":"2026-03-07T15:46:28.774669-05:00","type":"stage.completed","stage_name":"build:default","bead_id":"gromit-20962","iteration":4,"success":true,"duration":275552838208}
+{"schema_version":1,"timestamp":"2026-03-07T15:46:28.850326-05:00","type":"stage.started","stage_name":"validate:default","bead_id":"gromit-20962","iteration":4}
+{"schema_version":1,"timestamp":"2026-03-07T15:46:29.204252-05:00","type":"stage.completed","stage_name":"validate:default","bead_id":"gromit-20962","iteration":4,"success":true,"duration":353916209}
+{"schema_version":1,"timestamp":"2026-03-07T15:46:29.262226-05:00","type":"stage.started","stage_name":"review:default","bead_id":"gromit-20962","iteration":4}
+{"schema_version":1,"timestamp":"2026-03-07T15:46:29.262237-05:00","type":"stage.completed","stage_name":"review:default","bead_id":"gromit-20962","iteration":4,"success":true,"duration":5708}
+{"schema_version":1,"timestamp":"2026-03-07T15:46:29.309132-05:00","type":"stage.started","stage_name":"epilogue:default","bead_id":"gromit-20962","iteration":4}
+{"schema_version":1,"timestamp":"2026-03-07T15:46:29.403204-05:00","type":"stage.completed","stage_name":"epilogue:default","bead_id":"gromit-20962","iteration":4,"success":true,"duration":94064750}
+{"schema_version":1,"timestamp":"2026-03-07T15:46:29.403212-05:00","type":"bead.completed","bead_id":"gromit-20962","bead_title":"Expand remediation runner signature for worktree propagation","iteration":4,"success":true}
+{"schema_version":1,"timestamp":"2026-03-07T15:46:29.403244-05:00","type":"bead.started","bead_id":"gromit-61cbs","bead_title":"Add unit tests for phase filtering and scoping in prompt assembler","iteration":5}
+{"schema_version":1,"timestamp":"2026-03-07T15:46:29.403247-05:00","type":"stage.started","stage_name":"gate:default","bead_id":"gromit-61cbs","iteration":5}
+{"schema_version":1,"timestamp":"2026-03-07T15:46:29.548508-05:00","type":"stage.completed","stage_name":"gate:default","bead_id":"gromit-61cbs","iteration":5,"success":true,"duration":145260542}
+{"schema_version":1,"timestamp":"2026-03-07T15:46:29.548515-05:00","type":"bead.completed","bead_id":"gromit-61cbs","bead_title":"Add unit tests for phase filtering and scoping in prompt assembler","iteration":5,"success":false}
+{"schema_version":1,"timestamp":"2026-03-07T15:46:29.548533-05:00","type":"bead.started","bead_id":"gromit-7a6rt","bead_title":"Implement topological sort for beads","iteration":6}
+{"schema_version":1,"timestamp":"2026-03-07T15:46:29.548534-05:00","type":"stage.started","stage_name":"gate:default","bead_id":"gromit-7a6rt","iteration":6}
+{"schema_version":1,"timestamp":"2026-03-07T15:46:29.618854-05:00","type":"stage.completed","stage_name":"gate:default","bead_id":"gromit-7a6rt","iteration":6,"success":true,"duration":70319125}
+{"schema_version":1,"timestamp":"2026-03-07T15:46:29.618862-05:00","type":"stage.started","stage_name":"build:default","bead_id":"gromit-7a6rt","iteration":6}
+{"schema_version":1,"timestamp":"2026-03-07T15:49:49.764385-05:00","type":"stage.completed","stage_name":"build:default","bead_id":"gromit-7a6rt","iteration":6,"success":true,"duration":200144753750}
+{"schema_version":1,"timestamp":"2026-03-07T15:49:49.846022-05:00","type":"stage.started","stage_name":"validate:default","bead_id":"gromit-7a6rt","iteration":6}
+{"schema_version":1,"timestamp":"2026-03-07T15:49:49.886532-05:00","type":"stage.completed","stage_name":"validate:default","bead_id":"gromit-7a6rt","iteration":6,"success":true,"duration":40499625}
+{"schema_version":1,"timestamp":"2026-03-07T15:49:49.934313-05:00","type":"stage.started","stage_name":"review:default","bead_id":"gromit-7a6rt","iteration":6}
+{"schema_version":1,"timestamp":"2026-03-07T15:49:49.934326-05:00","type":"stage.completed","stage_name":"review:default","bead_id":"gromit-7a6rt","iteration":6,"success":true,"duration":1542}
+{"schema_version":1,"timestamp":"2026-03-07T15:49:49.981691-05:00","type":"stage.started","stage_name":"epilogue:default","bead_id":"gromit-7a6rt","iteration":6}
+{"schema_version":1,"timestamp":"2026-03-07T15:49:50.337598-05:00","type":"stage.completed","stage_name":"epilogue:default","bead_id":"gromit-7a6rt","iteration":6,"success":true,"duration":355892459}
+{"schema_version":1,"timestamp":"2026-03-07T15:49:50.337643-05:00","type":"bead.completed","bead_id":"gromit-7a6rt","bead_title":"Implement topological sort for beads","iteration":6,"success":true}
+{"schema_version":1,"timestamp":"2026-03-07T15:49:50.337705-05:00","type":"bead.started","bead_id":"gromit-8yarv","bead_title":"Wire budget shaping into Assemble workflow","iteration":7}
+{"schema_version":1,"timestamp":"2026-03-07T15:49:50.337708-05:00","type":"stage.started","stage_name":"gate:default","bead_id":"gromit-8yarv","iteration":7}
+{"schema_version":1,"timestamp":"2026-03-07T15:49:50.500314-05:00","type":"stage.completed","stage_name":"gate:default","bead_id":"gromit-8yarv","iteration":7,"success":true,"duration":162603292}
+{"schema_version":1,"timestamp":"2026-03-07T15:49:50.50032-05:00","type":"bead.completed","bead_id":"gromit-8yarv","bead_title":"Wire budget shaping into Assemble workflow","iteration":7,"success":false}
+{"schema_version":1,"timestamp":"2026-03-07T15:49:50.500346-05:00","type":"bead.started","bead_id":"gromit-9z0j1","bead_title":"Implement budget shaping with scope adjustment in PromptAssembler","iteration":8}
+{"schema_version":1,"timestamp":"2026-03-07T15:49:50.500347-05:00","type":"stage.started","stage_name":"gate:default","bead_id":"gromit-9z0j1","iteration":8}
+{"schema_version":1,"timestamp":"2026-03-07T15:49:50.641639-05:00","type":"stage.completed","stage_name":"gate:default","bead_id":"gromit-9z0j1","iteration":8,"success":true,"duration":141290792}
+{"schema_version":1,"timestamp":"2026-03-07T15:49:50.641648-05:00","type":"bead.completed","bead_id":"gromit-9z0j1","bead_title":"Implement budget shaping with scope adjustment in PromptAssembler","iteration":8,"success":false}
+{"schema_version":1,"timestamp":"2026-03-07T15:49:50.641661-05:00","type":"bead.started","bead_id":"gromit-atr10","bead_title":"Wire Router into spec loop for plan/decompose/accept phases","iteration":9}
+{"schema_version":1,"timestamp":"2026-03-07T15:49:50.641662-05:00","type":"stage.started","stage_name":"gate:default","bead_id":"gromit-atr10","iteration":9}
+{"schema_version":1,"timestamp":"2026-03-07T15:49:50.787496-05:00","type":"stage.completed","stage_name":"gate:default","bead_id":"gromit-atr10","iteration":9,"success":true,"duration":145832917}
+{"schema_version":1,"timestamp":"2026-03-07T15:49:50.787502-05:00","type":"bead.completed","bead_id":"gromit-atr10","bead_title":"Wire Router into spec loop for plan/decompose/accept phases","iteration":9,"success":false}
+{"schema_version":1,"timestamp":"2026-03-07T15:49:50.787523-05:00","type":"bead.started","bead_id":"gromit-cufx0","bead_title":"Add integration tests for resume with gap analysis and revalidation","iteration":10}
+{"schema_version":1,"timestamp":"2026-03-07T15:49:50.787524-05:00","type":"stage.started","stage_name":"gate:default","bead_id":"gromit-cufx0","iteration":10}
+{"schema_version":1,"timestamp":"2026-03-07T15:49:50.997225-05:00","type":"stage.completed","stage_name":"gate:default","bead_id":"gromit-cufx0","iteration":10,"success":true,"duration":209699959}
+{"schema_version":1,"timestamp":"2026-03-07T15:49:50.997233-05:00","type":"stage.started","stage_name":"build:default","bead_id":"gromit-cufx0","iteration":10}
+{"schema_version":1,"timestamp":"2026-03-07T16:04:06.775614-05:00","type":"stage.completed","stage_name":"build:default","bead_id":"gromit-cufx0","iteration":10,"success":true,"duration":855775087625}
+{"schema_version":1,"timestamp":"2026-03-07T16:04:06.849524-05:00","type":"stage.started","stage_name":"validate:default","bead_id":"gromit-cufx0","iteration":10}
+{"schema_version":1,"timestamp":"2026-03-07T16:04:06.889062-05:00","type":"stage.completed","stage_name":"validate:default","bead_id":"gromit-cufx0","iteration":10,"success":true,"duration":39529375}
+{"schema_version":1,"timestamp":"2026-03-07T16:04:06.937184-05:00","type":"stage.started","stage_name":"review:default","bead_id":"gromit-cufx0","iteration":10}
+{"schema_version":1,"timestamp":"2026-03-07T16:04:06.937206-05:00","type":"stage.completed","stage_name":"review:default","bead_id":"gromit-cufx0","iteration":10,"success":true,"duration":13334}
+{"schema_version":1,"timestamp":"2026-03-07T16:04:06.98495-05:00","type":"stage.started","stage_name":"epilogue:default","bead_id":"gromit-cufx0","iteration":10}
+{"schema_version":1,"timestamp":"2026-03-07T16:04:07.131506-05:00","type":"stage.completed","stage_name":"epilogue:default","bead_id":"gromit-cufx0","iteration":10,"success":true,"duration":146545875}
+{"schema_version":1,"timestamp":"2026-03-07T16:04:07.131522-05:00","type":"bead.completed","bead_id":"gromit-cufx0","bead_title":"Add integration tests for resume with gap analysis and revalidation","iteration":10,"success":true}
+{"schema_version":1,"timestamp":"2026-03-07T16:04:07.131574-05:00","type":"bead.started","bead_id":"gromit-d2rpx","bead_title":"Instantiate and wire Router in run2 command","iteration":11}
+{"schema_version":1,"timestamp":"2026-03-07T16:04:07.131578-05:00","type":"stage.started","stage_name":"gate:default","bead_id":"gromit-d2rpx","iteration":11}
+{"schema_version":1,"timestamp":"2026-03-07T16:04:07.2793-05:00","type":"stage.completed","stage_name":"gate:default","bead_id":"gromit-d2rpx","iteration":11,"success":true,"duration":147720292}
+{"schema_version":1,"timestamp":"2026-03-07T16:04:07.279308-05:00","type":"bead.completed","bead_id":"gromit-d2rpx","bead_title":"Instantiate and wire Router in run2 command","iteration":11,"success":false}
+{"schema_version":1,"timestamp":"2026-03-07T16:04:07.279323-05:00","type":"bead.started","bead_id":"gromit-d4134","bead_title":"Add integration tests for bead loop routing and escalation","iteration":12}
+{"schema_version":1,"timestamp":"2026-03-07T16:04:07.279324-05:00","type":"stage.started","stage_name":"gate:default","bead_id":"gromit-d4134","iteration":12}
+{"schema_version":1,"timestamp":"2026-03-07T16:04:07.423585-05:00","type":"stage.completed","stage_name":"gate:default","bead_id":"gromit-d4134","iteration":12,"success":true,"duration":144260083}
+{"schema_version":1,"timestamp":"2026-03-07T16:04:07.42359-05:00","type":"bead.completed","bead_id":"gromit-d4134","bead_title":"Add integration tests for bead loop routing and escalation","iteration":12,"success":false}
+{"schema_version":1,"timestamp":"2026-03-07T16:04:07.423608-05:00","type":"bead.started","bead_id":"gromit-ew1l8","bead_title":"Implement Router ratio balancing and phase preferences logic","iteration":13}
+{"schema_version":1,"timestamp":"2026-03-07T16:04:07.423608-05:00","type":"stage.started","stage_name":"gate:default","bead_id":"gromit-ew1l8","iteration":13}
+{"schema_version":1,"timestamp":"2026-03-07T16:04:07.569431-05:00","type":"stage.completed","stage_name":"gate:default","bead_id":"gromit-ew1l8","iteration":13,"success":true,"duration":145821958}
+{"schema_version":1,"timestamp":"2026-03-07T16:04:07.569434-05:00","type":"bead.completed","bead_id":"gromit-ew1l8","bead_title":"Implement Router ratio balancing and phase preferences logic","iteration":13,"success":false}
+{"schema_version":1,"timestamp":"2026-03-07T16:04:07.569444-05:00","type":"bead.started","bead_id":"gromit-f4ouz","bead_title":"Add scoped CLAUDE.md loading to PromptAssembler","iteration":14}
+{"schema_version":1,"timestamp":"2026-03-07T16:04:07.569445-05:00","type":"stage.started","stage_name":"gate:default","bead_id":"gromit-f4ouz","iteration":14}
+{"schema_version":1,"timestamp":"2026-03-07T16:04:07.641385-05:00","type":"stage.completed","stage_name":"gate:default","bead_id":"gromit-f4ouz","iteration":14,"success":true,"duration":71936792}
+{"schema_version":1,"timestamp":"2026-03-07T16:04:07.641393-05:00","type":"stage.started","stage_name":"build:default","bead_id":"gromit-f4ouz","iteration":14}
+{"schema_version":1,"timestamp":"2026-03-07T16:09:43.426401-05:00","type":"stage.completed","stage_name":"build:default","bead_id":"gromit-f4ouz","iteration":14,"success":true,"duration":335783719542}
+{"schema_version":1,"timestamp":"2026-03-07T16:09:43.499059-05:00","type":"stage.started","stage_name":"validate:default","bead_id":"gromit-f4ouz","iteration":14}
+{"schema_version":1,"timestamp":"2026-03-07T16:09:43.538724-05:00","type":"stage.completed","stage_name":"validate:default","bead_id":"gromit-f4ouz","iteration":14,"success":true,"duration":39650083}
+{"schema_version":1,"timestamp":"2026-03-07T16:09:43.586665-05:00","type":"stage.started","stage_name":"review:default","bead_id":"gromit-f4ouz","iteration":14}
+{"schema_version":1,"timestamp":"2026-03-07T16:09:43.586676-05:00","type":"stage.completed","stage_name":"review:default","bead_id":"gromit-f4ouz","iteration":14,"success":true,"duration":4375}
+{"schema_version":1,"timestamp":"2026-03-07T16:09:43.633943-05:00","type":"stage.started","stage_name":"epilogue:default","bead_id":"gromit-f4ouz","iteration":14}
+{"schema_version":1,"timestamp":"2026-03-07T16:09:43.790245-05:00","type":"stage.completed","stage_name":"epilogue:default","bead_id":"gromit-f4ouz","iteration":14,"success":true,"duration":156293250}
+{"schema_version":1,"timestamp":"2026-03-07T16:09:43.790257-05:00","type":"bead.completed","bead_id":"gromit-f4ouz","bead_title":"Add scoped CLAUDE.md loading to PromptAssembler","iteration":14,"success":true}
+{"schema_version":1,"timestamp":"2026-03-07T16:09:43.790285-05:00","type":"bead.started","bead_id":"gromit-fhp2q","bead_title":"Implement gate re-queue logic in bead loop","iteration":15}
+{"schema_version":1,"timestamp":"2026-03-07T16:09:43.790287-05:00","type":"stage.started","stage_name":"gate:default","bead_id":"gromit-fhp2q","iteration":15}
+{"schema_version":1,"timestamp":"2026-03-07T16:09:43.86676-05:00","type":"stage.completed","stage_name":"gate:default","bead_id":"gromit-fhp2q","iteration":15,"success":true,"duration":76471875}
+{"schema_version":1,"timestamp":"2026-03-07T16:09:43.866768-05:00","type":"stage.started","stage_name":"build:default","bead_id":"gromit-fhp2q","iteration":15}
+{"schema_version":1,"timestamp":"2026-03-07T16:17:46.500635-05:00","type":"stage.completed","stage_name":"build:default","bead_id":"gromit-fhp2q","iteration":15,"success":true,"duration":482632017375}
+{"schema_version":1,"timestamp":"2026-03-07T16:17:46.577968-05:00","type":"stage.started","stage_name":"validate:default","bead_id":"gromit-fhp2q","iteration":15}
+{"schema_version":1,"timestamp":"2026-03-07T16:17:46.618675-05:00","type":"stage.completed","stage_name":"validate:default","bead_id":"gromit-fhp2q","iteration":15,"success":true,"duration":40694750}
+{"schema_version":1,"timestamp":"2026-03-07T16:17:46.66731-05:00","type":"stage.started","stage_name":"review:default","bead_id":"gromit-fhp2q","iteration":15}
+{"schema_version":1,"timestamp":"2026-03-07T16:17:46.667329-05:00","type":"stage.completed","stage_name":"review:default","bead_id":"gromit-fhp2q","iteration":15,"success":true,"duration":11500}
+{"schema_version":1,"timestamp":"2026-03-07T16:17:46.715576-05:00","type":"stage.started","stage_name":"epilogue:default","bead_id":"gromit-fhp2q","iteration":15}
+{"schema_version":1,"timestamp":"2026-03-07T16:17:48.204994-05:00","type":"stage.completed","stage_name":"epilogue:default","bead_id":"gromit-fhp2q","iteration":15,"success":true,"duration":1489403416}
+{"schema_version":1,"timestamp":"2026-03-07T16:17:48.205025-05:00","type":"bead.completed","bead_id":"gromit-fhp2q","bead_title":"Implement gate re-queue logic in bead loop","iteration":15,"success":true}
+{"schema_version":1,"timestamp":"2026-03-07T16:17:48.205098-05:00","type":"bead.started","bead_id":"gromit-jv6ns","bead_title":"Create Router interface and stub in v2/routing","iteration":16}
+{"schema_version":1,"timestamp":"2026-03-07T16:17:48.205102-05:00","type":"stage.started","stage_name":"gate:default","bead_id":"gromit-jv6ns","iteration":16}
+{"schema_version":1,"timestamp":"2026-03-07T16:17:48.32269-05:00","type":"stage.completed","stage_name":"gate:default","bead_id":"gromit-jv6ns","iteration":16,"success":true,"duration":117586292}
+{"schema_version":1,"timestamp":"2026-03-07T16:17:48.322698-05:00","type":"stage.started","stage_name":"build:default","bead_id":"gromit-jv6ns","iteration":16}
+{"schema_version":1,"timestamp":"2026-03-07T16:23:30.158349-05:00","type":"stage.completed","stage_name":"build:default","bead_id":"gromit-jv6ns","iteration":16,"success":true,"duration":341834340959}
+{"schema_version":1,"timestamp":"2026-03-07T16:23:30.226995-05:00","type":"stage.started","stage_name":"validate:default","bead_id":"gromit-jv6ns","iteration":16}
+{"schema_version":1,"timestamp":"2026-03-07T16:23:30.266801-05:00","type":"stage.completed","stage_name":"validate:default","bead_id":"gromit-jv6ns","iteration":16,"success":true,"duration":39797250}
+{"schema_version":1,"timestamp":"2026-03-07T16:23:30.314517-05:00","type":"stage.started","stage_name":"review:default","bead_id":"gromit-jv6ns","iteration":16}
+{"schema_version":1,"timestamp":"2026-03-07T16:23:30.314526-05:00","type":"stage.completed","stage_name":"review:default","bead_id":"gromit-jv6ns","iteration":16,"success":true,"duration":2208}
+{"schema_version":1,"timestamp":"2026-03-07T16:23:30.361882-05:00","type":"stage.started","stage_name":"epilogue:default","bead_id":"gromit-jv6ns","iteration":16}
+{"schema_version":1,"timestamp":"2026-03-07T16:23:30.513717-05:00","type":"stage.completed","stage_name":"epilogue:default","bead_id":"gromit-jv6ns","iteration":16,"success":true,"duration":151828917}
+{"schema_version":1,"timestamp":"2026-03-07T16:23:30.51373-05:00","type":"bead.completed","bead_id":"gromit-jv6ns","bead_title":"Create Router interface and stub in v2/routing","iteration":16,"success":true}
+{"schema_version":1,"timestamp":"2026-03-07T16:23:30.513753-05:00","type":"bead.started","bead_id":"gromit-jzbe3","bead_title":"Implement tier resolution in internal/v2/routing/tier.go","iteration":17}
+{"schema_version":1,"timestamp":"2026-03-07T16:23:30.513756-05:00","type":"stage.started","stage_name":"gate:default","bead_id":"gromit-jzbe3","iteration":17}
+{"schema_version":1,"timestamp":"2026-03-07T16:23:30.590854-05:00","type":"stage.completed","stage_name":"gate:default","bead_id":"gromit-jzbe3","iteration":17,"success":true,"duration":77095916}
+{"schema_version":1,"timestamp":"2026-03-07T16:23:30.590861-05:00","type":"stage.started","stage_name":"build:default","bead_id":"gromit-jzbe3","iteration":17}
+{"schema_version":1,"timestamp":"2026-03-07T16:26:46.084705-05:00","type":"stage.completed","stage_name":"build:default","bead_id":"gromit-jzbe3","iteration":17,"success":true,"duration":195493094042}
+{"schema_version":1,"timestamp":"2026-03-07T16:26:46.157044-05:00","type":"stage.started","stage_name":"validate:default","bead_id":"gromit-jzbe3","iteration":17}
+{"schema_version":1,"timestamp":"2026-03-07T16:26:46.196812-05:00","type":"stage.completed","stage_name":"validate:default","bead_id":"gromit-jzbe3","iteration":17,"success":true,"duration":39758792}
+{"schema_version":1,"timestamp":"2026-03-07T16:26:46.24439-05:00","type":"stage.started","stage_name":"review:default","bead_id":"gromit-jzbe3","iteration":17}
+{"schema_version":1,"timestamp":"2026-03-07T16:26:46.244407-05:00","type":"stage.completed","stage_name":"review:default","bead_id":"gromit-jzbe3","iteration":17,"success":true,"duration":1708}
+{"schema_version":1,"timestamp":"2026-03-07T16:26:46.295706-05:00","type":"stage.started","stage_name":"epilogue:default","bead_id":"gromit-jzbe3","iteration":17}
+{"schema_version":1,"timestamp":"2026-03-07T16:26:46.39325-05:00","type":"stage.completed","stage_name":"epilogue:default","bead_id":"gromit-jzbe3","iteration":17,"success":true,"duration":97535750}
+{"schema_version":1,"timestamp":"2026-03-07T16:26:46.393256-05:00","type":"bead.completed","bead_id":"gromit-jzbe3","bead_title":"Implement tier resolution in internal/v2/routing/tier.go","iteration":17,"success":true}
+{"schema_version":1,"timestamp":"2026-03-07T16:26:46.393276-05:00","type":"bead.started","bead_id":"gromit-u4837","bead_title":"Add integration tests for full prompt shaping pipeline","iteration":18}
+{"schema_version":1,"timestamp":"2026-03-07T16:26:46.393277-05:00","type":"stage.started","stage_name":"gate:default","bead_id":"gromit-u4837","iteration":18}
+{"schema_version":1,"timestamp":"2026-03-07T16:26:46.534304-05:00","type":"stage.completed","stage_name":"gate:default","bead_id":"gromit-u4837","iteration":18,"success":true,"duration":141026250}
+{"schema_version":1,"timestamp":"2026-03-07T16:26:46.53431-05:00","type":"bead.completed","bead_id":"gromit-u4837","bead_title":"Add integration tests for full prompt shaping pipeline","iteration":18,"success":false}
+{"schema_version":1,"timestamp":"2026-03-07T16:26:46.534322-05:00","type":"bead.started","bead_id":"gromit-uulh1","bead_title":"Add unit tests for tier resolution","iteration":19}
+{"schema_version":1,"timestamp":"2026-03-07T16:26:46.534323-05:00","type":"stage.started","stage_name":"gate:default","bead_id":"gromit-uulh1","iteration":19}
+{"schema_version":1,"timestamp":"2026-03-07T16:26:46.676457-05:00","type":"stage.completed","stage_name":"gate:default","bead_id":"gromit-uulh1","iteration":19,"success":true,"duration":142132958}
+{"schema_version":1,"timestamp":"2026-03-07T16:26:46.676465-05:00","type":"stage.started","stage_name":"build:default","bead_id":"gromit-uulh1","iteration":19}
+{"schema_version":1,"timestamp":"2026-03-07T16:28:52.488873-05:00","type":"stage.completed","stage_name":"build:default","bead_id":"gromit-uulh1","iteration":19,"success":true,"duration":125811924125}
+{"schema_version":1,"timestamp":"2026-03-07T16:28:52.568245-05:00","type":"stage.started","stage_name":"validate:default","bead_id":"gromit-uulh1","iteration":19}
+{"schema_version":1,"timestamp":"2026-03-07T16:28:52.608368-05:00","type":"stage.completed","stage_name":"validate:default","bead_id":"gromit-uulh1","iteration":19,"success":true,"duration":40113709}
+{"schema_version":1,"timestamp":"2026-03-07T16:28:52.656542-05:00","type":"stage.started","stage_name":"review:default","bead_id":"gromit-uulh1","iteration":19}
+{"schema_version":1,"timestamp":"2026-03-07T16:28:52.656556-05:00","type":"stage.completed","stage_name":"review:default","bead_id":"gromit-uulh1","iteration":19,"success":true,"duration":2667}
+{"schema_version":1,"timestamp":"2026-03-07T16:28:52.703754-05:00","type":"stage.started","stage_name":"epilogue:default","bead_id":"gromit-uulh1","iteration":19}
+{"schema_version":1,"timestamp":"2026-03-07T16:28:52.86201-05:00","type":"stage.completed","stage_name":"epilogue:default","bead_id":"gromit-uulh1","iteration":19,"success":true,"duration":158246917}
+{"schema_version":1,"timestamp":"2026-03-07T16:28:52.862025-05:00","type":"bead.completed","bead_id":"gromit-uulh1","bead_title":"Add unit tests for tier resolution","iteration":19,"success":true}
+{"schema_version":1,"timestamp":"2026-03-07T16:28:52.862049-05:00","type":"bead.started","bead_id":"gromit-v1j2u","bead_title":"Add phase filtering to rules loading in PromptAssembler","iteration":20}
+{"schema_version":1,"timestamp":"2026-03-07T16:28:52.862051-05:00","type":"stage.started","stage_name":"gate:default","bead_id":"gromit-v1j2u","iteration":20}
+{"schema_version":1,"timestamp":"2026-03-07T16:28:52.939682-05:00","type":"stage.completed","stage_name":"gate:default","bead_id":"gromit-v1j2u","iteration":20,"success":true,"duration":77630125}
+{"schema_version":1,"timestamp":"2026-03-07T16:28:52.939691-05:00","type":"stage.started","stage_name":"build:default","bead_id":"gromit-v1j2u","iteration":20}
+{"schema_version":1,"timestamp":"2026-03-07T16:32:29.372451-05:00","type":"stage.completed","stage_name":"build:default","bead_id":"gromit-v1j2u","iteration":20,"success":true,"duration":216431930875}
+{"schema_version":1,"timestamp":"2026-03-07T16:32:29.441443-05:00","type":"stage.started","stage_name":"validate:default","bead_id":"gromit-v1j2u","iteration":20}
+{"schema_version":1,"timestamp":"2026-03-07T16:32:29.481473-05:00","type":"stage.completed","stage_name":"validate:default","bead_id":"gromit-v1j2u","iteration":20,"success":true,"duration":40018375}
+{"schema_version":1,"timestamp":"2026-03-07T16:32:29.530042-05:00","type":"stage.started","stage_name":"review:default","bead_id":"gromit-v1j2u","iteration":20}
+{"schema_version":1,"timestamp":"2026-03-07T16:32:29.530052-05:00","type":"stage.completed","stage_name":"review:default","bead_id":"gromit-v1j2u","iteration":20,"success":true,"duration":2542}
+{"schema_version":1,"timestamp":"2026-03-07T16:32:29.577196-05:00","type":"stage.started","stage_name":"epilogue:default","bead_id":"gromit-v1j2u","iteration":20}
+{"schema_version":1,"timestamp":"2026-03-07T16:32:29.67267-05:00","type":"stage.completed","stage_name":"epilogue:default","bead_id":"gromit-v1j2u","iteration":20,"success":true,"duration":95465417}
+{"schema_version":1,"timestamp":"2026-03-07T16:32:29.672676-05:00","type":"bead.completed","bead_id":"gromit-v1j2u","bead_title":"Add phase filtering to rules loading in PromptAssembler","iteration":20,"success":true}
+{"schema_version":1,"timestamp":"2026-03-07T16:32:29.67269-05:00","type":"bead.started","bead_id":"gromit-v46qz","bead_title":"Add unit tests for topological sort","iteration":21}
+{"schema_version":1,"timestamp":"2026-03-07T16:32:29.672691-05:00","type":"stage.started","stage_name":"gate:default","bead_id":"gromit-v46qz","iteration":21}
+{"schema_version":1,"timestamp":"2026-03-07T16:32:29.817001-05:00","type":"stage.completed","stage_name":"gate:default","bead_id":"gromit-v46qz","iteration":21,"success":true,"duration":144308417}
+{"schema_version":1,"timestamp":"2026-03-07T16:32:29.817012-05:00","type":"stage.started","stage_name":"build:default","bead_id":"gromit-v46qz","iteration":21}
+{"schema_version":1,"timestamp":"2026-03-07T16:36:59.519006-05:00","type":"stage.completed","stage_name":"build:default","bead_id":"gromit-v46qz","iteration":21,"success":true,"duration":269700960750}
+{"schema_version":1,"timestamp":"2026-03-07T16:36:59.587259-05:00","type":"stage.started","stage_name":"validate:default","bead_id":"gromit-v46qz","iteration":21}
+{"schema_version":1,"timestamp":"2026-03-07T16:36:59.627255-05:00","type":"stage.completed","stage_name":"validate:default","bead_id":"gromit-v46qz","iteration":21,"success":true,"duration":39986667}
+{"schema_version":1,"timestamp":"2026-03-07T16:36:59.675529-05:00","type":"stage.started","stage_name":"review:default","bead_id":"gromit-v46qz","iteration":21}
+{"schema_version":1,"timestamp":"2026-03-07T16:36:59.675547-05:00","type":"stage.completed","stage_name":"review:default","bead_id":"gromit-v46qz","iteration":21,"success":true,"duration":7250}
+{"schema_version":1,"timestamp":"2026-03-07T16:36:59.723145-05:00","type":"stage.started","stage_name":"epilogue:default","bead_id":"gromit-v46qz","iteration":21}
+{"schema_version":1,"timestamp":"2026-03-07T16:36:59.879055-05:00","type":"stage.completed","stage_name":"epilogue:default","bead_id":"gromit-v46qz","iteration":21,"success":true,"duration":155903125}
+{"schema_version":1,"timestamp":"2026-03-07T16:36:59.879072-05:00","type":"bead.completed","bead_id":"gromit-v46qz","bead_title":"Add unit tests for topological sort","iteration":21,"success":true}
+{"schema_version":1,"timestamp":"2026-03-07T16:36:59.879095-05:00","type":"bead.started","bead_id":"gromit-w1200","bead_title":"Wire Router into bead loop routing seam","iteration":22}
+{"schema_version":1,"timestamp":"2026-03-07T16:36:59.879096-05:00","type":"stage.started","stage_name":"gate:default","bead_id":"gromit-w1200","iteration":22}
+{"schema_version":1,"timestamp":"2026-03-07T16:37:00.009157-05:00","type":"stage.completed","stage_name":"gate:default","bead_id":"gromit-w1200","iteration":22,"success":true,"duration":130058583}
+{"schema_version":1,"timestamp":"2026-03-07T16:37:00.009166-05:00","type":"bead.completed","bead_id":"gromit-w1200","bead_title":"Wire Router into bead loop routing seam","iteration":22,"success":false}
+{"schema_version":1,"timestamp":"2026-03-07T16:37:00.009183-05:00","type":"bead.started","bead_id":"gromit-w83pd","bead_title":"Implement gap analysis for resume","iteration":23}
+{"schema_version":1,"timestamp":"2026-03-07T16:37:00.009184-05:00","type":"stage.started","stage_name":"gate:default","bead_id":"gromit-w83pd","iteration":23}
+{"schema_version":1,"timestamp":"2026-03-07T16:37:00.066977-05:00","type":"stage.completed","stage_name":"gate:default","bead_id":"gromit-w83pd","iteration":23,"success":true,"duration":57793000}
+{"schema_version":1,"timestamp":"2026-03-07T16:37:00.066987-05:00","type":"stage.started","stage_name":"build:default","bead_id":"gromit-w83pd","iteration":23}
+{"schema_version":1,"timestamp":"2026-03-07T16:40:03.694684-05:00","type":"stage.completed","stage_name":"build:default","bead_id":"gromit-w83pd","iteration":23,"success":true,"duration":183626276584}
+{"schema_version":1,"timestamp":"2026-03-07T16:40:03.771632-05:00","type":"stage.started","stage_name":"validate:default","bead_id":"gromit-w83pd","iteration":23}
+{"schema_version":1,"timestamp":"2026-03-07T16:40:03.812267-05:00","type":"stage.completed","stage_name":"validate:default","bead_id":"gromit-w83pd","iteration":23,"success":true,"duration":40627875}
+{"schema_version":1,"timestamp":"2026-03-07T16:40:03.861359-05:00","type":"stage.started","stage_name":"review:default","bead_id":"gromit-w83pd","iteration":23}
+{"schema_version":1,"timestamp":"2026-03-07T16:40:03.861382-05:00","type":"stage.completed","stage_name":"review:default","bead_id":"gromit-w83pd","iteration":23,"success":true,"duration":10833}
+{"schema_version":1,"timestamp":"2026-03-07T16:40:03.909464-05:00","type":"stage.started","stage_name":"epilogue:default","bead_id":"gromit-w83pd","iteration":23}
+{"schema_version":1,"timestamp":"2026-03-07T16:40:04.005688-05:00","type":"stage.completed","stage_name":"epilogue:default","bead_id":"gromit-w83pd","iteration":23,"success":true,"duration":96209917}
+{"schema_version":1,"timestamp":"2026-03-07T16:40:04.0057-05:00","type":"bead.completed","bead_id":"gromit-w83pd","bead_title":"Implement gap analysis for resume","iteration":23,"success":true}
+{"schema_version":1,"timestamp":"2026-03-07T16:40:04.005713-05:00","type":"bead.started","bead_id":"gromit-zrrn7","bead_title":"Implement selective revalidation in spec loop","iteration":24}
+{"schema_version":1,"timestamp":"2026-03-07T16:40:04.005723-05:00","type":"stage.started","stage_name":"gate:default","bead_id":"gromit-zrrn7","iteration":24}
+{"schema_version":1,"timestamp":"2026-03-07T16:40:04.074518-05:00","type":"stage.completed","stage_name":"gate:default","bead_id":"gromit-zrrn7","iteration":24,"success":true,"duration":68794166}
+{"schema_version":1,"timestamp":"2026-03-07T16:40:04.074526-05:00","type":"stage.started","stage_name":"build:default","bead_id":"gromit-zrrn7","iteration":24}
+{"schema_version":1,"timestamp":"2026-03-07T16:45:12.659648-05:00","type":"stage.completed","stage_name":"build:default","bead_id":"gromit-zrrn7","iteration":24,"success":true,"duration":308583850375}
+{"schema_version":1,"timestamp":"2026-03-07T16:45:12.730416-05:00","type":"stage.started","stage_name":"validate:default","bead_id":"gromit-zrrn7","iteration":24}
+{"schema_version":1,"timestamp":"2026-03-07T16:45:12.770575-05:00","type":"stage.completed","stage_name":"validate:default","bead_id":"gromit-zrrn7","iteration":24,"success":true,"duration":40143709}
+{"schema_version":1,"timestamp":"2026-03-07T16:45:12.818794-05:00","type":"stage.started","stage_name":"review:default","bead_id":"gromit-zrrn7","iteration":24}
+{"schema_version":1,"timestamp":"2026-03-07T16:45:12.818811-05:00","type":"stage.completed","stage_name":"review:default","bead_id":"gromit-zrrn7","iteration":24,"success":true,"duration":10416}
+{"schema_version":1,"timestamp":"2026-03-07T16:45:12.866532-05:00","type":"stage.started","stage_name":"epilogue:default","bead_id":"gromit-zrrn7","iteration":24}
+{"schema_version":1,"timestamp":"2026-03-07T16:45:13.022158-05:00","type":"stage.completed","stage_name":"epilogue:default","bead_id":"gromit-zrrn7","iteration":24,"success":true,"duration":155617458}
+{"schema_version":1,"timestamp":"2026-03-07T16:45:13.022172-05:00","type":"bead.completed","bead_id":"gromit-zrrn7","bead_title":"Implement selective revalidation in spec loop","iteration":24,"success":true}

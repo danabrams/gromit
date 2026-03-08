@@ -238,7 +238,7 @@ func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Resul
 	methodology := s.resolveMethodology(req.Bead.Labels, cfg)
 	fragment := s.fragmentFor(methodology)
 	instance := buildInstanceLayer(req)
-	promptText := prompt.NewPromptAssembler(s.base, s.project, instance, fragment).Assemble()
+	promptText := prompt.NewPromptAssembler(s.base, s.project, instance, fragment).Assemble("", prompt.BeadInfo{})
 
 	model := s.selectModel(req, cfg)
 

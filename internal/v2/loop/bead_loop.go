@@ -16,6 +16,7 @@ import (
 	"github.com/danabrams/gromit/internal/v2/event"
 	"github.com/danabrams/gromit/internal/v2/generation"
 	v2review "github.com/danabrams/gromit/internal/v2/review"
+	"github.com/danabrams/gromit/internal/v2/routing"
 	"github.com/danabrams/gromit/internal/v2/stage"
 	reviewstage "github.com/danabrams/gromit/internal/v2/stage/review"
 	"github.com/danabrams/gromit/internal/v2/stage/triage"
@@ -48,6 +49,8 @@ type BeadLoopConfig struct {
 	StartGeneration          int
 	Git                      GitCommitter
 	StageCommitter           StageCommitter
+	Router                   *routing.Router      // optional: if nil, routing is skipped
+	PhaseModels              map[string]string     // optional: phase -> starting tier
 }
 
 // BeadLoopResult captures metadata produced by a bead loop execution.
@@ -72,6 +75,8 @@ type BeadLoop struct {
 	outOfScopeFindings       []v2review.Finding
 	git                      GitCommitter
 	stageCommitter       StageCommitter
+	router               *routing.Router
+	phaseModels          map[string]string
 	// run-scoped state for in-loop decomposition
 	resolver *dep.Resolver
 	beadMap  map[string]*bead.Bead
@@ -128,6 +133,8 @@ func NewBeadLoop(config BeadLoopConfig) (*BeadLoop, error) {
 		startGeneration:          config.StartGeneration,
 		git:                      config.Git,
 		stageCommitter:           config.StageCommitter,
+		router:                   config.Router,
+		phaseModels:              config.PhaseModels,
 	}
 	if config.Emitter != nil && config.LegacyEmitter != nil {
 		event.BridgeTypedToLegacy(config.Emitter, config.LegacyEmitter)
@@ -157,6 +164,16 @@ func (b *BeadLoop) Run(ctx context.Context, beads []*bead.Bead, stopCh <-chan st
 		}
 	}
 
+	// Pre-sort beads topologically so the resolver's add-order reflects
+	// dependency ordering. TopologicalSort provides the initial execution
+	// order; dep.Resolver handles dynamic re-ordering during execution
+	// (blocking/unblocking as beads complete).
+	sorted, err := TopologicalSort(beads)
+	if err != nil {
+		return BeadLoopResult{}, fmt.Errorf("topological pre-sort: %w", err)
+	}
+	beads = sorted
+
 	b.resolver = dep.NewResolver()
 	b.beadMap = make(map[string]*bead.Bead, len(beads))
 	b.completed = nil
@@ -172,6 +189,13 @@ func (b *BeadLoop) Run(ctx context.Context, beads []*bead.Bead, stopCh <-chan st
 		b.beadMap[id] = beadItem
 		b.resolver.Add(id, collectDependencies(beadItem))
 	}
+
+	// blockedThisPass tracks bead IDs blocked by the gate in the current pass.
+	// These are passed to the resolver as "effective completed" so it can
+	// return their dependents, but they are NOT in b.completed and will be
+	// retried at the start of the next pass if any progress was made.
+	var blockedThisPass []string
+	passProgress := 0
 
 	iteration := 1
 runLoop:
@@ -190,12 +214,34 @@ runLoop:
 			default:
 			}
 		}
-		next, err := b.resolver.Next(b.completed)
+
+		// Build the effective completed set: real completed + blocked-this-pass
+		// so the resolver skips blocked beads and returns their dependents.
+		effectiveCompleted := b.completed
+		if len(blockedThisPass) > 0 {
+			effectiveCompleted = make([]string, 0, len(b.completed)+len(blockedThisPass))
+			effectiveCompleted = append(effectiveCompleted, b.completed...)
+			effectiveCompleted = append(effectiveCompleted, blockedThisPass...)
+		}
+
+		next, err := b.resolver.Next(effectiveCompleted)
 		if err != nil {
 			return BeadLoopResult{}, fmt.Errorf("resolve bead: %w", err)
 		}
 		if next == "" {
-			break
+			if len(blockedThisPass) == 0 {
+				// Normal completion — no blocked beads pending.
+				break
+			}
+			if passProgress == 0 {
+				// Full pass with zero progress: all remaining beads are blocked.
+				blockedIDs := strings.Join(blockedThisPass, ", ")
+				return BeadLoopResult{}, fmt.Errorf("bead loop: all remaining beads blocked with no progress: %s", blockedIDs)
+			}
+			// Progress was made this pass — retry the blocked beads.
+			blockedThisPass = nil
+			passProgress = 0
+			continue
 		}
 		beadItem, ok := b.beadMap[next]
 		if !ok {
@@ -211,15 +257,16 @@ runLoop:
 				// Gate skipped this bead — mark completed and continue to next
 				b.emitBeadCompleted(beadItem, iteration, true, 0)
 				b.completed = append(b.completed, next)
+				passProgress++
 				iteration++
 				continue
 			}
 			if errors.Is(err, errBeadBlocked) {
-				// Gate blocked this bead — mark completed so the resolver
-				// moves on. The bead is deferred to a future run, not
-				// retried within this loop invocation.
-				b.emitBeadCompleted(beadItem, iteration, false, 0)
-				b.completed = append(b.completed, next)
+				// Gate blocked this bead — re-queue to end of current pass.
+				// Do NOT mark completed; the bead will be retried after other
+				// beads in this pass make progress. If no progress is made
+				// after a full pass, the loop stops with an error.
+				blockedThisPass = append(blockedThisPass, next)
 				iteration++
 				continue
 			}
@@ -229,6 +276,7 @@ runLoop:
 			if errors.Is(err, errBeadFailed) {
 				log.Printf("bead %s failed (continuing loop): %v", next, err)
 				b.completed = append(b.completed, next)
+				passProgress++
 				iteration++
 				continue
 			}
@@ -238,6 +286,7 @@ runLoop:
 		}
 		b.emitBeadCompleted(beadItem, iteration, true, 0)
 		b.completed = append(b.completed, next)
+		passProgress++
 		iteration++
 	}
 	return BeadLoopResult{
@@ -365,6 +414,12 @@ func (b *BeadLoop) runStageEntry(ctx context.Context, beadItem *bead.Bead, itera
 		return nil
 	}
 
+	// Determine starting tier for this stage's phase via routing.
+	startTier := routing.TierMedium
+	if b.router != nil {
+		startTier = routing.TierForPhase(stageName, b.phaseModels, routing.TierMedium)
+	}
+
 	retriesRemaining := entry.retryConfig.MaxRetries
 	if retriesRemaining < 0 {
 		retriesRemaining = 0
@@ -375,6 +430,23 @@ func (b *BeadLoop) runStageEntry(ctx context.Context, beadItem *bead.Bead, itera
 
 	for {
 		req := b.stageRequest(beadItem, iteration, stageRetryContext(attempt, priorFailures))
+
+		// Apply routing: select provider and model for this stage.
+		if b.router != nil {
+			escalationLevel := 0
+			if req.RetryContext != nil {
+				escalationLevel = req.RetryContext.EscalationLevel
+			}
+			tier := routing.EscalationTier(startTier, escalationLevel)
+			provider, model, routeErr := b.router.Select(stageName, tier)
+			if routeErr != nil {
+				log.Printf("WARNING: routing failed for stage %s tier %s: %v (using default provider)", stageName, tier, routeErr)
+			} else if provider != nil {
+				req.Provider = provider
+				req.Model = model
+			}
+		}
+
 		b.emitStageStarted(stageName, beadItem.ID, iteration)
 		start := time.Now()
 		res, err := b.runStage(ctx, entry.stage, req)
@@ -477,7 +549,14 @@ func stageRetryContext(attempt int, priorFailures []string) *stage.RetryContext 
 	if attempt <= 1 && len(priorFailures) == 0 {
 		return nil
 	}
-	ctx := &stage.RetryContext{Attempt: attempt}
+	escalation := 0
+	if attempt > 1 {
+		escalation = attempt - 1
+	}
+	ctx := &stage.RetryContext{
+		Attempt:         attempt,
+		EscalationLevel: escalation,
+	}
 	if len(priorFailures) > 0 {
 		ctx.PriorFailures = append([]string(nil), priorFailures...)
 	}
@@ -787,6 +866,17 @@ func (b *BeadLoop) runTriage(ctx context.Context, beadItem *bead.Bead, iteration
 		Attempt:       1,
 		PriorFailures: []string{failureReason},
 	})
+	// Apply routing to triage stage.
+	if b.router != nil {
+		tier := routing.TierForPhase("triage", b.phaseModels, routing.TierMedium)
+		provider, model, routeErr := b.router.Select("triage", tier)
+		if routeErr != nil {
+			log.Printf("WARNING: routing failed for triage tier %s: %v (using default provider)", tier, routeErr)
+		} else if provider != nil {
+			req.Provider = provider
+			req.Model = model
+		}
+	}
 	b.emitTriageStarted(beadItem.ID, beadItem.Title, iteration)
 	res, err := b.runStage(ctx, b.triage, req)
 	if err != nil {
@@ -814,6 +904,17 @@ func (b *BeadLoop) decomposeAndRunSubBeads(ctx context.Context, beadItem *bead.B
 	}
 	req := b.stageRequest(beadItem, iteration, nil)
 	req.Remediation = true
+	// Apply routing to decompose stage.
+	if b.router != nil {
+		tier := routing.TierForPhase("decompose", b.phaseModels, routing.TierMedium)
+		provider, model, routeErr := b.router.Select("decompose", tier)
+		if routeErr != nil {
+			log.Printf("WARNING: routing failed for decompose tier %s: %v (using default provider)", tier, routeErr)
+		} else if provider != nil {
+			req.Provider = provider
+			req.Model = model
+		}
+	}
 	res, err := b.runStage(ctx, b.decompose, req)
 	if err != nil {
 		return fmt.Errorf("decompose: %w", err)

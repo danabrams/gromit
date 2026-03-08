@@ -1,13 +1,67 @@
 package prompt
 
-import "strings"
+import (
+	"path/filepath"
+	"strings"
+	"unicode/utf8"
+)
+
+// phaseMaxChars defines per-phase character caps for RULES.md sections.
+var phaseMaxChars = map[string]int{
+	"build":     12800,
+	"red":       8500,
+	"green":     8500,
+	"refactor":  8500,
+	"plan":      12800,
+	"decompose": 12800,
+	"accept":    8500,
+	"validate":  8500,
+	"review":    10000,
+	"triage":    8500,
+}
+
+// fileExtensions lists common file extensions used to identify file-path tokens.
+var fileExtensions = []string{
+	".go", ".yaml", ".yml", ".json", ".md", ".ts", ".js", ".py",
+	".toml", ".cfg", ".sh", ".bash", ".txt", ".html", ".css",
+	".rs", ".java", ".c", ".h", ".cpp", ".rb", ".proto",
+}
+
+// dirPrefixes lists directory prefixes that indicate a token is a file path.
+var dirPrefixes = []string{
+	"internal/", "cmd/", "pkg/", "src/", "./", "../", "vendor/",
+	"test/", "tests/", "docs/", "lib/", "bin/", "config/",
+}
+
+// DefaultMaxChars is the default maximum character budget for shaped prompts.
+const DefaultMaxChars = 100000
+
+// BeadInfo carries bead metadata used for prompt shaping.
+type BeadInfo struct {
+	Title     string
+	Files     []string
+	FileCount int
+}
+
+// ShapeReport records budget shaping decisions for observability.
+type ShapeReport struct {
+	OriginalSize   int
+	ShapedSize     int
+	MaxBudget      int
+	AdjustedBudget int
+	FileCount      int
+	Trimmed        bool
+	TrimmedBytes   int
+}
 
 // PromptAssembler merges prompt layers into a single payload.
 type PromptAssembler struct {
-	base     string
-	project  string
-	instance string
-	fragment string
+	base       string
+	project    string
+	instance   string
+	fragment   string
+	lastReport *ShapeReport
+	MaxChars   int // Optional: if > 0, overrides DefaultMaxChars in ShapeBudget.
 }
 
 // NewPromptAssembler returns an assembler initialized with the provided layers.
@@ -15,14 +69,100 @@ func NewPromptAssembler(base, project, instance, fragment string) *PromptAssembl
 	return &PromptAssembler{base: base, project: project, instance: instance, fragment: fragment}
 }
 
-// Assemble concatenates the configured layers in the prescribed order.
-func (p *PromptAssembler) Assemble() string {
+// LastReport returns the ShapeReport from the most recent Assemble call, or nil.
+func (p *PromptAssembler) LastReport() *ShapeReport {
+	return p.lastReport
+}
+
+// loadBaseInstructions returns base instructions filtered by phase.
+// When phase is empty, the full base text is returned unmodified.
+func (p *PromptAssembler) loadBaseInstructions(phase string) string {
+	if phase == "" {
+		return p.base
+	}
+	// Phase-specific filtering: look for phase markers and extract the relevant section.
+	marker := "## " + phase
+	idx := strings.Index(p.base, marker)
+	// Verify the match is an exact heading (next char must be whitespace, newline, or end of string).
+	for idx != -1 {
+		end := idx + len(marker)
+		if end >= len(p.base) || p.base[end] == '\n' || p.base[end] == '\r' || p.base[end] == ' ' || p.base[end] == '\t' {
+			break
+		}
+		// Partial match (e.g. "## builder" for phase "build"); keep searching.
+		next := strings.Index(p.base[end:], marker)
+		if next == -1 {
+			idx = -1
+		} else {
+			idx = end + next
+		}
+	}
+	if idx == -1 {
+		// No phase-specific section found; return full base.
+		return p.base
+	}
+	// Extract from the marker to the next "## " heading or end of string.
+	rest := p.base[idx:]
+	nextIdx := strings.Index(rest[len(marker):], "\n## ")
+	var section string
+	if nextIdx == -1 {
+		section = rest
+	} else {
+		section = rest[:len(marker)+nextIdx]
+	}
+	// Apply per-phase character cap if defined.
+	if cap, ok := phaseMaxChars[phase]; ok && len(section) > cap {
+		section = section[:cap]
+		// Back up to valid UTF-8 boundary.
+		for len(section) > 0 && !utf8.Valid([]byte(section)) {
+			section = section[:len(section)-1]
+		}
+	}
+	return section
+}
+
+// loadProjectContext returns project context scoped to the bead's files.
+// When the bead has no files, the full project text is returned unmodified.
+func (p *PromptAssembler) loadProjectContext(bead BeadInfo) string {
+	if len(bead.Files) == 0 {
+		return p.project
+	}
+	// Scope project context: only include lines that reference bead files
+	// or non-file-specific lines. This is a best-effort filter.
+	lines := strings.Split(p.project, "\n")
+	var filtered []string
+	for _, line := range lines {
+		relevant := true
+		// If the line contains a token that looks like a file path,
+		// check if it references one of the bead's files.
+		if containsFilePathToken(line) {
+			relevant = false
+			for _, f := range bead.Files {
+				if strings.Contains(line, f) {
+					relevant = true
+					break
+				}
+			}
+		}
+		if relevant {
+			filtered = append(filtered, line)
+		}
+	}
+	return strings.Join(filtered, "\n")
+}
+
+// Assemble concatenates the configured layers in the prescribed order,
+// applying phase filtering, bead scoping, and budget shaping.
+func (p *PromptAssembler) Assemble(phase string, bead BeadInfo) string {
+	base := p.loadBaseInstructions(phase)
+	project := p.loadProjectContext(bead)
+
 	layers := []struct {
 		name    string
 		content string
 	}{
-		{"BASE", p.base},
-		{"PROJECT", p.project},
+		{"BASE", base},
+		{"PROJECT", project},
 		{"INSTANCE", p.instance},
 		{"FRAGMENT", p.fragment},
 	}
@@ -41,5 +181,89 @@ func (p *PromptAssembler) Assemble() string {
 		builder.WriteString(layer.content)
 	}
 
-	return builder.String()
+	raw := builder.String()
+
+	fileCount := bead.FileCount
+	if fileCount == 0 {
+		fileCount = len(bead.Files)
+	}
+
+	budget := DefaultMaxChars
+	if p.MaxChars > 0 {
+		budget = p.MaxChars
+	}
+	shaped, report := ShapeBudget(raw, fileCount, budget)
+	p.lastReport = &report
+
+	return shaped
+}
+
+// ShapeBudget applies scope-adjusted truncation to a prompt string.
+//
+// Scaling rules based on fileCount:
+//
+//	1-2 files  → 50% of maxChars
+//	3-4 files  → 75% of maxChars
+//	5+ files or 0 (unknown) → 100% of maxChars
+//
+// When the prompt exceeds the adjusted budget, context (tail) is truncated
+// to fit while preserving instructions (head).
+func ShapeBudget(total string, fileCount int, maxChars int) (string, ShapeReport) {
+	adjustedBudget := maxChars
+	switch {
+	case fileCount >= 1 && fileCount <= 2:
+		adjustedBudget = maxChars / 2
+	case fileCount >= 3 && fileCount <= 4:
+		adjustedBudget = maxChars * 3 / 4
+	}
+
+	report := ShapeReport{
+		OriginalSize:   len(total),
+		MaxBudget:      maxChars,
+		AdjustedBudget: adjustedBudget,
+		FileCount:      fileCount,
+	}
+
+	if len(total) <= adjustedBudget {
+		report.ShapedSize = len(total)
+		report.Trimmed = false
+		report.TrimmedBytes = 0
+		return total, report
+	}
+
+	// Truncate from the end (context) to preserve instructions (head).
+	shaped := total[:adjustedBudget]
+	// Back up to valid UTF-8 boundary to avoid splitting multi-byte characters.
+	for len(shaped) > 0 && !utf8.Valid([]byte(shaped)) {
+		shaped = shaped[:len(shaped)-1]
+	}
+	report.ShapedSize = len(shaped)
+	report.Trimmed = true
+	report.TrimmedBytes = len(total) - len(shaped)
+	return shaped, report
+}
+
+// containsFilePathToken returns true if the line contains a token that looks
+// like a file path (has a known directory prefix or file extension).
+func containsFilePathToken(line string) bool {
+	tokens := strings.Fields(line)
+	for _, tok := range tokens {
+		if !strings.Contains(tok, "/") {
+			continue
+		}
+		// Check for known directory prefixes.
+		for _, prefix := range dirPrefixes {
+			if strings.HasPrefix(tok, prefix) {
+				return true
+			}
+		}
+		// Check for file extension.
+		ext := filepath.Ext(tok)
+		for _, fe := range fileExtensions {
+			if ext == fe {
+				return true
+			}
+		}
+	}
+	return false
 }

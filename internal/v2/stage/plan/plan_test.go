@@ -90,7 +90,7 @@ func TestStageWritesPlanAndInvokesLLM(t *testing.T) {
 		t.Fatalf("plan file contents mismatch: %q", string(data))
 	}
 
-	expectedPrompt := prompt.NewPromptAssembler(baseLayer, projectLayer, specContent, fragmentLayer).Assemble()
+	expectedPrompt := prompt.NewPromptAssembler(baseLayer, projectLayer, specContent, fragmentLayer).Assemble("", prompt.BeadInfo{})
 	if fake.lastRequest.Prompt != expectedPrompt {
 		t.Fatalf("prompt mismatch: got %q want %q", fake.lastRequest.Prompt, expectedPrompt)
 	}
@@ -158,7 +158,7 @@ func TestStageUsesLLMProvider(t *testing.T) {
 		t.Fatalf("plan mismatch: got %q want %q", artifacts.Plan, provider.response.Output)
 	}
 
-	expectedPrompt := prompt.NewPromptAssembler(baseLayer, projectLayer, specContent, fragmentLayer).Assemble()
+	expectedPrompt := prompt.NewPromptAssembler(baseLayer, projectLayer, specContent, fragmentLayer).Assemble("", prompt.BeadInfo{})
 	if provider.lastRequest.Prompt != expectedPrompt {
 		t.Fatalf("prompt mismatch: got %q want %q", provider.lastRequest.Prompt, expectedPrompt)
 	}

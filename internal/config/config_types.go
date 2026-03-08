@@ -358,11 +358,18 @@ type MethodologyConfig struct {
 }
 
 type PhaseModelsConfig struct {
+	Plan      string `yaml:"plan"`
 	Decompose string `yaml:"decompose"`
 	Build     string `yaml:"build"`
 	Red       string `yaml:"red"`
 	Green     string `yaml:"green"`
 	Refactor  string `yaml:"refactor"`
+	Validate  string `yaml:"validate"`
+	Review    string `yaml:"review"`
+	Accept    string `yaml:"accept"`
+	Triage    string `yaml:"triage"`
+	Gate      string `yaml:"gate"`
+	Epilogue  string `yaml:"epilogue"`
 }
 
 type ATDDPromptConfig struct {

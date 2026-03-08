@@ -54,7 +54,7 @@ func TestPromptAssemblerCompilesAllLayers(t *testing.T) {
 	t.Parallel()
 
 	assembler := prompt.NewPromptAssembler("base", "project", "instance", "fragment")
-	output := assembler.Assemble()
+	output := assembler.Assemble("", prompt.BeadInfo{})
 
 	order := []string{"base", "project", "instance", "fragment"}
 	for idx, fragment := range order {

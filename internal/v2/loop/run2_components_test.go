@@ -227,7 +227,7 @@ func TestNewRun2LoopComponentsWiring(t *testing.T) {
 
 	var output bytes.Buffer
 
-	components, err := NewRun2LoopComponents(cfg, adapters, legacyEmitter, &output)
+	components, err := NewRun2LoopComponents(cfg, adapters, legacyEmitter, &output, nil, nil)
 	if err != nil {
 		t.Fatalf("NewRun2LoopComponents returned error: %v", err)
 	}
@@ -291,7 +291,7 @@ func TestNewRun2LoopComponentsWiresStageCommitterAndTypedEmitter(t *testing.T) {
 
 	var output bytes.Buffer
 
-	components, err := NewRun2LoopComponents(cfg, adapters, legacyEmitter, &output)
+	components, err := NewRun2LoopComponents(cfg, adapters, legacyEmitter, &output, nil, nil)
 	if err != nil {
 		t.Fatalf("NewRun2LoopComponents returned error: %v", err)
 	}
@@ -422,7 +422,7 @@ func TestNewRun2LoopComponentsWiresSquasherIntoPresentStage(t *testing.T) {
 	defer legacyEmitter.Close()
 
 	var output bytes.Buffer
-	components, err := NewRun2LoopComponents(cfg, adapters, legacyEmitter, &output)
+	components, err := NewRun2LoopComponents(cfg, adapters, legacyEmitter, &output, nil, nil)
 	if err != nil {
 		t.Fatalf("NewRun2LoopComponents error: %v", err)
 	}
