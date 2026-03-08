@@ -446,7 +446,7 @@ func (b *BeadLoop) runStageEntry(ctx context.Context, beadItem *bead.Bead, itera
 		}
 		tier := routing.EscalationTier(startTier, escalationLevel)
 		if b.router != nil {
-			provider, model, routeErr := b.router.Select(phase, tier)
+			provider, model, _, routeErr := b.router.Select(phase, tier)
 			if routeErr != nil {
 				log.Printf("WARNING: routing failed for stage %s tier %s: %v (using default provider)", stageName, tier, routeErr)
 			} else if provider != nil {
@@ -896,7 +896,7 @@ func (b *BeadLoop) runTriage(ctx context.Context, beadItem *bead.Bead, iteration
 	// Apply routing to triage stage.
 	triageTier := routing.TierForPhase("triage", b.phaseModels, routing.TierMedium)
 	if b.router != nil {
-		provider, model, routeErr := b.router.Select("triage", triageTier)
+		provider, model, _, routeErr := b.router.Select("triage", triageTier)
 		if routeErr != nil {
 			log.Printf("WARNING: routing failed for triage tier %s: %v (using default provider)", triageTier, routeErr)
 		} else if provider != nil {
@@ -936,7 +936,7 @@ func (b *BeadLoop) decomposeAndRunSubBeads(ctx context.Context, beadItem *bead.B
 	// Apply routing to decompose stage.
 	decomposeTier := routing.TierForPhase("decompose", b.phaseModels, routing.TierMedium)
 	if b.router != nil {
-		provider, model, routeErr := b.router.Select("decompose", decomposeTier)
+		provider, model, _, routeErr := b.router.Select("decompose", decomposeTier)
 		if routeErr != nil {
 			log.Printf("WARNING: routing failed for decompose tier %s: %v (using default provider)", decomposeTier, routeErr)
 		} else if provider != nil {

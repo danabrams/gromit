@@ -24,7 +24,7 @@ func (s *stubProvider) StreamInvoke(_ context.Context, _ llmtypes.LLMStreamInvok
 
 func TestRouterSelectReturnsErrorWhenNoProviders(t *testing.T) {
 	r := routing.NewRouter(routing.RouterConfig{})
-	_, _, err := r.Select("build", "low")
+	_, _, _, err := r.Select("build", "low")
 	if err == nil {
 		t.Fatal("expected error when no providers configured, got nil")
 	}
@@ -49,7 +49,7 @@ func TestRouterMarkUnavailableCausesFallback(t *testing.T) {
 	})
 
 	// Without mark, build phase should select providerA via preference.
-	got, _, err := r.Select("build", "low")
+	got, _, _, err := r.Select("build", "low")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -59,7 +59,7 @@ func TestRouterMarkUnavailableCausesFallback(t *testing.T) {
 
 	// After marking providerA unavailable, should fall back to providerB.
 	r.MarkUnavailable("providerA")
-	got, _, err = r.Select("build", "low")
+	got, _, _, err = r.Select("build", "low")
 	if err != nil {
 		t.Fatalf("unexpected error after mark: %v", err)
 	}
@@ -86,7 +86,7 @@ func TestRouterReEnablesProviderAfterCooldown(t *testing.T) {
 	r.MarkUnavailable("providerA")
 
 	// Immediately after marking, provider should be unavailable.
-	_, _, err := r.Select("build", "low")
+	_, _, _, err := r.Select("build", "low")
 	if err == nil {
 		t.Fatal("expected error when only provider is unavailable, got nil")
 	}
@@ -96,7 +96,7 @@ func TestRouterReEnablesProviderAfterCooldown(t *testing.T) {
 
 	// Advance time past the cooldown; provider should be available again.
 	now = now.Add(cooldown + time.Second)
-	got, _, err := r.Select("build", "low")
+	got, _, _, err := r.Select("build", "low")
 	if err != nil {
 		t.Fatalf("expected provider re-enabled after cooldown, got error: %v", err)
 	}
@@ -125,14 +125,14 @@ func TestRouterSelectRatioBalancesAcrossProviders(t *testing.T) {
 
 	// Use phase preference to force 4 invocations on providerA (Select auto-records).
 	for i := 0; i < 4; i++ {
-		_, _, err := r.Select("forced", "low")
+		_, _, _, err := r.Select("forced", "low")
 		if err != nil {
 			t.Fatalf("unexpected error on forced select %d: %v", i, err)
 		}
 	}
 	// providerA count=4, providerB count=0.
 	// providerA score = 4/3 ≈ 1.33, providerB score = 0/1 = 0 → B should be selected.
-	got, _, err := r.Select("build", "low")
+	got, _, _, err := r.Select("build", "low")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -158,7 +158,7 @@ func TestRouterSelectDeterministicTieBreaking(t *testing.T) {
 
 	// Both providers at 0 invocations with equal ratios — a perfect tie.
 	// Deterministic tie-breaking should select "alpha" (alphabetically first).
-	got, _, err := r.Select("build", "low")
+	got, _, _, err := r.Select("build", "low")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -181,7 +181,7 @@ func TestRouterSelectUsesPhasePreference(t *testing.T) {
 		},
 	})
 
-	got, _, err := r.Select("build", "low")
+	got, _, _, err := r.Select("build", "low")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

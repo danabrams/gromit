@@ -812,7 +812,7 @@ func (s *SpecLoop) applyRouting(req *stagepkg.Request, phase string) {
 		return
 	}
 	tier := routing.TierForPhase(phase, s.phaseModels, routing.TierMedium)
-	provider, model, err := s.router.Select(phase, tier)
+	provider, model, _, err := s.router.Select(phase, tier)
 	if err != nil {
 		log.Printf("WARNING: routing failed for phase %s tier %s: %v (using default provider)", phase, tier, err)
 	} else if provider != nil {
