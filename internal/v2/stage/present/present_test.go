@@ -9,6 +9,7 @@ import (
 	"github.com/danabrams/gromit/internal/v2/presentation"
 	v2review "github.com/danabrams/gromit/internal/v2/review"
 	"github.com/danabrams/gromit/internal/v2/stage"
+	"github.com/danabrams/gromit/internal/v2/testutil"
 )
 
 func TestPresentStageCallsPresenter(t *testing.T) {
@@ -189,5 +190,38 @@ func TestPresentStageTrimsLinks(t *testing.T) {
 	}
 	if got, want := presenter.lastSummary.DiffLink, "https://example.com/diff"; got != want {
 		t.Fatalf("diff link = %q; want %q", got, want)
+	}
+}
+
+func TestPresentStageSquashesPerBeadBeforePresenter(t *testing.T) {
+	git := testutil.NewFakeGit()
+	git.LogEntries = []adapter.LogEntry{
+		{Hash: "h2", Message: "[bead:001/review/iter:1] Proceed"},
+		{Hash: "h1", Message: "[bead:001/build/iter:1] Proceed"},
+		{Hash: "h0", Message: "initial commit"},
+	}
+	ctx := &SummaryContext{
+		Plan:          "plan details",
+		Worktree:      "/tmp/worktree",
+		BeadSummaries: []presentation.BeadSummary{{ID: "001", Title: "Feature"}},
+	}
+	presenter := &spyPresenter{}
+	stageInstance, err := New(nil, presenter, ctx, WithSquashGit(git))
+	if err != nil {
+		t.Fatalf("unexpected error creating stage: %v", err)
+	}
+
+	if _, err := stageInstance.Run(context.Background(), &stage.Request{Bead: stage.BeadInfo{ID: "spec-squash"}}); err != nil {
+		t.Fatalf("run failed: %v", err)
+	}
+
+	if len(git.SquashCalls) == 0 {
+		t.Fatal("expected squash to be called before presenting")
+	}
+	if len(git.CommitMessages) == 0 || git.CommitMessages[0] != "bead 001: Feature" {
+		t.Fatalf("commit messages = %v, want first commit bead message", git.CommitMessages)
+	}
+	if presenter.lastSpec != "spec-squash" {
+		t.Fatalf("presenter called with spec %q", presenter.lastSpec)
 	}
 }
