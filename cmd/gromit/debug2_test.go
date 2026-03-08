@@ -17,6 +17,14 @@ import (
 	"github.com/spf13/cobra"
 )
 
+func stubDebug2ValidateAndCommit(t *testing.T) func() {
+	orig := debug2ValidateAndCommitFn
+	debug2ValidateAndCommitFn = func(ctx context.Context, worktree string, trace debugpkg.StageTrace, committer debugpkg.StageCommitter) (*debugpkg.ValidateResult, error) {
+		return &debugpkg.ValidateResult{Passed: true}, nil
+	}
+	return func() { debug2ValidateAndCommitFn = orig }
+}
+
 func TestDebug2_InvokesLLMInWorktree(t *testing.T) {
 	tmpDir := t.TempDir()
 	specName := "test-spec"
@@ -27,9 +35,11 @@ func TestDebug2_InvokesLLMInWorktree(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(eventsDir, "events.jsonl"),
-		[]byte(`{"type":"stage.completed","decision":"Fail"}`+"\n"), 0o644); err != nil {
+		[]byte(`{"type":"stage.completed","stage_name":"build","bead_id":"b1","decision":"Fail"}`+"\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	restoreStage := stubDebug2ValidateAndCommit(t)
+	t.Cleanup(restoreStage)
 
 	var capturedDir string
 	orig := debug2InvokeLLMFn
@@ -125,6 +135,8 @@ func TestDebug2Impl_DisplaysEventLogEntries(t *testing.T) {
 	if err := os.WriteFile(eventsPath, []byte(eventLines), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	restoreStage := stubDebug2ValidateAndCommit(t)
+	t.Cleanup(restoreStage)
 
 	origInvoke := debug2InvokeLLMFn
 	t.Cleanup(func() { debug2InvokeLLMFn = origInvoke })
@@ -169,6 +181,8 @@ func TestDebug2Impl_DisplaysGitHistoryCommands(t *testing.T) {
 	if err := os.WriteFile(eventsPath, []byte(`{"type":"stage.failed","stage_name":"build","error":"boom"}`+"\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	restoreStage := stubDebug2ValidateAndCommit(t)
+	t.Cleanup(restoreStage)
 
 	origInvoke := debug2InvokeLLMFn
 	t.Cleanup(func() { debug2InvokeLLMFn = origInvoke })
@@ -414,6 +428,7 @@ func TestDebug2Impl_PromptIncludesEventTailAndFailureDiff(t *testing.T) {
 		t.Fatal(err)
 	}
 	events := strings.Join([]string{
+		`{"type":"stage.failed","stage_name":"validate","bead_id":"b1","iteration":1,"error":"internal"}`,
 		`{"event":"old","decision":"Proceed"}`,
 		`{"event":"mid","decision":"Proceed"}`,
 		`{"event":"new","decision":"Fail"}`,
@@ -421,6 +436,8 @@ func TestDebug2Impl_PromptIncludesEventTailAndFailureDiff(t *testing.T) {
 	if err := os.WriteFile(eventsPath, []byte(events), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	restoreStage := stubDebug2ValidateAndCommit(t)
+	t.Cleanup(restoreStage)
 
 	var promptText string
 	origInvoke := debug2InvokeLLMFn
@@ -456,9 +473,11 @@ func TestDebug2Impl_AppliesPatchAndRunsValidation(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(eventsDir, "events.jsonl"),
-		[]byte(`{"type":"stage.completed","decision":"Fail"}`+"\n"), 0o644); err != nil {
+		[]byte(`{"type":"stage.completed","stage_name":"build","bead_id":"b1","decision":"Fail"}`+"\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	restoreStage := stubDebug2ValidateAndCommit(t)
+	t.Cleanup(restoreStage)
 
 	wantPatch := "diff --git a/a.txt b/a.txt\n--- a/a.txt\n+++ b/a.txt\n@@ -0,0 +1 @@\n+fixed\n"
 	llmOutput := fmt.Sprintf(`{"code_patch": %q, "learnings_entry": "", "systemic_recommendation": ""}`, wantPatch)
@@ -518,6 +537,8 @@ func TestDebug2Impl_ChecksOutDiagnosedFailureCommitBeforePatch(t *testing.T) {
 		[]byte(`{"type":"stage.failed","stage_name":"build","error":"provider reported unsuccessful result: no detail available"}`+"\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	restoreStage := stubDebug2ValidateAndCommit(t)
+	t.Cleanup(restoreStage)
 
 	runGitDebug2(t, wtPath, "init")
 	runGitDebug2(t, wtPath, "config", "user.email", "tester@example.com")
@@ -589,9 +610,11 @@ func TestDebug2Impl_AppendsLearningsEntry(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(eventsDir, "events.jsonl"),
-		[]byte(`{"type":"stage.completed","decision":"Fail"}`+"\n"), 0o644); err != nil {
+		[]byte(`{"type":"stage.completed","stage_name":"build","bead_id":"b1","decision":"Fail"}`+"\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	restoreStage := stubDebug2ValidateAndCommit(t)
+	t.Cleanup(restoreStage)
 
 	learningsPath := filepath.Join(wtPath, "LEARNINGS.md")
 	initialLearnings := "# LEARNINGS\n\n## Confirmed Learnings\n\n## Provisional Learnings\n\n*No provisional learnings at this time.*\n"
@@ -647,6 +670,8 @@ func TestDebug2Impl_AppendsAutonomousLearningFromRootCausePattern(t *testing.T) 
 	); err != nil {
 		t.Fatal(err)
 	}
+	restoreStage := stubDebug2ValidateAndCommit(t)
+	t.Cleanup(restoreStage)
 
 	learningsPath := filepath.Join(wtPath, "LEARNINGS.md")
 	initialLearnings := "# LEARNINGS\n\n## Confirmed Learnings\n\n## Provisional Learnings\n\n*No provisional learnings at this time.*\n"
@@ -697,9 +722,11 @@ func TestDebug2Impl_WritesSystemicRecommendationToStderr(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(eventsDir, "events.jsonl"),
-		[]byte(`{"type":"stage.completed","decision":"Fail"}`+"\n"), 0o644); err != nil {
+		[]byte(`{"type":"stage.completed","stage_name":"build","bead_id":"b1","decision":"Fail"}`+"\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	restoreStage := stubDebug2ValidateAndCommit(t)
+	t.Cleanup(restoreStage)
 
 	systemic := "Add a pipeline guard so duplicate schema writers are blocked in CI."
 	llmOutput := fmt.Sprintf(`{"code_patch":"","learnings_entry":"","systemic_recommendation":%q}`, systemic)
@@ -744,9 +771,11 @@ func TestDebug2Impl_SystemicRecommendationDoesNotAppendAutonomousLearning(t *tes
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(eventsDir, "events.jsonl"),
-		[]byte(`{"type":"stage.completed","decision":"Fail"}`+"\n"), 0o644); err != nil {
+		[]byte(`{"type":"stage.completed","stage_name":"build","bead_id":"b1","decision":"Fail"}`+"\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	restoreStage := stubDebug2ValidateAndCommit(t)
+	t.Cleanup(restoreStage)
 
 	learningsPath := filepath.Join(wtPath, "LEARNINGS.md")
 	initialLearnings := "# LEARNINGS\n\n## Confirmed Learnings\n\n## Provisional Learnings\n\n*No provisional learnings at this time.*\n"

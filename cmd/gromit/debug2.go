@@ -55,6 +55,12 @@ var debug2InvokeLLMFn = invokeDebug2LLM
 var debug2ApplyPatchFn = applyDebug2Patch
 var debug2CheckoutFailureFn = checkoutDebug2FailureCommit
 var debug2RunValidationFn = runDebug2ValidationCommand
+var debug2ValidateAndCommitFn = func(ctx context.Context, worktree string, trace debugpkg.StageTrace, committer debugpkg.StageCommitter) (*debugpkg.ValidateResult, error) {
+	return debugpkg.ValidateAndCommitFix(ctx, &debugpkg.ValidateContext{
+		WorktreeRoot: worktree,
+		StageTrace:   &trace,
+	}, committer)
+}
 var debug2Stdout io.Writer = os.Stdout
 var debug2Stderr io.Writer = os.Stderr
 var debug2CommitHashPattern = regexp.MustCompile(`^[0-9a-fA-F]{7,40}$`)
@@ -469,6 +475,7 @@ func debug2Impl(ctx context.Context, specName, gromitDir string, cfg *config.Con
 	displayDebug2HistoryCommands(debug2Stdout, specName, wtPath)
 
 	gitAdapter := gitadapter.NewExecGitAdapter(".", gromitDir)
+	stageCommitter := &gitadapter.StageCommitter{Git: gitAdapter}
 	logEntries, err := gitAdapter.Log(ctx, wtPath, 100)
 	if err != nil {
 		logEntries = nil // non-fatal: proceed without commit history
@@ -517,6 +524,20 @@ func debug2Impl(ctx context.Context, specName, gromitDir string, cfg *config.Con
 	}
 	if err := debug2ApplyPatchFn(ctx, wtPath, response.CodePatch); err != nil {
 		return err
+	}
+	stageResult, err := debug2ValidateAndCommitFn(ctx, wtPath, diagnosis.StageTrace, stageCommitter)
+	if err != nil {
+		return fmt.Errorf("validating stage fix: %w", err)
+	}
+	if !stageResult.Passed {
+		detail := strings.TrimSpace(stageResult.Output)
+		if detail == "" {
+			detail = stageResult.Error
+		}
+		if detail == "" {
+			detail = "stage validation failed"
+		}
+		return fmt.Errorf("stage validation failed: %s", detail)
 	}
 	for _, command := range validationCommands {
 		if err := debug2RunValidationFn(ctx, wtPath, command); err != nil {
@@ -609,58 +630,4 @@ func getStringField(m map[string]interface{}, key string) string {
 // debug2PersistLearningToFile persists a learning entry to the LEARNINGS.md file.
 func debug2PersistLearningToFile(learningsPath, entry string) error {
 	return debugpkg.PersistLearning(learningsPath, entry)
-}
-
-// Debug2OrchestrateResult holds the orchestration outcome for diagnosis, fix, and learning.
-type Debug2OrchestrateResult struct {
-	DiagnosisComplete bool
-	FailureEvent      map[string]interface{}
-	Events            []map[string]interface{}
-	FixApplied        bool
-	FixError          string
-	LearningExtracted bool
-	LearningEntry     string
-	Recommendation    string
-}
-
-// debug2OrchestrateDebug orchestrates the debug cycle enough for lens-based diagnostics.
-func debug2OrchestrateDebug(ctx context.Context, gromitDir, specName, wtPath string) (*Debug2OrchestrateResult, error) {
-	result := &Debug2OrchestrateResult{}
-	_ = ctx
-	_ = gromitDir
-	_ = specName
-
-	events, err := readDebug2EventLog(wtPath)
-	if err != nil && !os.IsNotExist(err) {
-		return result, fmt.Errorf("reading event log: %w", err)
-	}
-
-	result.Events = events
-	result.DiagnosisComplete = true
-
-	if failure := findFailureEvent(events); failure != nil {
-		result.FailureEvent = failure
-		if entry := getStringField(failure, "error"); entry != "" {
-			result.LearningExtracted = true
-			result.LearningEntry = entry
-		}
-	}
-
-	return result, nil
-}
-
-// getStringField safely reads a string from a map.
-func getStringField(m map[string]interface{}, key string) string {
-	if m == nil {
-		return ""
-	}
-	v, ok := m[key]
-	if !ok {
-		return ""
-	}
-	s, ok := v.(string)
-	if !ok {
-		return ""
-	}
-	return strings.TrimSpace(s)
 }
