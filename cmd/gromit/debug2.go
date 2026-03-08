@@ -320,6 +320,39 @@ func runDebug2ValidationCommand(ctx context.Context, wtPath, command string) err
 	return nil
 }
 
+func appendDebug2LearningsEntry(wtPath, entry string) error {
+	trimmedEntry := strings.TrimSpace(entry)
+	if trimmedEntry == "" {
+		return nil
+	}
+
+	learningsPath := filepath.Join(wtPath, "LEARNINGS.md")
+	content, err := os.ReadFile(learningsPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return os.WriteFile(learningsPath, []byte(trimmedEntry+"\n"), 0o644)
+		}
+		return fmt.Errorf("reading LEARNINGS.md: %w", err)
+	}
+
+	text := string(content)
+	insertBlock := trimmedEntry + "\n\n"
+	marker := "\n## Provisional Learnings"
+	if idx := strings.Index(text, marker); idx >= 0 {
+		prefix := strings.TrimRight(text[:idx], "\n")
+		suffix := strings.TrimLeft(text[idx:], "\n")
+		updated := prefix + "\n\n" + insertBlock + suffix
+		return os.WriteFile(learningsPath, []byte(updated), 0o644)
+	}
+
+	updated := strings.TrimRight(text, "\n")
+	if updated != "" {
+		updated += "\n\n"
+	}
+	updated += trimmedEntry + "\n"
+	return os.WriteFile(learningsPath, []byte(updated), 0o644)
+}
+
 // debug2Impl contains the testable core of the debug2 command.
 func debug2Impl(ctx context.Context, specName, gromitDir string, cfg *config.Config) error {
 	if ctx == nil {
@@ -376,6 +409,9 @@ func debug2Impl(ctx context.Context, specName, gromitDir string, cfg *config.Con
 		if err := debug2RunValidationFn(ctx, wtPath, command); err != nil {
 			return err
 		}
+	}
+	if err := appendDebug2LearningsEntry(wtPath, response.LearningsEntry); err != nil {
+		return err
 	}
 	return nil
 }
