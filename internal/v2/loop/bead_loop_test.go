@@ -1849,6 +1849,43 @@ func TestBeadLoopCallsStageCommitterAfterSuccessfulStage(t *testing.T) {
 	}
 }
 
+func TestBeadLoopCallsStageCommitterAfterFailedStage(t *testing.T) {
+	t.Parallel()
+
+	sc := &mockStageCommitter{}
+	cfg := BeadLoopConfig{
+		Gate:           newNoopStage("gate"),
+		Build:          newNoopStage("build"),
+		Validate:       &decisionStage{name: "validate", decision: stage.DecisionFail},
+		Review:         newNoopStage("review"),
+		Epilogue:       newNoopStage("epilogue"),
+		StageCommitter: sc,
+	}
+	loop, err := NewBeadLoop(cfg)
+	if err != nil {
+		t.Fatalf("NewBeadLoop: %v", err)
+	}
+
+	beads := []*bead.Bead{{ID: "bead-fail"}}
+	if _, err := loop.Run(context.Background(), beads, nil); err != nil {
+		t.Fatalf("Run failed: %v", err)
+	}
+
+	if len(sc.calls) != 2 {
+		t.Fatalf("CommitStage called %d times, want 2", len(sc.calls))
+	}
+
+	want := []stageCommitCall{
+		{beadID: "bead-fail", stageName: "build", iteration: 1, decision: stage.DecisionProceed.String()},
+		{beadID: "bead-fail", stageName: "validate", iteration: 1, decision: stage.DecisionFail.String()},
+	}
+	for i := range want {
+		if sc.calls[i] != want[i] {
+			t.Fatalf("call[%d] = %+v, want %+v", i, sc.calls[i], want[i])
+		}
+	}
+}
+
 func TestBeadLoopStageCommitterUsesPerStageIterationOnRetry(t *testing.T) {
 	t.Parallel()
 
