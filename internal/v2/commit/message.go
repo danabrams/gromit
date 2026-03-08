@@ -27,6 +27,8 @@ func FormatMessage(beadID, stageName string, iteration int, decision string) str
 var (
 	beadMessageRe = regexp.MustCompile(`^\[bead:([^/]+)/([^/]+)/iter:(\d+)\]\s+(.+)$`)
 	specMessageRe = regexp.MustCompile(`^\[spec/([^/]+)/iter:(\d+)\]\s+(.+)$`)
+	beadIDRe      = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]*$`)
+	stageNameRe   = regexp.MustCompile(`^[a-z][a-z0-9_-]*$`)
 )
 
 // ParseMessage decodes a structured commit message into its components.
@@ -36,50 +38,56 @@ func ParseMessage(msg string) (Message, error) {
 		subject = strings.TrimSpace(subject[:lineBreak])
 	}
 
-	if matches := beadMessageRe.FindStringSubmatch(subject); matches != nil {
-		iteration, err := strconv.Atoi(matches[3])
-		if err != nil {
-			return Message{}, fmt.Errorf("invalid iteration: %w", err)
+		if matches := beadMessageRe.FindStringSubmatch(subject); matches != nil {
+			iteration, err := strconv.Atoi(matches[3])
+			if err != nil {
+				return Message{}, fmt.Errorf("invalid iteration: %w", err)
+			}
+
+			parsed := Message{
+				BeadID:    strings.TrimSpace(matches[1]),
+				StageName: strings.TrimSpace(matches[2]),
+				Iteration: iteration,
+				Decision:  strings.TrimSpace(matches[4]),
+			}
+			if err := validateRequiredFields(parsed); err != nil {
+				return Message{}, err
+			}
+			return parsed, nil
 		}
 
-		parsed := Message{
-			BeadID:    matches[1],
-			StageName: matches[2],
-			Iteration: iteration,
-			Decision:  matches[4],
-		}
-		if err := validateRequiredFields(parsed); err != nil {
-			return Message{}, err
-		}
-		return parsed, nil
-	}
+		if matches := specMessageRe.FindStringSubmatch(subject); matches != nil {
+			iteration, err := strconv.Atoi(matches[2])
+			if err != nil {
+				return Message{}, fmt.Errorf("invalid iteration: %w", err)
+			}
 
-	if matches := specMessageRe.FindStringSubmatch(subject); matches != nil {
-		iteration, err := strconv.Atoi(matches[2])
-		if err != nil {
-			return Message{}, fmt.Errorf("invalid iteration: %w", err)
+			parsed := Message{
+				StageName: strings.TrimSpace(matches[1]),
+				Iteration: iteration,
+				Decision:  strings.TrimSpace(matches[3]),
+			}
+			if err := validateRequiredFields(parsed); err != nil {
+				return Message{}, err
+			}
+			return parsed, nil
 		}
-
-		parsed := Message{
-			StageName: matches[1],
-			Iteration: iteration,
-			Decision:  matches[3],
-		}
-		if err := validateRequiredFields(parsed); err != nil {
-			return Message{}, err
-		}
-		return parsed, nil
-	}
 
 	return Message{}, fmt.Errorf("invalid commit message format")
 }
 
 func validateRequiredFields(msg Message) error {
-	if msg.BeadID != "" && strings.TrimSpace(msg.BeadID) == "" {
-		return fmt.Errorf("bead ID is required")
+	if trimmed := strings.TrimSpace(msg.BeadID); trimmed != "" {
+		if !beadIDRe.MatchString(trimmed) {
+			return fmt.Errorf("invalid bead ID %q", trimmed)
+		}
 	}
-	if strings.TrimSpace(msg.StageName) == "" {
+	stageName := strings.TrimSpace(msg.StageName)
+	if stageName == "" {
 		return fmt.Errorf("stage name is required")
+	}
+	if !stageNameRe.MatchString(stageName) {
+		return fmt.Errorf("invalid stage name %q", stageName)
 	}
 	if msg.Iteration <= 0 {
 		return fmt.Errorf("iteration must be greater than zero")
