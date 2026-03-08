@@ -705,6 +705,7 @@ func (s *SpecLoop) handleFailure(ctx context.Context, specID string, base presen
 func (s *SpecLoop) cleanupWorktree(_ context.Context, specID, worktree string, success bool) error {
 	trimmed := strings.TrimSpace(worktree)
 	if trimmed == "" {
+		log.Printf("worktree cleanup skipped for spec %s: empty worktree path", specID)
 		return nil
 	}
 	git := s.adapters.Git
@@ -721,22 +722,30 @@ func (s *SpecLoop) cleanupWorktree(_ context.Context, specID, worktree string, s
 			log.Printf("git status during cleanup of spec %s: %v", specID, err)
 		} else if strings.TrimSpace(status) != "" {
 			message := fmt.Sprintf("[gromit: partial work] spec %s", specID)
-			if _, err := git.Commit(cleanupCtx, trimmed, message); err != nil {
+			hash, err := git.Commit(cleanupCtx, trimmed, message)
+			if err != nil {
 				log.Printf("commit partial work for spec %s: %v", specID, err)
+			} else {
+				log.Printf("committed partial work for spec %s at %s", specID, strings.TrimSpace(hash))
 			}
 		}
 		if s.preserveOnFailure {
+			log.Printf("preserving failed spec worktree branch for spec %s at %s", specID, trimmed)
 			return nil
 		}
+		log.Printf("removing failed spec worktree for spec %s at %s (preserve_on_failure=false)", specID, trimmed)
 	}
 	if success {
 		if remover, ok := git.(worktreeBranchRemover); ok {
+			log.Printf("removing worktree and deleting branch after successful presentation for spec %s at %s", specID, trimmed)
 			if err := remover.RemoveWorktreeAndBranch(cleanupCtx, trimmed); err != nil {
 				return fmt.Errorf("remove worktree and branch: %w", err)
 			}
 			return nil
 		}
+		log.Printf("git adapter cannot delete branches; removing worktree only for successful spec %s at %s", specID, trimmed)
 	}
+	log.Printf("removing worktree for spec %s at %s", specID, trimmed)
 	if err := git.RemoveWorktree(cleanupCtx, trimmed); err != nil {
 		return fmt.Errorf("remove worktree: %w", err)
 	}
