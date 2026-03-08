@@ -9,6 +9,7 @@ import (
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/tracker"
 	"github.com/danabrams/gromit/internal/coverage"
 	"github.com/danabrams/gromit/internal/events"
 	legacyReview "github.com/danabrams/gromit/internal/review"
@@ -241,7 +242,7 @@ func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Resul
 	classifier := v2review.NewClassifier(s.Emitter)
 	classified := classifier.Classify(parent, findings)
 
-	created, err := s.createBeads(ctx, parent.ID, classified.Beads)
+	created, err := s.createBeads(ctx, parent.ID, parent.Labels, classified.Beads)
 	if err != nil {
 		return nil, err
 	}
@@ -370,15 +371,19 @@ func convertToFindings(result *legacyReview.ReviewResult) []v2review.Finding {
 	return findings
 }
 
-func (s *Stage) createBeads(ctx context.Context, parentID string, proposals []*bead.Bead) ([]*trackertypes.Bead, error) {
+func (s *Stage) createBeads(ctx context.Context, parentID string, parentLabels []string, proposals []*bead.Bead) ([]*trackertypes.Bead, error) {
 	if len(proposals) == 0 {
 		return nil, nil
 	}
+	specLabel := bead.FindSpecLabel(parentLabels)
 	created := make([]*trackertypes.Bead, 0, len(proposals))
 	for _, proposal := range proposals {
 		labels := copyStrings(proposal.Labels)
 		if parentID != "" {
 			labels = append(labels, "review-source:"+parentID)
+		}
+		if specLabel != "" {
+			labels = append(labels, tracker.SpecLabelFor(specLabel))
 		}
 		trackerResp, err := s.tracker.CreateBead(ctx, trackertypes.TaskTrackerCreateBeadRequest{
 			Title:       proposal.Title,
