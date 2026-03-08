@@ -78,3 +78,36 @@ func TestSquashPerBead_squashesStructuredCommitsAndCommits(t *testing.T) {
 		t.Errorf("commitCalls = %v, want [\"bead 001: My Feature\"]", fake.commitCalls)
 	}
 }
+
+func TestSquashPerBead_squashesEachBeadBoundary(t *testing.T) {
+	fake := &fakeSquashGit{
+		logEntries: []adapter.LogEntry{
+			{Hash: "h4", Message: "[bead:002/review/iter:1] Proceed"},
+			{Hash: "h3", Message: "[bead:002/validate/iter:1] Proceed"},
+			{Hash: "h2", Message: "[bead:001/review/iter:1] Proceed"},
+			{Hash: "h1", Message: "[bead:001/build/iter:1] Proceed"},
+			{Hash: "h0", Message: "initial commit"},
+		},
+	}
+	beads := []presentation.BeadSummary{
+		{ID: "001", Title: "First Bead"},
+		{ID: "002", Title: "Second Bead"},
+	}
+
+	err := SquashPerBead(context.Background(), fake, "/tmp/wt", beads)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(fake.squashCalls) != 2 || fake.squashCalls[0] != 2 || fake.squashCalls[1] != 2 {
+		t.Errorf("squashCalls = %v, want [2 2]", fake.squashCalls)
+	}
+	wantMessages := []string{"bead 002: Second Bead", "bead 001: First Bead"}
+	if len(fake.commitCalls) != len(wantMessages) {
+		t.Fatalf("commitCalls = %v, want %v", fake.commitCalls, wantMessages)
+	}
+	for i := range wantMessages {
+		if fake.commitCalls[i] != wantMessages[i] {
+			t.Fatalf("commitCalls[%d] = %q, want %q", i, fake.commitCalls[i], wantMessages[i])
+		}
+	}
+}
