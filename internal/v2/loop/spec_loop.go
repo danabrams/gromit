@@ -405,11 +405,20 @@ func (s *SpecLoop) Run(ctx context.Context, specID string, stopCh <-chan struct{
 
 	s.recordStage("accept")
 	acceptRes, err := s.ensureAcceptance(ctx, &req, specID)
+	acceptDecision := stagepkg.DecisionProceed.String()
+	if acceptRes != nil {
+		acceptDecision = acceptRes.Decision.String()
+	}
 	if err != nil {
+		if acceptRes != nil {
+			if commitErr := s.commitStage(ctx, worktree, "accept", 0, acceptDecision); commitErr != nil {
+				return fmt.Errorf("commit after accept: %w", commitErr)
+			}
+		}
 		handleFailureCleaned = true
 		return s.handleFailure(ctx, specID, baseSummary, err)
 	}
-	if err := s.commitStage(ctx, worktree, "accept", 0, "proceed"); err != nil {
+	if err := s.commitStage(ctx, worktree, "accept", 0, acceptDecision); err != nil {
 		return fmt.Errorf("commit after accept: %w", err)
 	}
 
