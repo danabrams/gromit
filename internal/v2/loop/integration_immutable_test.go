@@ -61,6 +61,24 @@ func TestIntegrationImmutable_EventLogCumulativeAcrossCommits(t *testing.T) {
 	assertEventsCumulativeAcrossCommits(t, result)
 }
 
+func TestIntegrationImmutable_RetriesPreservePriorAttemptCommits(t *testing.T) {
+	t.Parallel()
+
+	result := runImmutableSpec(t, immutableSpecConfig{
+		specID: "immutable-retry-history",
+		beads: immutableBeads(
+			immutableBead("bead-001", "Retry bead"),
+		),
+		validateDecisions: []stagepkg.Decision{stagepkg.DecisionFail, stagepkg.DecisionProceed},
+		validateRetry: stagepkg.RetryConfig{
+			MaxRetries: 1,
+			RetryWith:  []string{"build"},
+		},
+	})
+
+	assertRetryHistoryPreserved(t, result, "bead-001")
+}
+
 type immutableSpecConfig struct {
 	specID            string
 	beads             []*bead.Bead
