@@ -86,6 +86,10 @@ type BeadLoop struct {
 	stageCommitter             StageCommitter
 	router                     *routing.Router
 	phaseModels                map[string]string
+	// lastBuildArtifacts stores the build artifacts from the most recent
+	// successful build stage run for the current bead. Reset at the start
+	// of each processBead call.
+	lastBuildArtifacts *buildstage.BuildArtifacts
 	// run-scoped state for in-loop decomposition
 	resolver  *dep.Resolver
 	beadMap   map[string]*bead.Bead
@@ -311,6 +315,7 @@ type stageEntry struct {
 }
 
 func (b *BeadLoop) processBead(ctx context.Context, beadItem *bead.Bead, iteration int, highestGen *int, generationLimit int, stopCh <-chan struct{}) error {
+	b.lastBuildArtifacts = nil // reset for each bead
 	// Run gate stage first; skip/block return sentinels instead of halting.
 	if err := b.runGate(ctx, beadItem, iteration); err != nil {
 		return err
@@ -500,6 +505,12 @@ func (b *BeadLoop) runStageEntry(ctx context.Context, beadItem *bead.Bead, itera
 		if failed {
 			b.emitStageFailed(stageName, beadItem.ID, iteration, reason)
 		} else {
+			// Capture build artifacts for bead-level reporting.
+			if entry.stage == b.build && res != nil && res.Artifacts != nil {
+				if artifacts, ok := res.Artifacts.(*buildstage.BuildArtifacts); ok {
+					b.lastBuildArtifacts = artifacts
+				}
+			}
 			if entry.stage == b.review {
 				b.collectOutOfScopeFindings(res)
 				if b.handleGenerationCapFromReview(res, highestGen, generationLimit) {
@@ -725,7 +736,7 @@ func (b *BeadLoop) emitBeadCompleted(beadItem *bead.Bead, iteration int, success
 	if b.emitter == nil || beadItem == nil {
 		return
 	}
-	b.emitter.Emit(event.BeadCompletedEvent{
+	evt := event.BeadCompletedEvent{
 		Event: event.Event{
 			SchemaVersion: event.SchemaVersion,
 			Timestamp:     time.Now(),
@@ -736,7 +747,14 @@ func (b *BeadLoop) emitBeadCompleted(beadItem *bead.Bead, iteration int, success
 		Iteration:    iteration,
 		Success:      success,
 		RetryAttempt: retryAttempt,
-	})
+	}
+	if b.lastBuildArtifacts != nil {
+		evt.Model = b.lastBuildArtifacts.Model
+		evt.CostUSD = b.lastBuildArtifacts.CostUSD
+		evt.InputTokens = b.lastBuildArtifacts.Tokens
+		evt.Duration = b.lastBuildArtifacts.Duration
+	}
+	b.emitter.Emit(evt)
 }
 
 func (b *BeadLoop) emitStageStarted(stageName, beadID string, iteration int) {
