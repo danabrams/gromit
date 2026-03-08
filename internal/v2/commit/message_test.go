@@ -68,3 +68,23 @@ func TestParseMessageSpecStage(t *testing.T) {
 		t.Fatalf("Decision = %q, want %q", parsed.Decision, "Proceed")
 	}
 }
+
+func TestParseMessageParsesFirstLineFromMultilineMessage(t *testing.T) {
+	input := "[bead:gromit-o00gs/review/iter:3] Retry\n\nBody content"
+	parsed, err := ParseMessage(input)
+	if err != nil {
+		t.Fatalf("ParseMessage() error = %v", err)
+	}
+	if parsed.BeadID != "gromit-o00gs" {
+		t.Fatalf("BeadID = %q, want %q", parsed.BeadID, "gromit-o00gs")
+	}
+	if parsed.StageName != "review" {
+		t.Fatalf("StageName = %q, want %q", parsed.StageName, "review")
+	}
+	if parsed.Iteration != 3 {
+		t.Fatalf("Iteration = %d, want %d", parsed.Iteration, 3)
+	}
+	if parsed.Decision != "Retry" {
+		t.Fatalf("Decision = %q, want %q", parsed.Decision, "Retry")
+	}
+}
