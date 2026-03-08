@@ -253,6 +253,20 @@ func CheckBeads(beads []BeadCandidate) []Violation {
 		}
 	}
 
+	// Check for structural/file-path acceptance criteria
+	for i, bead := range beads {
+		for _, criterion := range bead.AcceptanceCriteria {
+			if containsFilePath(criterion) {
+				violations = append(violations, Violation{
+					BeadIndex: i,
+					Rule:      "criteria_structural",
+					Message:   "Acceptance criterion references file paths or code structure; use observable behavior instead",
+				})
+				break
+			}
+		}
+	}
+
 	return violations
 }
 
@@ -320,6 +334,18 @@ func hasDuplicateOutputs(outputs []string) bool {
 			return true
 		}
 		seen[output] = true
+	}
+	return false
+}
+
+var filePathExtensions = []string{".go", ".ts", ".js", ".py", ".rs", ".java", ".yaml", ".yml", ".json", ".toml"}
+
+func containsFilePath(text string) bool {
+	lower := strings.ToLower(text)
+	for _, ext := range filePathExtensions {
+		if strings.Contains(lower, "/") && strings.Contains(lower, ext) {
+			return true
+		}
 	}
 	return false
 }
