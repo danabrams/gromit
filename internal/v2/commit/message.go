@@ -63,6 +63,7 @@ func ParseMessage(msg string) (Message, error) {
 			}
 
 			parsed := Message{
+				BeadID:    "spec",
 				StageName: strings.TrimSpace(matches[1]),
 				Iteration: iteration,
 				Decision:  strings.TrimSpace(matches[3]),
