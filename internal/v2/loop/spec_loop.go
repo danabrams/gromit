@@ -341,7 +341,7 @@ func (s *SpecLoop) Run(ctx context.Context, specID string, stopCh <-chan struct{
 			return fmt.Errorf("persist plan: %w", err)
 		}
 		s.emitTypedSpecStageCompleted("plan", true, time.Since(planStart))
-		if err := s.commitStage(ctx, worktree, "plan", 0, "proceed"); err != nil {
+		if err := s.commitStage(ctx, worktree, "plan", 1, "proceed"); err != nil {
 			return fmt.Errorf("commit after plan: %w", err)
 		}
 	}
@@ -399,7 +399,7 @@ func (s *SpecLoop) Run(ctx context.Context, specID string, stopCh <-chan struct{
 			return err
 		}
 		s.emitTypedSpecStageCompleted("decompose", true, time.Since(decomposeStart))
-		if err := s.commitStage(ctx, worktree, "decompose", 0, "proceed"); err != nil {
+		if err := s.commitStage(ctx, worktree, "decompose", 1, "proceed"); err != nil {
 			return fmt.Errorf("commit after decompose: %w", err)
 		}
 	}
@@ -432,7 +432,7 @@ func (s *SpecLoop) Run(ctx context.Context, specID string, stopCh <-chan struct{
 		s.emitTypedSpecStageCompleted("accept", false, time.Since(acceptStart))
 		s.emitTypedSpecStageFailed("accept", err.Error())
 		if acceptRes != nil {
-			if commitErr := s.commitStage(ctx, worktree, "accept", 0, acceptDecision); commitErr != nil {
+			if commitErr := s.commitStage(ctx, worktree, "accept", 1, acceptDecision); commitErr != nil {
 				return fmt.Errorf("commit after accept: %w", commitErr)
 			}
 		}
@@ -440,7 +440,7 @@ func (s *SpecLoop) Run(ctx context.Context, specID string, stopCh <-chan struct{
 		return s.handleFailure(ctx, specID, baseSummary, err)
 	}
 	s.emitTypedSpecStageCompleted("accept", true, time.Since(acceptStart))
-	if err := s.commitStage(ctx, worktree, "accept", 0, acceptDecision); err != nil {
+	if err := s.commitStage(ctx, worktree, "accept", 1, acceptDecision); err != nil {
 		return fmt.Errorf("commit after accept: %w", err)
 	}
 
@@ -777,7 +777,7 @@ func (s *SpecLoop) presentSummary(ctx context.Context, specID string, summary pr
 		return fmt.Errorf("present stage failed")
 	}
 	s.emitTypedSpecStageCompleted("present", true, time.Since(presentStart))
-	if err := s.commitStage(ctx, summary.Worktree, "present", 0, "proceed"); err != nil {
+	if err := s.commitStage(ctx, summary.Worktree, "present", 1, "proceed"); err != nil {
 		return fmt.Errorf("commit after present: %w", err)
 	}
 	return nil
