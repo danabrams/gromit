@@ -2,6 +2,7 @@ package loop
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -9,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/v2/adapter"
 	gitadapter "github.com/danabrams/gromit/internal/v2/adapter/git"
@@ -474,5 +476,69 @@ func TestCleanupWorktreeUsesNonCancelledContext(t *testing.T) {
 	// Verify worktree was removed.
 	if len(gitAdapter.removedWorktrees) != 1 {
 		t.Fatalf("expected 1 removed worktree, got %d", len(gitAdapter.removedWorktrees))
+	}
+}
+
+type dirtyStatusGitAdapter struct {
+	fakeGitAdapter
+}
+
+func (d *dirtyStatusGitAdapter) Status(ctx context.Context, worktree string) (string, error) {
+	if ctx.Err() != nil {
+		return "", ctx.Err()
+	}
+	d.statusCalls = append(d.statusCalls, worktree)
+	return "M .gromit/v2/events.jsonl", nil
+}
+
+func (d *dirtyStatusGitAdapter) Commit(ctx context.Context, worktree, message string) (string, error) {
+	if ctx.Err() != nil {
+		return "", ctx.Err()
+	}
+	d.commitMessages = append(d.commitMessages, message)
+	return "fake-sha", nil
+}
+
+type generationCapBeadRunner struct{}
+
+func (generationCapBeadRunner) Run(context.Context, []*bead.Bead, <-chan struct{}) (BeadLoopResult, error) {
+	return BeadLoopResult{}, ErrGenerationCapReached
+}
+
+func TestSpecLoopGenerationCapPreservesBranchWithPartialWorkCommit(t *testing.T) {
+	t.Parallel()
+
+	specID := "spec-generation-cap-preserve"
+	gitAdapter := &dirtyStatusGitAdapter{}
+	gitAdapter.t = t
+
+	adapters := adapter.AdapterSet{
+		Git:         gitAdapter,
+		LLM:         newFakeLLMAdapter(),
+		TaskTracker: newFakeTaskTrackerAdapter(),
+		Presenter:   newFakePresenterAdapter(t),
+	}
+
+	loopInstance, err := NewSpecLoop(adapters, &config.Config{}, noopDependencyGate{},
+		WithPlanStage(newFakePlanStage(specID)),
+		WithDecomposeStage(newFakeDecomposeStage(specID)),
+		WithBeadLoop(generationCapBeadRunner{}),
+	)
+	if err != nil {
+		t.Fatalf("create spec loop: %v", err)
+	}
+
+	err = loopInstance.Run(context.Background(), specID, nil)
+	if !errors.Is(err, ErrGenerationCapReached) {
+		t.Fatalf("Run error = %v, want %v", err, ErrGenerationCapReached)
+	}
+	if len(gitAdapter.commitMessages) != 1 {
+		t.Fatalf("expected partial-work commit on generation-cap failure, got %d commits", len(gitAdapter.commitMessages))
+	}
+	if want := "[gromit: partial work] spec " + specID; !strings.Contains(gitAdapter.commitMessages[0], want) {
+		t.Fatalf("commit message %q missing %q", gitAdapter.commitMessages[0], want)
+	}
+	if len(gitAdapter.removedWorktrees) != 0 {
+		t.Fatalf("expected preserved worktree on generation-cap failure, removed=%v", gitAdapter.removedWorktrees)
 	}
 }
