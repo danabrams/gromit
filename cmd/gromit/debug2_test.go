@@ -128,6 +128,25 @@ func TestResolveDebug2Worktree_ReturnsErrorWhenMissing(t *testing.T) {
 	}
 }
 
+func TestResolveDebug2Worktree_WrapsFinderNotFoundError(t *testing.T) {
+	tmpDir := t.TempDir()
+	specName := "missing-spec"
+
+	orig := debug2BranchWorktreeFn
+	t.Cleanup(func() { debug2BranchWorktreeFn = orig })
+	debug2BranchWorktreeFn = func(gromitDir, spec string) (string, error) {
+		return "", fmt.Errorf("%w: %s", debugpkg.ErrPreservedWorktreeBranchNotFound, spec)
+	}
+
+	_, err := resolveDebug2Worktree(tmpDir, specName)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if got, want := err.Error(), `no preserved worktree or branch found for spec "missing-spec"`; got != want {
+		t.Fatalf("error = %q, want %q", got, want)
+	}
+}
+
 func TestResolveDebug2Worktree_FindsExistingWorktree(t *testing.T) {
 	tmpDir := t.TempDir()
 	specName := "my-spec"
