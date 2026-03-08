@@ -326,7 +326,7 @@ func (s *SpecLoop) Run(ctx context.Context, specID string, stopCh <-chan struct{
 		if err := os.WriteFile(planPath, []byte(plan), 0o644); err != nil {
 			return fmt.Errorf("persist plan: %w", err)
 		}
-		if err := s.commitStage(ctx, worktree, specID, "plan", 0, "proceed"); err != nil {
+		if err := s.commitStage(ctx, worktree, "plan", 0, "proceed"); err != nil {
 			return fmt.Errorf("commit after plan: %w", err)
 		}
 	}
@@ -379,7 +379,7 @@ func (s *SpecLoop) Run(ctx context.Context, specID string, stopCh <-chan struct{
 		if err != nil {
 			return err
 		}
-		if err := s.commitStage(ctx, worktree, specID, "decompose", 0, "proceed"); err != nil {
+		if err := s.commitStage(ctx, worktree, "decompose", 0, "proceed"); err != nil {
 			return fmt.Errorf("commit after decompose: %w", err)
 		}
 	}
@@ -406,7 +406,7 @@ func (s *SpecLoop) Run(ctx context.Context, specID string, stopCh <-chan struct{
 		handleFailureCleaned = true
 		return s.handleFailure(ctx, specID, baseSummary, err)
 	}
-	if err := s.commitStage(ctx, worktree, specID, "accept", 0, "proceed"); err != nil {
+	if err := s.commitStage(ctx, worktree, "accept", 0, "proceed"); err != nil {
 		return fmt.Errorf("commit after accept: %w", err)
 	}
 
@@ -719,7 +719,7 @@ func (s *SpecLoop) presentSummary(ctx context.Context, specID string, summary pr
 	if res != nil && res.Decision == stagepkg.DecisionFail {
 		return fmt.Errorf("present stage failed")
 	}
-	if err := s.commitStage(ctx, summary.Worktree, specID, "present", 0, "proceed"); err != nil {
+	if err := s.commitStage(ctx, summary.Worktree, "present", 0, "proceed"); err != nil {
 		return fmt.Errorf("commit after present: %w", err)
 	}
 	return nil
@@ -762,11 +762,11 @@ func (s *SpecLoop) readGapAnalysis(worktree string) (string, error) {
 	return strings.TrimSpace(string(data)), nil
 }
 
-func (s *SpecLoop) commitStage(ctx context.Context, worktree, specID, stageName string, iteration int, decision string) error {
+func (s *SpecLoop) commitStage(ctx context.Context, worktree, stageName string, iteration int, decision string) error {
 	if s.stageCommitter == nil {
 		return nil
 	}
-	return s.stageCommitter.CommitStage(ctx, worktree, specID, stageName, iteration, decision)
+	return s.stageCommitter.CommitStage(ctx, worktree, "", stageName, iteration, decision)
 }
 
 func (s *SpecLoop) recordStage(name string) {
