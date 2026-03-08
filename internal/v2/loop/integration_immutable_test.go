@@ -4,6 +4,7 @@ package loop
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -213,6 +214,43 @@ func assertStructuredStageSequence(t *testing.T, result immutableRunResult, want
 	}
 }
 
+func assertEventsCumulativeAcrossCommits(t *testing.T, result immutableRunResult) {
+	t.Helper()
+
+	commits := immutableBranchCommits(t, result.repoRoot, result.sourceBranch, 64)
+	structured := make([]immutableCommit, 0, len(commits))
+	for _, commit := range commits {
+		if _, ok := pipeline.ParseCommitMessage(commit.Subject); ok {
+			structured = append(structured, commit)
+		}
+	}
+	if len(structured) == 0 {
+		t.Fatal("expected structured commits, got none")
+	}
+
+	for i, j := 0, len(structured)-1; i < j; i, j = i+1, j-1 {
+		structured[i], structured[j] = structured[j], structured[i]
+	}
+
+	var previous []string
+	for idx, commit := range structured {
+		content := immutableShowFileAtCommit(t, result.repoRoot, commit.Hash, ".gromit/v2/events.jsonl")
+		lines := immutableJSONLLines(t, content)
+		if len(lines) == 0 {
+			t.Fatalf("commit %s has empty events.jsonl snapshot", commit.Hash)
+		}
+		if len(lines) < len(previous) {
+			t.Fatalf("events line count regressed at commit %d (%s): got %d, previous %d", idx, commit.Hash, len(lines), len(previous))
+		}
+		for i, prev := range previous {
+			if lines[i] != prev {
+				t.Fatalf("events snapshot diverged at commit %d (%s), line %d", idx, commit.Hash, i)
+			}
+		}
+		previous = lines
+	}
+}
+
 func immutableBead(id, title string) *bead.Bead {
 	return &bead.Bead{ID: id, Title: title}
 }
@@ -249,6 +287,28 @@ func immutableBranchCommits(t *testing.T, repoRoot, branch string, n int) []immu
 		commits = append(commits, immutableCommit{Hash: parts[0], Subject: parts[1]})
 	}
 	return commits
+}
+
+func immutableShowFileAtCommit(t *testing.T, repoRoot, hash, filePath string) string {
+	t.Helper()
+	return gitCommand(t, repoRoot, "show", hash+":"+filePath)
+}
+
+func immutableJSONLLines(t *testing.T, content string) []string {
+	t.Helper()
+
+	trimmed := strings.TrimRight(content, "\n")
+	if strings.TrimSpace(trimmed) == "" {
+		return nil
+	}
+	lines := strings.Split(trimmed, "\n")
+	for i, line := range lines {
+		var raw map[string]any
+		if err := json.Unmarshal([]byte(line), &raw); err != nil {
+			t.Fatalf("events.jsonl line %d is invalid JSON: %v", i, err)
+		}
+	}
+	return lines
 }
 
 type immutableGitAdapter struct {
