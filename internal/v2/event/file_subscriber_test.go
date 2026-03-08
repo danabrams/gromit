@@ -58,6 +58,43 @@ func TestHandleAppendsJSONLineToFile(t *testing.T) {
 	}
 }
 
+func TestHandleSkipsNilEvents(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "events.jsonl")
+	fs := NewFileSubscriber(path)
+	defer fs.Close()
+
+	fs.Handle(&StageStartedEvent{
+		Event: Event{SchemaVersion: SchemaVersion, Type: EventTypeStageStarted},
+	})
+
+	fs.Handle(nil)
+
+	var typedNil *StageStartedEvent
+	fs.Handle(typedNil)
+
+	if err := fs.Close(); err != nil {
+		t.Fatalf("closing file subscriber: %v", err)
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("reading file: %v", err)
+	}
+
+	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
+	if len(lines) != 1 {
+		t.Fatalf("expected only 1 JSON object line, got %d: %q", len(lines), string(data))
+	}
+
+	var payload map[string]interface{}
+	if err := json.Unmarshal([]byte(lines[0]), &payload); err != nil {
+		t.Fatalf("line is not valid JSON object: %v", err)
+	}
+	if payload["type"] != EventTypeStageStarted {
+		t.Fatalf("type = %v, want %q", payload["type"], EventTypeStageStarted)
+	}
+}
+
 func TestSubscribeToRegistersHandlerWithEmitter(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "events.jsonl")
 	fs := NewFileSubscriber(path)
