@@ -13,7 +13,6 @@ import (
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/v2/adapter"
-	execgit "github.com/danabrams/gromit/internal/v2/adapter/git"
 	"github.com/danabrams/gromit/internal/v2/event"
 	"github.com/danabrams/gromit/internal/v2/pipeline"
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
@@ -27,7 +26,7 @@ func TestIntegration_CommitPerStageFlow_RealGitLoopHistory(t *testing.T) {
 	worktreesDir := t.TempDir()
 	specID := "integration-commit-per-stage"
 
-	gitAdapter := execgit.NewExecGitAdapter(repoRoot, worktreesDir)
+	gitAdapter := newImmutableGitAdapter(repoRoot, worktreesDir)
 	stageCommitter := &pipeline.StageCommitter{Git: gitAdapter}
 
 	typedEmitter := event.NewEmitter()
