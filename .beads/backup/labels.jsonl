@@ -988,6 +988,7 @@
 {"issue_id":"gromit-abwc8","label":"spec:session-worktree-pre-remove"}
 {"issue_id":"gromit-abytf","label":"spec:runner-pipeline"}
 {"issue_id":"gromit-acl","label":"spec:precheck-already-done"}
+{"issue_id":"gromit-ad34x","label":"spec:immutable-pipeline"}
 {"issue_id":"gromit-ae0mw","label":"estimated-files:1"}
 {"issue_id":"gromit-ae0mw","label":"gen:1"}
 {"issue_id":"gromit-ae0mw","label":"spec:immutable-pipeline"}
