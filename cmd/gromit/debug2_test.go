@@ -218,6 +218,52 @@ func TestDebug2Impl_DisplaysGitHistoryCommands(t *testing.T) {
 	}
 }
 
+func TestDebug2Impl_DisplaysDiagnosisSummary(t *testing.T) {
+	tmpDir := t.TempDir()
+	specName := "diagnose-summary"
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	wtPath := filepath.Join(gromitDir, "spec-worktrees", specName)
+
+	eventsPath := filepath.Join(wtPath, ".gromit", "v2", "events.jsonl")
+	if err := os.MkdirAll(filepath.Dir(eventsPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(eventsPath,
+		[]byte(`{"type":"stage.failed","stage_name":"build","error":"provider reported unsuccessful result: bad pattern"}`+"\n"),
+		0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	restoreStage := stubDebug2ValidateAndCommit(t)
+	t.Cleanup(restoreStage)
+
+	origInvoke := debug2InvokeLLMFn
+	t.Cleanup(func() { debug2InvokeLLMFn = origInvoke })
+	debug2InvokeLLMFn = func(ctx context.Context, prompt, dir string, cfg *config.Config) (string, error) {
+		return `{"code_patch":"","learnings_entry":"","systemic_recommendation":""}`, nil
+	}
+
+	origRunValidation := debug2RunValidationFn
+	t.Cleanup(func() { debug2RunValidationFn = origRunValidation })
+	debug2RunValidationFn = func(ctx context.Context, dir, command string) error {
+		return nil
+	}
+
+	var stdout bytes.Buffer
+	origStdout := debug2Stdout
+	t.Cleanup(func() { debug2Stdout = origStdout })
+	debug2Stdout = &stdout
+
+	if err := debug2Impl(context.Background(), specName, gromitDir, nil); err != nil {
+		t.Fatalf("debug2Impl() error = %v", err)
+	}
+
+	out := stdout.String()
+	if !strings.Contains(out, "Root cause: bad_build_output") {
+		t.Fatalf("stdout missing root cause summary, got:\n%v", out)
+	}
+}
+
 func TestResolveDebug2Worktree_ReturnsErrorWhenMissing(t *testing.T) {
 	tmpDir := t.TempDir()
 	specName := "nonexistent-spec"
