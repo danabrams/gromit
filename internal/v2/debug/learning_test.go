@@ -50,3 +50,16 @@ func TestPersistLearnablePatternEntry_AppendsToSpecLearnings(t *testing.T) {
 		t.Fatalf("LEARNINGS.md not updated, got:\n%s", string(updated))
 	}
 }
+
+func TestBuildLearningEntryFromDiagnostics_DetectsSyntaxErrorPattern(t *testing.T) {
+	entry := buildLearningEntryFromDiagnostics(RootCauseBadBuildOutput, "syntax error: unexpected )", "syntax error: unexpected )", "build")
+	if entry == "" {
+		t.Fatal("expected entry, got empty string")
+	}
+	if !strings.Contains(strings.ToLower(entry), "syntax error") {
+		t.Fatalf("expected entry to describe syntax error, got %q", entry)
+	}
+	if !strings.Contains(entry, "Example:") {
+		t.Fatalf("expected entry to include example guidance, got %q", entry)
+	}
+}
