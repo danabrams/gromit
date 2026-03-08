@@ -739,7 +739,19 @@ func (s *SpecLoop) commitStage(ctx context.Context, worktree, stageName string, 
 	if s.stageCommitter == nil {
 		return nil
 	}
+	if !isSpecCommittableStage(stageName) {
+		return nil
+	}
 	return s.stageCommitter.CommitStage(ctx, worktree, "", stageName, iteration, decision)
+}
+
+func isSpecCommittableStage(stageName string) bool {
+	switch barePhase(strings.TrimSpace(stageName)) {
+	case "plan", "decompose", "accept", "present":
+		return true
+	default:
+		return false
+	}
 }
 
 func (s *SpecLoop) emitTypedSpecStageStarted(stageName string) {
