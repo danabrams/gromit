@@ -610,3 +610,57 @@ func getStringField(m map[string]interface{}, key string) string {
 func debug2PersistLearningToFile(learningsPath, entry string) error {
 	return debugpkg.PersistLearning(learningsPath, entry)
 }
+
+// Debug2OrchestrateResult holds the orchestration outcome for diagnosis, fix, and learning.
+type Debug2OrchestrateResult struct {
+	DiagnosisComplete bool
+	FailureEvent      map[string]interface{}
+	Events            []map[string]interface{}
+	FixApplied        bool
+	FixError          string
+	LearningExtracted bool
+	LearningEntry     string
+	Recommendation    string
+}
+
+// debug2OrchestrateDebug orchestrates the debug cycle enough for lens-based diagnostics.
+func debug2OrchestrateDebug(ctx context.Context, gromitDir, specName, wtPath string) (*Debug2OrchestrateResult, error) {
+	result := &Debug2OrchestrateResult{}
+	_ = ctx
+	_ = gromitDir
+	_ = specName
+
+	events, err := readDebug2EventLog(wtPath)
+	if err != nil && !os.IsNotExist(err) {
+		return result, fmt.Errorf("reading event log: %w", err)
+	}
+
+	result.Events = events
+	result.DiagnosisComplete = true
+
+	if failure := findFailureEvent(events); failure != nil {
+		result.FailureEvent = failure
+		if entry := getStringField(failure, "error"); entry != "" {
+			result.LearningExtracted = true
+			result.LearningEntry = entry
+		}
+	}
+
+	return result, nil
+}
+
+// getStringField safely reads a string from a map.
+func getStringField(m map[string]interface{}, key string) string {
+	if m == nil {
+		return ""
+	}
+	v, ok := m[key]
+	if !ok {
+		return ""
+	}
+	s, ok := v.(string)
+	if !ok {
+		return ""
+	}
+	return strings.TrimSpace(s)
+}
