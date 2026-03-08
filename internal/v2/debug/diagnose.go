@@ -107,6 +107,7 @@ func Diagnose(input Input) Diagnosis {
 	trace.Validation = findValidationTrace(trace.Events)
 
 	diag.StageTrace = trace
+	diag.RootCause = refineRootCauseFromStage(trace, diag.RootCause)
 
 	return diag
 }
@@ -270,4 +271,21 @@ func classifyRootCauseFromStage(stage string) RootCause {
 	default:
 		return RootCauseBadBuildOutput
 	}
+}
+
+func refineRootCauseFromStage(trace StageTrace, current RootCause) RootCause {
+	stage := strings.ToLower(strings.TrimSpace(trace.StageName))
+	if stage == "" {
+		return current
+	}
+	if current == RootCauseUnclearBead {
+		return current
+	}
+	switch stage {
+	case "validate", "validation":
+		return RootCauseFlakyTest
+	case "decompose":
+		return RootCauseBadDecomposition
+	}
+	return current
 }
