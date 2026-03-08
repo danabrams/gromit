@@ -31,7 +31,8 @@ func EnforceSystemicChangeGuardrails(codePatch string, approve bool, confirmFn f
 
 	if confirmFn != nil {
 		prompt := fmt.Sprintf(
-			"Patch modifies %s. Apply systemic changes?", strings.Join(categories, ", "),
+			"Patch modifies %s. Apply systemic changes? (or rerun with --approve)",
+			strings.Join(categories, ", "),
 		)
 		if confirmFn(prompt) {
 			return nil
