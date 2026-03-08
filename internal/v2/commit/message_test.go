@@ -10,6 +10,19 @@ func TestFormatMessage(t *testing.T) {
 	}
 }
 
+func TestMessageSubject(t *testing.T) {
+	msg := Message{
+		BeadID:    "gromit-o00gs",
+		StageName: "build",
+		Iteration: 2,
+		Decision:  "Pass",
+	}
+	want := "[bead:gromit-o00gs/build/iter:2] Pass"
+	if got := msg.Subject(); got != want {
+		t.Fatalf("Message.Subject() = %q, want %q", got, want)
+	}
+}
+
 func TestParseMessage(t *testing.T) {
 	parsed, err := ParseMessage("[bead:gromit-o00gs/review/iter:3] Retry")
 	if err != nil {
