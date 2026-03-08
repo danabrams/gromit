@@ -180,8 +180,10 @@ func assertFailureBranchLifecycle(t *testing.T, specID string, remediationErr er
 		t.Fatalf("preserved branch log missing spec id %q: %s", specID, committedLog)
 	}
 	for _, snippet := range requiredEventSnippets {
-		if !strings.Contains(committedLog, snippet) {
-			t.Fatalf("preserved branch log missing required snippet %q: %s", snippet, committedLog)
-		}
+	if !strings.Contains(committedLog, snippet) {
+		t.Fatalf("preserved branch log missing required snippet %q: %s", snippet, committedLog)
 	}
+}
+
+	requireFailureBranchHistory(t, repoRoot, branchName, specID)
 }
