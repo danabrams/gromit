@@ -3,6 +3,7 @@
 package events
 
 import (
+	"context"
 	"testing"
 	"time"
 )
@@ -255,5 +256,39 @@ func TestEmitter_CloseIsIdempotent(t *testing.T) {
 	_, ok := <-ch
 	if ok {
 		t.Error("channel not closed after multiple Close() calls")
+	}
+}
+
+func TestEmitter_WaitForSubscribers_UnblocksOnSubscribe(t *testing.T) {
+	t.Parallel()
+	emitter := NewEmitter()
+	defer emitter.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	done := make(chan error, 1)
+	go func() {
+		done <- emitter.WaitForSubscribers(ctx)
+	}()
+
+	select {
+	case err := <-done:
+		t.Fatalf("wait returned before subscribe: %v", err)
+	case <-time.After(25 * time.Millisecond):
+	}
+
+	ch := emitter.Subscribe()
+	t.Cleanup(func() {
+		emitter.Unsubscribe(ch)
+	})
+
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("wait returned error after subscribe: %v", err)
+		}
+	case <-time.After(250 * time.Millisecond):
+		t.Fatal("wait did not unblock after subscribe")
 	}
 }
