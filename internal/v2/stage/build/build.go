@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -238,6 +240,18 @@ func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Resul
 	methodology := s.resolveMethodology(req.Bead.Labels, cfg)
 	fragment := s.fragmentFor(methodology)
 	instance := buildInstanceLayer(req)
+
+	// Load spec content if the bead has a spec label.
+	if specName := bead.FindSpecLabel(req.Bead.Labels); specName != "" {
+		specContent := loadSpecFile(req.Worktree, specName)
+		if specContent != "" {
+			if instance != "" {
+				instance += "\n\n"
+			}
+			instance += "## Spec: " + specName + "\n\n" + specContent
+		}
+	}
+
 	promptText := prompt.NewPromptAssembler(s.base, s.project, instance, fragment).Assemble("build", prompt.BeadInfo{
 		Title: req.Bead.Title,
 	})
@@ -354,7 +368,21 @@ func buildInstanceLayer(req *stagepkg.Request) string {
 		return ""
 	}
 	var builder strings.Builder
+	if title := strings.TrimSpace(req.Bead.Title); title != "" {
+		builder.WriteString("Task: ")
+		builder.WriteString(title)
+	}
+	if desc := strings.TrimSpace(req.Bead.Description); desc != "" {
+		if builder.Len() > 0 {
+			builder.WriteString("\n")
+		}
+		builder.WriteString("Description: ")
+		builder.WriteString(desc)
+	}
 	if id := strings.TrimSpace(req.Bead.ID); id != "" {
+		if builder.Len() > 0 {
+			builder.WriteString("\n")
+		}
 		builder.WriteString("Bead ID: ")
 		builder.WriteString(id)
 	}
@@ -369,6 +397,20 @@ func buildInstanceLayer(req *stagepkg.Request) string {
 		}
 	}
 	return builder.String()
+}
+
+// loadSpecFile reads a spec file from .gromit/specs/{name}.md relative to the
+// given directory. Returns empty string if the file cannot be read.
+func loadSpecFile(dir, specName string) string {
+	if dir == "" || specName == "" {
+		return ""
+	}
+	path := filepath.Join(dir, ".gromit", "specs", specName+".md")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(data))
 }
 
 func (s *Stage) selectModel(req *stagepkg.Request, cfg *config.Config) string {
