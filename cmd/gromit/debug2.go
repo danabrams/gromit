@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -54,6 +55,7 @@ var debug2InvokeLLMFn = invokeDebug2LLM
 var debug2ApplyPatchFn = applyDebug2Patch
 var debug2CheckoutFailureFn = checkoutDebug2FailureCommit
 var debug2RunValidationFn = runDebug2ValidationCommand
+var debug2Stdout io.Writer = os.Stdout
 var debug2Stderr io.Writer = os.Stderr
 var debug2CommitHashPattern = regexp.MustCompile(`^[0-9a-fA-F]{7,40}$`)
 
@@ -201,6 +203,63 @@ func tailDebug2Events(events []map[string]interface{}, n int) []map[string]inter
 		return events
 	}
 	return events[len(events)-n:]
+}
+
+func displayDebug2EventLog(w io.Writer, events []map[string]interface{}) {
+	if w == nil {
+		return
+	}
+
+	fmt.Fprintln(w, "Event log (.gromit/v2/events.jsonl):")
+	if len(events) == 0 {
+		fmt.Fprintln(w, "  (no events found)")
+		fmt.Fprintln(w)
+		return
+	}
+	for _, event := range events {
+		fmt.Fprintf(w, "  %s\n", marshalDebug2EventForDisplay(event))
+	}
+	fmt.Fprintln(w)
+}
+
+func marshalDebug2EventForDisplay(event map[string]interface{}) string {
+	if event == nil {
+		return "{}"
+	}
+
+	priorityKeys := []string{"type", "stage_name", "bead_id", "decision", "error", "message"}
+	used := make(map[string]bool, len(event))
+	parts := make([]string, 0, len(event))
+
+	appendKey := func(key string) {
+		value, ok := event[key]
+		if !ok {
+			return
+		}
+		encodedValue, err := json.Marshal(value)
+		if err != nil {
+			encodedValue = []byte(`"<unmarshalable>"`)
+		}
+		parts = append(parts, fmt.Sprintf("%q:%s", key, string(encodedValue)))
+		used[key] = true
+	}
+
+	for _, key := range priorityKeys {
+		appendKey(key)
+	}
+
+	remaining := make([]string, 0, len(event))
+	for key := range event {
+		if !used[key] {
+			remaining = append(remaining, key)
+		}
+	}
+	sort.Strings(remaining)
+	for _, key := range remaining {
+		appendKey(key)
+	}
+
+	return "{" + strings.Join(parts, ",") + "}"
 }
 
 func selectDebug2FailureCommit(entries []adapter.LogEntry) (adapter.LogEntry, pipeline.CommitInfo, bool) {
@@ -395,6 +454,7 @@ func debug2Impl(ctx context.Context, specName, gromitDir string, cfg *config.Con
 	if err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("reading event log: %w", err)
 	}
+	displayDebug2EventLog(debug2Stdout, events)
 
 	gitAdapter := gitadapter.NewExecGitAdapter(".", gromitDir)
 	logEntries, err := gitAdapter.Log(ctx, wtPath, 100)
