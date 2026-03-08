@@ -37,6 +37,9 @@ func ParseCommitMessage(msg string) (CommitMessage, bool) {
 	if err != nil {
 		return CommitMessage{}, false
 	}
+	if iteration <= 0 {
+		return CommitMessage{}, false
+	}
 
 	return CommitMessage{
 		BeadID:    matches[1],
