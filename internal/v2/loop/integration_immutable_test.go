@@ -47,6 +47,19 @@ func TestIntegrationImmutable_StageSequenceStructuredCommits(t *testing.T) {
 	})
 }
 
+func TestIntegrationImmutable_EventLogCumulativeAcrossCommits(t *testing.T) {
+	t.Parallel()
+
+	result := runImmutableSpec(t, immutableSpecConfig{
+		specID: "immutable-events-cumulative",
+		beads: immutableBeads(
+			immutableBead("bead-001", "First bead"),
+		),
+	})
+
+	assertEventsCumulativeAcrossCommits(t, result)
+}
+
 type immutableSpecConfig struct {
 	specID            string
 	beads             []*bead.Bead
