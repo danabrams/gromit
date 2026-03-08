@@ -75,6 +75,7 @@ var decisionStrings = map[Decision]string{
 type BeadInfo struct {
 	ID           string
 	Title        string
+	Description  string
 	Priority     string
 	Labels       []string
 	Dependencies []string

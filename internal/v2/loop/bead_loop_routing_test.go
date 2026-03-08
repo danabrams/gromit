@@ -209,8 +209,11 @@ func TestBeadLoopRoutingSkippedWhenRouterNil(t *testing.T) {
 	if len(buildSpy.models) == 0 {
 		t.Fatal("build stage was never called")
 	}
-	if buildSpy.models[0] != "" {
-		t.Fatalf("build model = %q, want empty (no router)", buildSpy.models[0])
+	// Without a router, the tier defaults to medium and resolves to "sonnet"
+	// via the defaultTierToModel map. The model must always be set so the
+	// stage's default provider uses the correct model for the configured tier.
+	if buildSpy.models[0] != "sonnet" {
+		t.Fatalf("build model = %q, want %q (default medium tier)", buildSpy.models[0], "sonnet")
 	}
 	if buildSpy.hadProv[0] {
 		t.Fatal("build Provider should be nil when router is nil")

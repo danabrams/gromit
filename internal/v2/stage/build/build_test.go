@@ -54,7 +54,12 @@ func TestBuildStageRunIncludesPriorFailuresAndEmitsEvents(t *testing.T) {
 	}
 
 	req := &stagepkg.Request{
-		Bead:   stagepkg.BeadInfo{ID: "bead-123", Labels: []string{"tdd:true"}},
+		Bead: stagepkg.BeadInfo{
+			ID:          "bead-123",
+			Title:       "Implement auth module",
+			Description: "Add JWT-based authentication",
+			Labels:      []string{"tdd:true"},
+		},
 		Model:  "haiku",
 		Config: cfg,
 		RetryContext: &stagepkg.RetryContext{
@@ -73,7 +78,10 @@ func TestBuildStageRunIncludesPriorFailuresAndEmitsEvents(t *testing.T) {
 	}
 
 	prompt := adapter.lastPrompt
-	for _, want := range []string{"base-layer", "project-layer", "tdd fragment", "bead-123", "validate failed"} {
+	for _, want := range []string{
+		"base-layer", "project-layer", "tdd fragment", "bead-123", "validate failed",
+		"Task: Implement auth module", "Description: Add JWT-based authentication",
+	} {
 		if !strings.Contains(prompt, want) {
 			t.Fatalf("prompt missing %q: %s", want, prompt)
 		}
@@ -310,6 +318,76 @@ func TestBuildStageRetryConfigReturnsConfiguredMaxRetries(t *testing.T) {
 	rcZero := stageZero.RetryConfig()
 	if rcZero.MaxRetries != 1 {
 		t.Fatalf("RetryConfig().MaxRetries = %d, want 1 (minimum default)", rcZero.MaxRetries)
+	}
+}
+
+func TestBuildInstanceLayerIncludesTitleDescriptionAndID(t *testing.T) {
+	t.Parallel()
+
+	req := &stagepkg.Request{
+		Bead: stagepkg.BeadInfo{
+			ID:          "bead-42",
+			Title:       "Add logging",
+			Description: "Structured logging with slog",
+		},
+	}
+	got := buildInstanceLayer(req)
+	for _, want := range []string{"Task: Add logging", "Description: Structured logging with slog", "Bead ID: bead-42"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("buildInstanceLayer missing %q, got:\n%s", want, got)
+		}
+	}
+}
+
+func TestBuildInstanceLayerTitleBeforeIDBeforeFailures(t *testing.T) {
+	t.Parallel()
+
+	req := &stagepkg.Request{
+		Bead: stagepkg.BeadInfo{
+			ID:    "b-1",
+			Title: "Fix bug",
+		},
+		RetryContext: &stagepkg.RetryContext{
+			PriorFailures: []string{"test failed"},
+		},
+	}
+	got := buildInstanceLayer(req)
+	titleIdx := strings.Index(got, "Task: Fix bug")
+	idIdx := strings.Index(got, "Bead ID: b-1")
+	failIdx := strings.Index(got, "Prior failures:")
+	if titleIdx == -1 || idIdx == -1 || failIdx == -1 {
+		t.Fatalf("missing expected content, got:\n%s", got)
+	}
+	if titleIdx >= idIdx {
+		t.Fatalf("title should appear before ID")
+	}
+	if idIdx >= failIdx {
+		t.Fatalf("ID should appear before prior failures")
+	}
+}
+
+func TestBuildInstanceLayerOmitsEmptyFields(t *testing.T) {
+	t.Parallel()
+
+	req := &stagepkg.Request{
+		Bead: stagepkg.BeadInfo{ID: "only-id"},
+	}
+	got := buildInstanceLayer(req)
+	if strings.Contains(got, "Task:") {
+		t.Fatalf("should not contain Task: when title is empty, got:\n%s", got)
+	}
+	if strings.Contains(got, "Description:") {
+		t.Fatalf("should not contain Description: when description is empty, got:\n%s", got)
+	}
+	if !strings.Contains(got, "Bead ID: only-id") {
+		t.Fatalf("should contain Bead ID, got:\n%s", got)
+	}
+}
+
+func TestBuildInstanceLayerNilRequest(t *testing.T) {
+	t.Parallel()
+	if got := buildInstanceLayer(nil); got != "" {
+		t.Fatalf("expected empty string for nil request, got %q", got)
 	}
 }
 

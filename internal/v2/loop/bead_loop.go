@@ -22,6 +22,14 @@ import (
 	"github.com/danabrams/gromit/internal/v2/stage/triage"
 )
 
+// defaultTierToModel maps abstract tier names to model names when no
+// provider-specific model mapping is available (i.e. no router configured).
+var defaultTierToModel = map[string]string{
+	"low":    "haiku",
+	"medium": "sonnet",
+	"high":   "opus",
+}
+
 // GitCommitter abstracts git status and commit operations for the bead loop.
 type GitCommitter interface {
 	Status(ctx context.Context, worktree string) (string, error)
@@ -414,10 +422,11 @@ func (b *BeadLoop) runStageEntry(ctx context.Context, beadItem *bead.Bead, itera
 	}
 
 	// Determine starting tier for this stage's phase via routing.
-	startTier := routing.TierMedium
-	if b.router != nil {
-		startTier = routing.TierForPhase(stageName, b.phaseModels, routing.TierMedium)
-	}
+	// TierForPhase is consulted even when no router is configured so that
+	// phaseModels (e.g. "build" → "low") still control model selection
+	// through the stage's own default provider.
+	phase := barePhase(stageName)
+	startTier := routing.TierForPhase(phase, b.phaseModels, routing.TierMedium)
 
 	retriesRemaining := entry.retryConfig.MaxRetries
 	if retriesRemaining < 0 {
@@ -431,19 +440,23 @@ func (b *BeadLoop) runStageEntry(ctx context.Context, beadItem *bead.Bead, itera
 		req := b.stageRequest(beadItem, iteration, stageRetryContext(attempt, priorFailures))
 
 		// Apply routing: select provider and model for this stage.
+		escalationLevel := 0
+		if req.RetryContext != nil {
+			escalationLevel = req.RetryContext.EscalationLevel
+		}
+		tier := routing.EscalationTier(startTier, escalationLevel)
 		if b.router != nil {
-			escalationLevel := 0
-			if req.RetryContext != nil {
-				escalationLevel = req.RetryContext.EscalationLevel
-			}
-			tier := routing.EscalationTier(startTier, escalationLevel)
-			provider, model, routeErr := b.router.Select(stageName, tier)
+			provider, model, routeErr := b.router.Select(phase, tier)
 			if routeErr != nil {
 				log.Printf("WARNING: routing failed for stage %s tier %s: %v (using default provider)", stageName, tier, routeErr)
 			} else if provider != nil {
 				req.Provider = provider
 				req.Model = model
 			}
+		} else if req.Model == "" {
+			// No router configured — resolve tier to model name so the
+			// stage's default provider uses the correct model.
+			req.Model = routing.ResolveModel(tier, defaultTierToModel)
 		}
 
 		b.emitStageStarted(stageName, beadItem.ID, iteration)
@@ -640,6 +653,7 @@ func (b *BeadLoop) stageRequest(beadItem *bead.Bead, iteration int, retryCtx *st
 		Bead: stage.BeadInfo{
 			ID:           beadItem.ID,
 			Title:        beadItem.Title,
+			Description:  beadItem.Description,
 			Priority:     strconv.Itoa(beadItem.Priority),
 			Labels:       labels,
 			Dependencies: deps,
@@ -778,6 +792,20 @@ func stageName(st stage.Stage) string {
 	return st.Name()
 }
 
+// barePhase extracts the bare phase name from a profile-prefixed stage name.
+// E.g., "go:build" -> "build", "build:default" -> "build", "build" -> "build".
+func barePhase(stageName string) string {
+	if idx := strings.LastIndex(stageName, ":"); idx >= 0 {
+		after := stageName[idx+1:]
+		before := stageName[:idx]
+		if after == "default" {
+			return before
+		}
+		return after
+	}
+	return stageName
+}
+
 type retryConfigurer interface {
 	RetryConfig() stage.RetryConfig
 }
@@ -866,15 +894,17 @@ func (b *BeadLoop) runTriage(ctx context.Context, beadItem *bead.Bead, iteration
 		PriorFailures: []string{failureReason},
 	})
 	// Apply routing to triage stage.
+	triageTier := routing.TierForPhase("triage", b.phaseModels, routing.TierMedium)
 	if b.router != nil {
-		tier := routing.TierForPhase("triage", b.phaseModels, routing.TierMedium)
-		provider, model, routeErr := b.router.Select("triage", tier)
+		provider, model, routeErr := b.router.Select("triage", triageTier)
 		if routeErr != nil {
-			log.Printf("WARNING: routing failed for triage tier %s: %v (using default provider)", tier, routeErr)
+			log.Printf("WARNING: routing failed for triage tier %s: %v (using default provider)", triageTier, routeErr)
 		} else if provider != nil {
 			req.Provider = provider
 			req.Model = model
 		}
+	} else if req.Model == "" {
+		req.Model = routing.ResolveModel(triageTier, defaultTierToModel)
 	}
 	b.emitTriageStarted(beadItem.ID, beadItem.Title, iteration)
 	res, err := b.runStage(ctx, b.triage, req)
@@ -904,15 +934,17 @@ func (b *BeadLoop) decomposeAndRunSubBeads(ctx context.Context, beadItem *bead.B
 	req := b.stageRequest(beadItem, iteration, nil)
 	req.Remediation = true
 	// Apply routing to decompose stage.
+	decomposeTier := routing.TierForPhase("decompose", b.phaseModels, routing.TierMedium)
 	if b.router != nil {
-		tier := routing.TierForPhase("decompose", b.phaseModels, routing.TierMedium)
-		provider, model, routeErr := b.router.Select("decompose", tier)
+		provider, model, routeErr := b.router.Select("decompose", decomposeTier)
 		if routeErr != nil {
-			log.Printf("WARNING: routing failed for decompose tier %s: %v (using default provider)", tier, routeErr)
+			log.Printf("WARNING: routing failed for decompose tier %s: %v (using default provider)", decomposeTier, routeErr)
 		} else if provider != nil {
 			req.Provider = provider
 			req.Model = model
 		}
+	} else if req.Model == "" {
+		req.Model = routing.ResolveModel(decomposeTier, defaultTierToModel)
 	}
 	res, err := b.runStage(ctx, b.decompose, req)
 	if err != nil {
