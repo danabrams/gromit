@@ -39,6 +39,11 @@ Stale-fix detection in the validation package prevents wasted agent invocations 
 
 Dependency injection via ClientDeps struct with ensureDefaults() fallback is the established pattern for testability in the bead package. Struct fields hold function references; ensureDefaults() wires procutil helpers as production defaults.
 
+### 2026-03-08 | debug_learning_persistence_autonomous | CODE_PATTERN
+*Related to: gromit-i5jse*
+
+Autonomous debug fixes now append their extracted learning entries straight into the spec's `LEARNINGS.md` file and decorate them with `*Autonomous: true*`, so the run loop knows the outcome requires no human review while the root-cause insight remains in the spec repository for future invocations.
+
 ## Provisional Learnings
 
 *No provisional learnings at this time.*

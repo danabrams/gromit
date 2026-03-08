@@ -46,10 +46,7 @@ func ExtractLearning(input LearningExtractionInput) LearningExtraction {
 	if learningsEntry == "" {
 		return LearningExtraction{}
 	}
-
-	if !strings.Contains(strings.ToLower(learningsEntry), strings.ToLower(autonomousLearningMarker)) {
-		learningsEntry += "\n\n" + autonomousLearningMarker
-	}
+	learningsEntry = withAutonomousMarker(learningsEntry)
 
 	return LearningExtraction{
 		LearningsEntry: learningsEntry,
@@ -78,4 +75,16 @@ func isSystemicLearning(text string) bool {
 		}
 	}
 	return false
+}
+
+func withAutonomousMarker(entry string) string {
+	trimmed := strings.TrimSpace(entry)
+	if trimmed == "" {
+		return trimmed
+	}
+	marker := strings.ToLower(autonomousLearningMarker)
+	if strings.Contains(strings.ToLower(trimmed), marker) {
+		return trimmed
+	}
+	return trimmed + "\n\n" + autonomousLearningMarker
 }
