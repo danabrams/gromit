@@ -15,14 +15,14 @@ import (
 	"github.com/danabrams/gromit/internal/events"
 	"github.com/danabrams/gromit/internal/v2/adapter"
 	"github.com/danabrams/gromit/internal/v2/event"
-	"github.com/danabrams/gromit/internal/v2/routing"
-	"github.com/danabrams/gromit/internal/v2/trackertypes"
 	"github.com/danabrams/gromit/internal/v2/presentation"
 	v2review "github.com/danabrams/gromit/internal/v2/review"
+	"github.com/danabrams/gromit/internal/v2/routing"
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
 	stageaccept "github.com/danabrams/gromit/internal/v2/stage/accept"
 	planstage "github.com/danabrams/gromit/internal/v2/stage/plan"
 	present "github.com/danabrams/gromit/internal/v2/stage/present"
+	"github.com/danabrams/gromit/internal/v2/trackertypes"
 )
 
 const (
@@ -426,7 +426,7 @@ func (s *SpecLoop) Run(ctx context.Context, specID string, stopCh <-chan struct{
 		return err
 	}
 
-	if err := s.cleanupWorktree(ctx, specID, worktree, true); err != nil {
+	if err := s.cleanupWorktree(ctx, specID, worktree, true, cleanupOptions{reason: cleanupReasonSuccess}); err != nil {
 		return err
 	}
 
@@ -632,93 +632,6 @@ func cloneOutOfScopeFindings(findings []v2review.Finding) []v2review.Finding {
 
 func (s *SpecLoop) specStageRequest(specID, worktree string) stagepkg.Request {
 	return stagepkg.Request{Bead: stagepkg.BeadInfo{ID: specID}, Config: s.cfg, Worktree: worktree}
-}
-
-func (s *SpecLoop) handleFailure(ctx context.Context, specID string, base presentation.PresentationSummary, failure error) error {
-	s.recordStage("gap-analysis")
-	gapSummary, err := s.readGapAnalysis(base.Worktree)
-	if err != nil {
-		return fmt.Errorf("read gap analysis: %w", err)
-	}
-	s.recordStage("decompose")
-	s.recordStage("bead-loop")
-
-	reason := fmt.Sprintf("spec %s remediation halted: %s", specID, failure.Error())
-	s.emit(&events.AndonTriggeredEvent{SpecID: specID, Reason: reason})
-	s.emit(&events.SpecFailedEvent{SpecID: specID, Worktree: base.Worktree, FailureReason: reason})
-
-	summary := base
-	summary.Success = false
-	summary.RemainingWork = nil
-	summary.FailureSummary = reason
-	if gapSummary != "" {
-		summary.FailureSummary = fmt.Sprintf("%s\n\nGap analysis:\n%s", reason, gapSummary)
-		summary.RemainingWork = []string{gapSummary}
-	}
-
-	if err := s.presentSummary(ctx, specID, summary); err != nil {
-		return fmt.Errorf("present failure summary: %w", err)
-	}
-
-	if err := s.cleanupWorktree(ctx, specID, base.Worktree, false); err != nil {
-		return err
-	}
-
-	s.emit(&events.SpecCompletedEvent{
-		SpecID:        specID,
-		Worktree:      base.Worktree,
-		Success:       false,
-		FailureReason: reason,
-	})
-
-	return fmt.Errorf("accept failure: %w", failure)
-}
-
-func (s *SpecLoop) cleanupWorktree(_ context.Context, specID, worktree string, success bool) error {
-	trimmed := strings.TrimSpace(worktree)
-	if trimmed == "" {
-		return nil
-	}
-	git := s.adapters.Git
-	if git == nil {
-		return fmt.Errorf("git adapter required for cleanup")
-	}
-	// Use a fresh context so cleanup succeeds even when the caller's context
-	// has been cancelled (exec.CommandContext fails immediately otherwise).
-	cleanupCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-	if !success {
-		status, err := git.Status(cleanupCtx, trimmed)
-		if err != nil {
-			log.Printf("git status during cleanup of spec %s: %v", specID, err)
-		} else if strings.TrimSpace(status) != "" {
-			message := fmt.Sprintf("[gromit: partial work] spec %s", specID)
-			if _, err := git.Commit(cleanupCtx, trimmed, message); err != nil {
-				log.Printf("commit partial work for spec %s: %v", specID, err)
-			}
-		}
-		if s.preserveOnFailure {
-			// Preserve the branch on failure
-			if branchManager, ok := git.(branchManager); ok {
-				if err := branchManager.PreserveBranch(cleanupCtx, specID); err != nil {
-					log.Printf("preserve branch for spec %s: %v", specID, err)
-				}
-			}
-			return nil
-		}
-	}
-	if err := git.RemoveWorktree(cleanupCtx, trimmed); err != nil {
-		return fmt.Errorf("remove worktree: %w", err)
-	}
-	// Delete the branch on success
-	if success {
-		if branchManager, ok := git.(branchManager); ok {
-			if err := branchManager.DeleteBranch(cleanupCtx, specID); err != nil {
-				log.Printf("delete branch for spec %s: %v", specID, err)
-			}
-		}
-	}
-	return nil
 }
 
 func (s *SpecLoop) presentSummary(ctx context.Context, specID string, summary presentation.PresentationSummary) error {

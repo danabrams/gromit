@@ -14,6 +14,10 @@ import (
 	"github.com/danabrams/gromit/internal/v2/presentation"
 )
 
+type worktreeBranchRemover interface {
+	RemoveWorktreeAndBranch(context.Context, string) error
+}
+
 func (s *SpecLoop) handleFailure(ctx context.Context, specID string, base presentation.PresentationSummary, failure error) error {
 	s.recordStage("gap-analysis")
 	s.recordStage("decompose")
