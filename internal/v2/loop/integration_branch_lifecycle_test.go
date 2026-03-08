@@ -30,6 +30,20 @@ func TestIntegrationBranchLifecycleFailurePreservesBranch(t *testing.T) {
     verifyFailureBranchLifecycle(t, repoRoot, specID)
 }
 
+func TestIntegrationBranchLifecycleSuccessDeletesBranch(t *testing.T) {
+    t.Parallel()
+
+    if _, err := exec.LookPath("git"); err != nil {
+        t.Skip("git not available")
+    }
+
+    const specID = "spec-branch-lifecycle-success"
+    repoRoot := t.TempDir()
+    initGitRepo(t, repoRoot)
+
+    verifySuccessBranchDeleted(t, repoRoot, specID)
+}
+
 func verifyFailureBranchLifecycle(t *testing.T, repoRoot, specID string) {
     t.Helper()
 
