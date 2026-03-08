@@ -387,6 +387,9 @@ func applyDebug2Patch(ctx context.Context, wtPath, patch string) error {
 	if strings.TrimSpace(patch) == "" {
 		return nil
 	}
+	if err := debugpkg.EnforceSystemicChangeGuardrails(patch, debug2ApproveSystemicChanges, debug2ConfirmSystemicFn); err != nil {
+		return err
+	}
 	cmd := exec.CommandContext(ctx, "git", "apply", "--whitespace=nowarn", "-")
 	cmd.Dir = wtPath
 	cmd.Stdin = strings.NewReader(patch)
