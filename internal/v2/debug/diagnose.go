@@ -38,11 +38,13 @@ func Diagnose(input Input) Diagnosis {
 		Stage:     defaultFailureStage,
 		RootCause: RootCauseBadBuildOutput,
 	}
+	failureEventHasStage := false
 
 	if evt := findFailureEvent(input.Events); evt != nil {
 		diag.FailureEvent = evt
 		if stage := strings.TrimSpace(valueAsString(evt["stage_name"])); stage != "" {
 			diag.Stage = stage
+			failureEventHasStage = true
 		}
 		diag.RootCause = classifyRootCause(evt, diag.Stage)
 	}
@@ -51,7 +53,7 @@ func Diagnose(input Input) Diagnosis {
 		diag.FailureCommit = commit
 		if diag.Stage == defaultFailureStage && stage != "" {
 			diag.Stage = stage
-			if diag.FailureEvent == nil {
+			if diag.FailureEvent == nil || !failureEventHasStage {
 				diag.RootCause = classifyRootCauseFromStage(stage)
 			}
 		}
