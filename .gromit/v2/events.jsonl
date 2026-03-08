@@ -191,3 +191,12 @@
 {"schema_version":1,"timestamp":"2026-03-07T16:45:12.866532-05:00","type":"stage.started","stage_name":"epilogue:default","bead_id":"gromit-zrrn7","iteration":24}
 {"schema_version":1,"timestamp":"2026-03-07T16:45:13.022158-05:00","type":"stage.completed","stage_name":"epilogue:default","bead_id":"gromit-zrrn7","iteration":24,"success":true,"duration":155617458}
 {"schema_version":1,"timestamp":"2026-03-07T16:45:13.022172-05:00","type":"bead.completed","bead_id":"gromit-zrrn7","bead_title":"Implement selective revalidation in spec loop","iteration":24,"success":true}
+{"schema_version":1,"timestamp":"2026-03-07T22:43:02.782585-05:00","type":"spec.started","spec_id":"immutable-pipeline","worktree":"/Users/dabrams/gromit/.gromit/spec-worktrees/immutable-pipeline"}
+{"schema_version":1,"timestamp":"2026-03-07T22:43:02.862838-05:00","type":"bead.started","bead_id":"gromit-b5p6k","bead_title":"Implement branch lifecycle: preserve on failure, delete on success","iteration":1}
+{"schema_version":1,"timestamp":"2026-03-07T22:43:02.862842-05:00","type":"stage.started","stage_name":"gate:default","bead_id":"gromit-b5p6k","iteration":1}
+{"schema_version":1,"timestamp":"2026-03-07T22:43:03.090534-05:00","type":"stage.completed","stage_name":"gate:default","bead_id":"gromit-b5p6k","iteration":1,"success":true,"duration":227690667}
+{"schema_version":1,"timestamp":"2026-03-07T22:43:03.090546-05:00","type":"bead.started","bead_id":"gromit-htng6","bead_title":"Add gromit debug2 command for v2 worktree debugging","iteration":2}
+{"schema_version":1,"timestamp":"2026-03-07T22:43:03.090547-05:00","type":"stage.started","stage_name":"gate:default","bead_id":"gromit-htng6","iteration":2}
+{"schema_version":1,"timestamp":"2026-03-07T22:43:03.31042-05:00","type":"stage.completed","stage_name":"gate:default","bead_id":"gromit-htng6","iteration":2,"success":true,"duration":219871541}
+{"schema_version":1,"timestamp":"2026-03-07T22:43:03.310438-05:00","type":"stage.started","stage_name":"build:default","bead_id":"gromit-htng6","iteration":2}
+{"schema_version":1,"timestamp":"2026-03-07T22:45:46.636382-05:00","type":"stage.completed","stage_name":"build:default","bead_id":"gromit-htng6","iteration":2,"success":true,"duration":163325236084}
