@@ -64,6 +64,34 @@ func (a *ExecGitAdapter) Checkout(ctx context.Context, specID string) (string, e
 	return absPath, nil
 }
 
+const branchBaseFileName = "branch-base"
+
+// DiffFromBase returns the cumulative diff from the branch base SHA to the
+// current working state (committed + uncommitted). It reads the base SHA from
+// <worktree>/.gromit/v2/branch-base. When the file does not exist or is empty,
+// it falls back to Diff (git diff HEAD).
+func (a *ExecGitAdapter) DiffFromBase(ctx context.Context, worktree string) (string, error) {
+	if strings.TrimSpace(worktree) == "" {
+		return "", fmt.Errorf("worktree required")
+	}
+
+	basePath := filepath.Join(worktree, ".gromit", "v2", branchBaseFileName)
+	data, err := os.ReadFile(basePath)
+	if err != nil || strings.TrimSpace(string(data)) == "" {
+		return a.Diff(ctx, worktree)
+	}
+
+	baseSHA := strings.TrimSpace(string(data))
+	cmd := exec.CommandContext(ctx, "git", "diff", baseSHA)
+	cmd.Dir = worktree
+
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("git diff %s: %s: %w", baseSHA, out, err)
+	}
+	return string(out), nil
+}
+
 // Diff returns the current diff for the provided worktree.
 func (a *ExecGitAdapter) Diff(ctx context.Context, worktree string) (string, error) {
 	if strings.TrimSpace(worktree) == "" {
