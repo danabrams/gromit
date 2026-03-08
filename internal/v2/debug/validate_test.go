@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -103,4 +104,64 @@ func TestValidateFix_ReRunsFailedBuildStageWhenCommandMissing(t *testing.T) {
 	if result.Output == "" && result.Error == "" {
 		t.Fatal("expected failure details from rerun build stage")
 	}
+}
+
+func TestValidateAndCommitFix_RerunsStageValidationAndCommitsFix(t *testing.T) {
+	ctx := context.Background()
+	tmpDir := t.TempDir()
+
+	trace := StageTrace{
+		StageName: "validate",
+		BeadID:    "bead-1",
+		Iteration: 2,
+		Validation: &ValidationTrace{
+			Commands: []string{"printf stage-fixed"},
+		},
+	}
+	committer := &recordingStageCommitter{t: t}
+	validCtx := &ValidateContext{
+		WorktreeRoot: tmpDir,
+		StageTrace:   &trace,
+	}
+
+	result, err := ValidateAndCommitFix(ctx, validCtx, committer)
+	if err != nil {
+		t.Fatalf("ValidateAndCommitFix() error = %v", err)
+	}
+	if !result.Passed {
+		t.Fatalf("result.Passed = false, want true; output: %s", result.Output)
+	}
+	if !strings.Contains(result.Output, "stage-fixed") {
+		t.Fatalf("expected stage command output, got %q", result.Output)
+	}
+	if !committer.called {
+		t.Fatal("expected stage commit to run")
+	}
+	if committer.stageName != "validate" {
+		t.Fatalf("stageName = %q, want %q", committer.stageName, "validate")
+	}
+	if committer.iteration != 3 {
+		t.Fatalf("iteration = %d, want %d", committer.iteration, 3)
+	}
+}
+
+type recordingStageCommitter struct {
+	t         *testing.T
+	called    bool
+	beadID    string
+	stageName string
+	iteration int
+	decision  string
+}
+
+func (r *recordingStageCommitter) CommitStage(ctx context.Context, worktree, beadID, stageName string, iteration int, decision string) error {
+	if r.called {
+		r.t.Fatalf("CommitStage called multiple times")
+	}
+	r.called = true
+	r.beadID = beadID
+	r.stageName = stageName
+	r.iteration = iteration
+	r.decision = decision
+	return nil
 }
