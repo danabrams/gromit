@@ -15,10 +15,6 @@ import (
 
 func (s *SpecLoop) handleFailure(ctx context.Context, specID string, base presentation.PresentationSummary, failure error) error {
 	s.recordStage("gap-analysis")
-	gapSummary, err := s.readGapAnalysis(base.Worktree)
-	if err != nil {
-		return fmt.Errorf("read gap analysis: %w", err)
-	}
 	s.recordStage("decompose")
 	s.recordStage("bead-loop")
 
@@ -34,17 +30,22 @@ func (s *SpecLoop) handleFailure(ctx context.Context, specID string, base presen
 	summary.Success = false
 	summary.RemainingWork = nil
 	summary.FailureSummary = reason
-	if gapSummary != "" {
+	resultErr := fmt.Errorf("accept failure: %w", failure)
+
+	gapSummary, err := s.readGapAnalysis(base.Worktree)
+	if err != nil {
+		resultErr = errors.Join(resultErr, fmt.Errorf("read gap analysis: %w", err))
+	} else if gapSummary != "" {
 		summary.FailureSummary = fmt.Sprintf("%s\n\nGap analysis:\n%s", reason, gapSummary)
 		summary.RemainingWork = []string{gapSummary}
 	}
 
 	if err := s.presentSummary(ctx, specID, summary); err != nil {
-		return fmt.Errorf("present failure summary: %w", err)
+		resultErr = errors.Join(resultErr, fmt.Errorf("present failure summary: %w", err))
 	}
 
 	if err := s.cleanupWorktree(ctx, specID, base.Worktree, false); err != nil {
-		return err
+		resultErr = errors.Join(resultErr, err)
 	}
 
 	s.emit(&events.SpecCompletedEvent{
@@ -54,7 +55,7 @@ func (s *SpecLoop) handleFailure(ctx context.Context, specID string, base presen
 		FailureReason: reason,
 	})
 
-	return fmt.Errorf("accept failure: %w", failure)
+	return resultErr
 }
 
 func (s *SpecLoop) emitGenerationCapReached() {
