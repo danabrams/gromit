@@ -22,22 +22,18 @@ func detectSystemicCategory(rootCause RootCause, failureSignal string) string {
 	normalized := strings.ToLower(strings.TrimSpace(failureSignal))
 	switch {
 	case strings.Contains(normalized, "prompt fragment"),
-		strings.Contains(normalized, "ambiguous prompt"),
-		strings.Contains(normalized, "prompt"):
+		strings.Contains(normalized, "ambiguous prompt"):
 		return "prompt"
 	case strings.Contains(normalized, "code guard"),
 		strings.Contains(normalized, "pipeline guard"),
-		strings.Contains(normalized, "guardrail"),
-		strings.Contains(normalized, "guard"):
+		strings.Contains(normalized, "guardrail"):
 		return "guard"
 	case strings.Contains(normalized, "process change"),
 		strings.Contains(normalized, "workflow"),
-		strings.Contains(normalized, "decomposition"),
-		strings.Contains(normalized, "process"):
+		strings.Contains(normalized, "decomposition"):
 		return "process"
 	case strings.Contains(normalized, "rule update"),
-		strings.Contains(normalized, "rules.md"),
-		strings.Contains(normalized, "rule"):
+		strings.Contains(normalized, "rules.md"):
 		return "rule"
 	}
 

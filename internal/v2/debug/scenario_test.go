@@ -36,26 +36,10 @@ func TestScenario_NilPointerDetectionAndLearning(t *testing.T) {
 		t.Error("fix should be applied")
 	}
 
-	// Extract a learning from the same failure
-	learnCtx := &LearnContext{
-		FailedStage:  "validate",
-		ErrorMsg:     "nil pointer dereference when accessing p.Body",
-		BeadTitle:    "add nil safety checks",
-		WorktreeRoot: tmpDir,
-		Pattern:      "nil pointer dereference",
-		IsAutonomous: true,
-	}
-
-	learnResult, err := ExtractLearning(ctx, learnCtx)
-	if err != nil {
-		t.Fatalf("ExtractLearning failed: %v", err)
-	}
-
-	if !learnResult.Extracted {
-		t.Error("learning should be extracted")
-	}
-
-	if learnResult.LearningEntry == "" {
+	learning := ExtractLearning(LearningExtractionInput{
+		LearningsEntry: "Always guard pointer access in handlers before dereferencing request fields.",
+	})
+	if learning.LearningsEntry == "" {
 		t.Error("learning entry should be non-empty for autonomous fix")
 	}
 
@@ -65,7 +49,7 @@ func TestScenario_NilPointerDetectionAndLearning(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := PersistLearning(learningsPath, learnResult.LearningEntry); err != nil {
+	if err := PersistLearning(learningsPath, learning.LearningsEntry); err != nil {
 		t.Fatalf("PersistLearning failed: %v", err)
 	}
 
@@ -82,34 +66,14 @@ func TestScenario_NilPointerDetectionAndLearning(t *testing.T) {
 
 // TestScenario_PromptAmbiguityRecommendation covers the systemic change scenario.
 func TestScenario_PromptAmbiguityRecommendation(t *testing.T) {
-	ctx := context.Background()
-	tmpDir := t.TempDir()
-
-	// Create a learning context for a systemic issue
-	learnCtx := &LearnContext{
-		FailedStage:  "build",
-		ErrorMsg:     "conflicting interpretations from ambiguous prompt fragment",
-		BeadTitle:    "clarify API documentation stage",
-		WorktreeRoot: tmpDir,
-		Pattern:      "ambiguous prompt language",
-		IsAutonomous: false, // Requires human judgment
-	}
-
-	// Extract learning - should create recommendation
-	learnResult, err := ExtractLearning(ctx, learnCtx)
-	if err != nil {
-		t.Fatalf("ExtractLearning failed: %v", err)
-	}
-
-	if !learnResult.Extracted {
-		t.Error("learning should be extracted even for systemic changes")
-	}
-
-	if learnResult.Recommendation == "" {
+	learning := ExtractLearning(LearningExtractionInput{
+		RootCause: RootCauseUnclearBead,
+	})
+	if learning.SystemicRecommendation == "" {
 		t.Error("recommendation should be non-empty for systemic change")
 	}
 
-	if learnResult.LearningEntry != "" {
+	if learning.LearningsEntry != "" {
 		t.Error("learning entry should be empty for systemic change (recommendation instead)")
 	}
 }
