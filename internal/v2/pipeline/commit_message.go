@@ -18,11 +18,10 @@ type CommitInfo struct {
 // FormatCommitMessage produces a structured commit message.
 // If beadID is empty, the message uses "spec" as the scope.
 func FormatCommitMessage(beadID, stageName string, iteration int, decision string) string {
-	scope := "spec"
-	if beadID != "" {
-		scope = "bead:" + beadID
+	if beadID == "" {
+		beadID = "spec"
 	}
-	return fmt.Sprintf("[%s/%s/iter:%d] %s", scope, stageName, iteration, decision)
+	return fmt.Sprintf("[bead:%s/%s/iter:%d] %s", beadID, stageName, iteration, decision)
 }
 
 var commitMessageRe = regexp.MustCompile(`^\[(bead:([^/]+)|spec)/([^/]+)/iter:(\d+)\]\s+(.+)$`)
