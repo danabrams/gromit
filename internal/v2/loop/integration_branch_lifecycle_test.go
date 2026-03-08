@@ -30,6 +30,12 @@ func TestIntegrationBranchLifecycle_PreservesBranchAndEventLogOnGenerationCap(t 
 	assertGenerationCapBranchLifecycle(t, "spec-branch-lifecycle-generation-cap")
 }
 
+func assertGenerationCapBranchLifecycle(t *testing.T, specID string) {
+	t.Helper()
+
+	assertFailureBranchLifecycle(t, specID, ErrGenerationCapReached)
+}
+
 type fixedErrorRemediationRunner struct {
 	err error
 }
