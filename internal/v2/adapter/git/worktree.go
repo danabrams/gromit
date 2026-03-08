@@ -15,7 +15,7 @@ func PreserveBranchMessage(specID, worktree, reason string) string {
 // DeleteBranchMessage formats the log message for deleting a managed spec branch
 // after a successful run.
 func DeleteBranchMessage(specID, worktree, reason string) string {
-	msg := fmt.Sprintf("removing worktree and deleting branch after successful presentation for spec %s at %s", specID, worktree)
+	msg := fmt.Sprintf("successfully deleted worktree and branch after successful presentation for spec %s at %s", specID, worktree)
 	return withReason(msg, reason)
 }
 

@@ -711,7 +711,7 @@ func TestCleanupWorktreeLogsDeletionReasonOnSuccess(t *testing.T) {
 	if len(gitAdapter.removedBranches) != 1 {
 		t.Fatalf("expected branch to be deleted once, got %d", len(gitAdapter.removedBranches))
 	}
-	if !strings.Contains(buf.String(), "successfully deleted branch") {
+	if !strings.Contains(buf.String(), "successfully deleted worktree and branch") {
 		t.Fatalf("log output = %q, want it to mention successful deletion", buf.String())
 	}
 }
