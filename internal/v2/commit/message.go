@@ -17,7 +17,11 @@ type Message struct {
 
 // FormatMessage encodes a structured commit message.
 func FormatMessage(beadID, stageName string, iteration int, decision string) string {
-	return fmt.Sprintf("[bead:%s/%s/iter:%d] %s", beadID, stageName, iteration, decision)
+	normalizedBeadID := strings.TrimSpace(beadID)
+	if normalizedBeadID == "" || normalizedBeadID == "spec" {
+		return fmt.Sprintf("[spec/%s/iter:%d] %s", stageName, iteration, decision)
+	}
+	return fmt.Sprintf("[bead:%s/%s/iter:%d] %s", normalizedBeadID, stageName, iteration, decision)
 }
 
 var messageRe = regexp.MustCompile(`^\[bead:([^/]+)/([^/]+)/iter:(\d+)\]\s+(.+)$`)
