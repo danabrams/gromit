@@ -142,3 +142,30 @@ func TestDiagnose_FallsBackToGitHistoryForStageAndRootCause(t *testing.T) {
 		t.Fatalf("diagnosis.RootCause = %q, want %q", diagnosis.RootCause, RootCauseBadDecomposition)
 	}
 }
+
+func TestDiagnose_StageTraceUsesCommitInfoWhenEventStageMissing(t *testing.T) {
+	events := []map[string]interface{}{
+		{"type": "stage.failed", "bead_id": "b2", "error": "stage metadata missing"},
+	}
+	logEntries := []adapter.LogEntry{
+		{Hash: "abc33333", Message: "[bead:b2/build/iter:4] Fail"},
+	}
+
+	diagnosis := Diagnose(Input{Events: events, LogEntries: logEntries})
+
+	if diagnosis.StageTrace.StageName != "build" {
+		t.Fatalf("StageTrace.StageName = %q, want %q", diagnosis.StageTrace.StageName, "build")
+	}
+	if diagnosis.StageTrace.CommitHash != "abc33333" {
+		t.Fatalf("StageTrace.CommitHash = %q, want %q", diagnosis.StageTrace.CommitHash, "abc33333")
+	}
+	if diagnosis.StageTrace.CommitDecision != "Fail" {
+		t.Fatalf("StageTrace.CommitDecision = %q, want %q", diagnosis.StageTrace.CommitDecision, "Fail")
+	}
+	if diagnosis.StageTrace.BeadID != "b2" {
+		t.Fatalf("StageTrace.BeadID = %q, want %q", diagnosis.StageTrace.BeadID, "b2")
+	}
+	if diagnosis.StageTrace.Iteration != 4 {
+		t.Fatalf("StageTrace.Iteration = %d, want %d", diagnosis.StageTrace.Iteration, 4)
+	}
+}
