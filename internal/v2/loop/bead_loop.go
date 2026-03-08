@@ -427,8 +427,20 @@ func (b *BeadLoop) commitAfterStage(ctx context.Context, beadItem *bead.Bead, sN
 		return nil
 	}
 	commitStageName := barePhase(sName)
+	if !isBeadCommittableStage(commitStageName) {
+		return nil
+	}
 	stageIteration := b.nextStageIteration(beadItem.ID, commitStageName)
 	return b.stageCommitter.CommitStage(ctx, b.worktree, beadItem.ID, commitStageName, stageIteration, decision)
+}
+
+func isBeadCommittableStage(stageName string) bool {
+	switch barePhase(strings.TrimSpace(stageName)) {
+	case "build", "validate", "review":
+		return true
+	default:
+		return false
+	}
 }
 
 // commitBeadWork commits any uncommitted changes after the review stage completes.
