@@ -1,6 +1,7 @@
 package debug
 
 import (
+	"strconv"
 	"strings"
 
 	"github.com/danabrams/gromit/internal/v2/adapter"
@@ -30,6 +31,28 @@ type Diagnosis struct {
 	Stage         string
 	FailureCommit string
 	RootCause     RootCause
+	StageTrace    StageTrace
+}
+
+// ValidationTrace summarizes validation results for a failed stage.
+type ValidationTrace struct {
+	Commands      []string
+	FailedCommand string
+	Details       string
+	Succeeded     bool
+}
+
+// StageTrace captures stage-level diagnostics from events and commits.
+type StageTrace struct {
+	StageName      string
+	BeadID         string
+	Iteration      int
+	FailureMessage string
+	FailureEvent   map[string]interface{}
+	Events         []map[string]interface{}
+	Validation     *ValidationTrace
+	CommitHash     string
+	CommitDecision string
 }
 
 // Diagnose finds the failure point and classifies a root cause.
@@ -38,12 +61,18 @@ func Diagnose(input Input) Diagnosis {
 		Stage:     defaultFailureStage,
 		RootCause: RootCauseBadBuildOutput,
 	}
+	trace := StageTrace{}
 	failureEventHasStage := false
 
 	if evt := findFailureEvent(input.Events); evt != nil {
 		diag.FailureEvent = evt
-		if stage := strings.TrimSpace(valueAsString(evt["stage_name"])); stage != "" {
-			diag.Stage = stage
+		trace.FailureEvent = evt
+		trace.StageName = strings.TrimSpace(valueAsString(evt["stage_name"]))
+		trace.BeadID = strings.TrimSpace(valueAsString(evt["bead_id"]))
+		trace.Iteration = valueAsInt(evt["iteration"])
+		trace.FailureMessage = valueAsString(evt["error"])
+		if trace.StageName != "" {
+			diag.Stage = trace.StageName
 			failureEventHasStage = true
 		}
 		diag.RootCause = classifyRootCause(evt, diag.Stage)
@@ -58,6 +87,15 @@ func Diagnose(input Input) Diagnosis {
 			}
 		}
 	}
+
+	if trace.StageName == "" && diag.Stage != defaultFailureStage {
+		trace.StageName = diag.Stage
+	}
+
+	trace.Events = gatherStageEvents(input.Events, trace.StageName, trace.BeadID, trace.Iteration)
+	trace.Validation = findValidationTrace(trace.Events)
+
+	diag.StageTrace = trace
 
 	return diag
 }
@@ -113,6 +151,96 @@ func findFailureCommit(entries []adapter.LogEntry) (string, string) {
 		}
 	}
 	return "", ""
+}
+
+func gatherStageEvents(events []map[string]interface{}, stageName, beadID string, iteration int) []map[string]interface{} {
+	if len(events) == 0 {
+		return nil
+	}
+	if stageName == "" && beadID == "" && iteration == 0 {
+		return nil
+	}
+
+	var matches []map[string]interface{}
+	for _, evt := range events {
+		if stageName != "" && !strings.EqualFold(stageName, valueAsString(evt["stage_name"])) {
+			continue
+		}
+		if beadID != "" && !strings.EqualFold(beadID, valueAsString(evt["bead_id"])) {
+			continue
+		}
+		if iteration > 0 && valueAsInt(evt["iteration"]) != iteration {
+			continue
+		}
+		matches = append(matches, evt)
+	}
+	return matches
+}
+
+func findValidationTrace(events []map[string]interface{}) *ValidationTrace {
+	for _, evt := range events {
+		if !strings.EqualFold(valueAsString(evt["type"]), "validation") {
+			continue
+		}
+		return &ValidationTrace{
+			Commands:      valueAsStringSlice(evt["commands"]),
+			FailedCommand: valueAsString(evt["failed_command"]),
+			Details:       valueAsString(evt["details"]),
+			Succeeded:     valueAsBool(evt["succeeded"]),
+		}
+	}
+	return nil
+}
+
+func valueAsInt(v interface{}) int {
+	switch n := v.(type) {
+	case int:
+		return n
+	case int32:
+		return int(n)
+	case int64:
+		return int(n)
+	case float64:
+		return int(n)
+	case float32:
+		return int(n)
+	case string:
+		if i, err := strconv.Atoi(strings.TrimSpace(n)); err == nil {
+			return i
+		}
+	}
+	return 0
+}
+
+func valueAsStringSlice(v interface{}) []string {
+	switch list := v.(type) {
+	case []interface{}:
+		result := make([]string, 0, len(list))
+		for _, item := range list {
+			result = append(result, valueAsString(item))
+		}
+		return result
+	case []string:
+		out := make([]string, len(list))
+		copy(out, list)
+		return out
+	}
+	return nil
+}
+
+func valueAsBool(v interface{}) bool {
+	switch b := v.(type) {
+	case bool:
+		return b
+	case string:
+		s := strings.ToLower(strings.TrimSpace(b))
+		return s == "true" || s == "1" || s == "yes"
+	case float64:
+		return b != 0
+	case int:
+		return b != 0
+	}
+	return false
 }
 
 func valueAsString(v interface{}) string {
