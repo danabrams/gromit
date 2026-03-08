@@ -86,9 +86,15 @@ type BeadLoop struct {
 	router                     *routing.Router
 	phaseModels                map[string]string
 	// run-scoped state for in-loop decomposition
-	resolver  *dep.Resolver
-	beadMap   map[string]*bead.Bead
-	completed []string
+	resolver        *dep.Resolver
+	beadMap         map[string]*bead.Bead
+	completed       []string
+	stageIterations map[stageIterationKey]int
+}
+
+type stageIterationKey struct {
+	beadID    string
+	stageName string
 }
 
 var ErrGenerationCapReached = errors.New("generation cap reached")
@@ -185,6 +191,7 @@ func (b *BeadLoop) Run(ctx context.Context, beads []*bead.Bead, stopCh <-chan st
 	b.resolver = dep.NewResolver()
 	b.beadMap = make(map[string]*bead.Bead, len(beads))
 	b.completed = nil
+	b.stageIterations = make(map[stageIterationKey]int)
 
 	for _, beadItem := range beads {
 		if beadItem == nil {
@@ -404,11 +411,18 @@ func (b *BeadLoop) runGate(ctx context.Context, beadItem *bead.Bead, iteration i
 }
 
 // commitAfterStage calls StageCommitter.CommitStage after a successful stage run.
-func (b *BeadLoop) commitAfterStage(ctx context.Context, beadItem *bead.Bead, sName string, iteration int, decision string) error {
+func (b *BeadLoop) commitAfterStage(ctx context.Context, beadItem *bead.Bead, sName string, decision string) error {
 	if b.stageCommitter == nil {
 		return nil
 	}
-	return b.stageCommitter.CommitStage(ctx, b.worktree, beadItem.ID, sName, iteration, decision)
+	stageIteration := b.nextStageIteration(beadItem.ID, sName)
+	return b.stageCommitter.CommitStage(ctx, b.worktree, beadItem.ID, sName, stageIteration, decision)
+}
+
+func (b *BeadLoop) nextStageIteration(beadID, stageName string) int {
+	key := stageIterationKey{beadID: beadID, stageName: stageName}
+	b.stageIterations[key]++
+	return b.stageIterations[key]
 }
 
 func (b *BeadLoop) runStageEntry(ctx context.Context, beadItem *bead.Bead, iteration int, entries []stageEntry, nameIndex map[string]int, idx int, highestGen *int, generationLimit int, stopCh <-chan struct{}) error {
@@ -485,7 +499,7 @@ func (b *BeadLoop) runStageEntry(ctx context.Context, beadItem *bead.Bead, itera
 				}
 			}
 			decision := stageDecision(res).String()
-			if err := b.commitAfterStage(ctx, beadItem, stageName, iteration, decision); err != nil {
+			if err := b.commitAfterStage(ctx, beadItem, stageName, decision); err != nil {
 				return fmt.Errorf("stage commit after %s: %w", stageName, err)
 			}
 			return nil
