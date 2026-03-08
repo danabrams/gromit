@@ -41,3 +41,11 @@ func TestParseMessageValidatesRequiredFields(t *testing.T) {
 		}
 	}
 }
+
+func TestFormatMessageSpecStage(t *testing.T) {
+	got := FormatMessage("", "plan", 1, "Proceed")
+	want := "[spec/plan/iter:1] Proceed"
+	if got != want {
+		t.Fatalf("FormatMessage() = %q, want %q", got, want)
+	}
+}
