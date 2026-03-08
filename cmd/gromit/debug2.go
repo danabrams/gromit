@@ -69,7 +69,6 @@ var debug2ConfirmSystemicFn func(string) bool = promptSystemicApproval
 var debug2CommitHashPattern = regexp.MustCompile(`^[0-9a-fA-F]{7,40}$`)
 
 func init() {
-	rootCmd.AddCommand(debug2Cmd)
 	debug2Cmd.Flags().BoolVar(&debug2ApproveSystemicChanges, "approve-systemic-changes", false,
 		"Allow prompt fragments, guards, or process rules to be modified without interactive confirmation.")
 }

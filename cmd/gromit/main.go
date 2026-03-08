@@ -174,6 +174,7 @@ func registerRootCommands(root *cobra.Command) {
 	root.AddCommand(statusCmd)
 	root.AddCommand(readyCmd)
 	root.AddCommand(debugCmd)
+	root.AddCommand(debug2Cmd)
 	root.AddCommand(retroCmd)
 	root.AddCommand(validatePRMetadataCmd)
 	registerBenchmarkCommands(root)
