@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -820,6 +821,46 @@ func TestDebug2Impl_SystemicRecommendationDoesNotAppendAutonomousLearning(t *tes
 	}
 	if !strings.Contains(stderr.String(), systemic) {
 		t.Fatalf("stderr missing systemic recommendation, got: %q", stderr.String())
+	}
+}
+
+func TestApplyDebug2Patch_BlocksSystemicWithoutApproval(t *testing.T) {
+	tmpDir := t.TempDir()
+	patch := strings.Join([]string{
+		"diff --git a/.gromit/fragments/build.md b/.gromit/fragments/build.md",
+		"--- a/.gromit/fragments/build.md",
+		"+++ b/.gromit/fragments/build.md",
+		"@@ -1 +1 @@",
+		"-old",
+		"+new",
+	}, "\n")
+
+	confirmed := false
+	var prompt string
+	origConfirm := debug2ConfirmSystemicFn
+	t.Cleanup(func() { debug2ConfirmSystemicFn = origConfirm })
+	debug2ConfirmSystemicFn = func(p string) bool {
+		confirmed = true
+		prompt = p
+		return false
+	}
+	origApprove := debug2ApproveSystemicChanges
+	t.Cleanup(func() { debug2ApproveSystemicChanges = origApprove })
+	debug2ApproveSystemicChanges = false
+
+	err := applyDebug2Patch(context.Background(), tmpDir, patch)
+	if !errors.Is(err, debugpkg.ErrSystemicChangeApprovalRequired) {
+		if err == nil {
+			t.Fatalf("expected systemic guardrail error, got nil")
+		}
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !confirmed {
+		t.Fatal("interactive approval prompt not invoked")
+	}
+	lower := strings.ToLower(prompt)
+	if !strings.Contains(lower, "prompt fragments") {
+		t.Fatalf("prompt = %q, want prompt fragments guidance", prompt)
 	}
 }
 

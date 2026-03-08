@@ -63,6 +63,8 @@ var debug2ValidateAndCommitFn = func(ctx context.Context, worktree string, trace
 }
 var debug2Stdout io.Writer = os.Stdout
 var debug2Stderr io.Writer = os.Stderr
+var debug2ApproveSystemicChanges bool
+var debug2ConfirmSystemicFn func(string) bool
 var debug2CommitHashPattern = regexp.MustCompile(`^[0-9a-fA-F]{7,40}$`)
 
 func init() {
