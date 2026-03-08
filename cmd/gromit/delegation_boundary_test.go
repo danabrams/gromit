@@ -50,6 +50,7 @@ var allowedCommandInternalImports = map[string]struct{}{
 	"github.com/danabrams/gromit/internal/events/stream":          {},
 	"github.com/danabrams/gromit/internal/v2/adapter":             {},
 	"github.com/danabrams/gromit/internal/v2/adapter/git":         {},
+	"github.com/danabrams/gromit/internal/v2/debug":               {},
 	"github.com/danabrams/gromit/internal/v2/adapter/llm":         {},
 	"github.com/danabrams/gromit/internal/v2/adapter/presenter":   {},
 	"github.com/danabrams/gromit/internal/v2/adapter/tasktracker": {},
