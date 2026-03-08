@@ -78,12 +78,23 @@ func Diagnose(input Input) Diagnosis {
 		diag.RootCause = classifyRootCause(evt, diag.Stage)
 	}
 
-	if commit, stage := findFailureCommit(input.LogEntries); commit != "" {
+	if commit, info, ok := findFailureCommit(input.LogEntries); ok {
 		diag.FailureCommit = commit
-		if diag.Stage == defaultFailureStage && stage != "" {
-			diag.Stage = stage
+		trace.CommitHash = commit
+		trace.CommitDecision = strings.TrimSpace(info.Decision)
+		if trace.StageName == "" {
+			trace.StageName = strings.TrimSpace(info.StageName)
+		}
+		if trace.BeadID == "" {
+			trace.BeadID = strings.TrimSpace(info.BeadID)
+		}
+		if trace.Iteration == 0 {
+			trace.Iteration = info.Iteration
+		}
+		if diag.Stage == defaultFailureStage && trace.StageName != "" {
+			diag.Stage = trace.StageName
 			if diag.FailureEvent == nil || !failureEventHasStage {
-				diag.RootCause = classifyRootCauseFromStage(stage)
+				diag.RootCause = classifyRootCauseFromStage(trace.StageName)
 			}
 		}
 	}
@@ -140,17 +151,17 @@ func classifyRootCause(event map[string]interface{}, stage string) RootCause {
 	return RootCauseBadBuildOutput
 }
 
-func findFailureCommit(entries []adapter.LogEntry) (string, string) {
+func findFailureCommit(entries []adapter.LogEntry) (string, pipeline.CommitInfo, bool) {
 	for _, entry := range entries {
 		info, ok := pipeline.ParseCommitMessage(entry.Message)
 		if !ok {
 			continue
 		}
 		if strings.EqualFold(strings.TrimSpace(info.Decision), "Fail") {
-			return entry.Hash, strings.TrimSpace(info.StageName)
+			return entry.Hash, info, true
 		}
 	}
-	return "", ""
+	return "", pipeline.CommitInfo{}, false
 }
 
 func gatherStageEvents(events []map[string]interface{}, stageName, beadID string, iteration int) []map[string]interface{} {
