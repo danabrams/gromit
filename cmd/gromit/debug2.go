@@ -74,9 +74,6 @@ func init() {
 		"Allow prompt fragments, guards, or process rules to be modified without interactive confirmation.")
 }
 
-// resolveDebug2Worktree returns the path to the preserved spec worktree. It first
-// tries to find the worktree at .gromit/spec-worktrees/<specName>. If that doesn't
-// exist, it falls back to trying to find the branch gromit/spec/<specName>.
 func resolveDebug2Worktree(gromitDir, specName string) (string, error) {
 	wtPath := filepath.Join(gromitDir, "spec-worktrees", specName)
 	if _, err := os.Stat(wtPath); err == nil {
@@ -85,41 +82,20 @@ func resolveDebug2Worktree(gromitDir, specName string) (string, error) {
 		return "", fmt.Errorf("checking preserved worktree path %q: %w", wtPath, err)
 	}
 
-	// Worktree directory not found; try to find the branch instead
-	wtPath, err := debug2BranchWorktreeFn(gromitDir, specName)
+	path, err := debug2BranchWorktreeFn(gromitDir, specName)
 	if err != nil {
 		if errors.Is(err, debugpkg.ErrPreservedWorktreeBranchNotFound) {
 			return "", fmt.Errorf("no preserved worktree or branch found for spec %q", specName)
 		}
 		return "", err
 	}
-	return wtPath, nil
+	return path, nil
 }
 
 // readDebug2EventLog reads and parses the JSONL event log from a spec worktree.
 // Each line is decoded as a map[string]interface{}.
 func readDebug2EventLog(wtPath string) ([]map[string]interface{}, error) {
-	eventsPath := filepath.Join(wtPath, ".gromit", "v2", "events.jsonl")
-	f, err := os.Open(eventsPath)
-	if err != nil {
-		return nil, fmt.Errorf("opening event log: %w", err)
-	}
-	defer f.Close()
-
-	var events []map[string]interface{}
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() {
-		line := scanner.Text()
-		if line == "" {
-			continue
-		}
-		var entry map[string]interface{}
-		if err := json.Unmarshal([]byte(line), &entry); err != nil {
-			return nil, fmt.Errorf("parsing event line: %w", err)
-		}
-		events = append(events, entry)
-	}
-	return events, scanner.Err()
+	return debugpkg.ReadEventLog(wtPath)
 }
 
 // buildDebug2Prompt assembles a diagnostic prompt from the spec name, worktree path,

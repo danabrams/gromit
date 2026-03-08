@@ -1,7 +1,13 @@
 package debug
 
 import (
+	"bufio"
+	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -13,11 +19,12 @@ import (
 type RootCause string
 
 const (
-	RootCauseBadBuildOutput   RootCause = "bad_build_output"
-	RootCauseFlakyTest        RootCause = "flaky_test"
-	RootCauseUnclearBead      RootCause = "unclear_bead_description"
-	RootCauseBadDecomposition RootCause = "incorrect_decomposition"
-	defaultFailureStage                 = "unknown"
+	RootCauseBadBuildOutput    RootCause = "bad_build_output"
+	RootCauseFlakyTest         RootCause = "flaky_test"
+	RootCauseUnclearBead       RootCause = "unclear_bead_description"
+	RootCauseBadDecomposition  RootCause = "incorrect_decomposition"
+	defaultFailureStage                  = "unknown"
+	defaultDiagnosisLogEntries           = 100
 )
 
 // Input is the diagnostic context for failure analysis.
@@ -34,6 +41,81 @@ type Diagnosis struct {
 	RootCause     RootCause
 	StageTrace    StageTrace
 	Summary       string
+}
+
+// WorktreeDiagnosisResult captures the diagnosis plus the source artifacts.
+type WorktreeDiagnosisResult struct {
+	WorktreePath string
+	Events       []map[string]interface{}
+	LogEntries   []adapter.LogEntry
+	Diagnosis    Diagnosis
+}
+
+// ResolveSpecWorktree locates a preserved worktree path for the given spec.
+// It first looks for a cached worktree under .gromit/spec-worktrees/<spec>.
+// If that path does not exist, it falls back to the gromit/spec/<spec> branch.
+func ResolveSpecWorktree(gromitDir, specName string) (string, error) {
+	worktreePath := filepath.Join(gromitDir, "spec-worktrees", specName)
+	if info, err := os.Stat(worktreePath); err == nil && info.IsDir() {
+		return worktreePath, nil
+	} else if err != nil && !os.IsNotExist(err) {
+		return "", fmt.Errorf("checking preserved worktree path %q: %w", worktreePath, err)
+	}
+
+	branchPath, err := FindPreservedWorktreeBranch(gromitDir, specName)
+	if err != nil {
+		if errors.Is(err, ErrPreservedWorktreeBranchNotFound) {
+			return "", fmt.Errorf("no preserved worktree or branch found for spec %q", specName)
+		}
+		return "", err
+	}
+	return branchPath, nil
+}
+
+// ReadEventLog parses the events.jsonl log for the provided worktree.
+func ReadEventLog(worktree string) ([]map[string]interface{}, error) {
+	return readEventLog(worktree)
+}
+
+// DiagnoseSpec reads the preserved worktree for a spec and derives the diagnosis.
+func DiagnoseSpec(ctx context.Context, gromitDir, specName string, gitAdapter adapter.GitAdapter, logEntriesLimit int) (*WorktreeDiagnosisResult, error) {
+	if gitAdapter == nil {
+		return nil, fmt.Errorf("git adapter is required for diagnosis")
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	worktreePath, err := ResolveSpecWorktree(gromitDir, specName)
+	if err != nil {
+		return nil, err
+	}
+
+	events, err := readEventLog(worktreePath)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return nil, fmt.Errorf("reading event log: %w", err)
+	}
+
+	limit := logEntriesLimit
+	if limit <= 0 {
+		limit = defaultDiagnosisLogEntries
+	}
+	logEntries, logErr := gitAdapter.Log(ctx, worktreePath, limit)
+	if logErr != nil {
+		logEntries = nil
+	}
+
+	diagnosis := Diagnose(Input{
+		Events:     events,
+		LogEntries: logEntries,
+	})
+
+	return &WorktreeDiagnosisResult{
+		WorktreePath: worktreePath,
+		Events:       events,
+		LogEntries:   logEntries,
+		Diagnosis:    diagnosis,
+	}, nil
 }
 
 // ValidationTrace summarizes validation results for a failed stage.
@@ -357,4 +439,31 @@ func describeRootCause(rootCause RootCause) string {
 	default:
 		return "unknown failure"
 	}
+}
+
+func readEventLog(worktree string) ([]map[string]interface{}, error) {
+	eventsPath := filepath.Join(worktree, ".gromit", "v2", "events.jsonl")
+	f, err := os.Open(eventsPath)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	var events []map[string]interface{}
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" {
+			continue
+		}
+		var entry map[string]interface{}
+		if err := json.Unmarshal([]byte(line), &entry); err != nil {
+			return nil, fmt.Errorf("parsing event line: %w", err)
+		}
+		events = append(events, entry)
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+	return events, nil
 }
