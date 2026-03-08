@@ -1,12 +1,13 @@
 package loop
 
 import (
-    "context"
-    "fmt"
-    "os"
-    "os/exec"
-    "path/filepath"
-    "testing"
+	"context"
+	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+	"testing"
 
     "github.com/danabrams/gromit/internal/config"
     "github.com/danabrams/gromit/internal/v2/adapter"
@@ -123,6 +124,24 @@ func assertBranchExists(t *testing.T, repoRoot, specID string) {
     if _, err := runGitCommand(repoRoot, "rev-parse", "--verify", branch); err != nil {
         t.Fatalf("branch %s not found: %v", branch, err)
     }
+}
+
+func assertBranchHasPartialWorkCommit(t *testing.T, repoRoot, specID string) {
+	t.Helper()
+
+	branch := presentation.SpecBranchName(specID)
+	out, err := runGitCommand(repoRoot, "log", "--format=%s", "-n", "1", branch)
+	if err != nil {
+		t.Fatalf("read log for %s: %v", branch, err)
+	}
+	subject := strings.TrimSpace(out)
+	if subject == "" {
+		t.Fatalf("branch %s log is empty", branch)
+	}
+	expected := fmt.Sprintf("[gromit: partial work] spec %s", specID)
+	if !strings.Contains(subject, expected) {
+		t.Fatalf("branch %s latest commit = %q, want %q", branch, subject, expected)
+	}
 }
 
 func assertBranchDeleted(t *testing.T, repoRoot, specID string) {
