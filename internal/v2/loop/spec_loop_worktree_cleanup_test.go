@@ -148,6 +148,64 @@ func TestSpecLoopSuccessRemovesWorktreeAndDeletesBranch(t *testing.T) {
 	}
 }
 
+func TestSpecLoopFailurePreservesBranch(t *testing.T) {
+	t.Helper()
+
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not available")
+	}
+
+	repoRoot := t.TempDir()
+	initGitRepo(t, repoRoot)
+
+	oldWd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	if err := os.Chdir(repoRoot); err != nil {
+		t.Fatalf("chdir repo: %v", err)
+	}
+	defer func() {
+		if cdErr := os.Chdir(oldWd); cdErr != nil {
+			t.Fatalf("restore cwd: %v", cdErr)
+		}
+	}()
+
+	specID := "spec-loop-worktree-failure-preserve"
+	worktreesDir := filepath.Join(repoRoot, ".gromit", "spec-worktrees")
+	gitAdapter := gitadapter.NewExecGitAdapter(repoRoot, worktreesDir)
+
+	adapters := adapter.AdapterSet{
+		Git:         gitAdapter,
+		LLM:         newFakeLLMAdapter(),
+		TaskTracker: newFakeTaskTrackerAdapter(),
+		Presenter:   newFakePresenterAdapter(t),
+	}
+
+	planStage := newFakePlanStage(specID)
+	presentStage := newFakePresentStage()
+	summaryCtx := &present.SummaryContext{}
+	loopInstance, err := NewSpecLoop(adapters, &config.Config{}, noopDependencyGate{},
+		WithPlanStage(planStage),
+		WithPresentStage(presentStage, summaryCtx),
+		WithDecomposeStage(newFakeDecomposeStage(specID)),
+		WithBeadLoop(newFakeBeadRunner()),
+		WithAcceptStage(newScriptedAcceptStage(stagepkg.Result{Decision: stagepkg.DecisionFail})),
+	)
+	if err != nil {
+		t.Fatalf("create spec loop: %v", err)
+	}
+
+	if err := loopInstance.Run(context.Background(), specID, nil); err == nil {
+		t.Fatal("expected accept failure")
+	}
+
+	branchName := "gromit/spec/" + specID
+	if !branchExistsInRepo(t, repoRoot, branchName) {
+		t.Fatalf("branch %q should be preserved on failure", branchName)
+	}
+}
+
 func initGitRepo(t *testing.T, repoRoot string) {
 	t.Helper()
 	gitCommand(t, repoRoot, "init")
