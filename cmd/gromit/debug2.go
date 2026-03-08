@@ -41,6 +41,8 @@ var debug2Cmd = &cobra.Command{
 	RunE:  debug2RunE,
 }
 
+const debug2EventTailCount = 2
+
 func init() {
 	rootCmd.AddCommand(debug2Cmd)
 }
@@ -86,7 +88,7 @@ func readDebug2EventLog(wtPath string) ([]map[string]interface{}, error) {
 
 // buildDebug2Prompt assembles a diagnostic prompt from the spec name, worktree path,
 // events, and commit history. commits is a slice of [hash, message] pairs.
-func buildDebug2Prompt(specName, wtPath string, events []map[string]interface{}, commits [][2]string) string {
+func buildDebug2Prompt(specName, wtPath string, events []map[string]interface{}, commits [][2]string, failureDiff string) string {
 	var sb strings.Builder
 	sb.WriteString(fmt.Sprintf("## Debug Session: %s\n\n", specName))
 	sb.WriteString(fmt.Sprintf("Worktree: %s\n\n", wtPath))
@@ -97,7 +99,7 @@ func buildDebug2Prompt(specName, wtPath string, events []map[string]interface{},
 	}
 	sb.WriteString("\n")
 
-	sb.WriteString("### Event Log\n\n")
+	sb.WriteString("### Event Log Tail\n\n")
 	for _, e := range events {
 		data, _ := json.Marshal(e)
 		sb.WriteString(fmt.Sprintf("  %s\n", string(data)))
@@ -109,6 +111,16 @@ func buildDebug2Prompt(specName, wtPath string, events []map[string]interface{},
 		sb.WriteString("### Failure Point\n\n")
 		data, _ := json.Marshal(failEvent)
 		sb.WriteString(fmt.Sprintf("  %s\n\n", string(data)))
+	}
+
+	if strings.TrimSpace(failureDiff) != "" {
+		sb.WriteString("### Failure Diff\n\n")
+		sb.WriteString("```diff\n")
+		sb.WriteString(failureDiff)
+		if !strings.HasSuffix(failureDiff, "\n") {
+			sb.WriteString("\n")
+		}
+		sb.WriteString("```\n\n")
 	}
 
 	sb.WriteString("## Task\n\nDiagnose the failure above and produce a fix.\n")
@@ -123,6 +135,16 @@ func findFailureEvent(events []map[string]interface{}) map[string]interface{} {
 		}
 	}
 	return nil
+}
+
+func tailDebug2Events(events []map[string]interface{}, n int) []map[string]interface{} {
+	if n <= 0 || len(events) == 0 {
+		return nil
+	}
+	if len(events) <= n {
+		return events
+	}
+	return events[len(events)-n:]
 }
 
 func selectDebug2FailureCommit(entries []adapter.LogEntry) (adapter.LogEntry, pipeline.CommitInfo, bool) {
@@ -162,14 +184,18 @@ func debug2Impl(specName, gromitDir string) error {
 		if len(hash) > 8 {
 			hash = hash[:8]
 		}
-		msg := e.Message
-		if _, ok := pipeline.ParseCommitMessage(e.Message); ok {
-			msg = e.Message
-		}
-		commits = append(commits, [2]string{hash, msg})
+		commits = append(commits, [2]string{hash, e.Message})
 	}
 
-	prompt := buildDebug2Prompt(specName, wtPath, events, commits)
+	failureDiff := ""
+	if failureCommit, _, ok := selectDebug2FailureCommit(logEntries); ok {
+		diff, showErr := gitAdapter.Show(context.Background(), wtPath, failureCommit.Hash)
+		if showErr == nil {
+			failureDiff = diff
+		}
+	}
+
+	prompt := buildDebug2Prompt(specName, wtPath, tailDebug2Events(events, debug2EventTailCount), commits, failureDiff)
 
 	tmpFile, err := os.CreateTemp("", "debug2-prompt-*.md")
 	if err != nil {

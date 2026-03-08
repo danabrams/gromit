@@ -51,7 +51,7 @@ func TestBuildDebug2Prompt_IncludesSpecNameAndEvents(t *testing.T) {
 		{"abc12345", "[bead:b1/validate/iter:1] Fail"},
 	}
 
-	prompt := buildDebug2Prompt(specName, wtPath, events, commits)
+	prompt := buildDebug2Prompt(specName, wtPath, events, commits, "")
 
 	if !strings.Contains(prompt, "test-spec") {
 		t.Error("prompt missing spec name")
