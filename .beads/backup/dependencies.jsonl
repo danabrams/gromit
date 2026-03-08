@@ -567,6 +567,7 @@
 {"created_at":"2026-02-21T15:04:59Z","created_by":"Dan Abrams","depends_on_id":"gromit-igprl","issue_id":"gromit-abytf","type":"blocks"}
 {"created_at":"2026-02-21T15:05:02Z","created_by":"Dan Abrams","depends_on_id":"gromit-zbp2e","issue_id":"gromit-abytf","type":"blocks"}
 {"created_at":"2026-02-07T11:47:13Z","created_by":"Dan Abrams","depends_on_id":"gromit-5wx","issue_id":"gromit-acl","type":"blocks"}
+{"created_at":"2026-03-08T10:49:52Z","created_by":"Dan Abrams","depends_on_id":"gromit-7v10e","issue_id":"gromit-ad34x","type":"discovered-from"}
 {"created_at":"2026-03-08T07:51:47Z","created_by":"Dan Abrams","depends_on_id":"gromit-ic6w4","issue_id":"gromit-ae0mw","type":"blocks"}
 {"created_at":"2026-02-06T08:12:55Z","created_by":"Dan Abrams","depends_on_id":"gromit-3w4","issue_id":"gromit-ag6","type":"blocks"}
 {"created_at":"2026-02-06T08:12:55Z","created_by":"Dan Abrams","depends_on_id":"gromit-a2j","issue_id":"gromit-ag6","type":"parent-child"}
