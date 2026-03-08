@@ -74,3 +74,33 @@ func TestValidateFix_ReturnsErrorForNilContext(t *testing.T) {
 		t.Error("expected error for nil ValidateContext, got nil")
 	}
 }
+
+func TestValidateFix_ReRunsFailedBuildStageWhenCommandMissing(t *testing.T) {
+	ctx := context.Background()
+	tmpDir := t.TempDir()
+
+	goMod := "module example.com/debugvalidate\n\ngo 1.22\n"
+	if err := os.WriteFile(filepath.Join(tmpDir, "go.mod"), []byte(goMod), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	brokenSource := "package main\n\nfunc main() {\n\tmissing(\n}\n"
+	if err := os.WriteFile(filepath.Join(tmpDir, "main.go"), []byte(brokenSource), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	validCtx := &ValidateContext{
+		WorktreeRoot: tmpDir,
+		FailedStage:  "build",
+	}
+
+	result, err := ValidateFix(ctx, validCtx)
+	if err != nil {
+		t.Fatalf("ValidateFix() error = %v", err)
+	}
+	if result.Passed {
+		t.Fatalf("result.Passed = true, want false for failed build stage rerun; output=%q error=%q", result.Output, result.Error)
+	}
+	if result.Output == "" && result.Error == "" {
+		t.Fatal("expected failure details from rerun build stage")
+	}
+}
