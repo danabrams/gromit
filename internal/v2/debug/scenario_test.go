@@ -82,3 +82,16 @@ func TestScenario_PromptAmbiguityRecommendation(t *testing.T) {
 		t.Error("systemic recommendation should not be marked autonomous")
 	}
 }
+
+func autonomousLearningInput(entry string) LearningExtractionInput {
+	return LearningExtractionInput{
+		LearningsEntry: entry,
+	}
+}
+
+func systemicLearningInput(rootCause RootCause, signal string) LearningExtractionInput {
+	return LearningExtractionInput{
+		RootCause:      rootCause,
+		LearningsEntry: signal,
+	}
+}
