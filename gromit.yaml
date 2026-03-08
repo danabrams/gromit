@@ -40,6 +40,7 @@ providers:
     reasoning_effort:
       high: high
       medium: medium
+      low: high
     cost_per_1k_input: 0.00175    # medium-tier baseline
     cost_per_1k_output: 0.014
     model_costs:
