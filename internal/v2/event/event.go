@@ -18,19 +18,19 @@ type Event struct {
 }
 
 const (
-	EventTypeSpecStarted          = "spec.started"
-	EventTypeSpecCompleted        = "spec.completed"
-	EventTypeSpecFailed           = "spec.failed"
-	EventTypeBeadStarted          = "bead.started"
-	EventTypeBeadCompleted        = "bead.completed"
-	EventTypeStageStarted         = "stage.started"
-	EventTypeStageCompleted       = "stage.completed"
-	EventTypeStageFailed          = "stage.failed"
-	EventTypeStageRetrying        = "stage.retrying"
-	EventTypeValidation           = "validation"
-	EventTypeReview               = "review"
-	EventTypeScope                = "scope"
-	EventTypeTelemetry            = "telemetry"
+	EventTypeSpecStarted             = "spec.started"
+	EventTypeSpecCompleted           = "spec.completed"
+	EventTypeSpecFailed              = "spec.failed"
+	EventTypeBeadStarted             = "bead.started"
+	EventTypeBeadCompleted           = "bead.completed"
+	EventTypeStageStarted            = "stage.started"
+	EventTypeStageCompleted          = "stage.completed"
+	EventTypeStageFailed             = "stage.failed"
+	EventTypeStageRetrying           = "stage.retrying"
+	EventTypeValidation              = "validation"
+	EventTypeReview                  = "review"
+	EventTypeScope                   = "scope"
+	EventTypeTelemetry               = "telemetry"
 	EventTypeGenerationCapReached    = "generation_cap_reached"
 	EventTypeTriageStarted           = "triage.started"
 	EventTypeTriageCompleted         = "triage.completed"
@@ -89,10 +89,9 @@ type BeadCompletedEvent struct {
 	RetryAttempt int           `json:"retry_attempt,omitempty"`
 	Model        string        `json:"model,omitempty"`
 	Provider     string        `json:"provider,omitempty"`
-	CostUSD      float64       `json:"cost_usd,omitempty"`
-	InputTokens  int           `json:"input_tokens,omitempty"`
-	OutputTokens int           `json:"output_tokens,omitempty"`
-	Duration     time.Duration `json:"duration,omitempty"`
+	CostUSD     float64       `json:"cost_usd,omitempty"`
+	InputTokens int           `json:"input_tokens,omitempty"`
+	Duration    time.Duration `json:"duration,omitempty"`
 }
 
 func (BeadCompletedEvent) EventType() string { return EventTypeBeadCompleted }
@@ -233,7 +232,6 @@ type BuildInvocationStartEvent struct {
 	Tier        string `json:"tier,omitempty"`
 	Attempt     int    `json:"attempt,omitempty"`
 	MaxAttempts int    `json:"max_attempts,omitempty"`
-	PromptSize  int    `json:"prompt_size,omitempty"`
 }
 
 func (BuildInvocationStartEvent) EventType() string { return EventTypeBuildInvocationStart }
@@ -246,9 +244,8 @@ type BuildInvocationCompleteEvent struct {
 	Provider     string        `json:"provider,omitempty"`
 	Success      bool          `json:"success"`
 	Duration     time.Duration `json:"duration,omitempty"`
-	CostUSD      float64       `json:"cost_usd,omitempty"`
-	InputTokens  int           `json:"input_tokens,omitempty"`
-	OutputTokens int           `json:"output_tokens,omitempty"`
+	CostUSD     float64       `json:"cost_usd,omitempty"`
+	InputTokens int           `json:"input_tokens,omitempty"`
 }
 
 func (BuildInvocationCompleteEvent) EventType() string { return EventTypeBuildInvocationComplete }
