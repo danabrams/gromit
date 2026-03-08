@@ -82,6 +82,28 @@ func TestDiagnose_ClassifiesConfiguredRootCauses(t *testing.T) {
 	}
 }
 
+func TestDiagnose_InfersFlakyRootCauseFromValidationStageDetails(t *testing.T) {
+		events := []map[string]interface{}{
+			{
+				"type":       "stage.failed",
+				"stage_name": "validate",
+				"error":      "validation stage failed unexpectedly",
+			},
+		{
+			"type":           "validation",
+			"stage_name":     "validate",
+			"failed_command": "go test ./cmd/gromit",
+			"details":        "timeout waiting for fixture cleanup",
+			"succeeded":      false,
+		},
+	}
+
+	diagnosis := Diagnose(Input{Events: events})
+	if diagnosis.RootCause != RootCauseFlakyTest {
+		t.Fatalf("RootCause = %q, want %q", diagnosis.RootCause, RootCauseFlakyTest)
+	}
+}
+
 func TestDiagnose_CollectsStageValidationDetails(t *testing.T) {
 	events := []map[string]interface{}{
 		{
