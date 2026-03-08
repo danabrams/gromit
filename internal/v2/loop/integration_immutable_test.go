@@ -86,8 +86,8 @@ func TestIntegrationImmutable_PerBeadSquashCombinesStageCommits(t *testing.T) {
 		specID:       "immutable-per-bead-squash",
 		enableSquash: true,
 		beads: immutableBeads(
-			immutableBead("bead-001", "First bead"),
-			immutableBead("bead-002", "Second bead"),
+			immutableBead("001", "First bead"),
+			immutableBead("002", "Second bead"),
 		),
 	})
 
@@ -106,6 +106,7 @@ type immutableSpecConfig struct {
 }
 
 type immutableRunResult struct {
+	specID       string
 	repoRoot     string
 	sourceBranch string
 	prBranch     string
@@ -215,6 +216,7 @@ func runImmutableSpec(t *testing.T, cfg immutableSpecConfig) immutableRunResult 
 	}
 
 	return immutableRunResult{
+		specID:       specID,
 		repoRoot:     repoRoot,
 		sourceBranch: presentation.SpecBranchName(specID),
 		prBranch:     presenter.specBranch(),
@@ -323,6 +325,64 @@ func assertRetryHistoryPreserved(t *testing.T, result immutableRunResult, beadID
 	if buildIter2 >= buildIter1 {
 		t.Fatalf("build iteration ordering invalid: iter2 index=%d, iter1 index=%d", buildIter2, buildIter1)
 	}
+}
+
+func assertPerBeadSquashHistory(t *testing.T, result immutableRunResult, wantBeadSubjects []string) {
+	t.Helper()
+
+	wantPRBranch := presentation.SpecPRBranchName(result.specID)
+	if result.prBranch != wantPRBranch {
+		t.Fatalf("presented spec branch = %q, want %q", result.prBranch, wantPRBranch)
+	}
+
+	sourceCommits := immutableBranchCommits(t, result.repoRoot, result.sourceBranch, 64)
+	foundStructured := false
+	for _, commit := range sourceCommits {
+		if _, ok := pipeline.ParseCommitMessage(commit.Subject); ok {
+			foundStructured = true
+			break
+		}
+	}
+	if !foundStructured {
+		t.Fatalf("source branch %q lost structured stage commits", result.sourceBranch)
+	}
+
+	prCommits := immutableBranchCommits(t, result.repoRoot, result.prBranch, len(wantBeadSubjects)+4)
+	if len(prCommits) < len(wantBeadSubjects) {
+		t.Fatalf("pr branch commits = %d, want at least %d", len(prCommits), len(wantBeadSubjects))
+	}
+
+	for i, commit := range prCommits {
+		if _, ok := pipeline.ParseCommitMessage(commit.Subject); ok {
+			t.Fatalf("pr commit %d should be non-structured after squash, got %q", i, commit.Subject)
+		}
+	}
+
+	lastIndex := -1
+	for _, want := range wantBeadSubjects {
+		found := -1
+		for idx, commit := range prCommits {
+			if commit.Subject == want {
+				found = idx
+				break
+			}
+		}
+		if found < 0 {
+			t.Fatalf("pr branch missing squashed bead commit %q, commits=%v", want, subjects(prCommits))
+		}
+		if found <= lastIndex {
+			t.Fatalf("squashed bead commit order incorrect for %q: index=%d previous=%d", want, found, lastIndex)
+		}
+		lastIndex = found
+	}
+}
+
+func subjects(commits []immutableCommit) []string {
+	out := make([]string, 0, len(commits))
+	for _, commit := range commits {
+		out = append(out, commit.Subject)
+	}
+	return out
 }
 
 func immutableBead(id, title string) *bead.Bead {
