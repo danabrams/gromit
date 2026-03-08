@@ -325,6 +325,7 @@ type integrationGitAdapter struct {
 	gapAnalysisContent string
 	planContent        string
 	lastWorktree       string
+	beforeCheckoutReturn func()
 }
 
 func newIntegrationGitAdapter(t *testing.T) *integrationGitAdapter {
@@ -358,6 +359,9 @@ func (g *integrationGitAdapter) Checkout(ctx context.Context, specID string) (st
 		if err := os.WriteFile(path, []byte(g.planContent), 0o644); err != nil {
 			g.t.Fatalf("write plan: %v", err)
 		}
+	}
+	if g.beforeCheckoutReturn != nil {
+		g.beforeCheckoutReturn()
 	}
 	return worktree, nil
 }
