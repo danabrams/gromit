@@ -1,7 +1,9 @@
 package git
 
 import (
+	"bytes"
 	"context"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -436,5 +438,42 @@ func TestExecGitAdapterRemoveWorktreeSetsDir(t *testing.T) {
 
 	if _, err := os.Stat(wtPath); !os.IsNotExist(err) {
 		t.Fatalf("expected worktree removed, stat error: %v", err)
+	}
+}
+
+func TestExecGitAdapterRemoveWorktreeAndBranchLogsDeletion(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not available")
+	}
+
+	repoDir := initTestRepo(t)
+	worktreesDir := t.TempDir()
+	adapter := NewExecGitAdapter(repoDir, worktreesDir)
+
+	wtPath, err := adapter.Checkout(context.Background(), "spec-log-branch-delete")
+	if err != nil {
+		t.Fatalf("Checkout failed: %v", err)
+	}
+
+	var buf bytes.Buffer
+	oldOutput := log.Writer()
+	oldPrefix := log.Prefix()
+	oldFlags := log.Flags()
+	log.SetOutput(&buf)
+	log.SetPrefix("")
+	log.SetFlags(0)
+	defer func() {
+		log.SetOutput(oldOutput)
+		log.SetPrefix(oldPrefix)
+		log.SetFlags(oldFlags)
+	}()
+
+	if err := adapter.RemoveWorktreeAndBranch(context.Background(), wtPath); err != nil {
+		t.Fatalf("RemoveWorktreeAndBranch failed: %v", err)
+	}
+
+	want := "deleting managed spec branch gromit/spec/spec-log-branch-delete"
+	if !strings.Contains(buf.String(), want) {
+		t.Fatalf("log output = %q, want it to contain %q", buf.String(), want)
 	}
 }
