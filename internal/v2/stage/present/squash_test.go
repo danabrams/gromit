@@ -2,10 +2,15 @@ package present
 
 import (
 	"context"
+	"os/exec"
+	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/v2/adapter"
+	"github.com/danabrams/gromit/internal/v2/adapter/git"
+	"github.com/danabrams/gromit/internal/v2/pipeline"
 	"github.com/danabrams/gromit/internal/v2/presentation"
 )
 
@@ -197,5 +202,60 @@ func TestCollectBeadCommitHashes_respectsAllowedBeads(t *testing.T) {
 	}
 	if len(hashes) != 1 || !reflect.DeepEqual(hashes["001"], []string{"h1", "h2"}) {
 		t.Fatalf("hashes = %v, want only bead 001 %v", hashes, []string{"h1", "h2"})
+	}
+}
+
+func TestSquashPerBeadForPresentation_preservesWorktreeHistory(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not available")
+	}
+
+	repoDir := initPresentTestRepo(t)
+	worktreesDir := t.TempDir()
+	gitAdapter := git.NewExecGitAdapter(repoDir, worktreesDir)
+	committer := &pipeline.StageCommitter{Git: gitAdapter}
+
+	const specID = "spec-squash-history"
+	wtPath, err := gitAdapter.Checkout(context.Background(), specID)
+	if err != nil {
+		t.Fatalf("checkout: %v", err)
+	}
+
+	writeFile(t, filepath.Join(wtPath, "bead.txt"), "build stage")
+	if err := committer.CommitStage(context.Background(), wtPath, "001", "build", 1, "Proceed"); err != nil {
+		t.Fatalf("commit build stage: %v", err)
+	}
+	writeFile(t, filepath.Join(wtPath, "bead.txt"), "review stage")
+	if err := committer.CommitStage(context.Background(), wtPath, "001", "review", 1, "Proceed"); err != nil {
+		t.Fatalf("commit review stage: %v", err)
+	}
+
+	specBranch := presentation.SpecBranchName(specID)
+	beforeSubjects := logSubjects(t, wtPath, specBranch, 4)
+
+	branch, err := squashPerBeadForPresentation(context.Background(), gitAdapter, wtPath, specID, []presentation.BeadSummary{{ID: "001", Title: "Feature"}})
+	if err != nil {
+		t.Fatalf("squash per bead: %v", err)
+	}
+	if branch == "" {
+		t.Fatal("expected PR branch")
+	}
+
+	if got, want := strings.TrimSpace(runGitInDir(t, wtPath, "rev-parse", "--abbrev-ref", "HEAD")), specBranch; got != want {
+		t.Fatalf("worktree branch = %q, want %q", got, want)
+	}
+
+	afterSubjects := logSubjects(t, wtPath, specBranch, len(beforeSubjects))
+	if !reflect.DeepEqual(beforeSubjects, afterSubjects) {
+		t.Fatalf("worktree history changed: before=%v after=%v", beforeSubjects, afterSubjects)
+	}
+
+	if got, want := branch, presentation.SpecPRBranchName(specID); got != want {
+		t.Fatalf("pr branch = %q, want %q", got, want)
+	}
+
+	prSubjects := logSubjects(t, wtPath, branch, 2)
+	if len(prSubjects) == 0 || prSubjects[0] != "bead 001: Feature" {
+		t.Fatalf("pr branch head commit = %v, want bead squash message", prSubjects)
 	}
 }
