@@ -69,6 +69,18 @@ func legacyEventsFromTyped(evt TypedEvent) []events.Event {
 		return legacyGenerationCapReached(e)
 	case GenerationCapReachedEvent:
 		return legacyGenerationCapReached(&e)
+	case *BuildInvocationStartEvent:
+		return legacyBuildInvocationStart(e)
+	case BuildInvocationStartEvent:
+		return legacyBuildInvocationStart(&e)
+	case *BuildInvocationCompleteEvent:
+		return legacyBuildInvocationComplete(e)
+	case BuildInvocationCompleteEvent:
+		return legacyBuildInvocationComplete(&e)
+	case *ModelSelectedEvent:
+		return legacyModelSelected(e)
+	case ModelSelectedEvent:
+		return legacyModelSelected(&e)
 	default:
 		return nil
 	}
@@ -187,9 +199,14 @@ func convertBeadCompleted(e *BeadCompletedEvent) []events.Event {
 	}}
 	if e.Success {
 		return append(base, &events.BeadCompleteEvent{
-			BeadID:    e.BeadID,
-			BeadTitle: e.BeadTitle,
-			TimeMixin: toTimeMixin(e.Timestamp),
+			BeadID:       e.BeadID,
+			BeadTitle:    e.BeadTitle,
+			Model:        e.Model,
+			CostUSD:      e.CostUSD,
+			InputTokens:  e.InputTokens,
+			OutputTokens: e.OutputTokens,
+			Duration:     e.Duration,
+			TimeMixin:    toTimeMixin(e.Timestamp),
 		})
 	}
 	return append(base, &events.BeadFailedEvent{
@@ -224,6 +241,40 @@ func legacyGenerationCapReached(e *GenerationCapReachedEvent) []events.Event {
 	return []events.Event{&events.GenerationCapReachedEvent{
 		GenerationCap: e.GenerationCap,
 		TimeMixin:     toTimeMixin(e.Timestamp),
+	}}
+}
+
+func legacyBuildInvocationStart(e *BuildInvocationStartEvent) []events.Event {
+	return []events.Event{&events.BuildStartEvent{
+		BeadID:      e.BeadID,
+		Model:       e.Model,
+		Attempt:     e.Attempt,
+		MaxAttempts: e.MaxAttempts,
+		TimeMixin:   toTimeMixin(e.Timestamp),
+	}}
+}
+
+func legacyBuildInvocationComplete(e *BuildInvocationCompleteEvent) []events.Event {
+	return []events.Event{&events.BuildCompleteEvent{
+		BeadID:    e.BeadID,
+		Success:   e.Success,
+		Duration:  e.Duration,
+		Cost:      e.CostUSD,
+		TokensIn:  e.InputTokens,
+		TokensOut: e.OutputTokens,
+		TimeMixin: toTimeMixin(e.Timestamp),
+	}}
+}
+
+func legacyModelSelected(e *ModelSelectedEvent) []events.Event {
+	reason := e.Reason
+	if reason == "" && e.Provider != "" && e.Tier != "" {
+		reason = fmt.Sprintf("%s via %s", e.Provider, e.Tier)
+	}
+	return []events.Event{&events.ModelSelectedEvent{
+		Model:     e.Model,
+		Reason:    reason,
+		TimeMixin: toTimeMixin(e.Timestamp),
 	}}
 }
 
