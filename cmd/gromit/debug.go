@@ -27,10 +27,10 @@ var debugCmd = &cobra.Command{
 	Long: `Launch an interactive agent session that runs three debug jobs end-to-end.
 
 The session receives full project context (CLAUDE.md, RULES.md, LEARNINGS.md)
-and works through:
-  - Diagnose: Identify where the failure happened and why
-  - Fix: Apply the most direct code or config correction and validate it
-  - Learn: Capture reusable guidance in project learnings when a pattern is found
+and follows the debug workflow (diagnose → fix → validate):
+  - Diagnose: Identify where the failure happened and why, then gather the signals needed to reproduce it.
+  - Fix: Apply the most direct code or configuration correction to resolve the issue.
+  - Validate: Confirm the fix with targeted checks and capture learnings so the project document trail stays current.
 
 Examples:
   gromit debug                              # Blank session
