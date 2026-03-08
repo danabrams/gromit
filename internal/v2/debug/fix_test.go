@@ -2,8 +2,8 @@ package debug
 
 import (
 	"context"
-	"os/exec"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -22,10 +22,10 @@ func TestApplyFix_CreatesCodeFixFromContext(t *testing.T) {
 
 	// Create a fix context describing what's wrong
 	fixCtx := &FixContext{
-		FailedStage: "build",
-		ErrorMsg:    "syntax error: missing return value",
+		FailedStage:   "build",
+		ErrorMsg:      "syntax error: missing return value",
 		FilesInvolved: []string{"main.go"},
-		WorktreeRoot: tmpDir,
+		WorktreeRoot:  tmpDir,
 	}
 
 	// Apply the fix - should succeed with a validated result
