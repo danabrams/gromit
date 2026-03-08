@@ -605,6 +605,13 @@ func (b *BeadLoop) runStageEntry(ctx context.Context, beadItem *bead.Bead, itera
 		}
 
 		if retriesRemaining <= 0 {
+			decision := stageDecision(res).String()
+			if err != nil {
+				decision = stage.DecisionFail.String()
+			}
+			if commitErr := b.commitAfterStage(ctx, beadItem, stageName, decision); commitErr != nil {
+				return fmt.Errorf("stage commit after %s: %w", stageName, commitErr)
+			}
 			return b.failWithReason(ctx, beadItem, iteration, reason, stageRetryContext(attempt, priorFailures))
 		}
 
