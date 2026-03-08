@@ -551,8 +551,6 @@ func TestIntegration_ResumeWithGapAnalysisAndRevalidation(t *testing.T) {
 func TestIntegration_FileSubscriberPreservesLegacySubscriberFlow(t *testing.T) {
 	t.Parallel()
 
-	const subscriptionDelay = 1200 * time.Millisecond
-	const warmupTimeout = 5 * time.Second
 	ctx := context.Background()
 	specID := "spec-file-subscriber-flow"
 	cfg := &config.Config{}
@@ -561,23 +559,15 @@ func TestIntegration_FileSubscriberPreservesLegacySubscriberFlow(t *testing.T) {
 	defer typedEmitter.Close()
 
 	legacyEmitter := events.NewEmitter()
-	legacyResult := make(chan error, 1)
-	legacyDone := make(chan struct{})
-	go func() {
-		defer close(legacyDone)
-		time.Sleep(subscriptionDelay)
-		sub := legacyEmitter.Subscribe()
-		defer legacyEmitter.Unsubscribe(sub)
-
-		_, err := waitForLegacyEventType[*events.SpecStartedEvent](sub, warmupTimeout)
-		legacyResult <- err
-	}()
-	defer func() {
-		legacyEmitter.Close()
-		<-legacyDone
-	}()
+	defer legacyEmitter.Close()
 
 	git := newIntegrationGitAdapter(t)
+	checkoutBlocked := make(chan struct{})
+	releaseCheckout := make(chan struct{})
+	git.beforeCheckoutReturn = func() {
+		close(checkoutBlocked)
+		<-releaseCheckout
+	}
 
 	planStage := newFakePlanStage(specID)
 	presenter := newIntegrationPresenterAdapter(t)
@@ -618,13 +608,42 @@ func TestIntegration_FileSubscriberPreservesLegacySubscriberFlow(t *testing.T) {
 		t.Fatalf("create spec loop: %v", err)
 	}
 
-	if err := loopInstance.Run(ctx, specID, nil); err != nil {
+	runResult := make(chan error, 1)
+	go func() {
+		runResult <- loopInstance.Run(ctx, specID, nil)
+	}()
+
+	select {
+	case <-checkoutBlocked:
+	case <-time.After(2 * time.Second):
+		t.Fatal("checkout did not block for deterministic subscription setup")
+	}
+
+	sub := legacyEmitter.Subscribe()
+	t.Cleanup(func() {
+		legacyEmitter.Unsubscribe(sub)
+	})
+	close(releaseCheckout)
+
+	if err := <-runResult; err != nil {
 		t.Fatalf("run spec loop: %v", err)
 	}
 
-	if err := <-legacyResult; err != nil {
-		t.Fatalf("warmup event did not reach legacy subscribers: %v", err)
+	foundWarmup := false
+	for {
+		select {
+		case evt := <-sub:
+			if _, ok := evt.(*events.SpecStartedEvent); ok {
+				foundWarmup = true
+			}
+		default:
+			if !foundWarmup {
+				t.Fatalf("warmup event did not reach legacy subscribers")
+			}
+			goto warmupVerified
+		}
 	}
+warmupVerified:
 
 	eventsPath := filepath.Join(git.lastWorktree, ".gromit", "v2", "events.jsonl")
 	data, err := os.ReadFile(eventsPath)
