@@ -237,6 +237,64 @@ func TestHandleHoldsFileOpenAcrossCalls(t *testing.T) {
 	}
 }
 
+func TestFileSubscriberAppendsEventsSequentially(t *testing.T) {
+	t.Parallel()
+
+	eventsPath := filepath.Join(t.TempDir(), "logs", "v2", "events.jsonl")
+
+	emitter1 := NewEmitter()
+	cleanup1 := StartEventLogSubscriber(emitter1, eventsPath)
+	if cleanup1 == nil {
+		t.Fatal("expected cleanup function")
+	}
+	emitter1.Emit(&StageStartedEvent{
+		Event:     Event{SchemaVersion: SchemaVersion, Type: EventTypeStageStarted},
+		StageName: "order-test",
+		BeadID:    "bead-1",
+		Iteration: 1,
+	})
+	emitter1.Close()
+	cleanup1()
+
+	emitter2 := NewEmitter()
+	cleanup2 := StartEventLogSubscriber(emitter2, eventsPath)
+	if cleanup2 == nil {
+		t.Fatal("expected cleanup function")
+	}
+	emitter2.Emit(&StageCompletedEvent{
+		Event:     Event{SchemaVersion: SchemaVersion, Type: EventTypeStageCompleted},
+		StageName: "order-test",
+		BeadID:    "bead-1",
+		Iteration: 1,
+		Success:   true,
+	})
+	emitter2.Close()
+	cleanup2()
+
+	data, err := os.ReadFile(eventsPath)
+	if err != nil {
+		t.Fatalf("reading events log: %v", err)
+	}
+	lines := strings.Split(strings.TrimRight(string(data), "\n"), "\n")
+	if len(lines) != 2 {
+		t.Fatalf("expected 2 lines after two sessions, got %d: %q", len(lines), string(data))
+	}
+
+	var first, second map[string]interface{}
+	if err := json.Unmarshal([]byte(lines[0]), &first); err != nil {
+		t.Fatalf("unmarshal first line: %v", err)
+	}
+	if err := json.Unmarshal([]byte(lines[1]), &second); err != nil {
+		t.Fatalf("unmarshal second line: %v", err)
+	}
+	if firstType, _ := first["type"].(string); firstType != EventTypeStageStarted {
+		t.Fatalf("first entry type = %v, want %q", firstType, EventTypeStageStarted)
+	}
+	if secondType, _ := second["type"].(string); secondType != EventTypeStageCompleted {
+		t.Fatalf("second entry type = %v, want %q", secondType, EventTypeStageCompleted)
+	}
+}
+
 func TestHandleAddsCorrelationFieldsFromPriorStageContext(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "events.jsonl")
 	fs := NewFileSubscriber(path)
