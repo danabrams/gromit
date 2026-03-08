@@ -96,7 +96,9 @@ func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Resul
 	if satisfied, err := s.trySatisfactionCheck(ctx, req); err != nil {
 		return nil, fmt.Errorf("gate: satisfaction check: %w", err)
 	} else if satisfied {
-		_, _ = s.tracker.CloseBead(ctx, trackertypes.TaskTrackerCloseBeadRequest{BeadID: beadID})
+		if _, err := s.tracker.CloseBead(ctx, trackertypes.TaskTrackerCloseBeadRequest{BeadID: beadID}); err != nil {
+			return nil, fmt.Errorf("gate: close satisfied bead %s: %w", beadID, err)
+		}
 		return &stagepkg.Result{Decision: stagepkg.DecisionSkip}, nil
 	}
 
