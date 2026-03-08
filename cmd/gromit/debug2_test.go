@@ -526,6 +526,67 @@ func TestDebug2Impl_WritesSystemicRecommendationToStderr(t *testing.T) {
 	}
 }
 
+func TestDebug2Impl_SystemicRecommendationDoesNotAppendAutonomousLearning(t *testing.T) {
+	tmpDir := t.TempDir()
+	specName := "test-spec"
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	wtPath := filepath.Join(gromitDir, "spec-worktrees", specName)
+
+	eventsDir := filepath.Join(wtPath, ".gromit", "v2")
+	if err := os.MkdirAll(eventsDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(eventsDir, "events.jsonl"),
+		[]byte(`{"type":"stage.completed","decision":"Fail"}`+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	learningsPath := filepath.Join(wtPath, "LEARNINGS.md")
+	initialLearnings := "# LEARNINGS\n\n## Confirmed Learnings\n\n## Provisional Learnings\n\n*No provisional learnings at this time.*\n"
+	if err := os.WriteFile(learningsPath, []byte(initialLearnings), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	learningsEntry := "### 2026-03-08 | debug2_systemic | ARCHITECTURE\n\nAdd a process guard for prompt fragment defaults.\n"
+	systemic := "Add a pipeline guard for prompt fragment defaults and review in architecture meeting."
+	llmOutput := fmt.Sprintf(`{"code_patch":"","learnings_entry":%q,"systemic_recommendation":%q}`, learningsEntry, systemic)
+
+	origInvoke := debug2InvokeLLMFn
+	t.Cleanup(func() { debug2InvokeLLMFn = origInvoke })
+	debug2InvokeLLMFn = func(ctx context.Context, prompt, dir string, cfg *config.Config) (string, error) {
+		return llmOutput, nil
+	}
+
+	origRunValidation := debug2RunValidationFn
+	t.Cleanup(func() { debug2RunValidationFn = origRunValidation })
+	debug2RunValidationFn = func(ctx context.Context, dir, command string) error {
+		return nil
+	}
+
+	var stderr bytes.Buffer
+	origStderr := debug2Stderr
+	t.Cleanup(func() { debug2Stderr = origStderr })
+	debug2Stderr = &stderr
+
+	cfg := &config.Config{}
+	cfg.SetDefaults()
+
+	if err := debug2Impl(context.Background(), specName, gromitDir, cfg); err != nil {
+		t.Fatalf("debug2Impl() error = %v", err)
+	}
+
+	updated, err := os.ReadFile(learningsPath)
+	if err != nil {
+		t.Fatalf("reading LEARNINGS.md: %v", err)
+	}
+	if strings.Contains(string(updated), learningsEntry) {
+		t.Fatalf("LEARNINGS.md should not contain systemic learnings entry, got:\n%s", string(updated))
+	}
+	if !strings.Contains(stderr.String(), systemic) {
+		t.Fatalf("stderr missing systemic recommendation, got: %q", stderr.String())
+	}
+}
+
 func TestDebug2RunE_ThreadsCommandContext(t *testing.T) {
 	repoRoot, err := findProjectRoot()
 	if err != nil {
