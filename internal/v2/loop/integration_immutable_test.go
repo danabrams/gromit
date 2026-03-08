@@ -129,8 +129,9 @@ func TestIntegrationImmutable_PerBeadSquashCombinesStageCommits(t *testing.T) {
 	t.Parallel()
 
 	result := runImmutableSpec(t, immutableSpecConfig{
-		specID:       "immutable-per-bead-squash",
-		enableSquash: true,
+		specID:        "immutable-per-bead-squash",
+		enableSquash:  true,
+		disableEvents: true,
 		beads: immutableBeads(
 			immutableBead("001", "First bead"),
 			immutableBead("002", "Second bead"),
@@ -147,8 +148,9 @@ func TestIntegrationImmutable_SquashPurgesStructuredStageCommits(t *testing.T) {
 	t.Parallel()
 
 	result := runImmutableSpec(t, immutableSpecConfig{
-		specID:       "immutable-squash-commits",
-		enableSquash: true,
+		specID:        "immutable-squash-commits",
+		enableSquash:  true,
+		disableEvents: true,
 		beads: immutableBeads(
 			immutableBead("bead-001", "First bead"),
 			immutableBead("bead-002", "Second bead"),
@@ -156,8 +158,8 @@ func TestIntegrationImmutable_SquashPurgesStructuredStageCommits(t *testing.T) {
 	})
 
 	assertSquashRemovesStructuredCommits(t, result, []string{
-		"bead 002: Second bead",
-		"bead 001: First bead",
+		"bead bead-002: Second bead",
+		"bead bead-001: First bead",
 	})
 }
 
@@ -165,6 +167,7 @@ type immutableSpecConfig struct {
 	specID            string
 	beads             []*bead.Bead
 	enableSquash      bool
+	disableEvents     bool
 	validateDecisions []stagepkg.Decision
 	validateRetry     stagepkg.RetryConfig
 }
@@ -211,10 +214,15 @@ func runImmutableSpec(t *testing.T, cfg immutableSpecConfig) immutableRunResult 
 	gitAdapter := newImmutableGitAdapter(repoRoot, filepath.Join(repoRoot, ".gromit", "spec-worktrees"))
 	stageCommitter := &pipeline.StageCommitter{Git: gitAdapter}
 
-	typedEmitter := event.NewEmitter()
-	t.Cleanup(func() {
-		typedEmitter.Close()
-	})
+	var typedEmitter *event.Emitter
+	if !cfg.disableEvents {
+		typedEmitter = event.NewEmitter()
+	}
+	if typedEmitter != nil {
+		t.Cleanup(func() {
+			typedEmitter.Close()
+		})
+	}
 
 	buildStage := &immutableBeadStage{name: "build", delay: 15 * time.Millisecond}
 	validateStage := &immutableBeadStage{
@@ -570,6 +578,34 @@ func assertPerBeadSquashHistory(t *testing.T, result immutableRunResult, wantBea
 			t.Fatalf("squashed bead commit order incorrect for %q: index=%d previous=%d", want, found, lastIndex)
 		}
 		lastIndex = found
+	}
+}
+
+func assertSquashRemovesStructuredCommits(t *testing.T, result immutableRunResult, wantSubjects []string) {
+	t.Helper()
+
+	structured := collectStructuredStageCommits(t, result.repoRoot, result.sourceBranch, 64)
+	if len(structured) == 0 {
+		t.Fatal("expected structured commits on source branch")
+	}
+
+	prCommits := immutableBranchCommits(t, result.repoRoot, result.prBranch, len(wantSubjects)+4)
+	if len(prCommits) < len(wantSubjects) {
+		t.Fatalf("pr branch commits = %d, want at least %d", len(prCommits), len(wantSubjects))
+	}
+
+	lastIndex := -1
+	for idx, commit := range prCommits {
+		if _, ok := pipeline.ParseCommitMessage(commit.Subject); ok {
+			t.Fatalf("pr commit %d should not be structured after squash, got %q", idx, commit.Subject)
+		}
+		if lastIndex+1 < len(wantSubjects) && commit.Subject == wantSubjects[lastIndex+1] {
+			lastIndex++
+		}
+	}
+
+	if lastIndex != len(wantSubjects)-1 {
+		t.Fatalf("pr branch missing subject sequence: want %v, got %v", wantSubjects, subjects(prCommits))
 	}
 }
 
