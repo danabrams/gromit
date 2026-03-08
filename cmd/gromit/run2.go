@@ -271,11 +271,16 @@ func loadSpecFromArg(arg string) (*v2spec.Spec, error) {
 }
 
 // buildRouter constructs a Router from the config's provider and routing
-// settings. Returns (nil, nil) when no providers are configured, preserving
-// backward compatibility — the spec loop handles a nil Router gracefully.
+// settings. Returns (nil, phaseModels) when no providers are configured —
+// the spec loop handles a nil Router gracefully, but phaseModels must
+// always be extracted so TierForPhase can resolve configured tiers.
 func buildRouter(cfg *config.Config) (*routing.Router, map[string]string) {
-	if cfg == nil || len(cfg.Providers) == 0 {
+	if cfg == nil {
 		return nil, nil
+	}
+	phaseModels := phaseModelsFromConfig(cfg.Methodology.PhaseModels)
+	if len(cfg.Providers) == 0 {
+		return nil, phaseModels
 	}
 
 	binary := "claude"
@@ -325,7 +330,6 @@ func buildRouter(cfg *config.Config) (*routing.Router, map[string]string) {
 		Models:           models,
 	})
 
-	phaseModels := phaseModelsFromConfig(cfg.Methodology.PhaseModels)
 	return router, phaseModels
 }
 

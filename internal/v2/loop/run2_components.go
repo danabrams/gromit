@@ -275,7 +275,8 @@ func (c *CommandValidationRunner) Run(ctx context.Context, command, worktree str
 	return nil
 }
 
-// loadProjectContext loads the project context from CLAUDE.md in the project root.
+// loadProjectContext loads the project context from CLAUDE.md in the project root,
+// and appends any learnings from .gromit/LEARNINGS.md.
 func loadProjectContext(projectRoot string) (string, error) {
 	claudeMDPath := filepath.Join(projectRoot, "CLAUDE.md")
 	content, err := os.ReadFile(claudeMDPath)
@@ -285,7 +286,19 @@ func loadProjectContext(projectRoot string) (string, error) {
 		}
 		return "", fmt.Errorf("reading CLAUDE.md: %w", err)
 	}
-	return string(content), nil
+
+	result := string(content)
+
+	// Append learnings if available. The raw LEARNINGS.md file includes
+	// confirmed and provisional sections; the assembler's budget shaping
+	// will trim if the combined prompt exceeds the character cap.
+	learningsPath := filepath.Join(projectRoot, ".gromit", "LEARNINGS.md")
+	learningsContent, err := os.ReadFile(learningsPath)
+	if err == nil && len(learningsContent) > 0 {
+		result += "\n\n## Learnings\n\n" + string(learningsContent)
+	}
+
+	return result, nil
 }
 
 // loadBaseInstructions loads the base instructions from RULES.md in the project root.

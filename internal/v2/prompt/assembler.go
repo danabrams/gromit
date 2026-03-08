@@ -2,9 +2,14 @@ package prompt
 
 import (
 	"path/filepath"
+	"regexp"
+	"sort"
 	"strings"
 	"unicode/utf8"
 )
+
+// scopedPackagePattern matches package paths like internal/foo/bar or cmd/gromit.
+var scopedPackagePattern = regexp.MustCompile(`(?:internal|cmd|pkg|src)/[A-Za-z0-9._/\-]+`)
 
 // phaseMaxChars defines per-phase character caps for RULES.md sections.
 var phaseMaxChars = map[string]int{
@@ -229,31 +234,194 @@ func (p *PromptAssembler) applyPhaseCap(phase, section string) string {
 // loadProjectContext returns project context scoped to the bead's files.
 // When the bead has no files, the full project text is returned unmodified.
 func (p *PromptAssembler) loadProjectContext(bead BeadInfo) string {
-	if len(bead.Files) == 0 {
+	if len(bead.Files) == 0 && bead.Title == "" {
 		return p.project
 	}
-	// Scope project context: only include lines that reference bead files
+
+	result := p.project
+
+	// File-path token filtering: only include lines that reference bead files
 	// or non-file-specific lines. This is a best-effort filter.
-	lines := strings.Split(p.project, "\n")
-	var filtered []string
-	for _, line := range lines {
-		relevant := true
-		// If the line contains a token that looks like a file path,
-		// check if it references one of the bead's files.
-		if containsFilePathToken(line) {
-			relevant = false
-			for _, f := range bead.Files {
-				if strings.Contains(line, f) {
-					relevant = true
-					break
+	if len(bead.Files) > 0 {
+		lines := strings.Split(result, "\n")
+		var filtered []string
+		for _, line := range lines {
+			relevant := true
+			if containsFilePathToken(line) {
+				relevant = false
+				for _, f := range bead.Files {
+					if strings.Contains(line, f) {
+						relevant = true
+						break
+					}
 				}
 			}
+			if relevant {
+				filtered = append(filtered, line)
+			}
 		}
-		if relevant {
-			filtered = append(filtered, line)
+		result = strings.Join(filtered, "\n")
+	}
+
+	// Scope architecture section to bead-relevant packages.
+	beadPaths := extractPackagePaths(bead.Title, bead.Files)
+	if len(beadPaths) > 0 {
+		result = scopeArchitectureSection(result, beadPaths)
+	}
+
+	return result
+}
+
+// extractPackagePaths discovers package directory paths from the bead title and file list.
+// It scans the title for tokens matching known directory prefixes or the scopedPackagePattern,
+// and extracts directory portions of files. Returns deduplicated sorted paths.
+func extractPackagePaths(title string, files []string) []string {
+	unique := make(map[string]struct{})
+
+	// Extract package paths from the title using the scoped package regex.
+	matches := scopedPackagePattern.FindAllString(title, -1)
+	for _, match := range matches {
+		dir := normalizePackagePath(match)
+		if dir != "" {
+			unique[dir] = struct{}{}
 		}
 	}
-	return strings.Join(filtered, "\n")
+
+	// Also scan title tokens for dirPrefix matches.
+	for _, tok := range strings.Fields(title) {
+		for _, prefix := range dirPrefixes {
+			if strings.HasPrefix(tok, prefix) {
+				dir := normalizePackagePath(tok)
+				if dir != "" {
+					unique[dir] = struct{}{}
+				}
+				break
+			}
+		}
+	}
+
+	// Extract directory paths from bead files.
+	for _, f := range files {
+		dir := filepath.Dir(f)
+		if dir == "." || dir == "" {
+			continue
+		}
+		// Normalize to forward slashes for matching.
+		dir = filepath.ToSlash(dir)
+		unique[dir] = struct{}{}
+	}
+
+	if len(unique) == 0 {
+		return nil
+	}
+
+	paths := make([]string, 0, len(unique))
+	for p := range unique {
+		paths = append(paths, p)
+	}
+	sort.Strings(paths)
+	return paths
+}
+
+// normalizePackagePath trims a discovered path token to its directory portion,
+// stripping trailing file names and normalizing slashes.
+func normalizePackagePath(path string) string {
+	trimmed := strings.TrimSpace(path)
+	trimmed = strings.TrimPrefix(trimmed, "./")
+	trimmed = strings.Trim(trimmed, "/")
+	if trimmed == "" {
+		return ""
+	}
+
+	// Strip trailing file name (has extension).
+	parts := strings.Split(trimmed, "/")
+	if len(parts) >= 2 {
+		last := parts[len(parts)-1]
+		if strings.Contains(last, ".") {
+			parts = parts[:len(parts)-1]
+		}
+	}
+	// Strip trailing "...".
+	if len(parts) > 0 && parts[len(parts)-1] == "..." {
+		parts = parts[:len(parts)-1]
+	}
+
+	if len(parts) < 2 {
+		return ""
+	}
+
+	return strings.Join(parts, "/")
+}
+
+// scopeArchitectureSection filters the ## Architecture section of project text
+// to only include bullet points that reference one of the given package paths.
+// Non-architecture content is preserved unchanged.
+func scopeArchitectureSection(project string, beadPaths []string) string {
+	lines := strings.Split(project, "\n")
+
+	// Find the "## Architecture" section boundaries.
+	archStart := -1
+	archEnd := len(lines)
+	for i, line := range lines {
+		trimmed := strings.TrimSpace(strings.ToLower(line))
+		if archStart == -1 {
+			if strings.HasPrefix(trimmed, "## architecture") {
+				archStart = i
+			}
+		} else if strings.HasPrefix(trimmed, "## ") {
+			archEnd = i
+			break
+		}
+	}
+
+	if archStart == -1 {
+		return project
+	}
+
+	// Filter bullets within the architecture section.
+	var result []string
+	// Keep everything before the architecture section.
+	result = append(result, lines[:archStart]...)
+	// Keep the architecture heading itself.
+	result = append(result, lines[archStart])
+
+	for i := archStart + 1; i < archEnd; i++ {
+		line := lines[i]
+		trimmed := strings.TrimSpace(line)
+		// Keep non-bullet lines (blank lines, sub-headings, prose).
+		if !strings.HasPrefix(trimmed, "- ") && !strings.HasPrefix(trimmed, "* ") {
+			result = append(result, line)
+			continue
+		}
+		// For bullet lines, keep if any beadPath is referenced.
+		if bulletMatchesAnyPath(line, beadPaths) {
+			result = append(result, line)
+		}
+	}
+
+	// Keep everything after the architecture section.
+	result = append(result, lines[archEnd:]...)
+
+	return strings.Join(result, "\n")
+}
+
+// bulletMatchesAnyPath returns true if the bullet line references any of the given paths.
+func bulletMatchesAnyPath(line string, paths []string) bool {
+	for _, p := range paths {
+		if strings.Contains(line, p) {
+			return true
+		}
+		// Also check if the bullet's backtick-quoted path is a prefix or suffix match.
+		// e.g., path "internal/runner" should match bullet "- `runner/` — ..."
+		lastSegment := p
+		if idx := strings.LastIndex(p, "/"); idx != -1 {
+			lastSegment = p[idx+1:]
+		}
+		if lastSegment != "" && strings.Contains(line, "`"+lastSegment+"/`") {
+			return true
+		}
+	}
+	return false
 }
 
 // Assemble concatenates the configured layers in the prescribed order,
