@@ -139,6 +139,9 @@ func (f *FileSubscriber) deriveCorrelation(payload map[string]json.RawMessage) e
 	beadID := readStringField(payload, "bead_id")
 	stageName := readStringField(payload, "stage_name")
 	iteration := readIntField(payload, "iteration")
+	if iteration == 0 && readStringField(payload, "type") == EventTypeStageRetrying {
+		iteration = readIntField(payload, "attempt")
+	}
 
 	if beadID == "" && stageName == "" && iteration == 0 {
 		return eventCorrelation{}
