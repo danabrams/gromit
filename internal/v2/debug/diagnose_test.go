@@ -82,6 +82,46 @@ func TestDiagnose_ClassifiesConfiguredRootCauses(t *testing.T) {
 	}
 }
 
+func TestDiagnose_CollectsStageValidationDetails(t *testing.T) {
+	events := []map[string]interface{}{
+		{
+			"type":       "stage.failed",
+			"stage_name": "validate",
+			"bead_id":    "b1",
+			"iteration":  1,
+			"error":      "validation pipeline failed",
+		},
+		{
+			"type":           "validation",
+			"stage_name":     "validate",
+			"bead_id":        "b1",
+			"iteration":      1,
+			"commands":       []interface{}{"go test ./cmd/gromit"},
+			"failed_command": "go test ./cmd/gromit",
+			"details":        "stdout: panic in TestFoo",
+			"succeeded":      false,
+		},
+	}
+
+	diagnosis := Diagnose(Input{Events: events})
+
+	if diagnosis.StageTrace.StageName != "validate" {
+		t.Fatalf("StageTrace.StageName = %q, want %q", diagnosis.StageTrace.StageName, "validate")
+	}
+	if diagnosis.StageTrace.Validation == nil {
+		t.Fatal("StageTrace.Validation = nil, want non-nil")
+	}
+	if len(diagnosis.StageTrace.Events) != 2 {
+		t.Fatalf("StageTrace.Events len = %d, want %d", len(diagnosis.StageTrace.Events), 2)
+	}
+	if len(diagnosis.StageTrace.Validation.Commands) != 1 {
+		t.Fatalf("validation commands = %v, want 1 entry", diagnosis.StageTrace.Validation.Commands)
+	}
+	if diagnosis.StageTrace.Validation.Details != "stdout: panic in TestFoo" {
+		t.Fatalf("validation details = %q, want %q", diagnosis.StageTrace.Validation.Details, "stdout: panic in TestFoo")
+	}
+}
+
 func TestDiagnose_FallsBackToGitHistoryForStageAndRootCause(t *testing.T) {
 	logEntries := []adapter.LogEntry{
 		{Hash: "abc11111", Message: "[bead:b1/build/iter:1] Proceed"},
