@@ -7,6 +7,7 @@ type LearningExtractionInput struct {
 	LearningsEntry         string
 	SystemicRecommendation string
 	RootCause              RootCause
+	Diagnosis              *Diagnosis
 }
 
 // LearningExtraction is the normalized learning output for debug handling.
@@ -23,15 +24,17 @@ func ExtractLearning(input LearningExtractionInput) LearningExtraction {
 	learningsEntry := strings.TrimSpace(input.LearningsEntry)
 	systemicRecommendation := strings.TrimSpace(input.SystemicRecommendation)
 
+	rootCause, failureSignal, errorText, stageName := learningContextFromDiagnosis(input)
+
 	if systemicRecommendation == "" && isSystemicLearning(learningsEntry) {
-		systemicRecommendation = BuildSystemicRecommendation(input.RootCause, learningsEntry)
+		systemicRecommendation = BuildSystemicRecommendation(rootCause, learningsEntry)
 		if systemicRecommendation == "" {
 			systemicRecommendation = learningsEntry
 		}
 		learningsEntry = ""
 	}
 	if systemicRecommendation == "" {
-		systemicRecommendation = BuildSystemicRecommendation(input.RootCause, learningsEntry)
+		systemicRecommendation = BuildSystemicRecommendation(rootCause, failureSignal)
 	}
 
 	if systemicRecommendation != "" {
@@ -41,7 +44,7 @@ func ExtractLearning(input LearningExtractionInput) LearningExtraction {
 	}
 
 	if learningsEntry == "" {
-		learningsEntry = buildLearningEntryFromRootCause(input.RootCause)
+		learningsEntry = buildLearningEntryFromDiagnostics(rootCause, failureSignal, errorText, stageName)
 	}
 	if learningsEntry == "" {
 		return LearningExtraction{}
@@ -52,6 +55,47 @@ func ExtractLearning(input LearningExtractionInput) LearningExtraction {
 		LearningsEntry: learningsEntry,
 		Autonomous:     true,
 	}
+}
+
+func learningContextFromDiagnosis(input LearningExtractionInput) (RootCause, string, string, string) {
+	rootCause := input.RootCause
+	failureSignal := ""
+	errorText := ""
+	stageName := ""
+
+	if diag := input.Diagnosis; diag != nil {
+		if rootCause == "" {
+			rootCause = diag.RootCause
+		}
+		failureSignal = failureSignalFromDiagnosis(diag)
+		if trimmed := strings.TrimSpace(diag.StageTrace.FailureMessage); trimmed != "" {
+			errorText = trimmed
+		} else {
+			errorText = failureSignal
+		}
+		stageName = strings.TrimSpace(diag.StageTrace.StageName)
+	}
+
+	return rootCause, failureSignal, errorText, stageName
+}
+
+func failureSignalFromDiagnosis(diag *Diagnosis) string {
+	if diag == nil {
+		return ""
+	}
+	if trimmed := strings.TrimSpace(diag.StageTrace.FailureMessage); trimmed != "" {
+		return trimmed
+	}
+	if diag.FailureEvent != nil {
+		for _, key := range []string{"error", "details", "failed_command"} {
+			if raw, ok := diag.FailureEvent[key]; ok {
+				if str, ok := raw.(string); ok && strings.TrimSpace(str) != "" {
+					return strings.TrimSpace(str)
+				}
+			}
+		}
+	}
+	return ""
 }
 
 func isSystemicLearning(text string) bool {

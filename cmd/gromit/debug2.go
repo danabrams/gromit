@@ -545,6 +545,7 @@ func debug2Impl(ctx context.Context, specName, gromitDir string, cfg *config.Con
 		LearningsEntry:         response.LearningsEntry,
 		SystemicRecommendation: response.SystemicRecommendation,
 		RootCause:              diagnosis.RootCause,
+		Diagnosis:              &diagnosis,
 	})
 	if err := appendDebug2LearningsEntry(wtPath, learning.LearningsEntry); err != nil {
 		return err
