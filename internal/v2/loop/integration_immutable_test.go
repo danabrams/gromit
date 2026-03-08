@@ -321,6 +321,38 @@ func assertEventsCumulativeAcrossCommits(t *testing.T, result immutableRunResult
 	}
 }
 
+func assertEventsSnapshotMonotonic(t *testing.T, repoRoot string, commits []immutableStructuredCommit) {
+	t.Helper()
+
+	prevCount := 0
+	for _, commit := range commits {
+		lines := immutableJSONLLines(t, immutableShowFileAtCommit(t, repoRoot, commit.Commit.Hash, ".gromit/v2/events.jsonl"))
+		if len(lines) < prevCount {
+			t.Fatalf("events snapshot at commit %s shrank: previous %d, now %d", commit.Commit.Hash, prevCount, len(lines))
+		}
+		if commit.Info.BeadID == "spec" {
+			prevCount = len(lines)
+			continue
+		}
+		found := false
+		for _, line := range lines {
+			var raw map[string]any
+			if err := json.Unmarshal([]byte(line), &raw); err != nil {
+				t.Fatalf("events line decode at commit %s: %v", commit.Commit.Hash, err)
+			}
+			stageName, _ := raw["stage_name"].(string)
+			if stageName == commit.Info.StageName {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatalf("commit %s missing stage event for %q", commit.Commit.Hash, commit.Info.StageName)
+		}
+		prevCount = len(lines)
+	}
+}
+
 func assertRetryHistoryPreserved(t *testing.T, result immutableRunResult, beadID string) {
 	t.Helper()
 
