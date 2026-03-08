@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/danabrams/gromit/internal/config"
-	"github.com/danabrams/gromit/internal/jsonutil"
 	"github.com/danabrams/gromit/internal/v2/adapter"
 	gitadapter "github.com/danabrams/gromit/internal/v2/adapter/git"
 	llmadapter "github.com/danabrams/gromit/internal/v2/adapter/llm"
@@ -284,12 +283,20 @@ func invokeDebug2LLM(ctx context.Context, prompt, dir string, cfg *config.Config
 }
 
 func parseDebug2LLMResponse(output string) (*debug2LLMFixResponse, error) {
-	if strings.TrimSpace(output) == "" {
+	text := strings.TrimSpace(output)
+	if text == "" {
 		return nil, fmt.Errorf("llm output is empty")
 	}
 	var response debug2LLMFixResponse
-	if err := jsonutil.ExtractJSON(output, &response); err != nil {
-		return nil, fmt.Errorf("extracting llm response json: %w", err)
+	if err := json.Unmarshal([]byte(text), &response); err != nil {
+		start := strings.Index(text, "{")
+		end := strings.LastIndex(text, "}")
+		if start == -1 || end == -1 || end <= start {
+			return nil, fmt.Errorf("extracting llm response json: no JSON object found")
+		}
+		if err := json.Unmarshal([]byte(text[start:end+1]), &response); err != nil {
+			return nil, fmt.Errorf("extracting llm response json: %w", err)
+		}
 	}
 	response.LearningsEntry = strings.TrimSpace(response.LearningsEntry)
 	response.SystemicRecommendation = strings.TrimSpace(response.SystemicRecommendation)
