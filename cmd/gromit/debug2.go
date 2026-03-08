@@ -559,5 +559,5 @@ func getStringField(m map[string]interface{}, key string) string {
 
 // debug2PersistLearningToFile persists a learning entry to the LEARNINGS.md file.
 func debug2PersistLearningToFile(learningsPath, entry string) error {
-	return debug.PersistLearning(learningsPath, entry)
+	return debugpkg.PersistLearning(learningsPath, entry)
 }
