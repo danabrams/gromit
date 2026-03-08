@@ -35,7 +35,12 @@ var commitMessageStageNameRe = regexp.MustCompile(`^[a-z][a-z0-9_-]*$`)
 
 // ParseCommitMessage parses a structured stage commit message into machine fields.
 func ParseCommitMessage(msg string) (CommitMessage, bool) {
-	matches := commitMessageRe.FindStringSubmatch(strings.TrimSpace(msg))
+	trimmed := strings.TrimSpace(msg)
+	if lineBreak := strings.IndexByte(trimmed, '\n'); lineBreak >= 0 {
+		trimmed = strings.TrimSpace(trimmed[:lineBreak])
+	}
+
+	matches := commitMessageRe.FindStringSubmatch(trimmed)
 	if matches == nil {
 		return CommitMessage{}, false
 	}
