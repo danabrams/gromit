@@ -35,22 +35,22 @@ type StageCommitter interface {
 
 // BeadLoopConfig holds the stages required to process each bead.
 type BeadLoopConfig struct {
-	Gate            stage.Stage
-	Build           stage.Stage
-	Validate        stage.Stage
-	Review          stage.Stage
-	Epilogue        stage.Stage
-	Triage                   stage.Stage // optional triage stage for failure categorization
-	Decompose                stage.Stage // optional decompose stage for bead splitting
-	Emitter                  *event.Emitter
-	LegacyEmitter            *events.Emitter
-	GenerationCap            int // generation cap for review-created beads
+	Gate                       stage.Stage
+	Build                      stage.Stage
+	Validate                   stage.Stage
+	Review                     stage.Stage
+	Epilogue                   stage.Stage
+	Triage                     stage.Stage // optional triage stage for failure categorization
+	Decompose                  stage.Stage // optional decompose stage for bead splitting
+	Emitter                    *event.Emitter
+	LegacyEmitter              *events.Emitter
+	GenerationCap              int // generation cap for review-created beads
 	DecompositionGenerationCap int // generation cap for triage-decomposed beads (separate from review)
-	StartGeneration          int
-	Git                      GitCommitter
-	StageCommitter           StageCommitter
-	Router                   *routing.Router      // optional: if nil, routing is skipped
-	PhaseModels              map[string]string     // optional: phase -> starting tier
+	StartGeneration            int
+	Git                        GitCommitter
+	StageCommitter             StageCommitter
+	Router                     *routing.Router   // optional: if nil, routing is skipped
+	PhaseModels                map[string]string // optional: phase -> starting tier
 }
 
 // BeadLoopResult captures metadata produced by a bead loop execution.
@@ -60,26 +60,26 @@ type BeadLoopResult struct {
 
 // BeadLoop orchestrates the per-bead execution pipeline.
 type BeadLoop struct {
-	gate               stage.Stage
-	build              stage.Stage
-	validate           stage.Stage
-	review             stage.Stage
-	epilogue           stage.Stage
-	triage                   stage.Stage
-	decompose                stage.Stage
-	emitter                  *event.Emitter
-	generationCap            int
+	gate                       stage.Stage
+	build                      stage.Stage
+	validate                   stage.Stage
+	review                     stage.Stage
+	epilogue                   stage.Stage
+	triage                     stage.Stage
+	decompose                  stage.Stage
+	emitter                    *event.Emitter
+	generationCap              int
 	decompositionGenerationCap int
-	startGeneration          int
-	worktree                 string
-	outOfScopeFindings       []v2review.Finding
-	git                      GitCommitter
-	stageCommitter       StageCommitter
-	router               *routing.Router
-	phaseModels          map[string]string
+	startGeneration            int
+	worktree                   string
+	outOfScopeFindings         []v2review.Finding
+	git                        GitCommitter
+	stageCommitter             StageCommitter
+	router                     *routing.Router
+	phaseModels                map[string]string
 	// run-scoped state for in-loop decomposition
-	resolver *dep.Resolver
-	beadMap  map[string]*bead.Bead
+	resolver  *dep.Resolver
+	beadMap   map[string]*bead.Bead
 	completed []string
 }
 
@@ -120,21 +120,21 @@ func NewBeadLoop(config BeadLoopConfig) (*BeadLoop, error) {
 		return nil, fmt.Errorf("epilogue stage required")
 	}
 	loop := &BeadLoop{
-		gate:            config.Gate,
-		build:           config.Build,
-		validate:        config.Validate,
-		review:          config.Review,
-		epilogue:        config.Epilogue,
-		triage:                   config.Triage,
-		decompose:                config.Decompose,
-		emitter:                  config.Emitter,
-		generationCap:            config.GenerationCap,
+		gate:                       config.Gate,
+		build:                      config.Build,
+		validate:                   config.Validate,
+		review:                     config.Review,
+		epilogue:                   config.Epilogue,
+		triage:                     config.Triage,
+		decompose:                  config.Decompose,
+		emitter:                    config.Emitter,
+		generationCap:              config.GenerationCap,
 		decompositionGenerationCap: config.DecompositionGenerationCap,
-		startGeneration:          config.StartGeneration,
-		git:                      config.Git,
-		stageCommitter:           config.StageCommitter,
-		router:                   config.Router,
-		phaseModels:              config.PhaseModels,
+		startGeneration:            config.StartGeneration,
+		git:                        config.Git,
+		stageCommitter:             config.StageCommitter,
+		router:                     config.Router,
+		phaseModels:                config.PhaseModels,
 	}
 	if config.Emitter != nil && config.LegacyEmitter != nil {
 		event.BridgeTypedToLegacy(config.Emitter, config.LegacyEmitter)
@@ -402,7 +402,6 @@ func (b *BeadLoop) commitAfterStage(ctx context.Context, beadItem *bead.Bead, sN
 	}
 	return b.stageCommitter.CommitStage(ctx, b.worktree, beadItem.ID, sName, iteration, decision)
 }
-
 
 func (b *BeadLoop) runStageEntry(ctx context.Context, beadItem *bead.Bead, iteration int, entries []stageEntry, nameIndex map[string]int, idx int, highestGen *int, generationLimit int, stopCh <-chan struct{}) error {
 	entry := entries[idx]

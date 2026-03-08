@@ -277,6 +277,104 @@ func TestPhaseFilterExactMatch(t *testing.T) {
 	}
 }
 
+func TestPhaseFilterMatchesAnnotatedHeadings(t *testing.T) {
+	base := "## Code Style <!-- phases: red, build, green -->\ncode style rules\n\n## Architecture <!-- phases: build, review -->\narchitecture rules\n\n## Decomposition <!-- phases: plan -->\ndecomposition rules\n\n## Retro <!-- phases: retro -->\nretro rules"
+
+	assembler := NewPromptAssembler(base, "", "", "")
+	output := assembler.Assemble("build", BeadInfo{FileCount: 10})
+
+	if !strings.Contains(output, "code style rules") {
+		t.Fatal("output should contain 'code style rules' (build is in its phases)")
+	}
+	if !strings.Contains(output, "architecture rules") {
+		t.Fatal("output should contain 'architecture rules' (build is in its phases)")
+	}
+	if strings.Contains(output, "decomposition rules") {
+		t.Fatal("output should NOT contain 'decomposition rules' (build not in plan-only section)")
+	}
+	if strings.Contains(output, "retro rules") {
+		t.Fatal("output should NOT contain 'retro rules' (build not in retro-only section)")
+	}
+}
+
+func TestPhaseFilterAnnotationMultipleSections(t *testing.T) {
+	base := "## Safety <!-- phases: red, build, green, refactor, review -->\nsafety rules\n\n## Build Process <!-- phases: build -->\nbuild process rules\n\n## Test Quality <!-- phases: red, build, green, refactor, review -->\ntest quality rules"
+
+	assembler := NewPromptAssembler(base, "", "", "")
+	output := assembler.Assemble("build", BeadInfo{FileCount: 10})
+
+	if !strings.Contains(output, "safety rules") {
+		t.Fatal("output should contain safety rules")
+	}
+	if !strings.Contains(output, "build process rules") {
+		t.Fatal("output should contain build process rules")
+	}
+	if !strings.Contains(output, "test quality rules") {
+		t.Fatal("output should contain test quality rules")
+	}
+}
+
+func TestPhaseFilterAnnotationExcludesNonMatchingPhase(t *testing.T) {
+	base := "## Build Process <!-- phases: build -->\nbuild only\n\n## Decomposition <!-- phases: plan -->\nplan only"
+
+	assembler := NewPromptAssembler(base, "", "", "")
+	output := assembler.Assemble("plan", BeadInfo{FileCount: 10})
+
+	if strings.Contains(output, "build only") {
+		t.Fatal("output should NOT contain build-only content when phase=plan")
+	}
+	if !strings.Contains(output, "plan only") {
+		t.Fatal("output should contain plan-only content")
+	}
+}
+
+func TestPhaseFilterNoAnnotationFallsBackToHeadingMatch(t *testing.T) {
+	base := "## build\nbuild instructions\n\n## validate\nvalidate instructions"
+	assembler := NewPromptAssembler(base, "", "", "")
+	output := assembler.Assemble("build", BeadInfo{FileCount: 10})
+
+	if !strings.Contains(output, "build instructions") {
+		t.Fatal("output should contain build instructions (exact heading match)")
+	}
+	if strings.Contains(output, "validate instructions") {
+		t.Fatal("output should NOT contain validate instructions")
+	}
+}
+
+func TestPhaseFilterAnnotationReducesPromptSize(t *testing.T) {
+	buildContent := strings.Repeat("b", 5000)
+	planContent := strings.Repeat("p", 5000)
+	retroContent := strings.Repeat("r", 5000)
+	base := "## Code Style <!-- phases: build -->\n" + buildContent +
+		"\n\n## Decomposition <!-- phases: plan -->\n" + planContent +
+		"\n\n## Retro <!-- phases: retro -->\n" + retroContent
+
+	assembler := NewPromptAssembler(base, "", "", "")
+	output := assembler.Assemble("build", BeadInfo{FileCount: 10})
+
+	baseContent := output[strings.Index(output, "=== BASE ==="):]
+	if strings.Contains(baseContent, strings.Repeat("p", 100)) {
+		t.Fatal("plan content should not appear in build phase")
+	}
+	if strings.Contains(baseContent, strings.Repeat("r", 100)) {
+		t.Fatal("retro content should not appear in build phase")
+	}
+}
+
+func TestPhaseFilterHeadingWithoutAnnotationIncludedAlways(t *testing.T) {
+	base := "## General Rules\nalways included\n\n## Build Process <!-- phases: build -->\nbuild only"
+
+	assembler := NewPromptAssembler(base, "", "", "")
+	output := assembler.Assemble("plan", BeadInfo{FileCount: 10})
+
+	if !strings.Contains(output, "always included") {
+		t.Fatal("sections without phase annotations should be included for all phases")
+	}
+	if strings.Contains(output, "build only") {
+		t.Fatal("build-annotated section should NOT appear for plan phase")
+	}
+}
+
 func TestProjectContextKeepsURLsAndSlashWords(t *testing.T) {
 	project := "Use gRPC/HTTP for communication\nCheck https://example.com/docs\ninternal/runner/loop.go has the main loop\nUse input/output pattern"
 	assembler := NewPromptAssembler("base", project, "", "")

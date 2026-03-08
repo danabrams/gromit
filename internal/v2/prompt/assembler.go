@@ -74,13 +74,114 @@ func (p *PromptAssembler) LastReport() *ShapeReport {
 	return p.lastReport
 }
 
+// parsePhaseAnnotation extracts phase names from a "<!-- phases: x, y, z -->" annotation.
+// Returns nil if no annotation is found.
+func parsePhaseAnnotation(heading string) []string {
+	const prefix = "<!-- phases:"
+	const suffix = "-->"
+	start := strings.Index(heading, prefix)
+	if start == -1 {
+		return nil
+	}
+	end := strings.Index(heading[start:], suffix)
+	if end == -1 {
+		return nil
+	}
+	inner := heading[start+len(prefix) : start+end]
+	parts := strings.Split(inner, ",")
+	var phases []string
+	for _, p := range parts {
+		trimmed := strings.TrimSpace(p)
+		if trimmed != "" {
+			phases = append(phases, trimmed)
+		}
+	}
+	return phases
+}
+
 // loadBaseInstructions returns base instructions filtered by phase.
 // When phase is empty, the full base text is returned unmodified.
+// It first checks for <!-- phases: ... --> annotations on ## headings.
+// If any annotations exist, annotation-based filtering is used.
+// Otherwise, it falls back to legacy exact-heading matching.
 func (p *PromptAssembler) loadBaseInstructions(phase string) string {
 	if phase == "" {
 		return p.base
 	}
-	// Phase-specific filtering: look for phase markers and extract the relevant section.
+
+	lines := strings.Split(p.base, "\n")
+	type section struct {
+		start      int
+		end        int
+		hasAnnot   bool
+		matchPhase bool
+	}
+	var sections []section
+	for i, line := range lines {
+		if !strings.HasPrefix(line, "## ") {
+			continue
+		}
+		phases := parsePhaseAnnotation(line)
+		hasAnnot := phases != nil
+		matchPhase := false
+		if hasAnnot {
+			for _, ph := range phases {
+				if ph == phase {
+					matchPhase = true
+					break
+				}
+			}
+		}
+		sections = append(sections, section{start: i, hasAnnot: hasAnnot, matchPhase: matchPhase})
+	}
+
+	for i := range sections {
+		if i+1 < len(sections) {
+			sections[i].end = sections[i+1].start
+		} else {
+			sections[i].end = len(lines)
+		}
+	}
+
+	anyAnnotated := false
+	for _, s := range sections {
+		if s.hasAnnot {
+			anyAnnotated = true
+			break
+		}
+	}
+
+	if !anyAnnotated {
+		return p.loadBaseInstructionsLegacy(phase)
+	}
+
+	var builder strings.Builder
+	for _, s := range sections {
+		if s.hasAnnot && !s.matchPhase {
+			continue
+		}
+		chunk := strings.Join(lines[s.start:s.end], "\n")
+		if builder.Len() > 0 {
+			builder.WriteString("\n")
+		}
+		builder.WriteString(chunk)
+	}
+
+	if len(sections) > 0 && sections[0].start > 0 {
+		preamble := strings.Join(lines[:sections[0].start], "\n")
+		if strings.TrimSpace(preamble) != "" {
+			result := preamble + "\n" + builder.String()
+			return p.applyPhaseCap(phase, result)
+		}
+	}
+
+	result := builder.String()
+	return p.applyPhaseCap(phase, result)
+}
+
+// loadBaseInstructionsLegacy uses exact heading matching for phase filtering.
+// This is the fallback when no <!-- phases: ... --> annotations are found.
+func (p *PromptAssembler) loadBaseInstructionsLegacy(phase string) string {
 	marker := "## " + phase
 	idx := strings.Index(p.base, marker)
 	// Verify the match is an exact heading (next char must be whitespace, newline, or end of string).
@@ -110,7 +211,11 @@ func (p *PromptAssembler) loadBaseInstructions(phase string) string {
 	} else {
 		section = rest[:len(marker)+nextIdx]
 	}
-	// Apply per-phase character cap if defined.
+	return p.applyPhaseCap(phase, section)
+}
+
+// applyPhaseCap truncates the section to the per-phase character cap if defined.
+func (p *PromptAssembler) applyPhaseCap(phase, section string) string {
 	if cap, ok := phaseMaxChars[phase]; ok && len(section) > cap {
 		section = section[:cap]
 		// Back up to valid UTF-8 boundary.

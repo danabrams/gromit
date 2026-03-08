@@ -267,6 +267,27 @@ func TestBeadLoopRoutingPopulatesProviderForTriage(t *testing.T) {
 	}
 }
 
+func TestBarePhase(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{"build", "build"},
+		{"go:build", "build"},
+		{"build:default", "build"},
+		{"python:review", "review"},
+		{"", ""},
+		{"validate", "validate"},
+		{"go:build:default", "go:build"},
+	}
+	for _, tt := range tests {
+		if got := barePhase(tt.input); got != tt.want {
+			t.Errorf("barePhase(%q) = %q, want %q", tt.input, got, tt.want)
+		}
+	}
+}
+
 func TestBeadLoopRoutingPopulatesProviderForDecompose(t *testing.T) {
 	t.Parallel()
 
