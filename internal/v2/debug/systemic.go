@@ -1,6 +1,9 @@
 package debug
 
-import "strings"
+import (
+	"fmt"
+	"strings"
+)
 
 // BuildSystemicRecommendation produces a human-review recommendation when the
 // diagnosed root cause or failure signal implies a system-level change.
@@ -10,12 +13,21 @@ func BuildSystemicRecommendation(rootCause RootCause, failureSignal string) stri
 		return ""
 	}
 
-	recommendation := recommendationForCategory(category)
-	trimmedSignal := strings.TrimSpace(failureSignal)
-	if trimmedSignal == "" {
-		return recommendation
+	change := changeDescriptionForCategory(category)
+	if change == "" {
+		return ""
 	}
-	return recommendation + " Observed signal: " + trimmedSignal
+
+	rationale := buildSystemicRationale(rootCause, failureSignal, category)
+	if rationale == "" {
+		rationale = fmt.Sprintf("Systemic category %q requires human-reviewed changes before the pipeline can proceed.", category)
+	}
+
+	return fmt.Sprintf(
+		"Systemic recommendation for human review: %s Rationale: %s Awaiting human approval before applying these changes.",
+		change,
+		rationale,
+	)
 }
 
 // DetectSystemicCategory determines whether the root cause or failure signal
@@ -49,16 +61,35 @@ func DetectSystemicCategory(rootCause RootCause, failureSignal string) string {
 	}
 }
 
-func recommendationForCategory(category string) string {
+func changeDescriptionForCategory(category string) string {
 	switch category {
 	case "prompt":
-		return "Systemic recommendation for human review: tighten prompt fragments and acceptance criteria so ambiguous instructions fail early."
+		return "Tighten prompt fragments and acceptance criteria so ambiguous instructions fail early."
 	case "guard":
-		return "Systemic recommendation for human review: add or strengthen a pipeline code guard so this failure mode is blocked automatically."
+		return "Add or strengthen a pipeline code guard so this failure mode is blocked automatically."
 	case "process":
-		return "Systemic recommendation for human review: update decomposition and validation process checks so broad scopes are split before build attempts."
+		return "Update decomposition and validation process checks so broad scopes are split before build attempts."
 	case "rule":
-		return "Systemic recommendation for human review: add or update a RULES.md policy and enforcement check for this failure class."
+		return "Add or update a RULES.md policy and enforcement check for this failure class."
+	default:
+		return ""
+	}
+}
+
+func buildSystemicRationale(rootCause RootCause, failureSignal, category string) string {
+	if trimmed := strings.TrimSpace(failureSignal); trimmed != "" {
+		return trimmed
+	}
+
+	switch category {
+	case "prompt":
+		return fmt.Sprintf("Root cause %q reflects an unclear bead description or prompt fragment that must be clarified before rerunning.", rootCause)
+	case "guard":
+		return fmt.Sprintf("Root cause %q indicates this change bypassed existing guardrails, so pipeline checks must stop it before retries.", rootCause)
+	case "process":
+		return fmt.Sprintf("Root cause %q signals a decomposition or validation gap that needs tighter process controls before build stages.", rootCause)
+	case "rule":
+		return "Policy enforcement around this workflow is missing or outdated; capture the expectation in RULES.md before continuing."
 	default:
 		return ""
 	}
