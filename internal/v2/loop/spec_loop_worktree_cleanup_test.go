@@ -622,3 +622,46 @@ func TestCleanupWorktreeLogsPreserveDecisionOnFailure(t *testing.T) {
 		t.Fatalf("log output = %q, want it to contain %q", buf.String(), want)
 	}
 }
+
+func TestCleanupWorktreeLogsPreserveReasonWhenForced(t *testing.T) {
+	var buf bytes.Buffer
+	oldOutput := log.Writer()
+	oldPrefix := log.Prefix()
+	oldFlags := log.Flags()
+	log.SetOutput(&buf)
+	log.SetPrefix("")
+	log.SetFlags(0)
+	defer func() {
+		log.SetOutput(oldOutput)
+		log.SetPrefix(oldPrefix)
+		log.SetFlags(oldFlags)
+	}()
+
+	gitAdapter := &failingRemoveGitAdapter{removeErr: fmt.Errorf("should not be called")}
+	gitAdapter.t = t
+
+	adapters := adapter.AdapterSet{
+		Git:         gitAdapter,
+		LLM:         newFakeLLMAdapter(),
+		TaskTracker: newFakeTaskTrackerAdapter(),
+		Presenter:   newFakePresenterAdapter(t),
+	}
+
+	loopInstance, err := NewSpecLoop(adapters, &config.Config{}, noopDependencyGate{},
+		WithPreserveOnFailure(false),
+	)
+	if err != nil {
+		t.Fatalf("create spec loop: %v", err)
+	}
+
+	opts := cleanupOptions{reason: cleanupReasonAndon, forcePreserveBranch: true}
+	if err := loopInstance.cleanupWorktree(context.Background(), "test-spec", "/tmp/fake-worktree", false, opts); err != nil {
+		t.Fatalf("cleanupWorktree should not error when preserving on forced failure, got: %v", err)
+	}
+	if gitAdapter.removeCalled {
+		t.Fatal("RemoveWorktree should not be called when forced preserve option is set")
+	}
+	if !strings.Contains(buf.String(), "Andon") {
+		t.Fatalf("log output = %q, want it to mention Andon", buf.String())
+	}
+}
