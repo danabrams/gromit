@@ -3,6 +3,7 @@ package debug
 import (
 	"errors"
 	"fmt"
+	"log"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -38,6 +39,8 @@ func EnforceSystemicChangeGuardrails(codePatch string, approve bool, confirmFn f
 			return nil
 		}
 	}
+
+	logBlockedSystemicChange(codePatch, categories)
 
 	return fmt.Errorf(
 		"%w: patch modifies %s; pass --approve or confirm interactively",
@@ -145,4 +148,20 @@ func isProcessRulePath(path string) bool {
 		return true
 	}
 	return false
+}
+
+func logBlockedSystemicChange(codePatch string, categories []string) {
+	if len(categories) == 0 {
+		return
+	}
+	paths := extractPatchPaths(codePatch)
+	filesDesc := "none"
+	if len(paths) > 0 {
+		filesDesc = strings.Join(paths, ", ")
+	}
+	log.Printf(
+		"blocked systemic change: categories=%s files=%s",
+		strings.Join(categories, ", "),
+		filesDesc,
+	)
 }
