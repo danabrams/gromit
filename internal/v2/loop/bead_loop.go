@@ -436,7 +436,7 @@ func (b *BeadLoop) commitAfterStage(ctx context.Context, beadItem *bead.Bead, sN
 
 func isBeadCommittableStage(stageName string) bool {
 	switch barePhase(strings.TrimSpace(stageName)) {
-	case "build", "validate", "review":
+	case "accept", "build", "present", "review", "validate":
 		return true
 	default:
 		return false
