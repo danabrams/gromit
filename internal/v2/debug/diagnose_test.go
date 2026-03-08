@@ -1,6 +1,9 @@
 package debug
 
 import (
+	"context"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -219,4 +222,86 @@ func TestDiagnose_StageTraceUsesCommitInfoWhenEventStageMissing(t *testing.T) {
 	if diagnosis.StageTrace.Iteration != 4 {
 		t.Fatalf("StageTrace.Iteration = %d, want %d", diagnosis.StageTrace.Iteration, 4)
 	}
+}
+
+func TestDiagnoseSpec_FindsFailureStageAndRootCause(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+	gromitDir := filepath.Join(dir, ".gromit")
+	specName := "diagnose-spec"
+	wtPath := filepath.Join(gromitDir, "spec-worktrees", specName)
+	eventsDir := filepath.Join(wtPath, ".gromit", "v2")
+	if err := os.MkdirAll(eventsDir, 0o755); err != nil {
+		t.Fatalf("creating worktree dirs: %v", err)
+	}
+	eventLine := `{"type":"stage.failed","stage_name":"validate","bead_id":"b7","error":"validation timeout waiting for fixture cleanup"}` + "\n"
+	eventsPath := filepath.Join(eventsDir, "events.jsonl")
+	if err := os.WriteFile(eventsPath, []byte(eventLine), 0o644); err != nil {
+		t.Fatalf("writing event log: %v", err)
+	}
+
+	adapter := &stubGitAdapter{
+		logEntries: []adapter.LogEntry{
+			{Hash: "deadbeef", Message: "[bead:b7/validate/iter:2] Fail"},
+		},
+	}
+
+	result, err := DiagnoseSpec(ctx, gromitDir, specName, adapter, 5)
+	if err != nil {
+		t.Fatalf("DiagnoseSpec returned error: %v", err)
+	}
+	if result == nil {
+		t.Fatal("DiagnoseSpec returned nil result")
+	}
+	if result.WorktreePath != wtPath {
+		t.Fatalf("WorktreePath = %q, want %q", result.WorktreePath, wtPath)
+	}
+	if result.Diagnosis.Stage != "validate" {
+		t.Fatalf("Stage = %q, want %q", result.Diagnosis.Stage, "validate")
+	}
+	if result.Diagnosis.RootCause != RootCauseFlakyTest {
+		t.Fatalf("RootCause = %q, want %q", result.Diagnosis.RootCause, RootCauseFlakyTest)
+	}
+	if len(result.Events) != 1 {
+		t.Fatalf("Events = %d, want 1", len(result.Events))
+	}
+	if len(result.LogEntries) != 1 {
+		t.Fatalf("LogEntries = %d, want 1", len(result.LogEntries))
+	}
+}
+
+type stubGitAdapter struct {
+	logEntries []adapter.LogEntry
+}
+
+func (s *stubGitAdapter) Checkout(ctx context.Context, specID string) (string, error) {
+	return "", nil
+}
+
+func (s *stubGitAdapter) Diff(ctx context.Context, worktree string) (string, error) {
+	return "", nil
+}
+
+func (s *stubGitAdapter) Commit(ctx context.Context, worktree, message string) (string, error) {
+	return "", nil
+}
+
+func (s *stubGitAdapter) RemoveWorktree(ctx context.Context, worktree string) error {
+	return nil
+}
+
+func (s *stubGitAdapter) Status(ctx context.Context, worktree string) (string, error) {
+	return "", nil
+}
+
+func (s *stubGitAdapter) Log(ctx context.Context, worktree string, n int) ([]adapter.LogEntry, error) {
+	return append([]adapter.LogEntry(nil), s.logEntries...), nil
+}
+
+func (s *stubGitAdapter) Show(ctx context.Context, worktree, hash string) (string, error) {
+	return "", nil
+}
+
+func (s *stubGitAdapter) SquashCommits(ctx context.Context, worktree string, count int) error {
+	return nil
 }
