@@ -5,9 +5,6 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
-	"time"
-
-	"github.com/danabrams/gromit/internal/config"
 )
 
 // PlanLLMAdapter wraps an LLMProvider to implement the adapter.LLMAdapter interface
@@ -17,25 +14,12 @@ type PlanLLMAdapter struct {
 	specsDir string
 }
 
-// NewPlanLLMAdapter creates a PlanLLMAdapter backed by the Claude CLI using the
-// given config and specs directory.
-func NewPlanLLMAdapter(cfg *config.Config, specsDir string) (*PlanLLMAdapter, error) {
-	if cfg == nil {
-		return nil, fmt.Errorf("config is required")
+// NewPlanLLMAdapter creates a PlanLLMAdapter backed by the given LLMProvider
+// and specs directory.
+func NewPlanLLMAdapter(provider LLMProvider, specsDir string) (*PlanLLMAdapter, error) {
+	if provider == nil {
+		return nil, fmt.Errorf("provider is required")
 	}
-	binary := "claude"
-	if strings.TrimSpace(cfg.Claude.Binary) != "" {
-		binary = strings.TrimSpace(cfg.Claude.Binary)
-	}
-	flags := []string{}
-	if len(cfg.Claude.Flags) > 0 {
-		flags = append(flags, cfg.Claude.Flags...)
-	}
-	timeout := 15 * time.Minute
-	if cfg.Claude.Timeout > 0 {
-		timeout = time.Duration(cfg.Claude.Timeout) * time.Second
-	}
-	provider := NewClaudeAdapter(binary, flags, timeout)
 	return &PlanLLMAdapter{
 		provider: provider,
 		specsDir: filepath.Clean(specsDir),
