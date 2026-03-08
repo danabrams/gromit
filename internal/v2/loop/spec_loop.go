@@ -286,12 +286,10 @@ func (s *SpecLoop) Run(ctx context.Context, specID string, stopCh <-chan struct{
 	}
 
 	if s.typedEmitter != nil {
-		fs := event.NewWorktreeFileSubscriber(worktree)
-		unsubscribe := fs.SubscribeTo(s.typedEmitter)
-		defer func() {
-			unsubscribe()
-			_ = fs.Close()
-		}()
+		cleanup := event.WireWorktreeFileSubscriber(s.typedEmitter, worktree)
+		if cleanup != nil {
+			defer cleanup()
+		}
 		s.typedEmitter.Emit(event.SpecStartedEvent{
 			Event:    event.Event{SchemaVersion: event.SchemaVersion, Timestamp: time.Now(), Type: event.EventTypeSpecStarted},
 			SpecID:   specID,
