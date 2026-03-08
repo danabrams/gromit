@@ -36,7 +36,8 @@ func TestBeadLoopEmitsStageLifecycleEvents(t *testing.T) {
 		t.Fatalf("Run failed: %v", err)
 	}
 
-	events := collectLifecycleEvents(ch, 12)
+	// 12 original events + 2 build invocation events (start + complete) = 14
+	events := collectLifecycleEvents(ch, 14)
 	if _, ok := events[0].(event.BeadStartedEvent); !ok {
 		t.Fatalf("first event = %T, want event.BeadStartedEvent", events[0])
 	}
@@ -55,6 +56,19 @@ func TestBeadLoopEmitsStageLifecycleEvents(t *testing.T) {
 			t.Fatalf("stage started name = %q, want %q", started.StageName, name)
 		}
 		idx++
+
+		// Build stage emits BuildInvocationStartEvent and BuildInvocationCompleteEvent
+		// between StageStarted and StageCompleted.
+		if name == "build" {
+			if _, ok := events[idx].(event.BuildInvocationStartEvent); !ok {
+				t.Fatalf("event[%d] = %T, want event.BuildInvocationStartEvent", idx, events[idx])
+			}
+			idx++
+			if _, ok := events[idx].(event.BuildInvocationCompleteEvent); !ok {
+				t.Fatalf("event[%d] = %T, want event.BuildInvocationCompleteEvent", idx, events[idx])
+			}
+			idx++
+		}
 
 		completed, ok := events[idx].(event.StageCompletedEvent)
 		if !ok {
