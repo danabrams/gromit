@@ -39,7 +39,7 @@ func TestIntegrationBranchLifecycle_DeletesWorktreeAndBranchOnSuccess(t *testing
 func assertGenerationCapBranchLifecycle(t *testing.T, specID string) {
 	t.Helper()
 
-	assertFailureBranchLifecycle(t, specID, ErrGenerationCapReached)
+	assertFailureBranchLifecycle(t, specID, ErrGenerationCapReached, "\"type\":\"generation_cap_reached\"")
 }
 
 func assertSuccessBranchLifecycle(t *testing.T, specID string) {
@@ -102,7 +102,7 @@ func (r fixedErrorRemediationRunner) Run(_ context.Context, _, _ string) error {
 	return r.err
 }
 
-func assertFailureBranchLifecycle(t *testing.T, specID string, remediationErr error) {
+func assertFailureBranchLifecycle(t *testing.T, specID string, remediationErr error, requiredEventSnippets ...string) {
 	t.Helper()
 
 	if _, err := exec.LookPath("git"); err != nil {
@@ -169,9 +169,19 @@ func assertFailureBranchLifecycle(t *testing.T, specID string, remediationErr er
 	if !strings.Contains(string(eventsData), "\"spec_id\":\""+specID+"\"") {
 		t.Fatalf("events file %s missing spec id %q: %s", eventsPath, specID, eventsData)
 	}
+	for _, snippet := range requiredEventSnippets {
+		if !strings.Contains(string(eventsData), snippet) {
+			t.Fatalf("events file %s missing required snippet %q: %s", eventsPath, snippet, eventsData)
+		}
+	}
 
 	committedLog := gitCommand(t, repoRoot, "show", branchName+":.gromit/v2/events.jsonl")
 	if !strings.Contains(committedLog, "\"spec_id\":\""+specID+"\"") {
 		t.Fatalf("preserved branch log missing spec id %q: %s", specID, committedLog)
+	}
+	for _, snippet := range requiredEventSnippets {
+		if !strings.Contains(committedLog, snippet) {
+			t.Fatalf("preserved branch log missing required snippet %q: %s", snippet, committedLog)
+		}
 	}
 }
