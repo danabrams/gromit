@@ -632,6 +632,7 @@ func TestIntegration_FileSubscriberPreservesLegacySubscriberFlow(t *testing.T) {
 	if err := <-runResult; err != nil {
 		t.Fatalf("run spec loop: %v", err)
 	}
+	typedEmitter.Close()
 
 	foundWarmup := false
 	for {
