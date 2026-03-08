@@ -28,7 +28,7 @@ func TestPersistLearnablePatternEntry_AppendsToSpecLearnings(t *testing.T) {
 		t.Fatalf("setting up learnings file: %v", err)
 	}
 
-	entry, err := PersistLearnablePatternEntry(tmpDir, RootCauseBadBuildOutput)
+	entry, err := PersistLearnablePatternEntry(tmpDir, RootCauseBadBuildOutput, "", "", "")
 	if err != nil {
 		t.Fatalf("PersistLearnablePatternEntry failed: %v", err)
 	}

@@ -21,6 +21,46 @@ var learnablePatterns = map[RootCause]*learnablePattern{
 	},
 }
 
+type learnablePatternMatcher struct {
+	pattern *learnablePattern
+	match   func(RootCause, string, string, string) bool
+}
+
+var learnablePatternMatchers = []learnablePatternMatcher{
+	{
+		pattern: &learnablePattern{
+			description: "Capture syntax-error build diagnostics before drifting into unrelated edits so the fix stays tied to the failing files.",
+			example:     "When `go build` reports \"syntax error\", rerun `go build ./...` to persist the failing output before editing unrelated code.",
+		},
+		match: func(_ RootCause, failureSignal, errorText, stage string) bool {
+			combined := failureSignal + " " + errorText
+			if strings.Contains(combined, "syntax error") {
+				return true
+			}
+			if stage == "build" && strings.Contains(combined, "unexpected") {
+				return true
+			}
+			return false
+		},
+	},
+	{
+		pattern: &learnablePattern{
+			description: "Re-run lint or validation commands before touching code so transient warnings are confirmed before fixes.",
+			example:     "When `go vet` or lint commands report issues, rerun the same command to make sure the failure persists before applying fixes.",
+		},
+		match: func(_ RootCause, failureSignal, errorText, stage string) bool {
+			combined := failureSignal + " " + errorText
+			if strings.Contains(combined, "go vet") || strings.Contains(combined, "vet") || strings.Contains(combined, "lint") || strings.Contains(combined, "unused") {
+				return true
+			}
+			if stage == "lint" || stage == "validate" {
+				return strings.Contains(combined, "vet") || strings.Contains(combined, "lint")
+			}
+			return false
+		},
+	},
+}
+
 // identifyLearnablePattern returns a reusable autonomous learning pattern for
 // root causes that represent recurring fix conventions.
 func identifyLearnablePattern(rootCause RootCause) *learnablePattern {
@@ -28,7 +68,11 @@ func identifyLearnablePattern(rootCause RootCause) *learnablePattern {
 }
 
 func buildLearningEntryFromRootCause(rootCause RootCause) string {
-	pattern := identifyLearnablePattern(rootCause)
+	return buildLearningEntryFromDiagnostics(rootCause, "", "", "")
+}
+
+func buildLearningEntryFromDiagnostics(rootCause RootCause, failureSignal, errorText, stage string) string {
+	pattern := detectLearnablePattern(rootCause, failureSignal, errorText, stage)
 	if pattern == nil {
 		return ""
 	}
@@ -43,15 +87,32 @@ func buildLearningEntryFromRootCause(rootCause RootCause) string {
 	return sb.String()
 }
 
+func detectLearnablePattern(rootCause RootCause, failureSignal, errorText, stage string) *learnablePattern {
+	normSignal := normalizeDiagnosticText(failureSignal)
+	normError := normalizeDiagnosticText(errorText)
+	normStage := strings.ToLower(strings.TrimSpace(stage))
+
+	for _, matcher := range learnablePatternMatchers {
+		if matcher.match(rootCause, normSignal, normError, normStage) {
+			return matcher.pattern
+		}
+	}
+	return identifyLearnablePattern(rootCause)
+}
+
+func normalizeDiagnosticText(value string) string {
+	return strings.ToLower(strings.TrimSpace(value))
+}
+
 // PersistLearnablePatternEntry records the learning for the given root cause in the
 // spec's LEARNINGS.md file, returning the entry that was written.
-func PersistLearnablePatternEntry(specDir string, rootCause RootCause) (string, error) {
+func PersistLearnablePatternEntry(specDir string, rootCause RootCause, failureSignal, errorText, stage string) (string, error) {
 	trimmedDir := strings.TrimSpace(specDir)
 	if trimmedDir == "" {
 		return "", ErrEmptyPath
 	}
 
-	entry := buildLearningEntryFromRootCause(rootCause)
+	entry := buildLearningEntryFromDiagnostics(rootCause, failureSignal, errorText, stage)
 	if entry == "" {
 		return "", nil
 	}
