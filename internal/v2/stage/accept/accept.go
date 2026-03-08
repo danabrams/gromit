@@ -148,6 +148,11 @@ func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Resul
 		return nil, fmt.Errorf("git diff: %w", err)
 	}
 
+	provider := s.llm
+	if req.Provider != nil {
+		provider = req.Provider
+	}
+
 	results := make([]presentation.AcceptanceResult, 0, len(criteria))
 	failures := make([]string, 0)
 
@@ -155,7 +160,7 @@ func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Resul
 		promptText := s.buildPrompt(specID, criterion, diff)
 		model := s.selectModel(cfg, req)
 
-		resp, err := s.llm.Invoke(ctx, llmtypes.LLMInvokeRequest{Prompt: promptText, Model: model, Dir: req.Worktree})
+		resp, err := provider.Invoke(ctx, llmtypes.LLMInvokeRequest{Prompt: promptText, Model: model, Dir: req.Worktree})
 		if err != nil {
 			return nil, fmt.Errorf("evaluate criterion %d: %w", criterion.Number, err)
 		}
@@ -243,7 +248,7 @@ func specFilePath(cfg *config.Config, root, specID string) (string, error) {
 func (s *Stage) buildPrompt(specID string, criterion coverage.Criterion, diff string) string {
 	instance := s.buildInstanceLayer(specID, criterion, diff)
 	assembler := v2prompt.NewPromptAssembler(s.baseLayer(), s.project, instance, s.fragment)
-	return assembler.Assemble("", v2prompt.BeadInfo{})
+	return assembler.Assemble("accept", v2prompt.BeadInfo{})
 }
 
 func (s *Stage) baseLayer() string {

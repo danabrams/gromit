@@ -114,14 +114,22 @@ func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Resul
 	}
 
 	instance := buildTriageInstance(req.Bead.ID, req.Bead.Title, labels, failureMessage)
-	promptText := prompt.NewPromptAssembler(s.base, s.project, instance, s.fragment).Assemble("", prompt.BeadInfo{})
+	promptText := prompt.NewPromptAssembler(s.base, s.project, instance, s.fragment).Assemble("triage", prompt.BeadInfo{Title: req.Bead.Title})
 
-	model := s.cfg.Models.P2
-	if model == "" {
-		model = config.ModelHaiku
+	provider := s.llm
+	if req.Provider != nil {
+		provider = req.Provider
 	}
 
-	resp, err := s.llm.Invoke(ctx, llmtypes.LLMInvokeRequest{Prompt: promptText, Model: model, Dir: req.Worktree})
+	model := strings.TrimSpace(req.Model)
+	if model == "" {
+		model = s.cfg.Models.P2
+		if model == "" {
+			model = config.ModelHaiku
+		}
+	}
+
+	resp, err := provider.Invoke(ctx, llmtypes.LLMInvokeRequest{Prompt: promptText, Model: model, Dir: req.Worktree})
 	if err != nil {
 		return nil, fmt.Errorf("triage: invoking llm: %w", err)
 	}
