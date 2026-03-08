@@ -1,6 +1,7 @@
 package debug
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -32,6 +33,7 @@ type Diagnosis struct {
 	FailureCommit string
 	RootCause     RootCause
 	StageTrace    StageTrace
+	Summary       string
 }
 
 // ValidationTrace summarizes validation results for a failed stage.
@@ -108,6 +110,7 @@ func Diagnose(input Input) Diagnosis {
 
 	diag.StageTrace = trace
 	diag.RootCause = refineRootCauseFromStage(trace, diag.RootCause)
+	diag.Summary = buildHumanReadableSummary(trace, diag.RootCause)
 
 	return diag
 }
@@ -288,4 +291,70 @@ func refineRootCauseFromStage(trace StageTrace, current RootCause) RootCause {
 		return RootCauseBadDecomposition
 	}
 	return current
+}
+
+func buildHumanReadableSummary(trace StageTrace, rootCause RootCause) string {
+	stageName := strings.TrimSpace(trace.StageName)
+	beadID := strings.TrimSpace(trace.BeadID)
+	var sb strings.Builder
+	if stageName != "" {
+		sb.WriteString("Stage ")
+		sb.WriteString(stageName)
+		if beadID != "" {
+			sb.WriteString(" (bead ")
+			sb.WriteString(beadID)
+			sb.WriteString(")")
+		}
+	} else if beadID != "" {
+		sb.WriteString("Bead ")
+		sb.WriteString(beadID)
+	} else {
+		sb.WriteString("Stage unknown")
+	}
+	if trace.Iteration > 0 {
+		sb.WriteString(fmt.Sprintf(" iteration %d", trace.Iteration))
+	}
+	failureMsg := strings.TrimSpace(trace.FailureMessage)
+	if failureMsg == "" && trace.FailureEvent != nil {
+		failureMsg = strings.TrimSpace(valueAsString(trace.FailureEvent["error"]))
+	}
+	if failureMsg != "" {
+		sb.WriteString(" failed: ")
+		sb.WriteString(failureMsg)
+	} else {
+		sb.WriteString(" failed")
+	}
+	sb.WriteString(". Root cause: ")
+	sb.WriteString(describeRootCause(rootCause))
+	sb.WriteString(".")
+	if trace.Validation != nil {
+		parts := make([]string, 0, 2)
+		if cmd := strings.TrimSpace(trace.Validation.FailedCommand); cmd != "" {
+			parts = append(parts, fmt.Sprintf("command=%s", cmd))
+		}
+		if details := strings.TrimSpace(trace.Validation.Details); details != "" {
+			parts = append(parts, fmt.Sprintf("details=%s", details))
+		}
+		if len(parts) > 0 {
+			sb.WriteString(" Validation ")
+			sb.WriteString(strings.Join(parts, " "))
+			sb.WriteString(".")
+		}
+	}
+	return strings.TrimSpace(sb.String())
+}
+
+func describeRootCause(rootCause RootCause) string {
+	switch rootCause {
+	case RootCauseBadBuildOutput:
+		return "bad build output"
+	case RootCauseFlakyTest:
+		return "flaky or transient validation failure"
+	case RootCauseUnclearBead:
+		return "unclear bead description"
+	case RootCauseBadDecomposition:
+		return "incorrect decomposition"
+	default:
+		return "unknown failure"
+	}
 }
