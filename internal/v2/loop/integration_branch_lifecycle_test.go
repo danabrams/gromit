@@ -42,6 +42,58 @@ func assertGenerationCapBranchLifecycle(t *testing.T, specID string) {
 	assertFailureBranchLifecycle(t, specID, ErrGenerationCapReached)
 }
 
+func assertSuccessBranchLifecycle(t *testing.T, specID string) {
+	t.Helper()
+
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not available")
+	}
+
+	repoRoot := t.TempDir()
+	initGitRepo(t, repoRoot)
+
+	worktreesDir := filepath.Join(repoRoot, ".gromit", "spec-worktrees")
+	gitAdapter := gitadapter.NewExecGitAdapter(repoRoot, worktreesDir)
+
+	typedEmitter := event.NewEmitter()
+	t.Cleanup(func() {
+		typedEmitter.Close()
+	})
+
+	adapters := adapter.AdapterSet{
+		Git:         gitAdapter,
+		LLM:         newFakeLLMAdapter(),
+		TaskTracker: newFakeTaskTrackerAdapter(),
+		Presenter:   newFakePresenterAdapter(t),
+	}
+
+	loopInstance, err := NewSpecLoop(adapters, &config.Config{}, noopDependencyGate{},
+		WithTypedEmitter(typedEmitter),
+		WithPlanStage(newFakePlanStage(specID)),
+		WithPresentStage(newFakePresentStage(), &present.SummaryContext{}),
+		WithDecomposeStage(newFakeDecomposeStage(specID)),
+		WithBeadLoop(newFakeBeadRunner()),
+		WithAcceptStage(newFakeAcceptStage()),
+	)
+	if err != nil {
+		t.Fatalf("create spec loop: %v", err)
+	}
+
+	if err := loopInstance.Run(context.Background(), specID, nil); err != nil {
+		t.Fatalf("run spec loop: %v", err)
+	}
+
+	worktreePath := filepath.Join(worktreesDir, specID)
+	if worktreeRegistered(t, repoRoot, worktreePath) {
+		t.Fatalf("worktree %s should be removed after successful completion", worktreePath)
+	}
+
+	branchName := "gromit/spec/" + specID
+	if branchExistsInRepo(t, repoRoot, branchName) {
+		t.Fatalf("branch %q should be deleted after successful completion", branchName)
+	}
+}
+
 type fixedErrorRemediationRunner struct {
 	err error
 }
