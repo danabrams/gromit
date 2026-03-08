@@ -545,6 +545,45 @@ func TestSpecLoopGenerationCapPreservesBranchWithPartialWorkCommit(t *testing.T)
 	}
 }
 
+func TestSpecLoopFailurePreservesBranchWhenFailureSummaryPresentationFails(t *testing.T) {
+	t.Parallel()
+
+	specID := "spec-failure-summary-present-error"
+	gitAdapter := &dirtyStatusGitAdapter{}
+	gitAdapter.t = t
+
+	adapters := adapter.AdapterSet{
+		Git:         gitAdapter,
+		LLM:         newFakeLLMAdapter(),
+		TaskTracker: newFakeTaskTrackerAdapter(),
+		Presenter:   newFakePresenterAdapter(t),
+	}
+
+	loopInstance, err := NewSpecLoop(adapters, &config.Config{}, noopDependencyGate{},
+		WithPlanStage(newFakePlanStage(specID)),
+		WithDecomposeStage(newFakeDecomposeStage(specID)),
+		WithBeadLoop(newFakeBeadRunner()),
+		WithAcceptStage(newScriptedAcceptStage(stagepkg.Result{Decision: stagepkg.DecisionFail})),
+	)
+	if err != nil {
+		t.Fatalf("create spec loop: %v", err)
+	}
+
+	err = loopInstance.Run(context.Background(), specID, nil)
+	if err == nil {
+		t.Fatal("expected run error")
+	}
+	if len(gitAdapter.commitMessages) != 1 {
+		t.Fatalf("expected partial-work commit even when failure summary presentation fails, got %d commits", len(gitAdapter.commitMessages))
+	}
+	if want := "[gromit: partial work] spec " + specID; !strings.Contains(gitAdapter.commitMessages[0], want) {
+		t.Fatalf("commit message %q missing %q", gitAdapter.commitMessages[0], want)
+	}
+	if len(gitAdapter.removedWorktrees) != 0 {
+		t.Fatalf("expected preserved worktree on failure, removed=%v", gitAdapter.removedWorktrees)
+	}
+}
+
 func TestCleanupWorktreeLogsPreserveDecisionOnFailure(t *testing.T) {
 	var buf bytes.Buffer
 	oldOutput := log.Writer()
