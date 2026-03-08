@@ -31,9 +31,12 @@ const (
 	EventTypeReview               = "review"
 	EventTypeScope                = "scope"
 	EventTypeTelemetry            = "telemetry"
-	EventTypeGenerationCapReached = "generation_cap_reached"
-	EventTypeTriageStarted        = "triage.started"
-	EventTypeTriageCompleted      = "triage.completed"
+	EventTypeGenerationCapReached    = "generation_cap_reached"
+	EventTypeTriageStarted           = "triage.started"
+	EventTypeTriageCompleted         = "triage.completed"
+	EventTypeBuildInvocationStart    = "build_invocation.start"
+	EventTypeBuildInvocationComplete = "build_invocation.complete"
+	EventTypeModelSelected           = "model.selected"
 )
 
 // SpecStartedEvent marks the beginning of a spec execution.
@@ -79,11 +82,17 @@ func (BeadStartedEvent) EventType() string { return EventTypeBeadStarted }
 // BeadCompletedEvent captures the outcome of a bead.
 type BeadCompletedEvent struct {
 	Event
-	BeadID       string `json:"bead_id,omitempty"`
-	BeadTitle    string `json:"bead_title,omitempty"`
-	Iteration    int    `json:"iteration,omitempty"`
-	Success      bool   `json:"success"`
-	RetryAttempt int    `json:"retry_attempt,omitempty"`
+	BeadID       string        `json:"bead_id,omitempty"`
+	BeadTitle    string        `json:"bead_title,omitempty"`
+	Iteration    int           `json:"iteration,omitempty"`
+	Success      bool          `json:"success"`
+	RetryAttempt int           `json:"retry_attempt,omitempty"`
+	Model        string        `json:"model,omitempty"`
+	Provider     string        `json:"provider,omitempty"`
+	CostUSD      float64       `json:"cost_usd,omitempty"`
+	InputTokens  int           `json:"input_tokens,omitempty"`
+	OutputTokens int           `json:"output_tokens,omitempty"`
+	Duration     time.Duration `json:"duration,omitempty"`
 }
 
 func (BeadCompletedEvent) EventType() string { return EventTypeBeadCompleted }
@@ -214,3 +223,44 @@ type TriageCompletedEvent struct {
 }
 
 func (TriageCompletedEvent) EventType() string { return EventTypeTriageCompleted }
+
+// BuildInvocationStartEvent is emitted before an LLM invocation begins.
+type BuildInvocationStartEvent struct {
+	Event
+	BeadID      string `json:"bead_id,omitempty"`
+	Model       string `json:"model,omitempty"`
+	Provider    string `json:"provider,omitempty"`
+	Tier        string `json:"tier,omitempty"`
+	Attempt     int    `json:"attempt,omitempty"`
+	MaxAttempts int    `json:"max_attempts,omitempty"`
+	PromptSize  int    `json:"prompt_size,omitempty"`
+}
+
+func (BuildInvocationStartEvent) EventType() string { return EventTypeBuildInvocationStart }
+
+// BuildInvocationCompleteEvent is emitted after an LLM invocation completes.
+type BuildInvocationCompleteEvent struct {
+	Event
+	BeadID       string        `json:"bead_id,omitempty"`
+	Model        string        `json:"model,omitempty"`
+	Provider     string        `json:"provider,omitempty"`
+	Success      bool          `json:"success"`
+	Duration     time.Duration `json:"duration,omitempty"`
+	CostUSD      float64       `json:"cost_usd,omitempty"`
+	InputTokens  int           `json:"input_tokens,omitempty"`
+	OutputTokens int           `json:"output_tokens,omitempty"`
+}
+
+func (BuildInvocationCompleteEvent) EventType() string { return EventTypeBuildInvocationComplete }
+
+// ModelSelectedEvent is emitted when the router selects a provider and model.
+type ModelSelectedEvent struct {
+	Event
+	BeadID   string `json:"bead_id,omitempty"`
+	Model    string `json:"model,omitempty"`
+	Provider string `json:"provider,omitempty"`
+	Tier     string `json:"tier,omitempty"`
+	Reason   string `json:"reason,omitempty"`
+}
+
+func (ModelSelectedEvent) EventType() string { return EventTypeModelSelected }
