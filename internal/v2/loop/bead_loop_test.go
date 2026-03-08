@@ -1895,7 +1895,7 @@ func TestBeadLoopStageCommitterUsesPerStageIterationOnRetry(t *testing.T) {
 	}
 }
 
-func TestBeadLoopLegacyGitCommitRemovedWithoutStageCommitter(t *testing.T) {
+func TestBeadLoopUsesLegacyCommitBeadWorkWhenStageCommitterMissing(t *testing.T) {
 	t.Parallel()
 
 	git := &mockGitCommitter{statusOutput: " M file.go\n", commitHash: "abc123"}
@@ -1913,13 +1913,19 @@ func TestBeadLoopLegacyGitCommitRemovedWithoutStageCommitter(t *testing.T) {
 		t.Fatalf("NewBeadLoop: %v", err)
 	}
 
-	beads := []*bead.Bead{{ID: "bead-2"}}
+	beads := []*bead.Bead{{ID: "bead-2", Title: "Do something"}}
 	if _, err := loop.Run(context.Background(), beads, nil); err != nil {
 		t.Fatalf("Run failed: %v", err)
 	}
 
-	if git.statusCalls != 0 {
-		t.Fatalf("git.Status called %d times, want 0 (legacy commitBeadWork removed)", git.statusCalls)
+	if git.statusCalls != 1 {
+		t.Fatalf("git.Status called %d times, want 1", git.statusCalls)
+	}
+	if len(git.commitCalls) != 1 {
+		t.Fatalf("git.Commit called %d times, want 1", len(git.commitCalls))
+	}
+	if got, want := git.commitCalls[0], "[gromit] bead bead-2: Do something"; got != want {
+		t.Fatalf("commit message = %q, want %q", got, want)
 	}
 }
 
