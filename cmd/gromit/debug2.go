@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/danabrams/gromit/internal/v2/adapter"
 	gitadapter "github.com/danabrams/gromit/internal/v2/adapter/git"
 	"github.com/danabrams/gromit/internal/v2/pipeline"
 	"github.com/spf13/cobra"
@@ -122,6 +123,19 @@ func findFailureEvent(events []map[string]interface{}) map[string]interface{} {
 		}
 	}
 	return nil
+}
+
+func selectDebug2FailureCommit(entries []adapter.LogEntry) (adapter.LogEntry, pipeline.CommitInfo, bool) {
+	for _, entry := range entries {
+		info, ok := pipeline.ParseCommitMessage(entry.Message)
+		if !ok {
+			continue
+		}
+		if info.Decision == "Fail" {
+			return entry, info, true
+		}
+	}
+	return adapter.LogEntry{}, pipeline.CommitInfo{}, false
 }
 
 // debug2Impl contains the testable core of the debug2 command.
