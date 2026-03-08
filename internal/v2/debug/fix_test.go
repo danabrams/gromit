@@ -175,6 +175,119 @@ func TestApplyFix_ChecksOutSpecBranchAtFailurePoint(t *testing.T) {
 	}
 }
 
+func TestApplyFix_ValidatesFilesInvolvedPatch(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not available")
+	}
+
+	ctx := context.Background()
+	files := []string{"main.go", "config/build.yaml"}
+
+	t.Run("missing file coverage", func(t *testing.T) {
+		tmpDir, failureHash := setupMultiFileFixRepo(t, "gromit/spec/files-involved")
+		patch := strings.Join([]string{
+			"diff --git a/main.go b/main.go",
+			"--- a/main.go",
+			"+++ b/main.go",
+			"@@ -1,5 +1,5 @@",
+			" package main",
+			" ",
+			" func main() string {",
+			"-  return \"broken\"",
+			"+  return \"fixed\"",
+			" }",
+			"",
+		}, "\n")
+		fixCtx := &FixContext{
+			WorktreeRoot:  tmpDir,
+			FailureCommit: failureHash,
+			FilesInvolved: files,
+			CodePatch:     patch,
+		}
+		if _, err := ApplyFix(ctx, fixCtx); err == nil {
+			t.Fatal("expected error when patch does not cover all files")
+		} else if !strings.Contains(err.Error(), "config/build.yaml") {
+			t.Fatalf("error = %v, want mention config/build.yaml", err)
+		}
+	})
+
+	t.Run("covers all files", func(t *testing.T) {
+		tmpDir, failureHash := setupMultiFileFixRepo(t, "gromit/spec/files-involved-ok")
+		patch := strings.Join([]string{
+			"diff --git a/main.go b/main.go",
+			"--- a/main.go",
+			"+++ b/main.go",
+			"@@ -1,5 +1,5 @@",
+			" package main",
+			" ",
+			" func main() string {",
+			"-  return \"broken\"",
+			"+  return \"fixed\"",
+			" }",
+			"",
+			"diff --git a/config/build.yaml b/config/build.yaml",
+			"--- a/config/build.yaml",
+			"+++ b/config/build.yaml",
+			"@@ -1 +1 @@",
+			"-value: old",
+			"+value: new",
+			"",
+		}, "\n")
+		fixCtx := &FixContext{
+			WorktreeRoot:  tmpDir,
+			FailureCommit: failureHash,
+			FilesInvolved: files,
+			CodePatch:     patch,
+		}
+		result, err := ApplyFix(ctx, fixCtx)
+		if err != nil {
+			t.Fatalf("ApplyFix() error = %v", err)
+		}
+		if !result.Applied {
+			t.Fatal("expected patch to apply")
+		}
+		mainContent, err := os.ReadFile(filepath.Join(tmpDir, "main.go"))
+		if err != nil {
+			t.Fatalf("read main.go: %v", err)
+		}
+		if !strings.Contains(string(mainContent), "fixed") {
+			t.Fatalf("main.go content = %q, want contain fixed", string(mainContent))
+		}
+		yamlContent, err := os.ReadFile(filepath.Join(tmpDir, "config", "build.yaml"))
+		if err != nil {
+			t.Fatalf("read config/build.yaml: %v", err)
+		}
+		if !strings.Contains(string(yamlContent), "value: new") {
+			t.Fatalf("config/build.yaml content = %q, want value: new", string(yamlContent))
+		}
+	})
+}
+
+func setupMultiFileFixRepo(t *testing.T, branch string) (string, string) {
+	t.Helper()
+	tmpDir := t.TempDir()
+	runGitFix(t, tmpDir, "init")
+	runGitFix(t, tmpDir, "config", "user.email", "tester@example.com")
+	runGitFix(t, tmpDir, "config", "user.name", "Test User")
+	mainFile := filepath.Join(tmpDir, "main.go")
+	if err := os.WriteFile(mainFile, []byte("package main\n\nfunc main() string {\n  return \"broken\"\n}\n"), 0o644); err != nil {
+		t.Fatalf("write main.go: %v", err)
+	}
+	yamlDir := filepath.Join(tmpDir, "config")
+	if err := os.MkdirAll(yamlDir, 0o755); err != nil {
+		t.Fatalf("create config dir: %v", err)
+	}
+	yamlFile := filepath.Join(yamlDir, "build.yaml")
+	if err := os.WriteFile(yamlFile, []byte("value: old\n"), 0o644); err != nil {
+		t.Fatalf("write yaml: %v", err)
+	}
+	runGitFix(t, tmpDir, "add", ".")
+	runGitFix(t, tmpDir, "commit", "-m", "failure commit")
+	runGitFix(t, tmpDir, "checkout", "-b", branch)
+	failureHash := strings.TrimSpace(runGitFix(t, tmpDir, "rev-parse", "HEAD"))
+	return tmpDir, failureHash
+}
+
 func runGitFix(t *testing.T, dir string, args ...string) string {
 	t.Helper()
 	cmd := exec.Command("git", args...)
