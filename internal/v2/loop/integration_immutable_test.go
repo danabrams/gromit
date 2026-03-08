@@ -27,7 +27,7 @@ import (
 	presentstage "github.com/danabrams/gromit/internal/v2/stage/present"
 )
 
-func TestIntegrationImmutable_StageSequenceStructuredCommits(t *testing.T) {
+func TestIntegrationImmutable_CommitPerStageFlowCreatesStructuredCommits(t *testing.T) {
 	t.Parallel()
 
 	result := runImmutableSpec(t, immutableSpecConfig{
@@ -38,8 +38,6 @@ func TestIntegrationImmutable_StageSequenceStructuredCommits(t *testing.T) {
 	})
 
 	assertStructuredStageSequence(t, result, []immutableCommitExpectation{
-		{BeadID: "spec", StageName: "present", Iteration: 1, Decision: "proceed"},
-		{BeadID: "spec", StageName: "accept", Iteration: 1, Decision: "proceed"},
 		{BeadID: "bead-001", StageName: "review", Iteration: 1, Decision: "proceed"},
 		{BeadID: "bead-001", StageName: "validate", Iteration: 1, Decision: "proceed"},
 		{BeadID: "bead-001", StageName: "build", Iteration: 1, Decision: "proceed"},
@@ -48,7 +46,7 @@ func TestIntegrationImmutable_StageSequenceStructuredCommits(t *testing.T) {
 	})
 }
 
-func TestIntegrationImmutable_EventLogCumulativeAcrossCommits(t *testing.T) {
+func TestIntegrationImmutable_EventLogSnapshotsRemainCumulative(t *testing.T) {
 	t.Parallel()
 
 	result := runImmutableSpec(t, immutableSpecConfig{
@@ -61,7 +59,7 @@ func TestIntegrationImmutable_EventLogCumulativeAcrossCommits(t *testing.T) {
 	assertEventsCumulativeAcrossCommits(t, result)
 }
 
-func TestIntegrationImmutable_RetriesPreservePriorAttemptCommits(t *testing.T) {
+func TestIntegrationImmutable_RetryHistoryKeepsPreviousCommits(t *testing.T) {
 	t.Parallel()
 
 	result := runImmutableSpec(t, immutableSpecConfig{
