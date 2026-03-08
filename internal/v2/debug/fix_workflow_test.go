@@ -72,7 +72,7 @@ func TestApplySystemicFix_RecommendsHumanReviewForSystemicPatch(t *testing.T) {
 	}
 }
 
-func TestApplySystemicFix_FiltersSystemicSections(t *testing.T) {
+func TestApplySystemicFix_AppliesMixedSystemicPatch(t *testing.T) {
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git not available")
 	}
@@ -141,6 +141,9 @@ func TestApplySystemicFix_FiltersSystemicSections(t *testing.T) {
 	if !strings.Contains(strings.ToLower(result.SystemicRecommendation), "human review") {
 		t.Fatalf("recommendation = %q, want human-review reminder", result.SystemicRecommendation)
 	}
+	if !strings.Contains(result.SystemicRecommendation, ".gromit/fragments/build.md") {
+		t.Fatalf("recommendation = %q, want affected files listed", result.SystemicRecommendation)
+	}
 
 	mainContent, err := os.ReadFile(mainPath)
 	if err != nil {
@@ -154,7 +157,7 @@ func TestApplySystemicFix_FiltersSystemicSections(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read fragment: %v", err)
 	}
-	if strings.Contains(string(fragmentContent), "new") {
-		t.Fatalf("fragment unexpectedly changed, got %q", string(fragmentContent))
+	if !strings.Contains(string(fragmentContent), "new") {
+		t.Fatalf("fragment not updated, got %q", string(fragmentContent))
 	}
 }
