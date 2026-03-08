@@ -505,3 +505,12 @@ The following fixes were applied to main after the v2-run-loop spec was merged (
 - The remediation conditional that switched to `gapFileName` is removed
 - `TestRunUsesGapAnalysisWhenRemediation` updated to create `plan.md` instead of `gap-analysis.md`
 - `go build ./...` and `go test ./internal/v2/stage/decompose/...` pass
+
+### A17. Review-created beads missing spec label (`pending`)
+
+**Problem:** When the review stage creates new beads from code review findings, it labels them with `from-review`, `gen:<N>`, and `review-source:<parentID>`, but does not add the `spec:<specID>` label. The spec ID is available (extracted from the parent bead's labels), but is not propagated to created beads. This means review beads are invisible to spec completion queries that filter by `spec:<name>` label, and are not counted as work belonging to the spec.
+
+**Acceptance criteria:**
+- Review-created beads include a `spec:<specID>` label matching their parent bead's spec label
+- When the parent bead has no spec label, review beads are created without one (no change)
+- `go build ./...` and `go test ./internal/v2/stage/review/...` pass
