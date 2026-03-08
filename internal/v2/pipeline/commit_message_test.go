@@ -66,13 +66,9 @@ func TestParseCommitMessage(t *testing.T) {
 			wantOK:    true,
 		},
 		{
-			name:      "spec-level",
+			name:      "legacy spec scope rejected",
 			input:     "[spec/plan/iter:1] Proceed",
-			wantID:    "",
-			wantStage: "plan",
-			wantIter:  1,
-			wantDec:   "Proceed",
-			wantOK:    true,
+			wantOK:    false,
 		},
 		{
 			name:   "not a structured message",
