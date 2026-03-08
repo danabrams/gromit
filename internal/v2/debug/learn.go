@@ -6,6 +6,7 @@ import "strings"
 type LearningExtractionInput struct {
 	LearningsEntry         string
 	SystemicRecommendation string
+	RootCause              RootCause
 }
 
 // LearningExtraction is the normalized learning output for debug handling.
@@ -25,6 +26,9 @@ func ExtractLearning(input LearningExtractionInput) LearningExtraction {
 	if systemicRecommendation == "" && isSystemicLearning(learningsEntry) {
 		systemicRecommendation = learningsEntry
 		learningsEntry = ""
+	}
+	if systemicRecommendation == "" {
+		systemicRecommendation = BuildSystemicRecommendation(input.RootCause)
 	}
 
 	if systemicRecommendation != "" {
