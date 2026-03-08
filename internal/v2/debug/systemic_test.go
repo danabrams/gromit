@@ -22,6 +22,24 @@ func TestBuildSystemicRecommendation_UsesSystemicKeywords(t *testing.T) {
 	}
 }
 
+func TestBuildSystemicRecommendation_IncludesRationaleAndApproval(t *testing.T) {
+	signal := "Prompt fragment is ambiguous and needs clarity."
+	recommendation := BuildSystemicRecommendation(RootCauseUnclearBead, signal)
+
+	if recommendation == "" {
+		t.Fatal("recommendation = empty, want non-empty")
+	}
+	if !strings.Contains(recommendation, "Rationale:") {
+		t.Fatalf("recommendation = %q, want rationale details", recommendation)
+	}
+	if !strings.Contains(recommendation, "Awaiting human approval") {
+		t.Fatalf("recommendation = %q, want human approval reminder", recommendation)
+	}
+	if !strings.Contains(recommendation, signal) {
+		t.Fatalf("recommendation = %q, want failure signal reflected", recommendation)
+	}
+}
+
 func TestDetectSystemicCategory(t *testing.T) {
 	tests := []struct {
 		name      string
