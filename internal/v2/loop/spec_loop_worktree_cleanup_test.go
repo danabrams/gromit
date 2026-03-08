@@ -20,7 +20,7 @@ import (
 	present "github.com/danabrams/gromit/internal/v2/stage/present"
 )
 
-func TestSpecLoopFailureCommitsPartialWorkAndRemovesWorktree(t *testing.T) {
+func TestSpecLoopFailureCommitsPartialWorkAndPreservesWorktree(t *testing.T) {
 	t.Helper()
 
 	if _, err := exec.LookPath("git"); err != nil {
@@ -83,8 +83,8 @@ func TestSpecLoopFailureCommitsPartialWorkAndRemovesWorktree(t *testing.T) {
 	}
 
 	worktreePath := filepath.Join(worktreesDir, specID)
-	if worktreeRegistered(t, repoRoot, worktreePath) {
-		t.Fatalf("worktree %s should have been removed from git worktree list", worktreePath)
+	if !worktreeRegistered(t, repoRoot, worktreePath) {
+		t.Fatalf("worktree %s should be preserved for debugging", worktreePath)
 	}
 }
 
@@ -254,8 +254,13 @@ type recordingGitAdapter struct {
 
 func (r *recordingGitAdapter) RemoveWorktree(ctx context.Context, worktree string) error {
 	r.t.Helper()
-	r.lastCommitLog = gitCommand(r.t, worktree, "log", "-1", "--pretty=%B")
 	return r.ExecGitAdapter.RemoveWorktree(ctx, worktree)
+}
+
+func (r *recordingGitAdapter) Commit(ctx context.Context, worktree, message string) (string, error) {
+	r.t.Helper()
+	r.lastCommitLog = message
+	return r.ExecGitAdapter.Commit(ctx, worktree, message)
 }
 
 // failingRemoveGitAdapter returns an error from RemoveWorktree.

@@ -398,7 +398,7 @@ func TestSpecLoopProvidesStageRequestToAcceptStage(t *testing.T) {
 	}
 }
 
-func TestSpecLoopFailureEmitsCompletionAndCleansWorktree(t *testing.T) {
+func TestSpecLoopFailureEmitsCompletionAndPreservesWorktree(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
@@ -454,8 +454,8 @@ func TestSpecLoopFailureEmitsCompletionAndCleansWorktree(t *testing.T) {
 		t.Fatalf("expected failure reason, got none")
 	}
 
-	if _, statErr := os.Stat(git.lastWorktree); !os.IsNotExist(statErr) {
-		t.Fatalf("worktree %q should be removed, stat error = %v", git.lastWorktree, statErr)
+	if _, statErr := os.Stat(git.lastWorktree); statErr != nil {
+		t.Fatalf("worktree %q should be preserved, stat error = %v", git.lastWorktree, statErr)
 	}
 }
 
