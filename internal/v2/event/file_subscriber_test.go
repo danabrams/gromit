@@ -295,3 +295,55 @@ func TestHandleAddsCorrelationFieldsFromPriorStageContext(t *testing.T) {
 		t.Fatalf("correlation iteration = %v, want 2", correlation["iteration"])
 	}
 }
+
+func TestHandleBackfillsTopLevelCorrelationFieldsFromPriorStageContext(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "events.jsonl")
+	fs := NewFileSubscriber(path)
+	defer fs.Close()
+
+	fs.Handle(&StageStartedEvent{
+		Event: Event{
+			SchemaVersion: SchemaVersion,
+			Type:          EventTypeStageStarted,
+		},
+		StageName: "build",
+		BeadID:    "gromit-123",
+		Iteration: 2,
+	})
+	fs.Handle(&BuildInvocationStartEvent{
+		Event: Event{
+			SchemaVersion: SchemaVersion,
+			Type:          EventTypeBuildInvocationStart,
+		},
+		BeadID: "gromit-123",
+		Model:  "claude-haiku-4",
+	})
+
+	if err := fs.Close(); err != nil {
+		t.Fatalf("closing file subscriber: %v", err)
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("reading file: %v", err)
+	}
+	lines := strings.Split(strings.TrimRight(string(data), "\n"), "\n")
+	if len(lines) != 2 {
+		t.Fatalf("expected 2 lines, got %d: %q", len(lines), string(data))
+	}
+
+	var entry map[string]interface{}
+	if err := json.Unmarshal([]byte(lines[1]), &entry); err != nil {
+		t.Fatalf("unmarshal second event: %v", err)
+	}
+
+	if got := entry["bead_id"]; got != "gromit-123" {
+		t.Fatalf("bead_id = %v, want gromit-123", got)
+	}
+	if got := entry["stage_name"]; got != "build" {
+		t.Fatalf("stage_name = %v, want build", got)
+	}
+	if got, ok := entry["iteration"].(float64); !ok || int(got) != 2 {
+		t.Fatalf("iteration = %v, want 2", entry["iteration"])
+	}
+}
