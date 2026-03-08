@@ -18488,3 +18488,58 @@
 {"actor":"Dan Abrams","comment":null,"created_at":"2026-03-08T13:17:53Z","event_type":"closed","id":18488,"issue_id":"gromit-i5jse","new_value":"Closed","old_value":""}
 {"actor":"Dan Abrams","comment":null,"created_at":"2026-03-08T13:21:41Z","event_type":"closed","id":18489,"issue_id":"gromit-mqxdb","new_value":"Closed","old_value":""}
 {"actor":"Dan Abrams","comment":null,"created_at":"2026-03-08T13:24:24Z","event_type":"closed","id":18490,"issue_id":"gromit-zejwp","new_value":"Closed","old_value":""}
+{"actor":"Dan Abrams","comment":null,"created_at":"2026-03-08T13:32:40Z","event_type":"closed","id":18491,"issue_id":"gromit-1wjk2","new_value":"Closed","old_value":""}
+{"actor":"Dan Abrams","comment":null,"created_at":"2026-03-08T13:36:11Z","event_type":"closed","id":18492,"issue_id":"gromit-owqgo","new_value":"Closed","old_value":""}
+{"actor":"Dan Abrams","comment":null,"created_at":"2026-03-08T13:42:35Z","event_type":"created","id":18493,"issue_id":"gromit-zg9pd","new_value":"","old_value":""}
+{"actor":"Dan Abrams","comment":"Added label: spec:immutable-pipeline","created_at":"2026-03-08T13:42:35Z","event_type":"label_added","id":18494,"issue_id":"gromit-zg9pd","new_value":null,"old_value":null}
+{"actor":"Dan Abrams","comment":"Added label: gen:1","created_at":"2026-03-08T13:42:35Z","event_type":"label_added","id":18495,"issue_id":"gromit-zg9pd","new_value":null,"old_value":null}
+{"actor":"Dan Abrams","comment":"Added label: estimated-files:2","created_at":"2026-03-08T13:42:35Z","event_type":"label_added","id":18496,"issue_id":"gromit-zg9pd","new_value":null,"old_value":null}
+{"actor":"Dan Abrams","comment":null,"created_at":"2026-03-08T13:42:35Z","event_type":"created","id":18497,"issue_id":"gromit-iuz67","new_value":"","old_value":""}
+{"actor":"Dan Abrams","comment":"Added label: spec:immutable-pipeline","created_at":"2026-03-08T13:42:35Z","event_type":"label_added","id":18498,"issue_id":"gromit-iuz67","new_value":null,"old_value":null}
+{"actor":"Dan Abrams","comment":"Added label: gen:1","created_at":"2026-03-08T13:42:35Z","event_type":"label_added","id":18499,"issue_id":"gromit-iuz67","new_value":null,"old_value":null}
+{"actor":"Dan Abrams","comment":"Added label: estimated-files:2","created_at":"2026-03-08T13:42:35Z","event_type":"label_added","id":18500,"issue_id":"gromit-iuz67","new_value":null,"old_value":null}
+{"actor":"Dan Abrams","comment":null,"created_at":"2026-03-08T13:42:35Z","event_type":"created","id":18501,"issue_id":"gromit-lnplt","new_value":"","old_value":""}
+{"actor":"Dan Abrams","comment":"Added label: spec:immutable-pipeline","created_at":"2026-03-08T13:42:35Z","event_type":"label_added","id":18502,"issue_id":"gromit-lnplt","new_value":null,"old_value":null}
+{"actor":"Dan Abrams","comment":"Added label: gen:1","created_at":"2026-03-08T13:42:35Z","event_type":"label_added","id":18503,"issue_id":"gromit-lnplt","new_value":null,"old_value":null}
+{"actor":"Dan Abrams","comment":"Added label: estimated-files:1","created_at":"2026-03-08T13:42:35Z","event_type":"label_added","id":18504,"issue_id":"gromit-lnplt","new_value":null,"old_value":null}
+{"actor":"Dan Abrams","comment":null,"created_at":"2026-03-08T13:42:36Z","event_type":"created","id":18505,"issue_id":"gromit-bymhy","new_value":"","old_value":""}
+{"actor":"Dan Abrams","comment":"Added label: spec:immutable-pipeline","created_at":"2026-03-08T13:42:36Z","event_type":"label_added","id":18506,"issue_id":"gromit-bymhy","new_value":null,"old_value":null}
+{"actor":"Dan Abrams","comment":"Added label: gen:1","created_at":"2026-03-08T13:42:36Z","event_type":"label_added","id":18507,"issue_id":"gromit-bymhy","new_value":null,"old_value":null}
+{"actor":"Dan Abrams","comment":"Added label: estimated-files:3","created_at":"2026-03-08T13:42:36Z","event_type":"label_added","id":18508,"issue_id":"gromit-bymhy","new_value":null,"old_value":null}
+{"actor":"Dan Abrams","comment":null,"created_at":"2026-03-08T13:42:36Z","event_type":"created","id":18509,"issue_id":"gromit-e47lq","new_value":"","old_value":""}
+{"actor":"Dan Abrams","comment":"Added label: spec:immutable-pipeline","created_at":"2026-03-08T13:42:36Z","event_type":"label_added","id":18510,"issue_id":"gromit-e47lq","new_value":null,"old_value":null}
+{"actor":"Dan Abrams","comment":"Added label: gen:1","created_at":"2026-03-08T13:42:36Z","event_type":"label_added","id":18511,"issue_id":"gromit-e47lq","new_value":null,"old_value":null}
+{"actor":"Dan Abrams","comment":"Added label: estimated-files:2","created_at":"2026-03-08T13:42:36Z","event_type":"label_added","id":18512,"issue_id":"gromit-e47lq","new_value":null,"old_value":null}
+{"actor":"Dan Abrams","comment":null,"created_at":"2026-03-08T13:42:36Z","event_type":"created","id":18513,"issue_id":"gromit-5hhhh","new_value":"","old_value":""}
+{"actor":"Dan Abrams","comment":"Added label: spec:immutable-pipeline","created_at":"2026-03-08T13:42:36Z","event_type":"label_added","id":18514,"issue_id":"gromit-5hhhh","new_value":null,"old_value":null}
+{"actor":"Dan Abrams","comment":"Added label: gen:1","created_at":"2026-03-08T13:42:36Z","event_type":"label_added","id":18515,"issue_id":"gromit-5hhhh","new_value":null,"old_value":null}
+{"actor":"Dan Abrams","comment":"Added label: estimated-files:1","created_at":"2026-03-08T13:42:36Z","event_type":"label_added","id":18516,"issue_id":"gromit-5hhhh","new_value":null,"old_value":null}
+{"actor":"Dan Abrams","comment":null,"created_at":"2026-03-08T13:42:36Z","event_type":"created","id":18517,"issue_id":"gromit-80oh8","new_value":"","old_value":""}
+{"actor":"Dan Abrams","comment":"Added label: spec:immutable-pipeline","created_at":"2026-03-08T13:42:36Z","event_type":"label_added","id":18518,"issue_id":"gromit-80oh8","new_value":null,"old_value":null}
+{"actor":"Dan Abrams","comment":"Added label: gen:1","created_at":"2026-03-08T13:42:36Z","event_type":"label_added","id":18519,"issue_id":"gromit-80oh8","new_value":null,"old_value":null}
+{"actor":"Dan Abrams","comment":"Added label: estimated-files:2","created_at":"2026-03-08T13:42:36Z","event_type":"label_added","id":18520,"issue_id":"gromit-80oh8","new_value":null,"old_value":null}
+{"actor":"Dan Abrams","comment":null,"created_at":"2026-03-08T13:42:36Z","event_type":"created","id":18521,"issue_id":"gromit-v3t65","new_value":"","old_value":""}
+{"actor":"Dan Abrams","comment":"Added label: spec:immutable-pipeline","created_at":"2026-03-08T13:42:36Z","event_type":"label_added","id":18522,"issue_id":"gromit-v3t65","new_value":null,"old_value":null}
+{"actor":"Dan Abrams","comment":"Added label: gen:1","created_at":"2026-03-08T13:42:36Z","event_type":"label_added","id":18523,"issue_id":"gromit-v3t65","new_value":null,"old_value":null}
+{"actor":"Dan Abrams","comment":"Added label: estimated-files:2","created_at":"2026-03-08T13:42:36Z","event_type":"label_added","id":18524,"issue_id":"gromit-v3t65","new_value":null,"old_value":null}
+{"actor":"Dan Abrams","comment":null,"created_at":"2026-03-08T13:42:36Z","event_type":"created","id":18525,"issue_id":"gromit-np31g","new_value":"","old_value":""}
+{"actor":"Dan Abrams","comment":"Added label: spec:immutable-pipeline","created_at":"2026-03-08T13:42:36Z","event_type":"label_added","id":18526,"issue_id":"gromit-np31g","new_value":null,"old_value":null}
+{"actor":"Dan Abrams","comment":"Added label: gen:1","created_at":"2026-03-08T13:42:36Z","event_type":"label_added","id":18527,"issue_id":"gromit-np31g","new_value":null,"old_value":null}
+{"actor":"Dan Abrams","comment":"Added label: estimated-files:2","created_at":"2026-03-08T13:42:36Z","event_type":"label_added","id":18528,"issue_id":"gromit-np31g","new_value":null,"old_value":null}
+{"actor":"Dan Abrams","comment":null,"created_at":"2026-03-08T13:42:36Z","event_type":"created","id":18529,"issue_id":"gromit-29yd0","new_value":"","old_value":""}
+{"actor":"Dan Abrams","comment":"Added label: spec:immutable-pipeline","created_at":"2026-03-08T13:42:36Z","event_type":"label_added","id":18530,"issue_id":"gromit-29yd0","new_value":null,"old_value":null}
+{"actor":"Dan Abrams","comment":"Added label: gen:1","created_at":"2026-03-08T13:42:37Z","event_type":"label_added","id":18531,"issue_id":"gromit-29yd0","new_value":null,"old_value":null}
+{"actor":"Dan Abrams","comment":"Added label: estimated-files:1","created_at":"2026-03-08T13:42:37Z","event_type":"label_added","id":18532,"issue_id":"gromit-29yd0","new_value":null,"old_value":null}
+{"actor":"Dan Abrams","comment":null,"created_at":"2026-03-08T13:42:37Z","event_type":"created","id":18533,"issue_id":"gromit-5amqa","new_value":"","old_value":""}
+{"actor":"Dan Abrams","comment":"Added label: spec:immutable-pipeline","created_at":"2026-03-08T13:42:37Z","event_type":"label_added","id":18534,"issue_id":"gromit-5amqa","new_value":null,"old_value":null}
+{"actor":"Dan Abrams","comment":"Added label: gen:1","created_at":"2026-03-08T13:42:37Z","event_type":"label_added","id":18535,"issue_id":"gromit-5amqa","new_value":null,"old_value":null}
+{"actor":"Dan Abrams","comment":"Added label: estimated-files:1","created_at":"2026-03-08T13:42:37Z","event_type":"label_added","id":18536,"issue_id":"gromit-5amqa","new_value":null,"old_value":null}
+{"actor":"Dan Abrams","comment":null,"created_at":"2026-03-08T13:42:37Z","event_type":"created","id":18537,"issue_id":"gromit-nfqwt","new_value":"","old_value":""}
+{"actor":"Dan Abrams","comment":"Added label: spec:immutable-pipeline","created_at":"2026-03-08T13:42:37Z","event_type":"label_added","id":18538,"issue_id":"gromit-nfqwt","new_value":null,"old_value":null}
+{"actor":"Dan Abrams","comment":"Added label: gen:1","created_at":"2026-03-08T13:42:37Z","event_type":"label_added","id":18539,"issue_id":"gromit-nfqwt","new_value":null,"old_value":null}
+{"actor":"Dan Abrams","comment":"Added label: estimated-files:1","created_at":"2026-03-08T13:42:37Z","event_type":"label_added","id":18540,"issue_id":"gromit-nfqwt","new_value":null,"old_value":null}
+{"actor":"Dan Abrams","comment":null,"created_at":"2026-03-08T13:42:37Z","event_type":"created","id":18541,"issue_id":"gromit-3a87n","new_value":"","old_value":""}
+{"actor":"Dan Abrams","comment":"Added label: spec:immutable-pipeline","created_at":"2026-03-08T13:42:37Z","event_type":"label_added","id":18542,"issue_id":"gromit-3a87n","new_value":null,"old_value":null}
+{"actor":"Dan Abrams","comment":"Added label: gen:1","created_at":"2026-03-08T13:42:37Z","event_type":"label_added","id":18543,"issue_id":"gromit-3a87n","new_value":null,"old_value":null}
+{"actor":"Dan Abrams","comment":"Added label: estimated-files:1","created_at":"2026-03-08T13:42:37Z","event_type":"label_added","id":18544,"issue_id":"gromit-3a87n","new_value":null,"old_value":null}
+{"actor":"Dan Abrams","comment":null,"created_at":"2026-03-08T13:46:07Z","event_type":"status_changed","id":18545,"issue_id":"gromit-bymhy","new_value":"{\"status\":\"in_progress\"}","old_value":"{\"id\":\"gromit-bymhy\",\"title\":\"Implement event log file subscriber\",\"description\":\"Create a file subscriber in internal/v2/event/file_subscriber.go that appends events to .gromit/v2/events.jsonl in JSONL format. Include tests in internal/v2/event/file_subscriber_test.go and wire the subscriber in internal/v2/event/wiring.go alongside existing CLI and API subscribers.\",\"status\":\"open\",\"priority\":1,\"issue_type\":\"task\",\"owner\":\"me@thedanabrams.com\",\"created_at\":\"2026-03-08T17:42:36Z\",\"created_by\":\"Dan Abrams\",\"updated_at\":\"2026-03-08T17:42:36Z\"}"}
