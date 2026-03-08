@@ -2,6 +2,43 @@ package loop
 
 import "testing"
 
+func TestBuildCommitMessage(t *testing.T) {
+	tests := []struct {
+		name string
+		in   CommitMessage
+		want string
+	}{
+		{
+			name: "bead stage",
+			in: CommitMessage{
+				BeadID:    "gromit-mo15p",
+				StageName: "build",
+				Iteration: 2,
+				Decision:  "Proceed",
+			},
+			want: "[bead:gromit-mo15p/build/iter:2] Proceed",
+		},
+		{
+			name: "spec stage",
+			in: CommitMessage{
+				StageName: "plan",
+				Iteration: 1,
+				Decision:  "Proceed",
+			},
+			want: "[bead:spec/plan/iter:1] Proceed",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := BuildCommitMessage(tt.in)
+			if got != tt.want {
+				t.Fatalf("BuildCommitMessage() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestCommitMessageBuild(t *testing.T) {
 	msg := CommitMessage{
 		BeadID:    "gromit-mo15p",
