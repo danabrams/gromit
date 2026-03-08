@@ -46,3 +46,24 @@ func TestExtractLearning_SystemicEntryUsesRecommendationPath(t *testing.T) {
 		t.Fatalf("SystemicRecommendation = %q, want to include prompt fragment guidance", output.SystemicRecommendation)
 	}
 }
+
+func TestExtractLearning_SystemicRootCauseGeneratesRecommendation(t *testing.T) {
+	input := LearningExtractionInput{
+		RootCause: RootCauseUnclearBead,
+	}
+
+	output := ExtractLearning(input)
+
+	if output.Autonomous {
+		t.Fatal("Autonomous = true, want false")
+	}
+	if output.LearningsEntry != "" {
+		t.Fatalf("LearningsEntry = %q, want empty", output.LearningsEntry)
+	}
+	if output.SystemicRecommendation == "" {
+		t.Fatal("SystemicRecommendation = empty, want non-empty")
+	}
+	if !strings.Contains(strings.ToLower(output.SystemicRecommendation), "human review") {
+		t.Fatalf("SystemicRecommendation = %q, want human-review guidance", output.SystemicRecommendation)
+	}
+}
