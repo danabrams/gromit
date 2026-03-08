@@ -229,6 +229,12 @@ func gitCommand(t *testing.T, dir string, args ...string) string {
 	return string(out)
 }
 
+func branchExistsInRepo(t *testing.T, repoRoot, branchName string) bool {
+	t.Helper()
+	branchList := strings.TrimSpace(gitCommand(t, repoRoot, "branch", "--list", branchName))
+	return branchList != ""
+}
+
 func worktreeRegistered(t *testing.T, repoRoot, worktree string) bool {
 	t.Helper()
 	out := gitCommand(t, repoRoot, "worktree", "list", "--porcelain")
