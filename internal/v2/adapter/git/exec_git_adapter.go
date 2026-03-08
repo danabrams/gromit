@@ -81,33 +81,7 @@ func (a *ExecGitAdapter) Diff(ctx context.Context, worktree string) (string, err
 }
 
 func (a *ExecGitAdapter) Commit(ctx context.Context, worktree, message string) (string, error) {
-	trimmed := strings.TrimSpace(worktree)
-	if trimmed == "" {
-		return "", fmt.Errorf("worktree required")
-	}
-	msg := strings.TrimSpace(message)
-	if msg == "" {
-		return "", fmt.Errorf("commit message required")
-	}
-	if out, err := runGitCommand(ctx, trimmed, "add", "-A"); err != nil {
-		return "", fmt.Errorf("git add: %s: %w", out, err)
-	}
-	const eventsLogPath = ".gromit/v2/events.jsonl"
-	if _, statErr := os.Stat(filepath.Join(trimmed, eventsLogPath)); statErr == nil {
-		if out, err := runGitCommand(ctx, trimmed, "add", "-f", "--", eventsLogPath); err != nil {
-			return "", fmt.Errorf("git add events log: %s: %w", out, err)
-		}
-	} else if !os.IsNotExist(statErr) {
-		return "", fmt.Errorf("stat events log: %w", statErr)
-	}
-	if out, err := runGitCommand(ctx, trimmed, "commit", "-m", msg); err != nil {
-		return "", fmt.Errorf("git commit: %s: %w", out, err)
-	}
-	out, err := runGitCommand(ctx, trimmed, "rev-parse", "HEAD")
-	if err != nil {
-		return "", fmt.Errorf("git rev-parse: %s: %w", out, err)
-	}
-	return strings.TrimSpace(string(out)), nil
+	return CommitWorktree(ctx, worktree, message)
 }
 
 func (a *ExecGitAdapter) RemoveWorktree(ctx context.Context, worktree string) error {

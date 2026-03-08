@@ -100,7 +100,7 @@ func TestStageCommitterCommitStageCommitsCodeAndEventsWithStructuredMessage(t *t
 	if len(entries) != 1 {
 		t.Fatalf("log entries = %d, want 1", len(entries))
 	}
-	if got, want := entries[0].Message, "[bead:spec/plan/iter:1] proceed"; got != want {
+	if got, want := entries[0].Message, "[spec/plan/iter:1] proceed"; got != want {
 		t.Fatalf("commit message = %q, want %q", got, want)
 	}
 
