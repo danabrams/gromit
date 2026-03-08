@@ -18,6 +18,7 @@ type LogEntry struct {
 type GitAdapter interface {
 	Checkout(ctx context.Context, specID string) (worktree string, err error)
 	Diff(ctx context.Context, worktree string) (string, error)
+	DiffFromBase(ctx context.Context, worktree string) (string, error)
 	Commit(ctx context.Context, worktree, message string) (string, error)
 	RemoveWorktree(ctx context.Context, worktree string) error
 	Status(ctx context.Context, worktree string) (string, error)

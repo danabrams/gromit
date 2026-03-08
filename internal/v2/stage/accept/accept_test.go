@@ -199,8 +199,11 @@ func (f *fakeLLM) StreamInvoke(ctx context.Context, req llm.StreamInvokeRequest)
 }
 
 type fakeGitAdapter struct {
-	diff         string
-	lastWorktree string
+	diff              string
+	diffFromBase      string
+	lastWorktree      string
+	diffCalled        bool
+	diffFromBaseCalled bool
 }
 
 func (f *fakeGitAdapter) Checkout(ctx context.Context, specID string) (string, error) {
@@ -208,7 +211,17 @@ func (f *fakeGitAdapter) Checkout(ctx context.Context, specID string) (string, e
 }
 
 func (f *fakeGitAdapter) Diff(ctx context.Context, worktree string) (string, error) {
+	f.diffCalled = true
 	f.lastWorktree = worktree
+	return f.diff, nil
+}
+
+func (f *fakeGitAdapter) DiffFromBase(ctx context.Context, worktree string) (string, error) {
+	f.diffFromBaseCalled = true
+	f.lastWorktree = worktree
+	if f.diffFromBase != "" {
+		return f.diffFromBase, nil
+	}
 	return f.diff, nil
 }
 
@@ -261,6 +274,67 @@ func setupAcceptStage(t *testing.T, llmProvider *fakeLLM) (*Stage, *stagepkg.Req
 		Worktree: tmp,
 	}
 	return stageInstance, req
+}
+
+func TestRunUsesDiffFromBase(t *testing.T) {
+	t.Parallel()
+
+	specID := "spec-diffbase"
+	tmp := t.TempDir()
+	specDir := filepath.Join(tmp, ".gromit", "specs")
+	if err := os.MkdirAll(specDir, 0o755); err != nil {
+		t.Fatalf("create specs dir: %v", err)
+	}
+	specPath := filepath.Join(specDir, specID+".md")
+	content := "# DiffBase spec\n\n## Acceptance Criteria\n- criterion A\n"
+	if err := os.WriteFile(specPath, []byte(content), 0o644); err != nil {
+		t.Fatalf("write spec: %v", err)
+	}
+
+	cfg := &config.Config{
+		ProjectRoot: tmp,
+		Paths: config.PathsConfig{
+			GromitDir: ".gromit",
+			Specs:     ".gromit/specs",
+		},
+	}
+
+	git := &fakeGitAdapter{diff: "old", diffFromBase: "cumulative diff with feature"}
+	llmProvider := &fakeLLM{
+		responses: []*llm.LLMResponse{
+			{Success: true, Output: `{"pass": true, "summary": "done"}`},
+		},
+	}
+
+	stageInstance, err := New(cfg, git, llmProvider, "BASE", "PROJECT", "FRAGMENT")
+	if err != nil {
+		t.Fatalf("create stage: %v", err)
+	}
+
+	req := &stagepkg.Request{
+		Bead:     stagepkg.BeadInfo{ID: specID},
+		Worktree: tmp,
+	}
+
+	_, err = stageInstance.Run(context.Background(), req)
+	if err != nil {
+		t.Fatalf("run stage: %v", err)
+	}
+
+	if !git.diffFromBaseCalled {
+		t.Fatal("expected DiffFromBase to be called, but it was not")
+	}
+	if git.diffCalled {
+		t.Fatal("expected Diff NOT to be called, but it was")
+	}
+
+	// Verify the cumulative diff was used in the prompt.
+	if len(llmProvider.calls) != 1 {
+		t.Fatalf("llm calls = %d, want 1", len(llmProvider.calls))
+	}
+	if !strings.Contains(llmProvider.calls[0].Prompt, "cumulative diff with feature") {
+		t.Fatal("prompt should contain the DiffFromBase output, not the Diff output")
+	}
 }
 
 func TestRunReturnsErrorWhenLLMFails(t *testing.T) {

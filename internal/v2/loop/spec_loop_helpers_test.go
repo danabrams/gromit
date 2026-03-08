@@ -152,6 +152,10 @@ func (f *fakeGitAdapter) Diff(context.Context, string) (string, error) {
 	return "", nil
 }
 
+func (f *fakeGitAdapter) DiffFromBase(ctx context.Context, worktree string) (string, error) {
+	return f.Diff(ctx, worktree)
+}
+
 func (f *fakeGitAdapter) Commit(_ context.Context, worktree, message string) (string, error) {
 	f.commitMessages = append(f.commitMessages, message)
 	return "fake-commit", nil

@@ -18,6 +18,17 @@ func runGitBinary(t *testing.T, dir string, args ...string) {
 	}
 }
 
+func runGitBinaryOutput(t *testing.T, dir string, args ...string) string {
+	t.Helper()
+	cmd := exec.Command("git", args...)
+	cmd.Dir = dir
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("git %v failed: %v\n%s", args, err, out)
+	}
+	return strings.TrimSpace(string(out))
+}
+
 // initTestRepo creates a bare-minimum git repo with one commit and returns
 // the repo root path. The caller's CWD is intentionally NOT changed, so
 // tests verify that ExecGitAdapter uses repoRoot (cmd.Dir) rather than CWD.
@@ -395,6 +406,131 @@ func TestExecGitAdapterCheckoutReturnsAbsolutePath(t *testing.T) {
 
 	if _, err := os.Stat(wtPath); err != nil {
 		t.Fatalf("worktree dir not created at absolute path: %v", err)
+	}
+}
+
+func TestDiffFromBase_ReturnsCumulativeDiff(t *testing.T) {
+	t.Parallel()
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not available")
+	}
+
+	repoDir := initTestRepo(t)
+	worktreesDir := t.TempDir()
+
+	a := NewExecGitAdapter(repoDir, worktreesDir)
+	ctx := context.Background()
+
+	wtPath, err := a.Checkout(ctx, "spec-diff-base")
+	if err != nil {
+		t.Fatalf("Checkout: %v", err)
+	}
+
+	// Record the base SHA (current HEAD).
+	baseSHACmd := exec.Command("git", "rev-parse", "HEAD")
+	baseSHACmd.Dir = wtPath
+	baseSHAOut, err := baseSHACmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("rev-parse HEAD: %v\n%s", err, baseSHAOut)
+	}
+	baseSHA := strings.TrimSpace(string(baseSHAOut))
+
+	// Add a file and commit it (so it's past the base).
+	if err := os.WriteFile(filepath.Join(wtPath, "newfile.txt"), []byte("content"), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	runGitBinary(t, wtPath, "add", "-A")
+	runGitBinary(t, wtPath, "commit", "-m", "add newfile")
+
+	// Write the base SHA to .gromit/v2/branch-base.
+	baseDir := filepath.Join(wtPath, ".gromit", "v2")
+	if err := os.MkdirAll(baseDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(baseDir, "branch-base"), []byte(baseSHA), 0o644); err != nil {
+		t.Fatalf("WriteFile branch-base: %v", err)
+	}
+
+	diff, err := a.DiffFromBase(ctx, wtPath)
+	if err != nil {
+		t.Fatalf("DiffFromBase: %v", err)
+	}
+	if !strings.Contains(diff, "newfile.txt") {
+		t.Fatalf("expected diff to contain newfile.txt, got: %q", diff)
+	}
+}
+
+func TestDiffFromBase_FallsBackToHeadWhenNoBaseFile(t *testing.T) {
+	t.Parallel()
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not available")
+	}
+
+	repoDir := initTestRepo(t)
+	worktreesDir := t.TempDir()
+
+	a := NewExecGitAdapter(repoDir, worktreesDir)
+	ctx := context.Background()
+
+	wtPath, err := a.Checkout(ctx, "spec-diff-fallback")
+	if err != nil {
+		t.Fatalf("Checkout: %v", err)
+	}
+
+	// Add a file but don't commit — leave it as an uncommitted change.
+	if err := os.WriteFile(filepath.Join(wtPath, "uncommitted.txt"), []byte("data"), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	runGitBinary(t, wtPath, "add", "-A")
+
+	// No branch-base file exists, so DiffFromBase should fall back to Diff (git diff HEAD).
+	diff, err := a.DiffFromBase(ctx, wtPath)
+	if err != nil {
+		t.Fatalf("DiffFromBase: %v", err)
+	}
+	if !strings.Contains(diff, "uncommitted.txt") {
+		t.Fatalf("expected fallback diff to contain uncommitted.txt, got: %q", diff)
+	}
+}
+
+func TestDiffFromBase_RejectsEmptyWorktree(t *testing.T) {
+	t.Parallel()
+
+	a := NewExecGitAdapter("", "")
+
+	_, err := a.DiffFromBase(context.Background(), "")
+	if err == nil {
+		t.Fatal("expected error for empty worktree, got nil")
+	}
+	if !strings.Contains(err.Error(), "worktree required") {
+		t.Fatalf("expected 'worktree required' error, got: %q", err.Error())
+	}
+}
+
+func TestCheckout_WritesBranchBaseFile(t *testing.T) {
+	t.Parallel()
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not available")
+	}
+
+	repoDir := initTestRepo(t)
+	worktreesDir := t.TempDir()
+
+	expectedBase := runGitBinaryOutput(t, repoDir, "rev-parse", "HEAD")
+
+	adapter := NewExecGitAdapter(repoDir, worktreesDir)
+	wtPath, err := adapter.Checkout(context.Background(), "test-spec")
+	if err != nil {
+		t.Fatalf("Checkout: %v", err)
+	}
+
+	basePath := filepath.Join(wtPath, ".gromit", "v2", "branch-base")
+	data, err := os.ReadFile(basePath)
+	if err != nil {
+		t.Fatalf("read branch-base: %v", err)
+	}
+	if got := strings.TrimSpace(string(data)); got != expectedBase {
+		t.Fatalf("branch-base = %q, want %q", got, expectedBase)
 	}
 }
 

@@ -52,6 +52,7 @@ Do NOT output markdown or anything other than the JSON object.
 // GitDiffer provides the git diff capability needed by the accept stage.
 type GitDiffer interface {
 	Diff(ctx context.Context, worktree string) (string, error)
+	DiffFromBase(ctx context.Context, worktree string) (string, error)
 }
 
 // AcceptArtifacts captures acceptance evaluation results produced by the stage.
@@ -151,7 +152,7 @@ func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Resul
 		}, nil
 	}
 
-	diff, err := s.git.Diff(ctx, root)
+	diff, err := s.git.DiffFromBase(ctx, root)
 	if err != nil {
 		return nil, fmt.Errorf("git diff: %w", err)
 	}

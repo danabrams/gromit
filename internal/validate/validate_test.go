@@ -983,6 +983,44 @@ func TestValidateDecomposeOutput_RequiredFieldsParityAcrossPipelineAndRuntime(t 
 	}
 }
 
+func TestCheckBeads_FlagsFilePathInCriteria(t *testing.T) {
+	t.Parallel()
+	beads := []BeadCandidate{
+		{
+			Title:              "Build feature",
+			AcceptanceCriteria: []string{"create internal/v2/debug/diagnose.go with Diagnose() function"},
+			ExpectedOutputs:    []string{"Diagnose function"},
+		},
+	}
+	violations := CheckBeads(beads)
+	found := false
+	for _, v := range violations {
+		if v.Rule == "criteria_structural" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("expected criteria_structural violation for file-path criterion")
+	}
+}
+
+func TestCheckBeads_AllowsBehavioralCriteria(t *testing.T) {
+	t.Parallel()
+	beads := []BeadCandidate{
+		{
+			Title:              "Build feature",
+			AcceptanceCriteria: []string{"debug command identifies root cause category from event log"},
+			ExpectedOutputs:    []string{"Diagnose function"},
+		},
+	}
+	violations := CheckBeads(beads)
+	for _, v := range violations {
+		if v.Rule == "criteria_structural" {
+			t.Fatalf("unexpected criteria_structural violation for behavioral criterion")
+		}
+	}
+}
+
 func hasViolationRule(violations []Violation, rule string) bool {
 	for _, violation := range violations {
 		if violation.Rule == rule {

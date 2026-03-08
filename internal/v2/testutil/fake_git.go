@@ -72,6 +72,11 @@ func (f *FakeGit) Diff(_ context.Context, worktree string) (string, error) {
 	return f.DiffOutput, nil
 }
 
+// DiffFromBase delegates to Diff for fake purposes.
+func (f *FakeGit) DiffFromBase(ctx context.Context, worktree string) (string, error) {
+	return f.Diff(ctx, worktree)
+}
+
 // CreateIsolatedWorktree records the spec and returns a deterministic path.
 func (f *FakeGit) CreateIsolatedWorktree(_ context.Context, specID string) (string, error) {
 	f.mu.Lock()

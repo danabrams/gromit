@@ -395,6 +395,23 @@ func TestRunReadsGapAnalysisFromDiskWhenFieldEmpty(t *testing.T) {
 	}
 }
 
+func TestDecomposePromptContainsBehavioralCriteriaInstruction(t *testing.T) {
+	t.Parallel()
+	if !strings.Contains(defaultDecomposePromptTemplate, "observable behavior") {
+		t.Fatal("default decompose prompt must instruct behavioral acceptance criteria")
+	}
+	if !strings.Contains(defaultDecomposePromptTemplate, "NOT a file path") {
+		t.Fatal("default decompose prompt must warn against file-path criteria")
+	}
+}
+
+func TestRemediationDecomposePromptContainsBehavioralCriteriaInstruction(t *testing.T) {
+	t.Parallel()
+	if !strings.Contains(remediationDecomposePromptTemplate, "observable behavior") {
+		t.Fatal("remediation decompose prompt must instruct behavioral acceptance criteria")
+	}
+}
+
 func contains(slice []string, value string) bool {
 	for _, item := range slice {
 		if item == value {

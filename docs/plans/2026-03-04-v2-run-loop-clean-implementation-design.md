@@ -132,3 +132,15 @@ Principle: import infrastructure, copy proven logic, build new architecture.
 6. **Cutover** — delete v1, rename command
 
 Each step produces a testable increment. V1 runs throughout.
+
+## Appendix: Stale Bead Prevention (2026-03-08)
+
+Three fixes prevent the run loop from rebuilding beads whose work is already done:
+
+1. **Cumulative diff (P0):** Accept stage uses `DiffFromBase` instead of `git diff HEAD`. Branch base SHA stored in `.gromit/v2/branch-base` at worktree creation. Diffs capture all committed + uncommitted changes since the branch point.
+
+2. **Gate satisfaction check (P1):** Before proceeding, gate evaluates bead acceptance criteria against the cumulative diff via LLM. Tier escalates by generation: gen0=skip, gen1=haiku, gen2=sonnet, gen3+=opus. Structural beads (refactor, test, rename, etc.) bypass the check to avoid false positives.
+
+3. **Behavioral criteria (P2):** Decompose prompts require acceptance criteria to describe observable behavior, not file paths or code structure. Validation rule flags criteria containing file paths as `criteria_structural` violations.
+
+Design doc: `docs/plans/2026-03-08-stale-bead-prevention-design.md`
