@@ -21,3 +21,26 @@ func TestBuildSystemicRecommendation_UsesSystemicKeywords(t *testing.T) {
 		t.Fatalf("recommendation = %q, want guard guidance", recommendation)
 	}
 }
+
+func TestDetectSystemicCategory(t *testing.T) {
+	tests := []struct {
+		name      string
+		rootCause RootCause
+		signal    string
+		want      string
+	}{
+		{name: "unclear bead root cause", rootCause: RootCauseUnclearBead, want: "prompt"},
+		{name: "bad decomposition root cause", rootCause: RootCauseBadDecomposition, want: "process"},
+		{name: "signal contains guard", signal: "Add a pipeline guard here", want: "guard"},
+		{name: "signal contains rules file", signal: "Update RULES.md to clarify process rules", want: "rule"},
+		{name: "no systemic match", rootCause: RootCauseFlakyTest, signal: "transient failure", want: ""},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := DetectSystemicCategory(tc.rootCause, tc.signal); got != tc.want {
+				t.Fatalf("DetectSystemicCategory(%q, %q) = %q, want %q", tc.rootCause, tc.signal, got, tc.want)
+			}
+		})
+	}
+}
