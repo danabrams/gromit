@@ -55,6 +55,19 @@ func TestParseMessageRejectsInvalidBeadID(t *testing.T) {
 	}
 }
 
+func TestParseMessageRejectsInvalidStageName(t *testing.T) {
+	tests := []string{
+		"[bead:validid/review stage/iter:1] Retry",
+		"[bead:validid/InvalidStage/iter:1] Retry",
+	}
+
+	for _, input := range tests {
+		if _, err := ParseMessage(input); err == nil {
+			t.Fatalf("ParseMessage(%q) error = nil, want non-nil", input)
+		}
+	}
+}
+
 func TestFormatMessageSpecStage(t *testing.T) {
 	got := FormatMessage("", "plan", 1, "Proceed")
 	want := "[spec/plan/iter:1] Proceed"
@@ -68,8 +81,8 @@ func TestParseMessageSpecStage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ParseMessage() error = %v", err)
 	}
-	if parsed.BeadID != "" {
-		t.Fatalf("BeadID = %q, want empty", parsed.BeadID)
+	if parsed.BeadID != "spec" {
+		t.Fatalf("BeadID = %q, want %q", parsed.BeadID, "spec")
 	}
 	if parsed.StageName != "plan" {
 		t.Fatalf("StageName = %q, want %q", parsed.StageName, "plan")
