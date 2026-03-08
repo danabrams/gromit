@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/danabrams/gromit/internal/v2/adapter"
 )
 
 func TestDebug2_InvokesAgentInWorktree(t *testing.T) {
@@ -156,5 +158,28 @@ func TestResolveDebug2Worktree_FallsBackToBranchWhenWorktreeMissing(t *testing.T
 	}
 	if got != wtPath {
 		t.Errorf("got %q, want %q", got, wtPath)
+	}
+}
+
+func TestSelectDebug2FailureCommit_PicksMostRecentStructuredFail(t *testing.T) {
+	entries := []adapter.LogEntry{
+		{Hash: "hash1", Message: "not structured"},
+		{Hash: "hash2", Message: "[bead:b1/build/iter:2] Proceed"},
+		{Hash: "hash3", Message: "[bead:b1/validate/iter:2] Fail"},
+		{Hash: "hash4", Message: "[bead:b1/validate/iter:1] Fail"},
+	}
+
+	failure, info, ok := selectDebug2FailureCommit(entries)
+	if !ok {
+		t.Fatal("expected failure commit, got none")
+	}
+	if failure.Hash != "hash3" {
+		t.Fatalf("failure hash = %q, want %q", failure.Hash, "hash3")
+	}
+	if info.StageName != "validate" {
+		t.Fatalf("stage = %q, want %q", info.StageName, "validate")
+	}
+	if info.Decision != "Fail" {
+		t.Fatalf("decision = %q, want %q", info.Decision, "Fail")
 	}
 }
