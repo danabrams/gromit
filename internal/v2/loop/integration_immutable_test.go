@@ -74,6 +74,20 @@ func TestIntegrationImmutable_EventLogSnapshotsRemainCumulative(t *testing.T) {
 	assertEventsCumulativeAcrossCommits(t, result)
 }
 
+func TestIntegrationImmutable_EventSnapshotsTrackEachStageCommit(t *testing.T) {
+	t.Parallel()
+
+	result := runImmutableSpec(t, immutableSpecConfig{
+		specID: "immutable-stage-event-snapshots",
+		beads: immutableBeads(
+			immutableBead("bead-001", "First bead"),
+		),
+	})
+
+	commits := collectStructuredStageCommits(t, result.repoRoot, result.sourceBranch, 64)
+	assertEventsSnapshotMonotonic(t, result.repoRoot, commits)
+}
+
 func TestIntegrationImmutable_RetryHistoryKeepsPreviousCommits(t *testing.T) {
 	t.Parallel()
 
