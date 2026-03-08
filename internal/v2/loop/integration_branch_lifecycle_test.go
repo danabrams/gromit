@@ -30,6 +30,12 @@ func TestIntegrationBranchLifecycle_PreservesBranchAndEventLogOnGenerationCap(t 
 	assertGenerationCapBranchLifecycle(t, "spec-branch-lifecycle-generation-cap")
 }
 
+func TestIntegrationBranchLifecycle_DeletesWorktreeAndBranchOnSuccess(t *testing.T) {
+	t.Parallel()
+
+	assertSuccessBranchLifecycle(t, "spec-branch-lifecycle-success")
+}
+
 func assertGenerationCapBranchLifecycle(t *testing.T, specID string) {
 	t.Helper()
 
