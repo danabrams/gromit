@@ -124,6 +124,7 @@ func (s *SpecLoop) cleanupWorktree(_ context.Context, specID, worktree string, s
 	cleanupCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	reason := opts.reasonString()
+	branchMgr, hasBranchMgr := git.(branchManager)
 	if !success {
 		status, err := git.Status(cleanupCtx, trimmed)
 		if err != nil {
@@ -139,21 +140,30 @@ func (s *SpecLoop) cleanupWorktree(_ context.Context, specID, worktree string, s
 		}
 		if opts.forcePreserveBranch || s.preserveOnFailure {
 			log.Print(gitpkg.PreserveBranchMessage(specID, trimmed, reason))
+			if hasBranchMgr {
+				if err := branchMgr.PreserveBranch(cleanupCtx, specID); err != nil {
+					return fmt.Errorf("preserve branch: %w", err)
+				}
+			} else {
+				log.Printf("branch preservation requested for spec %s but branch manager is not configured", specID)
+			}
 			return nil
 		}
 		log.Print(gitpkg.RemoveFailedWorktreeMessage(specID, trimmed, reason))
 	} else {
-		if remover, ok := git.(worktreeBranchRemover); ok {
+		if hasBranchMgr {
 			log.Print(gitpkg.DeleteBranchMessage(specID, trimmed, reason))
-			if err := remover.RemoveWorktreeAndBranch(cleanupCtx, trimmed); err != nil {
-				return fmt.Errorf("remove worktree and branch: %w", err)
-			}
-			return nil
+		} else {
+			log.Print(gitpkg.RemoveWorktreeMessage(specID, trimmed, reason))
 		}
-		log.Print(gitpkg.RemoveWorktreeMessage(specID, trimmed, reason))
 	}
 	if err := git.RemoveWorktree(cleanupCtx, trimmed); err != nil {
 		return fmt.Errorf("remove worktree: %w", err)
+	}
+	if success && hasBranchMgr {
+		if err := branchMgr.DeleteBranch(cleanupCtx, specID); err != nil {
+			return fmt.Errorf("delete branch: %w", err)
+		}
 	}
 	return nil
 }
