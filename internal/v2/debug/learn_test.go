@@ -25,3 +25,24 @@ func TestExtractLearning_PatternEntryMarkedAutonomous(t *testing.T) {
 		t.Fatalf("LearningsEntry missing autonomous marker: %q", output.LearningsEntry)
 	}
 }
+
+func TestExtractLearning_SystemicEntryUsesRecommendationPath(t *testing.T) {
+	input := LearningExtractionInput{
+		LearningsEntry: "Add a prompt fragment and pipeline code guard so this class of issue is blocked in CI.",
+	}
+
+	output := ExtractLearning(input)
+
+	if output.Autonomous {
+		t.Fatal("Autonomous = true, want false")
+	}
+	if output.LearningsEntry != "" {
+		t.Fatalf("LearningsEntry = %q, want empty", output.LearningsEntry)
+	}
+	if output.SystemicRecommendation == "" {
+		t.Fatal("SystemicRecommendation = empty, want non-empty")
+	}
+	if !strings.Contains(output.SystemicRecommendation, "prompt fragment") {
+		t.Fatalf("SystemicRecommendation = %q, want to include prompt fragment guidance", output.SystemicRecommendation)
+	}
+}
