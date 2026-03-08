@@ -312,6 +312,52 @@ func TestPresentStageUsesSquashedPRBranchAndKeepsWorktreeHistory(t *testing.T) {
 	}
 }
 
+func TestPresentStageDeletesMergedWorktreeBranchOnSuccess(t *testing.T) {
+	t.Parallel()
+
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not available")
+	}
+
+	repoDir := initPresentTestRepo(t)
+	integrationBranch := strings.TrimSpace(runGitInDir(t, repoDir, "rev-parse", "--abbrev-ref", "HEAD"))
+	worktreesDir := t.TempDir()
+	gitAdapter := execgit.NewExecGitAdapter(repoDir, worktreesDir)
+
+	const specID = "spec-present-cleanup"
+	wtPath, err := gitAdapter.Checkout(context.Background(), specID)
+	if err != nil {
+		t.Fatalf("checkout: %v", err)
+	}
+
+	writeFile(t, filepath.Join(wtPath, "cleanup.txt"), "cleanup")
+	runGitInDir(t, wtPath, "add", "cleanup.txt")
+	runGitInDir(t, wtPath, "commit", "-m", "cleanup commit")
+
+	specBranch := presentation.SpecBranchName(specID)
+	runGitInDir(t, repoDir, "merge", "--ff-only", specBranch)
+
+	summaryCtx := &SummaryContext{
+		Worktree:          wtPath,
+		Success:           true,
+		IntegrationBranch: integrationBranch,
+	}
+	presenter := &spyPresenter{}
+	stageInstance, err := New(nil, presenter, summaryCtx)
+	if err != nil {
+		t.Fatalf("new present stage: %v", err)
+	}
+
+	if _, err := stageInstance.Run(context.Background(), &stage.Request{Bead: stage.BeadInfo{ID: specID}}); err != nil {
+		t.Fatalf("present run: %v", err)
+	}
+
+	branchList := strings.TrimSpace(runGitInDir(t, repoDir, "branch", "--list", specBranch))
+	if branchList != "" {
+		t.Fatalf("expected merged worktree branch %q to be deleted, got %q", specBranch, branchList)
+	}
+}
+
 func initPresentTestRepo(t *testing.T) string {
 	t.Helper()
 	repoDir := t.TempDir()
