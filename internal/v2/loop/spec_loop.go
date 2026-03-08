@@ -266,6 +266,10 @@ func (s *SpecLoop) Run(ctx context.Context, specID string, stopCh <-chan struct{
 	if err != nil {
 		return fmt.Errorf("checkout: %w", err)
 	}
+	worktree = strings.TrimSpace(worktree)
+	if worktree == "" {
+		return fmt.Errorf("checkout returned empty worktree path")
+	}
 
 	if s.typedEmitter != nil {
 		fs := event.NewWorktreeFileSubscriber(worktree)
