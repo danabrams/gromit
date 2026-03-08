@@ -29,6 +29,21 @@ func TestRegisterRootCommands_RegistersBenchmarkRun(t *testing.T) {
 	}
 }
 
+func TestRegisterRootCommands_RegistersDebug(t *testing.T) {
+	t.Parallel()
+	root := &cobra.Command{Use: "gromit"}
+
+	registerRootCommands(root)
+
+	debug, _, err := root.Find([]string{"debug"})
+	if err != nil {
+		t.Fatalf("find debug command: %v", err)
+	}
+	if debug == nil || debug.Name() != "debug" {
+		t.Fatalf("debug command = %v", debug)
+	}
+}
+
 func TestCommandRequiresRepoRoot_Regression(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
