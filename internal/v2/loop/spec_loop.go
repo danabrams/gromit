@@ -15,21 +15,20 @@ import (
 	"github.com/danabrams/gromit/internal/events"
 	"github.com/danabrams/gromit/internal/v2/adapter"
 	"github.com/danabrams/gromit/internal/v2/event"
+	"github.com/danabrams/gromit/internal/v2/routing"
+	"github.com/danabrams/gromit/internal/v2/trackertypes"
 	"github.com/danabrams/gromit/internal/v2/presentation"
 	v2review "github.com/danabrams/gromit/internal/v2/review"
-	"github.com/danabrams/gromit/internal/v2/routing"
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
 	stageaccept "github.com/danabrams/gromit/internal/v2/stage/accept"
 	planstage "github.com/danabrams/gromit/internal/v2/stage/plan"
 	present "github.com/danabrams/gromit/internal/v2/stage/present"
-	"github.com/danabrams/gromit/internal/v2/trackertypes"
 )
 
 const (
-	defaultGromitDir              = ".gromit"
-	v2DirName                     = "v2"
-	maxAcceptanceRetries          = 5
-	legacySubscriberWarmupTimeout = 3 * time.Second
+	defaultGromitDir     = ".gromit"
+	v2DirName            = "v2"
+	maxAcceptanceRetries = 5
 )
 
 // StageSequence lists the canonical stages the spec loop emits.
@@ -88,13 +87,6 @@ func WithStageRecorder(recorder StageRecorder) SpecLoopOption {
 func WithEmitter(emitter *events.Emitter) SpecLoopOption {
 	return func(s *SpecLoop) {
 		s.emitter = emitter
-	}
-}
-
-// WithLegacySubscriberWarmup enables waiting for legacy subscribers before emitting warmup events.
-func WithLegacySubscriberWarmup() SpecLoopOption {
-	return func(s *SpecLoop) {
-		s.waitForLegacySubscribers = true
 	}
 }
 
@@ -203,35 +195,36 @@ type DependencyGate interface {
 
 // SpecLoop orchestrates the adapters that drive a single spec iteration.
 type SpecLoop struct {
-	adapters                 adapter.AdapterSet
-	cfg                      *config.Config
-	gate                     DependencyGate
-	recorder                 StageRecorder
-	acceptStage              stagepkg.Stage
-	emitter                  *events.Emitter
-	waitForLegacySubscribers bool
-	typedEmitter             *event.Emitter
-	stageCommitter           StageCommitter
-	remediationRunner        remediationRunner
-	gapAnalysisFilename      string
-	decomposeStage           stagepkg.Stage
-	beadRunner               BeadRunner
-	planStage                stagepkg.Stage
-	presentStage             stagepkg.Stage
-	presentSummaryContext    *present.SummaryContext
-	preserveOnFailure        bool // restore t.Cleanup if overriding in tests
-	selectiveRevalidator     SelectiveRevalidator
-	gapAnalyzer              GapAnalyzer
-	router                   *routing.Router
-	phaseModels              map[string]string
+	adapters              adapter.AdapterSet
+	cfg                   *config.Config
+	gate                  DependencyGate
+	recorder              StageRecorder
+	acceptStage           stagepkg.Stage
+	emitter               *events.Emitter
+	typedEmitter          *event.Emitter
+	stageCommitter        StageCommitter
+	remediationRunner     remediationRunner
+	gapAnalysisFilename   string
+	decomposeStage        stagepkg.Stage
+	beadRunner            BeadRunner
+	planStage             stagepkg.Stage
+	presentStage          stagepkg.Stage
+	presentSummaryContext *present.SummaryContext
+	preserveOnFailure     bool // restore t.Cleanup if overriding in tests
+	selectiveRevalidator  SelectiveRevalidator
+	gapAnalyzer           GapAnalyzer
+	router                *routing.Router
+	phaseModels           map[string]string
 }
 
 type worktreeSetter interface {
 	SetWorktree(string)
 }
 
-type worktreeBranchRemover interface {
-	RemoveWorktreeAndBranch(ctx context.Context, worktree string) error
+// branchManager provides methods for managing worktree branches.
+type branchManager interface {
+	PreserveBranch(context.Context, string) error
+	DeleteBranch(context.Context, string) error
 }
 
 // NewSpecLoop constructs a spec loop backed by the provided adapters and configuration.
@@ -275,21 +268,11 @@ func (s *SpecLoop) Run(ctx context.Context, specID string, stopCh <-chan struct{
 	if err != nil {
 		return fmt.Errorf("checkout: %w", err)
 	}
-	worktree = strings.TrimSpace(worktree)
-	if worktree == "" {
-		return fmt.Errorf("checkout returned empty worktree path")
-	}
-	if s.emitter != nil && s.waitForLegacySubscribers {
-		waitCtx, waitCancel := context.WithTimeout(ctx, legacySubscriberWarmupTimeout)
-		waitForLegacySubscribers(waitCtx, s.emitter)
-		waitCancel()
-	}
 
 	if s.typedEmitter != nil {
-		cleanup := event.WireWorktreeFileSubscriber(s.typedEmitter, worktree)
-		if cleanup != nil {
-			defer cleanup()
-		}
+		fs := event.NewFileSubscriber(s.eventsFilePath(worktree))
+		fs.SubscribeTo(s.typedEmitter)
+		defer fs.Close()
 		s.typedEmitter.Emit(event.SpecStartedEvent{
 			Event:    event.Event{SchemaVersion: event.SchemaVersion, Timestamp: time.Now(), Type: event.EventTypeSpecStarted},
 			SpecID:   specID,
@@ -300,11 +283,16 @@ func (s *SpecLoop) Run(ctx context.Context, specID string, stopCh <-chan struct{
 	var handleFailureCleaned bool
 	var succeeded bool
 	defer func() {
-		if handleFailureCleaned || succeeded || retErr == nil {
+		if handleFailureCleaned || succeeded {
 			return
 		}
-		if err := s.cleanupWorktree(ctx, specID, worktree, false, cleanupOptions{}); err != nil {
-			log.Printf("cleanup failed worktree for spec %s: %v", specID, err)
+		if retErr != nil {
+			if s.preserveOnFailure {
+				return
+			}
+			cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cleanupCancel()
+			_ = s.adapters.Git.RemoveWorktree(cleanupCtx, worktree)
 		}
 	}()
 
@@ -323,41 +311,28 @@ func (s *SpecLoop) Run(ctx context.Context, specID string, stopCh <-chan struct{
 		plan = string(existingPlan)
 		s.emit(&events.PlanResumedEvent{SpecID: specID, Path: planPath})
 	} else {
-		s.emitTypedSpecStageStarted("plan")
-		planStart := time.Now()
 		s.applyRouting(&req, "plan")
 		planRes, err := s.runPlanStage(ctx, req)
 		if err != nil {
-			s.emitTypedSpecStageCompleted("plan", false, time.Since(planStart))
-			s.emitTypedSpecStageFailed("plan", err.Error())
 			return fmt.Errorf("plan stage: %w", err)
 		}
 		if planRes == nil || planRes.Artifacts == nil {
-			s.emitTypedSpecStageCompleted("plan", false, time.Since(planStart))
-			s.emitTypedSpecStageFailed("plan", "plan stage returned no artifacts")
 			return fmt.Errorf("plan stage returned no artifacts")
 		}
 		planArtifacts, ok := planRes.Artifacts.(*planstage.PlanArtifacts)
 		if !ok {
-			s.emitTypedSpecStageCompleted("plan", false, time.Since(planStart))
-			s.emitTypedSpecStageFailed("plan", fmt.Sprintf("unexpected artifacts type from plan stage: %T", planRes.Artifacts))
 			return fmt.Errorf("unexpected artifacts type from plan stage: %T", planRes.Artifacts)
 		}
 		plan = planArtifacts.Plan
 
 		// Persist the plan so it survives a crash and can be resumed.
 		if err := os.MkdirAll(filepath.Dir(planPath), 0o755); err != nil {
-			s.emitTypedSpecStageCompleted("plan", false, time.Since(planStart))
-			s.emitTypedSpecStageFailed("plan", fmt.Sprintf("create plan directory: %v", err))
 			return fmt.Errorf("create plan directory: %w", err)
 		}
 		if err := os.WriteFile(planPath, []byte(plan), 0o644); err != nil {
-			s.emitTypedSpecStageCompleted("plan", false, time.Since(planStart))
-			s.emitTypedSpecStageFailed("plan", fmt.Sprintf("persist plan: %v", err))
 			return fmt.Errorf("persist plan: %w", err)
 		}
-		s.emitTypedSpecStageCompleted("plan", true, time.Since(planStart))
-		if err := s.commitStage(ctx, worktree, "plan", 1, "proceed"); err != nil {
+		if err := s.commitStage(ctx, worktree, "plan", 0, "proceed"); err != nil {
 			return fmt.Errorf("commit after plan: %w", err)
 		}
 	}
@@ -405,17 +380,12 @@ func (s *SpecLoop) Run(ctx context.Context, specID string, stopCh <-chan struct{
 			}
 		}
 	} else {
-		s.emitTypedSpecStageStarted("decompose")
-		decomposeStart := time.Now()
 		s.applyRouting(&req, "decompose")
 		beads, err = s.runDecompose(ctx, req)
 		if err != nil {
-			s.emitTypedSpecStageCompleted("decompose", false, time.Since(decomposeStart))
-			s.emitTypedSpecStageFailed("decompose", err.Error())
 			return err
 		}
-		s.emitTypedSpecStageCompleted("decompose", true, time.Since(decomposeStart))
-		if err := s.commitStage(ctx, worktree, "decompose", 1, "proceed"); err != nil {
+		if err := s.commitStage(ctx, worktree, "decompose", 0, "proceed"); err != nil {
 			return fmt.Errorf("commit after decompose: %w", err)
 		}
 	}
@@ -427,13 +397,6 @@ func (s *SpecLoop) Run(ctx context.Context, specID string, stopCh <-chan struct{
 	s.recordBeadStages()
 	beadResult, err := s.runBeadLoop(ctx, beads, worktree, stopCh)
 	if err != nil {
-		if errors.Is(err, ErrGenerationCapReached) {
-			handleFailureCleaned = true
-			s.emitGenerationCapReached()
-			if cleanupErr := s.cleanupWorktree(ctx, specID, worktree, false, cleanupOptions{reason: cleanupReasonGenerationCap, forcePreserveBranch: true}); cleanupErr != nil {
-				log.Printf("cleanup failed worktree for spec %s: %v", specID, cleanupErr)
-			}
-		}
 		return err
 	}
 
@@ -444,16 +407,15 @@ func (s *SpecLoop) Run(ctx context.Context, specID string, stopCh <-chan struct{
 	}
 
 	s.recordStage("accept")
-	s.emitTypedSpecStageStarted("accept")
-	acceptStart := time.Now()
 	acceptRes, err := s.ensureAcceptance(ctx, &req, specID)
 	if err != nil {
-		s.emitTypedSpecStageCompleted("accept", false, time.Since(acceptStart))
-		s.emitTypedSpecStageFailed("accept", err.Error())
 		handleFailureCleaned = true
 		return s.handleFailure(ctx, specID, baseSummary, err)
 	}
-	s.emitTypedSpecStageCompleted("accept", true, time.Since(acceptStart))
+	if err := s.commitStage(ctx, worktree, "accept", 0, "proceed"); err != nil {
+		return fmt.Errorf("commit after accept: %w", err)
+	}
+
 	summary := s.buildSuccessSummary(specID, worktree, plan, beads, acceptRes, beadResult.OutOfScopeFindings)
 
 	if err := s.ctxErr(ctx); err != nil {
@@ -464,7 +426,7 @@ func (s *SpecLoop) Run(ctx context.Context, specID string, stopCh <-chan struct{
 		return err
 	}
 
-	if err := s.cleanupWorktree(ctx, specID, worktree, true, cleanupOptions{reason: cleanupReasonSuccess}); err != nil {
+	if err := s.cleanupWorktree(ctx, specID, worktree, true); err != nil {
 		return err
 	}
 
@@ -672,6 +634,93 @@ func (s *SpecLoop) specStageRequest(specID, worktree string) stagepkg.Request {
 	return stagepkg.Request{Bead: stagepkg.BeadInfo{ID: specID}, Config: s.cfg, Worktree: worktree}
 }
 
+func (s *SpecLoop) handleFailure(ctx context.Context, specID string, base presentation.PresentationSummary, failure error) error {
+	s.recordStage("gap-analysis")
+	gapSummary, err := s.readGapAnalysis(base.Worktree)
+	if err != nil {
+		return fmt.Errorf("read gap analysis: %w", err)
+	}
+	s.recordStage("decompose")
+	s.recordStage("bead-loop")
+
+	reason := fmt.Sprintf("spec %s remediation halted: %s", specID, failure.Error())
+	s.emit(&events.AndonTriggeredEvent{SpecID: specID, Reason: reason})
+	s.emit(&events.SpecFailedEvent{SpecID: specID, Worktree: base.Worktree, FailureReason: reason})
+
+	summary := base
+	summary.Success = false
+	summary.RemainingWork = nil
+	summary.FailureSummary = reason
+	if gapSummary != "" {
+		summary.FailureSummary = fmt.Sprintf("%s\n\nGap analysis:\n%s", reason, gapSummary)
+		summary.RemainingWork = []string{gapSummary}
+	}
+
+	if err := s.presentSummary(ctx, specID, summary); err != nil {
+		return fmt.Errorf("present failure summary: %w", err)
+	}
+
+	if err := s.cleanupWorktree(ctx, specID, base.Worktree, false); err != nil {
+		return err
+	}
+
+	s.emit(&events.SpecCompletedEvent{
+		SpecID:        specID,
+		Worktree:      base.Worktree,
+		Success:       false,
+		FailureReason: reason,
+	})
+
+	return fmt.Errorf("accept failure: %w", failure)
+}
+
+func (s *SpecLoop) cleanupWorktree(_ context.Context, specID, worktree string, success bool) error {
+	trimmed := strings.TrimSpace(worktree)
+	if trimmed == "" {
+		return nil
+	}
+	git := s.adapters.Git
+	if git == nil {
+		return fmt.Errorf("git adapter required for cleanup")
+	}
+	// Use a fresh context so cleanup succeeds even when the caller's context
+	// has been cancelled (exec.CommandContext fails immediately otherwise).
+	cleanupCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	if !success {
+		status, err := git.Status(cleanupCtx, trimmed)
+		if err != nil {
+			log.Printf("git status during cleanup of spec %s: %v", specID, err)
+		} else if strings.TrimSpace(status) != "" {
+			message := fmt.Sprintf("[gromit: partial work] spec %s", specID)
+			if _, err := git.Commit(cleanupCtx, trimmed, message); err != nil {
+				log.Printf("commit partial work for spec %s: %v", specID, err)
+			}
+		}
+		if s.preserveOnFailure {
+			// Preserve the branch on failure
+			if branchManager, ok := git.(branchManager); ok {
+				if err := branchManager.PreserveBranch(cleanupCtx, specID); err != nil {
+					log.Printf("preserve branch for spec %s: %v", specID, err)
+				}
+			}
+			return nil
+		}
+	}
+	if err := git.RemoveWorktree(cleanupCtx, trimmed); err != nil {
+		return fmt.Errorf("remove worktree: %w", err)
+	}
+	// Delete the branch on success
+	if success {
+		if branchManager, ok := git.(branchManager); ok {
+			if err := branchManager.DeleteBranch(cleanupCtx, specID); err != nil {
+				log.Printf("delete branch for spec %s: %v", specID, err)
+			}
+		}
+	}
+	return nil
+}
+
 func (s *SpecLoop) presentSummary(ctx context.Context, specID string, summary presentation.PresentationSummary) error {
 	if err := s.ctxErr(ctx); err != nil {
 		return err
@@ -683,20 +732,16 @@ func (s *SpecLoop) presentSummary(ctx context.Context, specID string, summary pr
 	}
 	s.populatePresentationContext(summary)
 	req := s.specStageRequest(specID, summary.Worktree)
-	s.emitTypedSpecStageStarted("present")
-	presentStart := time.Now()
 	res, err := s.presentStage.Run(ctx, &req)
 	if err != nil {
-		s.emitTypedSpecStageCompleted("present", false, time.Since(presentStart))
-		s.emitTypedSpecStageFailed("present", err.Error())
 		return err
 	}
 	if res != nil && res.Decision == stagepkg.DecisionFail {
-		s.emitTypedSpecStageCompleted("present", false, time.Since(presentStart))
-		s.emitTypedSpecStageFailed("present", "present stage failed")
 		return fmt.Errorf("present stage failed")
 	}
-	s.emitTypedSpecStageCompleted("present", true, time.Since(presentStart))
+	if err := s.commitStage(ctx, summary.Worktree, "present", 0, "proceed"); err != nil {
+		return fmt.Errorf("commit after present: %w", err)
+	}
 	return nil
 }
 
@@ -715,7 +760,6 @@ func (s *SpecLoop) populatePresentationContext(summary presentation.Presentation
 	ctx.RemainingWork = summary.RemainingWork
 	ctx.BranchLink = summary.BranchLink
 	ctx.DiffLink = summary.DiffLink
-	ctx.PRBranch = summary.SpecBranch
 	ctx.IntegrationBranch = summary.IntegrationBranch
 }
 
@@ -742,71 +786,7 @@ func (s *SpecLoop) commitStage(ctx context.Context, worktree, stageName string, 
 	if s.stageCommitter == nil {
 		return nil
 	}
-	if !isSpecCommittableStage(stageName) {
-		return nil
-	}
 	return s.stageCommitter.CommitStage(ctx, worktree, "", stageName, iteration, decision)
-}
-
-func isSpecCommittableStage(stageName string) bool {
-	switch barePhase(strings.TrimSpace(stageName)) {
-	case "plan", "decompose":
-		return true
-	default:
-		return false
-	}
-}
-
-func (s *SpecLoop) emitTypedSpecStageStarted(stageName string) {
-	if s.typedEmitter == nil {
-		return
-	}
-	s.typedEmitter.Emit(event.StageStartedEvent{
-		Event: event.Event{
-			SchemaVersion: event.SchemaVersion,
-			Timestamp:     time.Now(),
-			Type:          event.EventTypeStageStarted,
-		},
-		StageName: stageName,
-		Iteration: 0,
-	})
-}
-
-func (s *SpecLoop) emitTypedSpecStageCompleted(stageName string, success bool, duration time.Duration) {
-	if s.typedEmitter == nil {
-		return
-	}
-	s.typedEmitter.Emit(event.StageCompletedEvent{
-		Event: event.Event{
-			SchemaVersion: event.SchemaVersion,
-			Timestamp:     time.Now(),
-			Type:          event.EventTypeStageCompleted,
-		},
-		StageName: stageName,
-		Iteration: 0,
-		Success:   success,
-		Duration:  duration,
-	})
-}
-
-func (s *SpecLoop) emitTypedSpecStageFailed(stageName, errMsg string) {
-	if s.typedEmitter == nil {
-		return
-	}
-	trimmed := strings.TrimSpace(errMsg)
-	if trimmed == "" {
-		return
-	}
-	s.typedEmitter.Emit(event.StageFailedEvent{
-		Event: event.Event{
-			SchemaVersion: event.SchemaVersion,
-			Timestamp:     time.Now(),
-			Type:          event.EventTypeStageFailed,
-		},
-		StageName: stageName,
-		Iteration: 0,
-		Error:     trimmed,
-	})
 }
 
 func (s *SpecLoop) recordStage(name string) {
@@ -821,28 +801,6 @@ func (s *SpecLoop) emit(evt events.Event) {
 		return
 	}
 	s.emitter.Emit(evt)
-}
-
-func waitForLegacySubscribers(ctx context.Context, emitter *events.Emitter) {
-	if emitter == nil {
-		return
-	}
-	if ctx == nil {
-		return
-	}
-	ticker := time.NewTicker(10 * time.Millisecond)
-	defer ticker.Stop()
-	for {
-		if emitter.HasSubscribers() {
-			return
-		}
-		select {
-		case <-ctx.Done():
-			log.Printf("timed out waiting for legacy subscribers: %v", ctx.Err())
-			return
-		case <-ticker.C:
-		}
-	}
 }
 
 func stringsToDependencies(ids []string) []bead.Dependency {
