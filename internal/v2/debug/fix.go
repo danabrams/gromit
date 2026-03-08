@@ -14,6 +14,7 @@ type AutonomousFixInput struct {
 	LearningSpecDir string
 	FailureSignal   string
 	RootCause       RootCause
+	Diagnosis       *Diagnosis
 }
 
 // AutonomousFixResult describes the applied fix plus learning and validation outcomes.
@@ -38,16 +39,17 @@ func ApplyAutonomousFix(ctx context.Context, input *AutonomousFixInput) (*Autono
 	}
 
 	result := &AutonomousFixResult{FixResult: fixResult}
+	learningEntry := learningEntryForAutonomousFix(input)
 	specDir := strings.TrimSpace(input.LearningSpecDir)
 	if specDir == "" {
 		specDir = strings.TrimSpace(input.FixCtx.WorktreeRoot)
 	}
-	if specDir != "" {
-		entry, persistErr := PersistLearnablePatternEntry(specDir, input.RootCause, signalForAutonomousFix(input), input.FixCtx.ErrorMsg, input.FixCtx.FailedStage)
-		if persistErr != nil {
+	if specDir != "" && learningEntry != "" {
+		if entry, persistErr := persistAutonomousLearningEntry(specDir, learningEntry); persistErr != nil {
 			return nil, persistErr
+		} else if entry != "" {
+			result.LearningEntry = entry
 		}
-		result.LearningEntry = entry
 	}
 
 	if input.ValidateCtx != nil {
@@ -72,6 +74,40 @@ func signalForAutonomousFix(input *AutonomousFixInput) string {
 		return strings.TrimSpace(ctx.ErrorMsg)
 	}
 	return ""
+}
+
+func learningEntryForAutonomousFix(input *AutonomousFixInput) string {
+	if input == nil {
+		return ""
+	}
+	failureSignal := signalForAutonomousFix(input)
+	learningInput := LearningExtractionInput{
+		RootCause:     input.RootCause,
+		FailureSignal: failureSignal,
+		Diagnosis:     input.Diagnosis,
+	}
+	if ctx := input.FixCtx; ctx != nil {
+		learningInput.ErrorText = ctx.ErrorMsg
+		learningInput.StageName = ctx.FailedStage
+	}
+	learning := ExtractLearning(learningInput)
+	if !learning.Autonomous {
+		return ""
+	}
+	return learning.LearningsEntry
+}
+
+func persistAutonomousLearningEntry(specDir, entry string) (string, error) {
+	trimmedDir := strings.TrimSpace(specDir)
+	trimmedEntry := strings.TrimSpace(entry)
+	if trimmedDir == "" || trimmedEntry == "" {
+		return "", nil
+	}
+	learningsPath := filepath.Join(trimmedDir, "LEARNINGS.md")
+	if err := PersistLearning(learningsPath, trimmedEntry); err != nil {
+		return "", err
+	}
+	return trimmedEntry, nil
 }
 
 // SystemicFixInput captures the fix and diagnostic context for a systemic change.

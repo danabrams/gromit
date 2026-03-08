@@ -71,6 +71,22 @@ func TestExtractLearning_DerivesEntryFromDiagnosis(t *testing.T) {
 	}
 }
 
+func TestExtractLearning_UsesFailureSignalWithoutDiagnosis(t *testing.T) {
+	input := LearningExtractionInput{
+		RootCause:     RootCauseBadBuildOutput,
+		FailureSignal: "syntax error: missing return value",
+	}
+
+	output := ExtractLearning(input)
+
+	if !output.Autonomous {
+		t.Fatal("Autonomous = false, want true")
+	}
+	if !strings.Contains(output.LearningsEntry, "syntax error") {
+		t.Fatalf("LearningsEntry = %q, want syntax error mention", output.LearningsEntry)
+	}
+}
+
 func TestExtractLearning_SystemicRootCauseGeneratesRecommendation(t *testing.T) {
 	input := LearningExtractionInput{
 		RootCause: RootCauseUnclearBead,

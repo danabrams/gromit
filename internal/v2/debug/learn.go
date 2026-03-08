@@ -7,6 +7,9 @@ type LearningExtractionInput struct {
 	LearningsEntry         string
 	SystemicRecommendation string
 	RootCause              RootCause
+	FailureSignal          string
+	ErrorText              string
+	StageName              string
 	Diagnosis              *Diagnosis
 }
 
@@ -59,21 +62,25 @@ func ExtractLearning(input LearningExtractionInput) LearningExtraction {
 
 func learningContextFromDiagnosis(input LearningExtractionInput) (RootCause, string, string, string) {
 	rootCause := input.RootCause
-	failureSignal := ""
-	errorText := ""
-	stageName := ""
+	failureSignal := strings.TrimSpace(input.FailureSignal)
+	errorText := strings.TrimSpace(input.ErrorText)
+	stageName := strings.TrimSpace(input.StageName)
 
 	if diag := input.Diagnosis; diag != nil {
 		if rootCause == "" {
 			rootCause = diag.RootCause
 		}
-		failureSignal = failureSignalFromDiagnosis(diag)
+		if derived := failureSignalFromDiagnosis(diag); derived != "" {
+			failureSignal = derived
+		}
 		if trimmed := strings.TrimSpace(diag.StageTrace.FailureMessage); trimmed != "" {
 			errorText = trimmed
-		} else {
+		} else if failureSignal != "" {
 			errorText = failureSignal
 		}
-		stageName = strings.TrimSpace(diag.StageTrace.StageName)
+		if stageName == "" {
+			stageName = strings.TrimSpace(diag.StageTrace.StageName)
+		}
 	}
 
 	return rootCause, failureSignal, errorText, stageName
