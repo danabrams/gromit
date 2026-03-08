@@ -17,11 +17,21 @@ type Message struct {
 
 // FormatMessage encodes a structured commit message.
 func FormatMessage(beadID, stageName string, iteration int, decision string) string {
-	normalizedBeadID := strings.TrimSpace(beadID)
-	if normalizedBeadID == "" || normalizedBeadID == "spec" {
-		return fmt.Sprintf("[spec/%s/iter:%d] %s", stageName, iteration, decision)
+	return Message{
+		BeadID:    strings.TrimSpace(beadID),
+		StageName: stageName,
+		Iteration: iteration,
+		Decision:  decision,
+	}.Subject()
+}
+
+// Subject returns the formatted commit message for a Message.
+func (m Message) Subject() string {
+	beadID := strings.TrimSpace(m.BeadID)
+	if beadID == "" || beadID == "spec" {
+		return fmt.Sprintf("[spec/%s/iter:%d] %s", m.StageName, m.Iteration, m.Decision)
 	}
-	return fmt.Sprintf("[bead:%s/%s/iter:%d] %s", normalizedBeadID, stageName, iteration, decision)
+	return fmt.Sprintf("[bead:%s/%s/iter:%d] %s", beadID, m.StageName, m.Iteration, m.Decision)
 }
 
 var (
