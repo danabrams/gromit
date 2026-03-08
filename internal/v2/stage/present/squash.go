@@ -2,6 +2,7 @@ package present
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os/exec"
 	"strings"
@@ -12,6 +13,9 @@ import (
 )
 
 const maxSquashLogEntries = 1000
+const sourceHeadTrailerPrefix = "gromit-source-head:"
+
+var errIncrementalSourceHeadUnavailable = errors.New("incremental source head unavailable")
 
 // squashPerBeadForPresentation creates or resets a dedicated PR branch,
 // squashes stage commits there, and restores the original worktree branch.
@@ -29,12 +33,37 @@ func squashPerBeadForPresentation(ctx context.Context, git pipeline.SquashGit, w
 	if prBranch == "" {
 		return "", squashPerBead(ctx, git, worktree, beads)
 	}
+	sourceHead, err := runGitOutputInWorktree(ctx, worktree, "rev-parse", sourceBranch)
+	if err != nil {
+		return "", fmt.Errorf("resolve source head for branch %s: %w", sourceBranch, err)
+	}
 
-	if err := runGitInWorktree(ctx, worktree, "checkout", "-B", prBranch, sourceBranch); err != nil {
+	prBranchExists, err := localBranchExists(ctx, worktree, prBranch)
+	if err != nil {
+		return "", fmt.Errorf("check pr branch %s: %w", prBranch, err)
+	}
+
+	checkoutArgs := []string{"checkout"}
+	if prBranchExists {
+		checkoutArgs = append(checkoutArgs, prBranch)
+	} else {
+		checkoutArgs = append(checkoutArgs, "-b", prBranch, sourceBranch)
+	}
+	if err := runGitInWorktree(ctx, worktree, checkoutArgs...); err != nil {
 		return "", fmt.Errorf("checkout pr branch %s: %w", prBranch, err)
 	}
 
-	squashErr := squashPerBead(ctx, git, worktree, beads)
+	titles := beadTitleMap(beads)
+	allowedBeads := beadAllowlist(titles)
+	squashErr := error(nil)
+	if prBranchExists {
+		squashErr = appendSquashCommitsFromSourceBranch(ctx, worktree, sourceBranch, sourceHead, titles, allowedBeads)
+		if errors.Is(squashErr, errIncrementalSourceHeadUnavailable) {
+			squashErr = squashPerBeadWithSourceHead(ctx, git, worktree, beads, sourceHead)
+		}
+	} else {
+		squashErr = squashPerBeadWithSourceHead(ctx, git, worktree, beads, sourceHead)
+	}
 	restoreErr := runGitInWorktree(ctx, worktree, "checkout", sourceBranch)
 	if squashErr != nil {
 		if restoreErr != nil {
@@ -51,6 +80,10 @@ func squashPerBeadForPresentation(ctx context.Context, git pipeline.SquashGit, w
 // squashPerBead squashes per-stage commits into a single combined commit for PR
 // presentation. It is a no-op when the git log contains no structured commits.
 func squashPerBead(ctx context.Context, git pipeline.SquashGit, worktree string, beads []presentation.BeadSummary) error {
+	return squashPerBeadWithSourceHead(ctx, git, worktree, beads, "")
+}
+
+func squashPerBeadWithSourceHead(ctx context.Context, git pipeline.SquashGit, worktree string, beads []presentation.BeadSummary, sourceHead string) error {
 	entries, err := git.Log(ctx, worktree, maxSquashLogEntries)
 	if err != nil {
 		return err
@@ -64,7 +97,7 @@ func squashPerBead(ctx context.Context, git pipeline.SquashGit, worktree string,
 	}
 
 	if canRewriteHistory(ctx, worktree) {
-		return squashWithHistoryRewrite(ctx, worktree, entries, titles, allowedBeads)
+		return squashWithHistoryRewrite(ctx, worktree, entries, titles, allowedBeads, sourceHead)
 	}
 
 	for _, group := range groups {
@@ -108,7 +141,7 @@ type squashSegment struct {
 	hashes []string
 }
 
-func squashWithHistoryRewrite(ctx context.Context, worktree string, entries []adapter.LogEntry, titles map[string]string, allowedBeads map[string]struct{}) error {
+func squashWithHistoryRewrite(ctx context.Context, worktree string, entries []adapter.LogEntry, titles map[string]string, allowedBeads map[string]struct{}, sourceHead string) error {
 	prefix := structuredPrefix(entries)
 	if len(prefix) == 0 {
 		return nil
@@ -135,7 +168,49 @@ func squashWithHistoryRewrite(ctx context.Context, worktree string, entries []ad
 				return fmt.Errorf("cherry-pick bead %s commit %s: %w", segment.beadID, hash, err)
 			}
 		}
-		if err := runGitInWorktree(ctx, worktree, "commit", "-m", beadCommitMessage(segment.beadID, titles)); err != nil {
+		if err := commitSquashedBead(ctx, worktree, beadCommitMessage(segment.beadID, titles), sourceHead); err != nil {
+			return fmt.Errorf("commit squash for bead %s: %w", segment.beadID, err)
+		}
+	}
+
+	return nil
+}
+
+func appendSquashCommitsFromSourceBranch(ctx context.Context, worktree, sourceBranch, sourceHead string, titles map[string]string, allowedBeads map[string]struct{}) error {
+	previousSourceHead, err := readSourceHeadFromPRBranch(ctx, worktree)
+	if err != nil {
+		return err
+	}
+	if previousSourceHead == "" {
+		previousSourceHead, err = findSourceCommitByTree(ctx, worktree, sourceBranch)
+		if err != nil {
+			return err
+		}
+	}
+	if previousSourceHead == "" {
+		return errIncrementalSourceHeadUnavailable
+	}
+	if !isAncestorCommit(ctx, worktree, previousSourceHead, sourceBranch) {
+		return errIncrementalSourceHeadUnavailable
+	}
+
+	rangeEntries, err := logEntriesInRange(ctx, worktree, previousSourceHead+".."+sourceBranch)
+	if err != nil {
+		return fmt.Errorf("load source commits in range %s..%s: %w", previousSourceHead, sourceBranch, err)
+	}
+	if len(rangeEntries) == 0 {
+		return nil
+	}
+
+	segments := buildSquashSegments(structuredPrefix(rangeEntries), allowedBeads)
+	for _, segment := range segments {
+		for _, hash := range segment.hashes {
+			if err := runGitInWorktree(ctx, worktree, "cherry-pick", "--no-commit", hash); err != nil {
+				_ = runGitInWorktree(ctx, worktree, "cherry-pick", "--abort")
+				return fmt.Errorf("cherry-pick bead %s commit %s: %w", segment.beadID, hash, err)
+			}
+		}
+		if err := commitSquashedBead(ctx, worktree, beadCommitMessage(segment.beadID, titles), sourceHead); err != nil {
 			return fmt.Errorf("commit squash for bead %s: %w", segment.beadID, err)
 		}
 	}
@@ -232,6 +307,87 @@ func runGitOutputInWorktree(ctx context.Context, worktree string, args ...string
 		return "", fmt.Errorf("git %s: %s: %w", strings.Join(args, " "), strings.TrimSpace(string(out)), err)
 	}
 	return strings.TrimSpace(string(out)), nil
+}
+
+func commitSquashedBead(ctx context.Context, worktree, message, sourceHead string) error {
+	args := []string{"commit", "-m", message}
+	if trimmedHead := strings.TrimSpace(sourceHead); trimmedHead != "" {
+		args = append(args, "-m", sourceHeadTrailerPrefix+" "+trimmedHead)
+	}
+	return runGitInWorktree(ctx, worktree, args...)
+}
+
+func readSourceHeadFromPRBranch(ctx context.Context, worktree string) (string, error) {
+	body, err := runGitOutputInWorktree(ctx, worktree, "log", "-1", "--format=%B")
+	if err != nil {
+		return "", fmt.Errorf("read source-head trailer: %w", err)
+	}
+	for _, line := range strings.Split(body, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, sourceHeadTrailerPrefix) {
+			return strings.TrimSpace(strings.TrimPrefix(trimmed, sourceHeadTrailerPrefix)), nil
+		}
+	}
+	return "", nil
+}
+
+func findSourceCommitByTree(ctx context.Context, worktree, sourceBranch string) (string, error) {
+	prTreeHash, err := runGitOutputInWorktree(ctx, worktree, "rev-parse", "HEAD^{tree}")
+	if err != nil {
+		return "", fmt.Errorf("resolve PR branch tree hash: %w", err)
+	}
+
+	logOut, err := runGitOutputInWorktree(ctx, worktree, "log", "--format=%H%x09%T", sourceBranch)
+	if err != nil {
+		return "", fmt.Errorf("log source branch %s: %w", sourceBranch, err)
+	}
+
+	for _, line := range strings.Split(logOut, "\n") {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		parts := strings.SplitN(line, "\t", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		if strings.TrimSpace(parts[1]) == prTreeHash {
+			return strings.TrimSpace(parts[0]), nil
+		}
+	}
+
+	return "", nil
+}
+
+func isAncestorCommit(ctx context.Context, worktree, ancestor, descendant string) bool {
+	cmd := exec.CommandContext(ctx, "git", "-C", worktree, "merge-base", "--is-ancestor", ancestor, descendant)
+	return cmd.Run() == nil
+}
+
+func logEntriesInRange(ctx context.Context, worktree, revRange string) ([]adapter.LogEntry, error) {
+	logOut, err := runGitOutputInWorktree(ctx, worktree, "log", "--format=%H%x09%s", revRange)
+	if err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(logOut) == "" {
+		return nil, nil
+	}
+
+	lines := strings.Split(logOut, "\n")
+	entries := make([]adapter.LogEntry, 0, len(lines))
+	for _, line := range lines {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		parts := strings.SplitN(line, "\t", 2)
+		if len(parts) != 2 {
+			return nil, fmt.Errorf("parse git log entry %q", line)
+		}
+		entries = append(entries, adapter.LogEntry{
+			Hash:    strings.TrimSpace(parts[0]),
+			Message: strings.TrimSpace(parts[1]),
+		})
+	}
+	return entries, nil
 }
 
 func beadTitleMap(beads []presentation.BeadSummary) map[string]string {
