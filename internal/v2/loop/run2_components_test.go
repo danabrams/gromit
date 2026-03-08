@@ -11,6 +11,7 @@ import (
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/events"
 	"github.com/danabrams/gromit/internal/v2/adapter"
+	gitadapter "github.com/danabrams/gromit/internal/v2/adapter/git"
 	"github.com/danabrams/gromit/internal/v2/presentation"
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
 	acceptstage "github.com/danabrams/gromit/internal/v2/stage/accept"
@@ -309,6 +310,37 @@ func TestNewRun2LoopComponentsWiresStageCommitterAndTypedEmitter(t *testing.T) {
 	// StageCommitter must also be wired into the BeadLoop.
 	if components.BeadLoop.stageCommitter == nil {
 		t.Error("BeadLoop.stageCommitter is nil")
+	}
+}
+
+func TestNewRun2LoopComponentsUsesGitAdapterStageCommitter(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+
+	cfg := &config.Config{
+		ProjectRoot: tmpDir,
+	}
+
+	adapters := adapter.AdapterSet{
+		Git:         testutil.NewFakeGit(),
+		LLM:         newFakeLLMAdapter(),
+		TaskTracker: testutil.NewFakeTaskTracker(),
+		Presenter:   testutil.NewFakePresenter(),
+	}
+
+	legacyEmitter := events.NewEmitter()
+	defer legacyEmitter.Close()
+
+	var output bytes.Buffer
+
+	components, err := NewRun2LoopComponents(cfg, adapters, legacyEmitter, &output, nil, nil)
+	if err != nil {
+		t.Fatalf("NewRun2LoopComponents returned error: %v", err)
+	}
+
+	if _, ok := components.StageCommitter.(*gitadapter.StageCommitter); !ok {
+		t.Fatalf("StageCommitter type = %T, want *gitadapter.StageCommitter", components.StageCommitter)
 	}
 }
 
