@@ -431,10 +431,11 @@ func (s *SpecLoop) Run(ctx context.Context, specID string, stopCh <-chan struct{
 	if err != nil {
 		s.emitTypedSpecStageCompleted("accept", false, time.Since(acceptStart))
 		s.emitTypedSpecStageFailed("accept", err.Error())
-		if acceptRes != nil {
-			if commitErr := s.commitStage(ctx, worktree, "accept", 1, acceptDecision); commitErr != nil {
-				return fmt.Errorf("commit after accept: %w", commitErr)
-			}
+		if acceptRes == nil {
+			acceptDecision = stagepkg.DecisionFail.String()
+		}
+		if commitErr := s.commitStage(ctx, worktree, "accept", 1, acceptDecision); commitErr != nil {
+			return fmt.Errorf("commit after accept: %w", commitErr)
 		}
 		handleFailureCleaned = true
 		return s.handleFailure(ctx, specID, baseSummary, err)
