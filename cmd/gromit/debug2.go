@@ -63,12 +63,15 @@ var debug2ValidateAndCommitFn = func(ctx context.Context, worktree string, trace
 }
 var debug2Stdout io.Writer = os.Stdout
 var debug2Stderr io.Writer = os.Stderr
+var debug2Stdin io.Reader = os.Stdin
 var debug2ApproveSystemicChanges bool
-var debug2ConfirmSystemicFn func(string) bool
+var debug2ConfirmSystemicFn func(string) bool = promptSystemicApproval
 var debug2CommitHashPattern = regexp.MustCompile(`^[0-9a-fA-F]{7,40}$`)
 
 func init() {
 	rootCmd.AddCommand(debug2Cmd)
+	debug2Cmd.Flags().BoolVar(&debug2ApproveSystemicChanges, "approve-systemic-changes", false,
+		"Allow prompt fragments, guards, or process rules to be modified without interactive confirmation.")
 }
 
 // resolveDebug2Worktree returns the path to the preserved spec worktree. It first
@@ -398,6 +401,20 @@ func applyDebug2Patch(ctx context.Context, wtPath, patch string) error {
 		return fmt.Errorf("applying debug patch: %w\n%s", err, strings.TrimSpace(string(out)))
 	}
 	return nil
+}
+
+func promptSystemicApproval(prompt string) bool {
+	if debug2Stdin == nil {
+		return false
+	}
+	fmt.Fprintf(debug2Stderr, "%s (or rerun with --approve-systemic-changes) [y/N]: ", prompt)
+	reader := bufio.NewReader(debug2Stdin)
+	response, err := reader.ReadString('\n')
+	if err != nil {
+		return false
+	}
+	normalized := strings.ToLower(strings.TrimSpace(response))
+	return normalized == "y" || normalized == "yes"
 }
 
 func checkoutDebug2FailureCommit(ctx context.Context, wtPath, commit string) error {
