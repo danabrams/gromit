@@ -1,41 +1,53 @@
 package git
 
 import (
+	"context"
 	"fmt"
+	"log"
 	"strings"
 )
 
-// PreserveBranchMessage formats the log message used when a failed spec branch
-// must be kept for inspection.
-func PreserveBranchMessage(specID, worktree, reason string) string {
-	msg := fmt.Sprintf("preserving failed spec worktree branch for spec %s at %s", specID, worktree)
-	return withReason(msg, reason)
-}
-
-// DeleteBranchMessage formats the log message for deleting a managed spec branch
-// after a successful run.
-func DeleteBranchMessage(specID, worktree, reason string) string {
-	msg := fmt.Sprintf("successfully deleted worktree and branch after successful presentation for spec %s at %s", specID, worktree)
-	return withReason(msg, reason)
-}
-
-// RemoveFailedWorktreeMessage formats the log message when a failed worktree is
-// being removed without preserving the branch.
-func RemoveFailedWorktreeMessage(specID, worktree, reason string) string {
-	msg := fmt.Sprintf("removing failed spec worktree for spec %s at %s (preserve_on_failure=false)", specID, worktree)
-	return withReason(msg, reason)
-}
-
-// RemoveWorktreeMessage formats the log message when cleaning up a worktree
-// without touching the branch directly.
-func RemoveWorktreeMessage(specID, worktree, reason string) string {
-	msg := fmt.Sprintf("removing worktree for spec %s at %s", specID, worktree)
-	return withReason(msg, reason)
-}
-
-func withReason(message, reason string) string {
-	if trimmed := strings.TrimSpace(reason); trimmed != "" {
-		return fmt.Sprintf("%s (%s)", message, trimmed)
+// PreserveBranch keeps the worktree branch intact after a failure.
+// It logs the preservation decision and returns any errors from the branch check.
+func (a *ExecGitAdapter) PreserveBranch(ctx context.Context, specID string) error {
+	if strings.TrimSpace(specID) == "" {
+		return fmt.Errorf("spec ID required")
 	}
-	return message
+
+	branchName := "gromit/spec/" + specID
+
+	// Verify the branch exists
+	_, err := runGitCommand(ctx, a.repoRoot, "rev-parse", "--verify", branchName)
+	if err != nil {
+		log.Printf("WARNING: branch %s not found, preserve skipped", branchName)
+		return nil
+	}
+
+	log.Printf("Preserved worktree branch %s for spec %s", branchName, specID)
+	return nil
+}
+
+// DeleteBranch removes the worktree branch after successful completion.
+// It logs the deletion decision and returns any errors from the deletion.
+func (a *ExecGitAdapter) DeleteBranch(ctx context.Context, specID string) error {
+	if strings.TrimSpace(specID) == "" {
+		return fmt.Errorf("spec ID required")
+	}
+
+	branchName := "gromit/spec/" + specID
+
+	// Verify the branch exists before deleting
+	_, err := runGitCommand(ctx, a.repoRoot, "rev-parse", "--verify", branchName)
+	if err != nil {
+		log.Printf("branch %s not found during deletion attempt", branchName)
+		return nil
+	}
+
+	// Delete the branch
+	if out, err := runGitCommand(ctx, a.repoRoot, "branch", "-D", branchName); err != nil {
+		return fmt.Errorf("delete branch %s: %s: %w", branchName, out, err)
+	}
+
+	log.Printf("Deleted worktree branch %s for spec %s", branchName, specID)
+	return nil
 }
