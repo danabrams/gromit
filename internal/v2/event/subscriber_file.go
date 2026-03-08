@@ -103,6 +103,28 @@ func (f *FileSubscriber) marshalWithCorrelation(evt TypedEvent) ([]byte, error) 
 
 	correlation := f.deriveCorrelation(payload)
 	if !correlation.empty() {
+		if _, ok := payload["bead_id"]; !ok && correlation.BeadID != "" {
+			beadIDJSON, err := json.Marshal(correlation.BeadID)
+			if err != nil {
+				return nil, err
+			}
+			payload["bead_id"] = beadIDJSON
+		}
+		if _, ok := payload["stage_name"]; !ok && correlation.StageName != "" {
+			stageNameJSON, err := json.Marshal(correlation.StageName)
+			if err != nil {
+				return nil, err
+			}
+			payload["stage_name"] = stageNameJSON
+		}
+		if _, ok := payload["iteration"]; !ok && correlation.Iteration > 0 {
+			iterationJSON, err := json.Marshal(correlation.Iteration)
+			if err != nil {
+				return nil, err
+			}
+			payload["iteration"] = iterationJSON
+		}
+
 		correlationJSON, err := json.Marshal(correlation)
 		if err != nil {
 			return nil, err
