@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"regexp"
 	"strconv"
+	"strings"
 )
 
 // Message holds parsed structured commit message fields.
@@ -33,10 +34,30 @@ func ParseMessage(msg string) (Message, error) {
 		return Message{}, fmt.Errorf("invalid iteration: %w", err)
 	}
 
-	return Message{
+	parsed := Message{
 		BeadID:    matches[1],
 		StageName: matches[2],
 		Iteration: iteration,
 		Decision:  matches[4],
-	}, nil
+	}
+	if err := validateRequiredFields(parsed); err != nil {
+		return Message{}, err
+	}
+	return parsed, nil
+}
+
+func validateRequiredFields(msg Message) error {
+	if strings.TrimSpace(msg.BeadID) == "" {
+		return fmt.Errorf("bead ID is required")
+	}
+	if strings.TrimSpace(msg.StageName) == "" {
+		return fmt.Errorf("stage name is required")
+	}
+	if msg.Iteration <= 0 {
+		return fmt.Errorf("iteration must be greater than zero")
+	}
+	if strings.TrimSpace(msg.Decision) == "" {
+		return fmt.Errorf("decision is required")
+	}
+	return nil
 }
