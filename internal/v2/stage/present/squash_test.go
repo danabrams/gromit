@@ -2,6 +2,7 @@ package present
 
 import (
 	"context"
+	"reflect"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/v2/adapter"
@@ -147,5 +148,54 @@ func TestBuildSquashSegments_groupsInterleavedCommitsByBeadID(t *testing.T) {
 		if segments[1].hashes[i] != want002[i] {
 			t.Fatalf("segments[1].hashes[%d] = %q, want %q", i, segments[1].hashes[i], want002[i])
 		}
+	}
+}
+
+func TestCollectBeadCommitHashes_combinesInterleavedStageCommits(t *testing.T) {
+	entries := []adapter.LogEntry{
+		{Hash: "h6", Message: "[bead:001/review/iter:1] Proceed"},
+		{Hash: "h5", Message: "[bead:002/validate/iter:1] Proceed"},
+		{Hash: "h4", Message: "[bead:001/validate/iter:1] Proceed"},
+		{Hash: "h3", Message: "[bead:002/build/iter:1] Proceed"},
+		{Hash: "h2", Message: "[bead:001/build/iter:1] Proceed"},
+		{Hash: "h1", Message: "[bead:spec/plan/iter:1] Proceed"},
+	}
+	allowedBeads := map[string]struct{}{
+		"001": {},
+		"002": {},
+	}
+
+	order, hashes := collectBeadCommitHashes(entries, allowedBeads)
+	wantOrder := []string{"001", "002"}
+	if !reflect.DeepEqual(order, wantOrder) {
+		t.Fatalf("order = %v, want %v", order, wantOrder)
+	}
+
+	wantHashes := map[string][]string{
+		"001": {"h2", "h4", "h6"},
+		"002": {"h3", "h5"},
+	}
+	if !reflect.DeepEqual(hashes, wantHashes) {
+		t.Fatalf("hashes = %v, want %v", hashes, wantHashes)
+	}
+}
+
+func TestCollectBeadCommitHashes_respectsAllowedBeads(t *testing.T) {
+	entries := []adapter.LogEntry{
+		{Hash: "h3", Message: "[bead:002/build/iter:1] Proceed"},
+		{Hash: "h2", Message: "[bead:001/validate/iter:1] Proceed"},
+		{Hash: "h1", Message: "[bead:001/build/iter:1] Proceed"},
+	}
+	allowedBeads := map[string]struct{}{
+		"001": {},
+	}
+
+	order, hashes := collectBeadCommitHashes(entries, allowedBeads)
+	wantOrder := []string{"001"}
+	if !reflect.DeepEqual(order, wantOrder) {
+		t.Fatalf("order = %v, want %v", order, wantOrder)
+	}
+	if len(hashes) != 1 || !reflect.DeepEqual(hashes["001"], []string{"h1", "h2"}) {
+		t.Fatalf("hashes = %v, want only bead 001 %v", hashes, []string{"h1", "h2"})
 	}
 }
