@@ -11,11 +11,11 @@ import (
 type RootCause string
 
 const (
-	RootCauseBadBuildOutput       RootCause = "bad_build_output"
-	RootCauseFlakyTest            RootCause = "flaky_test"
-	RootCauseUnclearBead          RootCause = "unclear_bead_description"
-	RootCauseBadDecomposition     RootCause = "incorrect_decomposition"
-	defaultFailureStage                     = "unknown"
+	RootCauseBadBuildOutput   RootCause = "bad_build_output"
+	RootCauseFlakyTest        RootCause = "flaky_test"
+	RootCauseUnclearBead      RootCause = "unclear_bead_description"
+	RootCauseBadDecomposition RootCause = "incorrect_decomposition"
+	defaultFailureStage                 = "unknown"
 )
 
 // Input is the diagnostic context for failure analysis.

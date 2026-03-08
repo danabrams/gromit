@@ -10,7 +10,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
-	"runtime"
 	"strings"
 	"time"
 
@@ -35,32 +34,7 @@ type debug2LLMFixResponse struct {
 // a worktree from the branch gromit/spec/<specName> when the directory is missing.
 // t.Cleanup must restore the original value in tests that override this.
 var debug2BranchWorktreeFn = func(gromitDir, specName string) (string, error) {
-	repoRoot := filepath.Dir(gromitDir)
-	targetBranch := "gromit/spec/" + specName
-
-	cmd := exec.Command("git", "worktree", "list", "--porcelain")
-	cmd.Dir = repoRoot
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return "", fmt.Errorf("listing worktrees: %w", err)
-	}
-
-	var currentWorktree string
-	for _, raw := range strings.Split(string(out), "\n") {
-		line := strings.TrimSpace(raw)
-		if strings.HasPrefix(line, "worktree ") {
-			currentWorktree = strings.TrimPrefix(line, "worktree ")
-			continue
-		}
-		if strings.HasPrefix(line, "branch refs/heads/") {
-			branch := strings.TrimPrefix(line, "branch refs/heads/")
-			if branch == targetBranch && currentWorktree != "" {
-				return normalizeDebug2WorktreePath(currentWorktree), nil
-			}
-		}
-	}
-
-	return "", fmt.Errorf("no preserved worktree found for branch %q", targetBranch)
+	return debugpkg.FindPreservedWorktreeBranch(gromitDir, specName)
 }
 
 var debug2Cmd = &cobra.Command{
@@ -230,14 +204,6 @@ func selectDebug2FailureCommit(entries []adapter.LogEntry) (adapter.LogEntry, pi
 		}
 	}
 	return adapter.LogEntry{}, pipeline.CommitInfo{}, false
-}
-
-func normalizeDebug2WorktreePath(path string) string {
-	normalized := filepath.Clean(path)
-	if runtime.GOOS == "darwin" && strings.HasPrefix(normalized, "/private/var/") {
-		return strings.TrimPrefix(normalized, "/private")
-	}
-	return normalized
 }
 
 func debug2ValidationCommands(cfg *config.Config) []string {
@@ -500,14 +466,14 @@ func debug2RunE(cmd *cobra.Command, args []string) error {
 
 // Debug2OrchestrateResult holds the orchestration outcome for diagnosis, fix, and learning.
 type Debug2OrchestrateResult struct {
-	DiagnosisComplete   bool
-	FailureEvent        map[string]interface{}
-	Events              []map[string]interface{}
-	FixApplied          bool
-	FixError            string
-	LearningExtracted   bool
-	LearningEntry       string
-	Recommendation      string
+	DiagnosisComplete bool
+	FailureEvent      map[string]interface{}
+	Events            []map[string]interface{}
+	FixApplied        bool
+	FixError          string
+	LearningExtracted bool
+	LearningEntry     string
+	Recommendation    string
 }
 
 // debug2OrchestrateDebug orchestrates the full debug cycle: diagnose, fix, learn.
