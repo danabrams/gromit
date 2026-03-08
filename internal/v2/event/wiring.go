@@ -1,6 +1,16 @@
 package event
 
-import "strings"
+import (
+	"context"
+	"fmt"
+	"io"
+	"strings"
+	"sync"
+
+	"github.com/danabrams/gromit/internal/events"
+	"github.com/danabrams/gromit/internal/events/cli"
+	"github.com/danabrams/gromit/internal/events/stream"
+)
 
 // WireWorktreeFileSubscriber registers a file subscriber on emitter that writes
 // events to <worktree>/.gromit/v2/events.jsonl. It returns a cleanup function
@@ -21,4 +31,38 @@ func WireWorktreeFileSubscriber(emitter *Emitter, worktree string) func() {
 		unsubscribe()
 		_ = fs.Close()
 	}
+}
+
+// StartLegacyEventSubscribers wires the CLI and API subscribers to emitter and
+// returns the wait group that tracks those goroutines.
+func StartLegacyEventSubscribers(ctx context.Context, emitter *events.Emitter, output io.Writer, logsDir string) (*sync.WaitGroup, error) {
+	if emitter == nil {
+		return nil, fmt.Errorf("emitter is nil")
+	}
+	if output == nil {
+		output = io.Discard
+	}
+
+	wg := &sync.WaitGroup{}
+	cliSubscriber := cli.NewCLISubscriber(cli.BasicWriter(output), emitter)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		_ = cliSubscriber.Start(ctx)
+	}()
+
+	if strings.TrimSpace(logsDir) != "" {
+		streamSubscriber, err := stream.NewFileSubscriber(logsDir, emitter)
+		if err != nil {
+			fmt.Fprintf(output, "Warning: could not start stream subscriber: %v\n", err)
+		} else {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				_ = streamSubscriber.Start(ctx)
+			}()
+		}
+	}
+
+	return wg, nil
 }
