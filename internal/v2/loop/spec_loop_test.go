@@ -1421,9 +1421,7 @@ func TestSpecLoopTypedEventLogsStayScopedPerSpecRun(t *testing.T) {
 	}
 	firstWorktree := git.lastWorktree
 	firstEventsPath := filepath.Join(firstWorktree, ".gromit", "v2", "events.jsonl")
-	if _, statErr := os.Stat(firstEventsPath); statErr != nil {
-		t.Fatalf("first events file missing: %v", statErr)
-	}
+	waitForEventsFile(t, firstEventsPath)
 
 	if err := loopInstance.Run(ctx, "spec-two", nil); err != nil {
 		t.Fatalf("run spec-two: %v", err)
@@ -1433,6 +1431,7 @@ func TestSpecLoopTypedEventLogsStayScopedPerSpecRun(t *testing.T) {
 		t.Fatalf("expected distinct worktrees, got both %q", secondWorktree)
 	}
 	secondEventsPath := filepath.Join(secondWorktree, ".gromit", "v2", "events.jsonl")
+	waitForEventsFile(t, secondEventsPath)
 
 	// Ensure all queued events are drained before reading files.
 	em.Close()
@@ -1451,6 +1450,26 @@ func TestSpecLoopTypedEventLogsStayScopedPerSpecRun(t *testing.T) {
 	}
 	if !strings.Contains(string(secondData), "\"spec_id\":\"spec-two\"") {
 		t.Fatalf("second spec log missing its own events: %s", secondData)
+	}
+}
+
+func waitForEventsFile(t *testing.T, path string) {
+	t.Helper()
+	deadline := time.After(2 * time.Second)
+	tick := time.NewTicker(10 * time.Millisecond)
+	defer tick.Stop()
+
+	for {
+		if _, err := os.Stat(path); err == nil {
+			return
+		}
+
+		select {
+		case <-deadline:
+			_, err := os.Stat(path)
+			t.Fatalf("events file missing at %s: %v", path, err)
+		case <-tick.C:
+		}
 	}
 }
 
