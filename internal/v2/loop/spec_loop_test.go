@@ -1424,6 +1424,33 @@ func TestSpecLoopCommitsUsePositiveIterationForSpecStages(t *testing.T) {
 	}
 }
 
+func TestSpecLoopCommitStageSkipsGateAndEpilogue(t *testing.T) {
+	t.Parallel()
+
+	sc := &fakeSpecStageCommitter{}
+	loopInstance := &SpecLoop{stageCommitter: sc}
+
+	if err := loopInstance.commitStage(context.Background(), "/tmp/worktree", "gate", 1, "proceed"); err != nil {
+		t.Fatalf("commit gate stage: %v", err)
+	}
+	if err := loopInstance.commitStage(context.Background(), "/tmp/worktree", "epilogue", 1, "proceed"); err != nil {
+		t.Fatalf("commit epilogue stage: %v", err)
+	}
+	if len(sc.calls) != 0 {
+		t.Fatalf("CommitStage called %d times for excluded stages, want 0", len(sc.calls))
+	}
+
+	if err := loopInstance.commitStage(context.Background(), "/tmp/worktree", "plan", 1, "proceed"); err != nil {
+		t.Fatalf("commit plan stage: %v", err)
+	}
+	if len(sc.calls) != 1 {
+		t.Fatalf("CommitStage called %d times after plan, want 1", len(sc.calls))
+	}
+	if sc.calls[0].stageName != "plan" {
+		t.Fatalf("committed stage = %q, want %q", sc.calls[0].stageName, "plan")
+	}
+}
+
 func TestSpecLoopCreatesEventsFileWhenTypedEmitterSet(t *testing.T) {
 	t.Parallel()
 
