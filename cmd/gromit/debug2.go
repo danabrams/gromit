@@ -492,3 +492,62 @@ func debug2RunE(cmd *cobra.Command, args []string) error {
 	gromitDir := resolveGromitDir(cfg)
 	return debug2ImplFn(cmd.Context(), specName, gromitDir, cfg)
 }
+
+// Debug2OrchestrateResult holds the orchestration outcome for diagnosis, fix, and learning.
+type Debug2OrchestrateResult struct {
+	DiagnosisComplete   bool
+	FailureEvent        map[string]interface{}
+	Events              []map[string]interface{}
+	FixApplied          bool
+	FixError            string
+	LearningExtracted   bool
+	LearningEntry       string
+	Recommendation      string
+}
+
+// debug2OrchestrateDebug orchestrates the full debug cycle: diagnose, fix, learn.
+func debug2OrchestrateDebug(ctx context.Context, gromitDir, specName, wtPath string) (*Debug2OrchestrateResult, error) {
+	result := &Debug2OrchestrateResult{}
+
+	// Read event log for diagnosis
+	events, err := readDebug2EventLog(wtPath)
+	if err != nil && !os.IsNotExist(err) {
+		return result, fmt.Errorf("reading event log: %w", err)
+	}
+
+	result.Events = events
+	result.DiagnosisComplete = true
+
+	// Find the failure event
+	failureEvent := findFailureEvent(events)
+	if failureEvent != nil {
+		result.FailureEvent = failureEvent
+	}
+
+	// Attempt to extract a learning from the failure
+	if failureEvent != nil {
+		learning := debugpkg.ExtractLearning(debugpkg.LearningExtractionInput{
+			LearningsEntry: getStringField(failureEvent, "error"),
+		})
+		if learning.LearningsEntry != "" || learning.SystemicRecommendation != "" {
+			result.LearningExtracted = true
+			result.LearningEntry = learning.LearningsEntry
+			result.Recommendation = learning.SystemicRecommendation
+		}
+	}
+
+	return result, nil
+}
+
+// getStringField safely extracts a string field from a map.
+func getStringField(m map[string]interface{}, key string) string {
+	if m == nil {
+		return ""
+	}
+	if v, ok := m[key]; ok {
+		if s, ok := v.(string); ok {
+			return s
+		}
+	}
+	return ""
+}
