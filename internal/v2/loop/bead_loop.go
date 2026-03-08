@@ -90,6 +90,9 @@ type BeadLoop struct {
 	// successful build stage run for the current bead. Reset at the start
 	// of each processBead call.
 	lastBuildArtifacts *buildstage.BuildArtifacts
+	// lastBuildProvider stores the provider name from the most recent
+	// successful build stage run for the current bead.
+	lastBuildProvider string
 	// run-scoped state for in-loop decomposition
 	resolver        *dep.Resolver
 	beadMap         map[string]*bead.Bead
@@ -323,6 +326,7 @@ type stageEntry struct {
 
 func (b *BeadLoop) processBead(ctx context.Context, beadItem *bead.Bead, iteration int, highestGen *int, generationLimit int, stopCh <-chan struct{}) error {
 	b.lastBuildArtifacts = nil // reset for each bead
+	b.lastBuildProvider = ""
 	// Run gate stage first; skip/block return sentinels instead of halting.
 	if err := b.runGate(ctx, beadItem, iteration); err != nil {
 		return err
@@ -515,7 +519,7 @@ func (b *BeadLoop) runStageEntry(ctx context.Context, beadItem *bead.Bead, itera
 
 		b.emitStageStarted(stageName, beadItem.ID, iteration)
 		if entry.stage == b.build {
-			b.emitBuildInvocationStart(beadItem.ID, req.Model, providerName, string(tier), attempt, retriesRemaining+attempt, 0)
+			b.emitBuildInvocationStart(beadItem.ID, req.Model, providerName, string(tier), attempt, retriesRemaining+attempt)
 		}
 		start := time.Now()
 		res, err := b.runStage(ctx, entry.stage, req)
@@ -533,15 +537,14 @@ func (b *BeadLoop) runStageEntry(ctx context.Context, beadItem *bead.Bead, itera
 
 		if entry.stage == b.build {
 			var costUSD float64
-			var inputTokens, outputTokens int
+			var inputTokens int
 			if res != nil && res.Artifacts != nil {
 				if ba, ok := res.Artifacts.(*buildstage.BuildArtifacts); ok {
 					costUSD = ba.CostUSD
 					inputTokens = ba.Tokens
-					outputTokens = 0
 				}
 			}
-			b.emitBuildInvocationComplete(beadItem.ID, req.Model, providerName, !failed, duration, costUSD, inputTokens, outputTokens)
+			b.emitBuildInvocationComplete(beadItem.ID, req.Model, providerName, !failed, duration, costUSD, inputTokens)
 		}
 
 		b.emitStageCompleted(stageName, beadItem.ID, iteration, !failed, duration)
@@ -552,6 +555,7 @@ func (b *BeadLoop) runStageEntry(ctx context.Context, beadItem *bead.Bead, itera
 			if entry.stage == b.build && res != nil && res.Artifacts != nil {
 				if artifacts, ok := res.Artifacts.(*buildstage.BuildArtifacts); ok {
 					b.lastBuildArtifacts = artifacts
+					b.lastBuildProvider = providerName
 				}
 			}
 			if entry.stage == b.review {
@@ -793,6 +797,7 @@ func (b *BeadLoop) emitBeadCompleted(beadItem *bead.Bead, iteration int, success
 	}
 	if b.lastBuildArtifacts != nil {
 		evt.Model = b.lastBuildArtifacts.Model
+		evt.Provider = b.lastBuildProvider
 		evt.CostUSD = b.lastBuildArtifacts.CostUSD
 		evt.InputTokens = b.lastBuildArtifacts.Tokens
 		evt.Duration = b.lastBuildArtifacts.Duration
@@ -1111,7 +1116,7 @@ func (b *BeadLoop) emitModelSelected(beadID, model, provider, tier, reason strin
 	})
 }
 
-func (b *BeadLoop) emitBuildInvocationStart(beadID, model, provider, tier string, attempt, maxAttempts, promptSize int) {
+func (b *BeadLoop) emitBuildInvocationStart(beadID, model, provider, tier string, attempt, maxAttempts int) {
 	if b.emitter == nil {
 		return
 	}
@@ -1127,11 +1132,10 @@ func (b *BeadLoop) emitBuildInvocationStart(beadID, model, provider, tier string
 		Tier:        tier,
 		Attempt:     attempt,
 		MaxAttempts: maxAttempts,
-		PromptSize:  promptSize,
 	})
 }
 
-func (b *BeadLoop) emitBuildInvocationComplete(beadID, model, provider string, success bool, duration time.Duration, costUSD float64, inputTokens, outputTokens int) {
+func (b *BeadLoop) emitBuildInvocationComplete(beadID, model, provider string, success bool, duration time.Duration, costUSD float64, inputTokens int) {
 	if b.emitter == nil {
 		return
 	}
@@ -1141,14 +1145,13 @@ func (b *BeadLoop) emitBuildInvocationComplete(beadID, model, provider string, s
 			Timestamp:     time.Now(),
 			Type:          event.EventTypeBuildInvocationComplete,
 		},
-		BeadID:       beadID,
-		Model:        model,
-		Provider:     provider,
-		Success:      success,
-		Duration:     duration,
-		CostUSD:      costUSD,
-		InputTokens:  inputTokens,
-		OutputTokens: outputTokens,
+		BeadID:      beadID,
+		Model:       model,
+		Provider:    provider,
+		Success:     success,
+		Duration:    duration,
+		CostUSD:     costUSD,
+		InputTokens: inputTokens,
 	})
 }
 
