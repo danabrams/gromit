@@ -471,6 +471,40 @@ func assertRetryHistoryPreserved(t *testing.T, result immutableRunResult, beadID
 	}
 }
 
+func assertRetryEventLogged(t *testing.T, repoRoot string, commits []immutableStructuredCommit, beadID, stageName string, expectedAttempt int) {
+	t.Helper()
+
+	retryFound := false
+	for _, entry := range commits {
+		lines := immutableJSONLLines(t, immutableShowFileAtCommit(t, repoRoot, entry.Commit.Hash, ".gromit/v2/events.jsonl"))
+		for _, line := range lines {
+			var raw map[string]any
+			if err := json.Unmarshal([]byte(line), &raw); err != nil {
+				t.Fatalf("events line decode: %v", err)
+			}
+			if raw["type"] != event.EventTypeStageRetrying {
+				continue
+			}
+			if raw["bead_id"] != beadID || raw["stage_name"] != stageName {
+				continue
+			}
+			attempt, ok := raw["attempt"].(float64)
+			if !ok {
+				t.Fatalf("retry event attempt type = %T", raw["attempt"])
+			}
+			if int(attempt) != expectedAttempt {
+				t.Fatalf("retry attempt = %d, want %d", int(attempt), expectedAttempt)
+			}
+			retryFound = true
+			break
+		}
+		if retryFound {
+			return
+		}
+	}
+	t.Fatalf("missing stage.retrying event for %s/%s", beadID, stageName)
+}
+
 func assertPerBeadSquashHistory(t *testing.T, result immutableRunResult, wantBeadSubjects []string) {
 	t.Helper()
 
