@@ -31,7 +31,12 @@ var (
 
 // ParseMessage decodes a structured commit message into its components.
 func ParseMessage(msg string) (Message, error) {
-	if matches := beadMessageRe.FindStringSubmatch(msg); matches != nil {
+	subject := strings.TrimSpace(msg)
+	if lineBreak := strings.IndexByte(subject, '\n'); lineBreak >= 0 {
+		subject = strings.TrimSpace(subject[:lineBreak])
+	}
+
+	if matches := beadMessageRe.FindStringSubmatch(subject); matches != nil {
 		iteration, err := strconv.Atoi(matches[3])
 		if err != nil {
 			return Message{}, fmt.Errorf("invalid iteration: %w", err)
@@ -49,7 +54,7 @@ func ParseMessage(msg string) (Message, error) {
 		return parsed, nil
 	}
 
-	if matches := specMessageRe.FindStringSubmatch(msg); matches != nil {
+	if matches := specMessageRe.FindStringSubmatch(subject); matches != nil {
 		iteration, err := strconv.Atoi(matches[2])
 		if err != nil {
 			return Message{}, fmt.Errorf("invalid iteration: %w", err)
