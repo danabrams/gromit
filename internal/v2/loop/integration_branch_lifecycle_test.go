@@ -180,10 +180,44 @@ func assertFailureBranchLifecycle(t *testing.T, specID string, remediationErr er
 		t.Fatalf("preserved branch log missing spec id %q: %s", specID, committedLog)
 	}
 	for _, snippet := range requiredEventSnippets {
-	if !strings.Contains(committedLog, snippet) {
-		t.Fatalf("preserved branch log missing required snippet %q: %s", snippet, committedLog)
+		if !strings.Contains(committedLog, snippet) {
+			t.Fatalf("preserved branch log missing required snippet %q: %s", snippet, committedLog)
+		}
 	}
-}
 
 	requireFailureBranchHistory(t, repoRoot, branchName, specID)
+}
+
+func requireFailureBranchHistory(t *testing.T, repoRoot, branchName, specID string) {
+	t.Helper()
+
+	logOutput := gitCommand(t, repoRoot, "log", "--format=%s", branchName)
+	if strings.TrimSpace(logOutput) == "" {
+		t.Fatalf("empty log for branch %s", branchName)
+	}
+
+	lines := strings.Split(strings.TrimSpace(logOutput), "\n")
+	var subjects []string
+	for _, line := range lines {
+		if trimmed := strings.TrimSpace(line); trimmed != "" {
+			subjects = append(subjects, trimmed)
+		}
+	}
+	if len(subjects) < 2 {
+		t.Fatalf("branch %s history has %d commits, want >= 2", branchName, len(subjects))
+	}
+
+	expectedCommits := []string{
+		"initial commit",
+		"[gromit: partial work] spec " + specID,
+	}
+	subjectSet := make(map[string]struct{}, len(subjects))
+	for _, subject := range subjects {
+		subjectSet[subject] = struct{}{}
+	}
+	for _, want := range expectedCommits {
+		if _, ok := subjectSet[want]; !ok {
+			t.Fatalf("branch %s missing expected commit %q; history:\n%s", branchName, want, logOutput)
+		}
+	}
 }
