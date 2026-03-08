@@ -312,6 +312,81 @@ func TestPresentStageUsesSquashedPRBranchAndKeepsWorktreeHistory(t *testing.T) {
 	}
 }
 
+func TestPresentStageSquashOnlyIncludesBeadSummaries(t *testing.T) {
+	t.Parallel()
+
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not available")
+	}
+
+	repoDir := initPresentTestRepo(t)
+	worktreesDir := t.TempDir()
+	gitAdapter := execgit.NewExecGitAdapter(repoDir, worktreesDir)
+	committer := &pipeline.StageCommitter{Git: gitAdapter}
+
+	const specID = "spec-present-only-beads"
+	wtPath, err := gitAdapter.Checkout(context.Background(), specID)
+	if err != nil {
+		t.Fatalf("checkout: %v", err)
+	}
+
+	writeFile(t, filepath.Join(wtPath, "spec.txt"), "plan")
+	if err := committer.CommitStage(context.Background(), wtPath, "", "plan", 1, "Proceed"); err != nil {
+		t.Fatalf("commit plan stage: %v", err)
+	}
+
+	writeFile(t, filepath.Join(wtPath, "001.txt"), "build")
+	if err := committer.CommitStage(context.Background(), wtPath, "001", "build", 1, "Proceed"); err != nil {
+		t.Fatalf("commit bead 001 stage: %v", err)
+	}
+
+	writeFile(t, filepath.Join(wtPath, "002.txt"), "build")
+	if err := committer.CommitStage(context.Background(), wtPath, "002", "build", 1, "Proceed"); err != nil {
+		t.Fatalf("commit bead 002 stage: %v", err)
+	}
+
+	writeFile(t, filepath.Join(wtPath, "spec.txt"), "accept")
+	if err := committer.CommitStage(context.Background(), wtPath, "", "accept", 1, "Proceed"); err != nil {
+		t.Fatalf("commit accept stage: %v", err)
+	}
+
+	ctx := &SummaryContext{
+		Worktree: wtPath,
+		BeadSummaries: []presentation.BeadSummary{
+			{ID: "001", Title: "First bead"},
+			{ID: "002", Title: "Second bead"},
+		},
+	}
+	presenter := &spyPresenter{}
+	stageInstance, err := New(nil, presenter, ctx, WithSquashGit(gitAdapter))
+	if err != nil {
+		t.Fatalf("new present stage: %v", err)
+	}
+
+	if _, err := stageInstance.Run(context.Background(), &stage.Request{Bead: stage.BeadInfo{ID: specID}}); err != nil {
+		t.Fatalf("present run: %v", err)
+	}
+
+	prBranch := presentation.SpecPRBranchName(specID)
+	prSubjects := strings.Split(strings.TrimSpace(runGitInDir(t, wtPath, "log", "--format=%s", prBranch, "-8")), "\n")
+
+	for _, subject := range prSubjects {
+		if strings.HasPrefix(subject, "bead spec:") {
+			t.Fatalf("pr branch includes non-bead squash commit %q", subject)
+		}
+	}
+
+	if len(prSubjects) < 3 {
+		t.Fatalf("expected bead squash commits plus base, got %v", prSubjects)
+	}
+	if prSubjects[0] != "bead 002: Second bead" {
+		t.Fatalf("pr branch head commit = %q, want %q", prSubjects[0], "bead 002: Second bead")
+	}
+	if prSubjects[1] != "bead 001: First bead" {
+		t.Fatalf("second pr branch commit = %q, want %q", prSubjects[1], "bead 001: First bead")
+	}
+}
+
 func TestPresentStageDeletesMergedWorktreeBranchOnSuccess(t *testing.T) {
 	t.Parallel()
 
