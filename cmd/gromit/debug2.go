@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"time"
@@ -17,6 +18,7 @@ import (
 	"github.com/danabrams/gromit/internal/v2/adapter"
 	gitadapter "github.com/danabrams/gromit/internal/v2/adapter/git"
 	llmadapter "github.com/danabrams/gromit/internal/v2/adapter/llm"
+	debugpkg "github.com/danabrams/gromit/internal/v2/debug"
 	"github.com/danabrams/gromit/internal/v2/llmtypes"
 	"github.com/danabrams/gromit/internal/v2/pipeline"
 	"github.com/danabrams/gromit/internal/v2/routing"
@@ -75,8 +77,10 @@ const debug2DefaultInvokeTimeout = 15 * time.Minute
 var debug2ImplFn = debug2Impl
 var debug2InvokeLLMFn = invokeDebug2LLM
 var debug2ApplyPatchFn = applyDebug2Patch
+var debug2CheckoutFailureFn = checkoutDebug2FailureCommit
 var debug2RunValidationFn = runDebug2ValidationCommand
 var debug2Stderr io.Writer = os.Stderr
+var debug2CommitHashPattern = regexp.MustCompile(`^[0-9a-fA-F]{7,40}$`)
 
 func init() {
 	rootCmd.AddCommand(debug2Cmd)
@@ -123,7 +127,7 @@ func readDebug2EventLog(wtPath string) ([]map[string]interface{}, error) {
 
 // buildDebug2Prompt assembles a diagnostic prompt from the spec name, worktree path,
 // events, and commit history. commits is a slice of [hash, message] pairs.
-func buildDebug2Prompt(specName, wtPath string, events []map[string]interface{}, commits [][2]string, failureDiff string, validationCommands []string) string {
+func buildDebug2Prompt(specName, wtPath string, events []map[string]interface{}, commits [][2]string, failureDiff string, validationCommands []string, diagnosis debugpkg.Diagnosis) string {
 	var sb strings.Builder
 	sb.WriteString(fmt.Sprintf("## Debug Session: %s\n\n", specName))
 	sb.WriteString(fmt.Sprintf("Worktree: %s\n\n", wtPath))
@@ -141,11 +145,26 @@ func buildDebug2Prompt(specName, wtPath string, events []map[string]interface{},
 	}
 	sb.WriteString("\n")
 
-	failEvent := findFailureEvent(events)
+	failEvent := diagnosis.FailureEvent
+	if failEvent == nil {
+		failEvent = findFailureEvent(events)
+	}
 	if failEvent != nil {
 		sb.WriteString("### Failure Point\n\n")
 		data, _ := json.Marshal(failEvent)
 		sb.WriteString(fmt.Sprintf("  %s\n\n", string(data)))
+	}
+	if diagnosis.Stage != "" && diagnosis.Stage != "unknown" {
+		sb.WriteString("### Failure Stage\n\n")
+		sb.WriteString(fmt.Sprintf("  %s\n\n", diagnosis.Stage))
+	}
+	if diagnosis.RootCause != "" {
+		sb.WriteString("### Root Cause\n\n")
+		sb.WriteString(fmt.Sprintf("  %s\n\n", diagnosis.RootCause))
+	}
+	if diagnosis.FailureCommit != "" {
+		sb.WriteString("### Failure Commit\n\n")
+		sb.WriteString(fmt.Sprintf("  %s\n\n", diagnosis.FailureCommit))
 	}
 
 	if strings.TrimSpace(failureDiff) != "" {
@@ -230,7 +249,7 @@ func selectDebug2Provider(cfg *config.Config) (llmtypes.LLMProvider, string, err
 		router, phaseModels := buildRouter(cfg)
 		if router != nil {
 			tier := routing.TierForPhase(debug2Phase, phaseModels, routing.TierMedium)
-			provider, model, err := router.Select(debug2Phase, tier)
+			provider, model, _, err := router.Select(debug2Phase, tier)
 			if err != nil {
 				return nil, "", fmt.Errorf("selecting routed provider: %w", err)
 			}
@@ -317,6 +336,24 @@ func applyDebug2Patch(ctx context.Context, wtPath, patch string) error {
 	return nil
 }
 
+func checkoutDebug2FailureCommit(ctx context.Context, wtPath, commit string) error {
+	trimmed := strings.TrimSpace(commit)
+	if trimmed == "" {
+		return nil
+	}
+	if !debug2CommitHashPattern.MatchString(trimmed) {
+		return fmt.Errorf("invalid failure commit %q", commit)
+	}
+
+	cmd := exec.CommandContext(ctx, "git", "checkout", trimmed)
+	cmd.Dir = wtPath
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("checking out failure commit %s: %w\n%s", trimmed, err, strings.TrimSpace(string(out)))
+	}
+	return nil
+}
+
 func runDebug2ValidationCommand(ctx context.Context, wtPath, command string) error {
 	cmd := exec.CommandContext(ctx, "sh", "-c", command)
 	cmd.Dir = wtPath
@@ -381,6 +418,10 @@ func debug2Impl(ctx context.Context, specName, gromitDir string, cfg *config.Con
 	if err != nil {
 		logEntries = nil // non-fatal: proceed without commit history
 	}
+	diagnosis := debugpkg.Diagnose(debugpkg.Input{
+		Events:     events,
+		LogEntries: logEntries,
+	})
 
 	commits := make([][2]string, 0, len(logEntries))
 	for _, e := range logEntries {
@@ -392,7 +433,12 @@ func debug2Impl(ctx context.Context, specName, gromitDir string, cfg *config.Con
 	}
 
 	failureDiff := ""
-	if failureCommit, _, ok := selectDebug2FailureCommit(logEntries); ok {
+	if diagnosis.FailureCommit != "" {
+		diff, showErr := gitAdapter.Show(ctx, wtPath, diagnosis.FailureCommit)
+		if showErr == nil {
+			failureDiff = diff
+		}
+	} else if failureCommit, _, ok := selectDebug2FailureCommit(logEntries); ok {
 		diff, showErr := gitAdapter.Show(ctx, wtPath, failureCommit.Hash)
 		if showErr == nil {
 			failureDiff = diff
@@ -400,7 +446,7 @@ func debug2Impl(ctx context.Context, specName, gromitDir string, cfg *config.Con
 	}
 
 	validationCommands := debug2ValidationCommands(cfg)
-	prompt := buildDebug2Prompt(specName, wtPath, tailDebug2Events(events, debug2EventTailCount), commits, failureDiff, validationCommands)
+	prompt := buildDebug2Prompt(specName, wtPath, tailDebug2Events(events, debug2EventTailCount), commits, failureDiff, validationCommands, diagnosis)
 	responseText, err := debug2InvokeLLMFn(ctx, prompt, wtPath, cfg)
 	if err != nil {
 		return fmt.Errorf("invoking debug llm: %w", err)
@@ -408,6 +454,11 @@ func debug2Impl(ctx context.Context, specName, gromitDir string, cfg *config.Con
 	response, err := parseDebug2LLMResponse(responseText)
 	if err != nil {
 		return err
+	}
+	if strings.TrimSpace(response.CodePatch) != "" && diagnosis.FailureCommit != "" {
+		if err := debug2CheckoutFailureFn(ctx, wtPath, diagnosis.FailureCommit); err != nil {
+			return err
+		}
 	}
 	if err := debug2ApplyPatchFn(ctx, wtPath, response.CodePatch); err != nil {
 		return err
