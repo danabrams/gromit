@@ -68,3 +68,4 @@ cmd/gromit/.gromit/benchmarks/results/
 .beads/*.launchd.err.log
 .beads/*.launchd.out.log
 .beads/remotes/
+.worktrees/
