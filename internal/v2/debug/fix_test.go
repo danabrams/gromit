@@ -102,6 +102,79 @@ func TestApplyFix_ChecksOutFailureCommitAndAppliesPatch(t *testing.T) {
 	}
 }
 
+func TestApplyFix_ChecksOutSpecBranchAtFailurePoint(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not available")
+	}
+
+	ctx := context.Background()
+	tmpDir := t.TempDir()
+
+	runGitFix(t, tmpDir, "init")
+	runGitFix(t, tmpDir, "config", "user.email", "tester@example.com")
+	runGitFix(t, tmpDir, "config", "user.name", "Test User")
+
+	specBranch := "gromit/spec/fixer-branch"
+
+	filePath := filepath.Join(tmpDir, "failure.txt")
+	if err := os.WriteFile(filePath, []byte("broken\n"), 0o644); err != nil {
+		t.Fatalf("write failure file: %v", err)
+	}
+	runGitFix(t, tmpDir, "add", "failure.txt")
+	runGitFix(t, tmpDir, "commit", "-m", "failure commit")
+
+	failureHash := strings.TrimSpace(runGitFix(t, tmpDir, "rev-parse", "HEAD"))
+
+	if err := os.WriteFile(filePath, []byte("later\n"), 0o644); err != nil {
+		t.Fatalf("write later file: %v", err)
+	}
+	runGitFix(t, tmpDir, "add", "failure.txt")
+	runGitFix(t, tmpDir, "commit", "-m", "later commit")
+	runGitFix(t, tmpDir, "checkout", "-b", specBranch)
+
+	patch := strings.Join([]string{
+		"diff --git a/failure.txt b/failure.txt",
+		"--- a/failure.txt",
+		"+++ b/failure.txt",
+		"@@ -1 +1 @@",
+		"-broken",
+		"+fixed",
+		"",
+	}, "\n")
+
+	fixCtx := &FixContext{
+		WorktreeRoot:  tmpDir,
+		FailureCommit: failureHash,
+		CodePatch:     patch,
+	}
+
+	result, err := ApplyFix(ctx, fixCtx)
+	if err != nil {
+		t.Fatalf("ApplyFix failed: %v", err)
+	}
+	if !result.Applied {
+		t.Fatal("expected fix to be applied")
+	}
+
+	headBranch := strings.TrimSpace(runGitFix(t, tmpDir, "symbolic-ref", "--short", "HEAD"))
+	if headBranch != specBranch {
+		t.Fatalf("HEAD branch = %q, want %q", headBranch, specBranch)
+	}
+
+	currentHead := strings.TrimSpace(runGitFix(t, tmpDir, "rev-parse", "HEAD"))
+	if currentHead != failureHash {
+		t.Fatalf("HEAD commit = %q, want %q", currentHead, failureHash)
+	}
+
+	content, err := os.ReadFile(filePath)
+	if err != nil {
+		t.Fatalf("read file: %v", err)
+	}
+	if !strings.Contains(string(content), "fixed") {
+		t.Fatalf("file content = %q, want contain fixed", string(content))
+	}
+}
+
 func runGitFix(t *testing.T, dir string, args ...string) string {
 	t.Helper()
 	cmd := exec.Command("git", args...)
