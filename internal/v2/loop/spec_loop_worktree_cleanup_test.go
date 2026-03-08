@@ -1,9 +1,11 @@
 package loop
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -540,5 +542,44 @@ func TestSpecLoopGenerationCapPreservesBranchWithPartialWorkCommit(t *testing.T)
 	}
 	if len(gitAdapter.removedWorktrees) != 0 {
 		t.Fatalf("expected preserved worktree on generation-cap failure, removed=%v", gitAdapter.removedWorktrees)
+	}
+}
+
+func TestCleanupWorktreeLogsPreserveDecisionOnFailure(t *testing.T) {
+	var buf bytes.Buffer
+	oldOutput := log.Writer()
+	oldPrefix := log.Prefix()
+	oldFlags := log.Flags()
+	log.SetOutput(&buf)
+	log.SetPrefix("")
+	log.SetFlags(0)
+	defer func() {
+		log.SetOutput(oldOutput)
+		log.SetPrefix(oldPrefix)
+		log.SetFlags(oldFlags)
+	}()
+
+	gitAdapter := &failingRemoveGitAdapter{removeErr: fmt.Errorf("should not be called")}
+	gitAdapter.t = t
+
+	adapters := adapter.AdapterSet{
+		Git:         gitAdapter,
+		LLM:         newFakeLLMAdapter(),
+		TaskTracker: newFakeTaskTrackerAdapter(),
+		Presenter:   newFakePresenterAdapter(t),
+	}
+
+	loopInstance, err := NewSpecLoop(adapters, &config.Config{}, noopDependencyGate{})
+	if err != nil {
+		t.Fatalf("create spec loop: %v", err)
+	}
+
+	if err := loopInstance.cleanupWorktree(context.Background(), "test-spec", "/tmp/fake-worktree", false); err != nil {
+		t.Fatalf("cleanupWorktree should not error when preserving on failure, got: %v", err)
+	}
+
+	want := "preserving failed spec worktree branch for spec test-spec"
+	if !strings.Contains(buf.String(), want) {
+		t.Fatalf("log output = %q, want it to contain %q", buf.String(), want)
 	}
 }
