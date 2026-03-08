@@ -6,7 +6,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/danabrams/gromit/internal/v2/adapter"
@@ -31,7 +33,32 @@ var debug2AgentLaunchFn = func(promptPath, dir string) error {
 // a worktree from the branch gromit/spec/<specName> when the directory is missing.
 // t.Cleanup must restore the original value in tests that override this.
 var debug2BranchWorktreeFn = func(gromitDir, specName string) (string, error) {
-	return "", fmt.Errorf("branch lookup not implemented")
+	repoRoot := filepath.Dir(gromitDir)
+	targetBranch := "gromit/spec/" + specName
+
+	cmd := exec.Command("git", "worktree", "list", "--porcelain")
+	cmd.Dir = repoRoot
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("listing worktrees: %w", err)
+	}
+
+	var currentWorktree string
+	for _, raw := range strings.Split(string(out), "\n") {
+		line := strings.TrimSpace(raw)
+		if strings.HasPrefix(line, "worktree ") {
+			currentWorktree = strings.TrimPrefix(line, "worktree ")
+			continue
+		}
+		if strings.HasPrefix(line, "branch refs/heads/") {
+			branch := strings.TrimPrefix(line, "branch refs/heads/")
+			if branch == targetBranch && currentWorktree != "" {
+				return normalizeDebug2WorktreePath(currentWorktree), nil
+			}
+		}
+	}
+
+	return "", fmt.Errorf("no preserved worktree found for branch %q", targetBranch)
 }
 
 var debug2Cmd = &cobra.Command{
@@ -158,6 +185,14 @@ func selectDebug2FailureCommit(entries []adapter.LogEntry) (adapter.LogEntry, pi
 		}
 	}
 	return adapter.LogEntry{}, pipeline.CommitInfo{}, false
+}
+
+func normalizeDebug2WorktreePath(path string) string {
+	normalized := filepath.Clean(path)
+	if runtime.GOOS == "darwin" && strings.HasPrefix(normalized, "/private/var/") {
+		return strings.TrimPrefix(normalized, "/private")
+	}
+	return normalized
 }
 
 // debug2Impl contains the testable core of the debug2 command.
