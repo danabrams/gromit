@@ -109,6 +109,30 @@ func (a *ExecGitAdapter) RemoveWorktree(ctx context.Context, worktree string) er
 	return a.removeExistingWorktree(ctx, trimmed)
 }
 
+// RemoveWorktreeAndBranch removes the worktree and then deletes its branch when
+// the branch is one of Gromit's managed spec branches.
+func (a *ExecGitAdapter) RemoveWorktreeAndBranch(ctx context.Context, worktree string) error {
+	trimmed := strings.TrimSpace(worktree)
+	if trimmed == "" {
+		return fmt.Errorf("worktree required")
+	}
+	branch, err := a.currentBranchName(ctx, trimmed)
+	if err != nil {
+		return err
+	}
+	if err := a.removeExistingWorktree(ctx, trimmed); err != nil {
+		return err
+	}
+	if !strings.HasPrefix(branch, "gromit/spec/") {
+		return nil
+	}
+	out, err := runGitCommand(ctx, a.repoRoot, "branch", "-D", branch)
+	if err != nil {
+		return fmt.Errorf("git branch -D %s: %s: %w", branch, out, err)
+	}
+	return nil
+}
+
 func (a *ExecGitAdapter) Log(ctx context.Context, worktree string, n int) ([]adapter.LogEntry, error) {
 	trimmed := strings.TrimSpace(worktree)
 	if trimmed == "" {
@@ -176,6 +200,18 @@ func (a *ExecGitAdapter) Status(ctx context.Context, worktree string) (string, e
 		return "", fmt.Errorf("git status --porcelain: %s: %w", out, err)
 	}
 	return string(out), nil
+}
+
+func (a *ExecGitAdapter) currentBranchName(ctx context.Context, worktree string) (string, error) {
+	out, err := runGitCommand(ctx, worktree, "rev-parse", "--abbrev-ref", "HEAD")
+	if err != nil {
+		return "", fmt.Errorf("git rev-parse --abbrev-ref HEAD: %s: %w", out, err)
+	}
+	branch := strings.TrimSpace(string(out))
+	if branch == "" || branch == "HEAD" {
+		return "", fmt.Errorf("worktree %s is not on a named branch", worktree)
+	}
+	return branch, nil
 }
 
 // removeExistingWorktree removes a pre-existing worktree directory, falling back

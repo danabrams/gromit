@@ -221,6 +221,10 @@ type worktreeSetter interface {
 	SetWorktree(string)
 }
 
+type worktreeBranchRemover interface {
+	RemoveWorktreeAndBranch(ctx context.Context, worktree string) error
+}
+
 // NewSpecLoop constructs a spec loop backed by the provided adapters and configuration.
 func NewSpecLoop(adapters adapter.AdapterSet, cfg *config.Config, gate DependencyGate, opts ...SpecLoopOption) (*SpecLoop, error) {
 	if cfg == nil {
@@ -727,6 +731,14 @@ func (s *SpecLoop) cleanupWorktree(_ context.Context, specID, worktree string, s
 			}
 		}
 		if s.preserveOnFailure {
+			return nil
+		}
+	}
+	if success {
+		if remover, ok := git.(worktreeBranchRemover); ok {
+			if err := remover.RemoveWorktreeAndBranch(cleanupCtx, trimmed); err != nil {
+				return fmt.Errorf("remove worktree and branch: %w", err)
+			}
 			return nil
 		}
 	}
