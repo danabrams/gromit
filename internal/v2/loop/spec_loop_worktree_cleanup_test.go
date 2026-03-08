@@ -501,6 +501,16 @@ func (d *dirtyStatusGitAdapter) Commit(ctx context.Context, worktree, message st
 	return "fake-sha", nil
 }
 
+type branchDeletingGitAdapter struct {
+	fakeGitAdapter
+	removedBranches []string
+}
+
+func (b *branchDeletingGitAdapter) RemoveWorktreeAndBranch(ctx context.Context, worktree string) error {
+	b.removedBranches = append(b.removedBranches, worktree)
+	return b.RemoveWorktree(ctx, worktree)
+}
+
 type generationCapBeadRunner struct{}
 
 func (generationCapBeadRunner) Run(context.Context, []*bead.Bead, <-chan struct{}) (BeadLoopResult, error) {
@@ -663,5 +673,45 @@ func TestCleanupWorktreeLogsPreserveReasonWhenForced(t *testing.T) {
 	}
 	if !strings.Contains(buf.String(), "Andon") {
 		t.Fatalf("log output = %q, want it to mention Andon", buf.String())
+	}
+}
+
+func TestCleanupWorktreeLogsDeletionReasonOnSuccess(t *testing.T) {
+	var buf bytes.Buffer
+	oldOutput := log.Writer()
+	oldPrefix := log.Prefix()
+	oldFlags := log.Flags()
+	log.SetOutput(&buf)
+	log.SetPrefix("")
+	log.SetFlags(0)
+	defer func() {
+		log.SetOutput(oldOutput)
+		log.SetPrefix(oldPrefix)
+		log.SetFlags(oldFlags)
+	}()
+
+	gitAdapter := &branchDeletingGitAdapter{}
+	gitAdapter.t = t
+
+	adapters := adapter.AdapterSet{
+		Git:         gitAdapter,
+		LLM:         newFakeLLMAdapter(),
+		TaskTracker: newFakeTaskTrackerAdapter(),
+		Presenter:   newFakePresenterAdapter(t),
+	}
+
+	loopInstance, err := NewSpecLoop(adapters, &config.Config{}, noopDependencyGate{})
+	if err != nil {
+		t.Fatalf("create spec loop: %v", err)
+	}
+
+	if err := loopInstance.cleanupWorktree(context.Background(), "test-spec", "/tmp/fake-worktree", true, cleanupOptions{reason: cleanupReasonSuccess}); err != nil {
+		t.Fatalf("cleanupWorktree should not error on success, got: %v", err)
+	}
+	if len(gitAdapter.removedBranches) != 1 {
+		t.Fatalf("expected branch to be deleted once, got %d", len(gitAdapter.removedBranches))
+	}
+	if !strings.Contains(buf.String(), "successfully deleted branch") {
+		t.Fatalf("log output = %q, want it to mention successful deletion", buf.String())
 	}
 }
