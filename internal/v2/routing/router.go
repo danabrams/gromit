@@ -82,12 +82,12 @@ func NewRouter(cfg RouterConfig) *Router {
 // Phase preferences are checked first, then ratio balancing among available providers.
 // Returns an error when no providers are configured or all are unavailable.
 // Automatically records the invocation for ratio balancing.
-func (r *Router) Select(phase, tier string) (llmtypes.LLMProvider, string, error) {
+func (r *Router) Select(phase, tier string) (llmtypes.LLMProvider, string, string, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	if len(r.providers) == 0 {
-		return nil, "", ErrNoProviders
+		return nil, "", "", ErrNoProviders
 	}
 
 	now := r.nowFunc()
@@ -98,7 +98,7 @@ func (r *Router) Select(phase, tier string) (llmtypes.LLMProvider, string, error
 			if !r.isUnavailable(preferred, now) {
 				r.counts[preferred]++
 				model := ResolveModel(tier, r.models[preferred])
-				return p, model, nil
+				return p, model, preferred, nil
 			}
 		}
 	}
@@ -106,11 +106,11 @@ func (r *Router) Select(phase, tier string) (llmtypes.LLMProvider, string, error
 	// Ratio balancing: pick the available provider most under-served relative to its weight.
 	chosen := r.selectByRatio(now)
 	if chosen == "" {
-		return nil, "", ErrAllUnavailable
+		return nil, "", "", ErrAllUnavailable
 	}
 	r.counts[chosen]++
 	model := ResolveModel(tier, r.models[chosen])
-	return r.providers[chosen], model, nil
+	return r.providers[chosen], model, chosen, nil
 }
 
 // MarkUnavailable marks the named provider as unavailable for the cooldown duration.
