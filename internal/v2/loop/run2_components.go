@@ -14,9 +14,9 @@ import (
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/events"
 	"github.com/danabrams/gromit/internal/v2/adapter"
+	gitadapter "github.com/danabrams/gromit/internal/v2/adapter/git"
 	"github.com/danabrams/gromit/internal/v2/adapter/llm"
 	"github.com/danabrams/gromit/internal/v2/event"
-	"github.com/danabrams/gromit/internal/v2/pipeline"
 	v2remediation "github.com/danabrams/gromit/internal/v2/remediation"
 	"github.com/danabrams/gromit/internal/v2/routing"
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
@@ -168,7 +168,7 @@ func NewRun2LoopComponents(cfg *config.Config, adapters adapter.AdapterSet, lega
 		return nil, err
 	}
 
-	sc := &pipeline.StageCommitter{Git: adapters.Git}
+	sc := &gitadapter.StageCommitter{Git: adapters.Git}
 
 	beadLoop, err := NewBeadLoop(BeadLoopConfig{
 		Gate:           gateStage,
