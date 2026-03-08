@@ -1125,6 +1125,44 @@ func (f *fakeSpecStageCommitter) hasCall(stageName string) bool {
 	return false
 }
 
+func TestSpecLoopCommitsUseEmptyBeadIDForSpecLevelStages(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	specID := "spec-commit-empty-bead-id"
+	cfg := &config.Config{}
+
+	sc := &fakeSpecStageCommitter{}
+	loopInstance, err := NewSpecLoop(
+		adapter.AdapterSet{
+			Git:         newFakeGitAdapter(t),
+			LLM:         newFakeLLMAdapter(),
+			TaskTracker: newFakeTaskTrackerAdapter(),
+			Presenter:   newFakePresenterAdapter(t),
+		},
+		cfg, noopDependencyGate{},
+		WithStageCommitter(sc),
+		WithPlanStage(newFakePlanStage(specID)),
+		WithPresentStage(newFakePresentStage(), &present.SummaryContext{}),
+		WithDecomposeStage(newFakeDecomposeStage(specID)),
+		WithBeadLoop(newFakeBeadRunner()),
+		WithAcceptStage(newFakeAcceptStage()),
+	)
+	if err != nil {
+		t.Fatalf("create spec loop: %v", err)
+	}
+
+	if err := loopInstance.Run(ctx, specID, nil); err != nil {
+		t.Fatalf("run: %v", err)
+	}
+
+	for _, c := range sc.calls {
+		if c.beadID != "" {
+			t.Errorf("CommitStage for stage %q got beadID=%q, want empty string (spec-level scope)", c.stageName, c.beadID)
+		}
+	}
+}
+
 func TestSpecLoopCommitsAfterPresentStage(t *testing.T) {
 	t.Parallel()
 
