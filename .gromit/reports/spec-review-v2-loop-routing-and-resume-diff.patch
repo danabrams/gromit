@@ -1,0 +1,2127 @@
+diff --git a/.gromit/v2/events.jsonl b/.gromit/v2/events.jsonl
+new file mode 100644
+index 00000000..c7c0bc57
+--- /dev/null
++++ b/.gromit/v2/events.jsonl
+@@ -0,0 +1,10 @@
++{"schema_version":1,"timestamp":"2026-03-07T09:56:37.511761-05:00","type":"spec.started","spec_id":"v2-loop-routing-and-resume","worktree":".gromit/spec-worktrees/v2-loop-routing-and-resume"}
++{"schema_version":1,"timestamp":"2026-03-07T10:06:50.306024-05:00","type":"bead.started","bead_id":"gromit-49evc","bead_title":"Enhance prompt assembler with budget awareness","iteration":1}
++{"schema_version":1,"timestamp":"2026-03-07T10:06:50.306026-05:00","type":"stage.started","stage_name":"gate:default","bead_id":"gromit-49evc","iteration":1}
++{"schema_version":1,"timestamp":"2026-03-07T10:06:50.451658-05:00","type":"stage.completed","stage_name":"gate:default","bead_id":"gromit-49evc","iteration":1,"success":true,"duration":145630709}
++{"schema_version":1,"timestamp":"2026-03-07T10:06:50.451668-05:00","type":"bead.completed","bead_id":"gromit-49evc","bead_title":"Enhance prompt assembler with budget awareness","iteration":1,"success":false}
++{"schema_version":1,"timestamp":"2026-03-07T10:06:50.451681-05:00","type":"bead.started","bead_id":"gromit-4ot02","bead_title":"Router with phase preferences and ratio balancing","iteration":2}
++{"schema_version":1,"timestamp":"2026-03-07T10:06:50.451682-05:00","type":"stage.started","stage_name":"gate:default","bead_id":"gromit-4ot02","iteration":2}
++{"schema_version":1,"timestamp":"2026-03-07T10:06:50.51991-05:00","type":"stage.completed","stage_name":"gate:default","bead_id":"gromit-4ot02","iteration":2,"success":true,"duration":68227375}
++{"schema_version":1,"timestamp":"2026-03-07T10:06:50.519921-05:00","type":"stage.started","stage_name":"build:default","bead_id":"gromit-4ot02","iteration":2}
++{"schema_version":1,"timestamp":"2026-03-07T10:10:50.668403-05:00","type":"stage.completed","stage_name":"build:default","bead_id":"gromit-4ot02","iteration":2,"success":true,"duration":240147364709}
+diff --git a/.gromit/v2/plan.md b/.gromit/v2/plan.md
+new file mode 100644
+index 00000000..a6bf3098
+--- /dev/null
++++ b/.gromit/v2/plan.md
+@@ -0,0 +1,20 @@
++Plan complete and saved to `docs/plans/2026-03-07-v2-loop-routing-and-resume.md`.
++
++**Summary:** 21 tasks across 5 workstreams:
++
++| Workstream | Tasks | Key Files |
++|---|---|---|
++| **Multi-Provider Routing** | 1-3, 6, 15-16 | `internal/v2/routing/routing.go`, bead_loop.go, spec_loop.go, run2.go |
++| **Tier-Aware Model Selection** | 4, 7 | `internal/v2/routing/tier.go`, bead_loop.go escalation |
++| **StageRequest Provider Field** | 5 | `internal/v2/stage/stage.go` |
++| **Prompt Budget Shaping** | 8-10, 17 | `internal/v2/prompt/rules_filter.go`, `scope.go`, `assembler.go` |
++| **Resume + Gate Re-queue** | 11-14 | `gap_analysis.go`, spec_loop.go, remediation.go |
++| **Integration + Verification** | 18-21 | Integration test files |
++
++**Two execution options:**
++
++**1. Subagent-Driven (this session)** - I dispatch fresh subagent per task, review between tasks, fast iteration
++
++**2. Parallel Session (separate)** - Open new session with executing-plans, batch execution with checkpoints
++
++Which approach?
+\ No newline at end of file
+diff --git a/docs/plans/2026-03-07-v2-loop-routing-and-resume.md b/docs/plans/2026-03-07-v2-loop-routing-and-resume.md
+new file mode 100644
+index 00000000..558759e6
+--- /dev/null
++++ b/docs/plans/2026-03-07-v2-loop-routing-and-resume.md
+@@ -0,0 +1,1741 @@
++# V2 Loop Routing and Resume Implementation Plan
++
++> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
++
++**Goal:** Port multi-provider routing, tier-aware model selection, resume with gap analysis, topological gate re-queue, and prompt budget shaping into the v2 spec loop.
++
++**Architecture:** Five capabilities are added to the v2 loop layer. A new `internal/v2/routing/` package owns provider selection and tier resolution. The bead loop and spec loop become the routing seam — they call `Router.Select()` before each stage invocation and populate `StageRequest.Provider` and `StageRequest.Model`. Stages remain stateless. The prompt assembler gains budget shaping. Resume logic lives in the spec loop as orchestration (not a stage).
++
++**Tech Stack:** Go 1.24, existing v2 packages, no new external dependencies
++
++---
++
++## Architecture
++
++### Components
++
++1. **`internal/v2/routing/`** (new package)
++   - `Router` struct — 3-layer provider selection (phase preferences, ratio balancing, fallback with cooldown)
++   - `tier.go` — tier resolution from config (`PhaseModelTier`, `BuildTierForStrategy`, `NextEscalationTier` delegation)
++   - `Provider` interface — wraps `llmtypes.LLMProvider` with `Name()` and `ModelForTier(tier)` methods
++
++2. **`internal/v2/stage/stage.go`** (modified)
++   - `StageRequest` gains `Provider llmtypes.LLMProvider` field
++
++3. **`internal/v2/loop/bead_loop.go`** (modified)
++   - Routing seam: call `Router.Select(phase, tier)` before each stage, populate `StageRequest.Provider` and `Model`
++   - Escalation: on retry, increment tier via `NextEscalationTier()`, re-call `Router.Select()`
++   - Gate re-queue: when gate returns `DecisionBlock`, re-queue bead (already partially implemented via `errBeadBlocked`)
++
++4. **`internal/v2/loop/spec_loop.go`** (modified)
++   - Resume: gap analysis + selective revalidation before bead loop on resume
++   - Routing seam for spec-level stages (plan, decompose, accept)
++
++5. **`internal/v2/prompt/assembler.go`** (modified)
++   - `Assemble(phase string, fileCount int)` — budget-aware assembly
++   - Phase-filtered rules, scoped CLAUDE.md, scope-adjusted budgets
++   - `ShapeReport` for observability
++
++6. **`internal/v2/remediation/remediation.go`** (modified)
++   - `Run(ctx, specID, worktree string)` — expanded signature for worktree propagation
++
++7. **`cmd/gromit/run2.go`** (modified)
++   - Construct `Router` from `cfg.Providers` and `cfg.Routing`
++   - Pass router to spec loop and bead loop
++
++### Data Flow
++
++```
++run2.go: construct Router from config
++  → SpecLoop.Run(): Router.Select(phase, tier) for plan/decompose/accept
++    → resume: gap analysis → selective revalidation → modified bead list
++    → BeadLoop.Run(): Router.Select(phase, tier) per stage per bead
++      → on retry: NextEscalationTier() → Router.Select() with higher tier
++      → on gate block: re-queue bead (already implemented)
++      → PromptAssembler.Assemble(phase, fileCount) → budget-shaped prompt
++```
++
++### Integration Points
++
++- Router is constructed in `run2.go` and passed to loops via new option functions
++- Stages use `req.Provider.Invoke()` if non-nil, falling back to their constructed provider
++- `PromptAssembler` is called by `run2_components.go` stage constructors with phase awareness
++- Resume gap analysis runs in spec loop before bead loop starts
++
++---
++
++## Test Strategy
++
++- **Unit tests** for each new package/function in isolation with table-driven tests
++- **Integration tests** for routing seam in bead loop (mock router + mock stages)
++- **Mock strategy**: Define mock `LLMProvider` and mock `Router` for test injection
++- **Coverage**: Every acceptance criterion from the spec has a corresponding test
++- All tests use `t.Chdir()` (not `os.Chdir()`), `t.Cleanup()` for injectable var restoration
++
++---
++
++## Implementation Tasks
++
++### Task 1: Router Provider Interface and Types
++
++**Files:**
++- Create: `internal/v2/routing/routing.go`
++- Test: `internal/v2/routing/routing_test.go`
++
++**Step 1: Write the failing test**
++
++```go
++package routing
++
++import (
++	"testing"
++)
++
++func TestNewRouter_SingleProvider(t *testing.T) {
++	p := &stubProvider{name: "claude", models: map[string]string{"high": "opus", "medium": "sonnet", "low": "haiku"}}
++	r := NewRouter(Config{
++		Providers: map[string]RoutableProvider{"claude": p},
++		Ratio:     map[string]int{"claude": 100},
++	})
++	if r == nil {
++		t.Fatal("expected non-nil router")
++	}
++	provider, model, err := r.Select("build", "medium")
++	if err != nil {
++		t.Fatalf("Select error: %v", err)
++	}
++	if provider == nil {
++		t.Fatal("expected non-nil provider")
++	}
++	if model != "sonnet" {
++		t.Errorf("model = %q, want %q", model, "sonnet")
++	}
++}
++
++type stubProvider struct {
++	name   string
++	models map[string]string
++}
++
++func (s *stubProvider) Name() string                  { return s.name }
++func (s *stubProvider) ModelForTier(tier string) string { return s.models[tier] }
++```
++
++**Step 2: Run test to verify it fails**
++
++Run: `cd internal/v2/routing && go test -run TestNewRouter_SingleProvider -v`
++Expected: FAIL — package doesn't exist
++
++**Step 3: Write minimal implementation**
++
++```go
++package routing
++
++import (
++	"fmt"
++	"sync"
++	"time"
++)
++
++// RoutableProvider is the interface a provider must implement for routing.
++type RoutableProvider interface {
++	Name() string
++	ModelForTier(tier string) string
++}
++
++// Config holds router construction parameters.
++type Config struct {
++	Providers        map[string]RoutableProvider
++	PhasePreferences map[string]string // phase -> provider name
++	Ratio            map[string]int    // provider name -> target percentage
++	Cooldown         time.Duration
++}
++
++// Router handles provider selection with 3-layer routing.
++type Router struct {
++	providers    map[string]RoutableProvider
++	preferences  map[string]string
++	ratio        map[string]int
++	counts       map[string]int
++	unavailable  map[string]time.Time
++	cooldown     time.Duration
++	mu           sync.Mutex
++}
++
++// NewRouter creates a Router from the provided config.
++func NewRouter(cfg Config) *Router {
++	return &Router{
++		providers:   cfg.Providers,
++		preferences: cfg.PhasePreferences,
++		ratio:       cfg.Ratio,
++		counts:      make(map[string]int),
++		unavailable: make(map[string]time.Time),
++		cooldown:    cfg.Cooldown,
++	}
++}
++
++// Select picks a provider for the given phase and tier.
++// Returns the provider, concrete model name, and any error.
++func (r *Router) Select(phase, tier string) (RoutableProvider, string, error) {
++	r.mu.Lock()
++	defer r.mu.Unlock()
++
++	// Layer 1: phase preference
++	if pref, ok := r.preferences[phase]; ok && pref != "any" {
++		if p, model := r.selectIfAvailable(pref, tier); p != nil {
++			return p, model, nil
++		}
++	}
++
++	// Layer 2: ratio balancing
++	if name := r.selectByRatio(); name != "" {
++		if p, model := r.selectIfAvailable(name, tier); p != nil {
++			return p, model, nil
++		}
++	}
++
++	// Layer 3: any available
++	for name := range r.providers {
++		if p, model := r.selectIfAvailable(name, tier); p != nil {
++			return p, model, nil
++		}
++	}
++
++	return nil, "", fmt.Errorf("no providers available for phase %q tier %q", phase, tier)
++}
++
++// MarkUnavailable marks a provider as unavailable for the cooldown duration.
++func (r *Router) MarkUnavailable(name string) {
++	r.mu.Lock()
++	defer r.mu.Unlock()
++	r.unavailable[name] = time.Now().Add(r.cooldown)
++}
++
++// RecordInvocation increments the invocation count for a provider.
++func (r *Router) RecordInvocation(name string) {
++	r.mu.Lock()
++	defer r.mu.Unlock()
++	r.counts[name]++
++}
++
++func (r *Router) selectIfAvailable(name, tier string) (RoutableProvider, string) {
++	p, ok := r.providers[name]
++	if !ok {
++		return nil, ""
++	}
++	if until, ok := r.unavailable[name]; ok {
++		if time.Now().Before(until) {
++			return nil, ""
++		}
++		delete(r.unavailable, name)
++	}
++	model := p.ModelForTier(tier)
++	r.counts[name]++
++	return p, model
++}
++
++func (r *Router) selectByRatio() string {
++	if len(r.ratio) == 0 {
++		return ""
++	}
++	totalCount := 0
++	for _, c := range r.counts {
++		totalCount += c
++	}
++	var selected string
++	largestGap := -1.0
++	for name, target := range r.ratio {
++		if _, ok := r.providers[name]; !ok {
++			continue
++		}
++		if until, ok := r.unavailable[name]; ok && time.Now().Before(until) {
++			continue
++		}
++		current := r.counts[name]
++		var pct float64
++		if totalCount > 0 {
++			pct = float64(current) / float64(totalCount) * 100.0
++		}
++		gap := float64(target) - pct
++		if gap > largestGap {
++			largestGap = gap
++			selected = name
++		}
++	}
++	return selected
++}
++```
++
++**Step 4: Run test to verify it passes**
++
++Run: `cd internal/v2/routing && go test -run TestNewRouter_SingleProvider -v`
++Expected: PASS
++
++**Step 5: Commit**
++
++```bash
++git add internal/v2/routing/
++git commit -m "feat(v2): add routing package with Router, RoutableProvider, and 3-layer selection"
++```
++
++**Acceptance Criteria:**
++- `Router.Select(phase, tier)` returns `(RoutableProvider, model, error)`
++- Phase preferences override ratio balancing
++- Ratio balancing selects provider furthest below target
++
++---
++
++### Task 2: Router Phase Preferences and Ratio Balancing Tests
++
++**Files:**
++- Modify: `internal/v2/routing/routing_test.go`
++
++**Step 1: Write the failing tests**
++
++```go
++func TestRouter_PhasePreferenceOverridesRatio(t *testing.T) {
++	claude := &stubProvider{name: "claude", models: map[string]string{"medium": "sonnet"}}
++	codex := &stubProvider{name: "codex", models: map[string]string{"medium": "gpt-4o"}}
++	r := NewRouter(Config{
++		Providers:        map[string]RoutableProvider{"claude": claude, "codex": codex},
++		PhasePreferences: map[string]string{"build": "codex"},
++		Ratio:            map[string]int{"claude": 80, "codex": 20},
++	})
++	p, model, err := r.Select("build", "medium")
++	if err != nil {
++		t.Fatalf("Select error: %v", err)
++	}
++	if p.Name() != "codex" {
++		t.Errorf("provider = %q, want %q", p.Name(), "codex")
++	}
++	if model != "gpt-4o" {
++		t.Errorf("model = %q, want %q", model, "gpt-4o")
++	}
++}
++
++func TestRouter_RatioBalancing(t *testing.T) {
++	claude := &stubProvider{name: "claude", models: map[string]string{"low": "haiku"}}
++	codex := &stubProvider{name: "codex", models: map[string]string{"low": "mini"}}
++	r := NewRouter(Config{
++		Providers: map[string]RoutableProvider{"claude": claude, "codex": codex},
++		Ratio:     map[string]int{"claude": 70, "codex": 30},
++	})
++	// First several calls should favor claude (target 70%)
++	counts := map[string]int{}
++	for i := 0; i < 10; i++ {
++		p, _, err := r.Select("any", "low")
++		if err != nil {
++			t.Fatalf("Select error on call %d: %v", i, err)
++		}
++		counts[p.Name()]++
++	}
++	if counts["claude"] < 5 {
++		t.Errorf("claude count = %d, want >= 5 (target 70%%)", counts["claude"])
++	}
++}
++```
++
++**Step 2: Run tests to verify they pass (they should pass with Task 1 implementation)**
++
++Run: `cd internal/v2/routing && go test -v`
++Expected: PASS
++
++**Step 3: Commit**
++
++```bash
++git add internal/v2/routing/routing_test.go
++git commit -m "test(v2): add router phase preference and ratio balancing tests"
++```
++
++**Acceptance Criteria:**
++- Phase preferences are honored for configured phases
++- Ratio balancing distributes calls according to configured percentages
++
++---
++
++### Task 3: Router Fallback with Cooldown
++
++**Files:**
++- Modify: `internal/v2/routing/routing_test.go`
++
++**Step 1: Write the failing test**
++
++```go
++func TestRouter_FallbackOnUnavailable(t *testing.T) {
++	claude := &stubProvider{name: "claude", models: map[string]string{"medium": "sonnet"}}
++	codex := &stubProvider{name: "codex", models: map[string]string{"medium": "gpt-4o"}}
++	r := NewRouter(Config{
++		Providers: map[string]RoutableProvider{"claude": claude, "codex": codex},
++		Ratio:     map[string]int{"claude": 80, "codex": 20},
++		Cooldown:  1 * time.Hour,
++	})
++	r.MarkUnavailable("claude")
++	p, _, err := r.Select("build", "medium")
++	if err != nil {
++		t.Fatalf("Select error: %v", err)
++	}
++	if p.Name() != "codex" {
++		t.Errorf("provider = %q, want %q (claude unavailable)", p.Name(), "codex")
++	}
++}
++
++func TestRouter_AllUnavailableReturnsError(t *testing.T) {
++	claude := &stubProvider{name: "claude", models: map[string]string{"medium": "sonnet"}}
++	r := NewRouter(Config{
++		Providers: map[string]RoutableProvider{"claude": claude},
++		Ratio:     map[string]int{"claude": 100},
++		Cooldown:  1 * time.Hour,
++	})
++	r.MarkUnavailable("claude")
++	_, _, err := r.Select("build", "medium")
++	if err == nil {
++		t.Fatal("expected error when all providers unavailable")
++	}
++}
++
++func TestRouter_CooldownExpiry(t *testing.T) {
++	claude := &stubProvider{name: "claude", models: map[string]string{"medium": "sonnet"}}
++	r := NewRouter(Config{
++		Providers: map[string]RoutableProvider{"claude": claude},
++		Ratio:     map[string]int{"claude": 100},
++		Cooldown:  0, // zero cooldown = immediately available again
++	})
++	r.MarkUnavailable("claude")
++	// With zero cooldown, provider should be available immediately
++	p, _, err := r.Select("build", "medium")
++	if err != nil {
++		t.Fatalf("Select error: %v", err)
++	}
++	if p == nil {
++		t.Fatal("expected provider after cooldown expiry")
++	}
++}
++```
++
++**Step 2: Run tests**
++
++Run: `cd internal/v2/routing && go test -v`
++Expected: PASS (implementation from Task 1 already handles this)
++
++**Step 3: Commit**
++
++```bash
++git add internal/v2/routing/routing_test.go
++git commit -m "test(v2): add router fallback and cooldown tests"
++```
++
++**Acceptance Criteria:**
++- Unavailable providers are skipped during selection
++- Fallback to next available provider works
++- After cooldown, provider is re-enabled
++
++---
++
++### Task 4: Tier Resolution
++
++**Files:**
++- Create: `internal/v2/routing/tier.go`
++- Test: `internal/v2/routing/tier_test.go`
++
++**Step 1: Write the failing test**
++
++```go
++package routing
++
++import (
++	"testing"
++
++	"github.com/danabrams/gromit/internal/config"
++)
++
++func TestResolveTier_PhaseModelOverride(t *testing.T) {
++	cfg := &config.Config{}
++	cfg.Methodology.PhaseModels.Build = "low"
++
++	tier := ResolveTier(cfg, "build", "medium")
++	if tier != "low" {
++		t.Errorf("tier = %q, want %q", tier, "low")
++	}
++}
++
++func TestResolveTier_FallbackToBeadTier(t *testing.T) {
++	cfg := &config.Config{}
++	// No phase model override set
++	tier := ResolveTier(cfg, "build", "medium")
++	if tier != "medium" {
++		t.Errorf("tier = %q, want %q", tier, "medium")
++	}
++}
++
++func TestNextTier(t *testing.T) {
++	cfg := &config.Config{Escalation: config.EscalationConfig{
++		Enabled: true,
++		Chain:   []string{"low", "medium", "high"},
++	}}
++	tests := []struct {
++		current string
++		want    string
++	}{
++		{"low", "medium"},
++		{"medium", "high"},
++		{"high", ""},
++	}
++	for _, tt := range tests {
++		got := NextTier(cfg, tt.current)
++		if got != tt.want {
++			t.Errorf("NextTier(%q) = %q, want %q", tt.current, got, tt.want)
++		}
++	}
++}
++```
++
++**Step 2: Run test to verify it fails**
++
++Run: `cd internal/v2/routing && go test -run TestResolveTier -v`
++Expected: FAIL — `ResolveTier` undefined
++
++**Step 3: Write minimal implementation**
++
++```go
++package routing
++
++import "github.com/danabrams/gromit/internal/config"
++
++// ResolveTier determines the effective tier for a phase.
++// Checks methodology.phase_models config for a phase override,
++// falls back to the provided beadTier.
++func ResolveTier(cfg *config.Config, phase, beadTier string) string {
++	if cfg == nil {
++		return beadTier
++	}
++	return cfg.PhaseModelTier(phase, beadTier)
++}
++
++// NextTier returns the next tier in the escalation chain.
++// Returns empty string if escalation is disabled or at the end of the chain.
++func NextTier(cfg *config.Config, currentTier string) string {
++	if cfg == nil {
++		return ""
++	}
++	return cfg.NextEscalationTier(currentTier)
++}
++
++// BeadTier determines the starting tier for a bead based on config strategy.
++func BeadTier(cfg *config.Config, priority int, labels []string, complexity string) string {
++	if cfg == nil {
++		return "medium"
++	}
++	return cfg.BuildTierForStrategy(priority, labels, complexity)
++}
++```
++
++**Step 4: Run test to verify it passes**
++
++Run: `cd internal/v2/routing && go test -v`
++Expected: PASS
++
++**Step 5: Commit**
++
++```bash
++git add internal/v2/routing/tier.go internal/v2/routing/tier_test.go
++git commit -m "feat(v2): add tier resolution delegating to config accessors"
++```
++
++**Acceptance Criteria:**
++- `ResolveTier` checks `methodology.phase_models` overrides per phase
++- `NextTier` returns escalation chain progression
++- `BeadTier` delegates to `BuildTierForStrategy`
++
++---
++
++### Task 5: Add `Provider` Field to `StageRequest`
++
++**Files:**
++- Modify: `internal/v2/stage/stage.go`
++- Modify: `internal/v2/stage/stage.go` tests (if any)
++
++**Step 1: Write the failing test**
++
++```go
++// In internal/v2/stage/stage_test.go (or add to existing)
++func TestStageRequest_ProviderField(t *testing.T) {
++	req := &StageRequest{
++		Model: "sonnet",
++	}
++	// Provider should be nil by default (stages fall back to constructed provider)
++	if req.Provider != nil {
++		t.Error("expected nil Provider by default")
++	}
++}
++```
++
++**Step 2: Run test — fails because Provider field doesn't exist**
++
++**Step 3: Add the field to StageRequest**
++
++Add to `StageRequest` in `internal/v2/stage/stage.go`:
++
++```go
++type StageRequest struct {
++	Bead         BeadInfo
++	Model        string
++	Provider     llmtypes.LLMProvider // Set by loop routing; nil means use stage default
++	Iteration    int
++	Config       *config.Config
++	Worktree     string
++	Remediation  bool
++	RetryContext *RetryContext
++	Telemetry    *LLMCostSummary
++}
++```
++
++Add import for `llmtypes`.
++
++**Step 4: Run test — passes**
++
++Run: `go test ./internal/v2/stage/ -v`
++
++**Step 5: Commit**
++
++```bash
++git add internal/v2/stage/stage.go
++git commit -m "feat(v2): add Provider field to StageRequest for loop-level routing"
++```
++
++**Acceptance Criteria:**
++- `StageRequest.Provider` is of type `llmtypes.LLMProvider`
++- Default is nil (stages fall back to their constructed provider)
++
++---
++
++### Task 6: Bead Loop Routing Seam
++
++**Files:**
++- Modify: `internal/v2/loop/bead_loop.go`
++- Test: `internal/v2/loop/bead_loop_routing_test.go`
++
++**Step 1: Write the failing test**
++
++```go
++package loop
++
++import (
++	"context"
++	"testing"
++
++	"github.com/danabrams/gromit/internal/bead"
++	"github.com/danabrams/gromit/internal/v2/routing"
++	"github.com/danabrams/gromit/internal/v2/stage"
++)
++
++func TestBeadLoop_RoutingSeam_PopulatesProviderAndModel(t *testing.T) {
++	// Capture the StageRequest passed to the build stage
++	var capturedReq *stage.StageRequest
++	buildStage := &capturingStage{name: "build", onRun: func(req *stage.StageRequest) {
++		capturedReq = req
++	}}
++
++	stubProvider := &stubRoutableProvider{name: "claude", models: map[string]string{"medium": "sonnet"}}
++	router := routing.NewRouter(routing.Config{
++		Providers: map[string]routing.RoutableProvider{"claude": stubProvider},
++		Ratio:     map[string]int{"claude": 100},
++	})
++
++	loop, err := NewBeadLoop(BeadLoopConfig{
++		Gate:     &noopStage{name: "gate"},
++		Build:    buildStage,
++		Validate: &noopStage{name: "validate"},
++		Review:   &noopStage{name: "review"},
++		Epilogue: &noopStage{name: "epilogue"},
++		Router:   router,
++	})
++	if err != nil {
++		t.Fatalf("NewBeadLoop error: %v", err)
++	}
++
++	beads := []*bead.Bead{{ID: "b1", Title: "test bead"}}
++	_, err = loop.Run(context.Background(), beads, nil)
++	if err != nil {
++		t.Fatalf("Run error: %v", err)
++	}
++	if capturedReq == nil {
++		t.Fatal("build stage was not called")
++	}
++	if capturedReq.Model != "sonnet" {
++		t.Errorf("model = %q, want %q", capturedReq.Model, "sonnet")
++	}
++	if capturedReq.Provider == nil {
++		t.Error("expected Provider to be populated by routing seam")
++	}
++}
++```
++
++**Step 2: Run test — fails because Router field not on BeadLoopConfig**
++
++**Step 3: Implementation**
++
++Add to `BeadLoopConfig`:
++```go
++Router *routing.Router // optional: when set, populates StageRequest.Provider and Model
++```
++
++Add to `BeadLoop`:
++```go
++router *routing.Router
++```
++
++Modify `stageRequest()` to call router when available:
++```go
++func (b *BeadLoop) stageRequest(beadItem *bead.Bead, iteration int, retryCtx *stage.RetryContext) stage.Request {
++	// ... existing code ...
++	req := stage.Request{
++		Bead:         stage.BeadInfo{...},
++		Iteration:    iteration,
++		RetryContext: retryCtx,
++		Worktree:     b.worktree,
++	}
++	// Routing seam: populate provider and model when router is available
++	if b.router != nil {
++		phase := b.currentStageName // set before stageRequest is called
++		tier := b.currentTier       // resolved from config
++		if p, model, err := b.router.Select(phase, tier); err == nil {
++			req.Model = model
++			// req.Provider = p (need LLMProvider adapter)
++		}
++	}
++	return req
++}
++```
++
++Note: The exact wiring requires tracking which stage is being run. A cleaner approach is to modify `runStageEntry` to call the router before invoking the stage, rather than in `stageRequest`. This keeps the routing decision close to the invocation point.
++
++Modify `runStageEntry` to call router before stage invocation:
++```go
++// Before running the stage, populate routing if router is available
++if b.router != nil {
++    phase := stageName
++    tier := "medium" // TODO: resolve from bead priority/config
++    if p, model, routeErr := b.router.Select(phase, tier); routeErr == nil {
++        req.Model = model
++        // Store provider reference for stage use
++    }
++}
++```
++
++**Step 4: Run test — passes**
++
++**Step 5: Commit**
++
++```bash
++git add internal/v2/loop/bead_loop.go internal/v2/loop/bead_loop_routing_test.go
++git commit -m "feat(v2): add routing seam to bead loop — populate StageRequest from Router"
++```
++
++**Acceptance Criteria:**
++- When Router is configured, each stage invocation gets provider and model from routing
++- When Router is nil, behavior is unchanged (backward compatible)
++- Model in StageRequest matches the router's selection for the given phase and tier
++
++---
++
++### Task 7: Bead Loop Escalation via Tier
++
++**Files:**
++- Modify: `internal/v2/loop/bead_loop.go`
++- Test: `internal/v2/loop/bead_loop_escalation_test.go`
++
++**Step 1: Write the failing test**
++
++```go
++func TestBeadLoop_Escalation_IncrementsTierOnRetry(t *testing.T) {
++	callCount := 0
++	var models []string
++	buildStage := &failThenSucceedStage{
++		name:       "build",
++		failCount:  1,
++		onRun: func(req *stage.StageRequest) {
++			models = append(models, req.Model)
++			callCount++
++		},
++	}
++
++	stubProvider := &stubRoutableProvider{
++		name: "claude",
++		models: map[string]string{
++			"low":    "haiku",
++			"medium": "sonnet",
++			"high":   "opus",
++		},
++	}
++	router := routing.NewRouter(routing.Config{
++		Providers: map[string]routing.RoutableProvider{"claude": stubProvider},
++		Ratio:     map[string]int{"claude": 100},
++	})
++
++	cfg := &config.Config{
++		Escalation: config.EscalationConfig{
++			Enabled: true,
++			Chain:   []string{"low", "medium", "high"},
++		},
++	}
++
++	loop, _ := NewBeadLoop(BeadLoopConfig{
++		Gate:     &noopStage{name: "gate"},
++		Build:    buildStage,
++		Validate: &noopStage{name: "validate"},
++		Review:   &noopStage{name: "review"},
++		Epilogue: &noopStage{name: "epilogue"},
++		Router:   router,
++		Config:   cfg,
++	})
++
++	beads := []*bead.Bead{{ID: "b1", Title: "test", Priority: 2}} // P2 = low tier
++	loop.Run(context.Background(), beads, nil)
++
++	if len(models) < 2 {
++		t.Fatalf("expected at least 2 build calls, got %d", len(models))
++	}
++	if models[0] != "haiku" {
++		t.Errorf("first model = %q, want %q", models[0], "haiku")
++	}
++	if models[1] != "sonnet" {
++		t.Errorf("second model = %q, want %q (escalated)", models[1], "sonnet")
++	}
++}
++```
++
++**Step 2: Run test — fails**
++
++**Step 3: Implement escalation in runStageEntry**
++
++In the retry path of `runStageEntry`, after incrementing `attempt`:
++```go
++// Escalation: bump tier on retry
++if b.router != nil && b.cfg != nil {
++    nextTier := routing.NextTier(b.cfg, currentTier)
++    if nextTier != "" {
++        currentTier = nextTier
++    }
++}
++```
++
++**Step 4: Run test — passes**
++
++**Step 5: Commit**
++
++```bash
++git add internal/v2/loop/bead_loop.go internal/v2/loop/bead_loop_escalation_test.go
++git commit -m "feat(v2): tier escalation on build/validate retry in bead loop"
++```
++
++**Acceptance Criteria:**
++- On retry, tier increments (low -> medium -> high)
++- Router is re-called with the higher tier
++- When at end of chain, tier stays at highest
++
++---
++
++### Task 8: Prompt Budget Shaping — Phase-Filtered Rules
++
++**Files:**
++- Modify: `internal/v2/prompt/assembler.go`
++- Create: `internal/v2/prompt/rules_filter.go`
++- Test: `internal/v2/prompt/rules_filter_test.go`
++
++**Step 1: Write the failing test**
++
++```go
++package prompt
++
++import "testing"
++
++func TestFilterRulesByPhase_BuildIncludesAnnotated(t *testing.T) {
++	rules := `# Project Rules
++
++## Architecture <!-- phases: red, build, green, refactor, review -->
++
++### Keep things simple
++Always prefer simple solutions.
++
++## Process
++
++### Code review required
++All code must be reviewed.
++
++## Test Quality <!-- phases: red, build, green -->
++
++### Tests must use t.Chdir
++Never use os.Chdir in tests.
++`
++	result := FilterRulesByPhase(rules, "build")
++	if result == "" {
++		t.Fatal("expected non-empty result for build phase")
++	}
++	if !contains(result, "Keep things simple") {
++		t.Error("expected Architecture section in build phase")
++	}
++	if !contains(result, "Tests must use t.Chdir") {
++		t.Error("expected Test Quality section in build phase")
++	}
++}
++
++func TestFilterRulesByPhase_ReviewExcludesProcess(t *testing.T) {
++	rules := `# Project Rules
++
++## Architecture <!-- phases: red, build, green, refactor, review -->
++
++### Keep things simple
++Always prefer simple solutions.
++
++## Process <!-- phases: build -->
++
++### Code review required
++All code must be reviewed.
++`
++	result := FilterRulesByPhase(rules, "review")
++	if contains(result, "Code review required") {
++		t.Error("review phase should not include build-only Process section")
++	}
++	if !contains(result, "Keep things simple") {
++		t.Error("review phase should include Architecture section")
++	}
++}
++
++func TestFilterRulesByPhase_CapAtMaxChars(t *testing.T) {
++	// Generate rules larger than the review cap (8100 chars)
++	rules := "# Rules\n\n## Section <!-- phases: review -->\n\n"
++	for i := 0; i < 1000; i++ {
++		rules += "This is a line of rule content that adds length.\n"
++	}
++	result := FilterRulesByPhase(rules, "review")
++	if len(result) > 8200 { // small margin for headers
++		t.Errorf("result length = %d, want <= 8200 for review phase", len(result))
++	}
++}
++
++func contains(s, substr string) bool {
++	return len(s) > 0 && len(substr) > 0 && strings.Contains(s, substr)
++}
++```
++
++**Step 2: Run test — fails**
++
++**Step 3: Implement FilterRulesByPhase**
++
++Port the filtering logic from `internal/prompt/rules_filter.go` and the phase caps from `internal/prompt/prompt.go:rulesPhaseMaxChars`. Create `internal/v2/prompt/rules_filter.go`:
++
++```go
++package prompt
++
++// Phase-specific character caps for RULES.md filtering.
++var rulesPhaseMaxChars = map[string]int{
++	"red":      8500,
++	"build":    12800,
++	"green":    8500,
++	"refactor": 8500,
++	"review":   8100,
++	"plan":     2000,
++	"validate": 2000,
++}
++
++// FilterRulesByPhase filters RULES.md to sections annotated for the given phase,
++// then caps the result at the phase-specific character limit.
++func FilterRulesByPhase(content, phase string) string {
++	// ... port from internal/prompt/rules_filter.go filterRulesByPhase() ...
++	// ... then apply cap from rulesPhaseMaxChars ...
++}
++```
++
++**Step 4: Run test — passes**
++
++**Step 5: Commit**
++
++```bash
++git add internal/v2/prompt/rules_filter.go internal/v2/prompt/rules_filter_test.go
++git commit -m "feat(v2): add phase-filtered RULES.md with per-phase character caps"
++```
++
++**Acceptance Criteria:**
++- Sections are filtered by phase annotation
++- Unannotated sections are included for all phases
++- Output is capped at the phase-specific character limit
++
++---
++
++### Task 9: Prompt Budget Shaping — Scoped CLAUDE.md
++
++**Files:**
++- Create: `internal/v2/prompt/scope.go`
++- Test: `internal/v2/prompt/scope_test.go`
++
++**Step 1: Write the failing test**
++
++```go
++package prompt
++
++import "testing"
++
++func TestScopeClaudeContext_SinglePackage(t *testing.T) {
++	claudeMD := `# Project
++
++## Architecture
++
++CLI commands live in cmd/gromit/.
++
++Internal packages:
++- runner/ — core loop orchestration
++- config/ — YAML config loading
++- bead/ — bd CLI integration
++- prompt/ — prompt rendering
++- review/ — post-build review
++`
++	// Bead touches only config/ package
++	result := ScopeClaudeContext(claudeMD, []string{"internal/config/config.go"})
++	if !contains(result, "config/") {
++		t.Error("expected config/ in scoped context")
++	}
++	// Full content is fine for small CLAUDE.md
++}
++
++func TestScopeClaudeContext_EmptyFiles(t *testing.T) {
++	claudeMD := "# Project\n\nSome content"
++	result := ScopeClaudeContext(claudeMD, nil)
++	if result != claudeMD {
++		t.Error("with no files, should return full CLAUDE.md")
++	}
++}
++```
++
++**Step 2: Run test — fails**
++
++**Step 3: Implement ScopeClaudeContext**
++
++```go
++package prompt
++
++// ScopeClaudeContext filters CLAUDE.md to sections relevant to the packages
++// touched by the bead's files. Returns full content when no files are provided
++// or no package-specific sections are found.
++func ScopeClaudeContext(claudeMD string, beadFiles []string) string {
++	if len(beadFiles) == 0 {
++		return claudeMD
++	}
++	// Extract package paths from bead files
++	// Match against CLAUDE.md sections
++	// Return scoped content, falling back to full if no matches
++	// Port logic from internal/prompt/renderer_context.go applyScopedClaudeContext
++	return claudeMD // minimal: return full for now, port scoping logic
++}
++```
++
++**Step 4: Run test — passes**
++
++**Step 5: Commit**
++
++```bash
++git add internal/v2/prompt/scope.go internal/v2/prompt/scope_test.go
++git commit -m "feat(v2): add CLAUDE.md scoping by bead file packages"
++```
++
++**Acceptance Criteria:**
++- CLAUDE.md is scoped to packages touched by the bead
++- Falls back to full content when no scoping is possible
++
++---
++
++### Task 10: Prompt Budget Shaping — Budget-Aware Assembler
++
++**Files:**
++- Modify: `internal/v2/prompt/assembler.go`
++- Test: `internal/v2/prompt/assembler_test.go` (create or modify)
++
++**Step 1: Write the failing test**
++
++```go
++package prompt
++
++import "testing"
++
++func TestPromptAssembler_BudgetShaping(t *testing.T) {
++	base := makeString(10000)    // 10K chars of rules
++	project := makeString(2000)  // 2K chars of CLAUDE.md
++	instance := makeString(3000) // 3K spec
++	fragment := makeString(2000) // 2K fragment
++
++	a := NewPromptAssembler(base, project, instance, fragment)
++	a.SetBudget(BudgetConfig{
++		MaxChars:  8000,
++		Phase:     "build",
++		FileCount: 2, // small bead = 50% budget = 4000
++	})
++
++	result := a.Assemble()
++	if len(result) > 5000 { // 4000 budget + headers/markers
++		t.Errorf("result length = %d, want <= 5000 for small bead budget", len(result))
++	}
++}
++
++func TestPromptAssembler_ShapeReport(t *testing.T) {
++	a := NewPromptAssembler(makeString(10000), "", "", "")
++	a.SetBudget(BudgetConfig{MaxChars: 5000, Phase: "build", FileCount: 1})
++	a.Assemble()
++	report := a.ShapeReport()
++	if report == nil {
++		t.Fatal("expected non-nil ShapeReport")
++	}
++	if report.BeforeChars <= report.AfterChars {
++		t.Error("expected trimming to reduce chars")
++	}
++}
++
++func TestPromptAssembler_NoBudget_FullConcat(t *testing.T) {
++	a := NewPromptAssembler("base", "project", "instance", "fragment")
++	result := a.Assemble()
++	if !contains(result, "base") || !contains(result, "fragment") {
++		t.Error("without budget, all layers should be present")
++	}
++}
++
++func makeString(n int) string {
++	b := make([]byte, n)
++	for i := range b {
++		b[i] = 'x'
++	}
++	return string(b)
++}
++```
++
++**Step 2: Run test — fails**
++
++**Step 3: Implement budget-aware assembly**
++
++```go
++// BudgetConfig configures prompt budget shaping.
++type BudgetConfig struct {
++	MaxChars  int    // Total character budget; 0 means no budget
++	Phase     string // Phase for rules filtering
++	FileCount int    // Bead file count for scope adjustment
++}
++
++// ShapeReport records what was trimmed during budget shaping.
++type ShapeReport struct {
++	BeforeChars int
++	AfterChars  int
++	TrimActions []string
++}
++
++func (p *PromptAssembler) SetBudget(cfg BudgetConfig) {
++	p.budget = &cfg
++}
++
++func (p *PromptAssembler) ShapeReport() *ShapeReport {
++	return p.shapeReport
++}
++
++// Modify Assemble to apply budget shaping when configured
++func (p *PromptAssembler) Assemble() string {
++	// ... existing layer assembly ...
++	// If budget configured:
++	//   1. Filter rules by phase
++	//   2. Scope CLAUDE.md
++	//   3. Apply scope-adjusted budget (50% for <=2 files, 75% for 3-4, 100% for 5+)
++	//   4. Trim layers in priority order to fit budget
++	//   5. Record ShapeReport
++}
++```
++
++**Step 4: Run test — passes**
++
++**Step 5: Commit**
++
++```bash
++git add internal/v2/prompt/assembler.go internal/v2/prompt/assembler_test.go
++git commit -m "feat(v2): budget-aware prompt assembler with scope-adjusted caps"
++```
++
++**Acceptance Criteria:**
++- Budget is respected: output <= configured max chars (scope-adjusted)
++- Small beads (1-2 files) get 50% budget, medium (3-4) 75%, large 100%
++- ShapeReport records before/after chars and trim actions
++- Without budget, behavior is unchanged (full concatenation)
++
++---
++
++### Task 11: Resume — Gap Analysis
++
++**Files:**
++- Create: `internal/v2/loop/gap_analysis.go`
++- Test: `internal/v2/loop/gap_analysis_test.go`
++
++**Step 1: Write the failing test**
++
++```go
++package loop
++
++import "testing"
++
++func TestGapAnalysis_IdentifiesChangedBeadFiles(t *testing.T) {
++	// Given: completed beads with known file mappings
++	beadFiles := map[string][]string{
++		"b1": {"pkg/a/a.go", "pkg/a/a_test.go"},
++		"b2": {"pkg/b/b.go"},
++	}
++	// Given: files changed since last successful commit
++	changedFiles := []string{"pkg/a/a.go", "pkg/c/c.go"}
++
++	flagged := AnalyzeGaps(beadFiles, changedFiles)
++
++	if len(flagged) != 1 {
++		t.Fatalf("flagged = %d, want 1", len(flagged))
++	}
++	if flagged[0] != "b1" {
++		t.Errorf("flagged[0] = %q, want %q", flagged[0], "b1")
++	}
++}
++
++func TestGapAnalysis_NoOverlap(t *testing.T) {
++	beadFiles := map[string][]string{
++		"b1": {"pkg/a/a.go"},
++	}
++	changedFiles := []string{"pkg/b/b.go"}
++
++	flagged := AnalyzeGaps(beadFiles, changedFiles)
++	if len(flagged) != 0 {
++		t.Errorf("flagged = %v, want empty", flagged)
++	}
++}
++```
++
++**Step 2: Run test — fails**
++
++**Step 3: Implement**
++
++```go
++package loop
++
++// AnalyzeGaps identifies completed beads whose files have been modified.
++// Returns bead IDs that need revalidation.
++func AnalyzeGaps(beadFiles map[string][]string, changedFiles []string) []string {
++	changedSet := make(map[string]struct{}, len(changedFiles))
++	for _, f := range changedFiles {
++		changedSet[f] = struct{}{}
++	}
++
++	var flagged []string
++	for beadID, files := range beadFiles {
++		for _, f := range files {
++			if _, ok := changedSet[f]; ok {
++				flagged = append(flagged, beadID)
++				break
++			}
++		}
++	}
++	sort.Strings(flagged)
++	return flagged
++}
++```
++
++**Step 4: Run test — passes**
++
++**Step 5: Commit**
++
++```bash
++git add internal/v2/loop/gap_analysis.go internal/v2/loop/gap_analysis_test.go
++git commit -m "feat(v2): add gap analysis for resume — identify beads with changed files"
++```
++
++**Acceptance Criteria:**
++- Beads whose files overlap with changed files are flagged
++- Beads with no overlap are not flagged
++- Returns sorted bead IDs
++
++---
++
++### Task 12: Resume — Spec Loop Integration
++
++**Files:**
++- Modify: `internal/v2/loop/spec_loop.go`
++- Test: `internal/v2/loop/spec_loop_resume_test.go`
++
++**Step 1: Write the failing test**
++
++```go
++func TestSpecLoop_Resume_SkipsReplanAndRedecompose(t *testing.T) {
++	// Setup: existing plan file and existing beads
++	// Verify: plan stage is NOT called, decompose stage is NOT called
++	// Verify: bead loop IS called with existing beads
++	// (This test verifies existing behavior — plan and decompose are already skipped on resume)
++}
++
++func TestSpecLoop_Resume_RunsGapAnalysis(t *testing.T) {
++	// Setup: existing plan + beads, some files changed
++	// Verify: gap analysis identifies changed beads
++	// Verify: flagged beads are re-queued (marked incomplete)
++}
++```
++
++**Step 2: Run test — fails on gap analysis integration**
++
++**Step 3: Add gap analysis + selective revalidation to spec loop resume path**
++
++In `SpecLoop.Run()`, after the decompose resume path and before `runBeadLoop`:
++
++```go
++// Resume path: run gap analysis and selective revalidation
++if len(existingBeads) > 0 {
++    // Gap analysis: identify beads with changed files
++    flaggedBeads := s.runGapAnalysisOnResume(ctx, worktree, existingBeads)
++    if len(flaggedBeads) > 0 {
++        // Re-queue flagged beads by marking them incomplete
++        existingBeads = s.revalidateAndRequeue(ctx, existingBeads, flaggedBeads, worktree)
++    }
++}
++```
++
++**Step 4: Run test — passes**
++
++**Step 5: Commit**
++
++```bash
++git add internal/v2/loop/spec_loop.go internal/v2/loop/spec_loop_resume_test.go
++git commit -m "feat(v2): resume with gap analysis and selective revalidation"
++```
++
++**Acceptance Criteria:**
++- On resume, the loop does not replan or re-decompose
++- Gap analysis identifies completed beads with changed files
++- Flagged beads are re-queued for processing
++
++---
++
++### Task 13: Remediation Worktree Propagation
++
++**Files:**
++- Modify: `internal/v2/remediation/remediation.go`
++- Modify: `internal/v2/loop/spec_loop.go` (where remediation is called)
++- Test: `internal/v2/remediation/remediation_test.go`
++
++**Step 1: Write the failing test**
++
++```go
++func TestRemediationRunner_ReceivesWorktree(t *testing.T) {
++	var receivedWorktree string
++	acceptStage := &mockStage{
++		runFn: func(ctx context.Context, req *stage.StageRequest) (*stage.StageResult, error) {
++			receivedWorktree = req.Worktree
++			return &stage.StageResult{Decision: stage.DecisionProceed}, nil
++		},
++	}
++	runner := NewRemediationRunner(RemediationRunnerConfig{
++		AcceptStage: acceptStage,
++	})
++	_ = runner.Run(context.Background(), "test-spec", "/path/to/worktree")
++	if receivedWorktree != "/path/to/worktree" {
++		t.Errorf("worktree = %q, want %q", receivedWorktree, "/path/to/worktree")
++	}
++}
++```
++
++**Step 2: Run test — fails because Run() doesn't accept worktree parameter**
++
++**Step 3: Expand Run signature**
++
++Change `Run(ctx, specID)` to `Run(ctx, specID, worktree string)`:
++
++```go
++func (r *RemediationRunner) Run(ctx context.Context, specID, worktree string) error {
++	// ... existing code ...
++	reqTemplate := stage.Request{
++		Bead:     stage.BeadInfo{ID: specID},
++		Worktree: worktree, // NEW: propagate worktree
++	}
++	// ...
++}
++```
++
++Update callers:
++- `internal/v2/loop/spec_loop.go`: `s.remediationRunner.Run(ctx, specID)` → `s.remediationRunner.Run(ctx, specID, worktree)`
++- Update `remediationRunner` interface to add worktree parameter
++- Update `internal/v2/loop/run2_components.go` if needed
++
++**Step 4: Run test — passes**
++
++**Step 5: Commit**
++
++```bash
++git add internal/v2/remediation/remediation.go internal/v2/loop/spec_loop.go
++git commit -m "feat(v2): expand RemediationRunner.Run to accept worktree parameter"
++```
++
++**Acceptance Criteria:**
++- `RemediationRunner.Run()` accepts `(ctx, specID, worktree string)`
++- Worktree is propagated to stage requests
++- All callers are updated
++
++---
++
++### Task 14: Gate Re-queue — Verify Existing Block Behavior
++
++**Files:**
++- Test: `internal/v2/loop/bead_loop_requeue_test.go`
++
++**Step 1: Write the test to verify existing behavior**
++
++The bead loop already handles `DecisionBlock` via `errBeadBlocked` (marks completed and continues). The spec says blocked beads should be re-queued to end of pass. Let's verify the current behavior and add tests for the "all-blocked terminates" scenario.
++
++```go
++func TestBeadLoop_GateBlock_DefersBead(t *testing.T) {
++	// Bead b2 depends on b1. Gate blocks b2 on first pass.
++	// After b1 completes, b2 should proceed.
++	// Current implementation marks blocked beads as completed (deferred).
++}
++
++func TestBeadLoop_AllBlocked_TerminatesWithError(t *testing.T) {
++	// All beads have unsatisfied dependencies (gate blocks all).
++	// Loop should terminate with descriptive error.
++	gateStage := &conditionalGate{
++		decisions: map[string]stage.Decision{
++			"b1": stage.DecisionBlock,
++			"b2": stage.DecisionBlock,
++		},
++	}
++	loop, _ := NewBeadLoop(BeadLoopConfig{
++		Gate:     gateStage,
++		Build:    &noopStage{name: "build"},
++		Validate: &noopStage{name: "validate"},
++		Review:   &noopStage{name: "review"},
++		Epilogue: &noopStage{name: "epilogue"},
++	})
++	beads := []*bead.Bead{
++		{ID: "b1", Title: "first"},
++		{ID: "b2", Title: "second"},
++	}
++	_, err := loop.Run(context.Background(), beads, nil)
++	// Currently blocked beads are marked completed — need to verify
++	// the resolver handles this correctly or adjust behavior
++}
++```
++
++**Step 2: Run test — assess current behavior**
++
++**Step 3: If needed, adjust gate block handling to use resolver's dependency awareness**
++
++The current code marks blocked beads as "completed" which breaks re-queue semantics. The spec wants blocked beads to be deferred (not marked completed). The resolver already handles topological ordering and unsatisfied dependencies. We may need to adjust the block handling to NOT mark the bead as completed, but instead let the resolver handle it on the next pass.
++
++**Step 4: Run test — passes**
++
++**Step 5: Commit**
++
++```bash
++git add internal/v2/loop/bead_loop_requeue_test.go
++git commit -m "test(v2): verify gate block re-queue and all-blocked termination"
++```
++
++**Acceptance Criteria:**
++- Blocked beads are deferred (not permanently failed)
++- Blocked beads proceed after their dependency completes
++- All-blocked pass terminates with descriptive error
++
++---
++
++### Task 15: Spec Loop Routing Seam
++
++**Files:**
++- Modify: `internal/v2/loop/spec_loop.go`
++- Test: `internal/v2/loop/spec_loop_routing_test.go`
++
++**Step 1: Write the failing test**
++
++```go
++func TestSpecLoop_RoutingSeam_PopulatesModelForPlanStage(t *testing.T) {
++	var capturedModel string
++	planStage := &capturingStage{name: "plan", onRun: func(req *stage.StageRequest) {
++		capturedModel = req.Model
++	}}
++	// ... setup with router that returns "sonnet" for plan phase ...
++	// Verify capturedModel == "sonnet"
++}
++```
++
++**Step 2: Run test — fails**
++
++**Step 3: Add router to SpecLoop and use it before plan/decompose/accept stages**
++
++```go
++// WithRouter adds a routing.Router to the spec loop
++func WithRouter(r *routing.Router) SpecLoopOption {
++	return func(s *SpecLoop) { s.router = r }
++}
++```
++
++In `Run()`, before calling plan/decompose/accept stages, call `router.Select()` and populate the request.
++
++**Step 4: Run test — passes**
++
++**Step 5: Commit**
++
++```bash
++git add internal/v2/loop/spec_loop.go internal/v2/loop/spec_loop_routing_test.go
++git commit -m "feat(v2): add routing seam to spec loop for plan/decompose/accept"
++```
++
++**Acceptance Criteria:**
++- Plan, decompose, and accept stages receive model from router
++- Router is optional (nil = no routing, backward compatible)
++
++---
++
++### Task 16: Run2 Command — Router Construction and Wiring
++
++**Files:**
++- Modify: `cmd/gromit/run2.go`
++- Modify: `internal/v2/loop/run2_components.go`
++- Test: `cmd/gromit/run2_test.go`
++
++**Step 1: Write the failing test**
++
++```go
++func TestRun2_ConstructsRouterFromConfig(t *testing.T) {
++	// Verify that when config has providers, a router is constructed
++	// and passed to the spec loop
++}
++```
++
++**Step 2: Run test — fails**
++
++**Step 3: Add router construction in run2.go**
++
++```go
++// In run2(), after loading config:
++var router *routing.Router
++if cfg.HasProviders() {
++    routerProviders := buildRouterProviders(cfg, llmAdapter)
++    router = routing.NewRouter(routing.Config{
++        Providers:        routerProviders,
++        PhasePreferences: cfg.Routing.PhasePreferences,
++        Ratio:            cfg.Routing.Ratio,
++        Cooldown:         parseCooldown(cfg.Routing.Fallback.Cooldown),
++    })
++}
++
++// Add to baseOpts:
++if router != nil {
++    baseOpts = append(baseOpts, loop.WithRouter(router))
++}
++```
++
++**Step 4: Run test — passes**
++
++**Step 5: Commit**
++
++```bash
++git add cmd/gromit/run2.go internal/v2/loop/run2_components.go
++git commit -m "feat(v2): wire router construction from config into run2 command"
++```
++
++**Acceptance Criteria:**
++- Router is constructed from `cfg.Providers` and `cfg.Routing`
++- Router is passed to spec loop and bead loop
++- Single-provider configs work without routing (backward compatible)
++
++---
++
++### Task 17: Run2 Components — Budget-Aware Prompt Loading
++
++**Files:**
++- Modify: `internal/v2/loop/run2_components.go`
++
++**Step 1: Write the failing test**
++
++```go
++func TestRun2Components_LoadsBaseInstructionsWithPhase(t *testing.T) {
++	// Verify that loadBaseInstructions now supports phase filtering
++	// when budget shaping is configured
++}
++```
++
++**Step 2: Run test — fails**
++
++**Step 3: Modify `NewRun2LoopComponents` to pass phase info to prompt assembler**
++
++The change here is that stage constructors need to know about budget configuration so they can pass phase info when assembling prompts. The cleanest approach is to modify stage constructors to accept a budget config, or have the assembler be budget-aware at construction time.
++
++Since the spec says `loadBaseInstructions()` takes a phase parameter:
++
++```go
++// Modify loadBaseInstructions to accept optional phase for filtering
++func loadBaseInstructions(projectRoot, phase string) (string, error) {
++	content, err := loadRawRules(projectRoot)
++	if err != nil {
++		return "", err
++	}
++	if phase != "" {
++		return prompt.FilterRulesByPhase(content, phase), nil
++	}
++	return content, nil
++}
++```
++
++**Step 4: Run test — passes**
++
++**Step 5: Commit**
++
++```bash
++git add internal/v2/loop/run2_components.go
++git commit -m "feat(v2): phase-aware base instruction loading in run2 components"
++```
++
++**Acceptance Criteria:**
++- Build stage gets build-filtered rules
++- Review stage gets review-filtered rules
++- Each LLM-invoking stage gets phase-appropriate rules
++
++---
++
++### Task 18: Integration Test — Full Routing Flow
++
++**Files:**
++- Test: `internal/v2/loop/routing_integration_test.go`
++
++**Step 1: Write integration test**
++
++```go
++func TestIntegration_BeadLoop_FullRoutingFlow(t *testing.T) {
++	// Setup: router with two providers, phase preferences, ratio
++	// Run: process 3 beads through the loop
++	// Verify:
++	//   1. Build stages get provider from router
++	//   2. Phase preferences are honored
++	//   3. Ratio balancing distributes across providers
++	//   4. Escalation works on retry
++}
++```
++
++**Step 2: Run test — passes with all prior implementations**
++
++**Step 3: Commit**
++
++```bash
++git add internal/v2/loop/routing_integration_test.go
++git commit -m "test(v2): integration test for full routing flow through bead loop"
++```
++
++**Acceptance Criteria:**
++- End-to-end routing flow works: config → router → bead loop → stage request
++- All acceptance criteria from spec are covered
++
++---
++
++### Task 19: Integration Test — Resume Flow
++
++**Files:**
++- Test: `internal/v2/loop/resume_integration_test.go`
++
++**Step 1: Write integration test**
++
++```go
++func TestIntegration_SpecLoop_ResumeWithGapAnalysis(t *testing.T) {
++	// Setup: existing plan file, existing beads, some changed files
++	// Run: SpecLoop.Run()
++	// Verify:
++	//   1. Plan stage NOT called
++	//   2. Decompose stage NOT called
++	//   3. Gap analysis identifies flagged beads
++	//   4. Flagged beads are re-queued
++	//   5. Bead loop processes re-queued beads
++}
++```
++
++**Step 2: Run test — passes**
++
++**Step 3: Commit**
++
++```bash
++git add internal/v2/loop/resume_integration_test.go
++git commit -m "test(v2): integration test for resume with gap analysis"
++```
++
++**Acceptance Criteria:**
++- Resume skips plan and decompose
++- Gap analysis identifies changed beads
++- Selective revalidation re-queues failures
++
++---
++
++### Task 20: Integration Test — Prompt Budget Shaping
++
++**Files:**
++- Test: `internal/v2/prompt/budget_integration_test.go`
++
++**Step 1: Write integration test**
++
++```go
++func TestIntegration_PromptAssembler_BudgetShaping(t *testing.T) {
++	// Setup: realistic RULES.md (~24KB), CLAUDE.md (~1KB), spec, fragment
++	// Run: Assemble with budget for small bead (2 files)
++	// Verify:
++	//   1. Total output <= 50% of max budget
++	//   2. Rules are phase-filtered
++	//   3. ShapeReport shows trimming
++	//   4. Output contains essential content (fragment, spec)
++}
++
++func TestIntegration_PromptAssembler_NoBudget_FullSize(t *testing.T) {
++	// Without budget, output should be full concatenation (~27KB)
++}
++```
++
++**Step 2: Run test — passes**
++
++**Step 3: Commit**
++
++```bash
++git add internal/v2/prompt/budget_integration_test.go
++git commit -m "test(v2): integration test for prompt budget shaping vs baseline"
++```
++
++**Acceptance Criteria:**
++- Budget-shaped prompts are within expected size ranges
++- 4-5x reduction for small beads vs unbudgeted baseline
++- ShapeReport accurately reflects what was trimmed
++
++---
++
++### Task 21: Final Verification and Cleanup
++
++**Files:**
++- All modified files
++
++**Step 1: Run all tests**
++
++```bash
++go test ./internal/v2/... -v -count=1
++go test ./cmd/gromit/ -v -count=1
++```
++
++**Step 2: Verify no regressions in existing v2 tests**
++
++```bash
++go test ./internal/v2/loop/ -v -count=1
++go test ./internal/v2/stage/... -v -count=1
++go test ./internal/v2/prompt/ -v -count=1
++go test ./internal/v2/remediation/ -v -count=1
++```
++
++**Step 3: Run linter**
++
++```bash
++go vet ./internal/v2/... ./cmd/gromit/
++```
++
++**Step 4: Commit if any cleanup needed**
++
++```bash
++git add -A
++git commit -m "chore(v2): cleanup and verify all routing/resume tests pass"
++```
++
++**Acceptance Criteria:**
++- All tests pass
++- No lint errors
++- No regressions in existing tests
+diff --git a/internal/v2/routing/router.go b/internal/v2/routing/router.go
+new file mode 100644
+index 00000000..7d8353f7
+--- /dev/null
++++ b/internal/v2/routing/router.go
+@@ -0,0 +1,161 @@
++package routing
++
++import (
++	"errors"
++	"sync"
++	"time"
++
++	"github.com/danabrams/gromit/internal/v2/llmtypes"
++)
++
++// ErrNoProviderAvailable is returned when all registered providers are unavailable.
++var ErrNoProviderAvailable = errors.New("no provider available")
++
++// ProviderEntry pairs an LLMProvider with its tier-to-model mapping.
++type ProviderEntry struct {
++	Provider   llmtypes.LLMProvider
++	TierModels map[string]string // abstract tier ("high","medium","low") -> model name
++}
++
++// Router selects an LLM provider and model for a given phase and tier.
++// It implements 3-layer selection: phase preferences → ratio balancing → any available.
++type Router struct {
++	providers        map[string]ProviderEntry
++	phasePreferences map[string]string // phase -> provider name
++	ratio            map[string]int    // provider name -> weight
++	counts           map[string]int    // provider name -> invocation count
++	unavailable      map[string]time.Time
++	cooldown         time.Duration
++	mu               sync.Mutex
++}
++
++// NewRouter constructs a Router.
++//
++//   - providers: registered providers keyed by name
++//   - phasePreferences: optional pin of phase name → provider name
++//   - ratio: provider weight map for ratio balancing (values are relative weights)
++//   - cooldown: duration a provider stays marked unavailable after MarkUnavailable
++func NewRouter(
++	providers map[string]ProviderEntry,
++	phasePreferences map[string]string,
++	ratio map[string]int,
++	cooldown time.Duration,
++) *Router {
++	return &Router{
++		providers:        providers,
++		phasePreferences: phasePreferences,
++		ratio:            ratio,
++		counts:           make(map[string]int),
++		unavailable:      make(map[string]time.Time),
++		cooldown:         cooldown,
++	}
++}
++
++// Select picks a provider and concrete model name for the given phase and tier.
++// Returns ErrNoProviderAvailable if all providers are currently unavailable.
++func (r *Router) Select(phase, tier string) (llmtypes.LLMProvider, string, error) {
++	// Layer 1: phase preference
++	if pref, ok := r.phasePreferences[phase]; ok && pref != "" && pref != "any" {
++		if p, model, ok := r.pickProvider(pref, tier); ok {
++			return p, model, nil
++		}
++	}
++
++	// Layer 2: ratio balancing
++	if name := r.selectByRatio(); name != "" {
++		if p, model, ok := r.pickProvider(name, tier); ok {
++			return p, model, nil
++		}
++	}
++
++	// Layer 3: any available
++	for name := range r.providers {
++		if p, model, ok := r.pickProvider(name, tier); ok {
++			return p, model, nil
++		}
++	}
++
++	return nil, "", ErrNoProviderAvailable
++}
++
++// RecordInvocation increments the invocation count for the named provider.
++func (r *Router) RecordInvocation(name string) {
++	r.mu.Lock()
++	r.counts[name]++
++	r.mu.Unlock()
++}
++
++// MarkUnavailable marks the named provider unavailable for the configured cooldown period.
++func (r *Router) MarkUnavailable(name string) {
++	r.mu.Lock()
++	r.unavailable[name] = time.Now().Add(r.cooldown)
++	r.mu.Unlock()
++}
++
++// isAvailable reports whether the named provider is currently available.
++// Must NOT be called while holding r.mu.
++func (r *Router) isAvailable(name string) bool {
++	r.mu.Lock()
++	defer r.mu.Unlock()
++	until, marked := r.unavailable[name]
++	if !marked {
++		return true
++	}
++	if time.Now().After(until) {
++		delete(r.unavailable, name)
++		return true
++	}
++	return false
++}
++
++// pickProvider returns the provider and model if the named provider is available.
++func (r *Router) pickProvider(name, tier string) (llmtypes.LLMProvider, string, bool) {
++	entry, ok := r.providers[name]
++	if !ok {
++		return nil, "", false
++	}
++	if !r.isAvailable(name) {
++		return nil, "", false
++	}
++	model := entry.TierModels[tier]
++	return entry.Provider, model, true
++}
++
++// selectByRatio returns the provider name that is furthest below its target ratio.
++func (r *Router) selectByRatio() string {
++	if len(r.ratio) == 0 {
++		return ""
++	}
++
++	r.mu.Lock()
++	countsSnapshot := make(map[string]int, len(r.counts))
++	for k, v := range r.counts {
++		countsSnapshot[k] = v
++	}
++	r.mu.Unlock()
++
++	total := 0
++	for _, c := range countsSnapshot {
++		total += c
++	}
++
++	var selected string
++	largestGap := -1.0
++
++	for name, weight := range r.ratio {
++		if !r.isAvailable(name) {
++			continue
++		}
++		var currentPct float64
++		if total > 0 {
++			currentPct = float64(countsSnapshot[name]) / float64(total) * 100.0
++		}
++		gap := float64(weight) - currentPct
++		if gap > largestGap {
++			largestGap = gap
++			selected = name
++		}
++	}
++
++	return selected
++}
+diff --git a/internal/v2/routing/router_test.go b/internal/v2/routing/router_test.go
+new file mode 100644
+index 00000000..772156ac
+--- /dev/null
++++ b/internal/v2/routing/router_test.go
+@@ -0,0 +1,164 @@
++package routing_test
++
++import (
++	"context"
++	"testing"
++	"time"
++
++	"github.com/danabrams/gromit/internal/v2/llmtypes"
++	"github.com/danabrams/gromit/internal/v2/routing"
++)
++
++// mockProvider implements llmtypes.LLMProvider for testing.
++type mockProvider struct {
++	name string
++}
++
++func (m *mockProvider) Invoke(_ context.Context, _ llmtypes.LLMInvokeRequest) (*llmtypes.LLMInvokeResponse, error) {
++	return &llmtypes.LLMInvokeResponse{Success: true}, nil
++}
++
++func (m *mockProvider) StreamInvoke(_ context.Context, _ llmtypes.LLMStreamInvokeRequest) (*llmtypes.LLMInvokeResponse, error) {
++	return &llmtypes.LLMInvokeResponse{Success: true}, nil
++}
++
++func TestRouter_PhasePreferences_OverrideRatio(t *testing.T) {
++	claude := &mockProvider{name: "claude"}
++	codex := &mockProvider{name: "codex"}
++
++	r := routing.NewRouter(
++		map[string]routing.ProviderEntry{
++			"claude": {Provider: claude, TierModels: map[string]string{"high": "opus"}},
++			"codex":  {Provider: codex, TierModels: map[string]string{"high": "o3"}},
++		},
++		map[string]string{"build": "claude"}, // pin build to claude
++		map[string]int{"claude": 50, "codex": 50},
++		0,
++	)
++
++	// Give claude more invocations so ratio would favor codex
++	r.RecordInvocation("claude")
++	r.RecordInvocation("claude")
++
++	provider, model, err := r.Select("build", "high")
++	if err != nil {
++		t.Fatalf("unexpected error: %v", err)
++	}
++	if provider != claude {
++		t.Errorf("phase preference for 'build' should pin to claude, got %v", provider)
++	}
++	if model != "opus" {
++		t.Errorf("expected model 'opus' for tier 'high', got %q", model)
++	}
++}
++
++func TestRouter_RatioBalancing_SelectsUnderusedProvider(t *testing.T) {
++	claude := &mockProvider{name: "claude"}
++	codex := &mockProvider{name: "codex"}
++
++	r := routing.NewRouter(
++		map[string]routing.ProviderEntry{
++			"claude": {Provider: claude, TierModels: map[string]string{"high": "opus"}},
++			"codex":  {Provider: codex, TierModels: map[string]string{"high": "o3"}},
++		},
++		map[string]string{}, // no phase preferences
++		map[string]int{"claude": 50, "codex": 50},
++		0,
++	)
++
++	// Record 2 invocations for claude, none for codex
++	r.RecordInvocation("claude")
++	r.RecordInvocation("claude")
++
++	// Ratio is 50/50, claude is at 100%, codex is at 0% — should select codex
++	provider, model, err := r.Select("any", "high")
++	if err != nil {
++		t.Fatalf("unexpected error: %v", err)
++	}
++	if provider != codex {
++		t.Errorf("ratio balancing should select underused codex, got %v", provider)
++	}
++	if model != "o3" {
++		t.Errorf("expected model 'o3' for codex high tier, got %q", model)
++	}
++}
++
++func TestRouter_MarkUnavailable_FallsBackToAlternative(t *testing.T) {
++	claude := &mockProvider{name: "claude"}
++	codex := &mockProvider{name: "codex"}
++
++	r := routing.NewRouter(
++		map[string]routing.ProviderEntry{
++			"claude": {Provider: claude, TierModels: map[string]string{"high": "opus"}},
++			"codex":  {Provider: codex, TierModels: map[string]string{"high": "o3"}},
++		},
++		map[string]string{},
++		map[string]int{"claude": 100, "codex": 0}, // ratio heavily favors claude
++		time.Hour,
++	)
++
++	r.MarkUnavailable("claude")
++
++	provider, _, err := r.Select("any", "high")
++	if err != nil {
++		t.Fatalf("unexpected error: %v", err)
++	}
++	if provider != codex {
++		t.Errorf("claude is unavailable, should fall back to codex, got %v", provider)
++	}
++}
++
++func TestRouter_MarkUnavailable_ReenablesAfterCooldown(t *testing.T) {
++	claude := &mockProvider{name: "claude"}
++
++	r := routing.NewRouter(
++		map[string]routing.ProviderEntry{
++			"claude": {Provider: claude, TierModels: map[string]string{"high": "opus"}},
++		},
++		map[string]string{},
++		map[string]int{"claude": 100},
++		1*time.Millisecond, // very short cooldown
++	)
++
++	r.MarkUnavailable("claude")
++
++	// Immediately should be unavailable
++	provider, _, err := r.Select("any", "high")
++	if err == nil && provider == claude {
++		t.Error("claude should be unavailable immediately after MarkUnavailable")
++	}
++
++	// Wait for cooldown to expire
++	time.Sleep(5 * time.Millisecond)
++
++	provider, model, err := r.Select("any", "high")
++	if err != nil {
++		t.Fatalf("unexpected error after cooldown: %v", err)
++	}
++	if provider != claude {
++		t.Errorf("claude should be re-enabled after cooldown, got %v", provider)
++	}
++	if model != "opus" {
++		t.Errorf("expected model 'opus', got %q", model)
++	}
++}
++
++func TestRouter_AllProvidersUnavailable_ReturnsError(t *testing.T) {
++	claude := &mockProvider{name: "claude"}
++
++	r := routing.NewRouter(
++		map[string]routing.ProviderEntry{
++			"claude": {Provider: claude, TierModels: map[string]string{"high": "opus"}},
++		},
++		map[string]string{},
++		map[string]int{"claude": 100},
++		time.Hour,
++	)
++
++	r.MarkUnavailable("claude")
++
++	_, _, err := r.Select("any", "high")
++	if err == nil {
++		t.Error("expected error when all providers are unavailable, got nil")
++	}
++}
