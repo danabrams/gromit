@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -9,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/danabrams/gromit/internal/v2/adapter"
+	"github.com/spf13/cobra"
 )
 
 func TestDebug2_InvokesAgentInWorktree(t *testing.T) {
@@ -289,5 +291,27 @@ func TestDebug2Impl_PromptIncludesEventTailAndFailureDiff(t *testing.T) {
 	}
 	if strings.Contains(promptText, `{"event":"old","decision":"Proceed"}`) {
 		t.Fatalf("prompt should include event tail only, but contained oldest event: %q", promptText)
+	}
+}
+
+func TestDebug2RunE_ThreadsCommandContext(t *testing.T) {
+	var captured context.Context
+	origImpl := debug2ImplFn
+	t.Cleanup(func() { debug2ImplFn = origImpl })
+	debug2ImplFn = func(ctx context.Context, specName, gromitDir string) error {
+		captured = ctx
+		return nil
+	}
+
+	type ctxKey struct{}
+	cmd := &cobra.Command{}
+	ctx := context.WithValue(context.Background(), ctxKey{}, "threaded")
+	cmd.SetContext(ctx)
+
+	if err := debug2RunE(cmd, []string{"spec-a"}); err != nil {
+		t.Fatalf("debug2RunE() error = %v", err)
+	}
+	if got := captured.Value(ctxKey{}); got != "threaded" {
+		t.Fatalf("captured context value = %v, want %q", got, "threaded")
 	}
 }
