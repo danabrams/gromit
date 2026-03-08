@@ -496,15 +496,22 @@ The following fixes were applied to main after the v2-run-loop spec was merged (
 - Build failures with remaining retries proceed to model escalation before triage
 - `go build ./...` and `go test ./internal/v2/loop/...` pass
 
-### A16. Decompose stage must read plan.md during remediation (`pending`)
+### A16. Remediation decompose must use gap analysis to scope beads (`pending`)
 
-**Problem:** During spec remediation, the decompose stage switched from reading `plan.md` to `gap-analysis.md`. The gap-analysis file contains criterion failure summaries, not a proper implementation plan with task definitions. The LLM could not parse it, failed to extract JSON bead definitions, and the spec failed with "could not extract JSON using any strategy."
+**Problem:** During spec remediation, the decompose stage re-decomposes the entire plan instead of creating beads only for the unmet acceptance criteria. The accept stage writes per-criterion pass/fail results to `.gromit/v2/gap-analysis.md` and returns them in `AcceptArtifacts.GapSummary`, but the remediation runner discards the gap stage result and the decompose stage never reads the gap analysis. This causes remediation to create a full second generation of beads duplicating already-completed work. An earlier fix (removing the gap-analysis-instead-of-plan switch) was correct — decompose must always read `plan.md` — but went too far by removing all gap awareness. The correct behavior is to read both: `plan.md` for architectural context and `gap-analysis.md` for scoping.
 
 **Acceptance criteria:**
-- `planPath()` always returns the path to `plan.md` regardless of `req.Remediation`
-- The remediation conditional that switched to `gapFileName` is removed
-- `TestRunUsesGapAnalysisWhenRemediation` updated to create `plan.md` instead of `gap-analysis.md`
-- `go build ./...` and `go test ./internal/v2/stage/decompose/...` pass
+- `StageRequest` has a `GapAnalysis string` field
+- The remediation runner extracts `GapSummary` from the accept stage's result artifacts and sets `req.GapAnalysis` before calling decompose
+- When `Remediation=true` and `GapAnalysis` is non-empty, decompose uses a gap-scoped prompt template that includes the plan for context but instructs the LLM to create beads only for the unmet criteria
+- When `Remediation=true` and `GapAnalysis` is empty, decompose falls back to reading `.gromit/v2/gap-analysis.md` from disk
+- When `Remediation=false` (normal decompose), behavior is unchanged — only `plan.md` is used
+- `planPath()` always returns `plan.md` regardless of remediation state
+- `TestRunUsesGapAnalysisWhenRemediation` renamed to `TestRunIncrementsGenerationWhenRemediation` to reflect its actual behavior
+- New tests verify gap-scoped prompt contains both plan content and gap analysis content
+- New tests verify disk fallback reads `gap-analysis.md` when struct field is empty
+- Integration test verifies gap analysis flows from accept through remediation runner to decompose
+- `go build ./...` and `go test ./internal/v2/...` pass
 
 ### A17. Review-created beads missing spec label (`pending`)
 

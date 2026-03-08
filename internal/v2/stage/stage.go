@@ -26,6 +26,7 @@ type StageRequest struct {
 	Config       *config.Config
 	Worktree     string
 	Remediation  bool
+	GapAnalysis  string
 	RetryContext *RetryContext
 	Telemetry    *LLMCostSummary
 }

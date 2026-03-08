@@ -60,6 +60,14 @@ type AcceptArtifacts struct {
 	GapSummary string
 }
 
+// GetGapSummary returns the gap summary, or empty string if the receiver is nil.
+func (a *AcceptArtifacts) GetGapSummary() string {
+	if a == nil {
+		return ""
+	}
+	return a.GapSummary
+}
+
 // Stage evaluates acceptance criteria against the current worktree.
 type Stage struct {
 	name     string
