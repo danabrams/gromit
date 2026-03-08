@@ -44,18 +44,16 @@ func ApplyFix(ctx context.Context, fixCtx *FixContext) (*FixResult, error) {
 		ValidPath: worktreeRoot,
 	}
 
+	branchName := currentBranchName(ctx, worktreeRoot)
+
 	failureCommit := strings.TrimSpace(fixCtx.FailureCommit)
 	if failureCommit != "" {
 		if !fixCommitHashPattern.MatchString(failureCommit) {
 			return nil, fmt.Errorf("invalid failure commit %q", fixCtx.FailureCommit)
 		}
 
-		checkout := exec.CommandContext(ctx, "git", "checkout", failureCommit)
-		checkout.Dir = worktreeRoot
-		out, err := checkout.CombinedOutput()
-		if err != nil {
-			result.ErrorMsg = strings.TrimSpace(string(out))
-			return result, fmt.Errorf("checking out failure commit %s: %w", failureCommit, err)
+		if err := checkoutFailureCommit(ctx, worktreeRoot, failureCommit, branchName, result); err != nil {
+			return result, err
 		}
 	}
 
@@ -73,4 +71,36 @@ func ApplyFix(ctx context.Context, fixCtx *FixContext) (*FixResult, error) {
 
 	result.Applied = true
 	return result, nil
+}
+
+func checkoutFailureCommit(ctx context.Context, worktreeRoot, failureCommit, branchName string, result *FixResult) error {
+	if branchName != "" {
+		out, err := gitCommand(ctx, worktreeRoot, "reset", "--hard", failureCommit)
+		if err != nil {
+			result.ErrorMsg = strings.TrimSpace(out)
+			return fmt.Errorf("resetting branch %s to commit %s: %w", branchName, failureCommit, err)
+		}
+		return nil
+	}
+	out, err := gitCommand(ctx, worktreeRoot, "checkout", failureCommit)
+	if err != nil {
+		result.ErrorMsg = strings.TrimSpace(out)
+		return fmt.Errorf("checking out failure commit %s: %w", failureCommit, err)
+	}
+	return nil
+}
+
+func currentBranchName(ctx context.Context, worktreeRoot string) string {
+	out, err := gitCommand(ctx, worktreeRoot, "symbolic-ref", "--short", "HEAD")
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(out)
+}
+
+func gitCommand(ctx context.Context, dir string, args ...string) (string, error) {
+	cmd := exec.CommandContext(ctx, "git", args...)
+	cmd.Dir = dir
+	out, err := cmd.CombinedOutput()
+	return string(out), err
 }
