@@ -43,3 +43,35 @@ func TestEnforceSystemicChangeGuardrails_RequiresApprovalForSystemicPatch(t *tes
 		}
 	}
 }
+
+func TestEnforceSystemicChangeGuardrails_UsesInteractiveApprovalPrompt(t *testing.T) {
+	patch := strings.Join([]string{
+		"diff --git a/RULES.md b/RULES.md",
+		"--- a/RULES.md",
+		"+++ b/RULES.md",
+		"@@ -1 +1 @@",
+		"-old",
+		"+new",
+	}, "\n")
+
+	called := false
+	var prompt string
+	err := EnforceSystemicChangeGuardrails(patch, false, func(p string) bool {
+		called = true
+		prompt = p
+		return true
+	})
+	if err != nil {
+		t.Fatalf("EnforceSystemicChangeGuardrails() error = %v, want nil", err)
+	}
+	if !called {
+		t.Fatal("interactive approval prompt was not called")
+	}
+	lowerPrompt := strings.ToLower(prompt)
+	if !strings.Contains(lowerPrompt, "process rule") {
+		t.Fatalf("prompt = %q, want process rule guidance", prompt)
+	}
+	if !strings.Contains(prompt, "--approve") {
+		t.Fatalf("prompt = %q, want --approve guidance", prompt)
+	}
+}
