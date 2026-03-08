@@ -2218,6 +2218,9 @@
 {"issue_id":"gromit-nmk2n","label":"refactor"}
 {"issue_id":"gromit-nmk2n","label":"spec:review-spec-validation"}
 {"issue_id":"gromit-nmk2n","label":"test"}
+{"issue_id":"gromit-nncwv","label":"estimated-files:3"}
+{"issue_id":"gromit-nncwv","label":"gen:0"}
+{"issue_id":"gromit-nncwv","label":"spec:spec-level-review-and-targeted-remediation"}
 {"issue_id":"gromit-np31g","label":"estimated-files:2"}
 {"issue_id":"gromit-np31g","label":"gen:1"}
 {"issue_id":"gromit-np31g","label":"spec:immutable-pipeline"}
