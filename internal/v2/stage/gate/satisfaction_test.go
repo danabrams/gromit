@@ -33,3 +33,45 @@ func TestSatisfactionTier_Gen5ReturnsHigh(t *testing.T) {
 		t.Errorf("satisfactionTier(5) = %q, want %q", got, "high")
 	}
 }
+
+func TestIsStructuralBead_RefactorTitle(t *testing.T) {
+	if !isStructuralBead("Refactor debug command", "") {
+		t.Error("expected true for refactor title")
+	}
+}
+
+func TestIsStructuralBead_TestTitle(t *testing.T) {
+	if !isStructuralBead("Add test coverage for router", "") {
+		t.Error("expected true for test coverage title")
+	}
+}
+
+func TestIsStructuralBead_ReorganizeDescription(t *testing.T) {
+	if !isStructuralBead("Clean up", "reorganize the debug package") {
+		t.Error("expected true for reorganize in description")
+	}
+}
+
+func TestIsStructuralBead_NormalBead(t *testing.T) {
+	if isStructuralBead("Implement debug command entry point", "") {
+		t.Error("expected false for normal bead")
+	}
+}
+
+func TestIsStructuralBead_ExtractTitle(t *testing.T) {
+	if !isStructuralBead("Extract validation logic into helper", "") {
+		t.Error("expected true for extract title")
+	}
+}
+
+func TestIsStructuralBead_MoveTitle(t *testing.T) {
+	if !isStructuralBead("Move types to shared package", "") {
+		t.Error("expected true for move title")
+	}
+}
+
+func TestIsStructuralBead_RenameTitle(t *testing.T) {
+	if !isStructuralBead("Rename adapter methods for consistency", "") {
+		t.Error("expected true for rename title")
+	}
+}
