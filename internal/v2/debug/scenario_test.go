@@ -36,11 +36,15 @@ func TestScenario_NilPointerDetectionAndLearning(t *testing.T) {
 		t.Error("fix should be applied")
 	}
 
-	learning := ExtractLearning(LearningExtractionInput{
-		LearningsEntry: "Always guard pointer access in handlers before dereferencing request fields.",
-	})
+	learning := ExtractLearning(autonomousLearningInput("Always guard pointer access in handlers before dereferencing request fields."))
 	if learning.LearningsEntry == "" {
 		t.Error("learning entry should be non-empty for autonomous fix")
+	}
+	if !learning.Autonomous {
+		t.Error("autonomous learning should be marked as such")
+	}
+	if learning.SystemicRecommendation != "" {
+		t.Error("autonomous learning should not produce a systemic recommendation")
 	}
 
 	// Persist the learning
@@ -66,14 +70,15 @@ func TestScenario_NilPointerDetectionAndLearning(t *testing.T) {
 
 // TestScenario_PromptAmbiguityRecommendation covers the systemic change scenario.
 func TestScenario_PromptAmbiguityRecommendation(t *testing.T) {
-	learning := ExtractLearning(LearningExtractionInput{
-		RootCause: RootCauseUnclearBead,
-	})
+	learning := ExtractLearning(systemicLearningInput(RootCauseUnclearBead, "Prompt fragment is ambiguous and needs clarity"))
 	if learning.SystemicRecommendation == "" {
 		t.Error("recommendation should be non-empty for systemic change")
 	}
 
 	if learning.LearningsEntry != "" {
 		t.Error("learning entry should be empty for systemic change (recommendation instead)")
+	}
+	if learning.Autonomous {
+		t.Error("systemic recommendation should not be marked autonomous")
 	}
 }
