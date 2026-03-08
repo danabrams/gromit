@@ -1,6 +1,7 @@
 package debug
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/v2/adapter"
@@ -83,12 +84,12 @@ func TestDiagnose_ClassifiesConfiguredRootCauses(t *testing.T) {
 }
 
 func TestDiagnose_InfersFlakyRootCauseFromValidationStageDetails(t *testing.T) {
-		events := []map[string]interface{}{
-			{
-				"type":       "stage.failed",
-				"stage_name": "validate",
-				"error":      "validation stage failed unexpectedly",
-			},
+	events := []map[string]interface{}{
+		{
+			"type":       "stage.failed",
+			"stage_name": "validate",
+			"error":      "validation stage failed unexpectedly",
+		},
 		{
 			"type":           "validation",
 			"stage_name":     "validate",
@@ -101,6 +102,34 @@ func TestDiagnose_InfersFlakyRootCauseFromValidationStageDetails(t *testing.T) {
 	diagnosis := Diagnose(Input{Events: events})
 	if diagnosis.RootCause != RootCauseFlakyTest {
 		t.Fatalf("RootCause = %q, want %q", diagnosis.RootCause, RootCauseFlakyTest)
+	}
+}
+
+func TestDiagnose_ProvidesHumanReadableSummary(t *testing.T) {
+	events := []map[string]interface{}{
+		{
+			"type":       "stage.failed",
+			"stage_name": "build",
+			"bead_id":    "b7",
+			"iteration":  2,
+			"error":      "build failed when running golangci-lint",
+		},
+	}
+
+	diagnosis := Diagnose(Input{Events: events})
+	summary := strings.TrimSpace(diagnosis.Summary)
+	if summary == "" {
+		t.Fatal("Summary = empty, want non-empty")
+	}
+	lower := strings.ToLower(summary)
+	if !strings.Contains(lower, "stage build") {
+		t.Fatalf("summary %q missing stage build description", summary)
+	}
+	if !strings.Contains(lower, "iteration 2") {
+		t.Fatalf("summary %q missing iteration detail", summary)
+	}
+	if !strings.Contains(lower, "bad build output") {
+		t.Fatalf("summary %q missing bad build root cause", summary)
 	}
 }
 
