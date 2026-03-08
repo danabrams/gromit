@@ -155,29 +155,31 @@ func structuredPrefix(entries []adapter.LogEntry) []adapter.LogEntry {
 }
 
 func buildSquashSegments(prefix []adapter.LogEntry, allowedBeads map[string]struct{}) []squashSegment {
-	segments := make([]squashSegment, 0, len(prefix))
-	pending := make([]string, 0)
+	order := make([]string, 0, len(prefix))
+	seen := make(map[string]struct{}, len(prefix))
+	hashesByBead := make(map[string][]string, len(prefix))
 	for i := len(prefix) - 1; i >= 0; i-- {
 		entry := prefix[i]
 		info, _ := pipeline.ParseCommitMessage(entry.Message)
-		if info.BeadID == "" {
-			pending = append(pending, entry.Hash)
-			continue
-		}
 		if !isSquashCandidate(info, allowedBeads) {
 			continue
 		}
-		if len(segments) > 0 && segments[len(segments)-1].beadID == info.BeadID && len(pending) == 0 {
-			segments[len(segments)-1].hashes = append(segments[len(segments)-1].hashes, entry.Hash)
-			continue
+		if _, ok := seen[info.BeadID]; !ok {
+			seen[info.BeadID] = struct{}{}
+			order = append(order, info.BeadID)
 		}
-		hashes := make([]string, 0, len(pending)+1)
-		hashes = append(hashes, pending...)
-		pending = pending[:0]
-		hashes = append(hashes, entry.Hash)
+		hashesByBead[info.BeadID] = append(hashesByBead[info.BeadID], entry.Hash)
+	}
+
+	if len(order) == 0 {
+		return nil
+	}
+
+	segments := make([]squashSegment, 0, len(order))
+	for _, beadID := range order {
 		segments = append(segments, squashSegment{
-			beadID: info.BeadID,
-			hashes: hashes,
+			beadID: beadID,
+			hashes: hashesByBead[beadID],
 		})
 	}
 	return segments
