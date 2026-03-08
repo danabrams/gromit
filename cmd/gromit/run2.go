@@ -159,6 +159,7 @@ func run2(cmd *cobra.Command, args []string) error {
 
 	baseOpts := []loop.SpecLoopOption{
 		newSpecLoopEmitterFn(emitter),
+		loop.WithLegacySubscriberWarmup(),
 		loop.WithPlanStage(components.PlanStage),
 		loop.WithPresentStage(components.PresentStage, components.PresentSummaryContext),
 		loop.WithDecomposeStage(components.DecomposeStage),

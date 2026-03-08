@@ -26,9 +26,10 @@ import (
 )
 
 const (
-	defaultGromitDir     = ".gromit"
-	v2DirName            = "v2"
-	maxAcceptanceRetries = 5
+	defaultGromitDir              = ".gromit"
+	v2DirName                     = "v2"
+	maxAcceptanceRetries          = 5
+	legacySubscriberWarmupTimeout = 3 * time.Second
 )
 
 // StageSequence lists the canonical stages the spec loop emits.
@@ -87,6 +88,13 @@ func WithStageRecorder(recorder StageRecorder) SpecLoopOption {
 func WithEmitter(emitter *events.Emitter) SpecLoopOption {
 	return func(s *SpecLoop) {
 		s.emitter = emitter
+	}
+}
+
+// WithLegacySubscriberWarmup enables waiting for legacy subscribers before emitting warmup events.
+func WithLegacySubscriberWarmup() SpecLoopOption {
+	return func(s *SpecLoop) {
+		s.waitForLegacySubscribers = true
 	}
 }
 
@@ -195,26 +203,27 @@ type DependencyGate interface {
 
 // SpecLoop orchestrates the adapters that drive a single spec iteration.
 type SpecLoop struct {
-	adapters              adapter.AdapterSet
-	cfg                   *config.Config
-	gate                  DependencyGate
-	recorder              StageRecorder
-	acceptStage           stagepkg.Stage
-	emitter               *events.Emitter
-	typedEmitter          *event.Emitter
-	stageCommitter        StageCommitter
-	remediationRunner     remediationRunner
-	gapAnalysisFilename   string
-	decomposeStage        stagepkg.Stage
-	beadRunner            BeadRunner
-	planStage             stagepkg.Stage
-	presentStage          stagepkg.Stage
-	presentSummaryContext *present.SummaryContext
-	preserveOnFailure     bool // restore t.Cleanup if overriding in tests
-	selectiveRevalidator  SelectiveRevalidator
-	gapAnalyzer           GapAnalyzer
-	router                *routing.Router
-	phaseModels           map[string]string
+	adapters                 adapter.AdapterSet
+	cfg                      *config.Config
+	gate                     DependencyGate
+	recorder                 StageRecorder
+	acceptStage              stagepkg.Stage
+	emitter                  *events.Emitter
+	waitForLegacySubscribers bool
+	typedEmitter             *event.Emitter
+	stageCommitter           StageCommitter
+	remediationRunner        remediationRunner
+	gapAnalysisFilename      string
+	decomposeStage           stagepkg.Stage
+	beadRunner               BeadRunner
+	planStage                stagepkg.Stage
+	presentStage             stagepkg.Stage
+	presentSummaryContext    *present.SummaryContext
+	preserveOnFailure        bool // restore t.Cleanup if overriding in tests
+	selectiveRevalidator     SelectiveRevalidator
+	gapAnalyzer              GapAnalyzer
+	router                   *routing.Router
+	phaseModels              map[string]string
 }
 
 type worktreeSetter interface {
@@ -269,6 +278,11 @@ func (s *SpecLoop) Run(ctx context.Context, specID string, stopCh <-chan struct{
 	worktree = strings.TrimSpace(worktree)
 	if worktree == "" {
 		return fmt.Errorf("checkout returned empty worktree path")
+	}
+	if s.emitter != nil && s.waitForLegacySubscribers {
+		waitCtx, waitCancel := context.WithTimeout(ctx, legacySubscriberWarmupTimeout)
+		waitForLegacySubscribers(waitCtx, s.emitter)
+		waitCancel()
 	}
 
 	if s.typedEmitter != nil {
@@ -818,6 +832,28 @@ func (s *SpecLoop) emit(evt events.Event) {
 		return
 	}
 	s.emitter.Emit(evt)
+}
+
+func waitForLegacySubscribers(ctx context.Context, emitter *events.Emitter) {
+	if emitter == nil {
+		return
+	}
+	if ctx == nil {
+		return
+	}
+	ticker := time.NewTicker(10 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		if emitter.HasSubscribers() {
+			return
+		}
+		select {
+		case <-ctx.Done():
+			log.Printf("timed out waiting for legacy subscribers: %v", ctx.Err())
+			return
+		case <-ticker.C:
+		}
+	}
 }
 
 func stringsToDependencies(ids []string) []bead.Dependency {
