@@ -18,6 +18,17 @@ func runGitBinary(t *testing.T, dir string, args ...string) {
 	}
 }
 
+func runGitBinaryOutput(t *testing.T, dir string, args ...string) string {
+	t.Helper()
+	cmd := exec.Command("git", args...)
+	cmd.Dir = dir
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("git %v failed: %v\n%s", args, err, out)
+	}
+	return strings.TrimSpace(string(out))
+}
+
 // initTestRepo creates a bare-minimum git repo with one commit and returns
 // the repo root path. The caller's CWD is intentionally NOT changed, so
 // tests verify that ExecGitAdapter uses repoRoot (cmd.Dir) rather than CWD.
@@ -493,6 +504,33 @@ func TestDiffFromBase_RejectsEmptyWorktree(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "worktree required") {
 		t.Fatalf("expected 'worktree required' error, got: %q", err.Error())
+	}
+}
+
+func TestCheckout_WritesBranchBaseFile(t *testing.T) {
+	t.Parallel()
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not available")
+	}
+
+	repoDir := initTestRepo(t)
+	worktreesDir := t.TempDir()
+
+	expectedBase := runGitBinaryOutput(t, repoDir, "rev-parse", "HEAD")
+
+	adapter := NewExecGitAdapter(repoDir, worktreesDir)
+	wtPath, err := adapter.Checkout(context.Background(), "test-spec")
+	if err != nil {
+		t.Fatalf("Checkout: %v", err)
+	}
+
+	basePath := filepath.Join(wtPath, ".gromit", "v2", "branch-base")
+	data, err := os.ReadFile(basePath)
+	if err != nil {
+		t.Fatalf("read branch-base: %v", err)
+	}
+	if got := strings.TrimSpace(string(data)); got != expectedBase {
+		t.Fatalf("branch-base = %q, want %q", got, expectedBase)
 	}
 }
 

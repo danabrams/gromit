@@ -53,6 +53,15 @@ func (a *ExecGitAdapter) Checkout(ctx context.Context, specID string) (string, e
 		return "", fmt.Errorf("git worktree add: %s: %w", out, err)
 	}
 
+	// Record the base commit SHA so DiffFromBase can compute cumulative diffs.
+	baseOut, baseErr := runGitCommand(ctx, a.repoRoot, "rev-parse", "HEAD")
+	if baseErr == nil {
+		baseDir := filepath.Join(wtPath, ".gromit", "v2")
+		if mkErr := os.MkdirAll(baseDir, 0o755); mkErr == nil {
+			_ = os.WriteFile(filepath.Join(baseDir, branchBaseFileName), []byte(strings.TrimSpace(string(baseOut))), 0o644)
+		}
+	}
+
 	// Always return an absolute path so that all downstream git operations
 	// (cmd.Dir, stage commits, Claude CLI working directory) unambiguously
 	// target the worktree regardless of CWD changes.
