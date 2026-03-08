@@ -15,14 +15,14 @@ import (
 	"github.com/danabrams/gromit/internal/events"
 	"github.com/danabrams/gromit/internal/v2/adapter"
 	"github.com/danabrams/gromit/internal/v2/event"
-	"github.com/danabrams/gromit/internal/v2/routing"
-	"github.com/danabrams/gromit/internal/v2/trackertypes"
 	"github.com/danabrams/gromit/internal/v2/presentation"
 	v2review "github.com/danabrams/gromit/internal/v2/review"
+	"github.com/danabrams/gromit/internal/v2/routing"
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
 	stageaccept "github.com/danabrams/gromit/internal/v2/stage/accept"
 	planstage "github.com/danabrams/gromit/internal/v2/stage/plan"
 	present "github.com/danabrams/gromit/internal/v2/stage/present"
+	"github.com/danabrams/gromit/internal/v2/trackertypes"
 )
 
 const (
@@ -308,27 +308,40 @@ func (s *SpecLoop) Run(ctx context.Context, specID string, stopCh <-chan struct{
 		plan = string(existingPlan)
 		s.emit(&events.PlanResumedEvent{SpecID: specID, Path: planPath})
 	} else {
+		s.emitTypedSpecStageStarted("plan")
+		planStart := time.Now()
 		s.applyRouting(&req, "plan")
 		planRes, err := s.runPlanStage(ctx, req)
 		if err != nil {
+			s.emitTypedSpecStageCompleted("plan", false, time.Since(planStart))
+			s.emitTypedSpecStageFailed("plan", err.Error())
 			return fmt.Errorf("plan stage: %w", err)
 		}
 		if planRes == nil || planRes.Artifacts == nil {
+			s.emitTypedSpecStageCompleted("plan", false, time.Since(planStart))
+			s.emitTypedSpecStageFailed("plan", "plan stage returned no artifacts")
 			return fmt.Errorf("plan stage returned no artifacts")
 		}
 		planArtifacts, ok := planRes.Artifacts.(*planstage.PlanArtifacts)
 		if !ok {
+			s.emitTypedSpecStageCompleted("plan", false, time.Since(planStart))
+			s.emitTypedSpecStageFailed("plan", fmt.Sprintf("unexpected artifacts type from plan stage: %T", planRes.Artifacts))
 			return fmt.Errorf("unexpected artifacts type from plan stage: %T", planRes.Artifacts)
 		}
 		plan = planArtifacts.Plan
 
 		// Persist the plan so it survives a crash and can be resumed.
 		if err := os.MkdirAll(filepath.Dir(planPath), 0o755); err != nil {
+			s.emitTypedSpecStageCompleted("plan", false, time.Since(planStart))
+			s.emitTypedSpecStageFailed("plan", fmt.Sprintf("create plan directory: %v", err))
 			return fmt.Errorf("create plan directory: %w", err)
 		}
 		if err := os.WriteFile(planPath, []byte(plan), 0o644); err != nil {
+			s.emitTypedSpecStageCompleted("plan", false, time.Since(planStart))
+			s.emitTypedSpecStageFailed("plan", fmt.Sprintf("persist plan: %v", err))
 			return fmt.Errorf("persist plan: %w", err)
 		}
+		s.emitTypedSpecStageCompleted("plan", true, time.Since(planStart))
 		if err := s.commitStage(ctx, worktree, "plan", 0, "proceed"); err != nil {
 			return fmt.Errorf("commit after plan: %w", err)
 		}
@@ -377,11 +390,16 @@ func (s *SpecLoop) Run(ctx context.Context, specID string, stopCh <-chan struct{
 			}
 		}
 	} else {
+		s.emitTypedSpecStageStarted("decompose")
+		decomposeStart := time.Now()
 		s.applyRouting(&req, "decompose")
 		beads, err = s.runDecompose(ctx, req)
 		if err != nil {
+			s.emitTypedSpecStageCompleted("decompose", false, time.Since(decomposeStart))
+			s.emitTypedSpecStageFailed("decompose", err.Error())
 			return err
 		}
+		s.emitTypedSpecStageCompleted("decompose", true, time.Since(decomposeStart))
 		if err := s.commitStage(ctx, worktree, "decompose", 0, "proceed"); err != nil {
 			return fmt.Errorf("commit after decompose: %w", err)
 		}
@@ -404,12 +422,16 @@ func (s *SpecLoop) Run(ctx context.Context, specID string, stopCh <-chan struct{
 	}
 
 	s.recordStage("accept")
+	s.emitTypedSpecStageStarted("accept")
+	acceptStart := time.Now()
 	acceptRes, err := s.ensureAcceptance(ctx, &req, specID)
 	acceptDecision := stagepkg.DecisionProceed.String()
 	if acceptRes != nil {
 		acceptDecision = acceptRes.Decision.String()
 	}
 	if err != nil {
+		s.emitTypedSpecStageCompleted("accept", false, time.Since(acceptStart))
+		s.emitTypedSpecStageFailed("accept", err.Error())
 		if acceptRes != nil {
 			if commitErr := s.commitStage(ctx, worktree, "accept", 0, acceptDecision); commitErr != nil {
 				return fmt.Errorf("commit after accept: %w", commitErr)
@@ -418,6 +440,7 @@ func (s *SpecLoop) Run(ctx context.Context, specID string, stopCh <-chan struct{
 		handleFailureCleaned = true
 		return s.handleFailure(ctx, specID, baseSummary, err)
 	}
+	s.emitTypedSpecStageCompleted("accept", true, time.Since(acceptStart))
 	if err := s.commitStage(ctx, worktree, "accept", 0, acceptDecision); err != nil {
 		return fmt.Errorf("commit after accept: %w", err)
 	}
@@ -724,13 +747,20 @@ func (s *SpecLoop) presentSummary(ctx context.Context, specID string, summary pr
 	}
 	s.populatePresentationContext(summary)
 	req := s.specStageRequest(specID, summary.Worktree)
+	s.emitTypedSpecStageStarted("present")
+	presentStart := time.Now()
 	res, err := s.presentStage.Run(ctx, &req)
 	if err != nil {
+		s.emitTypedSpecStageCompleted("present", false, time.Since(presentStart))
+		s.emitTypedSpecStageFailed("present", err.Error())
 		return err
 	}
 	if res != nil && res.Decision == stagepkg.DecisionFail {
+		s.emitTypedSpecStageCompleted("present", false, time.Since(presentStart))
+		s.emitTypedSpecStageFailed("present", "present stage failed")
 		return fmt.Errorf("present stage failed")
 	}
+	s.emitTypedSpecStageCompleted("present", true, time.Since(presentStart))
 	if err := s.commitStage(ctx, summary.Worktree, "present", 0, "proceed"); err != nil {
 		return fmt.Errorf("commit after present: %w", err)
 	}
@@ -779,6 +809,58 @@ func (s *SpecLoop) commitStage(ctx context.Context, worktree, stageName string, 
 		return nil
 	}
 	return s.stageCommitter.CommitStage(ctx, worktree, "", stageName, iteration, decision)
+}
+
+func (s *SpecLoop) emitTypedSpecStageStarted(stageName string) {
+	if s.typedEmitter == nil {
+		return
+	}
+	s.typedEmitter.Emit(event.StageStartedEvent{
+		Event: event.Event{
+			SchemaVersion: event.SchemaVersion,
+			Timestamp:     time.Now(),
+			Type:          event.EventTypeStageStarted,
+		},
+		StageName: stageName,
+		Iteration: 0,
+	})
+}
+
+func (s *SpecLoop) emitTypedSpecStageCompleted(stageName string, success bool, duration time.Duration) {
+	if s.typedEmitter == nil {
+		return
+	}
+	s.typedEmitter.Emit(event.StageCompletedEvent{
+		Event: event.Event{
+			SchemaVersion: event.SchemaVersion,
+			Timestamp:     time.Now(),
+			Type:          event.EventTypeStageCompleted,
+		},
+		StageName: stageName,
+		Iteration: 0,
+		Success:   success,
+		Duration:  duration,
+	})
+}
+
+func (s *SpecLoop) emitTypedSpecStageFailed(stageName, errMsg string) {
+	if s.typedEmitter == nil {
+		return
+	}
+	trimmed := strings.TrimSpace(errMsg)
+	if trimmed == "" {
+		return
+	}
+	s.typedEmitter.Emit(event.StageFailedEvent{
+		Event: event.Event{
+			SchemaVersion: event.SchemaVersion,
+			Timestamp:     time.Now(),
+			Type:          event.EventTypeStageFailed,
+		},
+		StageName: stageName,
+		Iteration: 0,
+		Error:     trimmed,
+	})
 }
 
 func (s *SpecLoop) recordStage(name string) {
