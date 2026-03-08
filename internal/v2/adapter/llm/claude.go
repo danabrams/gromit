@@ -163,7 +163,11 @@ func (a *claudeAdapter) runOnce(ctx context.Context, args []string, prompt strin
 func parseInvokeResult(raw string) (*LLMResponse, error) {
 	candidate := extractJSON(raw)
 	if candidate == "" {
-		return nil, errors.New("no json output")
+		snippet := strings.TrimSpace(raw)
+		if len(snippet) > 200 {
+			snippet = snippet[:200] + "..."
+		}
+		return nil, fmt.Errorf("no json output from claude (raw: %q)", snippet)
 	}
 
 	var payload struct {
@@ -237,7 +241,7 @@ func extractJSON(output string) string {
 	start := strings.Index(output, "{")
 	end := strings.LastIndex(output, "}")
 	if start == -1 || end == -1 || end <= start {
-		return strings.TrimSpace(output)
+		return ""
 	}
 	return strings.TrimSpace(output[start : end+1])
 }
