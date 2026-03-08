@@ -486,3 +486,22 @@ The following fixes were applied to main after the v2-run-loop spec was merged (
 - `run2.go` constructs `ExecGitAdapter` with an absolute repo root
 - Test verifies `Checkout()` returns absolute path when given relative inputs
 - `bd backup` interaction documented: external binary, users must not run concurrently with `gromit run2`
+
+### A15. Triage must not bypass escalation retries (`pending`)
+
+**Problem:** The bead loop invoked the triage stage immediately on any build failure, before checking whether escalation retries were still available. When triage returned `CategoryDecompose`, it short-circuited the retry path — the bead was decomposed without ever attempting a stronger model. Earlier beads in the same run successfully escalated (e.g., `gpt-5.1-codex-mini` → `gpt-5.3-codex`), but `gromit-eccdv` was prematurely decomposed on a transient provider error.
+
+**Acceptance criteria:**
+- Triage is only invoked after all escalation retries are exhausted (`retriesRemaining <= 0`)
+- Build failures with remaining retries proceed to model escalation before triage
+- `go build ./...` and `go test ./internal/v2/loop/...` pass
+
+### A16. Decompose stage must read plan.md during remediation (`pending`)
+
+**Problem:** During spec remediation, the decompose stage switched from reading `plan.md` to `gap-analysis.md`. The gap-analysis file contains criterion failure summaries, not a proper implementation plan with task definitions. The LLM could not parse it, failed to extract JSON bead definitions, and the spec failed with "could not extract JSON using any strategy."
+
+**Acceptance criteria:**
+- `planPath()` always returns the path to `plan.md` regardless of `req.Remediation`
+- The remediation conditional that switched to `gapFileName` is removed
+- `TestRunUsesGapAnalysisWhenRemediation` updated to create `plan.md` instead of `gap-analysis.md`
+- `go build ./...` and `go test ./internal/v2/stage/decompose/...` pass

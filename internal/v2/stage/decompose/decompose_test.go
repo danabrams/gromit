@@ -126,10 +126,10 @@ func TestRunUsesGapAnalysisWhenRemediation(t *testing.T) {
 	if err := os.MkdirAll(planDir, 0o755); err != nil {
 		t.Fatalf("mkdir plan dir: %v", err)
 	}
-	gapContent := "gap summary"
-	gapPath := filepath.Join(planDir, "gap-analysis.md")
-	if err := os.WriteFile(gapPath, []byte(gapContent), 0o644); err != nil {
-		t.Fatalf("write gap analysis: %v", err)
+	gapContent := "remediation plan content"
+	planPath := filepath.Join(planDir, "plan.md")
+	if err := os.WriteFile(planPath, []byte(gapContent), 0o644); err != nil {
+		t.Fatalf("write plan: %v", err)
 	}
 
 	cfg := &config.Config{

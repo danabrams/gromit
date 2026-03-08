@@ -223,11 +223,7 @@ func (s *Stage) planPath(req *stagepkg.Request) (string, error) {
 	if gromitDir == "" {
 		gromitDir = defaultGromitDir
 	}
-	fileName := planFileName
-	if req.Remediation {
-		fileName = gapFileName
-	}
-	return filepath.Join(root, gromitDir, v2DirName, fileName), nil
+	return filepath.Join(root, gromitDir, v2DirName, planFileName), nil
 }
 
 func (s *Stage) modelForPhase() string {

@@ -577,33 +577,6 @@ func (b *BeadLoop) runStageEntry(ctx context.Context, beadItem *bead.Bead, itera
 
 		priorFailures = append(priorFailures, reason)
 
-		// When the build stage fails and triage is configured, run triage
-		// to decide how to proceed instead of falling through to the
-		// normal retry/fail path.
-		if entry.stage == b.build && b.triage != nil {
-			triageResult, triageErr := b.runTriage(ctx, beadItem, iteration, reason)
-			if triageErr != nil {
-				return fmt.Errorf("triage: %w", triageErr)
-			}
-			switch triageResult.Category {
-			case triage.CategoryDecompose:
-				return b.decomposeAndRunSubBeads(ctx, beadItem, iteration, highestGen)
-			case triage.CategoryRetry:
-				triageRetries++
-				if triageRetries > maxTriageRetries {
-					// Exceeded triage retry cap; fall through to normal failure handling
-					break
-				}
-				// Don't count against retry limit, just continue the loop
-				attempt++
-				continue
-			case triage.CategoryUnclearSpec:
-				return fmt.Errorf("triage: spec unclear for bead %s: %s", beadItem.ID, triageResult.Reasoning)
-			case triage.CategoryUnsafe:
-				return fmt.Errorf("triage: unsafe operation for bead %s: %s", beadItem.ID, triageResult.Reasoning)
-			}
-		}
-
 		if retriesRemaining <= 0 {
 			decision := stageDecision(res).String()
 			if err != nil {
@@ -611,6 +584,32 @@ func (b *BeadLoop) runStageEntry(ctx context.Context, beadItem *bead.Bead, itera
 			}
 			if commitErr := b.commitAfterStage(ctx, beadItem, stageName, decision); commitErr != nil {
 				return fmt.Errorf("stage commit after %s: %w", stageName, commitErr)
+			}
+			// When the build stage fails, retries are exhausted, and triage
+			// is configured, run triage to decide how to proceed instead of
+			// immediately failing.
+			if entry.stage == b.build && b.triage != nil {
+				triageResult, triageErr := b.runTriage(ctx, beadItem, iteration, reason)
+				if triageErr != nil {
+					return fmt.Errorf("triage: %w", triageErr)
+				}
+				switch triageResult.Category {
+				case triage.CategoryDecompose:
+					return b.decomposeAndRunSubBeads(ctx, beadItem, iteration, highestGen)
+				case triage.CategoryRetry:
+					triageRetries++
+					if triageRetries > maxTriageRetries {
+						// Exceeded triage retry cap; fall through to normal failure handling
+						break
+					}
+					// Don't count against retry limit, just continue the loop
+					attempt++
+					continue
+				case triage.CategoryUnclearSpec:
+					return fmt.Errorf("triage: spec unclear for bead %s: %s", beadItem.ID, triageResult.Reasoning)
+				case triage.CategoryUnsafe:
+					return fmt.Errorf("triage: unsafe operation for bead %s: %s", beadItem.ID, triageResult.Reasoning)
+				}
 			}
 			return b.failWithReason(ctx, beadItem, iteration, reason, stageRetryContext(attempt, priorFailures))
 		}
