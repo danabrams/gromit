@@ -495,13 +495,17 @@ func (b *BeadLoop) runStageEntry(ctx context.Context, beadItem *bead.Bead, itera
 		if entry.stage == b.build {
 			var costUSD float64
 			var inputTokens int
+			var outputTokens int
+			var promptSize int
 			if res != nil && res.Artifacts != nil {
 				if ba, ok := res.Artifacts.(*buildstage.BuildArtifacts); ok {
 					costUSD = ba.CostUSD
 					inputTokens = ba.Tokens
+					outputTokens = ba.OutputTokens
+					promptSize = len(ba.Prompt)
 				}
 			}
-			b.emitBuildInvocationComplete(beadItem.ID, req.Model, providerName, !failed, duration, costUSD, inputTokens)
+			b.emitBuildInvocationComplete(beadItem.ID, req.Model, providerName, !failed, duration, costUSD, inputTokens, outputTokens, promptSize)
 		}
 
 		b.emitStageCompleted(stageName, beadItem.ID, iteration, !failed, duration)
@@ -757,6 +761,7 @@ func (b *BeadLoop) emitBeadCompleted(beadItem *bead.Bead, iteration int, success
 		evt.Provider = b.lastBuildProvider
 		evt.CostUSD = b.lastBuildArtifacts.CostUSD
 		evt.InputTokens = b.lastBuildArtifacts.Tokens
+		evt.OutputTokens = b.lastBuildArtifacts.OutputTokens
 		evt.Duration = b.lastBuildArtifacts.Duration
 	}
 	b.emitter.Emit(evt)
@@ -1092,7 +1097,7 @@ func (b *BeadLoop) emitBuildInvocationStart(beadID, model, provider, tier string
 	})
 }
 
-func (b *BeadLoop) emitBuildInvocationComplete(beadID, model, provider string, success bool, duration time.Duration, costUSD float64, inputTokens int) {
+func (b *BeadLoop) emitBuildInvocationComplete(beadID, model, provider string, success bool, duration time.Duration, costUSD float64, inputTokens, outputTokens, promptSize int) {
 	if b.emitter == nil {
 		return
 	}
@@ -1102,13 +1107,15 @@ func (b *BeadLoop) emitBuildInvocationComplete(beadID, model, provider string, s
 			Timestamp:     time.Now(),
 			Type:          event.EventTypeBuildInvocationComplete,
 		},
-		BeadID:      beadID,
-		Model:       model,
-		Provider:    provider,
-		Success:     success,
-		Duration:    duration,
-		CostUSD:     costUSD,
-		InputTokens: inputTokens,
+		BeadID:       beadID,
+		Model:        model,
+		Provider:     provider,
+		Success:      success,
+		Duration:     duration,
+		CostUSD:      costUSD,
+		InputTokens:  inputTokens,
+		OutputTokens: outputTokens,
+		PromptSize:   promptSize,
 	})
 }
 

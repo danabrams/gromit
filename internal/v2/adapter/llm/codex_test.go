@@ -123,6 +123,12 @@ EOF
 	if resp.Tokens != 150 {
 		t.Fatalf("tokens = %d, want %d", resp.Tokens, 150)
 	}
+	if resp.InputTokens != 100 {
+		t.Fatalf("input tokens = %d, want %d", resp.InputTokens, 100)
+	}
+	if resp.OutputTokens != 50 {
+		t.Fatalf("output tokens = %d, want %d", resp.OutputTokens, 50)
+	}
 	if !resp.Success {
 		t.Fatal("expected Success to be true")
 	}
@@ -238,6 +244,12 @@ EOF
 	}
 	if resp.Tokens != 30 {
 		t.Fatalf("tokens = %d, want %d", resp.Tokens, 30)
+	}
+	if resp.InputTokens != 20 {
+		t.Fatalf("input tokens = %d, want %d", resp.InputTokens, 20)
+	}
+	if resp.OutputTokens != 10 {
+		t.Fatalf("output tokens = %d, want %d", resp.OutputTokens, 10)
 	}
 	if resp.CostUSD != 0.15 {
 		t.Fatalf("cost = %f, want %f", resp.CostUSD, 0.15)

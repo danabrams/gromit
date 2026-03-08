@@ -89,9 +89,10 @@ type BeadCompletedEvent struct {
 	RetryAttempt int           `json:"retry_attempt,omitempty"`
 	Model        string        `json:"model,omitempty"`
 	Provider     string        `json:"provider,omitempty"`
-	CostUSD     float64       `json:"cost_usd,omitempty"`
-	InputTokens int           `json:"input_tokens,omitempty"`
-	Duration    time.Duration `json:"duration,omitempty"`
+	CostUSD      float64       `json:"cost_usd,omitempty"`
+	InputTokens  int           `json:"input_tokens,omitempty"`
+	OutputTokens int           `json:"output_tokens,omitempty"`
+	Duration     time.Duration `json:"duration,omitempty"`
 }
 
 func (BeadCompletedEvent) EventType() string { return EventTypeBeadCompleted }
@@ -244,8 +245,10 @@ type BuildInvocationCompleteEvent struct {
 	Provider     string        `json:"provider,omitempty"`
 	Success      bool          `json:"success"`
 	Duration     time.Duration `json:"duration,omitempty"`
-	CostUSD     float64       `json:"cost_usd,omitempty"`
-	InputTokens int           `json:"input_tokens,omitempty"`
+	CostUSD      float64       `json:"cost_usd,omitempty"`
+	InputTokens  int           `json:"input_tokens,omitempty"`
+	OutputTokens int           `json:"output_tokens,omitempty"`
+	PromptSize   int           `json:"prompt_size,omitempty"`
 }
 
 func (BuildInvocationCompleteEvent) EventType() string { return EventTypeBuildInvocationComplete }

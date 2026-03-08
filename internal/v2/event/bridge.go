@@ -199,13 +199,14 @@ func convertBeadCompleted(e *BeadCompletedEvent) []events.Event {
 	}}
 	if e.Success {
 		return append(base, &events.BeadCompleteEvent{
-			BeadID:      e.BeadID,
-			BeadTitle:   e.BeadTitle,
-			Model:       e.Model,
-			CostUSD:     e.CostUSD,
-			InputTokens: e.InputTokens,
-			Duration:    e.Duration,
-			TimeMixin:   toTimeMixin(e.Timestamp),
+			BeadID:       e.BeadID,
+			BeadTitle:    e.BeadTitle,
+			Model:        e.Model,
+			CostUSD:      e.CostUSD,
+			InputTokens:  e.InputTokens,
+			OutputTokens: e.OutputTokens,
+			Duration:     e.Duration,
+			TimeMixin:    toTimeMixin(e.Timestamp),
 		})
 	}
 	return append(base, &events.BeadFailedEvent{
@@ -260,6 +261,7 @@ func legacyBuildInvocationComplete(e *BuildInvocationCompleteEvent) []events.Eve
 		Duration:  e.Duration,
 		Cost:      e.CostUSD,
 		TokensIn:  e.InputTokens,
+		TokensOut: e.OutputTokens,
 		TimeMixin: toTimeMixin(e.Timestamp),
 	}}
 }

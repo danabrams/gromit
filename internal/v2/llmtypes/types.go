@@ -25,12 +25,14 @@ type LLMStreamInvokeRequest struct {
 
 // LLMInvokeResponse summarizes the result of a Claude invocation.
 type LLMInvokeResponse struct {
-	Success  bool
-	Output   string
-	Tokens   int
-	CostUSD  float64
-	Duration time.Duration
-	Metadata map[string]string
+	Success      bool
+	Output       string
+	Tokens       int // total (input + output), kept for backward compat
+	InputTokens  int
+	OutputTokens int
+	CostUSD      float64
+	Duration     time.Duration
+	Metadata     map[string]string
 }
 
 // LLMProvider executes Claude invocations.
