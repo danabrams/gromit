@@ -24,6 +24,12 @@ func TestIntegrationBranchLifecycle_PreservesBranchAndEventLogOnAndonFailure(t *
 	assertFailureBranchLifecycle(t, "spec-branch-lifecycle-andon", fmt.Errorf("andon triggered"))
 }
 
+func TestIntegrationBranchLifecycle_PreservesBranchAndEventLogOnGenerationCap(t *testing.T) {
+	t.Parallel()
+
+	assertGenerationCapBranchLifecycle(t, "spec-branch-lifecycle-generation-cap")
+}
+
 type fixedErrorRemediationRunner struct {
 	err error
 }
