@@ -161,13 +161,15 @@ Do NOT ask questions or request confirmation — execute the task directly.
 
 // BuildArtifacts exposes telemetry and output returned by the build stage.
 type BuildArtifacts struct {
-	Model    string
-	Prompt   string
-	Output   string
-	Tokens   int
-	CostUSD  float64
-	Duration time.Duration
-	Success  bool
+	Model        string
+	Prompt       string
+	Output       string
+	Tokens       int // total (input + output), kept for backward compat
+	InputTokens  int
+	OutputTokens int
+	CostUSD      float64
+	Duration     time.Duration
+	Success      bool
 }
 
 // Stage implements the build stage.
@@ -269,13 +271,15 @@ func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Resul
 	}
 
 	artifacts := &BuildArtifacts{
-		Model:    finalModel,
-		Prompt:   promptText,
-		Output:   resp.Output,
-		Tokens:   resp.Tokens,
-		CostUSD:  resp.CostUSD,
-		Duration: resp.Duration,
-		Success:  resp.Success,
+		Model:        finalModel,
+		Prompt:       promptText,
+		Output:       resp.Output,
+		Tokens:       resp.Tokens,
+		InputTokens:  resp.InputTokens,
+		OutputTokens: resp.OutputTokens,
+		CostUSD:      resp.CostUSD,
+		Duration:     resp.Duration,
+		Success:      resp.Success,
 	}
 
 	return &stagepkg.Result{Decision: stagepkg.DecisionProceed, Artifacts: artifacts, Events: []event.TypedEvent{}}, nil

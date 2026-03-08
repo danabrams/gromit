@@ -40,11 +40,13 @@ func TestBuildStageRunIncludesPriorFailuresAndEmitsEvents(t *testing.T) {
 	cfg := &config.Config{Escalation: config.EscalationConfig{Enabled: false}}
 	fragments := PromptFragments{Standard: "standard", TDD: "tdd fragment", Refactor: "refactor fragment"}
 	expected := &llm.LLMResponse{
-		Success:  true,
-		Output:   "llm-output",
-		Tokens:   42,
-		CostUSD:  0.25,
-		Duration: 2 * time.Second,
+		Success:      true,
+		Output:       "llm-output",
+		Tokens:       42,
+		InputTokens:  30,
+		OutputTokens: 12,
+		CostUSD:      0.25,
+		Duration:     2 * time.Second,
 	}
 	adapter := &capturingLLM{response: expected}
 
@@ -105,6 +107,12 @@ func TestBuildStageRunIncludesPriorFailuresAndEmitsEvents(t *testing.T) {
 	}
 	if artifacts.Tokens != expected.Tokens {
 		t.Fatalf("tokens = %d, want %d", artifacts.Tokens, expected.Tokens)
+	}
+	if artifacts.InputTokens != expected.InputTokens {
+		t.Fatalf("input tokens = %d, want %d", artifacts.InputTokens, expected.InputTokens)
+	}
+	if artifacts.OutputTokens != expected.OutputTokens {
+		t.Fatalf("output tokens = %d, want %d", artifacts.OutputTokens, expected.OutputTokens)
 	}
 	if artifacts.CostUSD != expected.CostUSD {
 		t.Fatalf("cost = %v, want %v", artifacts.CostUSD, expected.CostUSD)

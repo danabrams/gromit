@@ -42,6 +42,12 @@ EOF
 	if resp.Tokens != 10 {
 		t.Fatalf("tokens = %d, want %d", resp.Tokens, 10)
 	}
+	if resp.InputTokens != 4 {
+		t.Fatalf("input tokens = %d, want %d", resp.InputTokens, 4)
+	}
+	if resp.OutputTokens != 6 {
+		t.Fatalf("output tokens = %d, want %d", resp.OutputTokens, 6)
+	}
 	if resp.Duration <= 0 {
 		t.Fatalf("duration = %v, want positive", resp.Duration)
 	}
@@ -156,6 +162,12 @@ EOF
 	}
 	if resp.Tokens != 20 {
 		t.Fatalf("tokens = %d, want %d", resp.Tokens, 20)
+	}
+	if resp.InputTokens != 8 {
+		t.Fatalf("input tokens = %d, want %d", resp.InputTokens, 8)
+	}
+	if resp.OutputTokens != 12 {
+		t.Fatalf("output tokens = %d, want %d", resp.OutputTokens, 12)
 	}
 	if resp.CostUSD != 0.27 {
 		t.Fatalf("cost = %f, want %f", resp.CostUSD, 0.27)

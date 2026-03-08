@@ -56,18 +56,20 @@ func TestLegacyEventsFromTyped(t *testing.T) {
 		{
 			name: "build invocation complete",
 			typed: &BuildInvocationCompleteEvent{
-				Event:       Event{Timestamp: now},
-				BeadID:      "bead-2",
-				Success:     true,
-				Duration:    5 * time.Second,
-				CostUSD:     1.23,
-				InputTokens: 1000,
+				Event:        Event{Timestamp: now},
+				BeadID:       "bead-2",
+				Success:      true,
+				Duration:     5 * time.Second,
+				CostUSD:      1.23,
+				InputTokens:  1000,
+				OutputTokens: 200,
+				PromptSize:   5000,
 			},
 			wantType: "*events.BuildCompleteEvent",
 			check: func(evt events.Event) bool {
 				e, ok := evt.(*events.BuildCompleteEvent)
 				return ok && e.BeadID == "bead-2" && e.Success && e.Duration == 5*time.Second &&
-					e.Cost == 1.23 && e.TokensIn == 1000
+					e.Cost == 1.23 && e.TokensIn == 1000 && e.TokensOut == 200
 			},
 		},
 		{
@@ -136,15 +138,16 @@ func TestLegacyEventsFromTyped(t *testing.T) {
 func TestConvertBeadCompleted_PopulatesNewFields(t *testing.T) {
 	now := time.Now().UTC()
 	e := &BeadCompletedEvent{
-		Event:       Event{Timestamp: now},
-		BeadID:      "bead-x",
-		BeadTitle:   "title-x",
-		Iteration:   1,
-		Success:     true,
-		Model:       "opus",
-		CostUSD:     2.50,
-		InputTokens: 3000,
-		Duration:    10 * time.Second,
+		Event:        Event{Timestamp: now},
+		BeadID:       "bead-x",
+		BeadTitle:    "title-x",
+		Iteration:    1,
+		Success:      true,
+		Model:        "opus",
+		CostUSD:      2.50,
+		InputTokens:  3000,
+		OutputTokens: 750,
+		Duration:     10 * time.Second,
 	}
 	legacy := legacyEventsFromTyped(e)
 	if len(legacy) < 2 {
@@ -162,6 +165,9 @@ func TestConvertBeadCompleted_PopulatesNewFields(t *testing.T) {
 	}
 	if bce.InputTokens != 3000 {
 		t.Errorf("InputTokens = %d, want %d", bce.InputTokens, 3000)
+	}
+	if bce.OutputTokens != 750 {
+		t.Errorf("OutputTokens = %d, want %d", bce.OutputTokens, 750)
 	}
 	if bce.Duration != 10*time.Second {
 		t.Errorf("Duration = %v, want %v", bce.Duration, 10*time.Second)
