@@ -97,6 +97,12 @@ func WithTypedEmitter(em *event.Emitter) SpecLoopOption {
 	}
 }
 
+// WithLegacySubscriberWarmup is a placeholder that currently no-ops while the
+// legacy subscriber warmup contract is still under development.
+func WithLegacySubscriberWarmup() SpecLoopOption {
+	return func(s *SpecLoop) {}
+}
+
 // WithStageCommitter installs a StageCommitter that creates a git commit after each spec-level stage.
 func WithStageCommitter(sc StageCommitter) SpecLoopOption {
 	return func(s *SpecLoop) {
@@ -270,9 +276,10 @@ func (s *SpecLoop) Run(ctx context.Context, specID string, stopCh <-chan struct{
 	}
 
 	if s.typedEmitter != nil {
-		fs := event.NewFileSubscriber(s.eventsFilePath(worktree))
-		fs.SubscribeTo(s.typedEmitter)
-		defer fs.Close()
+		cleanup := event.StartEventLogSubscriber(s.typedEmitter, s.eventsFilePath(worktree))
+		if cleanup != nil {
+			defer cleanup()
+		}
 		s.typedEmitter.Emit(event.SpecStartedEvent{
 			Event:    event.Event{SchemaVersion: event.SchemaVersion, Timestamp: time.Now(), Type: event.EventTypeSpecStarted},
 			SpecID:   specID,

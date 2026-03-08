@@ -33,6 +33,25 @@ func WireWorktreeFileSubscriber(emitter *Emitter, worktree string) func() {
 	}
 }
 
+// StartEventLogSubscriber wires a subscriber that appends typed events to the
+// supplied JSONL path and returns a cleanup callback that unsubscribes and closes
+// the underlying file handle.
+func StartEventLogSubscriber(emitter *Emitter, eventsPath string) func() {
+	if emitter == nil {
+		return nil
+	}
+	trimmed := strings.TrimSpace(eventsPath)
+	if trimmed == "" {
+		return nil
+	}
+	fs := NewFileSubscriber(trimmed)
+	unsubscribe := fs.SubscribeTo(emitter)
+	return func() {
+		unsubscribe()
+		_ = fs.Close()
+	}
+}
+
 // StartWorktreeEventLogSubscriber wires a subscriber that appends typed events to
 // <worktree>/.gromit/v2/events.jsonl, preserving any existing log records.
 func StartWorktreeEventLogSubscriber(emitter *Emitter, worktree string) func() {
