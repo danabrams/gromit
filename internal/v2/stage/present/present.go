@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/v2/pipeline"
 	"github.com/danabrams/gromit/internal/v2/presentation"
 	v2review "github.com/danabrams/gromit/internal/v2/review"
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
@@ -39,6 +40,7 @@ type Stage struct {
 	presenter Presenter
 	ctx       *SummaryContext
 	squasher  func(context.Context) error
+	squashGit pipeline.SquashGit
 }
 
 // Option configures a Stage.
@@ -48,6 +50,13 @@ type Option func(*Stage)
 func WithSquasher(fn func(context.Context) error) Option {
 	return func(s *Stage) {
 		s.squasher = fn
+	}
+}
+
+// WithSquashGit configures the git adapter used for per-bead squash.
+func WithSquashGit(git pipeline.SquashGit) Option {
+	return func(s *Stage) {
+		s.squashGit = git
 	}
 }
 
@@ -79,16 +88,24 @@ func (s *Stage) Name() string {
 
 // Run builds the presentation summary and forwards it to the presenter.
 func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Result, error) {
-	if s.squasher != nil {
-		if err := s.squasher(ctx); err != nil {
-			return nil, fmt.Errorf("squash: %w", err)
-		}
+	if err := s.squash(ctx); err != nil {
+		return nil, fmt.Errorf("squash: %w", err)
 	}
 	summary := s.buildPresentation(req)
 	if err := s.presenter.PresentSummary(ctx, beadID(req), summary); err != nil {
 		return nil, fmt.Errorf("present summary: %w", err)
 	}
 	return &stagepkg.Result{Decision: stagepkg.DecisionProceed}, nil
+}
+
+func (s *Stage) squash(ctx context.Context) error {
+	if s.squasher != nil {
+		return s.squasher(ctx)
+	}
+	if s.squashGit == nil {
+		return nil
+	}
+	return pipeline.SquashPerBead(ctx, s.squashGit, s.ctx.Worktree, s.ctx.BeadSummaries)
 }
 
 func (s *Stage) buildPresentation(req *stagepkg.Request) presentation.PresentationSummary {

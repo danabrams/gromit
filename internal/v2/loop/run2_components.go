@@ -108,10 +108,7 @@ func NewRun2LoopComponents(cfg *config.Config, adapters adapter.AdapterSet, lega
 		return nil, err
 	}
 	summaryCtx := &present.SummaryContext{}
-	squasher := func(ctx context.Context) error {
-		return pipeline.SquashPerBead(ctx, adapters.Git, summaryCtx.Worktree, summaryCtx.BeadSummaries)
-	}
-	presentStage, err := present.New(cfg, adapters.Presenter, summaryCtx, present.WithSquasher(squasher))
+	presentStage, err := present.New(cfg, adapters.Presenter, summaryCtx, present.WithSquashGit(adapters.Git))
 	if err != nil {
 		cleanup()
 		return nil, err
