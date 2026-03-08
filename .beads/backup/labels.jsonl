@@ -260,6 +260,12 @@
 {"issue_id":"gromit-3gg9d","label":"spec:tdd-phase-metrics"}
 {"issue_id":"gromit-3gg9d","label":"tdd:true"}
 {"issue_id":"gromit-3hch","label":"refactor"}
+{"issue_id":"gromit-3hde3","label":"estimated-files:1"}
+{"issue_id":"gromit-3hde3","label":"gen:1"}
+{"issue_id":"gromit-3hde3","label":"spec:immutable-pipeline"}
+{"issue_id":"gromit-3i1ko","label":"estimated-files:2"}
+{"issue_id":"gromit-3i1ko","label":"gen:1"}
+{"issue_id":"gromit-3i1ko","label":"spec:immutable-pipeline"}
 {"issue_id":"gromit-3i71i","label":"spec:spec-level-atdd-gates"}
 {"issue_id":"gromit-3ibd","label":"bug"}
 {"issue_id":"gromit-3ibd","label":"from-review"}
@@ -805,6 +811,9 @@
 {"issue_id":"gromit-7v10e","label":"gen:1"}
 {"issue_id":"gromit-7v10e","label":"spec:immutable-pipeline"}
 {"issue_id":"gromit-7v4","label":"spec:precheck-already-done"}
+{"issue_id":"gromit-7vrqz","label":"estimated-files:2"}
+{"issue_id":"gromit-7vrqz","label":"gen:1"}
+{"issue_id":"gromit-7vrqz","label":"spec:immutable-pipeline"}
 {"issue_id":"gromit-7w49","label":"agents"}
 {"issue_id":"gromit-7w49","label":"codex"}
 {"issue_id":"gromit-7w49","label":"debug"}
@@ -827,6 +836,9 @@
 {"issue_id":"gromit-80oh8","label":"gen:1"}
 {"issue_id":"gromit-80oh8","label":"spec:immutable-pipeline"}
 {"issue_id":"gromit-80s","label":"spec:review-system"}
+{"issue_id":"gromit-80xs2","label":"estimated-files:1"}
+{"issue_id":"gromit-80xs2","label":"gen:1"}
+{"issue_id":"gromit-80xs2","label":"spec:immutable-pipeline"}
 {"issue_id":"gromit-81bz","label":"spec:epic-scoped-execution"}
 {"issue_id":"gromit-82ilf","label":"from-review"}
 {"issue_id":"gromit-82ilf","label":"refactor"}
@@ -1901,6 +1913,9 @@
 {"issue_id":"gromit-ks2wc","label":"from-review"}
 {"issue_id":"gromit-ks2wc","label":"spec:immutable-pipeline"}
 {"issue_id":"gromit-ks39d","label":"spec:runner-pipeline"}
+{"issue_id":"gromit-ks72z","label":"estimated-files:3"}
+{"issue_id":"gromit-ks72z","label":"gen:1"}
+{"issue_id":"gromit-ks72z","label":"spec:immutable-pipeline"}
 {"issue_id":"gromit-ksc5","label":"spec:sonnet-timeout-investigation"}
 {"issue_id":"gromit-kse3","label":"spec:reduce-iteration-cost"}
 {"issue_id":"gromit-kse3.1","label":"spec:reduce-iteration-cost"}
@@ -2611,6 +2626,9 @@
 {"issue_id":"gromit-sonqy","label":"spec:spec-level-atdd-gates"}
 {"issue_id":"gromit-sph6","label":"spec:andon-autonomous-run-loop"}
 {"issue_id":"gromit-spkl","label":"spec:tskip-audit"}
+{"issue_id":"gromit-spzax","label":"estimated-files:3"}
+{"issue_id":"gromit-spzax","label":"gen:1"}
+{"issue_id":"gromit-spzax","label":"spec:immutable-pipeline"}
 {"issue_id":"gromit-sqn5v","label":"spec:debug-runbook"}
 {"issue_id":"gromit-ss7l1","label":"estimated-files:2"}
 {"issue_id":"gromit-ss7l1","label":"gen:1"}
@@ -2781,6 +2799,9 @@
 {"issue_id":"gromit-ufopy","label":"spec:runner-pipeline"}
 {"issue_id":"gromit-ug4l","label":"spec:multi-agent-phases"}
 {"issue_id":"gromit-ug5e","label":"spec:runner-subpackage-split"}
+{"issue_id":"gromit-ugkos","label":"estimated-files:2"}
+{"issue_id":"gromit-ugkos","label":"gen:1"}
+{"issue_id":"gromit-ugkos","label":"spec:immutable-pipeline"}
 {"issue_id":"gromit-uhprq","label":"spec:pipeline-renderer-segregation"}
 {"issue_id":"gromit-uhprq","label":"tdd:false"}
 {"issue_id":"gromit-ujolg","label":"spec:spec-level-atdd-gates"}
@@ -2842,6 +2863,9 @@
 {"issue_id":"gromit-v6h8e","label":"estimated-files:2"}
 {"issue_id":"gromit-v6h8e","label":"spec:v2-run-loop"}
 {"issue_id":"gromit-v6q0g","label":"spec:phase-1-2-token-efficiency-foundation"}
+{"issue_id":"gromit-v6zg1","label":"estimated-files:1"}
+{"issue_id":"gromit-v6zg1","label":"gen:1"}
+{"issue_id":"gromit-v6zg1","label":"spec:immutable-pipeline"}
 {"issue_id":"gromit-v7ft","label":"spec:retro-efficiency-experiments"}
 {"issue_id":"gromit-v7l5m","label":"estimated-files:2"}
 {"issue_id":"gromit-v7l5m","label":"spec:v2-run-loop"}
@@ -2884,7 +2908,13 @@
 {"issue_id":"gromit-vl56y","label":"gen:1"}
 {"issue_id":"gromit-vl56y","label":"spec:immutable-pipeline"}
 {"issue_id":"gromit-vlk9","label":"spec:retro-efficiency-experiments"}
+{"issue_id":"gromit-vne7u","label":"estimated-files:1"}
+{"issue_id":"gromit-vne7u","label":"gen:1"}
+{"issue_id":"gromit-vne7u","label":"spec:immutable-pipeline"}
 {"issue_id":"gromit-vo11r","label":"spec:cost-per-spec-metric"}
+{"issue_id":"gromit-vre3h","label":"estimated-files:3"}
+{"issue_id":"gromit-vre3h","label":"gen:1"}
+{"issue_id":"gromit-vre3h","label":"spec:immutable-pipeline"}
 {"issue_id":"gromit-vst","label":"spec:precheck-already-done"}
 {"issue_id":"gromit-vu1x","label":"spec:suite-wide-test-runtime-reduction"}
 {"issue_id":"gromit-vujh","label":"spec:multi-provider-routing"}
@@ -3218,6 +3248,9 @@
 {"issue_id":"gromit-ykdzk","label":"spec:immutable-pipeline"}
 {"issue_id":"gromit-ykdzk","label":"tdd:false"}
 {"issue_id":"gromit-ykee","label":"spec:precheck-loop-guard"}
+{"issue_id":"gromit-ykqrn","label":"estimated-files:2"}
+{"issue_id":"gromit-ykqrn","label":"gen:1"}
+{"issue_id":"gromit-ykqrn","label":"spec:immutable-pipeline"}
 {"issue_id":"gromit-ynp2","label":"spec:fix-validation-timeout-classification"}
 {"issue_id":"gromit-ynsh0","label":"estimated-files:2"}
 {"issue_id":"gromit-ynsh0","label":"spec:provider-parity-decompose-retro"}
