@@ -75,4 +75,3 @@ func TestDebug2_OrchestrateDebug_ReadsEventLog(t *testing.T) {
 		t.Error("result.Events is empty, want to contain parsed events")
 	}
 }
-
