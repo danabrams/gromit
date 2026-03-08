@@ -5,28 +5,29 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 
+	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/jsonutil"
 	"github.com/danabrams/gromit/internal/v2/adapter"
 	gitadapter "github.com/danabrams/gromit/internal/v2/adapter/git"
+	llmadapter "github.com/danabrams/gromit/internal/v2/adapter/llm"
+	"github.com/danabrams/gromit/internal/v2/llmtypes"
 	"github.com/danabrams/gromit/internal/v2/pipeline"
+	"github.com/danabrams/gromit/internal/v2/routing"
 	"github.com/spf13/cobra"
 )
 
-// debug2AgentLaunchFn is injectable for tests. It launches the agent with a prompt
-// file in the given directory.
-// t.Cleanup must restore the original value in tests that override this.
-var debug2AgentLaunchFn = func(promptPath, dir string) error {
-	cfg, _ := loadConfig()
-	selectedAgent, err := resolveCommandAgent(cfg, "debug", "", false)
-	if err != nil {
-		return fmt.Errorf("resolving agent: %w", err)
-	}
-	return selectedAgent.LaunchInDir(promptPath, dir)
+type debug2LLMFixResponse struct {
+	CodePatch              string `json:"code_patch"`
+	LearningsEntry         string `json:"learnings_entry"`
+	SystemicRecommendation string `json:"systemic_recommendation"`
 }
 
 // debug2BranchWorktreeFn is injectable for tests. It attempts to find and resolve
@@ -69,8 +70,14 @@ var debug2Cmd = &cobra.Command{
 }
 
 const debug2EventTailCount = 2
+const debug2Phase = "debug"
+const debug2DefaultInvokeTimeout = 15 * time.Minute
 
 var debug2ImplFn = debug2Impl
+var debug2InvokeLLMFn = invokeDebug2LLM
+var debug2ApplyPatchFn = applyDebug2Patch
+var debug2RunValidationFn = runDebug2ValidationCommand
+var debug2Stderr io.Writer = os.Stderr
 
 func init() {
 	rootCmd.AddCommand(debug2Cmd)
@@ -117,7 +124,7 @@ func readDebug2EventLog(wtPath string) ([]map[string]interface{}, error) {
 
 // buildDebug2Prompt assembles a diagnostic prompt from the spec name, worktree path,
 // events, and commit history. commits is a slice of [hash, message] pairs.
-func buildDebug2Prompt(specName, wtPath string, events []map[string]interface{}, commits [][2]string, failureDiff string) string {
+func buildDebug2Prompt(specName, wtPath string, events []map[string]interface{}, commits [][2]string, failureDiff string, validationCommands []string) string {
 	var sb strings.Builder
 	sb.WriteString(fmt.Sprintf("## Debug Session: %s\n\n", specName))
 	sb.WriteString(fmt.Sprintf("Worktree: %s\n\n", wtPath))
@@ -152,7 +159,18 @@ func buildDebug2Prompt(specName, wtPath string, events []map[string]interface{},
 		sb.WriteString("```\n\n")
 	}
 
-	sb.WriteString("## Task\n\nDiagnose the failure above and produce a fix.\n")
+	sb.WriteString("### Validation Commands\n\n")
+	if len(validationCommands) == 0 {
+		sb.WriteString("  # No validation commands configured\n\n")
+	} else {
+		for _, cmd := range validationCommands {
+			sb.WriteString(fmt.Sprintf("  %s\n", cmd))
+		}
+		sb.WriteString("\n")
+	}
+
+	sb.WriteString("## Task\n\nDiagnose the failure above and produce a fix. Return JSON only with:\n")
+	sb.WriteString(`{"code_patch":"<unified diff patch or empty>","learnings_entry":"<entry or empty>","systemic_recommendation":"<text or empty>"}` + "\n")
 	return sb.String()
 }
 
@@ -197,8 +215,113 @@ func normalizeDebug2WorktreePath(path string) string {
 	return normalized
 }
 
+func debug2ValidationCommands(cfg *config.Config) []string {
+	if cfg == nil {
+		return nil
+	}
+	commands := cfg.Validation.FastCommandsOrDefault()
+	if len(commands) == 0 {
+		commands = cfg.EffectiveValidationCommands()
+	}
+	return append([]string(nil), commands...)
+}
+
+func selectDebug2Provider(cfg *config.Config) (llmtypes.LLMProvider, string, error) {
+	if cfg != nil {
+		router, phaseModels := buildRouter(cfg)
+		if router != nil {
+			tier := routing.TierForPhase(debug2Phase, phaseModels, routing.TierMedium)
+			provider, model, err := router.Select(debug2Phase, tier)
+			if err != nil {
+				return nil, "", fmt.Errorf("selecting routed provider: %w", err)
+			}
+			return provider, model, nil
+		}
+
+		binary := strings.TrimSpace(cfg.Claude.Binary)
+		if binary == "" {
+			binary = "claude"
+		}
+		flags := append([]string(nil), cfg.Claude.Flags...)
+		timeout := debug2DefaultInvokeTimeout
+		if cfg.Claude.Timeout > 0 {
+			timeout = time.Duration(cfg.Claude.Timeout) * time.Second
+		}
+		model := strings.TrimSpace(cfg.Models.P1)
+		if model == "" {
+			model = config.ModelSonnet
+		}
+		return llmadapter.NewClaudeAdapter(binary, flags, timeout), model, nil
+	}
+
+	return llmadapter.NewClaudeAdapter("claude", nil, debug2DefaultInvokeTimeout), config.ModelSonnet, nil
+}
+
+func invokeDebug2LLM(ctx context.Context, prompt, dir string, cfg *config.Config) (string, error) {
+	provider, model, err := selectDebug2Provider(cfg)
+	if err != nil {
+		return "", err
+	}
+	resp, err := provider.Invoke(ctx, llmtypes.LLMInvokeRequest{
+		Prompt: prompt,
+		Model:  model,
+		Dir:    dir,
+	})
+	if err != nil {
+		return "", err
+	}
+	if resp == nil {
+		return "", fmt.Errorf("provider returned nil response")
+	}
+	if !resp.Success {
+		detail := strings.TrimSpace(resp.Output)
+		if detail == "" {
+			detail = "no detail available"
+		}
+		return "", fmt.Errorf("provider reported unsuccessful result: %s", detail)
+	}
+	return resp.Output, nil
+}
+
+func parseDebug2LLMResponse(output string) (*debug2LLMFixResponse, error) {
+	if strings.TrimSpace(output) == "" {
+		return nil, fmt.Errorf("llm output is empty")
+	}
+	var response debug2LLMFixResponse
+	if err := jsonutil.ExtractJSON(output, &response); err != nil {
+		return nil, fmt.Errorf("extracting llm response json: %w", err)
+	}
+	response.LearningsEntry = strings.TrimSpace(response.LearningsEntry)
+	response.SystemicRecommendation = strings.TrimSpace(response.SystemicRecommendation)
+	return &response, nil
+}
+
+func applyDebug2Patch(ctx context.Context, wtPath, patch string) error {
+	if strings.TrimSpace(patch) == "" {
+		return nil
+	}
+	cmd := exec.CommandContext(ctx, "git", "apply", "--whitespace=nowarn", "-")
+	cmd.Dir = wtPath
+	cmd.Stdin = strings.NewReader(patch)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("applying debug patch: %w\n%s", err, strings.TrimSpace(string(out)))
+	}
+	return nil
+}
+
+func runDebug2ValidationCommand(ctx context.Context, wtPath, command string) error {
+	cmd := exec.CommandContext(ctx, "sh", "-c", command)
+	cmd.Dir = wtPath
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("validation command %q failed: %w\n%s", command, err, strings.TrimSpace(string(out)))
+	}
+	return nil
+}
+
 // debug2Impl contains the testable core of the debug2 command.
-func debug2Impl(ctx context.Context, specName, gromitDir string) error {
+func debug2Impl(ctx context.Context, specName, gromitDir string, cfg *config.Config) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -236,22 +359,25 @@ func debug2Impl(ctx context.Context, specName, gromitDir string) error {
 		}
 	}
 
-	prompt := buildDebug2Prompt(specName, wtPath, tailDebug2Events(events, debug2EventTailCount), commits, failureDiff)
-
-	tmpFile, err := os.CreateTemp("", "debug2-prompt-*.md")
+	validationCommands := debug2ValidationCommands(cfg)
+	prompt := buildDebug2Prompt(specName, wtPath, tailDebug2Events(events, debug2EventTailCount), commits, failureDiff, validationCommands)
+	responseText, err := debug2InvokeLLMFn(ctx, prompt, wtPath, cfg)
 	if err != nil {
-		return fmt.Errorf("creating temp prompt file: %w", err)
+		return fmt.Errorf("invoking debug llm: %w", err)
 	}
-	promptPath := tmpFile.Name()
-	defer os.Remove(promptPath)
-
-	if _, err := tmpFile.WriteString(prompt); err != nil {
-		tmpFile.Close()
-		return fmt.Errorf("writing prompt file: %w", err)
+	response, err := parseDebug2LLMResponse(responseText)
+	if err != nil {
+		return err
 	}
-	tmpFile.Close()
-
-	return debug2AgentLaunchFn(promptPath, wtPath)
+	if err := debug2ApplyPatchFn(ctx, wtPath, response.CodePatch); err != nil {
+		return err
+	}
+	for _, command := range validationCommands {
+		if err := debug2RunValidationFn(ctx, wtPath, command); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func debug2RunE(cmd *cobra.Command, args []string) error {
@@ -261,5 +387,5 @@ func debug2RunE(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("loading config: %w", err)
 	}
 	gromitDir := resolveGromitDir(cfg)
-	return debug2ImplFn(cmd.Context(), specName, gromitDir)
+	return debug2ImplFn(cmd.Context(), specName, gromitDir, cfg)
 }

@@ -15,7 +15,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func TestDebug2_InvokesAgentInWorktree(t *testing.T) {
+func TestDebug2_InvokesLLMInWorktree(t *testing.T) {
 	tmpDir := t.TempDir()
 	specName := "test-spec"
 	wtPath := filepath.Join(tmpDir, "spec-worktrees", specName)
@@ -30,18 +30,18 @@ func TestDebug2_InvokesAgentInWorktree(t *testing.T) {
 	}
 
 	var capturedDir string
-	orig := debug2AgentLaunchFn
-	t.Cleanup(func() { debug2AgentLaunchFn = orig })
-	debug2AgentLaunchFn = func(promptPath, dir string) error {
+	orig := debug2InvokeLLMFn
+	t.Cleanup(func() { debug2InvokeLLMFn = orig })
+	debug2InvokeLLMFn = func(ctx context.Context, prompt, dir string, cfg *config.Config) (string, error) {
 		capturedDir = dir
-		return nil
+		return `{"code_patch":"","learnings_entry":"","systemic_recommendation":""}`, nil
 	}
 
-	if err := debug2Impl(context.Background(), specName, tmpDir); err != nil {
+	if err := debug2Impl(context.Background(), specName, tmpDir, nil); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if capturedDir != wtPath {
-		t.Errorf("agent launched in %q, want %q", capturedDir, wtPath)
+		t.Errorf("llm invoked in %q, want %q", capturedDir, wtPath)
 	}
 }
 
@@ -55,7 +55,7 @@ func TestBuildDebug2Prompt_IncludesSpecNameAndEvents(t *testing.T) {
 		{"abc12345", "[bead:b1/validate/iter:1] Fail"},
 	}
 
-	prompt := buildDebug2Prompt(specName, wtPath, events, commits, "")
+	prompt := buildDebug2Prompt(specName, wtPath, events, commits, "", nil)
 
 	if !strings.Contains(prompt, "test-spec") {
 		t.Error("prompt missing spec name")
@@ -270,15 +270,11 @@ func TestDebug2Impl_PromptIncludesEventTailAndFailureDiff(t *testing.T) {
 	}
 
 	var promptText string
-	origLaunch := debug2AgentLaunchFn
-	t.Cleanup(func() { debug2AgentLaunchFn = origLaunch })
-	debug2AgentLaunchFn = func(promptPath, dir string) error {
-		data, err := os.ReadFile(promptPath)
-		if err != nil {
-			return err
-		}
-		promptText = string(data)
-		return nil
+	origInvoke := debug2InvokeLLMFn
+	t.Cleanup(func() { debug2InvokeLLMFn = origInvoke })
+	debug2InvokeLLMFn = func(ctx context.Context, prompt, dir string, cfg *config.Config) (string, error) {
+		promptText = prompt
+		return `{"code_patch":"","learnings_entry":"","systemic_recommendation":""}`, nil
 	}
 
 	if err := debug2Impl(context.Background(), specName, gromitDir, nil); err != nil {
