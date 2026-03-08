@@ -3,7 +3,6 @@ id: spec-level-review-and-targeted-remediation
 source_ideas: []
 created: 2026-03-08
 depends_on:
-  - immutable-pipeline
   - v2-run-loop
 ---
 
