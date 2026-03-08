@@ -188,6 +188,8 @@ func buildDebug2Prompt(specName, wtPath string, events []map[string]interface{},
 	}
 
 	sb.WriteString("## Task\n\nDiagnose the failure above and produce a fix. Return JSON only with:\n")
+	sb.WriteString("- Use `learnings_entry` for learnable patterns (conventions/common fixes) that can be applied autonomously.\n")
+	sb.WriteString("- Use `systemic_recommendation` for prompt fragment/code guard/process/rule changes requiring human review.\n")
 	sb.WriteString(`{"code_patch":"<unified diff patch or empty>","learnings_entry":"<entry or empty>","systemic_recommendation":"<text or empty>"}` + "\n")
 	return sb.String()
 }
@@ -468,11 +470,15 @@ func debug2Impl(ctx context.Context, specName, gromitDir string, cfg *config.Con
 			return err
 		}
 	}
-	if err := appendDebug2LearningsEntry(wtPath, response.LearningsEntry); err != nil {
+	learning := debugpkg.ExtractLearning(debugpkg.LearningExtractionInput{
+		LearningsEntry:         response.LearningsEntry,
+		SystemicRecommendation: response.SystemicRecommendation,
+	})
+	if err := appendDebug2LearningsEntry(wtPath, learning.LearningsEntry); err != nil {
 		return err
 	}
-	if response.SystemicRecommendation != "" {
-		fmt.Fprintf(debug2Stderr, "Systemic recommendation (not auto-applied):\n%s\n", response.SystemicRecommendation)
+	if learning.SystemicRecommendation != "" {
+		fmt.Fprintf(debug2Stderr, "Systemic recommendation (not auto-applied):\n%s\n", learning.SystemicRecommendation)
 	}
 	return nil
 }
