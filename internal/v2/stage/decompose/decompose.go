@@ -44,6 +44,15 @@ You are decomposing an implementation plan into bd beads following the gromit-de
 
 %s
 
+## Acceptance Criteria Rules
+
+acceptance_criteria: each criterion MUST describe an observable behavior or capability, NOT a file path, function name, or code structure.
+
+Good: "debug command identifies root cause category from event log"
+Bad: "create internal/v2/debug/diagnose.go with Diagnose() function"
+
+The implementation may consolidate or restructure deliverables — criteria must remain valid regardless of how the code is organized.
+
 ## Output
 
 Output ONLY a JSON array of bead definitions. No markdown, no explanations, no wrapper.
@@ -71,6 +80,15 @@ You are creating TARGETED beads to address specific unmet acceptance criteria. D
 ## Skill Instructions
 
 %s
+
+## Acceptance Criteria Rules
+
+acceptance_criteria: each criterion MUST describe an observable behavior or capability, NOT a file path, function name, or code structure.
+
+Good: "debug command identifies root cause category from event log"
+Bad: "create internal/v2/debug/diagnose.go with Diagnose() function"
+
+The implementation may consolidate or restructure deliverables — criteria must remain valid regardless of how the code is organized.
 
 ## Output
 
