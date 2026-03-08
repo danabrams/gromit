@@ -1273,6 +1273,46 @@ func TestSpecLoopCommitsAfterFailedAcceptStage(t *testing.T) {
 	}
 }
 
+func TestSpecLoopCommitsAfterAcceptStageErrorWithoutResult(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	specID := "spec-commit-accept-error"
+	cfg := &config.Config{}
+
+	sc := &fakeSpecStageCommitter{}
+	accept := newScriptedAcceptStage()
+	accept.err = fmt.Errorf("accept stage transport failure")
+
+	loopInstance, err := NewSpecLoop(
+		adapter.AdapterSet{
+			Git:         newFakeGitAdapter(t),
+			LLM:         newFakeLLMAdapter(),
+			TaskTracker: newFakeTaskTrackerAdapter(),
+			Presenter:   newFakePresenterAdapter(t),
+		},
+		cfg, noopDependencyGate{},
+		WithStageCommitter(sc),
+		WithPlanStage(newFakePlanStage(specID)),
+		WithPresentStage(newFakePresentStage(), &present.SummaryContext{}),
+		WithDecomposeStage(newFakeDecomposeStage(specID)),
+		WithBeadLoop(newFakeBeadRunner()),
+		WithAcceptStage(accept),
+	)
+	if err != nil {
+		t.Fatalf("create spec loop: %v", err)
+	}
+
+	err = loopInstance.Run(ctx, specID, nil)
+	if err == nil {
+		t.Fatal("expected run to fail when accept stage errors")
+	}
+
+	if !sc.hasCall("accept") {
+		t.Fatalf("CommitStage not called for errored 'accept'; calls: %v", sc.calls)
+	}
+}
+
 func TestSpecLoopCommitsAfterDecomposeStage(t *testing.T) {
 	t.Parallel()
 
