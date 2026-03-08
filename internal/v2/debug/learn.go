@@ -39,6 +39,10 @@ func ExtractLearning(input LearningExtractionInput) LearningExtraction {
 			SystemicRecommendation: systemicRecommendation,
 		}
 	}
+
+	if learningsEntry == "" {
+		learningsEntry = buildLearningEntryFromRootCause(input.RootCause)
+	}
 	if learningsEntry == "" {
 		return LearningExtraction{}
 	}
