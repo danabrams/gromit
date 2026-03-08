@@ -1,10 +1,10 @@
 Launch an interactive agent session that runs three debug jobs end-to-end.
 
 The session receives full project context (CLAUDE.md, RULES.md, LEARNINGS.md)
-and follows the debug workflow (diagnose → fix → validate):
-  - Diagnose: Identify where the failure happened and why, then gather the signals needed to reproduce it.
-  - Fix: Apply the most direct code or configuration correction to resolve the issue.
-  - Validate: Confirm the fix with targeted checks and capture learnings so the project document trail stays current.
+and follows the debug workflow (diagnose → fix → present recommendations):
+  - Diagnose: Identify the root cause of the failure and collect the signals needed to reproduce it.
+  - Fix: Apply the most direct code or configuration correction, verify it, and capture the resulting learnings.
+  - Present recommendations: Propose systemic changes, process updates, or rule tweaks that prevent recurrence.
 
 Examples:
   gromit debug                              # Blank session
