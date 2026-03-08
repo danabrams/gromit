@@ -49,3 +49,22 @@ func TestFormatMessageSpecStage(t *testing.T) {
 		t.Fatalf("FormatMessage() = %q, want %q", got, want)
 	}
 }
+
+func TestParseMessageSpecStage(t *testing.T) {
+	parsed, err := ParseMessage("[spec/plan/iter:1] Proceed")
+	if err != nil {
+		t.Fatalf("ParseMessage() error = %v", err)
+	}
+	if parsed.BeadID != "" {
+		t.Fatalf("BeadID = %q, want empty", parsed.BeadID)
+	}
+	if parsed.StageName != "plan" {
+		t.Fatalf("StageName = %q, want %q", parsed.StageName, "plan")
+	}
+	if parsed.Iteration != 1 {
+		t.Fatalf("Iteration = %d, want %d", parsed.Iteration, 1)
+	}
+	if parsed.Decision != "Proceed" {
+		t.Fatalf("Decision = %q, want %q", parsed.Decision, "Proceed")
+	}
+}
