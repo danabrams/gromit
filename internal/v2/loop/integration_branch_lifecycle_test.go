@@ -54,6 +54,7 @@ func verifyFailureBranchLifecycle(t *testing.T, repoRoot, specID string) {
     }
 
     assertBranchExists(t, repoRoot, specID)
+    assertBranchHasPartialWorkCommit(t, repoRoot, specID)
     eventsPath := filepath.Join(worktree, ".gromit", "v2", "events.jsonl")
     assertEventsFilePopulated(t, eventsPath)
 }
