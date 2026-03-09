@@ -21,6 +21,7 @@ import (
 	"github.com/danabrams/gromit/internal/v2/routing"
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
 	stageaccept "github.com/danabrams/gromit/internal/v2/stage/accept"
+	"github.com/danabrams/gromit/internal/v2/stage/finding"
 	planstage "github.com/danabrams/gromit/internal/v2/stage/plan"
 	present "github.com/danabrams/gromit/internal/v2/stage/present"
 	specreview "github.com/danabrams/gromit/internal/v2/stage/specreview"
@@ -61,6 +62,10 @@ type BeadRunner interface {
 
 type remediationRunner interface {
 	Run(ctx context.Context, specID, worktree string) error
+}
+
+type remediationRunnerWithFindings interface {
+	RunWithFindings(ctx context.Context, specID, worktree string, findings []finding.Finding) error
 }
 
 // SelectiveRevalidator checks beads for regressions and returns the subset
@@ -419,7 +424,7 @@ func (s *SpecLoop) Run(ctx context.Context, specID string, stopCh <-chan struct{
 	}
 
 	s.recordStage("accept")
-	acceptRes, err := s.ensureAcceptance(ctx, &req, specID)
+	acceptRes, err := s.ensureAcceptanceAndReview(ctx, &req, specID)
 	if err != nil {
 		handleFailureCleaned = true
 		return s.handleFailure(ctx, specID, baseSummary, err)
@@ -438,18 +443,42 @@ func (s *SpecLoop) Run(ctx context.Context, specID string, stopCh <-chan struct{
 	if s.specReviewStage != nil {
 		specreviewRes, err := s.runSpecReviewStage(ctx, &req)
 		if err != nil {
+			if s.remediationRunner != nil {
+				merged := mergeFindings(acceptRes, nil)
+				if remediationErr := s.runRemediation(ctx, specID, req.Worktree, merged); remediationErr != nil {
+					handleFailureCleaned = true
+					return s.handleFailure(ctx, specID, summary, remediationErr)
+				}
+			}
 			handleFailureCleaned = true
 			return s.handleFailure(ctx, specID, summary, err)
 		}
 		if specreviewRes == nil {
+			if s.remediationRunner != nil {
+				merged := mergeFindings(acceptRes, nil)
+				if remediationErr := s.runRemediation(ctx, specID, req.Worktree, merged); remediationErr != nil {
+					handleFailureCleaned = true
+					return s.handleFailure(ctx, specID, summary, remediationErr)
+				}
+			}
 			handleFailureCleaned = true
 			return s.handleFailure(ctx, specID, summary, fmt.Errorf("spec review stage returned no result"))
 		}
 		s.emitSpecVerdict(specID, worktree, acceptRes, specreviewRes)
 		if s.specReviewFailed(specreviewRes) {
+			if s.remediationRunner != nil {
+				merged := mergeFindings(acceptRes, specreviewRes)
+				if remediationErr := s.runRemediation(ctx, specID, req.Worktree, merged); remediationErr != nil {
+					handleFailureCleaned = true
+					return s.handleFailure(ctx, specID, summary, remediationErr)
+				}
+			}
 			verdict := s.extractSpecReviewVerdict(specreviewRes)
 			handleFailureCleaned = true
 			return s.handleFailure(ctx, specID, summary, fmt.Errorf("spec review failed: verdict=%s", verdict))
+		}
+		if err := s.createFromReviewBeads(ctx, specID, extractSpecReviewFindings(specreviewRes)); err != nil {
+			return fmt.Errorf("create from-review beads: %w", err)
 		}
 		if err := s.commitStage(ctx, worktree, "specreview", 0, "proceed"); err != nil {
 			return fmt.Errorf("commit after specreview: %w", err)
@@ -563,7 +592,7 @@ func (s *SpecLoop) runBeadLoop(ctx context.Context, beads []*bead.Bead, worktree
 	return s.beadRunner.Run(ctx, beads, stopCh)
 }
 
-func (s *SpecLoop) ensureAcceptance(ctx context.Context, req *stagepkg.Request, specID string) (*stagepkg.Result, error) {
+func (s *SpecLoop) ensureAcceptanceAndReview(ctx context.Context, req *stagepkg.Request, specID string) (*stagepkg.Result, error) {
 	retriesRemaining := maxAcceptanceRetries
 	for {
 		if err := s.ctxErr(ctx); err != nil {
@@ -584,11 +613,22 @@ func (s *SpecLoop) ensureAcceptance(ctx context.Context, req *stagepkg.Request, 
 		if retriesRemaining <= 0 {
 			return res, fmt.Errorf("%w: limit %d reached", ErrAcceptanceRetriesExceeded, maxAcceptanceRetries)
 		}
-		if err := s.remediationRunner.Run(ctx, specID, req.Worktree); err != nil {
+		merged := mergeFindings(res, nil)
+		if err := s.runRemediation(ctx, specID, req.Worktree, merged); err != nil {
 			return res, err
 		}
 		retriesRemaining--
 	}
+}
+
+func (s *SpecLoop) runRemediation(ctx context.Context, specID, worktree string, merged []finding.Finding) error {
+	if s.remediationRunner == nil {
+		return nil
+	}
+	if withFindings, ok := s.remediationRunner.(remediationRunnerWithFindings); ok {
+		return withFindings.RunWithFindings(ctx, specID, worktree, cloneStageFindings(merged))
+	}
+	return s.remediationRunner.Run(ctx, specID, worktree)
 }
 
 func (s *SpecLoop) runAcceptStage(ctx context.Context, req *stagepkg.Request) (*stagepkg.Result, error) {
@@ -639,6 +679,17 @@ func (s *SpecLoop) extractSpecReviewVerdict(res *stagepkg.Result) string {
 		return ""
 	}
 	return strings.TrimSpace(artifacts.Verdict)
+}
+
+func extractSpecReviewFindings(res *stagepkg.Result) []finding.Finding {
+	if res == nil || res.Artifacts == nil {
+		return nil
+	}
+	artifacts, ok := res.Artifacts.(*specreview.SpecReviewArtifacts)
+	if !ok || artifacts == nil {
+		return nil
+	}
+	return cloneStageFindings(artifacts.Findings)
 }
 
 func (s *SpecLoop) emitSpecVerdict(specID, worktree string, acceptRes, specreviewRes *stagepkg.Result) {
@@ -737,6 +788,75 @@ func cloneOutOfScopeFindings(findings []v2review.Finding) []v2review.Finding {
 		clones[i].AffectedFiles = append([]string(nil), finding.AffectedFiles...)
 	}
 	return clones
+}
+
+func cloneStageFindings(src []finding.Finding) []finding.Finding {
+	if len(src) == 0 {
+		return nil
+	}
+	clones := make([]finding.Finding, len(src))
+	for i, item := range src {
+		clones[i] = item
+		clones[i].AffectedFiles = append([]string(nil), item.AffectedFiles...)
+	}
+	return clones
+}
+
+func extractAcceptFindings(res *stagepkg.Result) []finding.Finding {
+	if res == nil || res.Artifacts == nil {
+		return nil
+	}
+	artifacts, ok := res.Artifacts.(*stageaccept.AcceptArtifacts)
+	if !ok || artifacts == nil {
+		return nil
+	}
+	return cloneStageFindings(artifacts.Findings)
+}
+
+func mergeFindings(acceptRes, specreviewRes *stagepkg.Result) []finding.Finding {
+	acceptFindings := extractAcceptFindings(acceptRes)
+	reviewFindings := extractSpecReviewFindings(specreviewRes)
+	if len(acceptFindings) == 0 && len(reviewFindings) == 0 {
+		return nil
+	}
+	merged := make([]finding.Finding, 0, len(acceptFindings)+len(reviewFindings))
+	merged = append(merged, acceptFindings...)
+	merged = append(merged, reviewFindings...)
+	return merged
+}
+
+func (s *SpecLoop) createFromReviewBeads(ctx context.Context, specID string, reviewFindings []finding.Finding) error {
+	if len(reviewFindings) == 0 || s.adapters.TaskTracker == nil {
+		return nil
+	}
+
+	specLabel := tracker.SpecLabelFor(specID)
+	for _, item := range reviewFindings {
+		if item.Severity != finding.SeverityWarning && item.Severity != finding.SeveritySuggestion {
+			continue
+		}
+
+		description := strings.TrimSpace(item.Description)
+		if description == "" {
+			continue
+		}
+
+		labels := []string{"from-review"}
+		if strings.EqualFold(strings.TrimSpace(item.Scope), "spec") {
+			labels = append(labels, specLabel)
+		}
+
+		_, err := s.adapters.TaskTracker.CreateBead(ctx, trackertypes.TaskTrackerCreateBeadRequest{
+			Title:       description,
+			Description: description,
+			Priority:    2,
+			Labels:      labels,
+		})
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (s *SpecLoop) specStageRequest(specID, worktree string) stagepkg.Request {
