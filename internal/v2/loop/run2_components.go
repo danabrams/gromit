@@ -211,23 +211,17 @@ func NewRun2LoopComponents(cfg *config.Config, adapters adapter.AdapterSet, lega
 	}
 
 	specReviewProvider := llmtypes.LLMProvider(adapters.LLM)
-	specReviewModel := ""
-	specReviewCfg := *cfg
 	if router != nil {
 		specReviewTier := routing.TierForPhase("specreview", phaseModels, routing.TierHigh)
-		provider, model, _, routeErr := router.Select("specreview", specReviewTier)
+		provider, _, _, routeErr := router.Select("specreview", specReviewTier)
 		if routeErr != nil {
 			log.Printf("WARNING: spec review routing for tier %s failed: %v; using default provider", specReviewTier, routeErr)
 		} else if provider != nil {
 			specReviewProvider = provider
-			specReviewModel = strings.TrimSpace(model)
 		}
 	}
-	if specReviewModel != "" {
-		specReviewCfg.Models.P0 = specReviewModel
-	}
 
-	specReviewStage, err := specreviewstage.New(&specReviewCfg, adapters.Git, specReviewProvider, baseInstructions, projectContext, specReviewFragment)
+	specReviewStage, err := specreviewstage.New(adapters.Git, specReviewProvider, specReviewFragment)
 	if err != nil {
 		cleanup()
 		return nil, err

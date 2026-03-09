@@ -185,6 +185,7 @@ func run2(cmd *cobra.Command, args []string) error {
 		loop.WithBeadLoop(components.BeadLoop),
 		loop.WithAcceptStage(components.AcceptStage),
 		loop.WithRemediationRunner(components.RemediationRunner),
+		loop.WithSpecReviewStage(components.SpecReviewStage),
 		loop.WithStageCommitter(components.StageCommitter),
 		loop.WithTypedEmitter(components.TypedEmitter),
 	}

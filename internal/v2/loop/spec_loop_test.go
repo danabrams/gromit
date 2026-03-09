@@ -17,6 +17,7 @@ import (
 	"github.com/danabrams/gromit/internal/v2/adapter"
 	"github.com/danabrams/gromit/internal/v2/adapter/tasktracker"
 	"github.com/danabrams/gromit/internal/v2/event"
+	"github.com/danabrams/gromit/internal/v2/findings"
 	"github.com/danabrams/gromit/internal/v2/llmtypes"
 	"github.com/danabrams/gromit/internal/v2/presentation"
 	v2review "github.com/danabrams/gromit/internal/v2/review"
@@ -982,6 +983,8 @@ type fakeDecomposeStage struct {
 	called        bool
 	lastRequest   *stagepkg.Request
 	onRun         func()
+	remediationRequest  bool
+	remediationFindings []findings.Finding
 }
 
 func (f *fakeDecomposeStage) Name() string { return "decompose" }
@@ -989,6 +992,20 @@ func (f *fakeDecomposeStage) Name() string { return "decompose" }
 func (f *fakeDecomposeStage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Result, error) {
 	f.called = true
 	f.lastRequest = req
+	if req != nil && req.Remediation {
+		f.remediationRequest = true
+		converted := make([]findings.Finding, 0, len(req.Findings))
+		for _, entry := range req.Findings {
+			converted = append(converted, findings.Finding{
+				Severity:      findings.Severity(strings.TrimSpace(string(entry.Severity))),
+				Category:      string(entry.Category),
+				Scope:         string(entry.Scope),
+				Description:   entry.Description,
+				AffectedFiles: append([]string(nil), entry.AffectedFiles...),
+			})
+		}
+		f.remediationFindings = converted
+	}
 	if f.onRun != nil {
 		f.onRun()
 	}

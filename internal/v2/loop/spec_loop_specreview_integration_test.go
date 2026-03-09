@@ -11,6 +11,7 @@ import (
 	"github.com/danabrams/gromit/internal/v2/adapter"
 	"github.com/danabrams/gromit/internal/v2/findings"
 	"github.com/danabrams/gromit/internal/v2/llmtypes"
+	"github.com/danabrams/gromit/internal/v2/presentation"
 	"github.com/danabrams/gromit/internal/v2/remediation"
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
 	stageaccept "github.com/danabrams/gromit/internal/v2/stage/accept"
@@ -32,8 +33,8 @@ func TestIntegration_SpecLoop_RemediationCreatesTargetedBeads(t *testing.T) {
 	git.DiffOutput = "fake diff"
 
 	llmAdapter := newTestLLMAdapter()
-	reviewOutput := `{"passed": true}`
-	llmAdapter.SetResponse("Spec-Level Code Review Instructions", &llmtypes.LLMInvokeResponse{Success: true, Output: reviewOutput})
+	reviewOutput := `{"verdict": "pass", "findings": []}`
+	llmAdapter.SetResponse("Spec-Level Review Instructions", &llmtypes.LLMInvokeResponse{Success: true, Output: reviewOutput})
 
 	planStage := newFakePlanStage(specID)
 	fakeDecompose := newFakeDecomposeStage(specID)
@@ -45,6 +46,9 @@ func TestIntegration_SpecLoop_RemediationCreatesTargetedBeads(t *testing.T) {
 	failure := stagepkg.Result{
 		Decision: stagepkg.DecisionFail,
 		Artifacts: &stageaccept.AcceptArtifacts{
+			Results: []presentation.AcceptanceResult{
+				{Title: "criterion", Description: "criterion failure"},
+			},
 			Findings: []findings.Finding{{
 				Severity:    findings.SeverityCritical,
 				Category:    "acceptance",
@@ -55,11 +59,9 @@ func TestIntegration_SpecLoop_RemediationCreatesTargetedBeads(t *testing.T) {
 		},
 	}
 	loopAccept := newScriptedAcceptStage(failure, stagepkg.Result{Decision: stagepkg.DecisionProceed})
-	remediationAccept := newScriptedAcceptStage(failure, stagepkg.Result{Decision: stagepkg.DecisionProceed})
 
 	remediationBeadRunner := &recordingRemediationBeadRunner{}
 	remediationRunner := remediation.NewRemediationRunner(remediation.RemediationRunnerConfig{
-		AcceptStage:    remediationAccept,
 		DecomposeStage: fakeDecompose,
 		BeadRunner:     remediationBeadRunner,
 		GenerationCap:  -1,
@@ -67,7 +69,7 @@ func TestIntegration_SpecLoop_RemediationCreatesTargetedBeads(t *testing.T) {
 
 	presenter := newIntegrationPresenterAdapter(t)
 	presentStage, summaryCtx := newPresentStageForTest(t, cfg, presenter)
-	specReviewStage, err := specreview.New(cfg, git, llmAdapter, "", "", "")
+	specReviewStage, err := specreview.New(git, llmAdapter, "")
 	if err != nil {
 		t.Fatalf("create specreview stage: %v", err)
 	}
@@ -128,26 +130,25 @@ func TestIntegration_SpecLoop_PassWithImprovementsCreatesFromReviewBeads(t *test
 
 	llmAdapter := newTestLLMAdapter()
 	reviewOutput := fmt.Sprintf(`{
-		"passed": true,
-		"beads_to_create": [
+		"verdict": "pass",
+		"findings": [
 			{
-				"title": "Address spec warning",
+				"severity": "warning",
+				"category": "quality",
+				"scope": "spec",
 				"description": "Fix spec issue %s",
-				"priority": 1,
-				"labels": ["bug"]
+				"affected_files": ["spec/%s.md"]
 			},
 			{
-				"title": "Log general note",
+				"severity": "warning",
+				"category": "quality",
+				"scope": "spec",
 				"description": "General observation",
-				"priority": 2,
-				"labels": ["docs"]
+				"affected_files": []
 			}
-		],
-		"fixes_applied": [],
-		"fix_categories": [],
-		"backlog_items": []
-	}`, specID)
-	llmAdapter.SetResponse("Spec-Level Code Review Instructions", &llmtypes.LLMInvokeResponse{Success: true, Output: reviewOutput})
+		]
+	}`, specID, specID)
+	llmAdapter.SetResponse("Spec-Level Review Instructions", &llmtypes.LLMInvokeResponse{Success: true, Output: reviewOutput})
 
 	planStage := newFakePlanStage(specID)
 	fakeDecompose := newFakeDecomposeStage(specID)
@@ -160,7 +161,7 @@ func TestIntegration_SpecLoop_PassWithImprovementsCreatesFromReviewBeads(t *test
 
 	presenter := newIntegrationPresenterAdapter(t)
 	presentStage, summaryCtx := newPresentStageForTest(t, cfg, presenter)
-	specReviewStage, err := specreview.New(cfg, git, llmAdapter, "", "", "")
+	specReviewStage, err := specreview.New(git, llmAdapter, "")
 	if err != nil {
 		t.Fatalf("create specreview stage: %v", err)
 	}
