@@ -125,7 +125,7 @@ func WithAcceptStage(stage stagepkg.Stage) SpecLoopOption {
 	}
 }
 
-// WithSpecReviewStage configures the spec-level review stage the loop should evaluate.
+// WithSpecReviewStage configures the spec review stage the loop should execute.
 func WithSpecReviewStage(stage stagepkg.Stage) SpecLoopOption {
 	return func(s *SpecLoop) {
 		s.specReviewStage = stage
@@ -230,6 +230,7 @@ type SpecLoop struct {
 	gapAnalyzer           GapAnalyzer
 	router                *routing.Router
 	phaseModels           map[string]string
+	specReviewStage       stagepkg.Stage
 }
 
 type worktreeSetter interface {
