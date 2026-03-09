@@ -33,3 +33,17 @@ func TestHasCritical(t *testing.T) {
 		})
 	}
 }
+
+func TestFindingNormalizeNilFields(t *testing.T) {
+	f := &Finding{}
+	f.NormalizeNilFields()
+	if f.AffectedFiles == nil {
+		t.Fatalf("AffectedFiles should be non-nil after NormalizeNilFields")
+	}
+	if len(f.AffectedFiles) != 0 {
+		t.Fatalf("AffectedFiles length = %d, want 0", len(f.AffectedFiles))
+	}
+
+	var nilFinding *Finding
+	nilFinding.NormalizeNilFields() // should not panic
+}
