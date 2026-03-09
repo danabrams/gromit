@@ -1,11 +1,14 @@
 package specreview
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
+	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/jsonutil"
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
+	stagedesc "github.com/danabrams/gromit/internal/v2/stage/names"
 )
 
 // SpecReviewArtifacts captures the parsed output from the spec review prompt.
@@ -93,4 +96,35 @@ func verdictFromFindings(findings []SpecReviewFinding) string {
 		}
 	}
 	return "pass"
+}
+
+// Stage implements the spec-level review stage.
+type Stage struct {
+	name string
+}
+
+var _ stagepkg.Stage = (*Stage)(nil)
+
+// New creates a spec review stage backed by the provided configuration.
+func New(cfg *config.Config) (*Stage, error) {
+	if cfg == nil {
+		return nil, fmt.Errorf("config required")
+	}
+	return &Stage{name: stagedesc.Describe("spec-review", cfg)}, nil
+}
+
+// Name returns the stage identifier.
+func (s *Stage) Name() string {
+	if s == nil {
+		return ""
+	}
+	return s.name
+}
+
+// Run executes the spec review stage. Currently it is a no-op placeholder.
+func (s *Stage) Run(_ context.Context, req *stagepkg.Request) (*stagepkg.Result, error) {
+	if req == nil {
+		return nil, fmt.Errorf("request required")
+	}
+	return &stagepkg.Result{Decision: stagepkg.DecisionProceed}, nil
 }
