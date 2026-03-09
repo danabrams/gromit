@@ -15,6 +15,7 @@ import (
 	"github.com/danabrams/gromit/internal/v2/generation"
 	"github.com/danabrams/gromit/internal/v2/llmtypes"
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
+	"github.com/danabrams/gromit/internal/v2/stage/finding"
 	stagedesc "github.com/danabrams/gromit/internal/v2/stage/names"
 	"github.com/danabrams/gromit/internal/v2/trackertypes"
 	"github.com/danabrams/gromit/internal/validate"
@@ -105,19 +106,19 @@ depends_on_index: array of 0-based indices of prerequisite beads in THIS output 
 The spec label will be added automatically: spec:%s
 `
 
-var findingsDecomposePromptTemplate = `# Targeted Fix Decompose: %s
+var findingsDecomposePromptTemplate = `# Findings Decompose: %s
 
-You are creating targeted fix beads for specific findings from a spec-level code review. Each finding entry below is a JSON object with severity, category, scope, description, and affected_files.
+You are decomposing an implementation plan into targeted fix beads, one per finding listed below.
 
-## Spec: %s
-
-## Original Plan (for context only — do NOT re-decompose it)
+## Full Plan
 
 %s
 
-## Findings to Fix
+## Findings JSON
 
 %s
+
+Each finding object includes severity, category, description, and affected files. Create exactly one bead per finding, mention the affected files or directories when describing the bead, the acceptance criteria, or expected outputs, and tie the work back to the reported description. If a finding depends on another fix in this output, reference that earlier bead's 0-based index via depends_on_index so the tracker captures the dependency. Link dependencies whenever files or behaviors overlap across findings.
 
 ## Skill Instructions
 
@@ -130,16 +131,16 @@ acceptance_criteria: each criterion MUST describe an observable behavior or capa
 Good: "debug command identifies root cause category from event log"
 Bad: "create internal/v2/debug/diagnose.go with Diagnose() function"
 
-Each bead must reference the specific finding it fixes in its description.
-depends_on_index: 0-based index of prerequisite beads in THIS output array.
+The implementation may consolidate or restructure deliverables — criteria must remain valid regardless of how the code is organized.
 
 ## Output
 
-Output ONLY a JSON array of bead definitions. No markdown, no explanations.
+Output ONLY a JSON array of bead definitions. No markdown, no explanations, no wrapper.
 Each bead must include: title, description, priority, acceptance_criteria, expected_outputs, covers_tasks, depends_on_index.
-expected_outputs: list each individual deliverable, function, or independently testable item as a separate entry. Do not summarize or group; enumerate fine-grained items.
-covers_tasks: list the 1-based Task numbers from the plan that this bead covers (only tasks related to the findings).
-depends_on_index: array of 0-based indices of prerequisite beads in THIS output array.
+
+expected_outputs: list each individual deliverable, function, or independently testable item as a separate entry. These drive TDD RED-GREEN cycles — one cycle per entry. Do not summarize or group; enumerate fine-grained items.
+covers_tasks: list the 1-based Task numbers from the plan that this bead covers. Every Task in the plan must be covered by at least one bead.
+depends_on_index: array of 0-based indices of prerequisite beads in THIS output array. If bead at index 2 needs types or functions introduced by beads at indices 0 and 1, set "depends_on_index": [0, 1]. Plans with sequential tasks MUST produce dependency chains — only root beads with no prerequisites should have an empty array. Most beads should depend on at least one earlier bead.
 
 The spec label will be added automatically: spec:%s
 `
@@ -221,18 +222,19 @@ func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Resul
 
 	var promptText string
 	gapAnalysis := s.resolveGapAnalysis(req)
+
+	findingsJSON := ""
+	if len(req.Findings) > 0 {
+		var err error
+		findingsJSON, err = serializeFindings(req.Findings)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	switch {
-	case req.Remediation && len(req.Findings) > 0:
-		findingsJSON, _ := json.Marshal(req.Findings)
-		promptText = fmt.Sprintf(
-			findingsDecomposePromptTemplate,
-			specID,
-			specID,
-			string(planBody),
-			string(findingsJSON),
-			skills.DecomposeSkill,
-			specID,
-		)
+	case len(req.Findings) > 0:
+		promptText = fmt.Sprintf(findingsDecomposePromptTemplate, specID, string(planBody), findingsJSON, skills.DecomposeSkill, specID)
 	case req.Remediation && gapAnalysis != "":
 		promptText = fmt.Sprintf(remediationDecomposePromptTemplate, specID, string(planBody), gapAnalysis, skills.DecomposeSkill, specID)
 	default:
@@ -417,6 +419,21 @@ func (s *Stage) generationForRequest(req *stagepkg.Request) int {
 		gen++
 	}
 	return gen
+}
+
+func serializeFindings(findings []finding.Finding) (string, error) {
+	if len(findings) == 0 {
+		return "", nil
+	}
+	copies := append([]finding.Finding(nil), findings...)
+	for i := range copies {
+		copies[i].NormalizeNilFields()
+	}
+	data, err := json.MarshalIndent(copies, "", "  ")
+	if err != nil {
+		return "", fmt.Errorf("serialize findings: %w", err)
+	}
+	return string(data), nil
 }
 
 func resolveDependencies(indexes []int, createdIDs []string, current int) []string {

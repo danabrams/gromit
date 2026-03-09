@@ -11,8 +11,8 @@ import (
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/v2/adapter/llm"
 	"github.com/danabrams/gromit/internal/v2/adapter/tasktracker"
-	"github.com/danabrams/gromit/internal/v2/stage/finding"
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
+	"github.com/danabrams/gromit/internal/v2/stage/finding"
 )
 
 func TestRunErrorsWhenPlanMissing(t *testing.T) {
@@ -418,15 +418,23 @@ func TestRunUsesFindingsTemplateWhenFindingsPresent(t *testing.T) {
 		responses: []*llm.LLMResponse{{
 			Success: true,
 			Output: `[
-				{
-					"title": "fix loop",
-					"description": "repair the decompose loop",
-					"priority": "P2",
-					"acceptance_criteria": ["loop runs"],
-					"expected_outputs": ["loop passes"],
-					"depends_on_index": []
-				}
-			]`,
+			{
+				"title": "fix loop",
+				"description": "repair the decompose loop",
+				"priority": "P2",
+				"acceptance_criteria": ["loop runs"],
+				"expected_outputs": ["loop passes"],
+				"depends_on_index": []
+			},
+			{
+				"title": "verify loop",
+				"description": "confirm the loop reports progress",
+				"priority": "P2",
+				"acceptance_criteria": ["progress reports"],
+				"expected_outputs": ["progress test"],
+				"depends_on_index": [0]
+			}
+		]`,
 		}},
 	}
 	tracker := &fakeTracker{}
