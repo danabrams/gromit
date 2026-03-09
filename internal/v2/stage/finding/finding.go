@@ -9,9 +9,24 @@ const (
 	SeveritySuggestion Severity = "suggestion"
 )
 
+// Category classifies the type of a finding.
+type Category string
+
+const (
+	CategoryBug          Category = "bug"
+	CategorySecurity     Category = "security"
+	CategoryQuality      Category = "quality"
+	CategoryTestGap      Category = "test_gap"
+	CategoryArchitecture Category = "architecture"
+	CategoryAcceptance   Category = "acceptance"
+)
+
 // Finding captures a post-review issue discovered during the stage.
 type Finding struct {
 	Severity      Severity
+	Category      Category
+	Scope         string
+	Description   string
 	AffectedFiles []string
 }
 
