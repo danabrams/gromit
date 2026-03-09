@@ -308,6 +308,7 @@ func run2FromReview(cmd *cobra.Command, cfg *config.Config) error {
 		return fmt.Errorf("query from-review beads: %w", err)
 	}
 	beads := trackerBeads(resp)
+	beads = filterFromReviewBeads(beads, specScope)
 	if len(beads) == 0 {
 		fmt.Fprintln(cmd.OutOrStdout(), "No open from-review beads found.")
 		return nil
@@ -454,6 +455,30 @@ func fromReviewLabels(spec string) []string {
 		labels = append(labels, fmt.Sprintf("spec:%s", spec))
 	}
 	return labels
+}
+
+func filterFromReviewBeads(beads []*bead.Bead, spec string) []*bead.Bead {
+	if len(beads) == 0 {
+		return beads
+	}
+	specLabel := ""
+	if trimmed := strings.TrimSpace(spec); trimmed != "" {
+		specLabel = fmt.Sprintf("spec:%s", trimmed)
+	}
+	filtered := make([]*bead.Bead, 0, len(beads))
+	for _, item := range beads {
+		if item == nil {
+			continue
+		}
+		if !bead.HasLabel(item.Labels, "from-review") {
+			continue
+		}
+		if specLabel != "" && !bead.HasLabel(item.Labels, specLabel) {
+			continue
+		}
+		filtered = append(filtered, item)
+	}
+	return filtered
 }
 
 func trackerBeads(resp *tasktracker.TaskTrackerQueryBeadsResponse) []*bead.Bead {
