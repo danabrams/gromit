@@ -11,11 +11,14 @@ import (
 	"testing"
 	"unsafe"
 
+	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/events"
 	"github.com/danabrams/gromit/internal/v2/adapter"
+	"github.com/danabrams/gromit/internal/v2/event"
 	"github.com/danabrams/gromit/internal/v2/loop"
 	v2spec "github.com/danabrams/gromit/internal/v2/spec"
+	"github.com/danabrams/gromit/internal/v2/trackertypes"
 )
 
 func TestRun2FailsWhenDependenciesBlocked(t *testing.T) {
@@ -291,6 +294,94 @@ func TestRun2EpicFlagRunsAllSpecs(t *testing.T) {
 	}
 }
 
+func TestRun2FromReviewUsesBeadLoop(t *testing.T) {
+	specsDir, cleanup := setupRun2TestEnv(t)
+	defer cleanup()
+
+	cfg, err := loadConfig()
+	if err != nil {
+		t.Fatalf("loadConfig: %v", err)
+	}
+
+	fakeTracker := &fakeTaskTracker{
+		response: []trackertypes.Bead{
+			{
+				ID:        "from-review-1",
+				Title:     "review work",
+				Labels:    []string{"from-review"},
+				Priority:  1,
+				DependsOn: []string{"dep-a"},
+				BlockedBy: []string{"blocked"},
+			},
+		},
+	}
+
+	origTrackerFn := newTaskTrackerAdapterFn
+	newTaskTrackerAdapterFn = func(_ *bead.Client) trackertypes.TaskTracker { return fakeTracker }
+	defer func() { newTaskTrackerAdapterFn = origTrackerFn }()
+
+	var captured struct {
+		called bool
+		beads  []*bead.Bead
+	}
+
+	origRunBeadLoopFn := runBeadLoopFn
+	runBeadLoopFn = func(loop *loop.BeadLoop, ctx context.Context, beads []*bead.Bead, stopCh <-chan struct{}) (loop.BeadLoopResult, error) {
+		captured.called = true
+		captured.beads = append([]*bead.Bead(nil), beads...)
+		return loop.BeadLoopResult{}, nil
+	}
+	defer func() { runBeadLoopFn = origRunBeadLoopFn }()
+
+	origComponentsFn := newRun2LoopComponentsFn
+	newRun2LoopComponentsFn = func(cfg *config.Config, adapters adapter.AdapterSet, legacyEmitter *events.Emitter, output io.Writer, router *routing.Router, phaseModels map[string]string) (*loop.Run2LoopComponents, error) {
+		emitter := events.NewEmitter()
+		return &loop.Run2LoopComponents{
+			BeadLoop:     &loop.BeadLoop{},
+			Emitter:      emitter,
+			TypedEmitter: event.NewEmitter(),
+		}, nil
+	}
+	defer func() { newRun2LoopComponentsFn = origComponentsFn }()
+
+	origSubscribers := startRun2SubscribersFn
+	startRun2SubscribersFn = func(ctx context.Context, emitter *events.Emitter, output io.Writer, logsDir string) (*sync.WaitGroup, error) {
+		return &sync.WaitGroup{}, nil
+	}
+	defer func() { startRun2SubscribersFn = origSubscribers }()
+
+	run2Cmd.SetOut(io.Discard)
+	run2Cmd.SetErr(io.Discard)
+	if err := run2Cmd.Flags().Set("spec", "review-spec"); err != nil {
+		t.Fatalf("set spec flag: %v", err)
+	}
+	defer run2Cmd.Flags().Set("spec", "")
+
+	if err := run2FromReview(run2Cmd, cfg); err != nil {
+		t.Fatalf("run2FromReview = %v", err)
+	}
+
+	if !captured.called {
+		t.Fatal("bead loop never executed")
+	}
+	if got := fakeTracker.lastQuery.Labels; !reflect.DeepEqual(got, []string{"from-review", "spec:review-spec"}) {
+		t.Fatalf("tracker labels = %v, want %v", got, []string{"from-review", "spec:review-spec"})
+	}
+	if fakeTracker.lastQuery.Status != "open" {
+		t.Fatalf("tracker status = %q, want %q", fakeTracker.lastQuery.Status, "open")
+	}
+	if len(captured.beads) != len(fakeTracker.response) {
+		t.Fatalf("beads = %d, want %d", len(captured.beads), len(fakeTracker.response))
+	}
+	got := captured.beads[0]
+	if len(got.DependsOn) != 1 || got.DependsOn[0].ID != "dep-a" {
+		t.Fatalf("depends_on = %v, want dep-a", got.DependsOn)
+	}
+	if len(got.BlockedBy) != 1 || got.BlockedBy[0].ID != "blocked" {
+		t.Fatalf("blocked_by = %v, want blocked", got.BlockedBy)
+	}
+}
+
 func setupRun2TestEnv(t *testing.T) (string, func()) {
 	t.Helper()
 
@@ -376,6 +467,39 @@ func (r *recordingSpecLoop) Run(ctx context.Context, specID string, stopCh <-cha
 	}
 	*r.recorded = append(*r.recorded, specID)
 	return nil
+}
+
+type fakeTaskTracker struct {
+	lastQuery trackertypes.TaskTrackerQueryBeadsRequest
+	response []trackertypes.Bead
+}
+
+func (f *fakeTaskTracker) NextBead(context.Context, trackertypes.TaskTrackerNextBeadRequest) (*trackertypes.TaskTrackerNextBeadResponse, error) {
+	return nil, nil
+}
+
+func (f *fakeTaskTracker) ShowBead(context.Context, string) (*trackertypes.Bead, error) {
+	return nil, nil
+}
+
+func (f *fakeTaskTracker) CreateBead(context.Context, trackertypes.TaskTrackerCreateBeadRequest) (*trackertypes.TaskTrackerCreateBeadResponse, error) {
+	return nil, nil
+}
+
+func (f *fakeTaskTracker) CloseBead(context.Context, trackertypes.TaskTrackerCloseBeadRequest) (*trackertypes.TaskTrackerCloseBeadResponse, error) {
+	return nil, nil
+}
+
+func (f *fakeTaskTracker) QueryBeads(_ context.Context, req trackertypes.TaskTrackerQueryBeadsRequest) (*trackertypes.TaskTrackerQueryBeadsResponse, error) {
+	f.lastQuery = trackertypes.TaskTrackerQueryBeadsRequest{
+		Labels: append([]string(nil), req.Labels...),
+		Status: req.Status,
+	}
+	resp := &trackertypes.TaskTrackerQueryBeadsResponse{}
+	if len(f.response) > 0 {
+		resp.Beads = append([]trackertypes.Bead(nil), f.response...)
+	}
+	return resp, nil
 }
 
 func fieldIsNil(specLoop *loop.SpecLoop, fieldName string) bool {
