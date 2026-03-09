@@ -21,6 +21,7 @@ const (
 	planDirName      = "v2"
 	planFileName     = "plan.md"
 	modelOpus        = "opus"
+	maxPlanRetries   = 1
 )
 
 // planInstructions provides non-interactive plan generation instructions.
@@ -84,6 +85,7 @@ decomposed: false
 - Do NOT suggest next steps or ask to execute
 - Output ONLY the plan markdown content
 - Explore the spec thoroughly and produce a complete, actionable plan
+- Do NOT use Write, Edit, or any file-writing tools — output the plan as your text response
 `
 
 // Stage produces the initial implementation plan for a spec.
@@ -168,26 +170,43 @@ func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Resul
 		provider = req.Provider
 	}
 
-	promptPayload := prompt.NewPromptAssembler(s.base, s.project, string(specData), s.fragment).Assemble("plan", prompt.BeadInfo{Title: req.Bead.Title})
-	resp, err := provider.Invoke(ctx, llmtypes.LLMInvokeRequest{Prompt: promptPayload, Model: model, Dir: req.Worktree})
-	if err != nil {
-		return nil, fmt.Errorf("invoke llm: %w", err)
-	}
-	if resp == nil {
-		return nil, fmt.Errorf("invoke llm: provider returned nil response")
-	}
-	if !resp.Success {
-		detail := strings.TrimSpace(resp.Output)
-		if detail == "" {
-			detail = "no detail available"
+	retrySuffix := ""
+	var planText string
+	var lastValidationErr error
+	for attempt := 0; attempt <= maxPlanRetries; attempt++ {
+		promptPayload := prompt.NewPromptAssembler(s.base, s.project, string(specData), s.fragment+retrySuffix).Assemble("plan", prompt.BeadInfo{Title: req.Bead.Title})
+		resp, err := provider.Invoke(ctx, llmtypes.LLMInvokeRequest{Prompt: promptPayload, Model: model, Dir: req.Worktree})
+		if err != nil {
+			return nil, fmt.Errorf("invoke llm: %w", err)
 		}
-		return nil, fmt.Errorf("invoke llm: provider reported unsuccessful invocation: %s", detail)
+		if resp == nil {
+			return nil, fmt.Errorf("invoke llm: provider returned nil response")
+		}
+		if !resp.Success {
+			detail := strings.TrimSpace(resp.Output)
+			if detail == "" {
+				detail = "no detail available"
+			}
+			return nil, fmt.Errorf("invoke llm: provider reported unsuccessful invocation: %s", detail)
+		}
+
+		planText = resp.Output
+		lastValidationErr = ValidatePlanContent(planText)
+		if lastValidationErr == nil {
+			break
+		}
+		if attempt < maxPlanRetries {
+			retrySuffix = "\n\nIMPORTANT: Your previous response did not contain a valid plan. You MUST output the complete plan as your text response. Do NOT use Write, Edit, or any file-writing tools. Do NOT summarize or reference other files. Output the full plan markdown directly."
+		}
+	}
+	if lastValidationErr != nil {
+		preview := strings.TrimSpace(planText)
+		if len(preview) > 200 {
+			preview = preview[:200]
+		}
+		return nil, fmt.Errorf("%w; after %d retries, got: %q", lastValidationErr, maxPlanRetries, preview)
 	}
 
-	planText := resp.Output
-	if err := ValidatePlanContent(planText); err != nil {
-		return nil, err
-	}
 	planPath, err := writePlanFile(cfg, req.Worktree, planText)
 	if err != nil {
 		return nil, err

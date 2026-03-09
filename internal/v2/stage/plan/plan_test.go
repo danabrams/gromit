@@ -541,3 +541,135 @@ func TestRunReturnsErrorForMetaStatementOutput(t *testing.T) {
 		t.Fatalf("error should mention plan content validation, got: %v", err)
 	}
 }
+
+func setupPlanStageWithProvider(t *testing.T, provider llm.LLMProvider) (*Stage, *config.Config, string) {
+	t.Helper()
+	tmpDir := t.TempDir()
+	specID := "test-spec"
+	specContent := "# Test spec\nDetails"
+
+	specsDir := filepath.Join(tmpDir, ".gromit", "specs")
+	if err := os.MkdirAll(specsDir, 0o755); err != nil {
+		t.Fatalf("create specs dir: %v", err)
+	}
+	specPath := filepath.Join(specsDir, specID+".md")
+	if err := os.WriteFile(specPath, []byte(specContent), 0o644); err != nil {
+		t.Fatalf("write spec file: %v", err)
+	}
+
+	cfg := &config.Config{
+		ProjectRoot: tmpDir,
+		Paths: config.PathsConfig{
+			Specs:     ".gromit/specs",
+			GromitDir: ".gromit",
+		},
+	}
+
+	stageInstance, err := New(cfg, provider, "base", "project", "fragment")
+	if err != nil {
+		t.Fatalf("create stage: %v", err)
+	}
+	return stageInstance, cfg, specID
+}
+
+// sequentialLLMProvider returns different responses on successive Invoke calls.
+type sequentialLLMProvider struct {
+	responses []*llm.LLMInvokeResponse
+	callCount int
+}
+
+func (s *sequentialLLMProvider) Invoke(_ context.Context, _ llm.LLMInvokeRequest) (*llm.LLMInvokeResponse, error) {
+	idx := s.callCount
+	s.callCount++
+	if idx >= len(s.responses) {
+		idx = len(s.responses) - 1
+	}
+	return s.responses[idx], nil
+}
+
+func (s *sequentialLLMProvider) StreamInvoke(context.Context, llm.LLMStreamInvokeRequest) (*llm.LLMInvokeResponse, error) {
+	panic("not implemented")
+}
+
+func TestPlanStage_RetriesOnValidationFailure(t *testing.T) {
+	t.Parallel()
+
+	provider := &sequentialLLMProvider{
+		responses: []*llm.LLMInvokeResponse{
+			{Success: true, Output: "Plan saved to file.md"},
+			{Success: true, Output: validPlanOutput},
+		},
+	}
+
+	stageInstance, cfg, specID := setupPlanStageWithProvider(t, provider)
+
+	req := &stagepkg.Request{Bead: stagepkg.BeadInfo{ID: specID}, Config: cfg}
+	res, err := stageInstance.Run(context.Background(), req)
+	if err != nil {
+		t.Fatalf("expected retry to succeed, got error: %v", err)
+	}
+	if res == nil || res.Decision != stagepkg.DecisionProceed {
+		t.Fatalf("unexpected decision: %v", res)
+	}
+
+	artifacts, ok := res.Artifacts.(*PlanArtifacts)
+	if !ok {
+		t.Fatalf("unexpected artifacts type: %T", res.Artifacts)
+	}
+	if artifacts.Plan != validPlanOutput {
+		t.Fatalf("plan should be the valid output from retry, got %q", artifacts.Plan)
+	}
+	if provider.callCount != 2 {
+		t.Fatalf("expected provider to be invoked 2 times, got %d", provider.callCount)
+	}
+}
+
+func TestPlanStage_RetryExhausted_IncludesPreview(t *testing.T) {
+	t.Parallel()
+
+	invalidOutput := "Plan saved to file.md"
+	provider := &sequentialLLMProvider{
+		responses: []*llm.LLMInvokeResponse{
+			{Success: true, Output: invalidOutput},
+			{Success: true, Output: invalidOutput},
+		},
+	}
+
+	stageInstance, cfg, specID := setupPlanStageWithProvider(t, provider)
+
+	req := &stagepkg.Request{Bead: stagepkg.BeadInfo{ID: specID}, Config: cfg}
+	_, err := stageInstance.Run(context.Background(), req)
+	if err == nil {
+		t.Fatal("expected error when all retries exhausted, got nil")
+	}
+	if !strings.Contains(err.Error(), "plan content validation") {
+		t.Fatalf("error should mention plan content validation, got: %v", err)
+	}
+	if !strings.Contains(err.Error(), invalidOutput) {
+		t.Fatalf("error should include preview of invalid output, got: %v", err)
+	}
+}
+
+func TestPlanStage_NoRetryOnValidOutput(t *testing.T) {
+	t.Parallel()
+
+	provider := &sequentialLLMProvider{
+		responses: []*llm.LLMInvokeResponse{
+			{Success: true, Output: validPlanOutput},
+		},
+	}
+
+	stageInstance, cfg, specID := setupPlanStageWithProvider(t, provider)
+
+	req := &stagepkg.Request{Bead: stagepkg.BeadInfo{ID: specID}, Config: cfg}
+	res, err := stageInstance.Run(context.Background(), req)
+	if err != nil {
+		t.Fatalf("expected success on valid first response, got error: %v", err)
+	}
+	if res == nil || res.Decision != stagepkg.DecisionProceed {
+		t.Fatalf("unexpected decision: %v", res)
+	}
+	if provider.callCount != 1 {
+		t.Fatalf("expected provider to be invoked 1 time, got %d", provider.callCount)
+	}
+}
