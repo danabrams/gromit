@@ -41,6 +41,7 @@ var StageSequence = []string{
 	"review",
 	"epilogue",
 	"accept",
+	"specreview",
 	"present",
 }
 
@@ -115,6 +116,13 @@ func WithRemediationRunner(r remediationRunner) SpecLoopOption {
 func WithAcceptStage(stage stagepkg.Stage) SpecLoopOption {
 	return func(s *SpecLoop) {
 		s.acceptStage = stage
+	}
+}
+
+// WithSpecReviewStage installs the specreview stage the loop should evaluate.
+func WithSpecReviewStage(stage stagepkg.Stage) SpecLoopOption {
+	return func(s *SpecLoop) {
+		s.specReviewStage = stage
 	}
 }
 
@@ -215,6 +223,7 @@ type SpecLoop struct {
 	gapAnalyzer           GapAnalyzer
 	router                *routing.Router
 	phaseModels           map[string]string
+	specReviewStage       stagepkg.Stage
 }
 
 type worktreeSetter interface {
@@ -410,6 +419,10 @@ func (s *SpecLoop) Run(ctx context.Context, specID string, stopCh <-chan struct{
 		return fmt.Errorf("commit after accept: %w", err)
 	}
 
+	if _, err := s.runSpecReviewStage(ctx, &req); err != nil {
+		return err
+	}
+
 	summary := s.buildSuccessSummary(specID, worktree, plan, beads, acceptRes, beadResult.OutOfScopeFindings)
 
 	if err := s.ctxErr(ctx); err != nil {
@@ -557,6 +570,19 @@ func (s *SpecLoop) runAcceptStage(ctx context.Context, req *stagepkg.Request) (*
 	res, err := s.acceptStage.Run(ctx, req)
 	if err != nil {
 		return res, err
+	}
+	return res, nil
+}
+
+func (s *SpecLoop) runSpecReviewStage(ctx context.Context, req *stagepkg.Request) (*stagepkg.Result, error) {
+	if s.specReviewStage == nil {
+		return nil, nil
+	}
+	s.recordStage("specreview")
+	s.applyRouting(req, "specreview")
+	res, err := s.specReviewStage.Run(ctx, req)
+	if err != nil {
+		return nil, err
 	}
 	return res, nil
 }
