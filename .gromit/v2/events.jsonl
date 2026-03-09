@@ -278,3 +278,5 @@
 {"schema_version":1,"timestamp":"2026-03-09T10:56:09.529541-04:00","type":"build_invocation.start","bead_id":"gromit-mizud","model":"gpt-5.1-codex-mini","provider":"openai","tier":"low","attempt":1,"max_attempts":2}
 {"schema_version":1,"timestamp":"2026-03-09T11:04:38.043885-04:00","type":"build_invocation.complete","bead_id":"gromit-mizud","model":"gpt-5.1-codex-mini","provider":"openai","success":true,"duration":508512352250,"input_tokens":3639086,"output_tokens":50194,"prompt_size":17959}
 {"schema_version":1,"timestamp":"2026-03-09T11:04:38.043893-04:00","type":"stage.completed","stage_name":"build:default","bead_id":"gromit-mizud","iteration":15,"success":true,"duration":508512352250}
+{"schema_version":1,"timestamp":"2026-03-09T11:04:38.122375-04:00","type":"stage.started","stage_name":"validate:default","bead_id":"gromit-mizud","iteration":15}
+{"schema_version":1,"timestamp":"2026-03-09T11:04:38.164997-04:00","type":"stage.completed","stage_name":"validate:default","bead_id":"gromit-mizud","iteration":15,"success":true,"duration":42616042}
