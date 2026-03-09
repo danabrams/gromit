@@ -60,7 +60,7 @@ type BeadRunner interface {
 }
 
 type remediationRunner interface {
-	Run(ctx context.Context, specID, worktree string) error
+	Run(ctx context.Context, specID, worktree string, findings []stagepkg.SpecFinding) error
 }
 
 type remediationRunnerWithFindings interface {
@@ -612,8 +612,13 @@ func (s *SpecLoop) ensureAcceptanceAndReview(ctx context.Context, req *stagepkg.
 		if retriesRemaining <= 0 {
 			return res, fmt.Errorf("%w: limit %d reached", ErrAcceptanceRetriesExceeded, maxAcceptanceRetries)
 		}
-		merged := mergeFindings(res, nil)
-		if err := s.runRemediation(ctx, specID, req.Worktree, merged); err != nil {
+		var findings []stagepkg.SpecFinding
+		if res != nil && res.Artifacts != nil {
+			if artifacts, ok := res.Artifacts.(*stageaccept.AcceptArtifacts); ok {
+				findings = append([]stagepkg.SpecFinding(nil), artifacts.Findings...)
+			}
+		}
+		if err := s.remediationRunner.Run(ctx, specID, req.Worktree, findings); err != nil {
 			return res, err
 		}
 		retriesRemaining--

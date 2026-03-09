@@ -255,7 +255,7 @@ func defaultIntegrationBeadLoopConfig() BeadLoopConfig {
 	}
 }
 
-func (r *integrationRemediationRunner) Run(ctx context.Context, specID, _ string, findings []stagepkg.Finding) error {
+func (r *integrationRemediationRunner) Run(ctx context.Context, specID, _ string, _ []stagepkg.SpecFinding) error {
 	r.calls++
 	r.lastFindings = append([]stagepkg.Finding(nil), findings...)
 	if r.generationCap >= 0 {
@@ -971,7 +971,7 @@ func newTestRemediationRunner(cfg testRemediationRunnerConfig) *testRemediationR
 	}
 }
 
-func (r *testRemediationRunnerAdapter) Run(ctx context.Context, specID, worktree string) error {
+func (r *testRemediationRunnerAdapter) Run(ctx context.Context, specID, worktree string, findings []stagepkg.SpecFinding) error {
 	r.calls++
 
 	// Run plan stage for remediation.
@@ -979,6 +979,7 @@ func (r *testRemediationRunnerAdapter) Run(ctx context.Context, specID, worktree
 		Bead:        stagepkg.BeadInfo{ID: specID},
 		Worktree:    worktree,
 		Remediation: true,
+		Findings:    append([]stagepkg.SpecFinding(nil), findings...),
 	}
 	if r.planStage != nil {
 		if _, err := r.planStage.Run(ctx, &req); err != nil {

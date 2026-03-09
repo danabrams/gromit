@@ -221,7 +221,7 @@ func NewRun2LoopComponents(cfg *config.Config, adapters adapter.AdapterSet, lega
 	specReviewStage = newTieredSpecReviewStage(specReviewStage, router)
 
 	remediationRunner := v2remediation.NewRemediationRunner(v2remediation.RemediationRunnerConfig{
-		AcceptStage:    acceptStage,
+		Config:         cfg,
 		DecomposeStage: decomposeStage,
 		PlanStage:      planStage,
 		BeadRunner:     &remediationBeadRunner{loop: beadLoop},
