@@ -174,6 +174,22 @@ func (r *RemediationRunner) executeRemediation(ctx context.Context, req *stage.R
 		}
 	}
 
+	if r.cfg.PlanStage != nil {
+		if _, err := r.cfg.PlanStage.Run(ctx, req); err != nil {
+			return fmt.Errorf("remediation plan: %w", err)
+		}
+	}
+
+	if req.Worktree != "" {
+		planPath := r.remediationPlanPath(req.Worktree)
+		if err := os.MkdirAll(filepath.Dir(planPath), 0o755); err != nil {
+			return fmt.Errorf("create remediation plan dir: %w", err)
+		}
+		if err := os.WriteFile(planPath, []byte(gapAnalysis), 0o644); err != nil {
+			return fmt.Errorf("persist remediation plan: %w", err)
+		}
+	}
+
 	beads, err := r.decompose(ctx, req)
 	if err != nil {
 		return err
