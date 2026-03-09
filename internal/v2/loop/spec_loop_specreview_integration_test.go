@@ -2,10 +2,12 @@ package loop
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/tracker"
 	"github.com/danabrams/gromit/internal/v2/adapter"
 	"github.com/danabrams/gromit/internal/v2/findings"
 	"github.com/danabrams/gromit/internal/v2/llmtypes"
@@ -109,6 +111,114 @@ func TestIntegration_SpecLoop_RemediationCreatesTargetedBeads(t *testing.T) {
 	if loopAccept.calls < 2 {
 		t.Fatalf("accept calls = %d, want at least 2", loopAccept.calls)
 	}
+}
+
+func TestIntegration_SpecLoop_PassWithImprovementsCreatesFromReviewBeads(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	specID := "spec-loop-specreview-from-review"
+	cfg := &config.Config{
+		Paths:  config.PathsConfig{GromitDir: ".gromit"},
+		Models: config.ModelsConfig{P0: "p0-model"},
+	}
+
+	git := newIntegrationGitAdapter(t)
+	git.DiffOutput = "fake diff"
+
+	llmAdapter := newTestLLMAdapter()
+	reviewOutput := fmt.Sprintf(`{
+		"passed": true,
+		"beads_to_create": [
+			{
+				"title": "Address spec warning",
+				"description": "Fix spec issue %s",
+				"priority": 1,
+				"labels": ["bug"]
+			},
+			{
+				"title": "Log general note",
+				"description": "General observation",
+				"priority": 2,
+				"labels": ["docs"]
+			}
+		],
+		"fixes_applied": [],
+		"fix_categories": [],
+		"backlog_items": []
+	}`, specID)
+	llmAdapter.SetResponse("Spec-Level Code Review Instructions", &llmtypes.LLMInvokeResponse{Success: true, Output: reviewOutput})
+
+	planStage := newFakePlanStage(specID)
+	fakeDecompose := newFakeDecomposeStage(specID)
+	beadLoop, err := NewBeadLoop(defaultIntegrationBeadLoopConfig())
+	if err != nil {
+		t.Fatalf("create bead loop: %v", err)
+	}
+
+	acceptStage := newScriptedAcceptStage(stagepkg.Result{Decision: stagepkg.DecisionProceed})
+
+	presenter := newIntegrationPresenterAdapter(t)
+	presentStage, summaryCtx := newPresentStageForTest(t, cfg, presenter)
+	specReviewStage, err := specreview.New(cfg, git, llmAdapter, "", "", "")
+	if err != nil {
+		t.Fatalf("create specreview stage: %v", err)
+	}
+
+	taskTracker := newFakeTaskTrackerAdapter()
+	adapters := adapter.AdapterSet{
+		Git:         git,
+		LLM:         llmAdapter,
+		TaskTracker: taskTracker,
+		Presenter:   presenter,
+	}
+
+	loopInstance, err := NewSpecLoop(adapters, cfg, noopDependencyGate{},
+		WithPlanStage(planStage),
+		WithPresentStage(presentStage, summaryCtx),
+		WithDecomposeStage(fakeDecompose),
+		WithBeadLoop(beadLoop),
+		WithAcceptStage(acceptStage),
+		WithSpecReviewStage(specReviewStage),
+	)
+	if err != nil {
+		t.Fatalf("create spec loop: %v", err)
+	}
+
+	if err := loopInstance.Run(ctx, specID, nil); err != nil {
+		t.Fatalf("run spec loop: %v", err)
+	}
+
+	if len(taskTracker.created) != 3 {
+		t.Fatalf("created beads = %d, want 3", len(taskTracker.created))
+	}
+
+	specLabel := tracker.SpecLabelFor(specID)
+
+	first := taskTracker.created[0]
+	if len(first.Labels) == 0 || first.Labels[0] != "from-review" {
+		t.Fatalf("first bead labels = %v, want from-review first", first.Labels)
+	}
+	if first.Labels[len(first.Labels)-1] != specLabel {
+		t.Fatalf("first bead last label = %q, want %q", first.Labels[len(first.Labels)-1], specLabel)
+	}
+
+	second := taskTracker.created[1]
+	if !hasLabel(second.Labels, "from-review") {
+		t.Fatalf("second bead labels = %v, missing from-review", second.Labels)
+	}
+	if !hasLabel(second.Labels, specLabel) {
+		t.Fatalf("second bead labels = %v, missing spec label", second.Labels)
+	}
+}
+
+func hasLabel(labels []string, target string) bool {
+	for _, label := range labels {
+		if label == target {
+			return true
+		}
+	}
+	return false
 }
 
 type recordingRemediationBeadRunner struct {
