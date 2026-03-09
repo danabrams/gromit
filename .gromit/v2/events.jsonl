@@ -192,3 +192,11 @@
 {"schema_version":1,"timestamp":"2026-03-07T16:45:13.022158-05:00","type":"stage.completed","stage_name":"epilogue:default","bead_id":"gromit-zrrn7","iteration":24,"success":true,"duration":155617458}
 {"schema_version":1,"timestamp":"2026-03-07T16:45:13.022172-05:00","type":"bead.completed","bead_id":"gromit-zrrn7","bead_title":"Implement selective revalidation in spec loop","iteration":24,"success":true}
 {"schema_version":1,"timestamp":"2026-03-09T10:30:40.110689-04:00","type":"spec.started","spec_id":"spec-level-review-and-targeted-remediation","worktree":"/Users/dabrams/gromit/.gromit/spec-worktrees/spec-level-review-and-targeted-remediation"}
+{"schema_version":1,"timestamp":"2026-03-09T10:45:14.909149-04:00","type":"bead.started","bead_id":"gromit-8pfz6","bead_title":"Create spec-level review prompt fragment","iteration":1}
+{"schema_version":1,"timestamp":"2026-03-09T10:45:14.909162-04:00","type":"stage.started","stage_name":"gate:default","bead_id":"gromit-8pfz6","iteration":1}
+{"schema_version":1,"timestamp":"2026-03-09T10:45:14.988108-04:00","type":"stage.completed","stage_name":"gate:default","bead_id":"gromit-8pfz6","iteration":1,"success":true,"duration":78945542}
+{"schema_version":1,"timestamp":"2026-03-09T10:45:14.988125-04:00","type":"model.selected","bead_id":"gromit-8pfz6","model":"gpt-5.1-codex-mini","provider":"openai","tier":"low","reason":"router"}
+{"schema_version":1,"timestamp":"2026-03-09T10:45:14.988128-04:00","type":"stage.started","stage_name":"build:default","bead_id":"gromit-8pfz6","iteration":1}
+{"schema_version":1,"timestamp":"2026-03-09T10:45:14.988128-04:00","type":"build_invocation.start","bead_id":"gromit-8pfz6","model":"gpt-5.1-codex-mini","provider":"openai","tier":"low","attempt":1,"max_attempts":2}
+{"schema_version":1,"timestamp":"2026-03-09T10:46:20.89284-04:00","type":"build_invocation.complete","bead_id":"gromit-8pfz6","model":"gpt-5.1-codex-mini","provider":"openai","success":true,"duration":65904453208,"input_tokens":298516,"output_tokens":3786,"prompt_size":17986}
+{"schema_version":1,"timestamp":"2026-03-09T10:46:20.892861-04:00","type":"stage.completed","stage_name":"build:default","bead_id":"gromit-8pfz6","iteration":1,"success":true,"duration":65904453208}
