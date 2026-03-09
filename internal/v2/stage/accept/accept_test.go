@@ -254,14 +254,14 @@ func TestAccept_FindingsPopulatedOnFailure(t *testing.T) {
 		t.Fatalf("findings count = %d, want 1", got)
 	}
 	finding := artifacts.Findings[0]
-	if finding.Severity != stagepkg.FindingSeverityCritical {
-		t.Fatalf("finding severity = %q, want %q", finding.Severity, stagepkg.FindingSeverityCritical)
+	if finding.Severity != findings.SeverityCritical {
+		t.Fatalf("finding severity = %q, want %q", finding.Severity, findings.SeverityCritical)
 	}
-	if finding.Category != stagepkg.FindingCategoryAcceptance {
-		t.Fatalf("finding category = %q, want %q", finding.Category, stagepkg.FindingCategoryAcceptance)
+	if finding.Category != "acceptance" {
+		t.Fatalf("finding category = %q, want acceptance", finding.Category)
 	}
-	if finding.Scope != stagepkg.FindingScopeSpec {
-		t.Fatalf("finding scope = %q, want %q", finding.Scope, stagepkg.FindingScopeSpec)
+	if finding.Scope != "spec" {
+		t.Fatalf("finding scope = %q, want spec", finding.Scope)
 	}
 	if !strings.Contains(finding.Description, "criterion A") {
 		t.Fatalf("finding description = %q, want it to mention criterion text", finding.Description)

@@ -18,8 +18,8 @@ import (
 	"github.com/danabrams/gromit/internal/v2/loop"
 	"github.com/danabrams/gromit/internal/v2/presentation"
 	"github.com/danabrams/gromit/internal/v2/stage"
-	specreview "github.com/danabrams/gromit/internal/v2/stage/specreview"
 	stageaccept "github.com/danabrams/gromit/internal/v2/stage/accept"
+	specreview "github.com/danabrams/gromit/internal/v2/stage/specreview"
 )
 
 func TestSpecLoopExecutesCanonicalStageChain(t *testing.T) {

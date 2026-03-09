@@ -979,10 +979,10 @@ func newFakeDecomposeStage(specID string) *fakeDecomposeStage {
 }
 
 type fakeDecomposeStage struct {
-	producedBeads []*bead.Bead
-	called        bool
-	lastRequest   *stagepkg.Request
-	onRun         func()
+	producedBeads       []*bead.Bead
+	called              bool
+	lastRequest         *stagepkg.Request
+	onRun               func()
 	remediationRequest  bool
 	remediationFindings []findings.Finding
 }
