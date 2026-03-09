@@ -65,7 +65,7 @@ type GitDiffer interface {
 type AcceptArtifacts struct {
 	Results    []presentation.AcceptanceResult
 	GapSummary string
-	Findings   []finding.Finding
+	Findings   []stagepkg.SpecFinding
 }
 
 // GetGapSummary returns the gap summary, or empty string if the receiver is nil.
@@ -177,8 +177,8 @@ func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Resul
 	}
 
 	results := make([]presentation.AcceptanceResult, 0, len(criteria))
-	failures := make([]string, 0)
-	var findings []finding.Finding
+	failures := make([]string, 0, len(criteria))
+	findings := make([]stagepkg.SpecFinding, 0, len(criteria))
 
 	for _, criterion := range criteria {
 		// Bail if the parent context was explicitly cancelled (e.g. user stop).
@@ -215,12 +215,14 @@ func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Resul
 		score := "PASS"
 		if !pass {
 			score = "FAIL"
-			failures = append(failures, fmt.Sprintf("Criterion %d failed: %s — %s", criterion.Number, trimmed, summaryOrDefault(summary)))
-			findings = append(findings, finding.Finding{
-				Severity:    finding.SeverityCritical,
-				Category:    finding.CategoryAcceptance,
-				Scope:       "Spec",
-				Description: summaryOrDefault(summary),
+			failureMessage := fmt.Sprintf("Criterion %d failed: %s — %s", criterion.Number, trimmed, summaryOrDefault(summary))
+			failures = append(failures, failureMessage)
+			findings = append(findings, stagepkg.SpecFinding{
+				Title:       trimmed,
+				Description: failureMessage,
+				Severity:    stagepkg.SpecFindingSeverityCritical,
+				Category:    stagepkg.SpecFindingCategoryAcceptance,
+				Scope:       stagepkg.SpecFindingScopeSpec,
 			})
 		}
 
@@ -232,10 +234,7 @@ func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Resul
 		})
 	}
 
-	artifacts := &AcceptArtifacts{
-		Results:  results,
-		Findings: findings,
-	}
+	artifacts := &AcceptArtifacts{Results: results, Findings: findings}
 	if len(failures) > 0 {
 		gapSummary := strings.Join(failures, "\n")
 		artifacts.GapSummary = gapSummary

@@ -162,11 +162,11 @@ func TestRunProducesFindingsForMultipleFailedCriteria(t *testing.T) {
 		t.Fatalf("findings count = %d, want 2", len(artifacts.Findings))
 	}
 	for _, finding := range artifacts.Findings {
-		if finding.Severity != stagepkg.SpecFindingSeverity("critical") {
-			t.Fatalf("finding severity = %q, want %q", finding.Severity, "critical")
+		if finding.Severity != stagepkg.SpecFindingSeverityCritical {
+			t.Fatalf("finding severity = %q, want %q", finding.Severity, stagepkg.SpecFindingSeverityCritical)
 		}
-		if finding.Category != stagepkg.SpecFindingCategory("acceptance") {
-			t.Fatalf("finding category = %q, want %q", finding.Category, "acceptance")
+		if finding.Category != stagepkg.SpecFindingCategoryAcceptance {
+			t.Fatalf("finding category = %q, want %q", finding.Category, stagepkg.SpecFindingCategoryAcceptance)
 		}
 		if finding.Scope != stagepkg.SpecFindingScopeSpec {
 			t.Fatalf("finding scope = %v, want %v", finding.Scope, stagepkg.SpecFindingScopeSpec)

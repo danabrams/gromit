@@ -116,18 +116,20 @@ type SpecFinding struct {
 type SpecFindingSeverity string
 
 const (
-	SpecFindingSeverityHigh   SpecFindingSeverity = "high"
-	SpecFindingSeverityMedium SpecFindingSeverity = "medium"
-	SpecFindingSeverityLow    SpecFindingSeverity = "low"
+	SpecFindingSeverityCritical SpecFindingSeverity = "critical"
+	SpecFindingSeverityHigh     SpecFindingSeverity = "high"
+	SpecFindingSeverityMedium   SpecFindingSeverity = "medium"
+	SpecFindingSeverityLow      SpecFindingSeverity = "low"
 )
 
 // SpecFindingCategory groups findings by their domain.
 type SpecFindingCategory string
 
 const (
-	SpecFindingCategoryScope   SpecFindingCategory = "scope"
-	SpecFindingCategoryQuality SpecFindingCategory = "quality"
-	SpecFindingCategorySafety  SpecFindingCategory = "safety"
+	SpecFindingCategoryAcceptance SpecFindingCategory = "acceptance"
+	SpecFindingCategoryScope      SpecFindingCategory = "scope"
+	SpecFindingCategoryQuality    SpecFindingCategory = "quality"
+	SpecFindingCategorySafety     SpecFindingCategory = "safety"
 )
 
 // SpecFindingScope identifies the artifact affected by a finding.
