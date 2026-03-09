@@ -78,6 +78,23 @@ func TestRemediationRunnerRunWithFindingsCallsDecomposeAndBeadRunner(t *testing.
 	}
 }
 
+func TestRemediationRunnerRunWithFindingsGenerationCapRespected(t *testing.T) {
+	artifacts := &stage.DecomposeArtifacts{Beads: []*bead.Bead{{ID: "cap"}}}
+	runner := newRunnerForRemediationCycle(newDecomposeStageReturning(artifacts), &testBeadRunner{}, 1)
+
+	if err := runner.Run(context.Background(), "spec-1", "", nil); err != nil {
+		t.Fatalf("first run failed: %v", err)
+	}
+
+	err := runner.Run(context.Background(), "spec-2", "", nil)
+	if err == nil {
+		t.Fatal("expected generation cap error on second run")
+	}
+	if err.Error() != "generation cap reached" {
+		t.Fatalf("error = %v, want \"generation cap reached\"", err)
+	}
+}
+
 func TestRemediationRunnerRun_worktreePopulatedInRequest(t *testing.T) {
 	worktree := "/tmp/test-worktree"
 	var capturedWorktree string
