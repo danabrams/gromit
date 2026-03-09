@@ -347,14 +347,18 @@ func (s *SpecLoop) Run(ctx context.Context, specID string, stopCh <-chan struct{
 
 	s.recordStage("decompose")
 	var beads []*bead.Bead
-	existingBeads, err := s.queryExistingBeads(ctx, specID)
+	hasBeads, err := s.hasBeadsForSpec(ctx, specID)
 	if err != nil {
-		return fmt.Errorf("query existing beads: %w", err)
+		return fmt.Errorf("check existing beads: %w", err)
 	}
-	if len(existingBeads) > 0 {
-		beads = existingBeads
+	if hasBeads {
+		openBeads, err := s.openBeadsForSpec(ctx, specID)
+		if err != nil {
+			return fmt.Errorf("query open beads: %w", err)
+		}
+		beads = openBeads
 		s.emit(&events.DecomposeResumedEvent{SpecID: specID, BeadCount: len(beads)})
-		if s.selectiveRevalidator != nil {
+		if len(beads) > 0 && s.selectiveRevalidator != nil {
 			// Gap analysis: identify which beads touched files that changed.
 			revalidationCandidates := beads
 			if s.gapAnalyzer != nil {
@@ -458,7 +462,21 @@ func (s *SpecLoop) runDecompose(ctx context.Context, req stagepkg.Request) ([]*b
 	return append([]*bead.Bead(nil), artifacts.Beads...), nil
 }
 
-func (s *SpecLoop) queryExistingBeads(ctx context.Context, specID string) ([]*bead.Bead, error) {
+func (s *SpecLoop) hasBeadsForSpec(ctx context.Context, specID string) (bool, error) {
+	if s.adapters.TaskTracker == nil {
+		return false, nil
+	}
+	label := fmt.Sprintf("spec:%s", specID)
+	resp, err := s.adapters.TaskTracker.QueryBeads(ctx, trackertypes.TaskTrackerQueryBeadsRequest{
+		Labels: []string{label},
+	})
+	if err != nil {
+		return false, err
+	}
+	return resp != nil && len(resp.Beads) > 0, nil
+}
+
+func (s *SpecLoop) openBeadsForSpec(ctx context.Context, specID string) ([]*bead.Bead, error) {
 	if s.adapters.TaskTracker == nil {
 		return nil, nil
 	}
