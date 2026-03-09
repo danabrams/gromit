@@ -3064,6 +3064,9 @@
 {"issue_id":"gromit-w1200","label":"spec:v2-loop-routing-and-resume"}
 {"issue_id":"gromit-w1dux","label":"estimated-files:5"}
 {"issue_id":"gromit-w1dux","label":"spec:remove-tdd-fresh-context"}
+{"issue_id":"gromit-w1ki5","label":"estimated-files:1"}
+{"issue_id":"gromit-w1ki5","label":"gen:0"}
+{"issue_id":"gromit-w1ki5","label":"spec:spec-level-review-and-targeted-remediation"}
 {"issue_id":"gromit-w1sv","label":"complexity:low"}
 {"issue_id":"gromit-w1sv","label":"spec:parallel-post-success"}
 {"issue_id":"gromit-w1t","label":"complexity:low"}
