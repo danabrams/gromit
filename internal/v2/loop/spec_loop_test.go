@@ -13,21 +13,22 @@ import (
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/events"
 	legacyReview "github.com/danabrams/gromit/internal/review"
 	"github.com/danabrams/gromit/internal/tracker"
-	"github.com/danabrams/gromit/internal/events"
 	"github.com/danabrams/gromit/internal/v2/adapter"
 	"github.com/danabrams/gromit/internal/v2/adapter/tasktracker"
 	"github.com/danabrams/gromit/internal/v2/event"
+	"github.com/danabrams/gromit/internal/v2/findings"
 	"github.com/danabrams/gromit/internal/v2/llmtypes"
 	"github.com/danabrams/gromit/internal/v2/presentation"
-	specreview "github.com/danabrams/gromit/internal/v2/stage/specreview"
 	v2review "github.com/danabrams/gromit/internal/v2/review"
 	"github.com/danabrams/gromit/internal/v2/routing"
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
 	stageaccept "github.com/danabrams/gromit/internal/v2/stage/accept"
 	planstage "github.com/danabrams/gromit/internal/v2/stage/plan"
 	present "github.com/danabrams/gromit/internal/v2/stage/present"
+	specreview "github.com/danabrams/gromit/internal/v2/stage/specreview"
 )
 
 func TestNewSpecLoopValidation(t *testing.T) {
@@ -1149,10 +1150,12 @@ func newFakeDecomposeStage(specID string) *fakeDecomposeStage {
 }
 
 type fakeDecomposeStage struct {
-	producedBeads []*bead.Bead
-	called        bool
-	lastRequest   *stagepkg.Request
-	onRun         func()
+	producedBeads       []*bead.Bead
+	called              bool
+	lastRequest         *stagepkg.Request
+	onRun               func()
+	remediationRequest  bool
+	remediationFindings []findings.Finding
 }
 
 func (f *fakeDecomposeStage) Name() string { return "decompose" }
@@ -1162,6 +1165,10 @@ func (f *fakeDecomposeStage) Run(ctx context.Context, req *stagepkg.Request) (*s
 	f.lastRequest = req
 	if f.onRun != nil {
 		f.onRun()
+	}
+	if req != nil && req.Remediation {
+		f.remediationRequest = true
+		f.remediationFindings = append([]findings.Finding(nil), req.Findings...)
 	}
 	return &stagepkg.Result{
 		Decision:  stagepkg.DecisionProceed,
