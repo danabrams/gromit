@@ -199,6 +199,7 @@ func NewRun2LoopComponents(cfg *config.Config, adapters adapter.AdapterSet, lega
 		cleanup()
 		return nil, err
 	}
+	acceptStage = acceptStage.WithEmitter(legacyEmitter)
 
 	remediationRunner := v2remediation.NewRemediationRunner(v2remediation.RemediationRunnerConfig{
 		AcceptStage:    acceptStage,
