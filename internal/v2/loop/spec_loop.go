@@ -436,6 +436,10 @@ func (s *SpecLoop) Run(ctx context.Context, specID string, stopCh <-chan struct{
 		return err
 	}
 
+	if err := s.commitStage(ctx, worktree, "specreview", 0, "proceed"); err != nil {
+		return fmt.Errorf("commit after specreview: %w", err)
+	}
+
 	summary := s.buildSuccessSummary(specID, worktree, plan, beads, acceptRes, beadResult.OutOfScopeFindings)
 
 	if err := s.ctxErr(ctx); err != nil {

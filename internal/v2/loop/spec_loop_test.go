@@ -169,6 +169,7 @@ func TestSpecLoopHappyPathExecutesPipeline(t *testing.T) {
 	decompose := newFakeDecomposeStage(specID)
 	beadRunner := newFakeBeadRunner()
 	accept := newFakeAcceptStage()
+	specReview := &fakeSpecReviewStage{}
 
 	loopInstance, err := NewSpecLoop(adapters, cfg, noopDependencyGate{},
 		WithStageRecorder(recorder),
@@ -178,6 +179,7 @@ func TestSpecLoopHappyPathExecutesPipeline(t *testing.T) {
 		WithDecomposeStage(decompose),
 		WithBeadLoop(beadRunner),
 		WithAcceptStage(accept),
+		WithSpecReviewStage(specReview),
 	)
 	if err != nil {
 		t.Fatalf("create spec loop: %v", err)
