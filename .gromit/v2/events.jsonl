@@ -273,3 +273,14 @@
 {"schema_version":1,"timestamp":"2026-03-09T18:55:17.938604-04:00","type":"stage.completed","stage_name":"validate:default","bead_id":"gromit-oftvr","iteration":12,"success":true,"duration":40236750}
 {"schema_version":1,"timestamp":"2026-03-09T18:55:17.987137-04:00","type":"stage.started","stage_name":"review:default","bead_id":"gromit-oftvr","iteration":12}
 {"schema_version":1,"timestamp":"2026-03-09T18:55:17.987153-04:00","type":"stage.completed","stage_name":"review:default","bead_id":"gromit-oftvr","iteration":12,"success":true,"duration":6375}
+{"schema_version":1,"timestamp":"2026-03-09T18:55:18.035714-04:00","type":"stage.started","stage_name":"epilogue:default","bead_id":"gromit-oftvr","iteration":12}
+{"schema_version":1,"timestamp":"2026-03-09T18:55:19.874218-04:00","type":"stage.completed","stage_name":"epilogue:default","bead_id":"gromit-oftvr","iteration":12,"success":true,"duration":1838486500}
+{"schema_version":1,"timestamp":"2026-03-09T18:55:19.874298-04:00","type":"bead.completed","bead_id":"gromit-oftvr","bead_title":"Implement SpecReview stage with JSON parsing and verdict logic","iteration":12,"success":true,"model":"gpt-5.1-codex-mini","provider":"openai","input_tokens":4384025,"output_tokens":46291,"duration":447828148042}
+{"schema_version":1,"timestamp":"2026-03-09T18:55:19.874446-04:00","type":"bead.started","bead_id":"gromit-1fxp2","bead_title":"Add findings-based template to Decompose stage","iteration":13}
+{"schema_version":1,"timestamp":"2026-03-09T18:55:19.874492-04:00","type":"stage.started","stage_name":"gate:default","bead_id":"gromit-1fxp2","iteration":13}
+{"schema_version":1,"timestamp":"2026-03-09T18:55:20.04876-04:00","type":"stage.completed","stage_name":"gate:default","bead_id":"gromit-1fxp2","iteration":13,"success":true,"duration":174265000}
+{"schema_version":1,"timestamp":"2026-03-09T18:55:20.048774-04:00","type":"model.selected","bead_id":"gromit-1fxp2","model":"gpt-5.1-codex-mini","provider":"openai","tier":"low","reason":"router"}
+{"schema_version":1,"timestamp":"2026-03-09T18:55:20.048776-04:00","type":"stage.started","stage_name":"build:default","bead_id":"gromit-1fxp2","iteration":13}
+{"schema_version":1,"timestamp":"2026-03-09T18:55:20.048777-04:00","type":"build_invocation.start","bead_id":"gromit-1fxp2","model":"gpt-5.1-codex-mini","provider":"openai","tier":"low","attempt":1,"max_attempts":2}
+{"schema_version":1,"timestamp":"2026-03-09T18:58:53.391527-04:00","type":"build_invocation.complete","bead_id":"gromit-1fxp2","model":"gpt-5.1-codex-mini","provider":"openai","success":true,"duration":213342062250,"input_tokens":1628409,"output_tokens":23390,"prompt_size":18148}
+{"schema_version":1,"timestamp":"2026-03-09T18:58:53.391535-04:00","type":"stage.completed","stage_name":"build:default","bead_id":"gromit-1fxp2","iteration":13,"success":true,"duration":213342062250}
