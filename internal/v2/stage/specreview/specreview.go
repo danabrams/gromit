@@ -2,205 +2,300 @@ package specreview
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
+	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/jsonutil"
+	"github.com/danabrams/gromit/internal/v2/event"
 	"github.com/danabrams/gromit/internal/v2/llmtypes"
+	"github.com/danabrams/gromit/internal/v2/prompt"
+	"github.com/danabrams/gromit/internal/v2/routing"
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
+	"github.com/danabrams/gromit/internal/v2/stage/finding"
+	stagedesc "github.com/danabrams/gromit/internal/v2/stage/names"
 )
 
-const defaultSpecReviewFragment = `# Spec-Level Review Instructions
+const maxParseRetries = 1
 
-You are performing a holistic code review of the entire spec implementation and evaluate the cumulative diff plus telemetry and documentation that spans multiple beads or emerges when reviewing the end-to-end change.
-
-Review Scope:
-- Correctness: look for logic errors, off-by-one mistakes, faulty conditionals, and missing invariants.
-- Security: injection, auth bypass, data exposure, unsafe defaults, and missing encryption or authentication checks.
-- Error handling and resilience: unchecked errors, missing context propagation, goroutines without cancellation, and missing failure telemetry.
-- Test coverage: missing regression guards or brittle fixtures that mask bugs.
-- Code quality: dead code, duplicated logic, exported names without comments, and package contract violations.
-- Architecture: broken contracts, nil-safety gaps, improper state storage, or telemetry drift.
-
-Severity choices: critical (blocks the spec), warning (should be fixed before merge), suggestion (nice-to-have).
-Category choices: bug, security, quality, test-gap, architecture, acceptance.
-Scope choices: spec (files in the diff), general (outside the diff).
-
-Verdict logic:
-- The default verdict is pass unless one or more critical findings exist.
-- If the LLM verdict says pass but there is any critical finding, force the overall verdict to fail.
-- Warnings and suggestions can accompany a pass verdict, but note them explicitly.
-
-Output Format:
-Return ONLY a JSON object that matches the schema this stage reads. A sample object is
-{
-  "verdict": "pass",
-  "findings": [
-    {
-      "severity": "critical",
-      "category": "bug",
-      "scope": "spec",
-      "description": "Describe the issue and its impact.",
-      "affected_files": ["path/to/file.go"]
-    }
-  ]
-}
-If there are no findings, return {"verdict": "pass", "findings": []}.
-`
-
-// GitDiffer provides the diff capability needed by the spec-review stage.
+// GitDiffer exposes the diff management needed for the stage.
 type GitDiffer interface {
 	DiffFromBase(ctx context.Context, worktree string) (string, error)
 }
 
-// SpecReviewArtifacts captures the result of the spec-level review.
+// SpecReviewArtifacts captures the verdict and findings emitted by the stage.
 type SpecReviewArtifacts struct {
 	Verdict  string
-	Findings []stagepkg.Finding
+	Findings []finding.Finding
 }
 
-// Stage wraps the dependencies for the spec review.
+// Stage implements the spec-level review stage.
 type Stage struct {
+	name     string
+	cfg      *config.Config
 	git      GitDiffer
 	llm      llmtypes.LLMProvider
+	base     string
+	project  string
 	fragment string
+	emitter  *event.Emitter
 }
 
-// New constructs a spec review stage.
-func New(git GitDiffer, llm llmtypes.LLMProvider, fragment string) (*Stage, error) {
-	if git == nil {
-		return nil, fmt.Errorf("git adapter required")
+// New constructs a spec review stage backed by the provided dependencies.
+func New(cfg *config.Config, git GitDiffer, provider llmtypes.LLMProvider, base, project, fragment string) (*Stage, error) {
+	if cfg == nil {
+		return nil, fmt.Errorf("config required")
 	}
-	if llm == nil {
+	if git == nil {
+		return nil, fmt.Errorf("git differ required")
+	}
+	if provider == nil {
 		return nil, fmt.Errorf("llm provider required")
 	}
-	fragment = strings.TrimSpace(fragment)
-	if fragment == "" {
-		fragment = strings.TrimSpace(defaultSpecReviewFragment)
-	}
-	return &Stage{git: git, llm: llm, fragment: fragment}, nil
-}
-
-// Name returns the stage identifier.
-func (s *Stage) Name() string {
-	return "spec-review"
-}
-
-// Run executes the holistic spec-level review.
-func (s *Stage) Run(ctx context.Context, req *stagepkg.StageRequest) (*stagepkg.StageResult, error) {
-	if req == nil {
-		return nil, fmt.Errorf("request required")
-	}
-	worktree := strings.TrimSpace(req.Worktree)
-	if worktree == "" {
-		return nil, fmt.Errorf("worktree required")
+	if strings.TrimSpace(fragment) == "" {
+		return nil, fmt.Errorf("fragment required")
 	}
 
-	diff, err := s.git.DiffFromBase(ctx, worktree)
-	if err != nil {
-		return nil, fmt.Errorf("diff from base: %w", err)
-	}
-
-	planPath := filepath.Join(worktree, ".gromit", "v2", "plan.md")
-	planBytes, err := os.ReadFile(planPath)
-	if err != nil && !os.IsNotExist(err) {
-		return nil, fmt.Errorf("read plan: %w", err)
-	}
-
-	prompt := s.buildPrompt(string(planBytes), diff)
-	resp, err := s.llm.Invoke(ctx, llmtypes.LLMInvokeRequest{
-		Prompt: prompt,
-		Model:  req.Tier,
-		Dir:    req.Worktree,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("llm invoke: %w", err)
-	}
-	if resp == nil {
-		return nil, fmt.Errorf("llm invoke: provider returned nil response")
-	}
-	if !resp.Success {
-		detail := strings.TrimSpace(resp.Output)
-		if detail == "" {
-			detail = "llm invocation failed"
-		}
-		return nil, fmt.Errorf("llm invoke unsuccessful: %s", detail)
-	}
-
-	artifacts, err := parseReviewOutput(resp.Output)
-	if err != nil {
-		return nil, fmt.Errorf("parse review output: %w", err)
-	}
-
-	artifacts.Verdict = strings.ToLower(strings.TrimSpace(artifacts.Verdict))
-	if artifacts.Verdict != "pass" {
-		artifacts.Verdict = "fail"
-	}
-
-	for _, finding := range artifacts.Findings {
-		if finding.Severity == stagepkg.FindingSeverityCritical {
-			artifacts.Verdict = "fail"
-			break
-		}
-	}
-
-	decision := stagepkg.DecisionProceed
-	if artifacts.Verdict == "fail" {
-		decision = stagepkg.DecisionFail
-	}
-
-	return &stagepkg.StageResult{
-		Decision:  decision,
-		Artifacts: artifacts,
+	return &Stage{
+		name:     stagedesc.Describe("specreview", cfg),
+		cfg:      cfg,
+		git:      git,
+		llm:      provider,
+		base:     base,
+		project:  project,
+		fragment: fragment,
 	}, nil
 }
 
-func (s *Stage) buildPrompt(plan, diff string) string {
-	var sb strings.Builder
-	sb.WriteString(strings.TrimSpace(s.fragment))
-	sb.WriteString("\n\n## Plan\n\n")
-	sb.WriteString(plan)
-	sb.WriteString("\n\n## Cumulative Diff\n\n```diff\n")
-	sb.WriteString(diff)
-	sb.WriteString("\n```\n")
-	return sb.String()
+// WithTypedEmitter attaches the provided typed event emitter.
+func (s *Stage) WithTypedEmitter(emitter *event.Emitter) *Stage {
+	if s == nil {
+		return s
+	}
+	s.emitter = emitter
+	return s
 }
 
-func parseReviewOutput(raw string) (*SpecReviewArtifacts, error) {
-	raw = strings.TrimSpace(raw)
-	var parsed llmReviewOutput
-	if err := json.Unmarshal([]byte(raw), &parsed); err != nil {
-		return nil, fmt.Errorf("json: %w (raw: %.200s)", err, raw)
+var _ stagepkg.Stage = (*Stage)(nil)
+
+// Name returns the canonical stage identifier.
+func (s *Stage) Name() string {
+	if s == nil {
+		return ""
+	}
+	return s.name
+}
+
+// Run executes the spec-level review stage.
+func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Result, error) {
+	if req == nil {
+		return nil, fmt.Errorf("request required")
+	}
+	if req.Bead.ID == "" {
+		return nil, fmt.Errorf("bead metadata required")
+	}
+	root := s.resolveRoot(req)
+	diff, err := s.git.DiffFromBase(ctx, root)
+	if err != nil {
+		return nil, fmt.Errorf("spec review: diff from base: %w", err)
+	}
+	planText, err := s.readPlan(root)
+	if err != nil {
+		return nil, fmt.Errorf("spec review: %w", err)
 	}
 
-	findings := make([]stagepkg.Finding, 0, len(parsed.Findings))
-	for _, f := range parsed.Findings {
-		findings = append(findings, stagepkg.Finding{
-			Severity:      stagepkg.FindingSeverity(strings.ToLower(strings.TrimSpace(f.Severity))),
-			Category:      stagepkg.FindingCategory(strings.ToLower(strings.TrimSpace(f.Category))),
-			Scope:         stagepkg.FindingScope(strings.ToLower(strings.TrimSpace(f.Scope))),
-			Description:   f.Description,
-			AffectedFiles: f.AffectedFiles,
+	instance := buildInstanceLayer(diff, planText)
+	assembler := prompt.NewPromptAssembler(s.base, s.project, instance, s.fragment)
+	promptText := assembler.Assemble("review", prompt.BeadInfo{Title: req.Bead.Title})
+
+	provider := s.llm
+	if req.Provider != nil {
+		provider = req.Provider
+	}
+
+	model := strings.TrimSpace(req.Model)
+	if model == "" {
+		model = config.ModelOpus
+	}
+
+	dir := strings.TrimSpace(req.Worktree)
+	metadata := map[string]string{"tier": routing.TierHigh}
+
+	var parsed *specReviewResponse
+	var lastOutput string
+	for attempt := 0; attempt <= maxParseRetries; attempt++ {
+		currentPrompt := promptText
+		if attempt > 0 && lastOutput != "" {
+			currentPrompt = buildRepairPrompt(lastOutput)
+		}
+
+		resp, err := provider.Invoke(ctx, llmtypes.LLMInvokeRequest{
+			Prompt:   currentPrompt,
+			Model:    model,
+			Dir:      dir,
+			Metadata: metadata,
 		})
+		if err != nil {
+			return nil, fmt.Errorf("spec review: invoking llm: %w", err)
+		}
+		if resp == nil {
+			return nil, fmt.Errorf("spec review: llm response nil")
+		}
+		if !resp.Success {
+			detail := strings.TrimSpace(resp.Output)
+			if detail == "" {
+				detail = "no detail available"
+			}
+			return nil, fmt.Errorf("spec review: llm invocation failed: %s", detail)
+		}
+
+		lastOutput = resp.Output
+		parsed, err = parseResponse(resp.Output)
+		if err == nil {
+			break
+		}
+		if attempt == maxParseRetries {
+			preview := resp.Output
+			if len(preview) > 500 {
+				preview = preview[:500] + "... (truncated)"
+			}
+			return nil, fmt.Errorf("spec review: parse response: %w\nLLM output preview: %s", err, preview)
+		}
 	}
 
-	verdict := strings.ToLower(strings.TrimSpace(parsed.Verdict))
-	if verdict == "" {
-		verdict = "fail"
+	findings := convertFindings(parsed.Findings)
+	verdict := determineVerdict(findings)
+	success := verdict == "pass"
+	artifacts := &SpecReviewArtifacts{Verdict: verdict, Findings: findings}
+	decision := stagepkg.DecisionProceed
+	if !success {
+		decision = stagepkg.DecisionFail
 	}
+	s.emitCompletion(req.Bead.ID, root, verdict, success, findings)
 
-	return &SpecReviewArtifacts{Verdict: verdict, Findings: findings}, nil
+	return &stagepkg.Result{Decision: decision, Artifacts: artifacts}, nil
 }
 
-type llmReviewOutput struct {
-	Verdict  string `json:"verdict"`
-	Findings []struct {
-		Severity      string   `json:"severity"`
-		Category      string   `json:"category"`
-		Scope         string   `json:"scope"`
-		Description   string   `json:"description"`
-		AffectedFiles []string `json:"affected_files"`
-	} `json:"findings"`
+func (s *Stage) resolveRoot(req *stagepkg.Request) string {
+	if req != nil {
+		if trimmed := strings.TrimSpace(req.Worktree); trimmed != "" {
+			return trimmed
+		}
+	}
+	if s.cfg != nil && strings.TrimSpace(s.cfg.ProjectRoot) != "" {
+		return s.cfg.ProjectRoot
+	}
+	return "."
+}
+
+func (s *Stage) readPlan(root string) (string, error) {
+	path := filepath.Join(root, ".gromit", "v2", "plan.md")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", fmt.Errorf("read plan: %w", err)
+	}
+	return strings.TrimSpace(string(data)), nil
+}
+
+func buildInstanceLayer(diff, plan string) string {
+	var sections []string
+	if trimmed := strings.TrimSpace(diff); trimmed != "" {
+		sections = append(sections, fmt.Sprintf("## Diff\n%s", trimmed))
+	}
+	if trimmed := strings.TrimSpace(plan); trimmed != "" {
+		sections = append(sections, fmt.Sprintf("## Plan\n%s", trimmed))
+	}
+	return strings.Join(sections, "\n\n")
+}
+
+type specReviewResponse struct {
+	Verdict  string              `json:"verdict"`
+	Findings []specReviewFinding `json:"findings"`
+}
+
+type specReviewFinding struct {
+	Severity      string   `json:"severity"`
+	Category      string   `json:"category"`
+	Scope         string   `json:"scope"`
+	Description   string   `json:"description"`
+	AffectedFiles []string `json:"affected_files"`
+}
+
+func parseResponse(output string) (*specReviewResponse, error) {
+	trimmed := strings.TrimSpace(output)
+	if trimmed == "" {
+		return nil, fmt.Errorf("response empty")
+	}
+	var resp specReviewResponse
+	if err := jsonutil.ExtractObject(trimmed, &resp); err != nil {
+		return nil, fmt.Errorf("extract json: %w", err)
+	}
+	if resp.Findings == nil {
+		resp.Findings = []specReviewFinding{}
+	}
+	return &resp, nil
+}
+
+func convertFindings(src []specReviewFinding) []finding.Finding {
+	out := make([]finding.Finding, 0, len(src))
+	for _, raw := range src {
+		f := finding.Finding{
+			Severity:      finding.Severity(strings.ToLower(strings.TrimSpace(raw.Severity))),
+			Category:      finding.Category(strings.ToLower(strings.TrimSpace(raw.Category))),
+			Scope:         strings.TrimSpace(raw.Scope),
+			Description:   strings.TrimSpace(raw.Description),
+			AffectedFiles: append([]string(nil), raw.AffectedFiles...),
+		}
+		f.NormalizeNilFields()
+		out = append(out, f)
+	}
+	return out
+}
+
+func determineVerdict(findings []finding.Finding) string {
+	if finding.HasCritical(findings) {
+		return "fail"
+	}
+	return "pass"
+}
+
+func buildRepairPrompt(previous string) string {
+	return fmt.Sprintf(`Your previous response was not valid JSON.
+Here is what you wrote:
+
+---
+%s
+---
+
+Please respond with ONLY a JSON object that matches this schema exactly:
+{"verdict":"pass|fail","findings":[{"severity":"critical|warning|suggestion","category":"bug|security|quality|test_gap|architecture|acceptance","scope":"spec:<id>|general","description":"...","affected_files":["..."]}]}
+`, previous)
+}
+
+func (s *Stage) emitCompletion(specID, worktree, verdict string, success bool, findings []finding.Finding) {
+	if s.emitter == nil {
+		return
+	}
+	critical := 0
+	for _, f := range findings {
+		if f.Severity == finding.SeverityCritical {
+			critical++
+		}
+	}
+	s.emitter.Emit(&event.SpecReviewCompletedEvent{
+		Event: event.Event{
+			SchemaVersion: event.SchemaVersion,
+			Timestamp:     time.Now(),
+			Type:          event.EventTypeSpecReviewCompleted,
+		},
+		SpecID:           specID,
+		Worktree:         worktree,
+		Verdict:          verdict,
+		FindingCount:     len(findings),
+		CriticalFindings: critical,
+		Success:          success,
+	})
 }

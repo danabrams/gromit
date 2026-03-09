@@ -41,6 +41,7 @@ func TestEventDefinitions(t *testing.T) {
 	t.Run("ValidationReviewScopeTelemetryEmbedBase", func(t *testing.T) {
 		expectEmbeddedEvent(t, reflect.TypeOf(ValidationEvent{}))
 		expectEmbeddedEvent(t, reflect.TypeOf(ReviewEvent{}))
+		expectEmbeddedEvent(t, reflect.TypeOf(SpecReviewCompletedEvent{}))
 		expectEmbeddedEvent(t, reflect.TypeOf(ScopeEvent{}))
 		expectEmbeddedEvent(t, reflect.TypeOf(TelemetryEvent{}))
 	})
@@ -189,6 +190,19 @@ func TestEventJSONRoundTrip(t *testing.T) {
 			expectedFields: []string{"schema_version", "bead_id", "verdict", "issues", "out_of_scope", "notes"},
 		},
 		{
+			name: "SpecReviewCompletedEvent",
+			event: SpecReviewCompletedEvent{
+				Event:            Event{SchemaVersion: SchemaVersion, Timestamp: now, Type: EventTypeSpecReviewCompleted},
+				SpecID:           "spec-123",
+				Worktree:         "/tmp/worktree",
+				Verdict:          "fail",
+				FindingCount:     2,
+				CriticalFindings: 1,
+				Success:          false,
+			},
+			expectedFields: []string{"schema_version", "spec_id", "worktree", "verdict", "finding_count", "critical_findings", "success"},
+		},
+		{
 			name: "ScopeEvent",
 			event: ScopeEvent{
 				Event:      Event{SchemaVersion: SchemaVersion, Timestamp: now, Type: EventTypeScope},
@@ -321,9 +335,9 @@ func TestEventJSONFieldNames(t *testing.T) {
 
 	// Build a set of events with all fields populated so omitempty does not hide them.
 	events := []struct {
-		name               string
-		event              interface{}
-		expectedSnakeCase  []string
+		name              string
+		event             interface{}
+		expectedSnakeCase []string
 	}{
 		{
 			name: "SpecStartedEvent",

@@ -115,6 +115,21 @@ func TestLegacyEventsFromTyped(t *testing.T) {
 					strings.Contains(logEvt.Message, "iteration 2")
 			},
 		},
+		{
+			name: "spec review completed logs",
+			typed: &SpecReviewCompletedEvent{
+				Event:            Event{Timestamp: now},
+				SpecID:           "spec-1",
+				Verdict:          "pass",
+				FindingCount:     3,
+				CriticalFindings: 1,
+			},
+			wantType: "*events.LogEvent",
+			check: func(evt events.Event) bool {
+				logEvt, ok := evt.(*events.LogEvent)
+				return ok && strings.Contains(logEvt.Message, "spec review") && strings.Contains(logEvt.Message, "findings=3")
+			},
+		},
 	}
 
 	for _, tc := range cases {

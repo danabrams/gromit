@@ -29,6 +29,7 @@ const (
 	EventTypeStageRetrying           = "stage.retrying"
 	EventTypeValidation              = "validation"
 	EventTypeReview                  = "review"
+	EventTypeSpecReviewCompleted     = "spec_review.completed"
 	EventTypeScope                   = "scope"
 	EventTypeTelemetry               = "telemetry"
 	EventTypeGenerationCapReached    = "generation_cap_reached"
@@ -166,6 +167,19 @@ type ReviewEvent struct {
 }
 
 func (ReviewEvent) EventType() string { return EventTypeReview }
+
+// SpecReviewCompletedEvent records the spec-level review verdict.
+type SpecReviewCompletedEvent struct {
+	Event
+	SpecID           string `json:"spec_id,omitempty"`
+	Worktree         string `json:"worktree,omitempty"`
+	Verdict          string `json:"verdict,omitempty"`
+	FindingCount     int    `json:"finding_count,omitempty"`
+	CriticalFindings int    `json:"critical_findings,omitempty"`
+	Success          bool   `json:"success"`
+}
+
+func (SpecReviewCompletedEvent) EventType() string { return EventTypeSpecReviewCompleted }
 
 // ScopeEvent captures the result of a scope check.
 type ScopeEvent struct {
