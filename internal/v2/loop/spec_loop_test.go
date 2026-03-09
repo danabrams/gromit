@@ -22,6 +22,7 @@ import (
 	"github.com/danabrams/gromit/internal/v2/llmtypes"
 	"github.com/danabrams/gromit/internal/v2/presentation"
 	v2review "github.com/danabrams/gromit/internal/v2/review"
+	specreview "github.com/danabrams/gromit/internal/v2/stage/specreview"
 	"github.com/danabrams/gromit/internal/v2/routing"
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
 	stageaccept "github.com/danabrams/gromit/internal/v2/stage/accept"
@@ -154,18 +155,13 @@ func TestSpecLoopHappyPathExecutesPipeline(t *testing.T) {
 
 	recorder := newRecordingStageRecorder()
 
-	git := newFakeGitAdapter(t)
+ 	git := newFakeGitAdapter(t)
 	llm := newFakeLLMAdapter()
 	taskTracker := newFakeTaskTrackerAdapter()
-	presenter := newFakePresenterAdapter(t)
 	planStage := newFakePlanStage(specID)
-	presentStage, summaryCtx := newPresentStageForTest(t, cfg, presenter)
-	specReviewStage := newScriptedSpecReviewStage(stagepkg.Result{
-		Decision: stagepkg.DecisionProceed,
-		Artifacts: &specreview.SpecReviewArtifacts{
-			Verdict: "pass",
-		},
-	})
+	presentStage := newFakePresentStage()
+	summaryCtx := &present.SummaryContext{}
+	presenter := newFakePresenterAdapter(t)
 
 	adapters := adapter.AdapterSet{
 		Git:         git,
@@ -244,15 +240,15 @@ func TestSpecLoopInvokesSpecReviewStage(t *testing.T) {
 	git := newFakeGitAdapter(t)
 	llm := newFakeLLMAdapter()
 	taskTracker := newFakeTaskTrackerAdapter()
-	presenter := newFakePresenterAdapter(t)
 	planStage := newFakePlanStage(specID)
-	presentStage, summaryCtx := newPresentStageForTest(t, cfg, presenter)
+	presentStage := newFakePresentStage()
+	summaryCtx := &present.SummaryContext{}
 
 	adapters := adapter.AdapterSet{
 		Git:         git,
 		LLM:         llm,
 		TaskTracker: taskTracker,
-		Presenter:   presenter,
+		Presenter:   newFakePresenterAdapter(t),
 	}
 
 	decompose := newFakeDecomposeStage(specID)
@@ -279,6 +275,129 @@ func TestSpecLoopInvokesSpecReviewStage(t *testing.T) {
 
 	if specReviewStage.calls == 0 {
 		t.Fatalf("spec review stage not invoked")
+	}
+}
+
+func TestSpecLoopFailsWhenSpecReviewFailsWithoutRemediation(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	specID := "spec-review-fail"
+	cfg := &config.Config{}
+
+	git := newFakeGitAdapter(t)
+	llm := newFakeLLMAdapter()
+	taskTracker := newFakeTaskTrackerAdapter()
+	planStage := newFakePlanStage(specID)
+	presentStage := newFakePresentStage()
+	summaryCtx := &present.SummaryContext{}
+
+	adapters := adapter.AdapterSet{
+		Git:         git,
+		LLM:         llm,
+		TaskTracker: taskTracker,
+		Presenter:   newFakePresenterAdapter(t),
+	}
+
+	failureArtifacts := &specreview.SpecReviewArtifacts{
+		Findings: []specreview.SpecReviewFinding{{
+			Title:       "review issue",
+			Description: "spec review blocking",
+			Severity:    stagepkg.SpecFindingSeverityHigh,
+			Category:    stagepkg.SpecFindingCategoryQuality,
+			Scope:       stagepkg.SpecFindingScopeSpec,
+		}},
+		Verdict: "issue",
+	}
+	specReviewStage := newFakeSpecReviewStage(stagepkg.Result{Decision: stagepkg.DecisionFail, Artifacts: failureArtifacts})
+
+	loopInstance, err := NewSpecLoop(adapters, cfg, noopDependencyGate{},
+		WithPlanStage(planStage),
+		WithPresentStage(presentStage, summaryCtx),
+		WithDecomposeStage(newFakeDecomposeStage(specID)),
+		WithBeadLoop(newFakeBeadRunner()),
+		WithAcceptStage(newFakeAcceptStage()),
+		WithSpecReviewStage(specReviewStage),
+	)
+	if err != nil {
+		t.Fatalf("create spec loop: %v", err)
+	}
+
+	if err := loopInstance.Run(ctx, specID, nil); err == nil {
+		t.Fatal("expected spec review failure")
+	} else if !strings.Contains(err.Error(), "spec review failed") {
+		t.Fatalf("error = %v, want spec review failed", err)
+	}
+
+	if presentStage.called {
+		t.Fatalf("present stage should not run when spec review fails")
+	}
+}
+
+func TestSpecLoopRemediatesSpecReviewFindings(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	specID := "spec-review-remediation"
+	cfg := &config.Config{}
+
+	git := newFakeGitAdapter(t)
+	llm := newFakeLLMAdapter()
+	taskTracker := newFakeTaskTrackerAdapter()
+	planStage := newFakePlanStage(specID)
+	presentStage := newFakePresentStage()
+	summaryCtx := &present.SummaryContext{}
+
+	adapters := adapter.AdapterSet{
+		Git:         git,
+		LLM:         llm,
+		TaskTracker: taskTracker,
+		Presenter:   newFakePresenterAdapter(t),
+	}
+
+	failureFinding := specreview.SpecReviewFinding{
+		Title:         "spec review issue",
+		Description:   "spec review blocking",
+		Severity:      stagepkg.SpecFindingSeverityHigh,
+		Category:      stagepkg.SpecFindingCategoryQuality,
+		Scope:         stagepkg.SpecFindingScopeSpec,
+		AffectedFiles: []string{"spec.md"},
+	}
+	failureArtifacts := &specreview.SpecReviewArtifacts{Findings: []specreview.SpecReviewFinding{failureFinding}, Verdict: "issue"}
+	specReviewStage := newFakeSpecReviewStage(
+		stagepkg.Result{Decision: stagepkg.DecisionFail, Artifacts: failureArtifacts},
+		stagepkg.Result{Decision: stagepkg.DecisionProceed},
+	)
+	recoder := &recordingRemediationRunner{}
+
+	loopInstance, err := NewSpecLoop(adapters, cfg, noopDependencyGate{},
+		WithPlanStage(planStage),
+		WithPresentStage(presentStage, summaryCtx),
+		WithDecomposeStage(newFakeDecomposeStage(specID)),
+		WithBeadLoop(newFakeBeadRunner()),
+		WithAcceptStage(newFakeAcceptStage()),
+		WithSpecReviewStage(specReviewStage),
+		WithRemediationRunner(recoder),
+	)
+	if err != nil {
+		t.Fatalf("create spec loop: %v", err)
+	}
+
+	if err := loopInstance.Run(ctx, specID, nil); err != nil {
+		t.Fatalf("run spec loop: %v", err)
+	}
+
+	if !presentStage.called {
+		t.Fatalf("present stage should run after remediation")
+	}
+	if recoder.calls != 1 {
+		t.Fatalf("remediation runner calls = %d, want 1", recoder.calls)
+	}
+	if len(recoder.lastFindings) != 1 {
+		t.Fatalf("findings = %v, want 1", recoder.lastFindings)
+	}
+	if recoder.lastFindings[0].Title != failureFinding.Title {
+		t.Fatalf("finding title = %q, want %q", recoder.lastFindings[0].Title, failureFinding.Title)
 	}
 }
 
