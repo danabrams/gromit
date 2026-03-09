@@ -364,3 +364,30 @@ func (s *scriptedAcceptStage) Run(ctx context.Context, req *stagepkg.Request) (*
 	result := res
 	return &result, nil
 }
+
+type scriptedSpecReviewStage struct {
+	calls   int
+	results []stagepkg.Result
+	err     error
+}
+
+func newScriptedSpecReviewStage(results ...stagepkg.Result) *scriptedSpecReviewStage {
+	copied := append([]stagepkg.Result(nil), results...)
+	return &scriptedSpecReviewStage{results: copied}
+}
+
+func (s *scriptedSpecReviewStage) Name() string { return "specreview" }
+
+func (s *scriptedSpecReviewStage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Result, error) {
+	s.calls++
+	if s.err != nil {
+		return nil, s.err
+	}
+	if len(s.results) == 0 {
+		return &stagepkg.Result{Decision: stagepkg.DecisionProceed}, nil
+	}
+	res := s.results[0]
+	s.results = s.results[1:]
+	result := res
+	return &result, nil
+}

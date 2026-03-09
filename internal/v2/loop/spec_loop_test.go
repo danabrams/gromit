@@ -407,6 +407,113 @@ func TestSpecLoopProvidesStageRequestToAcceptStage(t *testing.T) {
 	}
 }
 
+func TestSpecLoopSpecreviewDecisionAffectsOutcome(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	specID := "spec-loop-specreview"
+
+	runLoop := func(t *testing.T, specReview stagepkg.Stage, expectErr bool, expectSuccess bool, expectedVerdict string) {
+		t.Helper()
+		cfg := &config.Config{}
+		git := newFakeGitAdapter(t)
+		taskTracker := newFakeTaskTrackerAdapter()
+		presenter := newFakePresenterAdapter(t)
+		planStage := newFakePlanStage(specID)
+		presentStage, summaryCtx := newPresentStageForTest(t, cfg, presenter)
+
+		emitter := events.NewEmitter()
+		ch := emitter.Subscribe()
+		t.Cleanup(func() {
+			emitter.Unsubscribe(ch)
+		})
+
+		adapters := adapter.AdapterSet{
+			Git:         git,
+			LLM:         newFakeLLMAdapter(),
+			TaskTracker: taskTracker,
+			Presenter:   presenter,
+		}
+
+		loopInstance, err := NewSpecLoop(adapters, cfg, noopDependencyGate{},
+			WithEmitter(emitter),
+			WithPlanStage(planStage),
+			WithPresentStage(presentStage, summaryCtx),
+			WithDecomposeStage(newFakeDecomposeStage(specID)),
+			WithBeadLoop(newFakeBeadRunner()),
+			WithAcceptStage(newFakeAcceptStage()),
+			WithSpecReviewStage(specReview),
+		)
+		if err != nil {
+			t.Fatalf("create spec loop: %v", err)
+		}
+
+		err = loopInstance.Run(ctx, specID, nil)
+		if expectErr {
+			if err == nil {
+				t.Fatalf("run succeeded unexpectedly")
+			}
+		} else if err != nil {
+			t.Fatalf("run spec loop: %v", err)
+		}
+
+		verdictEvent := waitForSpecVerdictEvent(t, ch, specID)
+		if verdictEvent.Success != expectSuccess {
+			t.Fatalf("spec verdict success = %v, want %v", verdictEvent.Success, expectSuccess)
+		}
+		if expectedVerdict != "" && verdictEvent.SpecReviewVerdict != expectedVerdict {
+			t.Fatalf("spec review verdict = %q, want %q", verdictEvent.SpecReviewVerdict, expectedVerdict)
+		}
+		if verdictEvent.AcceptDecision != stagepkg.DecisionProceed.String() {
+			t.Fatalf("accept decision = %q, want %q", verdictEvent.AcceptDecision, stagepkg.DecisionProceed.String())
+		}
+		if verdictEvent.SpecReviewDecision == "" {
+			t.Fatal("spec review decision missing")
+		}
+
+		if expectSuccess && !presenter.lastSummary.Success {
+			t.Fatalf("summary success = %v, want true", presenter.lastSummary.Success)
+		}
+		if !expectSuccess && presenter.lastSummary.Success {
+			t.Fatalf("summary success = %v, want false", presenter.lastSummary.Success)
+		}
+	}
+
+	t.Run("proceed", func(t *testing.T) {
+		review := newScriptedSpecReviewStage(stagepkg.Result{
+			Decision: stagepkg.DecisionProceed,
+			Artifacts: &specreview.SpecReviewArtifacts{Verdict: "pass"},
+		})
+		runLoop(t, review, false, true, "pass")
+	})
+
+	t.Run("fail", func(t *testing.T) {
+		review := newScriptedSpecReviewStage(stagepkg.Result{
+			Decision: stagepkg.DecisionFail,
+			Artifacts: &specreview.SpecReviewArtifacts{Verdict: "fail"},
+		})
+		runLoop(t, review, true, false, "fail")
+	})
+}
+
+func waitForSpecVerdictEvent(t *testing.T, ch <-chan events.Event, specID string) *events.SpecVerdictEvent {
+	t.Helper()
+	deadline := time.After(5 * time.Second)
+	for {
+		select {
+		case evt := <-ch:
+			if specEvt, ok := evt.(*events.SpecVerdictEvent); ok {
+				if specEvt.SpecID != specID {
+					continue
+				}
+				return specEvt
+			}
+		case <-deadline:
+			t.Fatal("timed out waiting for spec verdict event")
+		}
+	}
+}
+
 func TestSpecLoopFailureEmitsCompletionAndCleansWorktree(t *testing.T) {
 	t.Parallel()
 
