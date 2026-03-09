@@ -396,7 +396,7 @@ func TestRunReadsGapAnalysisFromDiskWhenFieldEmpty(t *testing.T) {
 	}
 }
 
-func TestRunUsesFindingsTemplateWhenFindingsPresent(t *testing.T) {
+func TestRunUsesFindingsPromptWhenFindingsProvided(t *testing.T) {
 	t.Parallel()
 
 	tmpDir := t.TempDir()
@@ -404,9 +404,9 @@ func TestRunUsesFindingsTemplateWhenFindingsPresent(t *testing.T) {
 	if err := os.MkdirAll(planDir, 0o755); err != nil {
 		t.Fatalf("mkdir plan dir: %v", err)
 	}
-	planContent := "# Plan\nTask 1: fix the loop"
+	planContent := "# Plan\nTask 1: Fix beans"
 	if err := os.WriteFile(filepath.Join(planDir, "plan.md"), []byte(planContent), 0o644); err != nil {
-		t.Fatalf("write plan: %v", err)
+		t.Fatalf("write plan file: %v", err)
 	}
 
 	cfg := &config.Config{
@@ -415,66 +415,64 @@ func TestRunUsesFindingsTemplateWhenFindingsPresent(t *testing.T) {
 	}
 
 	llmFake := &fakeLLM{
-		responses: []*llm.LLMResponse{{
-			Success: true,
-			Output: `[
+		responses: []*llm.LLMResponse{{Success: true, Output: `[
 			{
-				"title": "fix loop",
-				"description": "repair the decompose loop",
-				"priority": "P2",
-				"acceptance_criteria": ["loop runs"],
-				"expected_outputs": ["loop passes"],
+				"title": "fix beans",
+				"description": "add bean coverage",
+				"priority": "P1",
+				"acceptance_criteria": ["bean tests"],
+				"expected_outputs": ["bean test file"],
+				"covers_tasks": [1],
 				"depends_on_index": []
 			},
 			{
-				"title": "verify loop",
-				"description": "confirm the loop reports progress",
-				"priority": "P2",
-				"acceptance_criteria": ["progress reports"],
-				"expected_outputs": ["progress test"],
+				"title": "verify beans",
+				"description": "add bean verification",
+				"priority": "P1",
+				"acceptance_criteria": ["bean verification"],
+				"expected_outputs": ["bean verification file"],
+				"covers_tasks": [1],
 				"depends_on_index": [0]
 			}
-		]`,
-		}},
+		]`}},
 	}
 	tracker := &fakeTracker{}
-	stage, err := New(cfg, llmFake, tracker)
+	stg, err := New(cfg, llmFake, tracker)
 	if err != nil {
 		t.Fatalf("create stage: %v", err)
 	}
 
 	req := &stagepkg.Request{
-		Bead:        stagepkg.BeadInfo{ID: "spec"},
+		Bead: stagepkg.BeadInfo{ID: "spec", Labels: []string{"gen:0"}},
 		Config:      cfg,
-		Worktree:    tmpDir,
 		Remediation: true,
-		GapAnalysis: "this gap should be ignored",
-		Findings: []finding.Finding{
+		Findings: []stagepkg.SpecFinding{
 			{
-				Severity:      finding.SeverityWarning,
-				Category:      finding.CategoryQuality,
-				Description:   "missing decompose tests",
-				AffectedFiles: []string{"internal/v2/stage/decompose/decompose.go"},
+				Title:       "Missing bean tests",
+				Description: "Beans are not covered by automated tests",
+				Severity:    stagepkg.SpecFindingSeverityHigh,
+				Category:    stagepkg.SpecFindingCategoryQuality,
+				Scope:       stagepkg.SpecFindingScopeSpec,
 			},
 		},
 	}
 
-	_, err = stage.Run(context.Background(), req)
-	if err != nil {
+	if _, err := stg.Run(context.Background(), req); err != nil {
 		t.Fatalf("run stage: %v", err)
 	}
+
 	if len(llmFake.calls) == 0 {
 		t.Fatal("expected llm invocation")
 	}
 	prompt := llmFake.calls[0].Prompt
 	if !strings.Contains(prompt, planContent) {
-		t.Fatal("prompt missing plan context")
+		t.Fatal("prompt missing plan content for context")
 	}
-	if !strings.Contains(prompt, "Findings JSON") {
-		t.Fatal("prompt missing findings section")
+	if !strings.Contains(prompt, "## Findings to address") {
+		t.Fatal("expected findings template header to appear")
 	}
-	if !strings.Contains(prompt, "missing decompose tests") {
-		t.Fatal("prompt missing serialized finding data")
+	if !strings.Contains(prompt, "Missing bean tests") {
+		t.Fatal("prompt missing finding description")
 	}
 }
 
