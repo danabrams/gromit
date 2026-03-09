@@ -13,17 +13,15 @@ import (
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/events"
-	reviewpkg "github.com/danabrams/gromit/internal/review"
-	"github.com/danabrams/gromit/internal/tracker"
 	"github.com/danabrams/gromit/internal/v2/adapter"
 	"github.com/danabrams/gromit/internal/v2/event"
-	"github.com/danabrams/gromit/internal/v2/presentation"
-	specreview "github.com/danabrams/gromit/internal/v2/stage/specreview"
-	v2review "github.com/danabrams/gromit/internal/v2/review"
 	"github.com/danabrams/gromit/internal/v2/routing"
 	"github.com/danabrams/gromit/internal/v2/trackertypes"
+	"github.com/danabrams/gromit/internal/v2/presentation"
+	v2review "github.com/danabrams/gromit/internal/v2/review"
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
 	stageaccept "github.com/danabrams/gromit/internal/v2/stage/accept"
+	specreview "github.com/danabrams/gromit/internal/v2/stage/specreview"
 	planstage "github.com/danabrams/gromit/internal/v2/stage/plan"
 	present "github.com/danabrams/gromit/internal/v2/stage/present"
 )
@@ -44,7 +42,7 @@ var StageSequence = []string{
 	"review",
 	"epilogue",
 	"accept",
-	"specreview",
+	"spec-review",
 	"present",
 }
 
@@ -61,7 +59,7 @@ type BeadRunner interface {
 }
 
 type remediationRunner interface {
-	Run(ctx context.Context, specID, worktree string) error
+	Run(ctx context.Context, specID, worktree string, findings []stagepkg.Finding) error
 }
 
 // SelectiveRevalidator checks beads for regressions and returns the subset
@@ -122,7 +120,7 @@ func WithAcceptStage(stage stagepkg.Stage) SpecLoopOption {
 	}
 }
 
-// WithSpecReviewStage installs the specreview stage the loop should evaluate.
+// WithSpecReviewStage configures the spec-level review stage.
 func WithSpecReviewStage(stage stagepkg.Stage) SpecLoopOption {
 	return func(s *SpecLoop) {
 		s.specReviewStage = stage
@@ -211,6 +209,7 @@ type SpecLoop struct {
 	gate                  DependencyGate
 	recorder              StageRecorder
 	acceptStage           stagepkg.Stage
+	specReviewStage       stagepkg.Stage
 	emitter               *events.Emitter
 	typedEmitter          *event.Emitter
 	stageCommitter        StageCommitter
@@ -226,7 +225,6 @@ type SpecLoop struct {
 	gapAnalyzer           GapAnalyzer
 	router                *routing.Router
 	phaseModels           map[string]string
-	specReviewStage       stagepkg.Stage
 }
 
 type worktreeSetter interface {
@@ -413,31 +411,13 @@ func (s *SpecLoop) Run(ctx context.Context, specID string, stopCh <-chan struct{
 	}
 
 	s.recordStage("accept")
-	acceptRes, err := s.ensureAcceptance(ctx, &req, specID)
+	acceptRes, err := s.ensureAcceptanceAndReview(ctx, &req, specID)
 	if err != nil {
 		handleFailureCleaned = true
 		return s.handleFailure(ctx, specID, baseSummary, err)
 	}
 	if err := s.commitStage(ctx, worktree, "accept", 0, "proceed"); err != nil {
 		return fmt.Errorf("commit after accept: %w", err)
-	}
-
-	reviewRes, err := s.runSpecReviewStage(ctx, &req)
-	if err != nil {
-		handleFailureCleaned = true
-		return s.handleFailure(ctx, specID, baseSummary, err)
-	}
-	if s.specReviewFailed(reviewRes) {
-		handleFailureCleaned = true
-		return s.handleFailure(ctx, specID, baseSummary, fmt.Errorf("specreview failed"))
-	}
-
-	if err := s.createFromReviewBeads(ctx, specID, reviewRes); err != nil {
-		return err
-	}
-
-	if err := s.commitStage(ctx, worktree, "specreview", 0, "proceed"); err != nil {
-		return fmt.Errorf("commit after specreview: %w", err)
 	}
 
 	summary := s.buildSuccessSummary(specID, worktree, plan, beads, acceptRes, beadResult.OutOfScopeFindings)
@@ -552,7 +532,7 @@ func (s *SpecLoop) runBeadLoop(ctx context.Context, beads []*bead.Bead, worktree
 	return s.beadRunner.Run(ctx, beads, stopCh)
 }
 
-func (s *SpecLoop) ensureAcceptance(ctx context.Context, req *stagepkg.Request, specID string) (*stagepkg.Result, error) {
+func (s *SpecLoop) ensureAcceptanceAndReview(ctx context.Context, req *stagepkg.Request, specID string) (*stagepkg.Result, error) {
 	retriesRemaining := maxAcceptanceRetries
 	for {
 		if err := s.ctxErr(ctx); err != nil {
@@ -560,21 +540,41 @@ func (s *SpecLoop) ensureAcceptance(ctx context.Context, req *stagepkg.Request, 
 		}
 
 		s.applyRouting(req, "accept")
-		res, err := s.runAcceptStage(ctx, req)
+		acceptRes, err := s.runAcceptStage(ctx, req)
 		if err != nil {
-			return res, err
+			return acceptRes, err
 		}
-		if !s.acceptFailed(res) {
-			return res, nil
+
+		var reviewRes *stagepkg.Result
+		if !s.acceptFailed(acceptRes) && s.specReviewStage != nil {
+			s.recordStage("spec-review")
+			s.applyRouting(req, "spec-review")
+			reviewRes, err = s.specReviewStage.Run(ctx, req)
+			if err != nil {
+				return acceptRes, err
+			}
 		}
+
+		acceptFindings := extractFindings(acceptRes)
+		reviewFindings := extractSpecReviewFindings(reviewRes)
+		combined := append(append([]stagepkg.Finding(nil), acceptFindings...), reviewFindings...)
+
+		bothPass := !s.acceptFailed(acceptRes) && !s.specReviewFailed(reviewRes)
+		if bothPass {
+			if err := s.createFromReviewBeads(ctx, specID, reviewFindings); err != nil {
+				return acceptRes, err
+			}
+			return acceptRes, nil
+		}
+
 		if s.remediationRunner == nil {
-			return res, fmt.Errorf("accept failed")
+			return acceptRes, fmt.Errorf("accept or spec-review failed")
 		}
 		if retriesRemaining <= 0 {
-			return res, fmt.Errorf("%w: limit %d reached", ErrAcceptanceRetriesExceeded, maxAcceptanceRetries)
+			return acceptRes, fmt.Errorf("%w: limit %d reached", ErrAcceptanceRetriesExceeded, maxAcceptanceRetries)
 		}
-		if err := s.remediationRunner.Run(ctx, specID, req.Worktree); err != nil {
-			return res, err
+		if err := s.remediationRunner.Run(ctx, specID, req.Worktree, combined); err != nil {
+			return acceptRes, err
 		}
 		retriesRemaining--
 	}
@@ -587,19 +587,6 @@ func (s *SpecLoop) runAcceptStage(ctx context.Context, req *stagepkg.Request) (*
 	res, err := s.acceptStage.Run(ctx, req)
 	if err != nil {
 		return res, err
-	}
-	return res, nil
-}
-
-func (s *SpecLoop) runSpecReviewStage(ctx context.Context, req *stagepkg.Request) (*stagepkg.Result, error) {
-	if s.specReviewStage == nil {
-		return nil, nil
-	}
-	s.recordStage("specreview")
-	s.applyRouting(req, "specreview")
-	res, err := s.specReviewStage.Run(ctx, req)
-	if err != nil {
-		return nil, err
 	}
 	return res, nil
 }
@@ -618,27 +605,69 @@ func (s *SpecLoop) specReviewFailed(res *stagepkg.Result) bool {
 	return res.Decision == stagepkg.DecisionFail
 }
 
-func (s *SpecLoop) createFromReviewBeads(ctx context.Context, specID string, reviewRes *stagepkg.Result) error {
-	if s.adapters.TaskTracker == nil || reviewRes == nil || reviewRes.Artifacts == nil {
+func extractFindings(res *stagepkg.Result) []stagepkg.Finding {
+	if res == nil || res.Decision != stagepkg.DecisionFail {
 		return nil
 	}
-	artifacts, ok := reviewRes.Artifacts.(*specreview.SpecReviewArtifacts)
-	if !ok || artifacts == nil || artifacts.Result == nil {
+	artifacts, ok := res.Artifacts.(*stageaccept.AcceptArtifacts)
+	if !ok || len(artifacts.Results) == 0 {
 		return nil
 	}
-
-	for _, proposal := range artifacts.Result.BeadsToCreate {
-		labels := reviewpkg.BuildReviewBeadLabels(proposal.Labels)
-		if bead.FindSpecLabel(labels) == "" {
-			labels = append(labels, tracker.SpecLabelFor(specID))
+	findings := make([]stagepkg.Finding, 0, len(artifacts.Results))
+	for _, result := range artifacts.Results {
+		title := strings.TrimSpace(result.Title)
+		description := strings.TrimSpace(result.Description)
+		if description == "" {
+			description = title
+		} else if title != "" && !strings.Contains(description, title) {
+			description = fmt.Sprintf("%s: %s", title, description)
 		}
+		if description == "" {
+			description = "Acceptance criterion failed"
+		}
+		findings = append(findings, stagepkg.Finding{
+			Severity:    stagepkg.FindingSeverityCritical,
+			Category:    stagepkg.FindingCategoryAcceptance,
+			Scope:       stagepkg.FindingScopeSpec,
+			Description: description,
+		})
+	}
+	return findings
+}
+
+func extractSpecReviewFindings(res *stagepkg.Result) []stagepkg.Finding {
+	if res == nil || res.Artifacts == nil {
+		return nil
+	}
+	artifacts, ok := res.Artifacts.(*specreview.SpecReviewArtifacts)
+	if !ok || len(artifacts.Findings) == 0 {
+		return nil
+	}
+	return append([]stagepkg.Finding(nil), artifacts.Findings...)
+}
+
+func (s *SpecLoop) createFromReviewBeads(ctx context.Context, specID string, findings []stagepkg.Finding) error {
+	if len(findings) == 0 || s.adapters.TaskTracker == nil {
+		return nil
+	}
+	specLabel := strings.TrimSpace(specID)
+	for _, finding := range findings {
+		labels := []string{"from-review"}
+		if specLabel != "" && finding.Scope == stagepkg.FindingScopeSpec {
+			labels = append(labels, "spec:"+specLabel)
+		}
+		desc := strings.TrimSpace(finding.Description)
+		if desc == "" {
+			desc = "Review improvement"
+		}
+		title := fmt.Sprintf("Review improvement: %s", desc)
 		if _, err := s.adapters.TaskTracker.CreateBead(ctx, trackertypes.TaskTrackerCreateBeadRequest{
-			Title:       proposal.Title,
-			Description: proposal.Description,
-			Priority:    proposal.Priority,
+			Title:       title,
+			Description: finding.Description,
+			Priority:    1,
 			Labels:      labels,
 		}); err != nil {
-			return fmt.Errorf("create from-review bead %q: %w", proposal.Title, err)
+			return fmt.Errorf("create from-review bead: %w", err)
 		}
 	}
 	return nil

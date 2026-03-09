@@ -18,6 +18,7 @@ import (
 	"github.com/danabrams/gromit/internal/v2/loop"
 	"github.com/danabrams/gromit/internal/v2/presentation"
 	"github.com/danabrams/gromit/internal/v2/stage"
+	specreview "github.com/danabrams/gromit/internal/v2/stage/specreview"
 	stageaccept "github.com/danabrams/gromit/internal/v2/stage/accept"
 )
 
@@ -48,6 +49,7 @@ func TestSpecLoopExecutesCanonicalStageChain(t *testing.T) {
 		loop.WithDecomposeStage(newFakeDecomposeStage(specID)),
 		loop.WithBeadLoop(newFakeBeadRunner()),
 		loop.WithAcceptStage(newFakeAcceptStage()),
+		loop.WithSpecReviewStage(acceptanceSpecReviewStage{}),
 	)
 	if err != nil {
 		t.Fatalf("NewSpecLoop error = %v", err)
@@ -274,3 +276,18 @@ func (f *fakeAcceptStage) Run(ctx context.Context, req *stage.Request) (*stage.R
 		},
 	}, nil
 }
+
+type acceptanceSpecReviewStage struct{}
+
+func (acceptanceSpecReviewStage) Name() string { return "spec-review" }
+
+func (acceptanceSpecReviewStage) Run(ctx context.Context, req *stage.Request) (*stage.Result, error) {
+	return &stage.Result{
+		Decision: stage.DecisionProceed,
+		Artifacts: &specreview.SpecReviewArtifacts{
+			Verdict: "pass",
+		},
+	}, nil
+}
+
+var _ stage.Stage = (*acceptanceSpecReviewStage)(nil)

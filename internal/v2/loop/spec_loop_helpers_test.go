@@ -302,7 +302,7 @@ type fakeRemediationRunner struct {
 	err   error
 }
 
-func (f *fakeRemediationRunner) Run(_ context.Context, _, _ string) error {
+func (f *fakeRemediationRunner) Run(_ context.Context, _, _ string, _ []stagepkg.Finding) error {
 	f.calls++
 	return f.err
 }
@@ -312,13 +312,15 @@ type recordingRemediationRunner struct {
 	calls        int
 	lastSpecID   string
 	lastWorktree string
+	lastFindings []stagepkg.Finding
 	err          error
 }
 
-func (r *recordingRemediationRunner) Run(_ context.Context, specID, worktree string) error {
+func (r *recordingRemediationRunner) Run(_ context.Context, specID, worktree string, findings []stagepkg.Finding) error {
 	r.calls++
 	r.lastSpecID = specID
 	r.lastWorktree = worktree
+	r.lastFindings = append([]stagepkg.Finding(nil), findings...)
 	return r.err
 }
 

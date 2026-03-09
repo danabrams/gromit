@@ -223,6 +223,7 @@ type integrationRemediationRunner struct {
 	calls         int
 	generationCap int
 	emitter       *events.Emitter
+	lastFindings  []stagepkg.Finding
 }
 
 func newIntegrationRemediationRunner(t *testing.T, emitter *events.Emitter, cfg integrationRemediationConfig) remediationRunner {
@@ -254,8 +255,9 @@ func defaultIntegrationBeadLoopConfig() BeadLoopConfig {
 	}
 }
 
-func (r *integrationRemediationRunner) Run(ctx context.Context, specID, _ string) error {
+func (r *integrationRemediationRunner) Run(ctx context.Context, specID, _ string, findings []stagepkg.Finding) error {
 	r.calls++
+	r.lastFindings = append([]stagepkg.Finding(nil), findings...)
 	if r.generationCap >= 0 {
 		r.emitGenerationCapEvents(specID)
 		return fmt.Errorf("generation cap reached")
