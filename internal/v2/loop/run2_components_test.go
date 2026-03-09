@@ -11,7 +11,9 @@ import (
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/events"
 	"github.com/danabrams/gromit/internal/v2/adapter"
+	"github.com/danabrams/gromit/internal/v2/llmtypes"
 	"github.com/danabrams/gromit/internal/v2/presentation"
+	"github.com/danabrams/gromit/internal/v2/routing"
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
 	acceptstage "github.com/danabrams/gromit/internal/v2/stage/accept"
 	buildstage "github.com/danabrams/gromit/internal/v2/stage/build"
@@ -222,6 +224,7 @@ func TestNewRun2LoopComponentsWiring(t *testing.T) {
 	cfg := &config.Config{
 		ProjectRoot: tmpDir,
 	}
+	writeReviewSpecFragment(t, tmpDir)
 
 	adapters := adapter.AdapterSet{
 		Git:         testutil.NewFakeGit(),
@@ -316,6 +319,7 @@ func TestNewRun2LoopComponentsWiresStageCommitterAndTypedEmitter(t *testing.T) {
 	cfg := &config.Config{
 		ProjectRoot: tmpDir,
 	}
+	writeReviewSpecFragment(t, tmpDir)
 
 	adapters := adapter.AdapterSet{
 		Git:         testutil.NewFakeGit(),
@@ -522,6 +526,7 @@ func TestNewRun2LoopComponentsWiresSquasherIntoPresentStage(t *testing.T) {
 
 	tmpDir := t.TempDir()
 	cfg := &config.Config{ProjectRoot: tmpDir}
+	writeReviewSpecFragment(t, tmpDir)
 
 	fakeGit := testutil.NewFakeGit()
 	// Configure structured commits so SquashPerBead performs a squash
@@ -560,4 +565,78 @@ func TestNewRun2LoopComponentsWiresSquasherIntoPresentStage(t *testing.T) {
 	if len(fakeGit.SquashCalls) == 0 {
 		t.Error("expected SquashCommits to be called via squasher wired in NewRun2LoopComponents, but it was not")
 	}
+}
+
+func TestTieredSpecReviewStageRequestsHighTier(t *testing.T) {
+	t.Parallel()
+
+	base := &recordingSpecReviewStage{}
+	router := &spySpecReviewRouter{
+		provider: &fakeLLMProvider{},
+		model:    "router-model",
+	}
+
+	stage := newTieredSpecReviewStage(base, router)
+	if stage == nil {
+		t.Fatal("expected tiered stage wrapper")
+	}
+
+	req := &stagepkg.Request{Bead: stagepkg.BeadInfo{ID: "spec-id"}}
+	if _, err := stage.Run(context.Background(), req); err != nil {
+		t.Fatalf("Tiered spec review stage run failed: %v", err)
+	}
+
+	if base.lastRequest == nil {
+		t.Fatal("inner stage not invoked")
+	}
+	if base.lastRequest.Provider != router.provider {
+		t.Fatalf("provider = %v, want %v", base.lastRequest.Provider, router.provider)
+	}
+	if base.lastRequest.Model != router.model {
+		t.Fatalf("model = %q, want %q", base.lastRequest.Model, router.model)
+	}
+	if router.phase != "specreview" {
+		t.Fatalf("router phase = %q, want %q", router.phase, "specreview")
+	}
+	if router.tier != routing.TierHigh {
+		t.Fatalf("router tier = %q, want %q", router.tier, routing.TierHigh)
+	}
+}
+
+type recordingSpecReviewStage struct {
+	lastRequest *stagepkg.Request
+}
+
+func (s *recordingSpecReviewStage) Name() string { return "specreview" }
+
+func (s *recordingSpecReviewStage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Result, error) {
+	s.lastRequest = req
+	return &stagepkg.Result{Decision: stagepkg.DecisionProceed}, nil
+}
+
+type spySpecReviewRouter struct {
+	provider llmtypes.LLMProvider
+	model    string
+	phase    string
+	tier     string
+	err      error
+}
+
+func (s *spySpecReviewRouter) Select(phase, tier string) (llmtypes.LLMProvider, string, string, error) {
+	s.phase = phase
+	s.tier = tier
+	if s.err != nil {
+		return nil, "", "", s.err
+	}
+	return s.provider, s.model, "spy", nil
+}
+
+type fakeLLMProvider struct{}
+
+func (fakeLLMProvider) Invoke(ctx context.Context, req llmtypes.LLMInvokeRequest) (*llmtypes.LLMInvokeResponse, error) {
+	return &llmtypes.LLMInvokeResponse{Success: true}, nil
+}
+
+func (fakeLLMProvider) StreamInvoke(ctx context.Context, req llmtypes.LLMStreamInvokeRequest) (*llmtypes.LLMInvokeResponse, error) {
+	return &llmtypes.LLMInvokeResponse{Success: true}, nil
 }
