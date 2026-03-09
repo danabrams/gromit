@@ -7,7 +7,6 @@ import (
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/v2/event"
-	"github.com/danabrams/gromit/internal/v2/findings"
 	"github.com/danabrams/gromit/internal/v2/llmtypes"
 )
 
@@ -28,7 +27,7 @@ type StageRequest struct {
 	Worktree     string
 	Remediation  bool
 	GapAnalysis  string
-	Findings     []findings.Finding // structured findings for findings-based remediation decompose
+	Findings     []Finding
 	RetryContext *RetryContext
 	Telemetry    *LLMCostSummary
 }
@@ -109,4 +108,42 @@ type LLMCostSummary struct {
 	InputTokens  int
 	OutputTokens int
 	CostUSD      float64
+}
+
+// FindingSeverity classifies the urgency of a review finding.
+type FindingSeverity string
+
+const (
+	FindingSeverityCritical   FindingSeverity = "critical"
+	FindingSeverityWarning    FindingSeverity = "warning"
+	FindingSeveritySuggestion FindingSeverity = "suggestion"
+)
+
+// FindingCategory classifies the domain of a review finding.
+type FindingCategory string
+
+const (
+	FindingCategoryBug          FindingCategory = "bug"
+	FindingCategorySecurity     FindingCategory = "security"
+	FindingCategoryQuality      FindingCategory = "quality"
+	FindingCategoryTestGap      FindingCategory = "test-gap"
+	FindingCategoryArchitecture FindingCategory = "architecture"
+	FindingCategoryAcceptance   FindingCategory = "acceptance"
+)
+
+// FindingScope indicates whether a finding is within the spec's changed files or general.
+type FindingScope string
+
+const (
+	FindingScopeSpec    FindingScope = "spec"
+	FindingScopeGeneral FindingScope = "general"
+)
+
+// Finding captures a single issue identified by spec-level or accept review.
+type Finding struct {
+	Severity      FindingSeverity
+	Category      FindingCategory
+	Scope         FindingScope
+	Description   string
+	AffectedFiles []string
 }
