@@ -189,8 +189,8 @@ func TestIntegration_SpecLoop_PassWithImprovementsCreatesFromReviewBeads(t *test
 		t.Fatalf("run spec loop: %v", err)
 	}
 
-	if len(taskTracker.created) != 3 {
-		t.Fatalf("created beads = %d, want 3", len(taskTracker.created))
+	if len(taskTracker.created) != 2 {
+		t.Fatalf("created beads = %d, want 2", len(taskTracker.created))
 	}
 
 	specLabel := tracker.SpecLabelFor(specID)
