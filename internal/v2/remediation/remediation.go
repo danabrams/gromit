@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/events"
@@ -15,6 +17,7 @@ import (
 // RemediationRunnerConfig captures dependencies for remediation orchestration.
 type RemediationRunnerConfig struct {
 	AcceptStage     stage.Stage
+	PlanStage       stage.Stage
 	GapStage        stage.Stage
 	DecomposeStage  stage.Stage
 	BeadRunner      BeadRunner
@@ -123,6 +126,22 @@ func (r *RemediationRunner) executeRemediation(ctx context.Context, req *stage.R
 		}
 	}
 
+	if r.cfg.PlanStage != nil {
+		if _, err := r.cfg.PlanStage.Run(ctx, req); err != nil {
+			return fmt.Errorf("remediation plan: %w", err)
+		}
+	}
+
+	if req.Worktree != "" {
+		planPath := r.remediationPlanPath(req.Worktree)
+		if err := os.MkdirAll(filepath.Dir(planPath), 0o755); err != nil {
+			return fmt.Errorf("create remediation plan dir: %w", err)
+		}
+		if err := os.WriteFile(planPath, []byte(gapAnalysis), 0o644); err != nil {
+			return fmt.Errorf("persist remediation plan: %w", err)
+		}
+	}
+
 	beads, err := r.decompose(ctx, req)
 	if err != nil {
 		return err
@@ -138,6 +157,11 @@ func (r *RemediationRunner) executeRemediation(ctx context.Context, req *stage.R
 	r.generationCount++
 
 	return nil
+}
+
+func (r *RemediationRunner) remediationPlanPath(worktree string) string {
+	gromitDir := filepath.Join(worktree, ".gromit", "v2")
+	return filepath.Join(gromitDir, fmt.Sprintf("remediation-%d.md", r.generationCount+1))
 }
 
 func (r *RemediationRunner) generationCap() int {
