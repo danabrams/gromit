@@ -232,6 +232,56 @@ func TestSpecLoopHappyPathExecutesPipeline(t *testing.T) {
 	}
 }
 
+func TestSpecLoopInvokesSpecReviewStage(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	specID := "spec-review-stage"
+	cfg := &config.Config{}
+
+	recorder := newRecordingStageRecorder()
+
+	git := newFakeGitAdapter(t)
+	llm := newFakeLLMAdapter()
+	taskTracker := newFakeTaskTrackerAdapter()
+	presenter := newFakePresenterAdapter(t)
+	planStage := newFakePlanStage(specID)
+	presentStage, summaryCtx := newPresentStageForTest(t, cfg, presenter)
+
+	adapters := adapter.AdapterSet{
+		Git:         git,
+		LLM:         llm,
+		TaskTracker: taskTracker,
+		Presenter:   presenter,
+	}
+
+	decompose := newFakeDecomposeStage(specID)
+	beadRunner := newFakeBeadRunner()
+	accept := newFakeAcceptStage()
+	specReviewStage := newFakeSpecReviewStage(stagepkg.Result{})
+
+	loopInstance, err := NewSpecLoop(adapters, cfg, noopDependencyGate{},
+		WithStageRecorder(recorder),
+		WithPlanStage(planStage),
+		WithPresentStage(presentStage, summaryCtx),
+		WithDecomposeStage(decompose),
+		WithBeadLoop(beadRunner),
+		WithAcceptStage(accept),
+		WithSpecReviewStage(specReviewStage),
+	)
+	if err != nil {
+		t.Fatalf("create spec loop: %v", err)
+	}
+
+	if err := loopInstance.Run(ctx, specID, nil); err != nil {
+		t.Fatalf("run spec loop: %v", err)
+	}
+
+	if specReviewStage.calls == 0 {
+		t.Fatalf("spec review stage not invoked")
+	}
+}
+
 func TestBuildSuccessSummaryIncludesOutOfScopeFindings(t *testing.T) {
 	t.Parallel()
 
