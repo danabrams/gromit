@@ -8,8 +8,10 @@ import (
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/events"
 	"github.com/danabrams/gromit/internal/v2/adapter"
+	"github.com/danabrams/gromit/internal/v2/findings"
 	"github.com/danabrams/gromit/internal/v2/presentation"
 	"github.com/danabrams/gromit/internal/v2/stage"
+	stageaccept "github.com/danabrams/gromit/internal/v2/stage/accept"
 )
 
 // RemediationRunnerConfig captures dependencies for remediation orchestration.
@@ -37,6 +39,10 @@ type WorktreeCleaner interface {
 // gapSummaryProvider is implemented by artifacts that carry a gap analysis summary.
 type gapSummaryProvider interface {
 	GetGapSummary() string
+}
+
+type findingsProvider interface {
+	GetFindings() []findings.Finding
 }
 
 var (
@@ -78,8 +84,9 @@ func (r *RemediationRunner) Run(ctx context.Context, specID, worktree string) er
 			return err
 		}
 		if res != nil && res.Decision == stage.DecisionFail {
-			gapAnalysis := extractGapSummary(res)
-			if err := r.executeRemediation(ctx, &req, gapAnalysis); err != nil {
+			findings := extractFindings(res)
+			req.GapAnalysis = extractGapSummary(res)
+			if err := r.executeRemediation(ctx, &req, findings); err != nil {
 				return err
 			}
 			continue
@@ -108,16 +115,38 @@ func extractGapSummary(res *stage.Result) string {
 	return ""
 }
 
-func (r *RemediationRunner) executeRemediation(ctx context.Context, req *stage.Request, gapAnalysis string) error {
+func extractFindings(res *stage.Result) []findings.Finding {
+	if res == nil || res.Artifacts == nil {
+		return nil
+	}
+	if fp, ok := res.Artifacts.(findingsProvider); ok {
+		return copyFindings(fp.GetFindings())
+	}
+	if aa, ok := res.Artifacts.(*stageaccept.AcceptArtifacts); ok {
+		return copyFindings(aa.Findings)
+	}
+	return nil
+}
+
+func copyFindings(src []findings.Finding) []findings.Finding {
+	if len(src) == 0 {
+		return nil
+	}
+	dst := make([]findings.Finding, len(src))
+	copy(dst, src)
+	return dst
+}
+
+func (r *RemediationRunner) executeRemediation(ctx context.Context, req *stage.Request, findings []findings.Finding) error {
 	specID := req.Bead.ID
 	if !r.canRemediate() {
 		return r.handleGenerationCap(ctx, specID)
 	}
 
 	req.Remediation = true
-	req.GapAnalysis = gapAnalysis
+	req.Findings = copyFindings(findings)
 
-	if r.cfg.GapStage != nil {
+	if len(req.Findings) == 0 && r.cfg.GapStage != nil {
 		if _, err := r.cfg.GapStage.Run(ctx, req); err != nil {
 			return err
 		}
