@@ -510,7 +510,7 @@ Each layer communicates through well-defined interfaces.
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			err := validatePlanContent(tt.input)
+			err := ValidatePlanContent(tt.input)
 			if tt.wantErr && err == nil {
 				t.Fatalf("expected error for input %q, got nil", tt.input)
 			}

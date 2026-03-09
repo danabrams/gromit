@@ -573,7 +573,7 @@ func TestSpecLoopReusesExistingPlan(t *testing.T) {
 	cfg := &config.Config{}
 
 	git := newFakeGitAdapter(t)
-	git.planContent = "existing plan from prior run"
+	git.planContent = validPlanFixture
 
 	planStage := newFakePlanStage(specID)
 	decompose := newFakeDecomposeStage(specID)
@@ -1357,7 +1357,7 @@ func TestResumeWithGapAnalysis_FailureSummaryPopulated(t *testing.T) {
 	cfg := &config.Config{}
 
 	git := newFakeGitAdapter(t)
-	git.planContent = "existing plan"
+	git.planContent = validPlanFixture
 	git.gapAnalysisContent = "remaining: implement step X"
 
 	taskTracker := newFakeTaskTrackerAdapter()
@@ -1406,7 +1406,7 @@ func TestResumeWithExistingPlanAndBeads_BeadListCorrect(t *testing.T) {
 	cfg := &config.Config{}
 
 	git := newFakeGitAdapter(t)
-	git.planContent = "existing plan from prior run"
+	git.planContent = validPlanFixture
 
 	taskTracker := newFakeTaskTrackerAdapter()
 	taskTracker.queryBeadsResponse = &tasktracker.TaskTrackerQueryBeadsResponse{

@@ -431,7 +431,7 @@ func TestIntegration_ResumeWithGapAnalysisAndRevalidation(t *testing.T) {
 	})
 
 	git := newIntegrationGitAdapter(t)
-	git.planContent = "existing plan from prior run"
+	git.planContent = validPlanFixture
 	llmAdapter := newIntegrationLLMAdapter()
 	taskTracker := newIntegrationTaskTrackerAdapter()
 	presenter := newIntegrationPresenterAdapter(t)

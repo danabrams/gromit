@@ -301,7 +301,7 @@ func (s *SpecLoop) Run(ctx context.Context, specID string, stopCh <-chan struct{
 	var plan string
 	s.recordStage("plan")
 	planPath := s.planFilePath(worktree)
-	if existingPlan, readErr := os.ReadFile(planPath); readErr == nil && len(strings.TrimSpace(string(existingPlan))) > 0 {
+	if existingPlan, readErr := os.ReadFile(planPath); readErr == nil && len(strings.TrimSpace(string(existingPlan))) > 0 && planstage.ValidatePlanContent(string(existingPlan)) == nil {
 		plan = string(existingPlan)
 		s.emit(&events.PlanResumedEvent{SpecID: specID, Path: planPath})
 	} else {

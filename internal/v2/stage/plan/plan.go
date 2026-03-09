@@ -185,7 +185,7 @@ func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Resul
 	}
 
 	planText := resp.Output
-	if err := validatePlanContent(planText); err != nil {
+	if err := ValidatePlanContent(planText); err != nil {
 		return nil, err
 	}
 	planPath, err := writePlanFile(cfg, req.Worktree, planText)
@@ -248,7 +248,10 @@ var planSectionPattern = regexp.MustCompile(`(?m)^##[#]?\s+(Implementation Tasks
 
 const minPlanLength = 200
 
-func validatePlanContent(content string) error {
+// ValidatePlanContent checks that a plan has sufficient length and the
+// expected section headers.  Exported so the spec-loop resume path can
+// reject stale/corrupt plan files before handing them to decompose.
+func ValidatePlanContent(content string) error {
 	trimmed := strings.TrimSpace(content)
 	if len(trimmed) < minPlanLength {
 		preview := trimmed

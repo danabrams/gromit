@@ -20,6 +20,31 @@ import (
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
 )
 
+// validPlanFixture is a minimal plan that passes planstage.ValidatePlanContent
+// (>= 200 chars, contains required section headers).
+const validPlanFixture = `---
+id: test-spec
+source_spec: test-spec
+created: 2026-01-01
+decomposed: false
+---
+
+# Test Implementation Plan
+
+**Goal:** Test fixture for resume path tests
+
+## Architecture
+
+This is a test plan used by resume-path tests in the spec loop.
+
+## Implementation Tasks
+
+### Task 1: Test task
+**Files:** test.go
+**What to Do:** Placeholder for test fixture validation
+**Acceptance Criteria:** Tests pass
+`
+
 // requireGapAnalysisInFailureSummary asserts the presenter's last failure summary contains wantSubstr.
 func requireGapAnalysisInFailureSummary(t *testing.T, presenter *fakePresenterAdapter, wantSubstr string) {
 	t.Helper()
