@@ -12,6 +12,7 @@ import (
 	"github.com/danabrams/gromit/internal/v2/adapter"
 	"github.com/danabrams/gromit/internal/v2/presentation"
 	"github.com/danabrams/gromit/internal/v2/stage"
+	"github.com/danabrams/gromit/internal/v2/stage/finding"
 )
 
 // RemediationRunnerConfig captures dependencies for remediation orchestration.
@@ -19,6 +20,7 @@ type RemediationRunnerConfig struct {
 	AcceptStage     stage.Stage
 	PlanStage       stage.Stage
 	GapStage        stage.Stage
+	Findings        []finding.Finding
 	DecomposeStage  stage.Stage
 	BeadRunner      BeadRunner
 	GenerationCap   int
@@ -90,7 +92,7 @@ func (r *RemediationRunner) Run(ctx context.Context, specID, worktree string) er
 		}
 		if res != nil && res.Decision == stage.DecisionFail {
 			gapAnalysis := extractGapSummary(res)
-			if err := r.executeRemediation(ctx, &req, gapAnalysis); err != nil {
+			if err := r.executeRemediation(ctx, &req, gapAnalysis, r.cfg.Findings); err != nil {
 				return err
 			}
 			continue
@@ -129,7 +131,7 @@ func extractPlanContent(res *stage.Result) string {
 	return ""
 }
 
-func (r *RemediationRunner) executeRemediation(ctx context.Context, req *stage.Request, gapAnalysis string) error {
+func (r *RemediationRunner) executeRemediation(ctx context.Context, req *stage.Request, gapAnalysis string, findings []finding.Finding) error {
 	specID := req.Bead.ID
 	if !r.canRemediate() {
 		return r.handleGenerationCap(ctx, specID)
@@ -137,35 +139,38 @@ func (r *RemediationRunner) executeRemediation(ctx context.Context, req *stage.R
 
 	req.Remediation = true
 	req.GapAnalysis = gapAnalysis
+	req.Findings = cloneFindings(findings)
 
 	if r.cfg.GapStage != nil {
 		if _, err := r.cfg.GapStage.Run(ctx, req); err != nil {
 			return err
 		}
 	}
-
+	skipPlan := len(req.Findings) > 0
 	var planContent string
-	if r.cfg.PlanStage != nil {
-		planRes, err := r.cfg.PlanStage.Run(ctx, req)
-		if err != nil {
-			return fmt.Errorf("remediation plan: %w", err)
+	if !skipPlan {
+		if r.cfg.PlanStage != nil {
+			planRes, err := r.cfg.PlanStage.Run(ctx, req)
+			if err != nil {
+				return fmt.Errorf("remediation plan: %w", err)
+			}
+			planContent = extractPlanContent(planRes)
 		}
-		planContent = extractPlanContent(planRes)
-	}
 
-	if req.Worktree != "" {
-		// Persist the plan stage output when available; otherwise fall back to
-		// the gap analysis so there is always a remediation record on disk.
-		content := planContent
-		if content == "" {
-			content = gapAnalysis
-		}
-		planPath := r.remediationPlanPath(req.Worktree)
-		if err := os.MkdirAll(filepath.Dir(planPath), 0o755); err != nil {
-			return fmt.Errorf("create remediation plan dir: %w", err)
-		}
-		if err := os.WriteFile(planPath, []byte(content), 0o644); err != nil {
-			return fmt.Errorf("persist remediation plan: %w", err)
+		if req.Worktree != "" {
+			// Persist the plan stage output when available; otherwise fall back to
+			// the gap analysis so there is always a remediation record on disk.
+			content := planContent
+			if content == "" {
+				content = gapAnalysis
+			}
+			planPath := r.remediationPlanPath(req.Worktree)
+			if err := os.MkdirAll(filepath.Dir(planPath), 0o755); err != nil {
+				return fmt.Errorf("create remediation plan dir: %w", err)
+			}
+			if err := os.WriteFile(planPath, []byte(content), 0o644); err != nil {
+				return fmt.Errorf("persist remediation plan: %w", err)
+			}
 		}
 	}
 
@@ -234,6 +239,18 @@ func (r *RemediationRunner) presentFailureSummary(ctx context.Context, specID, r
 		return presenter.PresentSummary(ctx, specID, summary)
 	}
 	return nil
+}
+
+func cloneFindings(src []finding.Finding) []finding.Finding {
+	if len(src) == 0 {
+		return nil
+	}
+	clones := make([]finding.Finding, len(src))
+	for i, f := range src {
+		clones[i] = f
+		clones[i].AffectedFiles = append([]string(nil), f.AffectedFiles...)
+	}
+	return clones
 }
 
 func (r *RemediationRunner) decompose(ctx context.Context, req *stage.Request) ([]*bead.Bead, error) {
