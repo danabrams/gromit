@@ -179,7 +179,11 @@ func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Resul
 		var lastOutput string
 
 		for attempt := 0; attempt <= maxEvalParseRetries; attempt++ {
-			resp, err := provider.Invoke(ctx, llmtypes.LLMInvokeRequest{Prompt: promptText, Model: model, Dir: req.Worktree})
+			currentPrompt := promptText
+			if attempt > 0 && lastOutput != "" {
+				currentPrompt = buildRepairPrompt(lastOutput)
+			}
+			resp, err := provider.Invoke(ctx, llmtypes.LLMInvokeRequest{Prompt: currentPrompt, Model: model, Dir: req.Worktree})
 			if err != nil {
 				return nil, fmt.Errorf("evaluate criterion %d: %w", criterion.Number, err)
 			}
@@ -323,6 +327,19 @@ func (s *Stage) selectModel(cfg *config.Config, req *stagepkg.Request) string {
 		}
 	}
 	return config.ModelSonnet
+}
+
+func buildRepairPrompt(previousOutput string) string {
+	return fmt.Sprintf(`Your previous response was not valid JSON. Here is what you wrote:
+
+---
+%s
+---
+
+Please convert your evaluation above into ONLY a JSON object with this exact format:
+{"pass": true, "summary": "Brief explanation."}
+
+Set "pass" to true if the criterion is satisfied, false otherwise. Output ONLY the JSON object, nothing else.`, previousOutput)
 }
 
 func parseEvaluation(output string) (bool, string, error) {
