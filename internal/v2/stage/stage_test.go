@@ -45,6 +45,32 @@ func TestStageRequestConstruction(t *testing.T) {
 	}
 }
 
+func TestStageRequestFindingsField(t *testing.T) {
+	finding := SpecFinding{
+		Title:       "missing tests",
+		Description: "add regression coverage",
+		Severity:    SpecFindingSeverityHigh,
+		Category:    SpecFindingCategoryScope,
+		Scope:       SpecFindingScopeSpec,
+	}
+	req := StageRequest{Findings: []SpecFinding{finding}}
+
+	if len(req.Findings) != 1 {
+		t.Fatalf("expected 1 finding, got %d", len(req.Findings))
+	}
+
+	got := req.Findings[0]
+	if got.Severity != SpecFindingSeverityHigh {
+		t.Fatalf("unexpected severity %q", got.Severity)
+	}
+	if got.Category != SpecFindingCategoryScope {
+		t.Fatalf("unexpected category %q", got.Category)
+	}
+	if got.Scope != SpecFindingScopeSpec {
+		t.Fatalf("unexpected scope %q", got.Scope)
+	}
+}
+
 func TestDecisionStrings(t *testing.T) {
 	expected := map[Decision]string{
 		DecisionProceed: "proceed",

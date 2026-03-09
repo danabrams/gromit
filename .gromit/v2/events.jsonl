@@ -192,3 +192,26 @@
 {"schema_version":1,"timestamp":"2026-03-07T16:45:13.022158-05:00","type":"stage.completed","stage_name":"epilogue:default","bead_id":"gromit-zrrn7","iteration":24,"success":true,"duration":155617458}
 {"schema_version":1,"timestamp":"2026-03-07T16:45:13.022172-05:00","type":"bead.completed","bead_id":"gromit-zrrn7","bead_title":"Implement selective revalidation in spec loop","iteration":24,"success":true}
 {"schema_version":1,"timestamp":"2026-03-09T18:32:40.895379-04:00","type":"spec.started","spec_id":"spec-level-review-and-targeted-remediation","worktree":"/Users/dabrams/gromit/.gromit/spec-worktrees/spec-level-review-and-targeted-remediation"}
+{"schema_version":1,"timestamp":"2026-03-09T18:39:20.65509-04:00","type":"bead.started","bead_id":"gromit-1fxp2","bead_title":"Add findings-based template to Decompose stage","iteration":1}
+{"schema_version":1,"timestamp":"2026-03-09T18:39:20.655097-04:00","type":"stage.started","stage_name":"gate:default","bead_id":"gromit-1fxp2","iteration":1}
+{"schema_version":1,"timestamp":"2026-03-09T18:39:20.801919-04:00","type":"stage.completed","stage_name":"gate:default","bead_id":"gromit-1fxp2","iteration":1,"success":true,"duration":146821500}
+{"schema_version":1,"timestamp":"2026-03-09T18:39:20.801934-04:00","type":"bead.started","bead_id":"gromit-67dt0","bead_title":"Wire SpecReview stage into Run2 components with highest tier","iteration":2}
+{"schema_version":1,"timestamp":"2026-03-09T18:39:20.801937-04:00","type":"stage.started","stage_name":"gate:default","bead_id":"gromit-67dt0","iteration":2}
+{"schema_version":1,"timestamp":"2026-03-09T18:39:20.945909-04:00","type":"stage.completed","stage_name":"gate:default","bead_id":"gromit-67dt0","iteration":2,"success":true,"duration":143971375}
+{"schema_version":1,"timestamp":"2026-03-09T18:39:20.945922-04:00","type":"bead.started","bead_id":"gromit-6aq48","bead_title":"Add --from-review CLI flag to run2 command","iteration":3}
+{"schema_version":1,"timestamp":"2026-03-09T18:39:20.945925-04:00","type":"stage.started","stage_name":"gate:default","bead_id":"gromit-6aq48","iteration":3}
+{"schema_version":1,"timestamp":"2026-03-09T18:39:21.092529-04:00","type":"stage.completed","stage_name":"gate:default","bead_id":"gromit-6aq48","iteration":3,"success":true,"duration":146602750}
+{"schema_version":1,"timestamp":"2026-03-09T18:39:21.09255-04:00","type":"bead.started","bead_id":"gromit-8vsyt","bead_title":"Add from-review bead creation to SpecReview stage","iteration":4}
+{"schema_version":1,"timestamp":"2026-03-09T18:39:21.092552-04:00","type":"stage.started","stage_name":"gate:default","bead_id":"gromit-8vsyt","iteration":4}
+{"schema_version":1,"timestamp":"2026-03-09T18:39:21.235454-04:00","type":"stage.completed","stage_name":"gate:default","bead_id":"gromit-8vsyt","iteration":4,"success":true,"duration":142901125}
+{"schema_version":1,"timestamp":"2026-03-09T18:39:21.235465-04:00","type":"bead.started","bead_id":"gromit-bdbf4","bead_title":"Implement SpecReview Run() method with LLM invocation","iteration":5}
+{"schema_version":1,"timestamp":"2026-03-09T18:39:21.235467-04:00","type":"stage.started","stage_name":"gate:default","bead_id":"gromit-bdbf4","iteration":5}
+{"schema_version":1,"timestamp":"2026-03-09T18:39:21.382399-04:00","type":"stage.completed","stage_name":"gate:default","bead_id":"gromit-bdbf4","iteration":5,"success":true,"duration":146930292}
+{"schema_version":1,"timestamp":"2026-03-09T18:39:21.382411-04:00","type":"bead.started","bead_id":"gromit-bk3l1","bead_title":"Add SpecFinding type to stage package","iteration":6}
+{"schema_version":1,"timestamp":"2026-03-09T18:39:21.382413-04:00","type":"stage.started","stage_name":"gate:default","bead_id":"gromit-bk3l1","iteration":6}
+{"schema_version":1,"timestamp":"2026-03-09T18:39:21.454235-04:00","type":"stage.completed","stage_name":"gate:default","bead_id":"gromit-bk3l1","iteration":6,"success":true,"duration":71820916}
+{"schema_version":1,"timestamp":"2026-03-09T18:39:21.454252-04:00","type":"model.selected","bead_id":"gromit-bk3l1","model":"gpt-5.1-codex-mini","provider":"openai","tier":"low","reason":"router"}
+{"schema_version":1,"timestamp":"2026-03-09T18:39:21.454253-04:00","type":"stage.started","stage_name":"build:default","bead_id":"gromit-bk3l1","iteration":6}
+{"schema_version":1,"timestamp":"2026-03-09T18:39:21.454253-04:00","type":"build_invocation.start","bead_id":"gromit-bk3l1","model":"gpt-5.1-codex-mini","provider":"openai","tier":"low","attempt":1,"max_attempts":2}
+{"schema_version":1,"timestamp":"2026-03-09T18:43:22.502243-04:00","type":"build_invocation.complete","bead_id":"gromit-bk3l1","model":"gpt-5.1-codex-mini","provider":"openai","success":true,"duration":241047134916,"input_tokens":1924733,"output_tokens":16807,"prompt_size":17973}
+{"schema_version":1,"timestamp":"2026-03-09T18:43:22.502251-04:00","type":"stage.completed","stage_name":"build:default","bead_id":"gromit-bk3l1","iteration":6,"success":true,"duration":241047134916}

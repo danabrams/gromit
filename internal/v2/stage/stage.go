@@ -31,6 +31,7 @@ type StageRequest struct {
 	Findings     []finding.Finding
 	RetryContext *RetryContext
 	Telemetry    *LLMCostSummary
+	Findings     []SpecFinding
 }
 
 // StageResult reports the outcome of a stage invocation.
@@ -101,6 +102,42 @@ type RetryConfig struct {
 	MaxRetries int
 	RetryWith  []string
 }
+
+// SpecFinding represents a finding about a spec surfaced by a stage.
+type SpecFinding struct {
+	Title       string
+	Description string
+	Severity    SpecFindingSeverity
+	Category    SpecFindingCategory
+	Scope       SpecFindingScope
+}
+
+// SpecFindingSeverity classifies the urgency of a finding.
+type SpecFindingSeverity string
+
+const (
+	SpecFindingSeverityHigh   SpecFindingSeverity = "high"
+	SpecFindingSeverityMedium SpecFindingSeverity = "medium"
+	SpecFindingSeverityLow    SpecFindingSeverity = "low"
+)
+
+// SpecFindingCategory groups findings by their domain.
+type SpecFindingCategory string
+
+const (
+	SpecFindingCategoryScope   SpecFindingCategory = "scope"
+	SpecFindingCategoryQuality SpecFindingCategory = "quality"
+	SpecFindingCategorySafety  SpecFindingCategory = "safety"
+)
+
+// SpecFindingScope identifies the artifact affected by a finding.
+type SpecFindingScope string
+
+const (
+	SpecFindingScopeSpec  SpecFindingScope = "spec"
+	SpecFindingScopeBead  SpecFindingScope = "bead"
+	SpecFindingScopeStage SpecFindingScope = "stage"
+)
 
 // LLMCostSummary captures telemetry about the LLM invocation that drove the iteration.
 type LLMCostSummary struct {
