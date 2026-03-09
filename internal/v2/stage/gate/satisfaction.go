@@ -2,10 +2,10 @@ package gate
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 
+	"github.com/danabrams/gromit/internal/jsonutil"
 	"github.com/danabrams/gromit/internal/v2/llmtypes"
 )
 
@@ -86,16 +86,8 @@ func checkSatisfaction(ctx context.Context, llm llmtypes.LLMProvider, tier, diff
 			Summary string `json:"summary"`
 		}
 		trimmed := strings.TrimSpace(resp.Output)
-		if err := json.Unmarshal([]byte(trimmed), &eval); err != nil {
-			start := strings.Index(trimmed, "{")
-			end := strings.LastIndex(trimmed, "}")
-			if start >= 0 && end > start {
-				if err2 := json.Unmarshal([]byte(trimmed[start:end+1]), &eval); err2 != nil {
-					return false, fmt.Errorf("parse satisfaction response: %w", err2)
-				}
-			} else {
-				return false, fmt.Errorf("parse satisfaction response: %w", err)
-			}
+		if err := jsonutil.ExtractObject(trimmed, &eval); err != nil {
+			return false, fmt.Errorf("parse satisfaction response: %w", err)
 		}
 
 		if !eval.Pass {

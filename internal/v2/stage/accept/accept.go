@@ -2,7 +2,6 @@ package accept
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -10,6 +9,7 @@ import (
 
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/coverage"
+	"github.com/danabrams/gromit/internal/jsonutil"
 	"github.com/danabrams/gromit/internal/v2/llmtypes"
 	"github.com/danabrams/gromit/internal/v2/presentation"
 	v2prompt "github.com/danabrams/gromit/internal/v2/prompt"
@@ -306,19 +306,10 @@ func parseEvaluation(output string) (bool, string, error) {
 		Summary string `json:"summary"`
 	}
 
-	if err := json.Unmarshal([]byte(trimmed), &eval); err == nil {
-		return eval.Pass, strings.TrimSpace(eval.Summary), nil
+	if err := jsonutil.ExtractObject(trimmed, &eval); err != nil {
+		return false, "", fmt.Errorf("parse evaluation output: %w", err)
 	}
-
-	start := strings.Index(trimmed, "{")
-	end := strings.LastIndex(trimmed, "}")
-	if start >= 0 && end > start {
-		if err := json.Unmarshal([]byte(trimmed[start:end+1]), &eval); err == nil {
-			return eval.Pass, strings.TrimSpace(eval.Summary), nil
-		}
-	}
-
-	return false, "", fmt.Errorf("parse evaluation output: unable to unmarshal JSON")
+	return eval.Pass, strings.TrimSpace(eval.Summary), nil
 }
 
 func summaryOrDefault(summary string) string {
