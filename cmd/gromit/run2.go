@@ -283,6 +283,15 @@ func loadSpecFromArg(arg string) (*v2spec.Spec, error) {
 	return specFile, nil
 }
 
+func fromReviewLabels(spec string) []string {
+	labels := []string{"from-review"}
+	spec = strings.TrimSpace(spec)
+	if spec != "" {
+		labels = append(labels, fmt.Sprintf("spec:%s", spec))
+	}
+	return labels
+}
+
 // buildRouter constructs a Router from the config's provider and routing
 // settings. Returns (nil, phaseModels) when no providers are configured —
 // the spec loop handles a nil Router gracefully, but phaseModels must
