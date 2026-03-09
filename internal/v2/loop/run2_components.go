@@ -16,6 +16,7 @@ import (
 	"github.com/danabrams/gromit/internal/v2/adapter"
 	"github.com/danabrams/gromit/internal/v2/adapter/llm"
 	"github.com/danabrams/gromit/internal/v2/event"
+	"github.com/danabrams/gromit/internal/v2/llmtypes"
 	"github.com/danabrams/gromit/internal/v2/pipeline"
 	v2remediation "github.com/danabrams/gromit/internal/v2/remediation"
 	"github.com/danabrams/gromit/internal/v2/routing"
@@ -208,12 +209,15 @@ func NewRun2LoopComponents(cfg *config.Config, adapters adapter.AdapterSet, lega
 		return nil, err
 	}
 
-	specReviewStage, err := specreviewstage.New(cfg, adapters.Git, adapters.LLM, baseInstructions, projectContext, specReviewFragment)
+	specReviewStageBase, err := specreviewstage.New(cfg, adapters.Git, adapters.LLM, baseInstructions, projectContext, specReviewFragment)
 	if err != nil {
 		cleanup()
 		return nil, err
 	}
-	specReviewStage = specReviewStage.WithTypedEmitter(typedEmitter)
+	specReviewStageBase = specReviewStageBase.WithTypedEmitter(typedEmitter)
+
+	var specReviewStage stagepkg.Stage = specReviewStageBase
+	specReviewStage = newTieredSpecReviewStage(specReviewStage, router)
 
 	remediationRunner := v2remediation.NewRemediationRunner(v2remediation.RemediationRunnerConfig{
 		AcceptStage:    acceptStage,
@@ -414,4 +418,60 @@ func loadFragment(projectRoot, filename string) (string, error) {
 		return "", fmt.Errorf("reading %s: %w", filename, err)
 	}
 	return string(content), nil
+}
+
+const specReviewPhase = "specreview"
+
+type specReviewRouter interface {
+	Select(phase, tier string) (llmtypes.LLMProvider, string, string, error)
+}
+
+type tieredSpecReviewStage struct {
+	inner  stagepkg.Stage
+	router specReviewRouter
+	phase  string
+	tier   string
+}
+
+func newTieredSpecReviewStage(inner stagepkg.Stage, router specReviewRouter) stagepkg.Stage {
+	if inner == nil || router == nil {
+		return inner
+	}
+	return &tieredSpecReviewStage{
+		inner:  inner,
+		router: router,
+		phase:  specReviewPhase,
+		tier:   routing.TierHigh,
+	}
+}
+
+func (s *tieredSpecReviewStage) Name() string {
+	if s == nil || s.inner == nil {
+		return ""
+	}
+	return s.inner.Name()
+}
+
+func (s *tieredSpecReviewStage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Result, error) {
+	if s == nil || s.inner == nil {
+		return nil, fmt.Errorf("spec review stage missing")
+	}
+	if req == nil {
+		return s.inner.Run(ctx, req)
+	}
+	provider, model, _, err := s.router.Select(s.phase, s.tier)
+	if err != nil || provider == nil {
+		return s.inner.Run(ctx, req)
+	}
+	oldProvider := req.Provider
+	oldModel := req.Model
+	oldTier := req.Tier
+	req.Provider = provider
+	req.Model = model
+	req.Tier = s.tier
+	res, runErr := s.inner.Run(ctx, req)
+	req.Provider = oldProvider
+	req.Model = oldModel
+	req.Tier = oldTier
+	return res, runErr
 }

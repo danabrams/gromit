@@ -589,11 +589,11 @@ func TestTieredSpecReviewStageRequestsHighTier(t *testing.T) {
 	if base.lastRequest == nil {
 		t.Fatal("inner stage not invoked")
 	}
-	if base.lastRequest.Provider != router.provider {
-		t.Fatalf("provider = %v, want %v", base.lastRequest.Provider, router.provider)
+	if base.capturedProvider != router.provider {
+		t.Fatalf("provider = %v, want %v", base.capturedProvider, router.provider)
 	}
-	if base.lastRequest.Model != router.model {
-		t.Fatalf("model = %q, want %q", base.lastRequest.Model, router.model)
+	if base.capturedModel != router.model {
+		t.Fatalf("model = %q, want %q", base.capturedModel, router.model)
 	}
 	if router.phase != "specreview" {
 		t.Fatalf("router phase = %q, want %q", router.phase, "specreview")
@@ -604,13 +604,17 @@ func TestTieredSpecReviewStageRequestsHighTier(t *testing.T) {
 }
 
 type recordingSpecReviewStage struct {
-	lastRequest *stagepkg.Request
+	lastRequest       *stagepkg.Request
+	capturedProvider llmtypes.LLMProvider
+	capturedModel    string
 }
 
 func (s *recordingSpecReviewStage) Name() string { return "specreview" }
 
 func (s *recordingSpecReviewStage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Result, error) {
 	s.lastRequest = req
+	s.capturedProvider = req.Provider
+	s.capturedModel = req.Model
 	return &stagepkg.Result{Decision: stagepkg.DecisionProceed}, nil
 }
 
