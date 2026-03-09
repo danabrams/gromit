@@ -17,6 +17,7 @@ import (
 	"github.com/danabrams/gromit/internal/v2/adapter"
 	"github.com/danabrams/gromit/internal/v2/event"
 	"github.com/danabrams/gromit/internal/v2/loop"
+	"github.com/danabrams/gromit/internal/v2/routing"
 	v2spec "github.com/danabrams/gromit/internal/v2/spec"
 	"github.com/danabrams/gromit/internal/v2/trackertypes"
 )
@@ -295,7 +296,7 @@ func TestRun2EpicFlagRunsAllSpecs(t *testing.T) {
 }
 
 func TestRun2FromReviewUsesBeadLoop(t *testing.T) {
-	specsDir, cleanup := setupRun2TestEnv(t)
+	_, cleanup := setupRun2TestEnv(t)
 	defer cleanup()
 
 	cfg, err := loadConfig()
@@ -326,7 +327,7 @@ func TestRun2FromReviewUsesBeadLoop(t *testing.T) {
 	}
 
 	origRunBeadLoopFn := runBeadLoopFn
-	runBeadLoopFn = func(loop *loop.BeadLoop, ctx context.Context, beads []*bead.Bead, stopCh <-chan struct{}) (loop.BeadLoopResult, error) {
+	runBeadLoopFn = func(beadLoop *loop.BeadLoop, ctx context.Context, beads []*bead.Bead, stopCh <-chan struct{}) (loop.BeadLoopResult, error) {
 		captured.called = true
 		captured.beads = append([]*bead.Bead(nil), beads...)
 		return loop.BeadLoopResult{}, nil
@@ -352,10 +353,6 @@ func TestRun2FromReviewUsesBeadLoop(t *testing.T) {
 
 	run2Cmd.SetOut(io.Discard)
 	run2Cmd.SetErr(io.Discard)
-	if err := run2Cmd.Flags().Set("spec", "review-spec"); err != nil {
-		t.Fatalf("set spec flag: %v", err)
-	}
-	defer run2Cmd.Flags().Set("spec", "")
 
 	if err := run2FromReview(run2Cmd, cfg); err != nil {
 		t.Fatalf("run2FromReview = %v", err)
@@ -364,8 +361,8 @@ func TestRun2FromReviewUsesBeadLoop(t *testing.T) {
 	if !captured.called {
 		t.Fatal("bead loop never executed")
 	}
-	if got := fakeTracker.lastQuery.Labels; !reflect.DeepEqual(got, []string{"from-review", "spec:review-spec"}) {
-		t.Fatalf("tracker labels = %v, want %v", got, []string{"from-review", "spec:review-spec"})
+	if got := fakeTracker.lastQuery.Labels; !reflect.DeepEqual(got, []string{"from-review"}) {
+		t.Fatalf("tracker labels = %v, want %v", got, []string{"from-review"})
 	}
 	if fakeTracker.lastQuery.Status != "open" {
 		t.Fatalf("tracker status = %q, want %q", fakeTracker.lastQuery.Status, "open")
@@ -471,7 +468,7 @@ func (r *recordingSpecLoop) Run(ctx context.Context, specID string, stopCh <-cha
 
 type fakeTaskTracker struct {
 	lastQuery trackertypes.TaskTrackerQueryBeadsRequest
-	response []trackertypes.Bead
+	response  []trackertypes.Bead
 }
 
 func (f *fakeTaskTracker) NextBead(context.Context, trackertypes.TaskTrackerNextBeadRequest) (*trackertypes.TaskTrackerNextBeadResponse, error) {
