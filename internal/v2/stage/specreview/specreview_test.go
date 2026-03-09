@@ -106,12 +106,12 @@ func TestParseSpecReviewOutput(t *testing.T) {
 }
 
 func TestNewSpecReviewStageRequiresConfig(t *testing.T) {
-	if _, err := New(nil); err == nil {
+	if _, err := New(nil, nil, nil, "", "", ""); err == nil {
 		t.Fatal("expected error when config is nil")
 	}
 
 	cfg := &config.Config{Project: config.ProjectConfig{Profile: "example"}}
-	stage, err := New(cfg)
+	stage, err := New(cfg, &fakeGitDiffer{}, &fakeLLMProvider{resp: &githubllm.LLMInvokeResponse{Success: true}}, "", "", "")
 	if err != nil {
 		t.Fatalf("New returned error: %v", err)
 	}
