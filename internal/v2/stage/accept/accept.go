@@ -2,13 +2,16 @@ package accept
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/coverage"
+	"github.com/danabrams/gromit/internal/events"
 	"github.com/danabrams/gromit/internal/jsonutil"
 	"github.com/danabrams/gromit/internal/v2/llmtypes"
 	"github.com/danabrams/gromit/internal/v2/presentation"
@@ -82,6 +85,13 @@ type Stage struct {
 	base     string
 	project  string
 	fragment string
+	events.EmitterMixin
+}
+
+// WithEmitter attaches an emitter for logging criterion evaluations.
+func (s *Stage) WithEmitter(emitter *events.Emitter) *Stage {
+	s.EmitterMixin.SetEmitter(emitter)
+	return s
 }
 
 // New constructs an accept stage with the provided dependencies.
@@ -171,52 +181,37 @@ func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Resul
 	var findings []finding.Finding
 
 	for _, criterion := range criteria {
-		promptText := s.buildPrompt(specID, criterion, diff)
-		model := s.selectModel(cfg, req)
-
-		var pass bool
-		var summary string
-		var lastOutput string
-
-		for attempt := 0; attempt <= maxEvalParseRetries; attempt++ {
-			currentPrompt := promptText
-			if attempt > 0 && lastOutput != "" {
-				currentPrompt = buildRepairPrompt(lastOutput)
-			}
-			resp, err := provider.Invoke(ctx, llmtypes.LLMInvokeRequest{Prompt: currentPrompt, Model: model, Dir: req.Worktree})
-			if err != nil {
-				return nil, fmt.Errorf("evaluate criterion %d: %w", criterion.Number, err)
-			}
-			if resp == nil {
-				return nil, fmt.Errorf("evaluate criterion %d: provider returned nil response", criterion.Number)
-			}
-			if !resp.Success {
-				detail := strings.TrimSpace(resp.Output)
-				if detail == "" {
-					detail = "no detail available"
-				}
-				return nil, fmt.Errorf("evaluate criterion %d: provider reported unsuccessful invocation: %s", criterion.Number, detail)
-			}
-
-			lastOutput = resp.Output
-			var parseErr error
-			pass, summary, parseErr = parseEvaluation(resp.Output)
-			if parseErr == nil {
-				break
-			}
-			if attempt == maxEvalParseRetries {
-				preview := lastOutput
-				if len(preview) > outputPreviewMaxLen {
-					preview = preview[:outputPreviewMaxLen] + "... (truncated)"
-				}
-				return nil, fmt.Errorf("parse criterion %d evaluation: %w\nLLM output preview: %s", criterion.Number, parseErr, preview)
-			}
+		// Bail if the parent context was explicitly cancelled (e.g. user stop).
+		if ctx.Err() != nil {
+			return nil, fmt.Errorf("accept interrupted: %w", ctx.Err())
 		}
 
 		trimmed := strings.TrimSpace(criterion.Text)
 		if trimmed == "" {
 			trimmed = fmt.Sprintf("criterion %d", criterion.Number)
 		}
+
+		s.Log("info", "accept: evaluating criterion %d/%d: %s", criterion.Number, len(criteria), trimmed)
+		start := time.Now()
+
+		pass, summary, evalErr := s.evaluateCriterion(ctx, provider, specID, criterion, diff, cfg, req)
+		elapsed := time.Since(start)
+
+		if evalErr != nil {
+			// Parent context cancelled — stop entirely.
+			if ctx.Err() != nil {
+				return nil, fmt.Errorf("accept interrupted during criterion %d: %w", criterion.Number, evalErr)
+			}
+			// Per-criterion timeout — soft failure, continue evaluating.
+			if errors.Is(evalErr, context.DeadlineExceeded) {
+				s.Log("info", "accept: criterion %d timed out after %s, marking FAIL", criterion.Number, elapsed.Truncate(time.Second))
+				pass = false
+				summary = fmt.Sprintf("evaluation timed out after %s", elapsed.Truncate(time.Second))
+			} else {
+				return nil, fmt.Errorf("evaluate criterion %d: %w", criterion.Number, evalErr)
+			}
+		}
+
 		score := "PASS"
 		if !pass {
 			score = "FAIL"
@@ -228,6 +223,8 @@ func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Resul
 				Description: summaryOrDefault(summary),
 			})
 		}
+
+		s.Log("info", "accept: criterion %d %s (%s)", criterion.Number, score, elapsed.Truncate(time.Second))
 
 		results = append(results, presentation.AcceptanceResult{
 			Title:       trimmed,
@@ -249,6 +246,49 @@ func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Resul
 	}
 
 	return &stagepkg.Result{Decision: stagepkg.DecisionProceed, Artifacts: artifacts}, nil
+}
+
+// evaluateCriterion runs the LLM evaluation for a single criterion with retry on parse failure.
+func (s *Stage) evaluateCriterion(ctx context.Context, provider llmtypes.LLMProvider, specID string, criterion coverage.Criterion, diff string, cfg *config.Config, req *stagepkg.Request) (bool, string, error) {
+	promptText := s.buildPrompt(specID, criterion, diff)
+	model := s.selectModel(cfg, req)
+
+	var lastOutput string
+
+	for attempt := 0; attempt <= maxEvalParseRetries; attempt++ {
+		currentPrompt := promptText
+		if attempt > 0 && lastOutput != "" {
+			currentPrompt = buildRepairPrompt(lastOutput)
+		}
+		resp, err := provider.Invoke(ctx, llmtypes.LLMInvokeRequest{Prompt: currentPrompt, Model: model, Dir: req.Worktree})
+		if err != nil {
+			return false, "", err
+		}
+		if resp == nil {
+			return false, "", fmt.Errorf("provider returned nil response")
+		}
+		if !resp.Success {
+			detail := strings.TrimSpace(resp.Output)
+			if detail == "" {
+				detail = "no detail available"
+			}
+			return false, "", fmt.Errorf("provider reported unsuccessful invocation: %s", detail)
+		}
+
+		lastOutput = resp.Output
+		pass, summary, parseErr := parseEvaluation(resp.Output)
+		if parseErr == nil {
+			return pass, summary, nil
+		}
+		if attempt == maxEvalParseRetries {
+			preview := lastOutput
+			if len(preview) > outputPreviewMaxLen {
+				preview = preview[:outputPreviewMaxLen] + "... (truncated)"
+			}
+			return false, "", fmt.Errorf("parse evaluation: %w\nLLM output preview: %s", parseErr, preview)
+		}
+	}
+	return false, "", fmt.Errorf("unreachable: evaluation loop exited without result")
 }
 
 func (s *Stage) resolveConfig(req *stagepkg.Request) (*config.Config, error) {

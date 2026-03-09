@@ -202,6 +202,7 @@ func NewRun2LoopComponents(cfg *config.Config, adapters adapter.AdapterSet, lega
 		cleanup()
 		return nil, err
 	}
+	acceptStage = acceptStage.WithEmitter(legacyEmitter)
 
 	specReviewFragment, err := loadFragment(cfg.ProjectRoot, "review_spec_v2.md")
 	if err != nil {
