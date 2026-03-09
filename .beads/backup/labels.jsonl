@@ -2837,6 +2837,9 @@
 {"issue_id":"gromit-t4sir","label":"tdd:false"}
 {"issue_id":"gromit-t5j","label":"complexity:low"}
 {"issue_id":"gromit-t5x0","label":"spec:debug-command"}
+{"issue_id":"gromit-t6zsi","label":"estimated-files:2"}
+{"issue_id":"gromit-t6zsi","label":"gen:0"}
+{"issue_id":"gromit-t6zsi","label":"spec:spec-level-review-and-targeted-remediation"}
 {"issue_id":"gromit-t7s","label":"spec:claude-skill"}
 {"issue_id":"gromit-t8a9e","label":"estimated-files:2"}
 {"issue_id":"gromit-t8a9e","label":"spec:strengthen-quality-gates"}
