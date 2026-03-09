@@ -249,3 +249,23 @@
 {"schema_version":1,"timestamp":"2026-03-09T08:05:43.56023-04:00","type":"stage.completed","stage_name":"validate:default","bead_id":"gromit-hab86","iteration":12,"success":true,"duration":41983875}
 {"schema_version":1,"timestamp":"2026-03-09T08:05:43.615066-04:00","type":"stage.started","stage_name":"review:default","bead_id":"gromit-hab86","iteration":12}
 {"schema_version":1,"timestamp":"2026-03-09T08:05:43.615085-04:00","type":"stage.completed","stage_name":"review:default","bead_id":"gromit-hab86","iteration":12,"success":true,"duration":11875}
+{"schema_version":1,"timestamp":"2026-03-09T08:05:43.665466-04:00","type":"stage.started","stage_name":"epilogue:default","bead_id":"gromit-hab86","iteration":12}
+{"schema_version":1,"timestamp":"2026-03-09T08:05:43.871697-04:00","type":"stage.completed","stage_name":"epilogue:default","bead_id":"gromit-hab86","iteration":12,"success":true,"duration":206225666}
+{"schema_version":1,"timestamp":"2026-03-09T08:05:43.871711-04:00","type":"bead.completed","bead_id":"gromit-hab86","bead_title":"Implement spec-level review stage","iteration":12,"success":true,"model":"gpt-5.1-codex-mini","provider":"openai","input_tokens":4656331,"output_tokens":40381,"duration":455329275292}
+{"schema_version":1,"timestamp":"2026-03-09T08:05:43.871731-04:00","type":"bead.started","bead_id":"gromit-p1t55","bead_title":"Add --from-review flag to run2 command","iteration":13}
+{"schema_version":1,"timestamp":"2026-03-09T08:05:43.871735-04:00","type":"stage.started","stage_name":"gate:default","bead_id":"gromit-p1t55","iteration":13}
+{"schema_version":1,"timestamp":"2026-03-09T08:05:44.022739-04:00","type":"stage.completed","stage_name":"gate:default","bead_id":"gromit-p1t55","iteration":13,"success":true,"duration":151002334}
+{"schema_version":1,"timestamp":"2026-03-09T08:05:44.022751-04:00","type":"bead.started","bead_id":"gromit-pxmbf","bead_title":"Write integration tests for specreview pipeline","iteration":14}
+{"schema_version":1,"timestamp":"2026-03-09T08:05:44.02276-04:00","type":"stage.started","stage_name":"gate:default","bead_id":"gromit-pxmbf","iteration":14}
+{"schema_version":1,"timestamp":"2026-03-09T08:05:44.167462-04:00","type":"stage.completed","stage_name":"gate:default","bead_id":"gromit-pxmbf","iteration":14,"success":true,"duration":144700542}
+{"schema_version":1,"timestamp":"2026-03-09T08:05:44.167475-04:00","type":"bead.started","bead_id":"gromit-rrvkr","bead_title":"Update remediation to accept findings","iteration":15}
+{"schema_version":1,"timestamp":"2026-03-09T08:05:44.167483-04:00","type":"stage.started","stage_name":"gate:default","bead_id":"gromit-rrvkr","iteration":15}
+{"schema_version":1,"timestamp":"2026-03-09T08:05:44.319141-04:00","type":"stage.completed","stage_name":"gate:default","bead_id":"gromit-rrvkr","iteration":15,"success":true,"duration":151656959}
+{"schema_version":1,"timestamp":"2026-03-09T08:05:44.319153-04:00","type":"bead.started","bead_id":"gromit-sc7bv","bead_title":"Add findings output to accept stage","iteration":16}
+{"schema_version":1,"timestamp":"2026-03-09T08:05:44.31916-04:00","type":"stage.started","stage_name":"gate:default","bead_id":"gromit-sc7bv","iteration":16}
+{"schema_version":1,"timestamp":"2026-03-09T08:05:44.466583-04:00","type":"stage.completed","stage_name":"gate:default","bead_id":"gromit-sc7bv","iteration":16,"success":true,"duration":147417125}
+{"schema_version":1,"timestamp":"2026-03-09T08:05:44.466593-04:00","type":"model.selected","bead_id":"gromit-sc7bv","model":"gpt-5.1-codex-mini","provider":"openai","tier":"low","reason":"router"}
+{"schema_version":1,"timestamp":"2026-03-09T08:05:44.466595-04:00","type":"stage.started","stage_name":"build:default","bead_id":"gromit-sc7bv","iteration":16}
+{"schema_version":1,"timestamp":"2026-03-09T08:05:44.466596-04:00","type":"build_invocation.start","bead_id":"gromit-sc7bv","model":"gpt-5.1-codex-mini","provider":"openai","tier":"low","attempt":1,"max_attempts":2}
+{"schema_version":1,"timestamp":"2026-03-09T08:09:09.212689-04:00","type":"build_invocation.complete","bead_id":"gromit-sc7bv","model":"gpt-5.1-codex-mini","provider":"openai","success":true,"duration":204745228375,"input_tokens":1638635,"output_tokens":15613,"prompt_size":18047}
+{"schema_version":1,"timestamp":"2026-03-09T08:09:09.212696-04:00","type":"stage.completed","stage_name":"build:default","bead_id":"gromit-sc7bv","iteration":16,"success":true,"duration":204745228375}
