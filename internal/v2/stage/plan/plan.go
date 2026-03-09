@@ -108,6 +108,16 @@ type PlanArtifacts struct {
 	Model  string
 }
 
+// GetPlanContent returns the generated plan text. This satisfies the
+// planContentProvider interface used by the remediation runner to persist
+// the plan stage output into remediation-N.md files.
+func (a *PlanArtifacts) GetPlanContent() string {
+	if a == nil {
+		return ""
+	}
+	return a.Plan
+}
+
 // New constructs a plan stage backed by the provided configuration.
 func New(cfg *config.Config, provider llmtypes.LLMProvider, base, project, fragment string) (*Stage, error) {
 	if cfg == nil {

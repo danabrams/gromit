@@ -235,6 +235,8 @@ func (f *fakeLLMAdapter) planFor(specID string) string {
 
 type fakeTaskTrackerAdapter struct {
 	queryBeadsResponse *tasktracker.TaskTrackerQueryBeadsResponse
+	queryBeadsErr      error // returned on every QueryBeads call when set
+	queryBeadsOpenErr  error // returned only when Status filter is non-empty
 }
 
 func newFakeTaskTrackerAdapter() *fakeTaskTrackerAdapter {
@@ -257,8 +259,24 @@ func (f *fakeTaskTrackerAdapter) CloseBead(_ context.Context, _ tasktracker.Task
 	return &tasktracker.TaskTrackerCloseBeadResponse{Closed: true}, nil
 }
 
-func (f *fakeTaskTrackerAdapter) QueryBeads(_ context.Context, _ tasktracker.TaskTrackerQueryBeadsRequest) (*tasktracker.TaskTrackerQueryBeadsResponse, error) {
+func (f *fakeTaskTrackerAdapter) QueryBeads(_ context.Context, req tasktracker.TaskTrackerQueryBeadsRequest) (*tasktracker.TaskTrackerQueryBeadsResponse, error) {
+	if f.queryBeadsErr != nil {
+		return nil, f.queryBeadsErr
+	}
+	if req.Status != "" && f.queryBeadsOpenErr != nil {
+		return nil, f.queryBeadsOpenErr
+	}
 	if f.queryBeadsResponse != nil {
+		// If a status filter is specified, return only matching beads.
+		if req.Status != "" {
+			var filtered []tasktracker.Bead
+			for _, b := range f.queryBeadsResponse.Beads {
+				if b.Status == req.Status {
+					filtered = append(filtered, b)
+				}
+			}
+			return &tasktracker.TaskTrackerQueryBeadsResponse{Beads: filtered}, nil
+		}
 		return f.queryBeadsResponse, nil
 	}
 	return &tasktracker.TaskTrackerQueryBeadsResponse{}, nil

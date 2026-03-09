@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/events"
@@ -15,6 +17,7 @@ import (
 // RemediationRunnerConfig captures dependencies for remediation orchestration.
 type RemediationRunnerConfig struct {
 	AcceptStage     stage.Stage
+	PlanStage       stage.Stage
 	GapStage        stage.Stage
 	DecomposeStage  stage.Stage
 	BeadRunner      BeadRunner
@@ -37,6 +40,14 @@ type WorktreeCleaner interface {
 // gapSummaryProvider is implemented by artifacts that carry a gap analysis summary.
 type gapSummaryProvider interface {
 	GetGapSummary() string
+}
+
+// planContentProvider is implemented by artifacts that carry generated plan text.
+// The plan stage's PlanArtifacts satisfies this interface when a GetPlanContent
+// method is added, allowing the remediation runner to persist the actual
+// remediation plan rather than just the gap analysis.
+type planContentProvider interface {
+	GetPlanContent() string
 }
 
 var (
@@ -108,6 +119,16 @@ func extractGapSummary(res *stage.Result) string {
 	return ""
 }
 
+func extractPlanContent(res *stage.Result) string {
+	if res == nil || res.Artifacts == nil {
+		return ""
+	}
+	if pp, ok := res.Artifacts.(planContentProvider); ok {
+		return pp.GetPlanContent()
+	}
+	return ""
+}
+
 func (r *RemediationRunner) executeRemediation(ctx context.Context, req *stage.Request, gapAnalysis string) error {
 	specID := req.Bead.ID
 	if !r.canRemediate() {
@@ -120,6 +141,31 @@ func (r *RemediationRunner) executeRemediation(ctx context.Context, req *stage.R
 	if r.cfg.GapStage != nil {
 		if _, err := r.cfg.GapStage.Run(ctx, req); err != nil {
 			return err
+		}
+	}
+
+	var planContent string
+	if r.cfg.PlanStage != nil {
+		planRes, err := r.cfg.PlanStage.Run(ctx, req)
+		if err != nil {
+			return fmt.Errorf("remediation plan: %w", err)
+		}
+		planContent = extractPlanContent(planRes)
+	}
+
+	if req.Worktree != "" {
+		// Persist the plan stage output when available; otherwise fall back to
+		// the gap analysis so there is always a remediation record on disk.
+		content := planContent
+		if content == "" {
+			content = gapAnalysis
+		}
+		planPath := r.remediationPlanPath(req.Worktree)
+		if err := os.MkdirAll(filepath.Dir(planPath), 0o755); err != nil {
+			return fmt.Errorf("create remediation plan dir: %w", err)
+		}
+		if err := os.WriteFile(planPath, []byte(content), 0o644); err != nil {
+			return fmt.Errorf("persist remediation plan: %w", err)
 		}
 	}
 
@@ -138,6 +184,11 @@ func (r *RemediationRunner) executeRemediation(ctx context.Context, req *stage.R
 	r.generationCount++
 
 	return nil
+}
+
+func (r *RemediationRunner) remediationPlanPath(worktree string) string {
+	gromitDir := filepath.Join(worktree, ".gromit", "v2")
+	return filepath.Join(gromitDir, fmt.Sprintf("remediation-%d.md", r.generationCount+1))
 }
 
 func (r *RemediationRunner) generationCap() int {

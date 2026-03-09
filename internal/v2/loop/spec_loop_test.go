@@ -660,8 +660,8 @@ func TestSpecLoopReusesExistingBeads(t *testing.T) {
 	taskTracker := newFakeTaskTrackerAdapter()
 	taskTracker.queryBeadsResponse = &tasktracker.TaskTrackerQueryBeadsResponse{
 		Beads: []tasktracker.Bead{
-			{ID: "bead-1", Title: "First bead"},
-			{ID: "bead-2", Title: "Second bead"},
+			{ID: "bead-1", Title: "First bead", Status: "open"},
+			{ID: "bead-2", Title: "Second bead", Status: "open"},
 		},
 	}
 
@@ -1363,7 +1363,7 @@ func TestResumeWithGapAnalysis_FailureSummaryPopulated(t *testing.T) {
 	taskTracker := newFakeTaskTrackerAdapter()
 	taskTracker.queryBeadsResponse = &tasktracker.TaskTrackerQueryBeadsResponse{
 		Beads: []tasktracker.Bead{
-			{ID: "bead-remaining", Title: "Remaining bead"},
+			{ID: "bead-remaining", Title: "Remaining bead", Status: "open"},
 		},
 	}
 
@@ -1411,8 +1411,8 @@ func TestResumeWithExistingPlanAndBeads_BeadListCorrect(t *testing.T) {
 	taskTracker := newFakeTaskTrackerAdapter()
 	taskTracker.queryBeadsResponse = &tasktracker.TaskTrackerQueryBeadsResponse{
 		Beads: []tasktracker.Bead{
-			{ID: "bead-alpha", Title: "Alpha bead"},
-			{ID: "bead-beta", Title: "Beta bead"},
+			{ID: "bead-alpha", Title: "Alpha bead", Status: "open"},
+			{ID: "bead-beta", Title: "Beta bead", Status: "open"},
 		},
 	}
 
@@ -1449,6 +1449,156 @@ func TestResumeWithExistingPlanAndBeads_BeadListCorrect(t *testing.T) {
 		t.Fatal("decompose stage should not be called when beads already exist")
 	}
 	requireBeadIDs(t, beadRunner, []string{"bead-alpha", "bead-beta"})
+}
+
+func TestSpecLoop_ResumeSkipsDecomposeWhenClosedBeadsExist(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	specID := "spec-resume-closed-beads"
+	cfg := &config.Config{}
+
+	git := newFakeGitAdapter(t)
+	git.planContent = validPlanFixture
+
+	taskTracker := newFakeTaskTrackerAdapter()
+	taskTracker.queryBeadsResponse = &tasktracker.TaskTrackerQueryBeadsResponse{
+		Beads: []tasktracker.Bead{
+			{ID: "bead-done-1", Title: "Done bead", Status: "closed"},
+			{ID: "bead-done-2", Title: "Another done bead", Status: "closed"},
+		},
+	}
+
+	planStage := newFakePlanStage(specID)
+	decompose := newFakeDecomposeStage(specID)
+	beadRunner := newFakeBeadRunner()
+
+	loopInstance, err := NewSpecLoop(
+		adapter.AdapterSet{
+			Git:         git,
+			LLM:         newFakeLLMAdapter(),
+			TaskTracker: taskTracker,
+			Presenter:   newFakePresenterAdapter(t),
+		},
+		cfg, noopDependencyGate{},
+		WithPlanStage(planStage),
+		WithPresentStage(newFakePresentStage(), &present.SummaryContext{}),
+		WithDecomposeStage(decompose),
+		WithBeadLoop(beadRunner),
+		WithAcceptStage(newFakeAcceptStage()),
+	)
+	if err != nil {
+		t.Fatalf("create spec loop: %v", err)
+	}
+
+	if err := loopInstance.Run(ctx, specID, nil); err != nil {
+		t.Fatalf("run spec loop: %v", err)
+	}
+
+	if planStage.called {
+		t.Fatal("plan stage should not be called when plan file exists")
+	}
+	if decompose.called {
+		t.Fatal("decompose stage should not be called when closed beads exist for the spec")
+	}
+}
+
+func TestSpecLoop_ResumeSkipsDecomposeWhenMixedStatusBeadsExist(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	specID := "spec-resume-mixed-beads"
+	cfg := &config.Config{}
+
+	git := newFakeGitAdapter(t)
+	git.planContent = validPlanFixture
+
+	taskTracker := newFakeTaskTrackerAdapter()
+	taskTracker.queryBeadsResponse = &tasktracker.TaskTrackerQueryBeadsResponse{
+		Beads: []tasktracker.Bead{
+			{ID: "bead-closed-1", Title: "Closed bead 1", Status: "closed"},
+			{ID: "bead-closed-2", Title: "Closed bead 2", Status: "closed"},
+			{ID: "bead-open-1", Title: "Open bead", Status: "open"},
+		},
+	}
+
+	planStage := newFakePlanStage(specID)
+	decompose := newFakeDecomposeStage(specID)
+	beadRunner := newFakeBeadRunner()
+
+	loopInstance, err := NewSpecLoop(
+		adapter.AdapterSet{
+			Git:         git,
+			LLM:         newFakeLLMAdapter(),
+			TaskTracker: taskTracker,
+			Presenter:   newFakePresenterAdapter(t),
+		},
+		cfg, noopDependencyGate{},
+		WithPlanStage(planStage),
+		WithPresentStage(newFakePresentStage(), &present.SummaryContext{}),
+		WithDecomposeStage(decompose),
+		WithBeadLoop(beadRunner),
+		WithAcceptStage(newFakeAcceptStage()),
+	)
+	if err != nil {
+		t.Fatalf("create spec loop: %v", err)
+	}
+
+	if err := loopInstance.Run(ctx, specID, nil); err != nil {
+		t.Fatalf("run spec loop: %v", err)
+	}
+
+	if decompose.called {
+		t.Fatal("decompose stage should not be called when beads already exist (mixed status)")
+	}
+	requireBeadIDs(t, beadRunner, []string{"bead-open-1"})
+}
+
+func TestSpecLoop_FirstRunDecomposesWhenNoBeadsExist(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	specID := "spec-first-run-decompose"
+	cfg := &config.Config{}
+
+	git := newFakeGitAdapter(t)
+	// No planContent — forces plan stage to run
+
+	taskTracker := newFakeTaskTrackerAdapter()
+	// No queryBeadsResponse — no beads exist, forces decompose
+
+	planStage := newFakePlanStage(specID)
+	decompose := newFakeDecomposeStage(specID)
+	beadRunner := newFakeBeadRunner()
+
+	loopInstance, err := NewSpecLoop(
+		adapter.AdapterSet{
+			Git:         git,
+			LLM:         newFakeLLMAdapter(),
+			TaskTracker: taskTracker,
+			Presenter:   newFakePresenterAdapter(t),
+		},
+		cfg, noopDependencyGate{},
+		WithPlanStage(planStage),
+		WithPresentStage(newFakePresentStage(), &present.SummaryContext{}),
+		WithDecomposeStage(decompose),
+		WithBeadLoop(beadRunner),
+		WithAcceptStage(newFakeAcceptStage()),
+	)
+	if err != nil {
+		t.Fatalf("create spec loop: %v", err)
+	}
+
+	if err := loopInstance.Run(ctx, specID, nil); err != nil {
+		t.Fatalf("run spec loop: %v", err)
+	}
+
+	if !planStage.called {
+		t.Fatal("plan stage should be called on first run (no plan file)")
+	}
+	if !decompose.called {
+		t.Fatal("decompose stage should be called on first run (no beads)")
+	}
 }
 
 func TestRemediationRunnerReceivesCorrectWorktree(t *testing.T) {
@@ -1521,7 +1671,7 @@ func TestSelectiveRevalidation_RequeuesFailedBeads(t *testing.T) {
 	taskTracker := newFakeTaskTrackerAdapter()
 	taskTracker.queryBeadsResponse = &tasktracker.TaskTrackerQueryBeadsResponse{
 		Beads: []tasktracker.Bead{
-			{ID: "bead-open-1", Title: "Open bead"},
+			{ID: "bead-open-1", Title: "Open bead", Status: "open"},
 		},
 	}
 
@@ -1573,7 +1723,7 @@ func TestSelectiveRevalidation_ErrorPropagates(t *testing.T) {
 	taskTracker := newFakeTaskTrackerAdapter()
 	taskTracker.queryBeadsResponse = &tasktracker.TaskTrackerQueryBeadsResponse{
 		Beads: []tasktracker.Bead{
-			{ID: "bead-1", Title: "A bead"},
+			{ID: "bead-1", Title: "A bead", Status: "open"},
 		},
 	}
 
@@ -1761,4 +1911,141 @@ func TestSpecLoopRoutingErrorFallsBackToDefault(t *testing.T) {
 	if accept.lastRequest.Model != "" {
 		t.Fatalf("accept Model = %q, want empty", accept.lastRequest.Model)
 	}
+}
+
+func TestSpecLoop_HasBeadsForSpecError(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	specID := "spec-has-beads-error"
+	cfg := &config.Config{}
+
+	git := newFakeGitAdapter(t)
+	git.planContent = validPlanFixture
+
+	taskTracker := newFakeTaskTrackerAdapter()
+	taskTracker.queryBeadsErr = fmt.Errorf("tracker unavailable")
+
+	loopInstance, err := NewSpecLoop(
+		adapter.AdapterSet{
+			Git:         git,
+			LLM:         newFakeLLMAdapter(),
+			TaskTracker: taskTracker,
+			Presenter:   newFakePresenterAdapter(t),
+		},
+		cfg, noopDependencyGate{},
+		WithPlanStage(newFakePlanStage(specID)),
+		WithPresentStage(newFakePresentStage(), &present.SummaryContext{}),
+		WithDecomposeStage(newFakeDecomposeStage(specID)),
+		WithBeadLoop(newFakeBeadRunner()),
+		WithAcceptStage(newFakeAcceptStage()),
+	)
+	if err != nil {
+		t.Fatalf("create spec loop: %v", err)
+	}
+
+	err = loopInstance.Run(ctx, specID, nil)
+	if err == nil {
+		t.Fatal("expected error from QueryBeads, got nil")
+	}
+	if !strings.Contains(err.Error(), "check existing beads") {
+		t.Fatalf("error = %q, want to contain 'check existing beads'", err.Error())
+	}
+}
+
+func TestSpecLoop_BeadsForSpecError_OnResumePath(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	specID := "spec-beads-error-resume"
+	cfg := &config.Config{}
+
+	git := newFakeGitAdapter(t)
+	// Pre-populate plan so the plan stage is skipped (resume path).
+	git.planContent = validPlanFixture
+
+	taskTracker := newFakeTaskTrackerAdapter()
+	taskTracker.queryBeadsErr = fmt.Errorf("tracker connection lost")
+
+	loopInstance, err := NewSpecLoop(
+		adapter.AdapterSet{
+			Git:         git,
+			LLM:         newFakeLLMAdapter(),
+			TaskTracker: taskTracker,
+			Presenter:   newFakePresenterAdapter(t),
+		},
+		cfg, noopDependencyGate{},
+		WithPlanStage(newFakePlanStage(specID)),
+		WithPresentStage(newFakePresentStage(), &present.SummaryContext{}),
+		WithDecomposeStage(newFakeDecomposeStage(specID)),
+		WithBeadLoop(newFakeBeadRunner()),
+		WithAcceptStage(newFakeAcceptStage()),
+	)
+	if err != nil {
+		t.Fatalf("create spec loop: %v", err)
+	}
+
+	err = loopInstance.Run(ctx, specID, nil)
+	if err == nil {
+		t.Fatal("expected error from beads query on resume path, got nil")
+	}
+	if !strings.Contains(err.Error(), "check existing beads") {
+		t.Fatalf("error = %q, want to contain 'check existing beads'", err.Error())
+	}
+	if !strings.Contains(err.Error(), "tracker connection lost") {
+		t.Fatalf("error = %q, want to contain wrapped cause 'tracker connection lost'", err.Error())
+	}
+}
+
+func TestSpecLoop_ResumeSkipsPlanWhenPlanFileExists(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	specID := "spec-resume-skip-plan"
+	cfg := &config.Config{}
+
+	git := newFakeGitAdapter(t)
+	git.planContent = validPlanFixture
+
+	taskTracker := newFakeTaskTrackerAdapter()
+	taskTracker.queryBeadsResponse = &tasktracker.TaskTrackerQueryBeadsResponse{
+		Beads: []tasktracker.Bead{
+			{ID: "bead-open-1", Title: "Open bead 1", Status: "open"},
+			{ID: "bead-open-2", Title: "Open bead 2", Status: "open"},
+		},
+	}
+
+	planStage := newFakePlanStage(specID)
+	decompose := newFakeDecomposeStage(specID)
+	beadRunner := newFakeBeadRunner()
+
+	loopInstance, err := NewSpecLoop(
+		adapter.AdapterSet{
+			Git:         git,
+			LLM:         newFakeLLMAdapter(),
+			TaskTracker: taskTracker,
+			Presenter:   newFakePresenterAdapter(t),
+		},
+		cfg, noopDependencyGate{},
+		WithPlanStage(planStage),
+		WithPresentStage(newFakePresentStage(), &present.SummaryContext{}),
+		WithDecomposeStage(decompose),
+		WithBeadLoop(beadRunner),
+		WithAcceptStage(newFakeAcceptStage()),
+	)
+	if err != nil {
+		t.Fatalf("create spec loop: %v", err)
+	}
+
+	if err := loopInstance.Run(ctx, specID, nil); err != nil {
+		t.Fatalf("run spec loop: %v", err)
+	}
+
+	if planStage.called {
+		t.Fatal("plan stage should NOT be called when plan file already exists")
+	}
+	if decompose.called {
+		t.Fatal("decompose stage should NOT be called when open beads already exist")
+	}
+	requireBeadIDs(t, beadRunner, []string{"bead-open-1", "bead-open-2"})
 }

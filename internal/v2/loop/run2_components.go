@@ -17,8 +17,8 @@ import (
 	"github.com/danabrams/gromit/internal/v2/adapter/llm"
 	"github.com/danabrams/gromit/internal/v2/event"
 	"github.com/danabrams/gromit/internal/v2/pipeline"
-	"github.com/danabrams/gromit/internal/v2/routing"
 	v2remediation "github.com/danabrams/gromit/internal/v2/remediation"
+	"github.com/danabrams/gromit/internal/v2/routing"
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
 	acceptstage "github.com/danabrams/gromit/internal/v2/stage/accept"
 	buildstage "github.com/danabrams/gromit/internal/v2/stage/build"
@@ -203,6 +203,7 @@ func NewRun2LoopComponents(cfg *config.Config, adapters adapter.AdapterSet, lega
 	remediationRunner := v2remediation.NewRemediationRunner(v2remediation.RemediationRunnerConfig{
 		AcceptStage:    acceptStage,
 		DecomposeStage: decomposeStage,
+		PlanStage:      planStage,
 		BeadRunner:     &remediationBeadRunner{loop: beadLoop},
 		GenerationCap:  v2remediation.DefaultGenerationCap,
 		Emitter:        legacyEmitter,
