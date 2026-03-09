@@ -291,3 +291,14 @@
 {"schema_version":1,"timestamp":"2026-03-09T08:15:04.525483-04:00","type":"stage.completed","stage_name":"validate:default","bead_id":"gromit-8tz37","iteration":18,"success":true,"duration":45844750}
 {"schema_version":1,"timestamp":"2026-03-09T08:15:04.578001-04:00","type":"stage.started","stage_name":"review:default","bead_id":"gromit-8tz37","iteration":18}
 {"schema_version":1,"timestamp":"2026-03-09T08:15:04.578022-04:00","type":"stage.completed","stage_name":"review:default","bead_id":"gromit-8tz37","iteration":18,"success":true,"duration":15250}
+{"schema_version":1,"timestamp":"2026-03-09T08:15:04.629518-04:00","type":"stage.started","stage_name":"epilogue:default","bead_id":"gromit-8tz37","iteration":18}
+{"schema_version":1,"timestamp":"2026-03-09T08:15:06.472181-04:00","type":"stage.completed","stage_name":"epilogue:default","bead_id":"gromit-8tz37","iteration":18,"success":true,"duration":1842646584}
+{"schema_version":1,"timestamp":"2026-03-09T08:15:06.472199-04:00","type":"bead.completed","bead_id":"gromit-8tz37","bead_title":"Wire specreview stage in run2 components","iteration":18,"success":true,"model":"gpt-5.1-codex-mini","provider":"openai","input_tokens":2890369,"output_tokens":36526,"duration":354540510500}
+{"schema_version":1,"timestamp":"2026-03-09T08:15:06.472245-04:00","type":"bead.started","bead_id":"gromit-atld9","bead_title":"Add findings-based decompose template","iteration":19}
+{"schema_version":1,"timestamp":"2026-03-09T08:15:06.472247-04:00","type":"stage.started","stage_name":"gate:default","bead_id":"gromit-atld9","iteration":19}
+{"schema_version":1,"timestamp":"2026-03-09T08:15:06.760212-04:00","type":"stage.completed","stage_name":"gate:default","bead_id":"gromit-atld9","iteration":19,"success":true,"duration":287961375}
+{"schema_version":1,"timestamp":"2026-03-09T08:15:06.760221-04:00","type":"model.selected","bead_id":"gromit-atld9","model":"gpt-5.1-codex-mini","provider":"openai","tier":"low","reason":"router"}
+{"schema_version":1,"timestamp":"2026-03-09T08:15:06.760224-04:00","type":"stage.started","stage_name":"build:default","bead_id":"gromit-atld9","iteration":19}
+{"schema_version":1,"timestamp":"2026-03-09T08:15:06.760225-04:00","type":"build_invocation.start","bead_id":"gromit-atld9","model":"gpt-5.1-codex-mini","provider":"openai","tier":"low","attempt":1,"max_attempts":2}
+{"schema_version":1,"timestamp":"2026-03-09T08:19:58.484557-04:00","type":"build_invocation.complete","bead_id":"gromit-atld9","model":"gpt-5.1-codex-mini","provider":"openai","success":true,"duration":291723100083,"input_tokens":3232970,"output_tokens":25531,"prompt_size":18045}
+{"schema_version":1,"timestamp":"2026-03-09T08:19:58.484562-04:00","type":"stage.completed","stage_name":"build:default","bead_id":"gromit-atld9","iteration":19,"success":true,"duration":291723100083}

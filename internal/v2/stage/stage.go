@@ -7,6 +7,7 @@ import (
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/v2/event"
+	"github.com/danabrams/gromit/internal/v2/findings"
 	"github.com/danabrams/gromit/internal/v2/llmtypes"
 )
 
@@ -27,6 +28,7 @@ type StageRequest struct {
 	Worktree     string
 	Remediation  bool
 	GapAnalysis  string
+	Findings     []findings.Finding // structured findings for findings-based remediation decompose
 	RetryContext *RetryContext
 	Telemetry    *LLMCostSummary
 }
