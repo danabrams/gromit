@@ -13,12 +13,15 @@ import (
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/events"
+	reviewpkg "github.com/danabrams/gromit/internal/review"
+	"github.com/danabrams/gromit/internal/tracker"
 	"github.com/danabrams/gromit/internal/v2/adapter"
 	"github.com/danabrams/gromit/internal/v2/event"
+	"github.com/danabrams/gromit/internal/v2/presentation"
+	specreview "github.com/danabrams/gromit/internal/v2/stage/specreview"
+	v2review "github.com/danabrams/gromit/internal/v2/review"
 	"github.com/danabrams/gromit/internal/v2/routing"
 	"github.com/danabrams/gromit/internal/v2/trackertypes"
-	"github.com/danabrams/gromit/internal/v2/presentation"
-	v2review "github.com/danabrams/gromit/internal/v2/review"
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
 	stageaccept "github.com/danabrams/gromit/internal/v2/stage/accept"
 	planstage "github.com/danabrams/gromit/internal/v2/stage/plan"
@@ -429,6 +432,10 @@ func (s *SpecLoop) Run(ctx context.Context, specID string, stopCh <-chan struct{
 		return s.handleFailure(ctx, specID, baseSummary, fmt.Errorf("specreview failed"))
 	}
 
+	if err := s.createFromReviewBeads(ctx, specID, reviewRes); err != nil {
+		return err
+	}
+
 	summary := s.buildSuccessSummary(specID, worktree, plan, beads, acceptRes, beadResult.OutOfScopeFindings)
 
 	if err := s.ctxErr(ctx); err != nil {
@@ -605,6 +612,32 @@ func (s *SpecLoop) specReviewFailed(res *stagepkg.Result) bool {
 		return false
 	}
 	return res.Decision == stagepkg.DecisionFail
+}
+
+func (s *SpecLoop) createFromReviewBeads(ctx context.Context, specID string, reviewRes *stagepkg.Result) error {
+	if s.adapters.TaskTracker == nil || reviewRes == nil || reviewRes.Artifacts == nil {
+		return nil
+	}
+	artifacts, ok := reviewRes.Artifacts.(*specreview.SpecReviewArtifacts)
+	if !ok || artifacts == nil || artifacts.Result == nil {
+		return nil
+	}
+
+	for _, proposal := range artifacts.Result.BeadsToCreate {
+		labels := reviewpkg.BuildReviewBeadLabels(proposal.Labels)
+		if bead.FindSpecLabel(labels) == "" {
+			labels = append(labels, tracker.SpecLabelFor(specID))
+		}
+		if _, err := s.adapters.TaskTracker.CreateBead(ctx, trackertypes.TaskTrackerCreateBeadRequest{
+			Title:       proposal.Title,
+			Description: proposal.Description,
+			Priority:    proposal.Priority,
+			Labels:      labels,
+		}); err != nil {
+			return fmt.Errorf("create from-review bead %q: %w", proposal.Title, err)
+		}
+	}
+	return nil
 }
 
 func (s *SpecLoop) buildSuccessSummary(specID, worktree, plan string, beads []*bead.Bead, acceptRes *stagepkg.Result, outOfScope []v2review.Finding) presentation.PresentationSummary {
