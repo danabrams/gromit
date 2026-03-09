@@ -206,6 +206,9 @@
 {"issue_id":"gromit-2s2q","label":"spec:layered-failure-triage"}
 {"issue_id":"gromit-2s5","label":"spec:pipeline-chaining"}
 {"issue_id":"gromit-2t7x","label":"spec:retro-efficiency-experiments"}
+{"issue_id":"gromit-2tvgb","label":"estimated-files:2"}
+{"issue_id":"gromit-2tvgb","label":"gen:0"}
+{"issue_id":"gromit-2tvgb","label":"spec:spec-level-review-and-targeted-remediation"}
 {"issue_id":"gromit-2v5n","label":"from-review"}
 {"issue_id":"gromit-2v5n","label":"spec:immutable-pipeline"}
 {"issue_id":"gromit-2v6fu","label":"estimated-files:2"}
