@@ -2,6 +2,7 @@ package decompose
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -11,7 +12,6 @@ import (
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/jsonutil"
 	"github.com/danabrams/gromit/internal/provider"
-	"github.com/danabrams/gromit/internal/v2/findings"
 	"github.com/danabrams/gromit/internal/v2/generation"
 	"github.com/danabrams/gromit/internal/v2/llmtypes"
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
@@ -107,13 +107,15 @@ The spec label will be added automatically: spec:%s
 
 var findingsDecomposePromptTemplate = `# Targeted Fix Decompose: %s
 
-You are creating TARGETED beads to address specific review findings. Do NOT re-implement work that already exists.
+You are creating targeted fix beads for specific findings from a spec-level code review. Each finding entry below is a JSON object with severity, category, scope, description, and affected_files.
 
-## Full Plan (architectural context only — do NOT re-decompose it)
+## Spec: %s
+
+## Original Plan (for context only — do NOT re-decompose it)
 
 %s
 
-## Specific Findings to Fix (create beads ONLY for these)
+## Findings to Fix
 
 %s
 
@@ -121,17 +123,23 @@ You are creating TARGETED beads to address specific review findings. Do NOT re-i
 
 %s
 
-## Rules
+## Acceptance Criteria Rules
 
-- Create one bead per finding or per tightly-coupled group of findings.
-- Do NOT create beads for work not listed in the findings above.
-- Each bead acceptance_criteria must describe observable behavior, NOT file paths.
-- depends_on_index: 0-based index of prerequisite beads in THIS output array.
+acceptance_criteria: each criterion MUST describe an observable behavior or capability, NOT a file path, function name, or code structure.
+
+Good: "debug command identifies root cause category from event log"
+Bad: "create internal/v2/debug/diagnose.go with Diagnose() function"
+
+Each bead must reference the specific finding it fixes in its description.
+depends_on_index: 0-based index of prerequisite beads in THIS output array.
 
 ## Output
 
 Output ONLY a JSON array of bead definitions. No markdown, no explanations.
-Each bead: title, description, priority, acceptance_criteria, expected_outputs, covers_tasks, depends_on_index.
+Each bead must include: title, description, priority, acceptance_criteria, expected_outputs, covers_tasks, depends_on_index.
+expected_outputs: list each individual deliverable, function, or independently testable item as a separate entry. Do not summarize or group; enumerate fine-grained items.
+covers_tasks: list the 1-based Task numbers from the plan that this bead covers (only tasks related to the findings).
+depends_on_index: array of 0-based indices of prerequisite beads in THIS output array.
 
 The spec label will be added automatically: spec:%s
 `
@@ -214,9 +222,17 @@ func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Resul
 	var promptText string
 	gapAnalysis := s.resolveGapAnalysis(req)
 	switch {
-	case len(req.Findings) > 0:
-		findingsText := formatFindingsForPrompt(req.Findings)
-		promptText = fmt.Sprintf(findingsDecomposePromptTemplate, specID, string(planBody), findingsText, skills.DecomposeSkill, specID)
+	case req.Remediation && len(req.Findings) > 0:
+		findingsJSON, _ := json.Marshal(req.Findings)
+		promptText = fmt.Sprintf(
+			findingsDecomposePromptTemplate,
+			specID,
+			specID,
+			string(planBody),
+			string(findingsJSON),
+			skills.DecomposeSkill,
+			specID,
+		)
 	case req.Remediation && gapAnalysis != "":
 		promptText = fmt.Sprintf(remediationDecomposePromptTemplate, specID, string(planBody), gapAnalysis, skills.DecomposeSkill, specID)
 	default:
@@ -329,24 +345,6 @@ func (s *Stage) resolveGapAnalysis(req *stagepkg.Request) string {
 		return ""
 	}
 	return strings.TrimSpace(string(data))
-}
-
-func formatFindingsForPrompt(findingsList []findings.Finding) string {
-	if len(findingsList) == 0 {
-		return "(no findings)"
-	}
-
-	var sb strings.Builder
-	for i, f := range findingsList {
-		if i > 0 {
-			sb.WriteString("\n")
-		}
-		sb.WriteString(fmt.Sprintf("%d. [%s/%s/%s] %s", i+1, f.Severity, f.Category, f.Scope, strings.TrimSpace(f.Description)))
-		if len(f.AffectedFiles) > 0 {
-			sb.WriteString(fmt.Sprintf(" (files: %s)", strings.Join(f.AffectedFiles, ", ")))
-		}
-	}
-	return sb.String()
 }
 
 func (s *Stage) gapAnalysisPath(req *stagepkg.Request) string {

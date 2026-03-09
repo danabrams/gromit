@@ -442,8 +442,9 @@ func TestRun_withFindings_usesFindingsTemplate(t *testing.T) {
 	}
 
 	req := &stagepkg.Request{
-		Bead:   stagepkg.BeadInfo{ID: "spec"},
-		Config: cfg,
+		Bead:        stagepkg.BeadInfo{ID: "spec"},
+		Config:      cfg,
+		Remediation: true,
 		Findings: []stagepkg.Finding{
 			{
 				Severity:      stagepkg.FindingSeverityCritical,
@@ -464,7 +465,7 @@ func TestRun_withFindings_usesFindingsTemplate(t *testing.T) {
 		t.Fatal("expected llm invocation")
 	}
 	prompt := llmFake.calls[0].Prompt
-	if !strings.Contains(prompt, "Specific Findings to Fix") {
+	if !strings.Contains(prompt, "Findings to Fix") {
 		t.Fatalf("prompt missing findings section: %s", prompt)
 	}
 	if !strings.Contains(prompt, "Targeted Fix Decompose") {
@@ -502,6 +503,14 @@ func TestRunWithFindingsUsesJSONPromptDuringRemediation(t *testing.T) {
 				"acceptance_criteria": ["fix behavior"],
 				"expected_outputs": ["updated behavior"],
 				"depends_on_index": []
+			},
+			{
+				"title": "verify findings coverage",
+				"description": "add regression tests for the finding",
+				"priority": "P1",
+				"acceptance_criteria": ["tests cover the bug"],
+				"expected_outputs": ["finding regression test file"],
+				"depends_on_index": [0]
 			}
 		]`}},
 	}
@@ -512,8 +521,8 @@ func TestRunWithFindingsUsesJSONPromptDuringRemediation(t *testing.T) {
 	}
 
 	req := &stagepkg.Request{
-		Bead:   stagepkg.BeadInfo{ID: "spec"},
-		Config: cfg,
+		Bead:        stagepkg.BeadInfo{ID: "spec"},
+		Config:      cfg,
 		Remediation: true,
 		Findings: []stagepkg.Finding{
 			{
