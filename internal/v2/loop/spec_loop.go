@@ -13,16 +13,17 @@ import (
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/events"
+	"github.com/danabrams/gromit/internal/tracker"
 	"github.com/danabrams/gromit/internal/v2/adapter"
 	"github.com/danabrams/gromit/internal/v2/event"
-	"github.com/danabrams/gromit/internal/v2/routing"
-	"github.com/danabrams/gromit/internal/v2/trackertypes"
 	"github.com/danabrams/gromit/internal/v2/presentation"
 	v2review "github.com/danabrams/gromit/internal/v2/review"
+	"github.com/danabrams/gromit/internal/v2/routing"
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
 	stageaccept "github.com/danabrams/gromit/internal/v2/stage/accept"
 	planstage "github.com/danabrams/gromit/internal/v2/stage/plan"
 	present "github.com/danabrams/gromit/internal/v2/stage/present"
+	"github.com/danabrams/gromit/internal/v2/trackertypes"
 )
 
 const (
@@ -337,14 +338,17 @@ func (s *SpecLoop) Run(ctx context.Context, specID string, stopCh <-chan struct{
 
 	s.recordStage("decompose")
 	var beads []*bead.Bead
-	hasBeads, err := s.hasBeadsForSpec(ctx, specID)
+	allBeads, err := s.beadsForSpec(ctx, specID)
 	if err != nil {
 		return fmt.Errorf("check existing beads: %w", err)
 	}
-	if hasBeads {
-		openBeads, err := s.openBeadsForSpec(ctx, specID)
-		if err != nil {
-			return fmt.Errorf("query open beads: %w", err)
+	if len(allBeads) > 0 {
+		// Filter for open beads in-memory instead of a second round-trip.
+		var openBeads []*bead.Bead
+		for _, b := range allBeads {
+			if b.Status == tracker.StatusOpen {
+				openBeads = append(openBeads, b)
+			}
 		}
 		beads = openBeads
 		s.emit(&events.DecomposeResumedEvent{SpecID: specID, BeadCount: len(beads)})
@@ -371,7 +375,7 @@ func (s *SpecLoop) Run(ctx context.Context, specID string, stopCh <-chan struct{
 			}
 			for _, rb := range requeueBeads {
 				if existing, ok := existingIDs[rb.ID]; ok {
-					existing.Status = "open"
+					existing.Status = tracker.StatusOpen
 				} else {
 					beads = append(beads, rb)
 				}
@@ -452,28 +456,15 @@ func (s *SpecLoop) runDecompose(ctx context.Context, req stagepkg.Request) ([]*b
 	return append([]*bead.Bead(nil), artifacts.Beads...), nil
 }
 
-func (s *SpecLoop) hasBeadsForSpec(ctx context.Context, specID string) (bool, error) {
-	if s.adapters.TaskTracker == nil {
-		return false, nil
-	}
-	label := fmt.Sprintf("spec:%s", specID)
-	resp, err := s.adapters.TaskTracker.QueryBeads(ctx, trackertypes.TaskTrackerQueryBeadsRequest{
-		Labels: []string{label},
-	})
-	if err != nil {
-		return false, err
-	}
-	return resp != nil && len(resp.Beads) > 0, nil
-}
-
-func (s *SpecLoop) openBeadsForSpec(ctx context.Context, specID string) ([]*bead.Bead, error) {
+// beadsForSpec queries all beads (any status) for the given spec via a single
+// round-trip. Callers filter by status in-memory when needed.
+func (s *SpecLoop) beadsForSpec(ctx context.Context, specID string) ([]*bead.Bead, error) {
 	if s.adapters.TaskTracker == nil {
 		return nil, nil
 	}
 	label := fmt.Sprintf("spec:%s", specID)
 	resp, err := s.adapters.TaskTracker.QueryBeads(ctx, trackertypes.TaskTrackerQueryBeadsRequest{
 		Labels: []string{label},
-		Status: "open",
 	})
 	if err != nil {
 		return nil, err

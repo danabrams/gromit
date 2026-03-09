@@ -792,7 +792,7 @@ func TestIntegration_AcceptFailureRemediationAddsBeads(t *testing.T) {
 
 	adapters := adapter.AdapterSet{
 		Git:         git,
-		LLM:        llmAdapter,
+		LLM:         llmAdapter,
 		TaskTracker: taskTracker,
 		Presenter:   presenter,
 	}
