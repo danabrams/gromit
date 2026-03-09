@@ -51,7 +51,6 @@ func (r *RemediationRunner) Run(ctx context.Context, specID, worktree string, fi
 	if specID == "" {
 		return ErrSpecIDRequired
 	}
-	r.generationCount = 0
 	if !r.canRemediate() {
 		return r.handleGenerationCap(ctx, specID)
 	}
