@@ -625,3 +625,239 @@ func TestRemediation_RemediationBeadsCarrySpecLabel(t *testing.T) {
 	// The unit-level spec-label tests belong in internal/v2/stage/decompose/.
 	t.Skip("spec labels are applied by the decompose stage, not the remediation runner")
 }
+
+func TestRemediation_CreatesRemediationPlanNotOriginal(t *testing.T) {
+	t.Parallel()
+
+	gapText := "Criterion 1 failed: missing tests"
+
+	acceptCalls := 0
+	accept := &testStage{
+		name: "accept",
+		run: func(ctx context.Context, req *stage.Request) (*stage.Result, error) {
+			acceptCalls++
+			if acceptCalls == 1 {
+				return &stage.Result{
+					Decision:  stage.DecisionFail,
+					Artifacts: &gapArtifacts{gap: gapText},
+				}, nil
+			}
+			return &stage.Result{Decision: stage.DecisionProceed}, nil
+		},
+	}
+
+	planCalled := false
+	var planRemediation bool
+	var planGapAnalysis string
+	planStage := &testStage{
+		name: "plan",
+		run: func(ctx context.Context, req *stage.Request) (*stage.Result, error) {
+			planCalled = true
+			planRemediation = req.Remediation
+			planGapAnalysis = req.GapAnalysis
+			return &stage.Result{}, nil
+		},
+	}
+
+	decomposeCalled := false
+	decompose := &testStage{
+		name: "decompose",
+		run: func(ctx context.Context, req *stage.Request) (*stage.Result, error) {
+			decomposeCalled = true
+			return &stage.Result{
+				Artifacts: &stage.DecomposeArtifacts{
+					Beads: []*bead.Bead{{ID: "remediation-bead"}},
+				},
+			}, nil
+		},
+	}
+
+	runner := NewRemediationRunner(RemediationRunnerConfig{
+		AcceptStage:    accept,
+		PlanStage:      planStage,
+		DecomposeStage: decompose,
+		BeadRunner:     &testBeadRunner{},
+		GenerationCap:  1,
+	})
+
+	if err := runner.Run(context.Background(), "spec-plan", ""); err != nil {
+		t.Fatalf("run failed: %v", err)
+	}
+
+	if !planCalled {
+		t.Fatal("plan stage was not called")
+	}
+	if !planRemediation {
+		t.Fatal("plan stage did not receive Remediation=true")
+	}
+	if planGapAnalysis == "" {
+		t.Fatal("plan stage received empty GapAnalysis")
+	}
+	if planGapAnalysis != gapText {
+		t.Fatalf("plan GapAnalysis = %q, want %q", planGapAnalysis, gapText)
+	}
+	if !decomposeCalled {
+		t.Fatal("decompose stage was not called")
+	}
+}
+
+func TestRemediation_RemediationPlanPersistedSeparately(t *testing.T) {
+	t.Parallel()
+
+	worktree := t.TempDir()
+	gromitDir := filepath.Join(worktree, ".gromit", "v2")
+	if err := os.MkdirAll(gromitDir, 0o755); err != nil {
+		t.Fatalf("create gromit dir: %v", err)
+	}
+	originalPlan := "# Original plan"
+	if err := os.WriteFile(filepath.Join(gromitDir, "plan.md"), []byte(originalPlan), 0o644); err != nil {
+		t.Fatalf("write plan.md: %v", err)
+	}
+
+	gapText := "Criterion 2 failed: missing integration"
+
+	acceptCalls := 0
+	accept := &testStage{
+		name: "accept",
+		run: func(ctx context.Context, req *stage.Request) (*stage.Result, error) {
+			acceptCalls++
+			if acceptCalls == 1 {
+				return &stage.Result{
+					Decision:  stage.DecisionFail,
+					Artifacts: &gapArtifacts{gap: gapText},
+				}, nil
+			}
+			return &stage.Result{Decision: stage.DecisionProceed}, nil
+		},
+	}
+
+	planStage := &testStage{
+		name: "plan",
+		run: func(ctx context.Context, req *stage.Request) (*stage.Result, error) {
+			return &stage.Result{}, nil
+		},
+	}
+
+	decompose := &testStage{
+		name: "decompose",
+		run: func(ctx context.Context, req *stage.Request) (*stage.Result, error) {
+			return &stage.Result{
+				Artifacts: &stage.DecomposeArtifacts{
+					Beads: []*bead.Bead{{ID: "b1"}},
+				},
+			}, nil
+		},
+	}
+
+	runner := NewRemediationRunner(RemediationRunnerConfig{
+		AcceptStage:    accept,
+		PlanStage:      planStage,
+		DecomposeStage: decompose,
+		BeadRunner:     &testBeadRunner{},
+		GenerationCap:  1,
+	})
+
+	if err := runner.Run(context.Background(), "spec-persist", worktree); err != nil {
+		t.Fatalf("run failed: %v", err)
+	}
+
+	// Original plan.md should be unchanged.
+	got, err := os.ReadFile(filepath.Join(gromitDir, "plan.md"))
+	if err != nil {
+		t.Fatalf("read plan.md: %v", err)
+	}
+	if string(got) != originalPlan {
+		t.Fatalf("plan.md = %q, want %q", string(got), originalPlan)
+	}
+
+	// remediation-1.md should exist with the gap analysis.
+	remPath := filepath.Join(gromitDir, "remediation-1.md")
+	remContent, err := os.ReadFile(remPath)
+	if err != nil {
+		t.Fatalf("remediation-1.md not found: %v", err)
+	}
+	if string(remContent) != gapText {
+		t.Fatalf("remediation-1.md = %q, want %q", string(remContent), gapText)
+	}
+}
+
+func TestRemediation_SecondRemediationCreatesRemediationPlan2(t *testing.T) {
+	t.Parallel()
+
+	worktree := t.TempDir()
+	gromitDir := filepath.Join(worktree, ".gromit", "v2")
+	if err := os.MkdirAll(gromitDir, 0o755); err != nil {
+		t.Fatalf("create gromit dir: %v", err)
+	}
+
+	gap1 := "Gap round 1"
+	gap2 := "Gap round 2"
+
+	acceptCalls := 0
+	accept := &testStage{
+		name: "accept",
+		run: func(ctx context.Context, req *stage.Request) (*stage.Result, error) {
+			acceptCalls++
+			switch acceptCalls {
+			case 1:
+				return &stage.Result{
+					Decision:  stage.DecisionFail,
+					Artifacts: &gapArtifacts{gap: gap1},
+				}, nil
+			case 2:
+				return &stage.Result{
+					Decision:  stage.DecisionFail,
+					Artifacts: &gapArtifacts{gap: gap2},
+				}, nil
+			default:
+				return &stage.Result{Decision: stage.DecisionProceed}, nil
+			}
+		},
+	}
+
+	planStage := &testStage{
+		name: "plan",
+		run: func(ctx context.Context, req *stage.Request) (*stage.Result, error) {
+			return &stage.Result{}, nil
+		},
+	}
+
+	decompose := &testStage{
+		name: "decompose",
+		run: func(ctx context.Context, req *stage.Request) (*stage.Result, error) {
+			return &stage.Result{
+				Artifacts: &stage.DecomposeArtifacts{
+					Beads: []*bead.Bead{{ID: "b"}},
+				},
+			}, nil
+		},
+	}
+
+	runner := NewRemediationRunner(RemediationRunnerConfig{
+		AcceptStage:    accept,
+		PlanStage:      planStage,
+		DecomposeStage: decompose,
+		BeadRunner:     &testBeadRunner{},
+		GenerationCap:  3,
+	})
+
+	if err := runner.Run(context.Background(), "spec-multi", worktree); err != nil {
+		t.Fatalf("run failed: %v", err)
+	}
+
+	rem1, err := os.ReadFile(filepath.Join(gromitDir, "remediation-1.md"))
+	if err != nil {
+		t.Fatalf("remediation-1.md not found: %v", err)
+	}
+	if string(rem1) != gap1 {
+		t.Fatalf("remediation-1.md = %q, want %q", string(rem1), gap1)
+	}
+
+	rem2, err := os.ReadFile(filepath.Join(gromitDir, "remediation-2.md"))
+	if err != nil {
+		t.Fatalf("remediation-2.md not found: %v", err)
+	}
+	if string(rem2) != gap2 {
+		t.Fatalf("remediation-2.md = %q, want %q", string(rem2), gap2)
+	}
+}
