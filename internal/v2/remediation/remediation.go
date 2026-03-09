@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/events"
@@ -14,11 +16,15 @@ import (
 
 // RemediationRunnerConfig captures dependencies for remediation orchestration.
 type RemediationRunnerConfig struct {
-	DecomposeStage stage.Stage
-	BeadRunner     BeadRunner
-	GenerationCap  int
-	Presenter      adapter.PresenterAdapter
-	Emitter        *events.Emitter
+	AcceptStage     stage.Stage
+	PlanStage       stage.Stage
+	GapStage        stage.Stage
+	DecomposeStage  stage.Stage
+	BeadRunner      BeadRunner
+	GenerationCap   int
+	Presenter       adapter.PresenterAdapter
+	Emitter         *events.Emitter
+	WorktreeCleaner WorktreeCleaner
 }
 
 // BeadRunner executes the loop that processes each generated bead.
@@ -26,8 +32,19 @@ type BeadRunner interface {
 	Run(ctx context.Context, beads []*bead.Bead) error
 }
 
+// WorktreeCleaner cleans up the spec worktree after a successful run.
+type WorktreeCleaner interface {
+	Cleanup(ctx context.Context, specID string) error
+}
+
+// gapSummaryProvider is implemented by artifacts that carry a gap analysis summary.
+type gapSummaryProvider interface {
+	GetGapSummary() string
+}
+
 var (
 	ErrSpecIDRequired               = errors.New("spec ID required")
+	ErrAcceptStageRequired          = errors.New("accept stage required")
 	ErrBeadRunnerRequired           = errors.New("bead runner required")
 	ErrDecomposeStageRequired       = errors.New("decompose stage required")
 	ErrUnexpectedDecomposeArtifacts = errors.New("unexpected artifacts type from decompose stage")
@@ -35,7 +52,7 @@ var (
 
 const DefaultGenerationCap = 3
 
-// RemediationRunner orchestrates remediation generations driven by findings.
+// RemediationRunner drives the accept-gap-decompose-bead loop cycle.
 type RemediationRunner struct {
 	cfg             RemediationRunnerConfig
 	generationCount int
@@ -46,26 +63,85 @@ func NewRemediationRunner(cfg RemediationRunnerConfig) *RemediationRunner {
 	return &RemediationRunner{cfg: cfg}
 }
 
-// Run executes one remediation generation based on the provided findings.
-func (r *RemediationRunner) Run(ctx context.Context, specID, worktree string, findings []stage.Finding) error {
+// Run executes the remediation cycle for the provided spec.
+func (r *RemediationRunner) Run(ctx context.Context, specID, worktree string) error {
+	r.generationCount = 0
 	if specID == "" {
 		return ErrSpecIDRequired
 	}
+	if r.cfg.AcceptStage == nil {
+		return ErrAcceptStageRequired
+	}
+
+	reqTemplate := stage.Request{Bead: stage.BeadInfo{ID: specID}, Worktree: worktree}
+	for {
+		req := reqTemplate
+		res, err := r.cfg.AcceptStage.Run(ctx, &req)
+		if err != nil {
+			return err
+		}
+		if res != nil && res.Decision == stage.DecisionFail {
+			gapAnalysis := extractGapSummary(res)
+			if err := r.executeRemediation(ctx, &req, gapAnalysis); err != nil {
+				return err
+			}
+			continue
+		}
+		if err := r.cleanup(ctx, specID); err != nil {
+			return err
+		}
+		return nil
+	}
+}
+
+func (r *RemediationRunner) cleanup(ctx context.Context, specID string) error {
+	if cleaner := r.cfg.WorktreeCleaner; cleaner != nil {
+		return cleaner.Cleanup(ctx, specID)
+	}
+	return nil
+}
+
+func extractGapSummary(res *stage.Result) string {
+	if res == nil || res.Artifacts == nil {
+		return ""
+	}
+	if gp, ok := res.Artifacts.(gapSummaryProvider); ok {
+		return gp.GetGapSummary()
+	}
+	return ""
+}
+
+func (r *RemediationRunner) executeRemediation(ctx context.Context, req *stage.Request, gapAnalysis string) error {
+	specID := req.Bead.ID
 	if !r.canRemediate() {
 		return r.handleGenerationCap(ctx, specID)
 	}
 
-	req := stage.Request{
-		Bead:        stage.BeadInfo{ID: specID},
-		Worktree:    worktree,
-		Remediation: true,
-		Findings:    append([]stage.Finding{}, findings...),
+	req.Remediation = true
+	req.GapAnalysis = gapAnalysis
+
+	if r.cfg.GapStage != nil {
+		if _, err := r.cfg.GapStage.Run(ctx, req); err != nil {
+			return err
+		}
 	}
 
-	return r.executeRemediation(ctx, &req)
-}
+	if r.cfg.PlanStage != nil {
+		if _, err := r.cfg.PlanStage.Run(ctx, req); err != nil {
+			return fmt.Errorf("remediation plan: %w", err)
+		}
+	}
 
-func (r *RemediationRunner) executeRemediation(ctx context.Context, req *stage.Request) error {
+	if req.Worktree != "" {
+		planPath := r.remediationPlanPath(req.Worktree)
+		if err := os.MkdirAll(filepath.Dir(planPath), 0o755); err != nil {
+			return fmt.Errorf("create remediation plan dir: %w", err)
+		}
+		if err := os.WriteFile(planPath, []byte(gapAnalysis), 0o644); err != nil {
+			return fmt.Errorf("persist remediation plan: %w", err)
+		}
+	}
+
 	beads, err := r.decompose(ctx, req)
 	if err != nil {
 		return err
@@ -79,7 +155,13 @@ func (r *RemediationRunner) executeRemediation(ctx context.Context, req *stage.R
 	}
 
 	r.generationCount++
+
 	return nil
+}
+
+func (r *RemediationRunner) remediationPlanPath(worktree string) string {
+	gromitDir := filepath.Join(worktree, ".gromit", "v2")
+	return filepath.Join(gromitDir, fmt.Sprintf("remediation-%d.md", r.generationCount+1))
 }
 
 func (r *RemediationRunner) generationCap() int {
