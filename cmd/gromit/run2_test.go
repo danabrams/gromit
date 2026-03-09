@@ -416,3 +416,22 @@ func TestIsCodexBinary(t *testing.T) {
 		})
 	}
 }
+
+func TestFromReviewLabels(t *testing.T) {
+	tests := []struct {
+		name string
+		spec string
+		want []string
+	}{
+		{name: "no spec", spec: "", want: []string{"from-review"}},
+		{name: "with spec", spec: "stable", want: []string{"from-review", "spec:stable"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := fromReviewLabels(tt.spec)
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Fatalf("labels = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
