@@ -624,7 +624,10 @@ func (s *SpecLoop) specReviewFailed(res *stagepkg.Result) bool {
 	if res == nil {
 		return false
 	}
-	return res.Decision == stagepkg.DecisionFail
+	if res.Decision == stagepkg.DecisionFail {
+		return true
+	}
+	return s.specReviewVerdictFailed(res)
 }
 
 func (s *SpecLoop) extractSpecReviewVerdict(res *stagepkg.Result) string {
@@ -645,7 +648,9 @@ func (s *SpecLoop) emitSpecVerdict(specID, worktree string, acceptRes, specrevie
 	acceptDecision := acceptRes.Decision.String()
 	specReviewDecision := specreviewRes.Decision.String()
 	specReviewVerdict := s.extractSpecReviewVerdict(specreviewRes)
-	success := acceptRes.Decision == stagepkg.DecisionProceed && specreviewRes.Decision == stagepkg.DecisionProceed
+	success := acceptRes.Decision == stagepkg.DecisionProceed &&
+		specreviewRes.Decision == stagepkg.DecisionProceed &&
+		!s.specReviewVerdictFailed(specreviewRes)
 	timestamp := time.Now()
 	typedEvt := event.SpecVerdictEvent{
 		Event: event.Event{
@@ -672,6 +677,10 @@ func (s *SpecLoop) emitSpecVerdict(specID, worktree string, acceptRes, specrevie
 		Success:            success,
 		TimeMixin:          events.TimeMixin{Time: timestamp},
 	})
+}
+
+func (s *SpecLoop) specReviewVerdictFailed(res *stagepkg.Result) bool {
+	return strings.EqualFold(s.extractSpecReviewVerdict(res), "fail")
 }
 
 func (s *SpecLoop) buildSuccessSummary(specID, worktree, plan string, beads []*bead.Bead, acceptRes *stagepkg.Result, outOfScope []v2review.Finding) presentation.PresentationSummary {
