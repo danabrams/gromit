@@ -567,6 +567,110 @@ func TestRun2_FromReviewFlag_NoAcceptOrReviewInvoked(t *testing.T) {
 	}
 }
 
+func TestRun2FromReviewFiltersBeadsByLabel(t *testing.T) {
+	_, cleanup := setupRun2TestEnv(t)
+	defer cleanup()
+
+	for _, args := range [][]string{
+		{"git", "init"},
+		{"git", "config", "user.email", "test@example.com"},
+		{"git", "config", "user.name", "Gromit Test"},
+		{"git", "commit", "--allow-empty", "-m", "initial"},
+	} {
+		cmd := exec.Command(args[0], args[1:]...)
+		cmd.Stdout = io.Discard
+		cmd.Stderr = io.Discard
+		if err := cmd.Run(); err != nil {
+			t.Fatalf("%s: %v", strings.Join(args, " "), err)
+		}
+	}
+
+	cfg, err := loadConfig()
+	if err != nil {
+		t.Fatalf("loadConfig: %v", err)
+	}
+
+	fakeTracker := &fakeTaskTracker{
+		response: []tasktracker.Bead{
+			{ID: "missing-label"},
+			{ID: "review-only", Labels: []string{"from-review"}},
+			{ID: "review-spec", Labels: []string{"from-review", "spec:target-spec"}},
+		},
+	}
+	origTrackerFn := newTaskTrackerAdapterFn
+	newTaskTrackerAdapterFn = func(_ *bead.Client) tasktracker.TaskTracker { return fakeTracker }
+	defer func() { newTaskTrackerAdapterFn = origTrackerFn }()
+
+	origComponentsFn := newRun2LoopComponentsFn
+	newRun2LoopComponentsFn = func(cfg *config.Config, adapters adapter.AdapterSet, legacyEmitter *events.Emitter, output io.Writer, router *routing.Router, phaseModels map[string]string) (*loop.Run2LoopComponents, error) {
+		emitter := events.NewEmitter()
+		return &loop.Run2LoopComponents{
+			BeadLoop:     &loop.BeadLoop{},
+			Emitter:      emitter,
+			TypedEmitter: event.NewEmitter(),
+		}, nil
+	}
+	defer func() { newRun2LoopComponentsFn = origComponentsFn }()
+
+	origSubscribers := startRun2SubscribersFn
+	startRun2SubscribersFn = func(ctx context.Context, emitter *events.Emitter, output io.Writer, logsDir string) (*sync.WaitGroup, error) {
+		return &sync.WaitGroup{}, nil
+	}
+	defer func() { startRun2SubscribersFn = origSubscribers }()
+
+	run2Cmd.SetOut(io.Discard)
+	run2Cmd.SetErr(io.Discard)
+
+	tests := []struct {
+		name    string
+		spec    string
+		wantIDs []string
+	}{
+		{
+			name:    "filters to from review beads",
+			wantIDs: []string{"review-only", "review-spec"},
+		},
+		{
+			name:    "filters to spec specific",
+			spec:    "target-spec",
+			wantIDs: []string{"review-spec"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := run2Cmd.Flags().Set("spec", tt.spec); err != nil {
+				t.Fatalf("set spec flag: %v", err)
+			}
+			t.Cleanup(func() {
+				if err := run2Cmd.Flags().Set("spec", ""); err != nil {
+					t.Fatalf("reset spec flag: %v", err)
+				}
+			})
+
+			var captured struct {
+				called bool
+				beads  []*bead.Bead
+			}
+			origRunBeadLoopFn := runBeadLoopFn
+			runBeadLoopFn = func(_ *loop.BeadLoop, _ context.Context, beads []*bead.Bead, _ <-chan struct{}) (loop.BeadLoopResult, error) {
+				captured.called = true
+				captured.beads = append([]*bead.Bead(nil), beads...)
+				return loop.BeadLoopResult{}, nil
+			}
+			t.Cleanup(func() { runBeadLoopFn = origRunBeadLoopFn })
+
+			if err := run2FromReview(run2Cmd, cfg); err != nil {
+				t.Fatalf("run2FromReview = %v", err)
+			}
+			if !captured.called {
+				t.Fatal("bead loop never executed")
+			}
+			expectBeadIDs(t, captured.beads, tt.wantIDs)
+		})
+	}
+}
+
 func setupRun2TestEnv(t *testing.T) (string, func()) {
 	t.Helper()
 
@@ -685,6 +789,35 @@ func (f *fakeTaskTracker) QueryBeads(_ context.Context, req tasktracker.TaskTrac
 		resp.Beads = append([]tasktracker.Bead(nil), f.response...)
 	}
 	return resp, nil
+}
+
+func expectBeadIDs(t *testing.T, beads []*bead.Bead, want []string) {
+	t.Helper()
+	gotIDs := beadIDsFromList(beads)
+	if len(gotIDs) != len(want) {
+		t.Fatalf("beads = %v, want %v", gotIDs, want)
+	}
+
+	set := make(map[string]struct{}, len(gotIDs))
+	for _, id := range gotIDs {
+		set[id] = struct{}{}
+	}
+	for _, id := range want {
+		if _, ok := set[id]; !ok {
+			t.Fatalf("beads = %v, want %v", gotIDs, want)
+		}
+	}
+}
+
+func beadIDsFromList(beads []*bead.Bead) []string {
+	ids := make([]string, 0, len(beads))
+	for _, beadItem := range beads {
+		if beadItem == nil {
+			continue
+		}
+		ids = append(ids, beadItem.ID)
+	}
+	return ids
 }
 
 type spyStage struct {
