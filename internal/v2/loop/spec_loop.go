@@ -419,8 +419,14 @@ func (s *SpecLoop) Run(ctx context.Context, specID string, stopCh <-chan struct{
 		return fmt.Errorf("commit after accept: %w", err)
 	}
 
-	if _, err := s.runSpecReviewStage(ctx, &req); err != nil {
-		return err
+	reviewRes, err := s.runSpecReviewStage(ctx, &req)
+	if err != nil {
+		handleFailureCleaned = true
+		return s.handleFailure(ctx, specID, baseSummary, err)
+	}
+	if s.specReviewFailed(reviewRes) {
+		handleFailureCleaned = true
+		return s.handleFailure(ctx, specID, baseSummary, fmt.Errorf("specreview failed"))
 	}
 
 	summary := s.buildSuccessSummary(specID, worktree, plan, beads, acceptRes, beadResult.OutOfScopeFindings)
@@ -588,6 +594,13 @@ func (s *SpecLoop) runSpecReviewStage(ctx context.Context, req *stagepkg.Request
 }
 
 func (s *SpecLoop) acceptFailed(res *stagepkg.Result) bool {
+	if res == nil {
+		return false
+	}
+	return res.Decision == stagepkg.DecisionFail
+}
+
+func (s *SpecLoop) specReviewFailed(res *stagepkg.Result) bool {
 	if res == nil {
 		return false
 	}
