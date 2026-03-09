@@ -105,7 +105,7 @@ func TestRunWritesGapAnalysisWhenCriterionFails(t *testing.T) {
 	}
 }
 
-func TestRunReportsFindingsForFailingCriteria(t *testing.T) {
+func TestRunProducesFindingsForMultipleFailedCriteria(t *testing.T) {
 	t.Parallel()
 
 	specID := "spec-findings"
@@ -115,7 +115,7 @@ func TestRunReportsFindingsForFailingCriteria(t *testing.T) {
 		t.Fatalf("create specs dir: %v", err)
 	}
 	specPath := filepath.Join(specDir, specID+".md")
-	content := "# Findings spec\n\n## Acceptance Criteria\n- find me\n"
+	content := "# Findings spec\n\n## Acceptance Criteria\n- need A\n- need B\n"
 	if err := os.WriteFile(specPath, []byte(content), 0o644); err != nil {
 		t.Fatalf("write spec: %v", err)
 	}
@@ -128,10 +128,11 @@ func TestRunReportsFindingsForFailingCriteria(t *testing.T) {
 		},
 	}
 
-	git := &fakeGitAdapter{diff: "diff content"}
+	git := &fakeGitAdapter{diff: "findings diff"}
 	llmProvider := &fakeLLM{
 		responses: []*llm.LLMResponse{
-			{Success: true, Output: `{"pass": false, "summary": "missing tests"}`},
+			{Success: true, Output: `{"pass": false, "summary": "missing A"}`},
+			{Success: true, Output: `{"pass": false, "summary": "missing B"}`},
 		},
 	}
 
@@ -157,26 +158,19 @@ func TestRunReportsFindingsForFailingCriteria(t *testing.T) {
 	if !ok {
 		t.Fatalf("artifacts type = %T, want *AcceptArtifacts", res.Artifacts)
 	}
-
-	if len(artifacts.Findings) != 1 {
-		t.Fatalf("findings count = %d, want 1", len(artifacts.Findings))
+	if len(artifacts.Findings) != 2 {
+		t.Fatalf("findings count = %d, want 2", len(artifacts.Findings))
 	}
-
-	f := artifacts.Findings[0]
-	if f.Severity != finding.SeverityCritical {
-		t.Fatalf("finding severity = %v, want %v", f.Severity, finding.SeverityCritical)
-	}
-	if f.Category != finding.CategoryAcceptance {
-		t.Fatalf("finding category = %v, want %v", f.Category, finding.CategoryAcceptance)
-	}
-	if f.Scope != "Spec" {
-		t.Fatalf("finding scope = %q, want %q", f.Scope, "Spec")
-	}
-	if f.Description != "missing tests" {
-		t.Fatalf("finding description = %q, want %q", f.Description, "missing tests")
-	}
-	if f.AffectedFiles != nil {
-		t.Fatalf("affected files = %v, want nil", f.AffectedFiles)
+	for _, finding := range artifacts.Findings {
+		if finding.Severity != stagepkg.SpecFindingSeverity("critical") {
+			t.Fatalf("finding severity = %q, want %q", finding.Severity, "critical")
+		}
+		if finding.Category != stagepkg.SpecFindingCategory("acceptance") {
+			t.Fatalf("finding category = %q, want %q", finding.Category, "acceptance")
+		}
+		if finding.Scope != stagepkg.SpecFindingScopeSpec {
+			t.Fatalf("finding scope = %v, want %v", finding.Scope, stagepkg.SpecFindingScopeSpec)
+		}
 	}
 }
 
