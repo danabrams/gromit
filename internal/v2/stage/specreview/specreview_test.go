@@ -1,9 +1,15 @@
 package specreview
 
 import (
+	"context"
+	"errors"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/config"
+	githubllm "github.com/danabrams/gromit/internal/v2/llmtypes"
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
 	stagedesc "github.com/danabrams/gromit/internal/v2/stage/names"
 )
@@ -114,4 +120,109 @@ func TestNewSpecReviewStageRequiresConfig(t *testing.T) {
 	if stage.Name() != want {
 		t.Fatalf("stage name = %q, want %q", stage.Name(), want)
 	}
+}
+
+func TestRunIncludesPlanAndDiffInPrompt(t *testing.T) {
+	root := t.TempDir()
+	planDir := filepath.Join(root, ".gromit", "v2")
+	if err := os.MkdirAll(planDir, 0o755); err != nil {
+		t.Fatalf("mkdir plan dir: %v", err)
+	}
+	planText := "Plan summary for spec review"
+	planPath := filepath.Join(planDir, "plan.md")
+	if err := os.WriteFile(planPath, []byte(planText), 0o644); err != nil {
+		t.Fatalf("write plan: %v", err)
+	}
+
+	git := &fakeGitDiffer{diff: "@@ -0,0 +1 @@ +new feature"}
+	provider := &fakeLLMProvider{resp: &githubllm.LLMInvokeResponse{
+		Success: true,
+		Output: `{"findings": [{"verdict": "pass", "severity": "low", "category": "code_quality", "scope": "spec", "description": "looks good", "affected_files": ["cmd/spec.md"]}], "summary": "summary"}`,
+	}}
+	cfg := &config.Config{Paths: config.PathsConfig{GromitDir: ".gromit"}}
+	stage, err := New(cfg, git, provider, "", "", "")
+	if err != nil {
+		t.Fatalf("new stage: %v", err)
+	}
+
+	req := &stagepkg.Request{
+		Bead: stagepkg.BeadInfo{ID: "spec-123", Title: "Spec review", Description: "desc"},
+		Worktree: root,
+	}
+
+	result, err := stage.Run(context.Background(), req)
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	if result.Decision != stagepkg.DecisionProceed {
+		t.Fatalf("decision = %v, want proceed", result.Decision)
+	}
+	artifacts, ok := result.Artifacts.(*SpecReviewArtifacts)
+	if !ok || artifacts == nil {
+		t.Fatalf("artifacts missing: %#v", result.Artifacts)
+	}
+	if artifacts.Summary != "summary" {
+		t.Fatalf("summary = %q", artifacts.Summary)
+	}
+	if !strings.Contains(provider.lastRequest.Prompt, planText) {
+		t.Fatalf("prompt missing plan: %q", provider.lastRequest.Prompt)
+	}
+	if !strings.Contains(provider.lastRequest.Prompt, git.diff) {
+		t.Fatalf("prompt missing diff: %q", provider.lastRequest.Prompt)
+	}
+}
+
+func TestRunFailsOnHighSeverityFinding(t *testing.T) {
+	root := t.TempDir()
+	planDir := filepath.Join(root, ".gromit", "v2")
+	if err := os.MkdirAll(planDir, 0o755); err != nil {
+		t.Fatalf("mkdir plan dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(planDir, "plan.md"), []byte("plan"), 0o644); err != nil {
+		t.Fatalf("write plan: %v", err)
+	}
+
+	git := &fakeGitDiffer{diff: "diff"}
+	provider := &fakeLLMProvider{resp: &githubllm.LLMInvokeResponse{
+		Success: true,
+		Output: `{"findings": [{"verdict": "pass", "severity": "high", "category": "code_quality", "scope": "spec", "description": "critical", "affected_files": []}], "summary": "issues"}`,
+	}}
+	cfg := &config.Config{Paths: config.PathsConfig{GromitDir: ".gromit"}}
+	stage, err := New(cfg, git, provider, "", "", "")
+	if err != nil {
+		t.Fatalf("new stage: %v", err)
+	}
+
+	result, err := stage.Run(context.Background(), &stagepkg.Request{Bead: stagepkg.BeadInfo{ID: "spec"}, Worktree: root})
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	if result.Decision != stagepkg.DecisionFail {
+		t.Fatalf("decision = %v, want fail", result.Decision)
+	}
+}
+
+type fakeGitDiffer struct {
+	diff string
+}
+
+func (f *fakeGitDiffer) DiffFromBase(_ context.Context, _ string) (string, error) {
+	return f.diff, nil
+}
+
+type fakeLLMProvider struct {
+	lastRequest githubllm.LLMInvokeRequest
+	resp        *githubllm.LLMInvokeResponse
+}
+
+func (f *fakeLLMProvider) Invoke(_ context.Context, req githubllm.LLMInvokeRequest) (*githubllm.LLMInvokeResponse, error) {
+	f.lastRequest = req
+	if f.resp == nil {
+		return nil, nil
+	}
+	return f.resp, nil
+}
+
+func (fakeLLMProvider) StreamInvoke(_ context.Context, _ githubllm.LLMStreamInvokeRequest) (*githubllm.LLMInvokeResponse, error) {
+	return nil, errors.New("not supported")
 }
