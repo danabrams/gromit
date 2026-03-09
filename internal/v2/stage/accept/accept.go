@@ -18,11 +18,13 @@ import (
 )
 
 const (
-	defaultGromitDir  = ".gromit"
-	v2DirName         = "v2"
-	gapFileName       = "gap-analysis.md"
-	defaultSpecsDir   = ".gromit/specs"
-	defaultPromptBase = "You are evaluating a single acceptance criterion. Use the provided diff and criterion text to determine whether the implementation satisfies the criterion. Respond with a JSON object containing \"pass\" (true/false) and \"summary\" (explain your reasoning). Output only the JSON object."
+	defaultGromitDir       = ".gromit"
+	v2DirName              = "v2"
+	gapFileName            = "gap-analysis.md"
+	defaultSpecsDir        = ".gromit/specs"
+	defaultPromptBase      = "You are evaluating a single acceptance criterion. Use the provided diff and criterion text to determine whether the implementation satisfies the criterion. Respond with a JSON object containing \"pass\" (true/false) and \"summary\" (explain your reasoning). Output only the JSON object."
+	maxEvalParseRetries    = 1
+	outputPreviewMaxLen    = 500
 )
 
 const defaultAcceptFragment = `# Acceptance Criterion Evaluation Instructions
@@ -169,24 +171,39 @@ func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Resul
 		promptText := s.buildPrompt(specID, criterion, diff)
 		model := s.selectModel(cfg, req)
 
-		resp, err := provider.Invoke(ctx, llmtypes.LLMInvokeRequest{Prompt: promptText, Model: model, Dir: req.Worktree})
-		if err != nil {
-			return nil, fmt.Errorf("evaluate criterion %d: %w", criterion.Number, err)
-		}
-		if resp == nil {
-			return nil, fmt.Errorf("evaluate criterion %d: provider returned nil response", criterion.Number)
-		}
-		if !resp.Success {
-			detail := strings.TrimSpace(resp.Output)
-			if detail == "" {
-				detail = "no detail available"
-			}
-			return nil, fmt.Errorf("evaluate criterion %d: provider reported unsuccessful invocation: %s", criterion.Number, detail)
-		}
+		var pass bool
+		var summary string
+		var lastOutput string
 
-		pass, summary, parseErr := parseEvaluation(resp.Output)
-		if parseErr != nil {
-			return nil, fmt.Errorf("parse criterion %d evaluation: %w", criterion.Number, parseErr)
+		for attempt := 0; attempt <= maxEvalParseRetries; attempt++ {
+			resp, err := provider.Invoke(ctx, llmtypes.LLMInvokeRequest{Prompt: promptText, Model: model, Dir: req.Worktree})
+			if err != nil {
+				return nil, fmt.Errorf("evaluate criterion %d: %w", criterion.Number, err)
+			}
+			if resp == nil {
+				return nil, fmt.Errorf("evaluate criterion %d: provider returned nil response", criterion.Number)
+			}
+			if !resp.Success {
+				detail := strings.TrimSpace(resp.Output)
+				if detail == "" {
+					detail = "no detail available"
+				}
+				return nil, fmt.Errorf("evaluate criterion %d: provider reported unsuccessful invocation: %s", criterion.Number, detail)
+			}
+
+			lastOutput = resp.Output
+			var parseErr error
+			pass, summary, parseErr = parseEvaluation(resp.Output)
+			if parseErr == nil {
+				break
+			}
+			if attempt == maxEvalParseRetries {
+				preview := lastOutput
+				if len(preview) > outputPreviewMaxLen {
+					preview = preview[:outputPreviewMaxLen] + "... (truncated)"
+				}
+				return nil, fmt.Errorf("parse criterion %d evaluation: %w\nLLM output preview: %s", criterion.Number, parseErr, preview)
+			}
 		}
 
 		trimmed := strings.TrimSpace(criterion.Text)

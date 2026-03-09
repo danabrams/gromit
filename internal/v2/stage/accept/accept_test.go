@@ -10,6 +10,7 @@ import (
 
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/v2/adapter/llm"
+	"github.com/danabrams/gromit/internal/v2/llmtypes"
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
 )
 
@@ -364,5 +365,154 @@ func TestRunReturnsErrorWhenLLMReturnsNil(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "nil response") {
 		t.Fatalf("error should mention nil response, got: %v", err)
+	}
+}
+
+// fakeRetryLLM allows per-call control over responses and errors, and tracks
+// how many times Invoke was called.
+type fakeRetryLLM struct {
+	calls     []llm.InvokeRequest
+	responses []retryLLMResult
+}
+
+type retryLLMResult struct {
+	resp *llm.LLMResponse
+	err  error
+}
+
+func (f *fakeRetryLLM) Invoke(ctx context.Context, req llm.InvokeRequest) (*llm.LLMResponse, error) {
+	idx := len(f.calls)
+	f.calls = append(f.calls, req)
+	if idx >= len(f.responses) {
+		return nil, fmt.Errorf("fakeRetryLLM: no response for call %d", idx)
+	}
+	r := f.responses[idx]
+	return r.resp, r.err
+}
+
+func (f *fakeRetryLLM) StreamInvoke(ctx context.Context, req llm.StreamInvokeRequest) (*llm.LLMResponse, error) {
+	return nil, fmt.Errorf("stream invoke not supported")
+}
+
+func setupAcceptStageWithProvider(t *testing.T, provider llmtypes.LLMProvider) (*Stage, *stagepkg.Request) {
+	t.Helper()
+	specID := "spec-retry"
+	tmp := t.TempDir()
+	specDir := filepath.Join(tmp, ".gromit", "specs")
+	if err := os.MkdirAll(specDir, 0o755); err != nil {
+		t.Fatalf("create specs dir: %v", err)
+	}
+	specPath := filepath.Join(specDir, specID+".md")
+	content := "# Retry spec\n\n## Acceptance Criteria\n- criterion A\n"
+	if err := os.WriteFile(specPath, []byte(content), 0o644); err != nil {
+		t.Fatalf("write spec: %v", err)
+	}
+
+	cfg := &config.Config{
+		ProjectRoot: tmp,
+		Paths: config.PathsConfig{
+			GromitDir: ".gromit",
+			Specs:     ".gromit/specs",
+		},
+	}
+
+	git := &fakeGitAdapter{diff: "diff content"}
+	stageInstance, err := New(cfg, git, provider, "BASE", "PROJECT", "FRAGMENT")
+	if err != nil {
+		t.Fatalf("create stage: %v", err)
+	}
+
+	req := &stagepkg.Request{
+		Bead:     stagepkg.BeadInfo{ID: specID},
+		Worktree: tmp,
+	}
+	return stageInstance, req
+}
+
+func TestAcceptStage_RetriesOnParseFailure(t *testing.T) {
+	t.Parallel()
+
+	provider := &fakeRetryLLM{
+		responses: []retryLLMResult{
+			// First call: non-JSON output triggers parse failure.
+			{resp: &llm.LLMResponse{Success: true, Output: "this is not json"}},
+			// Second call (retry): valid JSON.
+			{resp: &llm.LLMResponse{Success: true, Output: `{"pass": true, "summary": "looks good"}`}},
+		},
+	}
+
+	stageInstance, req := setupAcceptStageWithProvider(t, provider)
+
+	res, err := stageInstance.Run(context.Background(), req)
+	if err != nil {
+		t.Fatalf("expected success after retry, got error: %v", err)
+	}
+	if res.Decision != stagepkg.DecisionProceed {
+		t.Fatalf("decision = %v, want %v", res.Decision, stagepkg.DecisionProceed)
+	}
+
+	// Provider should have been called exactly twice: initial + 1 retry.
+	if got := len(provider.calls); got != 2 {
+		t.Fatalf("provider call count = %d, want 2", got)
+	}
+}
+
+func TestAcceptStage_ParseFailureIncludesOutputPreview(t *testing.T) {
+	t.Parallel()
+
+	badOutput := "Sure! Here is my evaluation: the criterion is met because the diff shows..."
+	provider := &fakeRetryLLM{
+		responses: []retryLLMResult{
+			// First call: non-JSON.
+			{resp: &llm.LLMResponse{Success: true, Output: badOutput}},
+			// Second call (retry): still non-JSON, exhausts retries.
+			{resp: &llm.LLMResponse{Success: true, Output: badOutput}},
+		},
+	}
+
+	stageInstance, req := setupAcceptStageWithProvider(t, provider)
+
+	_, err := stageInstance.Run(context.Background(), req)
+	if err == nil {
+		t.Fatal("expected error after exhausting retries, got nil")
+	}
+
+	// The error should contain a truncated preview of the LLM output.
+	errMsg := err.Error()
+	if !strings.Contains(errMsg, "Sure! Here is my evaluation") {
+		t.Fatalf("error should contain output preview, got: %v", errMsg)
+	}
+
+	// Provider should have been called exactly twice: initial + 1 retry.
+	if got := len(provider.calls); got != 2 {
+		t.Fatalf("provider call count = %d, want 2", got)
+	}
+}
+
+func TestAcceptStage_NoRetryOnProviderError(t *testing.T) {
+	t.Parallel()
+
+	provider := &fakeRetryLLM{
+		responses: []retryLLMResult{
+			// First call: provider returns an error (not a parse failure).
+			{resp: nil, err: fmt.Errorf("network timeout")},
+			// Second call should never happen.
+			{resp: &llm.LLMResponse{Success: true, Output: `{"pass": true, "summary": "ok"}`}},
+		},
+	}
+
+	stageInstance, req := setupAcceptStageWithProvider(t, provider)
+
+	_, err := stageInstance.Run(context.Background(), req)
+	if err == nil {
+		t.Fatal("expected error from provider failure, got nil")
+	}
+	if !strings.Contains(err.Error(), "network timeout") {
+		t.Fatalf("error should mention provider error, got: %v", err)
+	}
+
+	// Provider should have been called only once — no retry on provider error.
+	if got := len(provider.calls); got != 1 {
+		t.Fatalf("provider call count = %d, want 1 (no retry on provider error)", got)
 	}
 }
