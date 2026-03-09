@@ -295,6 +295,30 @@ func TestRun2EpicFlagRunsAllSpecs(t *testing.T) {
 	}
 }
 
+func TestRun2ArgsFromReviewFlag(t *testing.T) {
+	if err := run2Cmd.Flags().Set("from-review", "true"); err != nil {
+		t.Fatalf("set from-review flag: %v", err)
+	}
+	defer run2Cmd.Flags().Set("from-review", "false")
+
+	if err := run2Args(run2Cmd, nil); err != nil {
+		t.Fatalf("run2Args with from-review flag should pass, got %v", err)
+	}
+
+	if err := run2Args(run2Cmd, []string{"spec.md"}); err == nil {
+		t.Fatal("run2Args should reject spec file arguments when --from-review is active")
+	}
+
+	if err := run2Cmd.Flags().Set("epic", "suite"); err != nil {
+		t.Fatalf("set epic flag: %v", err)
+	}
+	defer run2Cmd.Flags().Set("epic", "")
+
+	if err := run2Args(run2Cmd, nil); err == nil {
+		t.Fatal("run2Args should reject --epic when --from-review is active")
+	}
+}
+
 func TestRun2FromReviewUsesBeadLoop(t *testing.T) {
 	_, cleanup := setupRun2TestEnv(t)
 	defer cleanup()
