@@ -66,3 +66,30 @@ func TestDecisionStrings(t *testing.T) {
 		}
 	}
 }
+
+func TestStageRequestIncludesFindings(t *testing.T) {
+	req := StageRequest{
+		Findings: []Finding{
+			{
+				Severity:      FindingSeverityWarning,
+				Category:      FindingCategoryQuality,
+				Scope:         FindingScopeGeneral,
+				Description:   "needs review",
+				AffectedFiles: []string{"review_spec_v2.md"},
+			},
+		},
+	}
+
+	if got := len(req.Findings); got != 1 {
+		t.Fatalf("expected 1 finding, got %d", got)
+	}
+
+	finding := req.Findings[0]
+	if finding.Severity != FindingSeverityWarning {
+		t.Fatalf("expected severity %s, got %s", FindingSeverityWarning, finding.Severity)
+	}
+
+	if finding.Category != FindingCategoryQuality {
+		t.Fatalf("expected category %s, got %s", FindingCategoryQuality, finding.Category)
+	}
+}
