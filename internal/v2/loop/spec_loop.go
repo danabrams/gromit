@@ -24,6 +24,7 @@ import (
 	"github.com/danabrams/gromit/internal/v2/stage/finding"
 	planstage "github.com/danabrams/gromit/internal/v2/stage/plan"
 	present "github.com/danabrams/gromit/internal/v2/stage/present"
+	specreview "github.com/danabrams/gromit/internal/v2/stage/specreview"
 	"github.com/danabrams/gromit/internal/v2/trackertypes"
 )
 
@@ -427,18 +428,24 @@ func (s *SpecLoop) Run(ctx context.Context, specID string, stopCh <-chan struct{
 	}
 
 	s.recordStage("accept")
-	acceptRes, err := s.ensureAcceptanceAndReview(ctx, &req, specID)
+	acceptRes, specReviewRes, err := s.ensureAcceptance(ctx, &req, specID)
 	if err != nil {
+		if strings.Contains(err.Error(), "spec review failed") {
+			return err
+		}
 		handleFailureCleaned = true
 		return s.handleFailure(ctx, specID, baseSummary, err)
+	}
+	if s.acceptFailed(acceptRes) {
+		return fmt.Errorf("accept failed")
 	}
 	if err := s.commitStage(ctx, worktree, "accept", 0, "proceed"); err != nil {
 		return fmt.Errorf("commit after accept: %w", err)
 	}
 
 	s.recordStage("spec-review")
-	if _, err := s.runSpecReviewStage(ctx, &req); err != nil {
-		return err
+	if specReviewRes == nil || specReviewRes.Decision != stagepkg.DecisionProceed {
+		return fmt.Errorf("spec review failed")
 	}
 	if err := s.commitStage(ctx, worktree, "spec-review", 0, "proceed"); err != nil {
 		return fmt.Errorf("commit after spec review: %w", err)
@@ -603,48 +610,79 @@ func (s *SpecLoop) runBeadLoop(ctx context.Context, beads []*bead.Bead, worktree
 	return s.beadRunner.Run(ctx, beads, stopCh)
 }
 
-func (s *SpecLoop) ensureAcceptanceAndReview(ctx context.Context, req *stagepkg.Request, specID string) (*stagepkg.Result, error) {
+func (s *SpecLoop) ensureAcceptance(ctx context.Context, req *stagepkg.Request, specID string) (*stagepkg.Result, *stagepkg.Result, error) {
 	retriesRemaining := maxAcceptanceRetries
 	for {
 		if err := s.ctxErr(ctx); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
 		s.applyRouting(req, "accept")
-		res, err := s.runAcceptStage(ctx, req)
+		acceptRes, err := s.runAcceptStage(ctx, req)
 		if err != nil {
-			return res, err
+			return acceptRes, nil, err
 		}
-		if !s.acceptFailed(res) {
-			return res, nil
+
+		s.applyRouting(req, "spec-review")
+		specReviewRes, err := s.runSpecReviewStage(ctx, req)
+		if err != nil {
+			return acceptRes, specReviewRes, err
+		}
+
+		if !s.acceptFailed(acceptRes) && !s.acceptFailed(specReviewRes) {
+			return acceptRes, specReviewRes, nil
 		}
 		if s.remediationRunner == nil {
-			return res, fmt.Errorf("accept failed")
+			if s.acceptFailed(acceptRes) {
+				return acceptRes, specReviewRes, fmt.Errorf("accept failed")
+			}
+			return acceptRes, specReviewRes, fmt.Errorf("spec review failed")
 		}
 		if retriesRemaining <= 0 {
-			return res, fmt.Errorf("%w: limit %d reached", ErrAcceptanceRetriesExceeded, maxAcceptanceRetries)
+			return acceptRes, specReviewRes, fmt.Errorf("%w: limit %d reached", ErrAcceptanceRetriesExceeded, maxAcceptanceRetries)
 		}
-		var findings []stagepkg.SpecFinding
-		if res != nil && res.Artifacts != nil {
-			if artifacts, ok := res.Artifacts.(*stageaccept.AcceptArtifacts); ok {
-				findings = append([]stagepkg.SpecFinding(nil), artifacts.Findings...)
-			}
-		}
+		findings := s.extractAcceptFindings(acceptRes)
+		findings = append(findings, s.extractSpecReviewFindings(specReviewRes)...)
 		if err := s.remediationRunner.Run(ctx, specID, req.Worktree, findings); err != nil {
-			return res, err
+			return acceptRes, specReviewRes, err
 		}
 		retriesRemaining--
 	}
 }
 
-func (s *SpecLoop) runRemediation(ctx context.Context, specID, worktree string, merged []finding.Finding) error {
-	if s.remediationRunner == nil {
+func (s *SpecLoop) extractAcceptFindings(res *stagepkg.Result) []stagepkg.SpecFinding {
+	if res == nil || res.Artifacts == nil {
 		return nil
 	}
-	if withFindings, ok := s.remediationRunner.(remediationRunnerWithFindings); ok {
-		return withFindings.RunWithFindings(ctx, specID, worktree, cloneStageFindings(merged))
+	artifacts, ok := res.Artifacts.(*stageaccept.AcceptArtifacts)
+	if !ok {
+		return nil
 	}
-	return s.remediationRunner.Run(ctx, specID, worktree)
+	return append([]stagepkg.SpecFinding(nil), artifacts.Findings...)
+}
+
+func (s *SpecLoop) extractSpecReviewFindings(res *stagepkg.Result) []stagepkg.SpecFinding {
+	if res == nil || res.Artifacts == nil {
+		return nil
+	}
+	artifacts, ok := res.Artifacts.(*specreview.SpecReviewArtifacts)
+	if !ok {
+		return nil
+	}
+	if len(artifacts.Findings) == 0 {
+		return nil
+	}
+	findings := make([]stagepkg.SpecFinding, 0, len(artifacts.Findings))
+	for _, finding := range artifacts.Findings {
+		findings = append(findings, stagepkg.SpecFinding{
+			Title:       finding.Title,
+			Description: finding.Description,
+			Severity:    finding.Severity,
+			Category:    finding.Category,
+			Scope:       finding.Scope,
+		})
+	}
+	return findings
 }
 
 func (s *SpecLoop) runAcceptStage(ctx context.Context, req *stagepkg.Request) (*stagepkg.Result, error) {
@@ -660,7 +698,7 @@ func (s *SpecLoop) runAcceptStage(ctx context.Context, req *stagepkg.Request) (*
 
 func (s *SpecLoop) runSpecReviewStage(ctx context.Context, req *stagepkg.Request) (*stagepkg.Result, error) {
 	if s.specReviewStage == nil {
-		return nil, fmt.Errorf("spec review stage required")
+		return &stagepkg.Result{Decision: stagepkg.DecisionProceed}, nil
 	}
 	res, err := s.specReviewStage.Run(ctx, req)
 	if err != nil {

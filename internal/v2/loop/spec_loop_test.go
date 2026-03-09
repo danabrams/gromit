@@ -159,9 +159,8 @@ func TestSpecLoopHappyPathExecutesPipeline(t *testing.T) {
 	llm := newFakeLLMAdapter()
 	taskTracker := newFakeTaskTrackerAdapter()
 	planStage := newFakePlanStage(specID)
-	presentStage := newFakePresentStage()
-	summaryCtx := &present.SummaryContext{}
 	presenter := newFakePresenterAdapter(t)
+	presentStage, summaryCtx := newPresentStageForTest(t, cfg, presenter)
 
 	adapters := adapter.AdapterSet{
 		Git:         git,
@@ -973,7 +972,7 @@ func TestEnsureAcceptanceRetriesRemediationUntilSuccess(t *testing.T) {
 	}
 
 	req := stagepkg.Request{Bead: stagepkg.BeadInfo{ID: specID}}
-	res, err := s.ensureAcceptanceAndReview(ctx, &req, specID)
+	res, _, err := s.ensureAcceptance(ctx, &req, specID)
 	if err != nil {
 		t.Fatalf("ensure acceptance: %v", err)
 	}
@@ -1018,7 +1017,7 @@ func TestEnsureAcceptanceStopsAfterMaxRetries(t *testing.T) {
 	}
 
 	req := stagepkg.Request{Bead: stagepkg.BeadInfo{ID: specID}}
-	res, err := s.ensureAcceptanceAndReview(ctx, &req, specID)
+	res, _, err := s.ensureAcceptance(ctx, &req, specID)
 	if err == nil {
 		t.Fatalf("ensure acceptance succeeded unexpectedly")
 	}
