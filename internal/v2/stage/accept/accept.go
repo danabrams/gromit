@@ -10,6 +10,7 @@ import (
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/coverage"
 	"github.com/danabrams/gromit/internal/jsonutil"
+	"github.com/danabrams/gromit/internal/v2/findings"
 	"github.com/danabrams/gromit/internal/v2/llmtypes"
 	"github.com/danabrams/gromit/internal/v2/presentation"
 	v2prompt "github.com/danabrams/gromit/internal/v2/prompt"
@@ -18,13 +19,13 @@ import (
 )
 
 const (
-	defaultGromitDir       = ".gromit"
-	v2DirName              = "v2"
-	gapFileName            = "gap-analysis.md"
-	defaultSpecsDir        = ".gromit/specs"
-	defaultPromptBase      = "You are evaluating a single acceptance criterion. Use the provided diff and criterion text to determine whether the implementation satisfies the criterion. Respond with a JSON object containing \"pass\" (true/false) and \"summary\" (explain your reasoning). Output only the JSON object."
-	maxEvalParseRetries    = 1
-	outputPreviewMaxLen    = 500
+	defaultGromitDir    = ".gromit"
+	v2DirName           = "v2"
+	gapFileName         = "gap-analysis.md"
+	defaultSpecsDir     = ".gromit/specs"
+	defaultPromptBase   = "You are evaluating a single acceptance criterion. Use the provided diff and criterion text to determine whether the implementation satisfies the criterion. Respond with a JSON object containing \"pass\" (true/false) and \"summary\" (explain your reasoning). Output only the JSON object."
+	maxEvalParseRetries = 1
+	outputPreviewMaxLen = 500
 )
 
 const defaultAcceptFragment = `# Acceptance Criterion Evaluation Instructions
@@ -61,6 +62,7 @@ type GitDiffer interface {
 type AcceptArtifacts struct {
 	Results    []presentation.AcceptanceResult
 	GapSummary string
+	Findings   []findings.Finding
 }
 
 // GetGapSummary returns the gap summary, or empty string if the receiver is nil.
@@ -166,6 +168,7 @@ func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Resul
 
 	results := make([]presentation.AcceptanceResult, 0, len(criteria))
 	failures := make([]string, 0)
+	collectedFindings := make([]findings.Finding, 0)
 
 	for _, criterion := range criteria {
 		promptText := s.buildPrompt(specID, criterion, diff)
@@ -213,7 +216,15 @@ func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Resul
 		score := "PASS"
 		if !pass {
 			score = "FAIL"
-			failures = append(failures, fmt.Sprintf("Criterion %d failed: %s — %s", criterion.Number, trimmed, summaryOrDefault(summary)))
+			summaryText := summaryOrDefault(summary)
+			failureDesc := fmt.Sprintf("Criterion %d failed: %s — %s", criterion.Number, trimmed, summaryText)
+			failures = append(failures, failureDesc)
+			collectedFindings = append(collectedFindings, findings.Finding{
+				Severity:    findings.SeverityCritical,
+				Category:    "acceptance",
+				Scope:       "spec",
+				Description: failureDesc,
+			})
 		}
 
 		results = append(results, presentation.AcceptanceResult{
@@ -226,6 +237,7 @@ func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Resul
 	if len(failures) > 0 {
 		gapSummary := strings.Join(failures, "\n")
 		artifacts.GapSummary = gapSummary
+		artifacts.Findings = collectedFindings
 		if err := s.writeGapAnalysis(root, cfg, gapSummary); err != nil {
 			return nil, fmt.Errorf("write gap analysis: %w", err)
 		}
