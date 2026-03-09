@@ -216,8 +216,9 @@ func (r *RemediationRunner) handleGenerationCap(ctx context.Context, specID stri
 			GenerationCap: cap,
 		})
 		emitter.Emit(&events.AndonTriggeredEvent{
-			SpecID: specID,
-			Reason: reason,
+			SpecID:       specID,
+			Reason:       reason,
+			FindingCount: len(r.cfg.Findings),
 		})
 	}
 	if err := r.presentFailureSummary(ctx, specID, reason); err != nil {

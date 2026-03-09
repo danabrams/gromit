@@ -13,8 +13,9 @@ func (e *GenerationCapReachedEvent) EventType() string {
 
 // AndonTriggeredEvent signals that Andon escalation is required after remediation failed.
 type AndonTriggeredEvent struct {
-	SpecID string
-	Reason string
+	SpecID       string
+	Reason       string
+	FindingCount int
 	TimeMixin
 }
 
