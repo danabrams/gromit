@@ -660,8 +660,8 @@ func TestSpecLoopReusesExistingBeads(t *testing.T) {
 	taskTracker := newFakeTaskTrackerAdapter()
 	taskTracker.queryBeadsResponse = &tasktracker.TaskTrackerQueryBeadsResponse{
 		Beads: []tasktracker.Bead{
-			{ID: "bead-1", Title: "First bead"},
-			{ID: "bead-2", Title: "Second bead"},
+			{ID: "bead-1", Title: "First bead", Status: "open"},
+			{ID: "bead-2", Title: "Second bead", Status: "open"},
 		},
 	}
 
@@ -1363,7 +1363,7 @@ func TestResumeWithGapAnalysis_FailureSummaryPopulated(t *testing.T) {
 	taskTracker := newFakeTaskTrackerAdapter()
 	taskTracker.queryBeadsResponse = &tasktracker.TaskTrackerQueryBeadsResponse{
 		Beads: []tasktracker.Bead{
-			{ID: "bead-remaining", Title: "Remaining bead"},
+			{ID: "bead-remaining", Title: "Remaining bead", Status: "open"},
 		},
 	}
 
@@ -1411,8 +1411,8 @@ func TestResumeWithExistingPlanAndBeads_BeadListCorrect(t *testing.T) {
 	taskTracker := newFakeTaskTrackerAdapter()
 	taskTracker.queryBeadsResponse = &tasktracker.TaskTrackerQueryBeadsResponse{
 		Beads: []tasktracker.Bead{
-			{ID: "bead-alpha", Title: "Alpha bead"},
-			{ID: "bead-beta", Title: "Beta bead"},
+			{ID: "bead-alpha", Title: "Alpha bead", Status: "open"},
+			{ID: "bead-beta", Title: "Beta bead", Status: "open"},
 		},
 	}
 
@@ -1449,6 +1449,58 @@ func TestResumeWithExistingPlanAndBeads_BeadListCorrect(t *testing.T) {
 		t.Fatal("decompose stage should not be called when beads already exist")
 	}
 	requireBeadIDs(t, beadRunner, []string{"bead-alpha", "bead-beta"})
+}
+
+func TestSpecLoop_ResumeSkipsDecomposeWhenClosedBeadsExist(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	specID := "spec-resume-closed-beads"
+	cfg := &config.Config{}
+
+	git := newFakeGitAdapter(t)
+	git.planContent = validPlanFixture
+
+	taskTracker := newFakeTaskTrackerAdapter()
+	taskTracker.queryBeadsResponse = &tasktracker.TaskTrackerQueryBeadsResponse{
+		Beads: []tasktracker.Bead{
+			{ID: "bead-done-1", Title: "Done bead", Status: "closed"},
+			{ID: "bead-done-2", Title: "Another done bead", Status: "closed"},
+		},
+	}
+
+	planStage := newFakePlanStage(specID)
+	decompose := newFakeDecomposeStage(specID)
+	beadRunner := newFakeBeadRunner()
+
+	loopInstance, err := NewSpecLoop(
+		adapter.AdapterSet{
+			Git:         git,
+			LLM:         newFakeLLMAdapter(),
+			TaskTracker: taskTracker,
+			Presenter:   newFakePresenterAdapter(t),
+		},
+		cfg, noopDependencyGate{},
+		WithPlanStage(planStage),
+		WithPresentStage(newFakePresentStage(), &present.SummaryContext{}),
+		WithDecomposeStage(decompose),
+		WithBeadLoop(beadRunner),
+		WithAcceptStage(newFakeAcceptStage()),
+	)
+	if err != nil {
+		t.Fatalf("create spec loop: %v", err)
+	}
+
+	if err := loopInstance.Run(ctx, specID, nil); err != nil {
+		t.Fatalf("run spec loop: %v", err)
+	}
+
+	if planStage.called {
+		t.Fatal("plan stage should not be called when plan file exists")
+	}
+	if decompose.called {
+		t.Fatal("decompose stage should not be called when closed beads exist for the spec")
+	}
 }
 
 func TestRemediationRunnerReceivesCorrectWorktree(t *testing.T) {
@@ -1521,7 +1573,7 @@ func TestSelectiveRevalidation_RequeuesFailedBeads(t *testing.T) {
 	taskTracker := newFakeTaskTrackerAdapter()
 	taskTracker.queryBeadsResponse = &tasktracker.TaskTrackerQueryBeadsResponse{
 		Beads: []tasktracker.Bead{
-			{ID: "bead-open-1", Title: "Open bead"},
+			{ID: "bead-open-1", Title: "Open bead", Status: "open"},
 		},
 	}
 
@@ -1573,7 +1625,7 @@ func TestSelectiveRevalidation_ErrorPropagates(t *testing.T) {
 	taskTracker := newFakeTaskTrackerAdapter()
 	taskTracker.queryBeadsResponse = &tasktracker.TaskTrackerQueryBeadsResponse{
 		Beads: []tasktracker.Bead{
-			{ID: "bead-1", Title: "A bead"},
+			{ID: "bead-1", Title: "A bead", Status: "open"},
 		},
 	}
 
