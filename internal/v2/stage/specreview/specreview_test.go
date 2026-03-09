@@ -1,125 +1,161 @@
 package specreview_test
 
 import (
-	context "context"
-	"os"
-	"path/filepath"
-	"strings"
+	"context"
+	"fmt"
 	"testing"
 
-	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/v2/llmtypes"
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
 	"github.com/danabrams/gromit/internal/v2/stage/specreview"
 )
 
-type fakeGit struct {
-	diff string
-	err  error
+func TestSpecReview_PassWhenNoFindings(t *testing.T) {
+	stage, _, _, request := setupStage(t, `{"verdict":"pass","findings":[]}`)
+	result, err := stage.Run(context.Background(), request)
+	if err != nil {
+		t.Fatalf("Run() returned error: %v", err)
+	}
+	if result.Decision != stagepkg.DecisionProceed {
+		t.Fatalf("decision = %v, want DecisionProceed", result.Decision)
+	}
+	artifacts, ok := result.Artifacts.(*specreview.SpecReviewArtifacts)
+	if !ok {
+		t.Fatalf("artifacts type = %T, want *specreview.SpecReviewArtifacts", result.Artifacts)
+	}
+	if artifacts.Verdict != "pass" {
+		t.Fatalf("verdict = %q, want \"pass\"", artifacts.Verdict)
+	}
+	if len(artifacts.Findings) != 0 {
+		t.Fatalf("findings = %d, want 0", len(artifacts.Findings))
+	}
 }
 
-func (f *fakeGit) DiffFromBase(_ context.Context, _ string) (string, error) {
-	return f.diff, f.err
+func TestSpecReview_FailWhenCriticalFinding(t *testing.T) {
+	stage, _, _, request := setupStage(t, `{"verdict":"fail","findings":[{"severity":"critical","category":"bug","scope":"spec","description":"bad","affected_files":["foo.go"]}]}`)
+	result, err := stage.Run(context.Background(), request)
+	if err != nil {
+		t.Fatalf("Run() returned error: %v", err)
+	}
+	if result.Decision != stagepkg.DecisionFail {
+		t.Fatalf("decision = %v, want DecisionFail", result.Decision)
+	}
+	artifacts := result.Artifacts.(*specreview.SpecReviewArtifacts)
+	if len(artifacts.Findings) != 1 {
+		t.Fatalf("findings = %d, want 1", len(artifacts.Findings))
+	}
+	if artifacts.Findings[0].Severity != stagepkg.FindingSeverityCritical {
+		t.Fatalf("severity = %q, want critical", artifacts.Findings[0].Severity)
+	}
+}
+
+func TestSpecReview_PassWithWarnings(t *testing.T) {
+	stage, _, _, request := setupStage(t, `{"verdict":"pass","findings":[{"severity":"warning","category":"quality","scope":"general","description":"keep an eye on this","affected_files":["bar.go"]}]}`)
+	result, err := stage.Run(context.Background(), request)
+	if err != nil {
+		t.Fatalf("Run() returned error: %v", err)
+	}
+	if result.Decision != stagepkg.DecisionProceed {
+		t.Fatalf("decision = %v, want DecisionProceed", result.Decision)
+	}
+	artifacts := result.Artifacts.(*specreview.SpecReviewArtifacts)
+	if len(artifacts.Findings) != 1 {
+		t.Fatalf("findings = %d, want 1", len(artifacts.Findings))
+	}
+}
+
+func TestSpecReview_VerdictForcedFailOnCritical(t *testing.T) {
+	stage, _, _, request := setupStage(t, `{"verdict":"pass","findings":[{"severity":"critical","category":"security","scope":"general","description":"vulnerability","affected_files":["baz.go"]}]}`)
+	result, err := stage.Run(context.Background(), request)
+	if err != nil {
+		t.Fatalf("Run() returned error: %v", err)
+	}
+	if result.Decision != stagepkg.DecisionFail {
+		t.Fatalf("decision = %v, want DecisionFail", result.Decision)
+	}
+}
+
+func TestSpecReview_DiffFromBaseCalledWithWorktree(t *testing.T) {
+	stage, git, _, request := setupStage(t, `{"verdict":"pass","findings":[]}`)
+	_, err := stage.Run(context.Background(), request)
+	if err != nil {
+		t.Fatalf("Run() returned error: %v", err)
+	}
+	if git.lastWorktree != request.Worktree {
+		t.Fatalf("diff worktree = %q, want %q", git.lastWorktree, request.Worktree)
+	}
+}
+
+func TestSpecReview_FindingsSurfacedInArtifacts(t *testing.T) {
+	json := `{
+        "verdict": "pass",
+        "findings": [
+            {
+                "severity": "warning",
+                "category": "architecture",
+                "scope": "spec",
+                "description": "mind the contract",
+                "affected_files": ["combo.go"]
+            }
+        ]
+    }`
+	stage, _, _, request := setupStage(t, json)
+	result, err := stage.Run(context.Background(), request)
+	if err != nil {
+		t.Fatalf("Run() returned error: %v", err)
+	}
+	artifacts := result.Artifacts.(*specreview.SpecReviewArtifacts)
+	if len(artifacts.Findings) != 1 {
+		t.Fatalf("findings = %d, want 1", len(artifacts.Findings))
+	}
+	finding := artifacts.Findings[0]
+	if finding.Category != stagepkg.FindingCategoryArchitecture {
+		t.Fatalf("category = %q, want architecture", finding.Category)
+	}
+	if finding.Scope != stagepkg.FindingScopeSpec {
+		t.Fatalf("scope = %q, want spec", finding.Scope)
+	}
+	if finding.Description != "mind the contract" {
+		t.Fatalf("description = %q, want \"mind the contract\"", finding.Description)
+	}
+	if len(finding.AffectedFiles) != 1 || finding.AffectedFiles[0] != "combo.go" {
+		t.Fatalf("affected files = %v, want [combo.go]", finding.AffectedFiles)
+	}
+}
+
+func setupStage(t *testing.T, output string) (*specreview.Stage, *fakeGit, *fakeLLM, *stagepkg.StageRequest) {
+	t.Helper()
+	git := &fakeGit{diff: "sample diff"}
+	llm := &fakeLLM{response: output}
+	stage, err := specreview.New(git, llm, "fragment")
+	if err != nil {
+		t.Fatalf("New() error: %v", err)
+	}
+	request := &stagepkg.StageRequest{
+		Worktree: t.TempDir(),
+		Tier:     "high",
+	}
+	return stage, git, llm, request
+}
+
+type fakeGit struct {
+	lastWorktree string
+	diff         string
+}
+
+func (f *fakeGit) DiffFromBase(ctx context.Context, worktree string) (string, error) {
+	f.lastWorktree = worktree
+	return f.diff, nil
 }
 
 type fakeLLM struct {
-	responses []*llmtypes.LLMInvokeResponse
-	requests  []llmtypes.LLMInvokeRequest
+	response string
 }
 
-func (f *fakeLLM) Invoke(_ context.Context, req llmtypes.LLMInvokeRequest) (*llmtypes.LLMInvokeResponse, error) {
-	idx := len(f.requests)
-	f.requests = append(f.requests, req)
-	if idx >= len(f.responses) {
-		return &llmtypes.LLMInvokeResponse{Success: true, Output: `{"passed": true}`}, nil
-	}
-	return f.responses[idx], nil
+func (f *fakeLLM) Invoke(ctx context.Context, req llmtypes.LLMInvokeRequest) (*llmtypes.LLMInvokeResponse, error) {
+	return &llmtypes.LLMInvokeResponse{Success: true, Output: f.response}, nil
 }
 
-func (f *fakeLLM) StreamInvoke(_ context.Context, _ llmtypes.LLMStreamInvokeRequest) (*llmtypes.LLMInvokeResponse, error) {
-	return nil, nil
-}
-
-func TestRun_requiresRequest(t *testing.T) {
-	cfg := &config.Config{}
-	stage, _ := specreview.New(cfg, &fakeGit{}, &fakeLLM{}, "", "", "")
-	if _, err := stage.Run(context.Background(), nil); err == nil {
-		t.Fatal("expected error for nil request")
-	}
-}
-
-func TestRun_missingPlanReturnsError(t *testing.T) {
-	cfg := &config.Config{ProjectRoot: t.TempDir(), Paths: config.PathsConfig{GromitDir: ".gromit"}, Models: config.ModelsConfig{P0: "opus"}}
-	stage, err := specreview.New(cfg, &fakeGit{}, &fakeLLM{}, "", "", "")
-	if err != nil {
-		t.Fatalf("unexpected new error: %v", err)
-	}
-	req := stagepkg.Request{Bead: stagepkg.BeadInfo{ID: "spec"}, Worktree: cfg.ProjectRoot}
-	if _, err := stage.Run(context.Background(), &req); err == nil {
-		t.Fatal("expected plan file error")
-	}
-}
-
-func TestRun_usesPlanAndModel(t *testing.T) {
-	root := t.TempDir()
-	planDir := filepath.Join(root, ".gromit", "v2")
-	if err := os.MkdirAll(planDir, 0o755); err != nil {
-		t.Fatalf("mkdir plan dir: %v", err)
-	}
-	planFile := filepath.Join(planDir, "plan.md")
-	if err := os.WriteFile(planFile, []byte("# Test Plan"), 0o644); err != nil {
-		t.Fatalf("write plan: %v", err)
-	}
-	cfg := &config.Config{ProjectRoot: root, Paths: config.PathsConfig{GromitDir: ".gromit"}, Models: config.ModelsConfig{P0: "super-model"}}
-	llm := &fakeLLM{responses: []*llmtypes.LLMInvokeResponse{{Success: true, Output: `{"passed": true, "summary": "ok"}`}}}
-	stage, err := specreview.New(cfg, &fakeGit{diff: "diff"}, llm, "base", "project", "")
-	if err != nil {
-		t.Fatalf("new: %v", err)
-	}
-	req := stagepkg.Request{Bead: stagepkg.BeadInfo{ID: "spec"}, Worktree: root}
-	res, err := stage.Run(context.Background(), &req)
-	if err != nil {
-		t.Fatalf("run: %v", err)
-	}
-	if res.Decision != stagepkg.DecisionProceed {
-		t.Fatalf("decision = %v, want %v", res.Decision, stagepkg.DecisionProceed)
-	}
-	if len(llm.requests) != 1 {
-		t.Fatalf("expected one invocation, got %d", len(llm.requests))
-	}
-	if got := llm.requests[0].Model; got != "super-model" {
-		t.Fatalf("model = %q, want super-model", got)
-	}
-	if !strings.Contains(llm.requests[0].Prompt, "# Test Plan") {
-		t.Fatalf("prompt missing plan section")
-	}
-}
-
-func TestRun_retriesOnParseFailure(t *testing.T) {
-	root := t.TempDir()
-	planDir := filepath.Join(root, ".gromit", "v2")
-	if err := os.MkdirAll(planDir, 0o755); err != nil {
-		t.Fatalf("mkdir plan dir: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(planDir, "plan.md"), []byte("# Plan"), 0o644); err != nil {
-		t.Fatalf("write plan: %v", err)
-	}
-	llm := &fakeLLM{
-		responses: []*llmtypes.LLMInvokeResponse{
-			{Success: true, Output: "not json"},
-			{Success: true, Output: `{"passed": false}`},
-		},
-	}
-	cfg := &config.Config{ProjectRoot: root, Paths: config.PathsConfig{GromitDir: ".gromit"}, Models: config.ModelsConfig{P0: "opus"}}
-	stage, _ := specreview.New(cfg, &fakeGit{diff: "d"}, llm, "", "", "")
-	res, err := stage.Run(context.Background(), &stagepkg.Request{Bead: stagepkg.BeadInfo{ID: "spec"}, Worktree: root})
-	if err != nil {
-		t.Fatalf("run: %v", err)
-	}
-	if res.Decision != stagepkg.DecisionFail {
-		t.Fatalf("expected fail when review not passed")
-	}
-	if len(llm.requests) != 2 {
-		t.Fatalf("expected retry, got %d invocations", len(llm.requests))
-	}
+func (f *fakeLLM) StreamInvoke(ctx context.Context, req llmtypes.LLMStreamInvokeRequest) (*llmtypes.LLMInvokeResponse, error) {
+	return nil, fmt.Errorf("stream not implemented")
 }
