@@ -192,3 +192,29 @@
 {"schema_version":1,"timestamp":"2026-03-07T16:45:13.022158-05:00","type":"stage.completed","stage_name":"epilogue:default","bead_id":"gromit-zrrn7","iteration":24,"success":true,"duration":155617458}
 {"schema_version":1,"timestamp":"2026-03-07T16:45:13.022172-05:00","type":"bead.completed","bead_id":"gromit-zrrn7","bead_title":"Implement selective revalidation in spec loop","iteration":24,"success":true}
 {"schema_version":1,"timestamp":"2026-03-09T15:57:29.82621-04:00","type":"spec.started","spec_id":"spec-level-review-and-targeted-remediation","worktree":"/Users/dabrams/gromit/.gromit/spec-worktrees/spec-level-review-and-targeted-remediation"}
+{"schema_version":1,"timestamp":"2026-03-09T16:02:26.590686-04:00","type":"bead.started","bead_id":"gromit-4zfv6","bead_title":"Add structured Finding output to AcceptArtifacts","iteration":1}
+{"schema_version":1,"timestamp":"2026-03-09T16:02:26.590694-04:00","type":"stage.started","stage_name":"gate:default","bead_id":"gromit-4zfv6","iteration":1}
+{"schema_version":1,"timestamp":"2026-03-09T16:02:26.738798-04:00","type":"stage.completed","stage_name":"gate:default","bead_id":"gromit-4zfv6","iteration":1,"success":true,"duration":148103083}
+{"schema_version":1,"timestamp":"2026-03-09T16:02:26.738815-04:00","type":"bead.started","bead_id":"gromit-cymfj","bead_title":"Implement SpecReviewStage with JSON parsing and verdict logic","iteration":2}
+{"schema_version":1,"timestamp":"2026-03-09T16:02:26.738818-04:00","type":"stage.started","stage_name":"gate:default","bead_id":"gromit-cymfj","iteration":2}
+{"schema_version":1,"timestamp":"2026-03-09T16:02:26.887488-04:00","type":"stage.completed","stage_name":"gate:default","bead_id":"gromit-cymfj","iteration":2,"success":true,"duration":148669250}
+{"schema_version":1,"timestamp":"2026-03-09T16:02:26.887501-04:00","type":"bead.started","bead_id":"gromit-jyqo9","bead_title":"Create from-review beads and wire findings to remediation","iteration":3}
+{"schema_version":1,"timestamp":"2026-03-09T16:02:26.887502-04:00","type":"stage.started","stage_name":"gate:default","bead_id":"gromit-jyqo9","iteration":3}
+{"schema_version":1,"timestamp":"2026-03-09T16:02:27.033371-04:00","type":"stage.completed","stage_name":"gate:default","bead_id":"gromit-jyqo9","iteration":3,"success":true,"duration":145868083}
+{"schema_version":1,"timestamp":"2026-03-09T16:02:27.033381-04:00","type":"bead.started","bead_id":"gromit-lqmig","bead_title":"Add --from-review flag for deferred improvement bead execution","iteration":4}
+{"schema_version":1,"timestamp":"2026-03-09T16:02:27.033384-04:00","type":"stage.started","stage_name":"gate:default","bead_id":"gromit-lqmig","iteration":4}
+{"schema_version":1,"timestamp":"2026-03-09T16:02:27.179871-04:00","type":"stage.completed","stage_name":"gate:default","bead_id":"gromit-lqmig","iteration":4,"success":true,"duration":146484958}
+{"schema_version":1,"timestamp":"2026-03-09T16:02:27.179879-04:00","type":"bead.started","bead_id":"gromit-n15m6","bead_title":"Load review prompt and construct SpecReviewStage in run2 components","iteration":5}
+{"schema_version":1,"timestamp":"2026-03-09T16:02:27.179881-04:00","type":"stage.started","stage_name":"gate:default","bead_id":"gromit-n15m6","iteration":5}
+{"schema_version":1,"timestamp":"2026-03-09T16:02:27.326005-04:00","type":"stage.completed","stage_name":"gate:default","bead_id":"gromit-n15m6","iteration":5,"success":true,"duration":146123583}
+{"schema_version":1,"timestamp":"2026-03-09T16:02:27.326015-04:00","type":"bead.started","bead_id":"gromit-pplw1","bead_title":"Wire accept and specreview stages in spec loop with verdict logic","iteration":6}
+{"schema_version":1,"timestamp":"2026-03-09T16:02:27.326018-04:00","type":"stage.started","stage_name":"gate:default","bead_id":"gromit-pplw1","iteration":6}
+{"schema_version":1,"timestamp":"2026-03-09T16:02:27.479949-04:00","type":"stage.completed","stage_name":"gate:default","bead_id":"gromit-pplw1","iteration":6,"success":true,"duration":153930959}
+{"schema_version":1,"timestamp":"2026-03-09T16:02:27.47996-04:00","type":"bead.started","bead_id":"gromit-t6zsi","bead_title":"Define shared Finding type with severity and category constants","iteration":7}
+{"schema_version":1,"timestamp":"2026-03-09T16:02:27.479961-04:00","type":"stage.started","stage_name":"gate:default","bead_id":"gromit-t6zsi","iteration":7}
+{"schema_version":1,"timestamp":"2026-03-09T16:02:27.555455-04:00","type":"stage.completed","stage_name":"gate:default","bead_id":"gromit-t6zsi","iteration":7,"success":true,"duration":75492583}
+{"schema_version":1,"timestamp":"2026-03-09T16:02:27.555465-04:00","type":"model.selected","bead_id":"gromit-t6zsi","model":"gpt-5.1-codex-mini","provider":"openai","tier":"low","reason":"router"}
+{"schema_version":1,"timestamp":"2026-03-09T16:02:27.555467-04:00","type":"stage.started","stage_name":"build:default","bead_id":"gromit-t6zsi","iteration":7}
+{"schema_version":1,"timestamp":"2026-03-09T16:02:27.555467-04:00","type":"build_invocation.start","bead_id":"gromit-t6zsi","model":"gpt-5.1-codex-mini","provider":"openai","tier":"low","attempt":1,"max_attempts":2}
+{"schema_version":1,"timestamp":"2026-03-09T16:05:19.759956-04:00","type":"build_invocation.complete","bead_id":"gromit-t6zsi","model":"gpt-5.1-codex-mini","provider":"openai","success":true,"duration":172203965417,"input_tokens":1274847,"output_tokens":14503,"prompt_size":18200}
+{"schema_version":1,"timestamp":"2026-03-09T16:05:19.759967-04:00","type":"stage.completed","stage_name":"build:default","bead_id":"gromit-t6zsi","iteration":7,"success":true,"duration":172203965417}
