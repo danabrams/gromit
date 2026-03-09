@@ -1036,6 +1036,73 @@ func TestEnsureAcceptanceStopsAfterMaxRetries(t *testing.T) {
 	}
 }
 
+func TestEnsureAcceptanceMergesAcceptAndSpecReviewFindingsForRemediation(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	specID := "spec-loop-ensure-acceptance-merge-findings"
+
+	acceptFinding := stagepkg.SpecFinding{
+		Title:       "accept fail",
+		Description: "accept finding",
+		Severity:    stagepkg.SpecFindingSeverityCritical,
+		Category:    stagepkg.SpecFindingCategoryAcceptance,
+		Scope:       stagepkg.SpecFindingScopeSpec,
+	}
+	specReviewFinding := specreview.SpecReviewFinding{
+		Title:       "review fail",
+		Description: "review finding",
+		Severity:    stagepkg.SpecFindingSeverityHigh,
+		Category:    stagepkg.SpecFindingCategoryQuality,
+		Scope:       stagepkg.SpecFindingScopeSpec,
+	}
+
+	accept := newScriptedAcceptStage(
+		stagepkg.Result{
+			Decision: stagepkg.DecisionFail,
+			Artifacts: &stageaccept.AcceptArtifacts{
+				Findings: []stagepkg.SpecFinding{acceptFinding},
+			},
+		},
+		stagepkg.Result{Decision: stagepkg.DecisionProceed},
+	)
+	specReview := newFakeSpecReviewStage(
+		stagepkg.Result{
+			Decision: stagepkg.DecisionFail,
+			Artifacts: &specreview.SpecReviewArtifacts{
+				Findings: []specreview.SpecReviewFinding{specReviewFinding},
+				Verdict:  "issue",
+			},
+		},
+		stagepkg.Result{Decision: stagepkg.DecisionProceed},
+	)
+	runner := &recordingRemediationRunner{}
+	s := &SpecLoop{
+		acceptStage:       accept,
+		specReviewStage:   specReview,
+		remediationRunner: runner,
+	}
+
+	req := stagepkg.Request{Bead: stagepkg.BeadInfo{ID: specID}, Worktree: "/tmp/worktree"}
+	_, _, err := s.ensureAcceptance(ctx, &req, specID)
+	if err != nil {
+		t.Fatalf("ensure acceptance: %v", err)
+	}
+
+	if runner.calls != 1 {
+		t.Fatalf("remediation runner calls = %d, want 1", runner.calls)
+	}
+	if len(runner.lastFindings) != 2 {
+		t.Fatalf("findings = %v, want 2", runner.lastFindings)
+	}
+	if runner.lastFindings[0].Title != acceptFinding.Title {
+		t.Fatalf("finding[0].title = %q, want %q", runner.lastFindings[0].Title, acceptFinding.Title)
+	}
+	if runner.lastFindings[1].Title != specReviewFinding.Title {
+		t.Fatalf("finding[1].title = %q, want %q", runner.lastFindings[1].Title, specReviewFinding.Title)
+	}
+}
+
 func TestSpecLoopReusesExistingPlan(t *testing.T) {
 	t.Parallel()
 
