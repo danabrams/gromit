@@ -494,6 +494,14 @@ func TestSpecLoopSpecreviewDecisionAffectsOutcome(t *testing.T) {
 		})
 		runLoop(t, review, true, false, "fail")
 	})
+
+	t.Run("fail verdict with proceed decision", func(t *testing.T) {
+		review := newScriptedSpecReviewStage(stagepkg.Result{
+			Decision:  stagepkg.DecisionProceed,
+			Artifacts: &specreview.SpecReviewArtifacts{Verdict: "fail"},
+		})
+		runLoop(t, review, true, false, "fail")
+	})
 }
 
 func waitForSpecVerdictEvent(t *testing.T, ch <-chan events.Event, specID string) *events.SpecVerdictEvent {

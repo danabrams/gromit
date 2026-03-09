@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -17,7 +16,6 @@ import (
 	"github.com/danabrams/gromit/internal/v2/adapter"
 	"github.com/danabrams/gromit/internal/v2/adapter/llm"
 	"github.com/danabrams/gromit/internal/v2/event"
-	"github.com/danabrams/gromit/internal/v2/llmtypes"
 	"github.com/danabrams/gromit/internal/v2/pipeline"
 	v2remediation "github.com/danabrams/gromit/internal/v2/remediation"
 	"github.com/danabrams/gromit/internal/v2/routing"
@@ -101,12 +99,6 @@ func NewRun2LoopComponents(cfg *config.Config, adapters adapter.AdapterSet, lega
 		return nil, err
 	}
 	planFragment, err := loadFragment(cfg.ProjectRoot, "plan_v2.md")
-	if err != nil {
-		cleanup()
-		return nil, err
-	}
-
-	specReviewFragment, err := loadFragment(cfg.ProjectRoot, "review_spec_v2.md")
 	if err != nil {
 		cleanup()
 		return nil, err
@@ -210,24 +202,21 @@ func NewRun2LoopComponents(cfg *config.Config, adapters adapter.AdapterSet, lega
 		return nil, err
 	}
 
-	specReviewProvider := llmtypes.LLMProvider(adapters.LLM)
-	if router != nil {
-		specReviewTier := routing.TierForPhase("specreview", phaseModels, routing.TierHigh)
-		provider, _, _, routeErr := router.Select("specreview", specReviewTier)
-		if routeErr != nil {
-			log.Printf("WARNING: spec review routing for tier %s failed: %v; using default provider", specReviewTier, routeErr)
-		} else if provider != nil {
-			specReviewProvider = provider
-		}
-	}
-
-	specReviewStage, err := specreviewstage.New(adapters.Git, specReviewProvider, specReviewFragment)
+	specReviewFragment, err := loadFragment(cfg.ProjectRoot, "review_spec_v2.md")
 	if err != nil {
 		cleanup()
 		return nil, err
 	}
 
+	specReviewStage, err := specreviewstage.New(cfg, adapters.Git, adapters.LLM, baseInstructions, projectContext, specReviewFragment)
+	if err != nil {
+		cleanup()
+		return nil, err
+	}
+	specReviewStage = specReviewStage.WithTypedEmitter(typedEmitter)
+
 	remediationRunner := v2remediation.NewRemediationRunner(v2remediation.RemediationRunnerConfig{
+		AcceptStage:    acceptStage,
 		DecomposeStage: decomposeStage,
 		PlanStage:      planStage,
 		BeadRunner:     &remediationBeadRunner{loop: beadLoop},

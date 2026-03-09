@@ -184,6 +184,7 @@ func run2(cmd *cobra.Command, args []string) error {
 		loop.WithDecomposeStage(components.DecomposeStage),
 		loop.WithBeadLoop(components.BeadLoop),
 		loop.WithAcceptStage(components.AcceptStage),
+		loop.WithSpecReviewStage(components.SpecReviewStage),
 		loop.WithRemediationRunner(components.RemediationRunner),
 		loop.WithSpecReviewStage(components.SpecReviewStage),
 		loop.WithStageCommitter(components.StageCommitter),
