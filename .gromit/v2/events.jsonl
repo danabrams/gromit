@@ -284,3 +284,5 @@
 {"schema_version":1,"timestamp":"2026-03-09T18:55:20.048777-04:00","type":"build_invocation.start","bead_id":"gromit-1fxp2","model":"gpt-5.1-codex-mini","provider":"openai","tier":"low","attempt":1,"max_attempts":2}
 {"schema_version":1,"timestamp":"2026-03-09T18:58:53.391527-04:00","type":"build_invocation.complete","bead_id":"gromit-1fxp2","model":"gpt-5.1-codex-mini","provider":"openai","success":true,"duration":213342062250,"input_tokens":1628409,"output_tokens":23390,"prompt_size":18148}
 {"schema_version":1,"timestamp":"2026-03-09T18:58:53.391535-04:00","type":"stage.completed","stage_name":"build:default","bead_id":"gromit-1fxp2","iteration":13,"success":true,"duration":213342062250}
+{"schema_version":1,"timestamp":"2026-03-09T18:58:53.476426-04:00","type":"stage.started","stage_name":"validate:default","bead_id":"gromit-1fxp2","iteration":13}
+{"schema_version":1,"timestamp":"2026-03-09T18:58:53.516201-04:00","type":"stage.completed","stage_name":"validate:default","bead_id":"gromit-1fxp2","iteration":13,"success":true,"duration":39763875}
