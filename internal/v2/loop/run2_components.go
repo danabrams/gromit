@@ -210,7 +210,7 @@ func NewRun2LoopComponents(cfg *config.Config, adapters adapter.AdapterSet, lega
 		return nil, err
 	}
 
-	specReviewStageBase, err := specreviewstage.New(cfg, adapters.Git, adapters.LLM, baseInstructions, projectContext, specReviewFragment)
+	specReviewStageBase, err := specreviewstage.New(cfg, adapters.Git, adapters.LLM, adapters.TaskTracker, baseInstructions, projectContext, specReviewFragment)
 	if err != nil {
 		cleanup()
 		return nil, err

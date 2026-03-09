@@ -31,7 +31,7 @@ type StageRequest struct {
 	Findings     []finding.Finding
 	RetryContext *RetryContext
 	Telemetry    *LLMCostSummary
-	Findings     []SpecFinding
+	SpecFindings []SpecFinding
 }
 
 // StageResult reports the outcome of a stage invocation.

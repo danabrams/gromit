@@ -495,8 +495,10 @@ func (s *SpecLoop) Run(ctx context.Context, specID string, stopCh <-chan struct{
 			handleFailureCleaned = true
 			return s.handleFailure(ctx, specID, summary, fmt.Errorf("spec review failed: verdict=%s", verdict))
 		}
-		if err := s.createFromReviewBeads(ctx, specID, extractSpecReviewFindings(specreviewRes)); err != nil {
-			return fmt.Errorf("create from-review beads: %w", err)
+		if !specReviewCreatedBeads(specreviewRes) {
+			if err := s.createFromReviewBeads(ctx, specID, extractSpecReviewFindings(specreviewRes)); err != nil {
+				return fmt.Errorf("create from-review beads: %w", err)
+			}
 		}
 		if err := s.commitStage(ctx, worktree, "specreview", 0, "proceed"); err != nil {
 			return fmt.Errorf("commit after specreview: %w", err)
@@ -772,6 +774,17 @@ func extractSpecReviewFindings(res *stagepkg.Result) []finding.Finding {
 		return nil
 	}
 	return cloneStageFindings(artifacts.Findings)
+}
+
+func specReviewCreatedBeads(res *stagepkg.Result) bool {
+	if res == nil || res.Artifacts == nil {
+		return false
+	}
+	artifacts, ok := res.Artifacts.(*specreview.SpecReviewArtifacts)
+	if !ok || artifacts == nil {
+		return false
+	}
+	return len(artifacts.CreatedBeads) > 0
 }
 
 func (s *SpecLoop) emitSpecVerdict(specID, worktree string, acceptRes, specreviewRes *stagepkg.Result) {

@@ -9,10 +9,12 @@ import (
 
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/jsonutil"
+	"github.com/danabrams/gromit/internal/tracker"
 	"github.com/danabrams/gromit/internal/v2/llmtypes"
 	"github.com/danabrams/gromit/internal/v2/prompt"
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
 	stagedesc "github.com/danabrams/gromit/internal/v2/stage/names"
+	"github.com/danabrams/gromit/internal/v2/trackertypes"
 )
 
 const (
@@ -28,9 +30,10 @@ type GitDiffer interface {
 
 // SpecReviewArtifacts captures the parsed output from the spec review prompt.
 type SpecReviewArtifacts struct {
-	Summary  string
-	Findings []SpecReviewFinding
-	Verdict  string
+	Summary      string
+	Findings     []SpecReviewFinding
+	Verdict      string
+	CreatedBeads []*trackertypes.Bead
 }
 
 // SpecReviewFinding describes a single issue or pass item produced by the review.
@@ -119,6 +122,7 @@ type Stage struct {
 	cfg      *config.Config
 	git      GitDiffer
 	llm      llmtypes.LLMProvider
+	tracker  trackertypes.TaskTracker
 	base     string
 	project  string
 	fragment string
@@ -127,7 +131,7 @@ type Stage struct {
 var _ stagepkg.Stage = (*Stage)(nil)
 
 // New creates a spec review stage backed by the provided configuration.
-func New(cfg *config.Config, git GitDiffer, provider llmtypes.LLMProvider, base, project, fragment string) (*Stage, error) {
+func New(cfg *config.Config, git GitDiffer, provider llmtypes.LLMProvider, tracker trackertypes.TaskTracker, base, project, fragment string) (*Stage, error) {
 	if cfg == nil {
 		return nil, fmt.Errorf("config required")
 	}
@@ -143,6 +147,7 @@ func New(cfg *config.Config, git GitDiffer, provider llmtypes.LLMProvider, base,
 		cfg:      cfg,
 		git:      git,
 		llm:      provider,
+		tracker:  tracker,
 		base:     base,
 		project:  project,
 		fragment: fragment,
@@ -215,6 +220,9 @@ func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Resul
 	}
 
 	decision := decisionFromArtifacts(artifacts)
+	if err := s.createFromReviewBeads(ctx, specID, artifacts, decision); err != nil {
+		return nil, err
+	}
 	return &stagepkg.Result{Decision: decision, Artifacts: artifacts}, nil
 }
 
@@ -325,4 +333,48 @@ func decisionFromArtifacts(artifacts *SpecReviewArtifacts) stagepkg.Decision {
 		}
 	}
 	return stagepkg.DecisionProceed
+}
+
+func (s *Stage) createFromReviewBeads(ctx context.Context, specID string, artifacts *SpecReviewArtifacts, decision stagepkg.Decision) error {
+	if artifacts == nil || len(artifacts.Findings) == 0 || s.tracker == nil {
+		return nil
+	}
+	if decision != stagepkg.DecisionProceed {
+		return nil
+	}
+	if !strings.EqualFold(strings.TrimSpace(artifacts.Verdict), "pass") {
+		return nil
+	}
+
+	created := make([]*trackertypes.Bead, 0, len(artifacts.Findings))
+	for _, finding := range artifacts.Findings {
+		description := strings.TrimSpace(finding.Description)
+		if description == "" {
+			continue
+		}
+
+		labels := []string{"from-review"}
+		if strings.EqualFold(strings.TrimSpace(string(finding.Scope)), string(stagepkg.SpecFindingScopeSpec)) {
+			labels = append(labels, tracker.SpecLabelFor(specID))
+		}
+
+		resp, err := s.tracker.CreateBead(ctx, trackertypes.TaskTrackerCreateBeadRequest{
+			Title:       description,
+			Description: description,
+			Priority:    2,
+			Labels:      labels,
+		})
+		if err != nil {
+			return fmt.Errorf("spec review: create bead %q: %w", description, err)
+		}
+		if resp == nil || resp.Bead == nil {
+			return fmt.Errorf("spec review: create bead response missing for %q", description)
+		}
+		created = append(created, resp.Bead)
+	}
+
+	if len(created) > 0 {
+		artifacts.CreatedBeads = created
+	}
+	return nil
 }

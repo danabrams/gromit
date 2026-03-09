@@ -69,7 +69,8 @@ func TestIntegration_SpecLoop_RemediationCreatesTargetedBeads(t *testing.T) {
 
 	presenter := newIntegrationPresenterAdapter(t)
 	presentStage, summaryCtx := newPresentStageForTest(t, cfg, presenter)
-	specReviewStage, err := specreview.New(git, llmAdapter, "")
+	taskTracker := newFakeTaskTrackerAdapter()
+	specReviewStage, err := specreview.New(cfg, git, llmAdapter, taskTracker, "", "", "")
 	if err != nil {
 		t.Fatalf("create specreview stage: %v", err)
 	}
@@ -77,7 +78,7 @@ func TestIntegration_SpecLoop_RemediationCreatesTargetedBeads(t *testing.T) {
 	adapters := adapter.AdapterSet{
 		Git:         git,
 		LLM:         llmAdapter,
-		TaskTracker: newFakeTaskTrackerAdapter(),
+		TaskTracker: taskTracker,
 		Presenter:   presenter,
 	}
 
@@ -161,12 +162,12 @@ func TestIntegration_SpecLoop_PassWithImprovementsCreatesFromReviewBeads(t *test
 
 	presenter := newIntegrationPresenterAdapter(t)
 	presentStage, summaryCtx := newPresentStageForTest(t, cfg, presenter)
-	specReviewStage, err := specreview.New(git, llmAdapter, "")
+	taskTracker := newFakeTaskTrackerAdapter()
+	specReviewStage, err := specreview.New(cfg, git, llmAdapter, taskTracker, "", "", "")
 	if err != nil {
 		t.Fatalf("create specreview stage: %v", err)
 	}
 
-	taskTracker := newFakeTaskTrackerAdapter()
 	adapters := adapter.AdapterSet{
 		Git:         git,
 		LLM:         llmAdapter,

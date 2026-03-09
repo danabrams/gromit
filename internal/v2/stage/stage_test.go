@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/danabrams/gromit/internal/v2/event"
+	findingpkg "github.com/danabrams/gromit/internal/v2/stage/finding"
 )
 
 func TestStageResultEventsAcceptTypedEvent(t *testing.T) {
@@ -53,13 +54,13 @@ func TestStageRequestFindingsField(t *testing.T) {
 		Category:    SpecFindingCategoryScope,
 		Scope:       SpecFindingScopeSpec,
 	}
-	req := StageRequest{Findings: []SpecFinding{finding}}
+	req := StageRequest{SpecFindings: []SpecFinding{finding}}
 
-	if len(req.Findings) != 1 {
-		t.Fatalf("expected 1 finding, got %d", len(req.Findings))
+	if len(req.SpecFindings) != 1 {
+		t.Fatalf("expected 1 finding, got %d", len(req.SpecFindings))
 	}
 
-	got := req.Findings[0]
+	got := req.SpecFindings[0]
 	if got.Severity != SpecFindingSeverityHigh {
 		t.Fatalf("unexpected severity %q", got.Severity)
 	}
@@ -95,11 +96,11 @@ func TestDecisionStrings(t *testing.T) {
 
 func TestStageRequestIncludesFindings(t *testing.T) {
 	req := StageRequest{
-		Findings: []Finding{
+		Findings: []findingpkg.Finding{
 			{
-				Severity:      FindingSeverityWarning,
-				Category:      FindingCategoryQuality,
-				Scope:         FindingScopeGeneral,
+				Severity:      findingpkg.SeverityWarning,
+				Category:      findingpkg.CategoryQuality,
+				Scope:         "general",
 				Description:   "needs review",
 				AffectedFiles: []string{"review_spec_v2.md"},
 			},
@@ -110,12 +111,12 @@ func TestStageRequestIncludesFindings(t *testing.T) {
 		t.Fatalf("expected 1 finding, got %d", got)
 	}
 
-	finding := req.Findings[0]
-	if finding.Severity != FindingSeverityWarning {
-		t.Fatalf("expected severity %s, got %s", FindingSeverityWarning, finding.Severity)
+	reqFinding := req.Findings[0]
+	if reqFinding.Severity != findingpkg.SeverityWarning {
+		t.Fatalf("expected severity %s, got %s", findingpkg.SeverityWarning, reqFinding.Severity)
 	}
 
-	if finding.Category != FindingCategoryQuality {
-		t.Fatalf("expected category %s, got %s", FindingCategoryQuality, finding.Category)
+	if reqFinding.Category != findingpkg.CategoryQuality {
+		t.Fatalf("expected category %s, got %s", findingpkg.CategoryQuality, reqFinding.Category)
 	}
 }
