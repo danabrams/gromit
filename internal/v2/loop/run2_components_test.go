@@ -104,6 +104,14 @@ func TestValidateStageWithNoopRunnerIgnoresFailure(t *testing.T) {
 	}
 }
 
+func writeReviewSpecFragment(t *testing.T, projectRoot string) {
+	t.Helper()
+	path := filepath.Join(projectRoot, "review_spec_v2.md")
+	if err := os.WriteFile(path, []byte("# Spec review fragment"), 0o644); err != nil {
+		t.Fatalf("write review spec fragment: %v", err)
+	}
+}
+
 func TestLoadProjectContextFromCLAUDEMD(t *testing.T) {
 	t.Parallel()
 
