@@ -11,7 +11,6 @@ import (
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/v2/adapter/llm"
 	"github.com/danabrams/gromit/internal/v2/adapter/tasktracker"
-	"github.com/danabrams/gromit/internal/v2/findings"
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
 )
 
@@ -445,11 +444,11 @@ func TestRun_withFindings_usesFindingsTemplate(t *testing.T) {
 	req := &stagepkg.Request{
 		Bead:   stagepkg.BeadInfo{ID: "spec"},
 		Config: cfg,
-		Findings: []findings.Finding{
+		Findings: []stagepkg.Finding{
 			{
-				Severity:      findings.SeverityCritical,
-				Category:      "quality",
-				Scope:         "spec",
+				Severity:      stagepkg.FindingSeverityCritical,
+				Category:      stagepkg.FindingCategoryQuality,
+				Scope:         stagepkg.FindingScopeSpec,
 				Description:   "tests missing",
 				AffectedFiles: []string{"internal/v2/stage"},
 			},
@@ -473,6 +472,76 @@ func TestRun_withFindings_usesFindingsTemplate(t *testing.T) {
 	}
 	if strings.Contains(prompt, "Unmet Acceptance Criteria") {
 		t.Fatalf("findings prompt should not include unmet acceptance criteria section: %s", prompt)
+	}
+}
+
+func TestRunWithFindingsUsesJSONPromptDuringRemediation(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	planDir := filepath.Join(tmpDir, ".gromit", "v2")
+	if err := os.MkdirAll(planDir, 0o755); err != nil {
+		t.Fatalf("mkdir plan dir: %v", err)
+	}
+	planContent := "# Full Plan\nTask 1: address findings"
+	if err := os.WriteFile(filepath.Join(planDir, "plan.md"), []byte(planContent), 0o644); err != nil {
+		t.Fatalf("write plan: %v", err)
+	}
+
+	cfg := &config.Config{
+		ProjectRoot: tmpDir,
+		Paths:       config.PathsConfig{GromitDir: ".gromit"},
+	}
+
+	llmFake := &fakeLLM{
+		responses: []*llm.LLMResponse{{Success: true, Output: `[
+			{
+				"title": "handle findings",
+				"description": "address critical finding",
+				"priority": "P1",
+				"acceptance_criteria": ["fix behavior"],
+				"expected_outputs": ["updated behavior"],
+				"depends_on_index": []
+			}
+		]`}},
+	}
+	tracker := &fakeTracker{}
+	stg, err := New(cfg, llmFake, tracker)
+	if err != nil {
+		t.Fatalf("create stage: %v", err)
+	}
+
+	req := &stagepkg.Request{
+		Bead:   stagepkg.BeadInfo{ID: "spec"},
+		Config: cfg,
+		Remediation: true,
+		Findings: []stagepkg.Finding{
+			{
+				Severity:    stagepkg.FindingSeverityCritical,
+				Category:    stagepkg.FindingCategoryQuality,
+				Scope:       stagepkg.FindingScopeSpec,
+				Description: "tests missing",
+			},
+		},
+	}
+
+	_, err = stg.Run(context.Background(), req)
+	if err != nil {
+		t.Fatalf("run stage: %v", err)
+	}
+
+	if len(llmFake.calls) == 0 {
+		t.Fatal("expected llm invocation")
+	}
+	prompt := llmFake.calls[0].Prompt
+	if !strings.Contains(prompt, "Findings to Fix") {
+		t.Fatalf("prompt should include findings section header: %s", prompt)
+	}
+	if !strings.Contains(prompt, "\"Severity\"") {
+		t.Fatalf("prompt should embed JSON findings: %s", prompt)
+	}
+	if strings.Contains(prompt, "Unmet Acceptance Criteria") {
+		t.Fatalf("findings prompt should not include gap instructions: %s", prompt)
 	}
 }
 
