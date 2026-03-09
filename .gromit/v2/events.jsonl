@@ -340,3 +340,5 @@
 {"schema_version":1,"timestamp":"2026-03-09T08:38:39.751827-04:00","type":"stage.completed","stage_name":"build:default","bead_id":"gromit-uiwwh","iteration":23,"success":true,"duration":800320301958}
 {"schema_version":1,"timestamp":"2026-03-09T08:38:39.840215-04:00","type":"stage.started","stage_name":"validate:default","bead_id":"gromit-uiwwh","iteration":23}
 {"schema_version":1,"timestamp":"2026-03-09T08:38:39.884119-04:00","type":"stage.completed","stage_name":"validate:default","bead_id":"gromit-uiwwh","iteration":23,"success":true,"duration":43897667}
+{"schema_version":1,"timestamp":"2026-03-09T08:38:39.935549-04:00","type":"stage.started","stage_name":"review:default","bead_id":"gromit-uiwwh","iteration":23}
+{"schema_version":1,"timestamp":"2026-03-09T08:38:39.935564-04:00","type":"stage.completed","stage_name":"review:default","bead_id":"gromit-uiwwh","iteration":23,"success":true,"duration":11208}
