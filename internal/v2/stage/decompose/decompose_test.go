@@ -495,6 +495,16 @@ func TestRemediationDecomposePromptContainsBehavioralCriteriaInstruction(t *test
 	}
 }
 
+func TestFindingsDecomposePromptMentionsTargetedFixBeadsAndDependencies(t *testing.T) {
+	t.Parallel()
+	if !strings.Contains(findingsDecomposePromptTemplate, "Create exactly one targeted fix bead per finding.") {
+		t.Fatal("findings prompt must direct a single fix bead per finding")
+	}
+	if !strings.Contains(findingsDecomposePromptTemplate, "Always set depends_on_index when shared affected files appear in multiple findings.") {
+		t.Fatal("findings prompt must instruct linking dependencies when findings share affected files")
+	}
+}
+
 func contains(slice []string, value string) bool {
 	for _, item := range slice {
 		if item == value {
