@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -16,9 +17,10 @@ import (
 	"github.com/danabrams/gromit/internal/v2/adapter"
 	"github.com/danabrams/gromit/internal/v2/adapter/llm"
 	"github.com/danabrams/gromit/internal/v2/event"
+	"github.com/danabrams/gromit/internal/v2/llmtypes"
 	"github.com/danabrams/gromit/internal/v2/pipeline"
-	"github.com/danabrams/gromit/internal/v2/routing"
 	v2remediation "github.com/danabrams/gromit/internal/v2/remediation"
+	"github.com/danabrams/gromit/internal/v2/routing"
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
 	acceptstage "github.com/danabrams/gromit/internal/v2/stage/accept"
 	buildstage "github.com/danabrams/gromit/internal/v2/stage/build"
@@ -28,6 +30,7 @@ import (
 	planstage "github.com/danabrams/gromit/internal/v2/stage/plan"
 	present "github.com/danabrams/gromit/internal/v2/stage/present"
 	reviewstage "github.com/danabrams/gromit/internal/v2/stage/review"
+	specreviewstage "github.com/danabrams/gromit/internal/v2/stage/specreview"
 	triagestage "github.com/danabrams/gromit/internal/v2/stage/triage"
 	stagevalidate "github.com/danabrams/gromit/internal/v2/stage/validate"
 )
@@ -48,6 +51,7 @@ type Run2LoopComponents struct {
 	DecomposeStage        stagepkg.Stage
 	BeadLoop              *BeadLoop
 	AcceptStage           stagepkg.Stage
+	SpecReviewStage       stagepkg.Stage
 	RemediationRunner     remediationRunner
 	Emitter               Run2LoopEmitter
 	StageCommitter        StageCommitter
@@ -97,6 +101,12 @@ func NewRun2LoopComponents(cfg *config.Config, adapters adapter.AdapterSet, lega
 		return nil, err
 	}
 	planFragment, err := loadFragment(cfg.ProjectRoot, "plan_v2.md")
+	if err != nil {
+		cleanup()
+		return nil, err
+	}
+
+	specReviewFragment, err := loadFragment(cfg.ProjectRoot, "review_spec_v2.md")
 	if err != nil {
 		cleanup()
 		return nil, err
@@ -200,6 +210,29 @@ func NewRun2LoopComponents(cfg *config.Config, adapters adapter.AdapterSet, lega
 		return nil, err
 	}
 
+	specReviewProvider := llmtypes.LLMProvider(adapters.LLM)
+	specReviewModel := ""
+	specReviewCfg := *cfg
+	if router != nil {
+		specReviewTier := routing.TierForPhase("specreview", phaseModels, routing.TierHigh)
+		provider, model, _, routeErr := router.Select("specreview", specReviewTier)
+		if routeErr != nil {
+			log.Printf("WARNING: spec review routing for tier %s failed: %v; using default provider", specReviewTier, routeErr)
+		} else if provider != nil {
+			specReviewProvider = provider
+			specReviewModel = strings.TrimSpace(model)
+		}
+	}
+	if specReviewModel != "" {
+		specReviewCfg.Models.P0 = specReviewModel
+	}
+
+	specReviewStage, err := specreviewstage.New(&specReviewCfg, adapters.Git, specReviewProvider, baseInstructions, projectContext, specReviewFragment)
+	if err != nil {
+		cleanup()
+		return nil, err
+	}
+
 	remediationRunner := v2remediation.NewRemediationRunner(v2remediation.RemediationRunnerConfig{
 		AcceptStage:    acceptStage,
 		DecomposeStage: decomposeStage,
@@ -216,6 +249,7 @@ func NewRun2LoopComponents(cfg *config.Config, adapters adapter.AdapterSet, lega
 		DecomposeStage:        decomposeStage,
 		BeadLoop:              beadLoop,
 		AcceptStage:           acceptStage,
+		SpecReviewStage:       specReviewStage,
 		RemediationRunner:     remediationRunner,
 		Emitter:               typedEmitter,
 		StageCommitter:        sc,

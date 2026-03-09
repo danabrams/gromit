@@ -10,6 +10,7 @@ import (
 
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/v2/adapter/llm"
+	"github.com/danabrams/gromit/internal/v2/findings"
 	"github.com/danabrams/gromit/internal/v2/llmtypes"
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
 )
@@ -101,6 +102,52 @@ func TestRunWritesGapAnalysisWhenCriterionFails(t *testing.T) {
 	}
 	if git.lastWorktree != tmp {
 		t.Fatalf("diff invoked with %q, want %q", git.lastWorktree, tmp)
+	}
+}
+
+func TestRunFailedCriterionPopulatesFindings(t *testing.T) {
+	t.Parallel()
+
+	provider := &fakeLLM{
+		responses: []*llm.LLMResponse{
+			{Success: true, Output: `{"pass": false, "summary": "missing implementation"}`},
+		},
+	}
+
+	stageInstance, req := setupAcceptStage(t, provider)
+
+	res, err := stageInstance.Run(context.Background(), req)
+	if err != nil {
+		t.Fatalf("run stage: %v", err)
+	}
+	if res.Decision != stagepkg.DecisionFail {
+		t.Fatalf("decision = %v, want %v", res.Decision, stagepkg.DecisionFail)
+	}
+
+	artifacts, ok := res.Artifacts.(*AcceptArtifacts)
+	if !ok {
+		t.Fatalf("artifacts type = %T, want *AcceptArtifacts", res.Artifacts)
+	}
+
+	if len(artifacts.Findings) != 1 {
+		t.Fatalf("findings count = %d, want 1", len(artifacts.Findings))
+	}
+
+	finding := artifacts.Findings[0]
+	if finding.Severity != findings.SeverityCritical {
+		t.Fatalf("finding severity = %s, want %s", finding.Severity, findings.SeverityCritical)
+	}
+	if finding.Category != "acceptance" {
+		t.Fatalf("finding category = %q, want %q", finding.Category, "acceptance")
+	}
+	if finding.Scope != "spec" {
+		t.Fatalf("finding scope = %q, want %q", finding.Scope, "spec")
+	}
+	if finding.Description == "" {
+		t.Fatal("finding description is empty")
+	}
+	if finding.Description != artifacts.GapSummary {
+		t.Fatalf("finding description %q != gap summary %q", finding.Description, artifacts.GapSummary)
 	}
 }
 
@@ -200,10 +247,10 @@ func (f *fakeLLM) StreamInvoke(ctx context.Context, req llm.StreamInvokeRequest)
 }
 
 type fakeGitAdapter struct {
-	diff              string
-	diffFromBase      string
-	lastWorktree      string
-	diffCalled        bool
+	diff               string
+	diffFromBase       string
+	lastWorktree       string
+	diffCalled         bool
 	diffFromBaseCalled bool
 }
 

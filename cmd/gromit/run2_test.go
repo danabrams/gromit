@@ -11,10 +11,14 @@ import (
 	"testing"
 	"unsafe"
 
+	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/events"
 	"github.com/danabrams/gromit/internal/v2/adapter"
+	tasktracker "github.com/danabrams/gromit/internal/v2/adapter/tasktracker"
+	"github.com/danabrams/gromit/internal/v2/event"
 	"github.com/danabrams/gromit/internal/v2/loop"
+	"github.com/danabrams/gromit/internal/v2/routing"
 	v2spec "github.com/danabrams/gromit/internal/v2/spec"
 )
 
@@ -291,6 +295,114 @@ func TestRun2EpicFlagRunsAllSpecs(t *testing.T) {
 	}
 }
 
+func TestRun2ArgsFromReviewFlag(t *testing.T) {
+	if err := run2Cmd.Flags().Set("from-review", "true"); err != nil {
+		t.Fatalf("set from-review flag: %v", err)
+	}
+	defer run2Cmd.Flags().Set("from-review", "false")
+
+	if err := run2Args(run2Cmd, nil); err != nil {
+		t.Fatalf("run2Args with from-review flag should pass, got %v", err)
+	}
+
+	if err := run2Args(run2Cmd, []string{"spec.md"}); err == nil {
+		t.Fatal("run2Args should reject spec file arguments when --from-review is active")
+	}
+
+	if err := run2Cmd.Flags().Set("epic", "suite"); err != nil {
+		t.Fatalf("set epic flag: %v", err)
+	}
+	defer run2Cmd.Flags().Set("epic", "")
+
+	if err := run2Args(run2Cmd, nil); err == nil {
+		t.Fatal("run2Args should reject --epic when --from-review is active")
+	}
+}
+
+func TestRun2FromReviewUsesBeadLoop(t *testing.T) {
+	_, cleanup := setupRun2TestEnv(t)
+	defer cleanup()
+
+	cfg, err := loadConfig()
+	if err != nil {
+		t.Fatalf("loadConfig: %v", err)
+	}
+
+	fakeTracker := &fakeTaskTracker{
+		response: []tasktracker.Bead{
+			{
+				ID:        "from-review-1",
+				Title:     "review work",
+				Labels:    []string{"from-review"},
+				Priority:  1,
+				DependsOn: []string{"dep-a"},
+				BlockedBy: []string{"blocked"},
+			},
+		},
+	}
+
+	origTrackerFn := newTaskTrackerAdapterFn
+	newTaskTrackerAdapterFn = func(_ *bead.Client) tasktracker.TaskTracker { return fakeTracker }
+	defer func() { newTaskTrackerAdapterFn = origTrackerFn }()
+
+	var captured struct {
+		called bool
+		beads  []*bead.Bead
+	}
+
+	origRunBeadLoopFn := runBeadLoopFn
+	runBeadLoopFn = func(beadLoop *loop.BeadLoop, ctx context.Context, beads []*bead.Bead, stopCh <-chan struct{}) (loop.BeadLoopResult, error) {
+		captured.called = true
+		captured.beads = append([]*bead.Bead(nil), beads...)
+		return loop.BeadLoopResult{}, nil
+	}
+	defer func() { runBeadLoopFn = origRunBeadLoopFn }()
+
+	origComponentsFn := newRun2LoopComponentsFn
+	newRun2LoopComponentsFn = func(cfg *config.Config, adapters adapter.AdapterSet, legacyEmitter *events.Emitter, output io.Writer, router *routing.Router, phaseModels map[string]string) (*loop.Run2LoopComponents, error) {
+		emitter := events.NewEmitter()
+		return &loop.Run2LoopComponents{
+			BeadLoop:     &loop.BeadLoop{},
+			Emitter:      emitter,
+			TypedEmitter: event.NewEmitter(),
+		}, nil
+	}
+	defer func() { newRun2LoopComponentsFn = origComponentsFn }()
+
+	origSubscribers := startRun2SubscribersFn
+	startRun2SubscribersFn = func(ctx context.Context, emitter *events.Emitter, output io.Writer, logsDir string) (*sync.WaitGroup, error) {
+		return &sync.WaitGroup{}, nil
+	}
+	defer func() { startRun2SubscribersFn = origSubscribers }()
+
+	run2Cmd.SetOut(io.Discard)
+	run2Cmd.SetErr(io.Discard)
+
+	if err := run2FromReview(run2Cmd, cfg); err != nil {
+		t.Fatalf("run2FromReview = %v", err)
+	}
+
+	if !captured.called {
+		t.Fatal("bead loop never executed")
+	}
+	if got := fakeTracker.lastQuery.Labels; !reflect.DeepEqual(got, []string{"from-review"}) {
+		t.Fatalf("tracker labels = %v, want %v", got, []string{"from-review"})
+	}
+	if fakeTracker.lastQuery.Status != "open" {
+		t.Fatalf("tracker status = %q, want %q", fakeTracker.lastQuery.Status, "open")
+	}
+	if len(captured.beads) != len(fakeTracker.response) {
+		t.Fatalf("beads = %d, want %d", len(captured.beads), len(fakeTracker.response))
+	}
+	got := captured.beads[0]
+	if len(got.DependsOn) != 1 || got.DependsOn[0].ID != "dep-a" {
+		t.Fatalf("depends_on = %v, want dep-a", got.DependsOn)
+	}
+	if len(got.BlockedBy) != 1 || got.BlockedBy[0].ID != "blocked" {
+		t.Fatalf("blocked_by = %v, want blocked", got.BlockedBy)
+	}
+}
+
 func setupRun2TestEnv(t *testing.T) (string, func()) {
 	t.Helper()
 
@@ -378,6 +490,39 @@ func (r *recordingSpecLoop) Run(ctx context.Context, specID string, stopCh <-cha
 	return nil
 }
 
+type fakeTaskTracker struct {
+	lastQuery tasktracker.TaskTrackerQueryBeadsRequest
+	response  []tasktracker.Bead
+}
+
+func (f *fakeTaskTracker) NextBead(context.Context, tasktracker.TaskTrackerNextBeadRequest) (*tasktracker.TaskTrackerNextBeadResponse, error) {
+	return nil, nil
+}
+
+func (f *fakeTaskTracker) ShowBead(context.Context, string) (*tasktracker.Bead, error) {
+	return nil, nil
+}
+
+func (f *fakeTaskTracker) CreateBead(context.Context, tasktracker.TaskTrackerCreateBeadRequest) (*tasktracker.TaskTrackerCreateBeadResponse, error) {
+	return nil, nil
+}
+
+func (f *fakeTaskTracker) CloseBead(context.Context, tasktracker.TaskTrackerCloseBeadRequest) (*tasktracker.TaskTrackerCloseBeadResponse, error) {
+	return nil, nil
+}
+
+func (f *fakeTaskTracker) QueryBeads(_ context.Context, req tasktracker.TaskTrackerQueryBeadsRequest) (*tasktracker.TaskTrackerQueryBeadsResponse, error) {
+	f.lastQuery = tasktracker.TaskTrackerQueryBeadsRequest{
+		Labels: append([]string(nil), req.Labels...),
+		Status: req.Status,
+	}
+	resp := &tasktracker.TaskTrackerQueryBeadsResponse{}
+	if len(f.response) > 0 {
+		resp.Beads = append([]tasktracker.Bead(nil), f.response...)
+	}
+	return resp, nil
+}
+
 func fieldIsNil(specLoop *loop.SpecLoop, fieldName string) bool {
 	value := reflect.ValueOf(specLoop).Elem().FieldByName(fieldName)
 	if !value.IsValid() {
@@ -412,6 +557,25 @@ func TestIsCodexBinary(t *testing.T) {
 			got := isCodexBinary(tt.binary)
 			if got != tt.want {
 				t.Errorf("isCodexBinary(%q) = %v, want %v", tt.binary, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestFromReviewLabels(t *testing.T) {
+	tests := []struct {
+		name string
+		spec string
+		want []string
+	}{
+		{name: "no spec", spec: "", want: []string{"from-review"}},
+		{name: "with spec", spec: "stable", want: []string{"from-review", "spec:stable"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := fromReviewLabels(tt.spec)
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Fatalf("labels = %v, want %v", got, tt.want)
 			}
 		})
 	}

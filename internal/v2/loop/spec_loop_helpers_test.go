@@ -235,6 +235,7 @@ func (f *fakeLLMAdapter) planFor(specID string) string {
 
 type fakeTaskTrackerAdapter struct {
 	queryBeadsResponse *tasktracker.TaskTrackerQueryBeadsResponse
+	created            []tasktracker.TaskTrackerCreateBeadRequest
 }
 
 func newFakeTaskTrackerAdapter() *fakeTaskTrackerAdapter {
@@ -249,7 +250,8 @@ func (f *fakeTaskTrackerAdapter) ShowBead(_ context.Context, _ string) (*tasktra
 	return nil, fmt.Errorf("bead not found")
 }
 
-func (f *fakeTaskTrackerAdapter) CreateBead(_ context.Context, _ tasktracker.TaskTrackerCreateBeadRequest) (*tasktracker.TaskTrackerCreateBeadResponse, error) {
+func (f *fakeTaskTrackerAdapter) CreateBead(_ context.Context, req tasktracker.TaskTrackerCreateBeadRequest) (*tasktracker.TaskTrackerCreateBeadResponse, error) {
+	f.created = append(f.created, req)
 	return &tasktracker.TaskTrackerCreateBeadResponse{}, nil
 }
 

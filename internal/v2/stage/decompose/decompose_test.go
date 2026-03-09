@@ -11,6 +11,7 @@ import (
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/v2/adapter/llm"
 	"github.com/danabrams/gromit/internal/v2/adapter/tasktracker"
+	"github.com/danabrams/gromit/internal/v2/findings"
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
 )
 
@@ -392,6 +393,86 @@ func TestRunReadsGapAnalysisFromDiskWhenFieldEmpty(t *testing.T) {
 	}
 	if !strings.Contains(prompt, "ONLY create beads") {
 		t.Fatal("prompt missing gap-scoping instruction from disk fallback")
+	}
+}
+
+func TestRun_withFindings_usesFindingsTemplate(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	planDir := filepath.Join(tmpDir, ".gromit", "v2")
+	if err := os.MkdirAll(planDir, 0o755); err != nil {
+		t.Fatalf("mkdir plan dir: %v", err)
+	}
+	planContent := "# Full Plan\nTask 1: Build widget"
+	if err := os.WriteFile(filepath.Join(planDir, "plan.md"), []byte(planContent), 0o644); err != nil {
+		t.Fatalf("write plan: %v", err)
+	}
+
+	cfg := &config.Config{
+		ProjectRoot: tmpDir,
+		Paths:       config.PathsConfig{GromitDir: ".gromit"},
+	}
+
+	llmFake := &fakeLLM{
+		responses: []*llm.LLMResponse{{Success: true, Output: `[
+			{
+				"title": "fix widget commits",
+				"description": "add event commits",
+				"priority": "P1",
+				"acceptance_criteria": ["widgets commit events"],
+				"expected_outputs": ["commit after widget stage"],
+				"covers_tasks": [1],
+				"depends_on_index": []
+			},
+			{
+				"title": "verify widget events",
+				"description": "add tests for widget event commits",
+				"priority": "P1",
+				"acceptance_criteria": ["widget event tests pass"],
+				"expected_outputs": ["widget event test file"],
+				"covers_tasks": [2],
+				"depends_on_index": [0]
+			}
+		]`}},
+	}
+	tracker := &fakeTracker{}
+	stg, err := New(cfg, llmFake, tracker)
+	if err != nil {
+		t.Fatalf("create stage: %v", err)
+	}
+
+	req := &stagepkg.Request{
+		Bead:   stagepkg.BeadInfo{ID: "spec"},
+		Config: cfg,
+		Findings: []findings.Finding{
+			{
+				Severity:      findings.SeverityCritical,
+				Category:      "quality",
+				Scope:         "spec",
+				Description:   "tests missing",
+				AffectedFiles: []string{"internal/v2/stage"},
+			},
+		},
+	}
+
+	_, err = stg.Run(context.Background(), req)
+	if err != nil {
+		t.Fatalf("run stage: %v", err)
+	}
+
+	if len(llmFake.calls) == 0 {
+		t.Fatal("expected llm invocation")
+	}
+	prompt := llmFake.calls[0].Prompt
+	if !strings.Contains(prompt, "Specific Findings to Fix") {
+		t.Fatalf("prompt missing findings section: %s", prompt)
+	}
+	if !strings.Contains(prompt, "Targeted Fix Decompose") {
+		t.Fatalf("prompt missing findings-targeted template: %s", prompt)
+	}
+	if strings.Contains(prompt, "Unmet Acceptance Criteria") {
+		t.Fatalf("findings prompt should not include unmet acceptance criteria section: %s", prompt)
 	}
 }
 

@@ -42,6 +42,8 @@ var run2Cmd = &cobra.Command{
 
 func init() {
 	run2Cmd.Flags().String("epic", "", "Run specs scoped to the specified epic")
+	run2Cmd.Flags().Bool("from-review", false, "Run beads that were created from spec review findings")
+	run2Cmd.Flags().String("spec", "", "Limit the from-review beads to the specified spec")
 }
 
 var (
@@ -56,6 +58,16 @@ var (
 	newSpecLoopEmitterFn   = func(emitter *events.Emitter) loop.SpecLoopOption {
 		return loop.WithEmitter(emitter)
 	}
+	newRun2LoopComponentsFn = loop.NewRun2LoopComponents
+	newTaskTrackerAdapterFn = func(client *bead.Client) tasktracker.TaskTracker {
+		return tasktracker.NewBDAdapter(client)
+	}
+	runBeadLoopFn = func(runLoop *loop.BeadLoop, ctx context.Context, beads []*bead.Bead, stopCh <-chan struct{}) (loop.BeadLoopResult, error) {
+		if runLoop == nil {
+			return loop.BeadLoopResult{}, fmt.Errorf("bead loop required")
+		}
+		return runLoop.Run(ctx, beads, stopCh)
+	}
 )
 
 type specLoop interface {
@@ -66,6 +78,14 @@ func run2(cmd *cobra.Command, args []string) error {
 	cfg, err := loadConfig()
 	if err != nil {
 		return fmt.Errorf("loading config: %w", err)
+	}
+
+	fromReview, err := cmd.Flags().GetBool("from-review")
+	if err != nil {
+		return fmt.Errorf("reading from-review flag: %w", err)
+	}
+	if fromReview {
+		return run2FromReview(cmd, cfg)
 	}
 
 	specsDir := resolveSpecsDir(cfg)
@@ -195,18 +215,160 @@ func run2(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
+func run2FromReview(cmd *cobra.Command, cfg *config.Config) error {
+	if cfg == nil {
+		return fmt.Errorf("config required")
+	}
+
+	parentCtx := cmd.Context()
+	if parentCtx == nil {
+		parentCtx = context.Background()
+	}
+	ctx, cancel := context.WithCancel(parentCtx)
+	defer cancel()
+
+	specScope, err := cmd.Flags().GetString("spec")
+	if err != nil {
+		return fmt.Errorf("reading spec flag: %w", err)
+	}
+	specScope = strings.TrimSpace(specScope)
+
+	specsDir := resolveSpecsDir(cfg)
+	planBinary := "claude"
+	if strings.TrimSpace(cfg.Claude.Binary) != "" {
+		planBinary = strings.TrimSpace(cfg.Claude.Binary)
+	}
+	planFlags := []string{}
+	if len(cfg.Claude.Flags) > 0 {
+		planFlags = append(planFlags, cfg.Claude.Flags...)
+	}
+	planTimeout := 15 * time.Minute
+	if cfg.Claude.Timeout > 0 {
+		planTimeout = time.Duration(cfg.Claude.Timeout) * time.Second
+	}
+	planProvider := llm.NewClaudeAdapter(planBinary, planFlags, planTimeout)
+	llmAdapter, err := llm.NewPlanLLMAdapter(planProvider, specsDir)
+	if err != nil {
+		return fmt.Errorf("create plan adapter: %w", err)
+	}
+
+	gromitDir := resolveGromitDir(cfg)
+	worktreesDir := filepath.Join(gromitDir, "spec-worktrees")
+	repoRoot, err := filepath.Abs(".")
+	if err != nil {
+		return fmt.Errorf("resolving repo root: %w", err)
+	}
+
+	beadClient, err := bead.NewClient()
+	if err != nil {
+		return fmt.Errorf("create bd client: %w", err)
+	}
+	trackerAdapter := newTaskTrackerAdapterFn(beadClient)
+	adapters := adapter.AdapterSet{
+		Git:         gitadapter.NewExecGitAdapter(repoRoot, worktreesDir),
+		LLM:         llmAdapter,
+		TaskTracker: trackerAdapter,
+		Presenter:   presenter.NewGitHubPresenter(nil),
+	}
+
+	sigCh := make(chan os.Signal, runSignalBufferSize)
+	stopCh := make(chan struct{})
+	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+	defer signal.Stop(sigCh)
+	go handleRunSignals(sigCh, stopCh, cancel, cmd.ErrOrStderr())
+
+	emitter := events.NewEmitter()
+	logsDir := resolveMainRepoLogsDirFn(gromitDir)
+	wg, err := startRun2SubscribersFn(ctx, emitter, cmd.ErrOrStderr(), logsDir)
+	if err != nil {
+		return fmt.Errorf("starting subscribers: %w", err)
+	}
+
+	router, phaseModels := buildRouter(cfg)
+
+	components, err := newRun2LoopComponentsFn(cfg, adapters, emitter, cmd.ErrOrStderr(), router, phaseModels)
+	if err != nil {
+		emitter.Close()
+		wg.Wait()
+		return fmt.Errorf("preparing run loop components: %w", err)
+	}
+	defer func() {
+		components.Emitter.Close()
+		emitter.Close()
+		wg.Wait()
+	}()
+
+	resp, err := adapters.TaskTracker.QueryBeads(ctx, tasktracker.TaskTrackerQueryBeadsRequest{
+		Labels: fromReviewLabels(specScope),
+		Status: "open",
+	})
+	if err != nil {
+		return fmt.Errorf("query from-review beads: %w", err)
+	}
+	beads := trackerBeads(resp)
+	if len(beads) == 0 {
+		fmt.Fprintln(cmd.OutOrStdout(), "No open from-review beads found.")
+		return nil
+	}
+
+	if components.BeadLoop == nil {
+		return fmt.Errorf("bead loop unavailable")
+	}
+
+	worktree := repoRoot
+	if specScope != "" {
+		worktree, err = adapters.Git.Checkout(ctx, specScope)
+		if err != nil {
+			return fmt.Errorf("checkout spec worktree: %w", err)
+		}
+	}
+	components.BeadLoop.SetWorktree(worktree)
+
+	if _, err := runBeadLoopFn(components.BeadLoop, ctx, beads, stopCh); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func run2Args(cmd *cobra.Command, args []string) error {
+	fromReview, err := cmd.Flags().GetBool("from-review")
+	if err != nil {
+		return fmt.Errorf("reading from-review flag: %w", err)
+	}
+
+	specScope, err := cmd.Flags().GetString("spec")
+	if err != nil {
+		return fmt.Errorf("reading spec flag: %w", err)
+	}
+
 	epicID, err := cmd.Flags().GetString("epic")
 	if err != nil {
 		return fmt.Errorf("reading epic flag: %w", err)
 	}
 	epicID = strings.TrimSpace(epicID)
+
+	if specScope = strings.TrimSpace(specScope); specScope != "" && !fromReview {
+		return fmt.Errorf("the --spec flag requires --from-review")
+	}
+
+	if fromReview {
+		if epicID != "" {
+			return fmt.Errorf("--from-review cannot be combined with --epic")
+		}
+		if len(args) > 0 {
+			return fmt.Errorf("--from-review cannot be combined with a spec file")
+		}
+		return nil
+	}
+
 	if epicID != "" {
 		if len(args) > 0 {
 			return fmt.Errorf("the --epic flag cannot be combined with a spec file")
 		}
 		return nil
 	}
+
 	if len(args) != 1 {
 		return fmt.Errorf("spec file argument required")
 	}
@@ -281,6 +443,49 @@ func loadSpecFromArg(arg string) (*v2spec.Spec, error) {
 		return nil, fmt.Errorf("loading spec %s: %w", specPath, err)
 	}
 	return specFile, nil
+}
+
+func fromReviewLabels(spec string) []string {
+	labels := []string{"from-review"}
+	spec = strings.TrimSpace(spec)
+	if spec != "" {
+		labels = append(labels, fmt.Sprintf("spec:%s", spec))
+	}
+	return labels
+}
+
+func trackerBeads(resp *tasktracker.TaskTrackerQueryBeadsResponse) []*bead.Bead {
+	if resp == nil {
+		return nil
+	}
+	result := make([]*bead.Bead, 0, len(resp.Beads))
+	for _, item := range resp.Beads {
+		beadCopy := &bead.Bead{
+			ID:          item.ID,
+			Title:       item.Title,
+			Description: item.Description,
+			Priority:    item.Priority,
+			Labels:      append([]string(nil), item.Labels...),
+			Status:      item.Status,
+			DependsOn:   dependenciesFromStrings(item.DependsOn),
+			BlockedBy:   dependenciesFromStrings(item.BlockedBy),
+		}
+		result = append(result, beadCopy)
+	}
+	return result
+}
+
+func dependenciesFromStrings(ids []string) []bead.Dependency {
+	if len(ids) == 0 {
+		return nil
+	}
+	deps := make([]bead.Dependency, 0, len(ids))
+	for _, id := range ids {
+		if trimmed := strings.TrimSpace(id); trimmed != "" {
+			deps = append(deps, bead.Dependency{ID: trimmed})
+		}
+	}
+	return deps
 }
 
 // buildRouter constructs a Router from the config's provider and routing

@@ -11,6 +11,7 @@ import (
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/jsonutil"
 	"github.com/danabrams/gromit/internal/provider"
+	"github.com/danabrams/gromit/internal/v2/findings"
 	"github.com/danabrams/gromit/internal/v2/generation"
 	"github.com/danabrams/gromit/internal/v2/llmtypes"
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
@@ -104,6 +105,37 @@ depends_on_index: array of 0-based indices of prerequisite beads in THIS output 
 The spec label will be added automatically: spec:%s
 `
 
+var findingsDecomposePromptTemplate = `# Targeted Fix Decompose: %s
+
+You are creating TARGETED beads to address specific review findings. Do NOT re-implement work that already exists.
+
+## Full Plan (architectural context only — do NOT re-decompose it)
+
+%s
+
+## Specific Findings to Fix (create beads ONLY for these)
+
+%s
+
+## Skill Instructions
+
+%s
+
+## Rules
+
+- Create one bead per finding or per tightly-coupled group of findings.
+- Do NOT create beads for work not listed in the findings above.
+- Each bead acceptance_criteria must describe observable behavior, NOT file paths.
+- depends_on_index: 0-based index of prerequisite beads in THIS output array.
+
+## Output
+
+Output ONLY a JSON array of bead definitions. No markdown, no explanations.
+Each bead: title, description, priority, acceptance_criteria, expected_outputs, covers_tasks, depends_on_index.
+
+The spec label will be added automatically: spec:%s
+`
+
 // Stage implements the decompose stage of the run loop.
 type Stage struct {
 	name           string
@@ -181,9 +213,13 @@ func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Resul
 
 	var promptText string
 	gapAnalysis := s.resolveGapAnalysis(req)
-	if req.Remediation && gapAnalysis != "" {
+	switch {
+	case len(req.Findings) > 0:
+		findingsText := formatFindingsForPrompt(req.Findings)
+		promptText = fmt.Sprintf(findingsDecomposePromptTemplate, specID, string(planBody), findingsText, skills.DecomposeSkill, specID)
+	case req.Remediation && gapAnalysis != "":
 		promptText = fmt.Sprintf(remediationDecomposePromptTemplate, specID, string(planBody), gapAnalysis, skills.DecomposeSkill, specID)
-	} else {
+	default:
 		promptText = fmt.Sprintf(s.promptTemplate, specID, string(planBody), skills.DecomposeSkill, specID)
 	}
 	// Resolve provider: prefer req.Provider, fall back to s.llm.
@@ -293,6 +329,24 @@ func (s *Stage) resolveGapAnalysis(req *stagepkg.Request) string {
 		return ""
 	}
 	return strings.TrimSpace(string(data))
+}
+
+func formatFindingsForPrompt(findingsList []findings.Finding) string {
+	if len(findingsList) == 0 {
+		return "(no findings)"
+	}
+
+	var sb strings.Builder
+	for i, f := range findingsList {
+		if i > 0 {
+			sb.WriteString("\n")
+		}
+		sb.WriteString(fmt.Sprintf("%d. [%s/%s/%s] %s", i+1, f.Severity, f.Category, f.Scope, strings.TrimSpace(f.Description)))
+		if len(f.AffectedFiles) > 0 {
+			sb.WriteString(fmt.Sprintf(" (files: %s)", strings.Join(f.AffectedFiles, ", ")))
+		}
+	}
+	return sb.String()
 }
 
 func (s *Stage) gapAnalysisPath(req *stagepkg.Request) string {

@@ -3,9 +3,11 @@ package remediation
 import (
 	"context"
 	"errors"
+	"reflect"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/bead"
+	"github.com/danabrams/gromit/internal/v2/findings"
 	"github.com/danabrams/gromit/internal/v2/stage"
 )
 
@@ -295,13 +297,77 @@ func TestRemediationRunnerGapAnalysisFlowsToDecompose(t *testing.T) {
 	}
 }
 
+func TestRemediationRunnerPassesFindingsToDecompose(t *testing.T) {
+	t.Parallel()
+
+	expected := []findings.Finding{
+		{
+			Severity:    findings.SeverityCritical,
+			Category:    "acceptance",
+			Scope:       "spec",
+			Description: "criterion 1 failed",
+		},
+	}
+
+	acceptCalls := 0
+	accept := &testStage{
+		name: "accept",
+		run: func(ctx context.Context, req *stage.Request) (*stage.StageResult, error) {
+			acceptCalls++
+			if acceptCalls == 1 {
+				return &stage.StageResult{
+					Decision: stage.DecisionFail,
+					Artifacts: &gapArtifacts{
+						gap:      "failed",
+						findings: expected,
+					},
+				}, nil
+			}
+			return &stage.StageResult{Decision: stage.DecisionProceed}, nil
+		},
+	}
+
+	var captured []findings.Finding
+	decompose := &testStage{
+		name: "decompose",
+		run: func(ctx context.Context, req *stage.Request) (*stage.StageResult, error) {
+			captured = append([]findings.Finding(nil), req.Findings...)
+			return &stage.StageResult{
+				Artifacts: &stage.DecomposeArtifacts{Beads: []*bead.Bead{{ID: "remediation-bead"}}},
+			}, nil
+		},
+	}
+
+	runner := newRunnerForRemediationCycle(accept, decompose, &testBeadRunner{}, 1)
+	if err := runner.Run(context.Background(), "spec-findings", ""); err != nil {
+		t.Fatalf("run failed: %v", err)
+	}
+
+	if !reflect.DeepEqual(captured, expected) {
+		t.Fatalf("findings = %#v, want %#v", captured, expected)
+	}
+}
+
 // gapArtifacts is a test helper implementing the gapSummaryProvider interface.
 type gapArtifacts struct {
-	gap string
+	gap      string
+	findings []findings.Finding
 }
 
 func (g *gapArtifacts) GetGapSummary() string {
+	if g == nil {
+		return ""
+	}
 	return g.gap
+}
+
+func (g *gapArtifacts) GetFindings() []findings.Finding {
+	if g == nil || len(g.findings) == 0 {
+		return nil
+	}
+	result := make([]findings.Finding, len(g.findings))
+	copy(result, g.findings)
+	return result
 }
 
 func newRunnerForSpecValidation() *RemediationRunner {

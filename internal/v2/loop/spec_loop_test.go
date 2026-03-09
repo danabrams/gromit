@@ -14,9 +14,12 @@ import (
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/events"
+	legacyReview "github.com/danabrams/gromit/internal/review"
+	"github.com/danabrams/gromit/internal/tracker"
 	"github.com/danabrams/gromit/internal/v2/adapter"
 	"github.com/danabrams/gromit/internal/v2/adapter/tasktracker"
 	"github.com/danabrams/gromit/internal/v2/event"
+	"github.com/danabrams/gromit/internal/v2/findings"
 	"github.com/danabrams/gromit/internal/v2/llmtypes"
 	"github.com/danabrams/gromit/internal/v2/presentation"
 	v2review "github.com/danabrams/gromit/internal/v2/review"
@@ -25,6 +28,7 @@ import (
 	stageaccept "github.com/danabrams/gromit/internal/v2/stage/accept"
 	planstage "github.com/danabrams/gromit/internal/v2/stage/plan"
 	present "github.com/danabrams/gromit/internal/v2/stage/present"
+	specreview "github.com/danabrams/gromit/internal/v2/stage/specreview"
 )
 
 func TestNewSpecLoopValidation(t *testing.T) {
@@ -166,6 +170,7 @@ func TestSpecLoopHappyPathExecutesPipeline(t *testing.T) {
 	decompose := newFakeDecomposeStage(specID)
 	beadRunner := newFakeBeadRunner()
 	accept := newFakeAcceptStage()
+	specReview := &fakeSpecReviewStage{}
 
 	loopInstance, err := NewSpecLoop(adapters, cfg, noopDependencyGate{},
 		WithStageRecorder(recorder),
@@ -175,6 +180,7 @@ func TestSpecLoopHappyPathExecutesPipeline(t *testing.T) {
 		WithDecomposeStage(decompose),
 		WithBeadLoop(beadRunner),
 		WithAcceptStage(accept),
+		WithSpecReviewStage(specReview),
 	)
 	if err != nil {
 		t.Fatalf("create spec loop: %v", err)
@@ -217,6 +223,180 @@ func TestSpecLoopHappyPathExecutesPipeline(t *testing.T) {
 	}
 	if len(summary.AcceptanceResults) != len(accept.results) {
 		t.Fatalf("acceptance results count = %d", len(summary.AcceptanceResults))
+	}
+}
+
+func TestSpecLoopRunsSpecReviewStage(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	specID := "spec-loop-specreview"
+	cfg := &config.Config{}
+
+	recorder := newRecordingStageRecorder()
+
+	git := newFakeGitAdapter(t)
+	llm := newFakeLLMAdapter()
+	taskTracker := newFakeTaskTrackerAdapter()
+	presenter := newFakePresenterAdapter(t)
+	planStage := newFakePlanStage(specID)
+	presentStage, summaryCtx := newPresentStageForTest(t, cfg, presenter)
+
+	adapters := adapter.AdapterSet{
+		Git:         git,
+		LLM:         llm,
+		TaskTracker: taskTracker,
+		Presenter:   presenter,
+	}
+
+	decompose := newFakeDecomposeStage(specID)
+	beadRunner := newFakeBeadRunner()
+	accept := newFakeAcceptStage()
+	specReview := &fakeSpecReviewStage{}
+
+	loopInstance, err := NewSpecLoop(adapters, cfg, noopDependencyGate{},
+		WithStageRecorder(recorder),
+		WithPlanStage(planStage),
+		WithPresentStage(presentStage, summaryCtx),
+		WithDecomposeStage(decompose),
+		WithBeadLoop(beadRunner),
+		WithAcceptStage(accept),
+		WithSpecReviewStage(specReview),
+	)
+	if err != nil {
+		t.Fatalf("create spec loop: %v", err)
+	}
+
+	if err := loopInstance.Run(ctx, specID, nil); err != nil {
+		t.Fatalf("run spec loop: %v", err)
+	}
+
+	if !specReview.called {
+		t.Fatalf("spec review stage did not run")
+	}
+}
+
+func TestSpecLoopFailsWhenSpecreviewFails(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	specID := "spec-loop-specreview-fail"
+	cfg := &config.Config{}
+
+	git := newFakeGitAdapter(t)
+	llm := newFakeLLMAdapter()
+	taskTracker := newFakeTaskTrackerAdapter()
+	presenter := newFakePresenterAdapter(t)
+	planStage := newFakePlanStage(specID)
+	presentStage, summaryCtx := newPresentStageForTest(t, cfg, presenter)
+
+	adapters := adapter.AdapterSet{
+		Git:         git,
+		LLM:         llm,
+		TaskTracker: taskTracker,
+		Presenter:   presenter,
+	}
+
+	decompose := newFakeDecomposeStage(specID)
+	beadRunner := newFakeBeadRunner()
+	accept := newFakeAcceptStage()
+	specReview := &fakeSpecReviewStage{result: &stagepkg.Result{Decision: stagepkg.DecisionFail}}
+
+	loopInstance, err := NewSpecLoop(adapters, cfg, noopDependencyGate{},
+		WithPlanStage(planStage),
+		WithPresentStage(presentStage, summaryCtx),
+		WithDecomposeStage(decompose),
+		WithBeadLoop(beadRunner),
+		WithAcceptStage(accept),
+		WithSpecReviewStage(specReview),
+	)
+	if err != nil {
+		t.Fatalf("create spec loop: %v", err)
+	}
+
+	if err := loopInstance.Run(ctx, specID, nil); err == nil {
+		t.Fatal("expected error when spec review stage fails")
+	}
+}
+
+func TestSpecLoopCreatesFromReviewBeadsOnWarnings(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	specID := "spec-loop-specreview-beads"
+	cfg := &config.Config{}
+
+	git := newFakeGitAdapter(t)
+	taskTracker := newFakeTaskTrackerAdapter()
+	presenter := newFakePresenterAdapter(t)
+	planStage := newFakePlanStage(specID)
+	presentStage, summaryCtx := newPresentStageForTest(t, cfg, presenter)
+
+	adapters := adapter.AdapterSet{
+		Git:         git,
+		LLM:         newFakeLLMAdapter(),
+		TaskTracker: taskTracker,
+		Presenter:   presenter,
+	}
+
+	decompose := newFakeDecomposeStage(specID)
+	beadRunner := newFakeBeadRunner()
+	accept := newFakeAcceptStage()
+	reviewResult := &legacyReview.ReviewResult{
+		Passed: true,
+		BeadsToCreate: []legacyReview.BeadProposal{
+			{
+				Title:       "Review finding",
+				Description: "needs work",
+				Priority:    1,
+				Labels:      []string{"bug"},
+			},
+		},
+	}
+	specReview := &fakeSpecReviewStage{
+		result: &stagepkg.Result{
+			Decision:  stagepkg.DecisionProceed,
+			Artifacts: &specreview.SpecReviewArtifacts{Result: reviewResult},
+		},
+	}
+
+	loopInstance, err := NewSpecLoop(adapters, cfg, noopDependencyGate{},
+		WithPlanStage(planStage),
+		WithPresentStage(presentStage, summaryCtx),
+		WithDecomposeStage(decompose),
+		WithBeadLoop(beadRunner),
+		WithAcceptStage(accept),
+		WithSpecReviewStage(specReview),
+	)
+	if err != nil {
+		t.Fatalf("create spec loop: %v", err)
+	}
+
+	if err := loopInstance.Run(ctx, specID, nil); err != nil {
+		t.Fatalf("run spec loop: %v", err)
+	}
+
+	if len(taskTracker.created) != 1 {
+		t.Fatalf("expected 1 created bead, got %d", len(taskTracker.created))
+	}
+	created := taskTracker.created[0]
+	if created.Title != "Review finding" {
+		t.Fatalf("title = %q, want %q", created.Title, "Review finding")
+	}
+	if created.Description != "needs work" {
+		t.Fatalf("description = %q, want %q", created.Description, "needs work")
+	}
+	if created.Priority != 1 {
+		t.Fatalf("priority = %d, want %d", created.Priority, 1)
+	}
+	if len(created.Labels) < 2 {
+		t.Fatalf("labels = %v, want at least 2", created.Labels)
+	}
+	if created.Labels[0] != "from-review" {
+		t.Fatalf("first label = %q, want from-review", created.Labels[0])
+	}
+	if created.Labels[len(created.Labels)-1] != tracker.SpecLabelFor(specID) {
+		t.Fatalf("last label = %q, want spec label", created.Labels[len(created.Labels)-1])
 	}
 }
 
@@ -970,10 +1150,12 @@ func newFakeDecomposeStage(specID string) *fakeDecomposeStage {
 }
 
 type fakeDecomposeStage struct {
-	producedBeads []*bead.Bead
-	called        bool
-	lastRequest   *stagepkg.Request
-	onRun         func()
+	producedBeads       []*bead.Bead
+	called              bool
+	lastRequest         *stagepkg.Request
+	onRun               func()
+	remediationRequest  bool
+	remediationFindings []findings.Finding
 }
 
 func (f *fakeDecomposeStage) Name() string { return "decompose" }
@@ -983,6 +1165,10 @@ func (f *fakeDecomposeStage) Run(ctx context.Context, req *stagepkg.Request) (*s
 	f.lastRequest = req
 	if f.onRun != nil {
 		f.onRun()
+	}
+	if req != nil && req.Remediation {
+		f.remediationRequest = true
+		f.remediationFindings = append([]findings.Finding(nil), req.Findings...)
 	}
 	return &stagepkg.Result{
 		Decision:  stagepkg.DecisionProceed,
@@ -1029,6 +1215,21 @@ func (f *fakeAcceptStage) Run(ctx context.Context, req *stagepkg.Request) (*stag
 		Decision:  stagepkg.DecisionProceed,
 		Artifacts: &stageaccept.AcceptArtifacts{Results: append([]presentation.AcceptanceResult(nil), f.results...)},
 	}, nil
+}
+
+type fakeSpecReviewStage struct {
+	called bool
+	result *stagepkg.Result
+}
+
+func (f *fakeSpecReviewStage) Name() string { return "specreview" }
+
+func (f *fakeSpecReviewStage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Result, error) {
+	f.called = true
+	if f.result != nil {
+		return f.result, nil
+	}
+	return &stagepkg.Result{Decision: stagepkg.DecisionProceed}, nil
 }
 
 type fakePlanStage struct {
