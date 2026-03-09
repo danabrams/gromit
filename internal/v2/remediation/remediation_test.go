@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/danabrams/gromit/internal/bead"
+	"github.com/danabrams/gromit/internal/events"
 	"github.com/danabrams/gromit/internal/v2/stage"
 	"github.com/danabrams/gromit/internal/v2/stage/finding"
 )
@@ -516,6 +517,71 @@ func TestRemediationRunnerSkipsPlanStageWhenFindingsProvided(t *testing.T) {
 
 	if len(capturedFindings) != len(findings) || capturedFindings[0].Description != findings[0].Description {
 		t.Fatalf("findings were not forwarded to decompose: %v", capturedFindings)
+	}
+}
+
+func TestRemediationRunnerEmitsFindingCountInAndonEvent(t *testing.T) {
+	t.Parallel()
+
+	emitter := events.NewEmitter()
+	ch := emitter.Subscribe()
+	t.Cleanup(func() {
+		emitter.Close()
+	})
+
+	findings := []finding.Finding{
+		{
+			Severity:    finding.SeverityCritical,
+			Category:    finding.CategoryBug,
+			Description: "critical regression",
+		},
+		{
+			Severity:    finding.SeverityWarning,
+			Category:    finding.CategoryQuality,
+			Description: "additional gap",
+		},
+	}
+
+	acceptCalls := 0
+	accept := &testStage{
+		name: "accept",
+		run: func(ctx context.Context, req *stage.Request) (*stage.Result, error) {
+			acceptCalls++
+			if acceptCalls == 1 {
+				return &stage.Result{
+					Decision:  stage.DecisionFail,
+					Artifacts: &gapArtifacts{gap: "gap"},
+				}, nil
+			}
+			return &stage.Result{Decision: stage.DecisionProceed}, nil
+		},
+	}
+
+	runner := NewRemediationRunner(RemediationRunnerConfig{
+		AcceptStage:   accept,
+		Findings:      findings,
+		GenerationCap: 0,
+		Emitter:       emitter,
+		BeadRunner:    &testBeadRunner{},
+	})
+
+	if err := runner.Run(context.Background(), "spec-events", ""); err == nil {
+		t.Fatal("expected generation cap error")
+	}
+
+	found := false
+	for i := 0; i < 2; i++ {
+		evt := <-ch
+		if andon, ok := evt.(*events.AndonTriggeredEvent); ok {
+			found = true
+			if andon.FindingCount != len(findings) {
+				t.Fatalf("finding count = %d, want %d", andon.FindingCount, len(findings))
+			}
+		}
+	}
+
+	if !found {
+		t.Fatal("andon event not emitted")
 	}
 }
 
