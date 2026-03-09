@@ -62,6 +62,7 @@ routing:
     scope_check: any
     precheck: any
     decompose: claude    # force decompose to Claude provider
+    accept: claude       # force accept to Claude — codex routinely exceeds 15min timeout for eval tasks
     retro: openai        # force retro to Codex/OpenAI provider
   ratio:
     claude: 10
@@ -263,6 +264,7 @@ methodology:
     build: "low"
     decompose: "low"
     green: "low"
+    accept: "high"
   # spec_gate_max_retries: 3  # Max scoped spec-gate fix synthesis retries before stopping (default: 3)
   # atdd_prompt:
   #   include_rules: true  # Include RULES.md in ATDD build prompts
