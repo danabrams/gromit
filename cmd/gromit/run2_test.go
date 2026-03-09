@@ -15,11 +15,11 @@ import (
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/events"
 	"github.com/danabrams/gromit/internal/v2/adapter"
+	tasktracker "github.com/danabrams/gromit/internal/v2/adapter/tasktracker"
 	"github.com/danabrams/gromit/internal/v2/event"
 	"github.com/danabrams/gromit/internal/v2/loop"
 	"github.com/danabrams/gromit/internal/v2/routing"
 	v2spec "github.com/danabrams/gromit/internal/v2/spec"
-	"github.com/danabrams/gromit/internal/v2/trackertypes"
 )
 
 func TestRun2FailsWhenDependenciesBlocked(t *testing.T) {
@@ -329,7 +329,7 @@ func TestRun2FromReviewUsesBeadLoop(t *testing.T) {
 	}
 
 	fakeTracker := &fakeTaskTracker{
-		response: []trackertypes.Bead{
+		response: []tasktracker.Bead{
 			{
 				ID:        "from-review-1",
 				Title:     "review work",
@@ -342,7 +342,7 @@ func TestRun2FromReviewUsesBeadLoop(t *testing.T) {
 	}
 
 	origTrackerFn := newTaskTrackerAdapterFn
-	newTaskTrackerAdapterFn = func(_ *bead.Client) trackertypes.TaskTracker { return fakeTracker }
+	newTaskTrackerAdapterFn = func(_ *bead.Client) tasktracker.TaskTracker { return fakeTracker }
 	defer func() { newTaskTrackerAdapterFn = origTrackerFn }()
 
 	var captured struct {
@@ -491,34 +491,34 @@ func (r *recordingSpecLoop) Run(ctx context.Context, specID string, stopCh <-cha
 }
 
 type fakeTaskTracker struct {
-	lastQuery trackertypes.TaskTrackerQueryBeadsRequest
-	response  []trackertypes.Bead
+	lastQuery tasktracker.TaskTrackerQueryBeadsRequest
+	response  []tasktracker.Bead
 }
 
-func (f *fakeTaskTracker) NextBead(context.Context, trackertypes.TaskTrackerNextBeadRequest) (*trackertypes.TaskTrackerNextBeadResponse, error) {
+func (f *fakeTaskTracker) NextBead(context.Context, tasktracker.TaskTrackerNextBeadRequest) (*tasktracker.TaskTrackerNextBeadResponse, error) {
 	return nil, nil
 }
 
-func (f *fakeTaskTracker) ShowBead(context.Context, string) (*trackertypes.Bead, error) {
+func (f *fakeTaskTracker) ShowBead(context.Context, string) (*tasktracker.Bead, error) {
 	return nil, nil
 }
 
-func (f *fakeTaskTracker) CreateBead(context.Context, trackertypes.TaskTrackerCreateBeadRequest) (*trackertypes.TaskTrackerCreateBeadResponse, error) {
+func (f *fakeTaskTracker) CreateBead(context.Context, tasktracker.TaskTrackerCreateBeadRequest) (*tasktracker.TaskTrackerCreateBeadResponse, error) {
 	return nil, nil
 }
 
-func (f *fakeTaskTracker) CloseBead(context.Context, trackertypes.TaskTrackerCloseBeadRequest) (*trackertypes.TaskTrackerCloseBeadResponse, error) {
+func (f *fakeTaskTracker) CloseBead(context.Context, tasktracker.TaskTrackerCloseBeadRequest) (*tasktracker.TaskTrackerCloseBeadResponse, error) {
 	return nil, nil
 }
 
-func (f *fakeTaskTracker) QueryBeads(_ context.Context, req trackertypes.TaskTrackerQueryBeadsRequest) (*trackertypes.TaskTrackerQueryBeadsResponse, error) {
-	f.lastQuery = trackertypes.TaskTrackerQueryBeadsRequest{
+func (f *fakeTaskTracker) QueryBeads(_ context.Context, req tasktracker.TaskTrackerQueryBeadsRequest) (*tasktracker.TaskTrackerQueryBeadsResponse, error) {
+	f.lastQuery = tasktracker.TaskTrackerQueryBeadsRequest{
 		Labels: append([]string(nil), req.Labels...),
 		Status: req.Status,
 	}
-	resp := &trackertypes.TaskTrackerQueryBeadsResponse{}
+	resp := &tasktracker.TaskTrackerQueryBeadsResponse{}
 	if len(f.response) > 0 {
-		resp.Beads = append([]trackertypes.Bead(nil), f.response...)
+		resp.Beads = append([]tasktracker.Bead(nil), f.response...)
 	}
 	return resp, nil
 }

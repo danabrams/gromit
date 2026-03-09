@@ -29,7 +29,6 @@ import (
 	"github.com/danabrams/gromit/internal/v2/loop"
 	"github.com/danabrams/gromit/internal/v2/routing"
 	v2spec "github.com/danabrams/gromit/internal/v2/spec"
-	"github.com/danabrams/gromit/internal/v2/trackertypes"
 	"github.com/spf13/cobra"
 )
 
@@ -60,7 +59,7 @@ var (
 		return loop.WithEmitter(emitter)
 	}
 	newRun2LoopComponentsFn = loop.NewRun2LoopComponents
-	newTaskTrackerAdapterFn = func(client *bead.Client) trackertypes.TaskTracker {
+	newTaskTrackerAdapterFn = func(client *bead.Client) tasktracker.TaskTracker {
 		return tasktracker.NewBDAdapter(client)
 	}
 	runBeadLoopFn = func(runLoop *loop.BeadLoop, ctx context.Context, beads []*bead.Bead, stopCh <-chan struct{}) (loop.BeadLoopResult, error) {
@@ -299,7 +298,7 @@ func run2FromReview(cmd *cobra.Command, cfg *config.Config) error {
 		wg.Wait()
 	}()
 
-	resp, err := adapters.TaskTracker.QueryBeads(ctx, trackertypes.TaskTrackerQueryBeadsRequest{
+	resp, err := adapters.TaskTracker.QueryBeads(ctx, tasktracker.TaskTrackerQueryBeadsRequest{
 		Labels: fromReviewLabels(specScope),
 		Status: "open",
 	})
@@ -455,7 +454,7 @@ func fromReviewLabels(spec string) []string {
 	return labels
 }
 
-func trackerBeads(resp *trackertypes.TaskTrackerQueryBeadsResponse) []*bead.Bead {
+func trackerBeads(resp *tasktracker.TaskTrackerQueryBeadsResponse) []*bead.Bead {
 	if resp == nil {
 		return nil
 	}
