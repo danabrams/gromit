@@ -3,7 +3,9 @@ package specreview
 import (
 	"testing"
 
+	"github.com/danabrams/gromit/internal/config"
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
+	stagedesc "github.com/danabrams/gromit/internal/v2/stage/names"
 )
 
 func TestVerdictFromFindings(t *testing.T) {
@@ -94,5 +96,22 @@ func TestParseSpecReviewOutput(t *testing.T) {
 	}
 	if len(first.AffectedFiles) != 1 || first.AffectedFiles[0] != "cmd/gromit/review_spec_validation_acceptance_test.go" {
 		t.Fatalf("affected files = %v", first.AffectedFiles)
+	}
+}
+
+func TestNewSpecReviewStageRequiresConfig(t *testing.T) {
+	if _, err := New(nil); err == nil {
+		t.Fatal("expected error when config is nil")
+	}
+
+	cfg := &config.Config{Project: config.ProjectConfig{Profile: "example"}}
+	stage, err := New(cfg)
+	if err != nil {
+		t.Fatalf("New returned error: %v", err)
+	}
+
+	want := stagedesc.Describe("spec-review", cfg)
+	if stage.Name() != want {
+		t.Fatalf("stage name = %q, want %q", stage.Name(), want)
 	}
 }
