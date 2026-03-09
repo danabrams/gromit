@@ -1937,3 +1937,140 @@ func TestSpecLoopRoutingErrorFallsBackToDefault(t *testing.T) {
 		t.Fatalf("accept Model = %q, want empty", accept.lastRequest.Model)
 	}
 }
+
+func TestSpecLoop_HasBeadsForSpecError(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	specID := "spec-has-beads-error"
+	cfg := &config.Config{}
+
+	git := newFakeGitAdapter(t)
+	git.planContent = validPlanFixture
+
+	taskTracker := newFakeTaskTrackerAdapter()
+	taskTracker.queryBeadsErr = fmt.Errorf("tracker unavailable")
+
+	loopInstance, err := NewSpecLoop(
+		adapter.AdapterSet{
+			Git:         git,
+			LLM:         newFakeLLMAdapter(),
+			TaskTracker: taskTracker,
+			Presenter:   newFakePresenterAdapter(t),
+		},
+		cfg, noopDependencyGate{},
+		WithPlanStage(newFakePlanStage(specID)),
+		WithPresentStage(newFakePresentStage(), &present.SummaryContext{}),
+		WithDecomposeStage(newFakeDecomposeStage(specID)),
+		WithBeadLoop(newFakeBeadRunner()),
+		WithAcceptStage(newFakeAcceptStage()),
+	)
+	if err != nil {
+		t.Fatalf("create spec loop: %v", err)
+	}
+
+	err = loopInstance.Run(ctx, specID, nil)
+	if err == nil {
+		t.Fatal("expected error from QueryBeads, got nil")
+	}
+	if !strings.Contains(err.Error(), "check existing beads") {
+		t.Fatalf("error = %q, want to contain 'check existing beads'", err.Error())
+	}
+}
+
+func TestSpecLoop_BeadsForSpecError_OnResumePath(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	specID := "spec-beads-error-resume"
+	cfg := &config.Config{}
+
+	git := newFakeGitAdapter(t)
+	// Pre-populate plan so the plan stage is skipped (resume path).
+	git.planContent = validPlanFixture
+
+	taskTracker := newFakeTaskTrackerAdapter()
+	taskTracker.queryBeadsErr = fmt.Errorf("tracker connection lost")
+
+	loopInstance, err := NewSpecLoop(
+		adapter.AdapterSet{
+			Git:         git,
+			LLM:         newFakeLLMAdapter(),
+			TaskTracker: taskTracker,
+			Presenter:   newFakePresenterAdapter(t),
+		},
+		cfg, noopDependencyGate{},
+		WithPlanStage(newFakePlanStage(specID)),
+		WithPresentStage(newFakePresentStage(), &present.SummaryContext{}),
+		WithDecomposeStage(newFakeDecomposeStage(specID)),
+		WithBeadLoop(newFakeBeadRunner()),
+		WithAcceptStage(newFakeAcceptStage()),
+	)
+	if err != nil {
+		t.Fatalf("create spec loop: %v", err)
+	}
+
+	err = loopInstance.Run(ctx, specID, nil)
+	if err == nil {
+		t.Fatal("expected error from beads query on resume path, got nil")
+	}
+	if !strings.Contains(err.Error(), "check existing beads") {
+		t.Fatalf("error = %q, want to contain 'check existing beads'", err.Error())
+	}
+	if !strings.Contains(err.Error(), "tracker connection lost") {
+		t.Fatalf("error = %q, want to contain wrapped cause 'tracker connection lost'", err.Error())
+	}
+}
+
+func TestSpecLoop_ResumeSkipsPlanWhenPlanFileExists(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	specID := "spec-resume-skip-plan"
+	cfg := &config.Config{}
+
+	git := newFakeGitAdapter(t)
+	git.planContent = validPlanFixture
+
+	taskTracker := newFakeTaskTrackerAdapter()
+	taskTracker.queryBeadsResponse = &tasktracker.TaskTrackerQueryBeadsResponse{
+		Beads: []tasktracker.Bead{
+			{ID: "bead-open-1", Title: "Open bead 1", Status: "open"},
+			{ID: "bead-open-2", Title: "Open bead 2", Status: "open"},
+		},
+	}
+
+	planStage := newFakePlanStage(specID)
+	decompose := newFakeDecomposeStage(specID)
+	beadRunner := newFakeBeadRunner()
+
+	loopInstance, err := NewSpecLoop(
+		adapter.AdapterSet{
+			Git:         git,
+			LLM:         newFakeLLMAdapter(),
+			TaskTracker: taskTracker,
+			Presenter:   newFakePresenterAdapter(t),
+		},
+		cfg, noopDependencyGate{},
+		WithPlanStage(planStage),
+		WithPresentStage(newFakePresentStage(), &present.SummaryContext{}),
+		WithDecomposeStage(decompose),
+		WithBeadLoop(beadRunner),
+		WithAcceptStage(newFakeAcceptStage()),
+	)
+	if err != nil {
+		t.Fatalf("create spec loop: %v", err)
+	}
+
+	if err := loopInstance.Run(ctx, specID, nil); err != nil {
+		t.Fatalf("run spec loop: %v", err)
+	}
+
+	if planStage.called {
+		t.Fatal("plan stage should NOT be called when plan file already exists")
+	}
+	if decompose.called {
+		t.Fatal("decompose stage should NOT be called when open beads already exist")
+	}
+	requireBeadIDs(t, beadRunner, []string{"bead-open-1", "bead-open-2"})
+}

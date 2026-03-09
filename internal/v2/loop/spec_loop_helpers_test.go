@@ -235,7 +235,8 @@ func (f *fakeLLMAdapter) planFor(specID string) string {
 
 type fakeTaskTrackerAdapter struct {
 	queryBeadsResponse *tasktracker.TaskTrackerQueryBeadsResponse
-	created            []tasktracker.TaskTrackerCreateBeadRequest
+	queryBeadsErr      error // returned on every QueryBeads call when set
+	queryBeadsOpenErr  error // returned only when Status filter is non-empty
 }
 
 func newFakeTaskTrackerAdapter() *fakeTaskTrackerAdapter {
@@ -250,8 +251,7 @@ func (f *fakeTaskTrackerAdapter) ShowBead(_ context.Context, _ string) (*tasktra
 	return nil, fmt.Errorf("bead not found")
 }
 
-func (f *fakeTaskTrackerAdapter) CreateBead(_ context.Context, req tasktracker.TaskTrackerCreateBeadRequest) (*tasktracker.TaskTrackerCreateBeadResponse, error) {
-	f.created = append(f.created, req)
+func (f *fakeTaskTrackerAdapter) CreateBead(_ context.Context, _ tasktracker.TaskTrackerCreateBeadRequest) (*tasktracker.TaskTrackerCreateBeadResponse, error) {
 	return &tasktracker.TaskTrackerCreateBeadResponse{}, nil
 }
 
@@ -260,6 +260,12 @@ func (f *fakeTaskTrackerAdapter) CloseBead(_ context.Context, _ tasktracker.Task
 }
 
 func (f *fakeTaskTrackerAdapter) QueryBeads(_ context.Context, req tasktracker.TaskTrackerQueryBeadsRequest) (*tasktracker.TaskTrackerQueryBeadsResponse, error) {
+	if f.queryBeadsErr != nil {
+		return nil, f.queryBeadsErr
+	}
+	if req.Status != "" && f.queryBeadsOpenErr != nil {
+		return nil, f.queryBeadsOpenErr
+	}
 	if f.queryBeadsResponse != nil {
 		// If a status filter is specified, return only matching beads.
 		if req.Status != "" {
@@ -312,7 +318,7 @@ type fakeRemediationRunner struct {
 	err   error
 }
 
-func (f *fakeRemediationRunner) Run(_ context.Context, _, _ string, _ []stagepkg.Finding) error {
+func (f *fakeRemediationRunner) Run(_ context.Context, _, _ string) error {
 	f.calls++
 	return f.err
 }
@@ -322,15 +328,13 @@ type recordingRemediationRunner struct {
 	calls        int
 	lastSpecID   string
 	lastWorktree string
-	lastFindings []stagepkg.Finding
 	err          error
 }
 
-func (r *recordingRemediationRunner) Run(_ context.Context, specID, worktree string, findings []stagepkg.Finding) error {
+func (r *recordingRemediationRunner) Run(_ context.Context, specID, worktree string) error {
 	r.calls++
 	r.lastSpecID = specID
 	r.lastWorktree = worktree
-	r.lastFindings = append([]stagepkg.Finding(nil), findings...)
 	return r.err
 }
 
