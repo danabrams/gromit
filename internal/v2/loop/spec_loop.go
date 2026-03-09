@@ -43,7 +43,7 @@ var StageSequence = []string{
 	"review",
 	"epilogue",
 	"accept",
-	"specreview",
+	"spec-review",
 	"present",
 }
 
@@ -261,6 +261,9 @@ func NewSpecLoop(adapters adapter.AdapterSet, cfg *config.Config, gate Dependenc
 	for _, opt := range opts {
 		opt(loopInstance)
 	}
+	if loopInstance.specReviewStage == nil {
+		loopInstance.specReviewStage = newNoOpSpecReviewStage()
+	}
 	return loopInstance, nil
 }
 
@@ -431,6 +434,14 @@ func (s *SpecLoop) Run(ctx context.Context, specID string, stopCh <-chan struct{
 	}
 	if err := s.commitStage(ctx, worktree, "accept", 0, "proceed"); err != nil {
 		return fmt.Errorf("commit after accept: %w", err)
+	}
+
+	s.recordStage("spec-review")
+	if _, err := s.runSpecReviewStage(ctx, &req); err != nil {
+		return err
+	}
+	if err := s.commitStage(ctx, worktree, "spec-review", 0, "proceed"); err != nil {
+		return fmt.Errorf("commit after spec review: %w", err)
 	}
 
 	summary := s.buildSuccessSummary(specID, worktree, plan, beads, acceptRes, beadResult.OutOfScopeFindings)
@@ -645,6 +656,34 @@ func (s *SpecLoop) runAcceptStage(ctx context.Context, req *stagepkg.Request) (*
 		return res, err
 	}
 	return res, nil
+}
+
+func (s *SpecLoop) runSpecReviewStage(ctx context.Context, req *stagepkg.Request) (*stagepkg.Result, error) {
+	if s.specReviewStage == nil {
+		return nil, fmt.Errorf("spec review stage required")
+	}
+	res, err := s.specReviewStage.Run(ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("spec review stage: %w", err)
+	}
+	if res == nil {
+		return nil, fmt.Errorf("spec review stage returned no result")
+	}
+	return res, nil
+}
+
+type noOpSpecReviewStage struct{}
+
+func newNoOpSpecReviewStage() stagepkg.Stage {
+	return &noOpSpecReviewStage{}
+}
+
+func (n *noOpSpecReviewStage) Name() string {
+	return "spec-review"
+}
+
+func (n *noOpSpecReviewStage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Result, error) {
+	return &stagepkg.Result{Decision: stagepkg.DecisionProceed}, nil
 }
 
 func (s *SpecLoop) acceptFailed(res *stagepkg.Result) bool {
