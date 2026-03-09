@@ -11,7 +11,8 @@ const (
 
 // Finding captures a post-review issue discovered during the stage.
 type Finding struct {
-	Severity Severity
+	Severity      Severity
+	AffectedFiles []string
 }
 
 // HasCritical reports whether at least one finding is marked critical.
@@ -22,4 +23,14 @@ func HasCritical(findings []Finding) bool {
 		}
 	}
 	return false
+}
+
+// NormalizeNilFields ensures that slice fields are never nil.
+func (f *Finding) NormalizeNilFields() {
+	if f == nil {
+		return
+	}
+	if f.AffectedFiles == nil {
+		f.AffectedFiles = []string{}
+	}
 }
