@@ -457,6 +457,39 @@ func TestAcceptStage_RetriesOnParseFailure(t *testing.T) {
 	}
 }
 
+func TestAcceptStage_RetryUsesRepairPrompt(t *testing.T) {
+	t.Parallel()
+
+	badOutput := "The implementation satisfies the criterion because the diff shows good changes."
+	provider := &fakeRetryLLM{
+		responses: []retryLLMResult{
+			// First call: non-JSON output triggers parse failure.
+			{resp: &llm.LLMResponse{Success: true, Output: badOutput}},
+			// Second call (retry with repair prompt): valid JSON.
+			{resp: &llm.LLMResponse{Success: true, Output: `{"pass": true, "summary": "looks good"}`}},
+		},
+	}
+
+	stageInstance, req := setupAcceptStageWithProvider(t, provider)
+
+	_, err := stageInstance.Run(context.Background(), req)
+	if err != nil {
+		t.Fatalf("expected success after retry, got error: %v", err)
+	}
+
+	// The retry prompt should contain the previous bad output, not the original evaluation prompt.
+	if got := len(provider.calls); got != 2 {
+		t.Fatalf("provider call count = %d, want 2", got)
+	}
+	retryPrompt := provider.calls[1].Prompt
+	if !strings.Contains(retryPrompt, badOutput) {
+		t.Fatalf("retry prompt should contain previous output, got: %s", retryPrompt)
+	}
+	if !strings.Contains(retryPrompt, "not valid JSON") {
+		t.Fatalf("retry prompt should mention invalid JSON, got: %s", retryPrompt)
+	}
+}
+
 func TestAcceptStage_ParseFailureIncludesOutputPreview(t *testing.T) {
 	t.Parallel()
 
