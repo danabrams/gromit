@@ -1409,6 +1409,16 @@ func TestWithTypedEmitterSetsField(t *testing.T) {
 	}
 }
 
+func TestWithSpecReviewStageSetsField(t *testing.T) {
+	t.Parallel()
+	stage := newFakeSpecReviewStage(stagepkg.Result{})
+	s := &SpecLoop{}
+	WithSpecReviewStage(stage)(s)
+	if s.specReviewStage != stage {
+		t.Fatalf("spec review stage not set")
+	}
+}
+
 func TestWithStageCommitterSetsField(t *testing.T) {
 	t.Parallel()
 	sc := &fakeSpecStageCommitter{}

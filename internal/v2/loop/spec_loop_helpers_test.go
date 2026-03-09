@@ -367,29 +367,26 @@ func (s *scriptedAcceptStage) Run(ctx context.Context, req *stagepkg.Request) (*
 	return &result, nil
 }
 
-type scriptedSpecReviewStage struct {
-	calls   int
-	results []stagepkg.Result
-	err     error
+type fakeSpecReviewStage struct {
+	calls int
+	result stagepkg.Result
+	err    error
 }
 
-func newScriptedSpecReviewStage(results ...stagepkg.Result) *scriptedSpecReviewStage {
-	copied := append([]stagepkg.Result(nil), results...)
-	return &scriptedSpecReviewStage{results: copied}
+func newFakeSpecReviewStage(result stagepkg.Result) *fakeSpecReviewStage {
+	res := result
+	if res.Decision == 0 {
+		res.Decision = stagepkg.DecisionProceed
+	}
+	return &fakeSpecReviewStage{result: res}
 }
 
-func (s *scriptedSpecReviewStage) Name() string { return "specreview" }
+func (f *fakeSpecReviewStage) Name() string { return "spec-review" }
 
-func (s *scriptedSpecReviewStage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Result, error) {
-	s.calls++
-	if s.err != nil {
-		return nil, s.err
+func (f *fakeSpecReviewStage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Result, error) {
+	f.calls++
+	if f.err != nil {
+		return nil, f.err
 	}
-	if len(s.results) == 0 {
-		return &stagepkg.Result{Decision: stagepkg.DecisionProceed}, nil
-	}
-	res := s.results[0]
-	s.results = s.results[1:]
-	result := res
-	return &result, nil
+	return &stagepkg.Result{Decision: f.result.Decision, Artifacts: f.result.Artifacts}, nil
 }
