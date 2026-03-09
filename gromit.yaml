@@ -61,6 +61,7 @@ routing:
     refine: claude       # force refine to Claude provider
     scope_check: any
     precheck: any
+    plan: claude         # force plan to Claude — codex writes plan to file instead of stdout
     decompose: claude    # force decompose to Claude provider
     accept: claude       # force accept to Claude — codex routinely exceeds 15min timeout for eval tasks
     retro: openai        # force retro to Codex/OpenAI provider

@@ -195,6 +195,14 @@ func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Resul
 		if lastValidationErr == nil {
 			break
 		}
+		// If the LLM wrote the plan to a file instead of stdout, try to recover it.
+		if recovered := recoverPlanFromFile(planText, req.Worktree, cfg); recovered != "" {
+			if ValidatePlanContent(recovered) == nil {
+				planText = recovered
+				lastValidationErr = nil
+				break
+			}
+		}
 		if attempt < maxPlanRetries {
 			retrySuffix = "\n\nIMPORTANT: Your previous response did not contain a valid plan. You MUST output the complete plan as your text response. Do NOT use Write, Edit, or any file-writing tools. Do NOT summarize or reference other files. Output the full plan markdown directly."
 		}
@@ -317,6 +325,48 @@ func writePlanFile(cfg *config.Config, worktree string, plan string) (string, er
 	}
 
 	return planPath, nil
+}
+
+// fileRefPattern matches backtick-quoted or plain file paths in LLM output
+// that look like plan files the LLM wrote instead of outputting to stdout.
+var fileRefPattern = regexp.MustCompile("(?:`([^`]+\\.md)`|saved to\\s+(\\S+\\.md))")
+
+// recoverPlanFromFile detects when the LLM wrote the plan to a file and
+// returns the file contents, or empty string if no valid file is found.
+func recoverPlanFromFile(output, worktree string, cfg *config.Config) string {
+	matches := fileRefPattern.FindAllStringSubmatch(output, 5)
+	if len(matches) == 0 {
+		return ""
+	}
+	root := strings.TrimSpace(worktree)
+	if root == "" && cfg != nil {
+		root = cfg.ProjectRoot
+	}
+	if root == "" {
+		root = "."
+	}
+	for _, m := range matches {
+		ref := m[1]
+		if ref == "" {
+			ref = m[2]
+		}
+		ref = strings.TrimSpace(ref)
+		if ref == "" {
+			continue
+		}
+		candidate := ref
+		if !filepath.IsAbs(candidate) {
+			candidate = filepath.Join(root, candidate)
+		}
+		data, err := os.ReadFile(candidate)
+		if err != nil {
+			continue
+		}
+		if content := strings.TrimSpace(string(data)); content != "" {
+			return content
+		}
+	}
+	return ""
 }
 
 func resolvePath(cfg *config.Config, candidate string) string {
