@@ -5,8 +5,10 @@ import (
 	"errors"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"sync"
 	"testing"
 	"unsafe"
@@ -20,6 +22,7 @@ import (
 	"github.com/danabrams/gromit/internal/v2/loop"
 	"github.com/danabrams/gromit/internal/v2/routing"
 	v2spec "github.com/danabrams/gromit/internal/v2/spec"
+	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
 )
 
 func TestRun2FailsWhenDependenciesBlocked(t *testing.T) {
@@ -436,6 +439,134 @@ func TestRun2FromReviewUsesBeadLoop(t *testing.T) {
 	}
 }
 
+func TestRun2_FromReviewFlag_WithSpec_FiltersToSpecLabel(t *testing.T) {
+	_, cleanup := setupRun2TestEnv(t)
+	defer cleanup()
+
+	for _, args := range [][]string{
+		{"git", "init"},
+		{"git", "config", "user.email", "test@example.com"},
+		{"git", "config", "user.name", "Gromit Test"},
+		{"git", "commit", "--allow-empty", "-m", "initial"},
+	} {
+		cmd := exec.Command(args[0], args[1:]...)
+		cmd.Stdout = io.Discard
+		cmd.Stderr = io.Discard
+		if err := cmd.Run(); err != nil {
+			t.Fatalf("%s: %v", strings.Join(args, " "), err)
+		}
+	}
+
+	if err := run2Cmd.Flags().Set("spec", "target-spec"); err != nil {
+		t.Fatalf("set spec flag: %v", err)
+	}
+	defer run2Cmd.Flags().Set("spec", "")
+
+	cfg, err := loadConfig()
+	if err != nil {
+		t.Fatalf("loadConfig: %v", err)
+	}
+
+	fakeTracker := &fakeTaskTracker{
+		response: []tasktracker.Bead{{ID: "from-review"}},
+	}
+	origTrackerFn := newTaskTrackerAdapterFn
+	newTaskTrackerAdapterFn = func(_ *bead.Client) tasktracker.TaskTracker { return fakeTracker }
+	defer func() { newTaskTrackerAdapterFn = origTrackerFn }()
+
+	origLoopFn := runBeadLoopFn
+	runBeadLoopFn = func(runLoop *loop.BeadLoop, ctx context.Context, beads []*bead.Bead, stopCh <-chan struct{}) (loop.BeadLoopResult, error) {
+		return loop.BeadLoopResult{}, nil
+	}
+	defer func() { runBeadLoopFn = origLoopFn }()
+
+	origComponentsFn := newRun2LoopComponentsFn
+	newRun2LoopComponentsFn = func(cfg *config.Config, adapters adapter.AdapterSet, legacyEmitter *events.Emitter, output io.Writer, router *routing.Router, phaseModels map[string]string) (*loop.Run2LoopComponents, error) {
+		emitter := events.NewEmitter()
+		return &loop.Run2LoopComponents{
+			BeadLoop:     &loop.BeadLoop{},
+			Emitter:      emitter,
+			TypedEmitter: event.NewEmitter(),
+		}, nil
+	}
+	defer func() { newRun2LoopComponentsFn = origComponentsFn }()
+
+	origSubscribers := startRun2SubscribersFn
+	startRun2SubscribersFn = func(ctx context.Context, emitter *events.Emitter, output io.Writer, logsDir string) (*sync.WaitGroup, error) {
+		return &sync.WaitGroup{}, nil
+	}
+	defer func() { startRun2SubscribersFn = origSubscribers }()
+
+	run2Cmd.SetOut(io.Discard)
+	run2Cmd.SetErr(io.Discard)
+
+	if err := run2FromReview(run2Cmd, cfg); err != nil {
+		t.Fatalf("run2FromReview = %v", err)
+	}
+
+	if got := fakeTracker.lastQuery.Labels; !reflect.DeepEqual(got, []string{"from-review", "spec:target-spec"}) {
+		t.Fatalf("labels = %v, want %v", got, []string{"from-review", "spec:target-spec"})
+	}
+}
+
+func TestRun2_FromReviewFlag_NoAcceptOrReviewInvoked(t *testing.T) {
+	_, cleanup := setupRun2TestEnv(t)
+	defer cleanup()
+
+	cfg, err := loadConfig()
+	if err != nil {
+		t.Fatalf("loadConfig: %v", err)
+	}
+
+	fakeTracker := &fakeTaskTracker{
+		response: []tasktracker.Bead{{ID: "from-review"}},
+	}
+	origTrackerFn := newTaskTrackerAdapterFn
+	newTaskTrackerAdapterFn = func(_ *bead.Client) tasktracker.TaskTracker { return fakeTracker }
+	defer func() { newTaskTrackerAdapterFn = origTrackerFn }()
+
+	acceptStage := &spyStage{name: "accept"}
+	specReviewStage := &spyStage{name: "spec-review"}
+	origLoopFn := runBeadLoopFn
+	runBeadLoopFn = func(runLoop *loop.BeadLoop, ctx context.Context, beads []*bead.Bead, stopCh <-chan struct{}) (loop.BeadLoopResult, error) {
+		return loop.BeadLoopResult{}, nil
+	}
+	defer func() { runBeadLoopFn = origLoopFn }()
+
+	origComponentsFn := newRun2LoopComponentsFn
+	newRun2LoopComponentsFn = func(cfg *config.Config, adapters adapter.AdapterSet, legacyEmitter *events.Emitter, output io.Writer, router *routing.Router, phaseModels map[string]string) (*loop.Run2LoopComponents, error) {
+		emitter := events.NewEmitter()
+		return &loop.Run2LoopComponents{
+			BeadLoop:        &loop.BeadLoop{},
+			AcceptStage:     acceptStage,
+			SpecReviewStage: specReviewStage,
+			Emitter:         emitter,
+			TypedEmitter:    event.NewEmitter(),
+		}, nil
+	}
+	defer func() { newRun2LoopComponentsFn = origComponentsFn }()
+
+	origSubscribers := startRun2SubscribersFn
+	startRun2SubscribersFn = func(ctx context.Context, emitter *events.Emitter, output io.Writer, logsDir string) (*sync.WaitGroup, error) {
+		return &sync.WaitGroup{}, nil
+	}
+	defer func() { startRun2SubscribersFn = origSubscribers }()
+
+	run2Cmd.SetOut(io.Discard)
+	run2Cmd.SetErr(io.Discard)
+
+	if err := run2FromReview(run2Cmd, cfg); err != nil {
+		t.Fatalf("run2FromReview = %v", err)
+	}
+
+	if acceptStage.called {
+		t.Fatal("accept stage should not have run")
+	}
+	if specReviewStage.called {
+		t.Fatal("spec-review stage should not have run")
+	}
+}
+
 func setupRun2TestEnv(t *testing.T) (string, func()) {
 	t.Helper()
 
@@ -554,6 +685,20 @@ func (f *fakeTaskTracker) QueryBeads(_ context.Context, req tasktracker.TaskTrac
 		resp.Beads = append([]tasktracker.Bead(nil), f.response...)
 	}
 	return resp, nil
+}
+
+type spyStage struct {
+	name   string
+	called bool
+}
+
+func (s *spyStage) Name() string {
+	return s.name
+}
+
+func (s *spyStage) Run(context.Context, *stagepkg.StageRequest) (*stagepkg.StageResult, error) {
+	s.called = true
+	return &stagepkg.StageResult{Decision: stagepkg.DecisionProceed}, nil
 }
 
 func fieldIsNil(specLoop *loop.SpecLoop, fieldName string) bool {
