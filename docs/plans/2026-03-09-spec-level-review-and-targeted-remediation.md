@@ -1,930 +1,718 @@
+---
+id: spec-level-review-and-targeted-remediation
+source_spec: spec-level-review-and-targeted-remediation
+created: 2026-03-09
+decomposed: false
+---
+
 # Spec-Level Review and Targeted Remediation Implementation Plan
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
-**Goal:** After the bead loop completes, run a spec-level holistic code review using the highest-tier model, combine its findings with accept failures into a structured format, and feed that structure into a findings-based decompose to produce targeted fix beads — eliminating the duplicate-bead loop-divergence problem.
+**Goal:** Add a spec-level holistic code review after the bead loop, produce structured findings from both accept and review, feed those findings into a targeted remediation decompose (not a plan re-decompose), and add a `--from-review` flag to run deferred improvement beads.
 
-**Architecture:** A new `specreview` stage evaluates the cumulative diff holistically and returns structured `SpecFinding` records. Both `accept` and `specreview` produce findings in a shared type defined in `internal/v2/stage/stage.go`. The remediation runner is extended to run both stages in its evaluation loop and pass findings via `StageRequest.Findings` to a new findings-based decompose template. The spec loop wires specreview after accept, creates from-review beads on pass-with-improvements, and `run2` gains a `--from-review` flag to execute from-review beads directly.
+**Architecture:** A new `internal/v2/stage/specreview/` package implements the spec-level review stage (highest-tier model, cumulative diff + plan as input, structured JSON findings output). The spec loop runs accept then spec-level review after the bead loop, collects combined findings from both when either fails, and passes them to the remediation runner. The remediation runner's interface changes to accept findings and drive only decompose + bead loop (no internal accept cycle — the spec loop now owns the retry outer loop). The decompose stage gains a findings-based prompt template that maps each finding to one or more targeted fix beads. Pass-with-improvements creates from-review beads after a passing spec-level review. A `--from-review` flag on `run2` runs only beads labeled `from-review` through the bead loop with no accept/review gate.
 
-**Tech Stack:** Go, existing stage/remediation/decompose/loop packages, jsonutil, coverage packages
-
----
-
-### Task 1: Add SpecFinding type and Findings field to stage package
-
-**Files:**
-- Modify: `internal/v2/stage/stage.go:19-31`
-- Test: `internal/v2/stage/stage_test.go` (or create if absent)
-
-**Step 1: Add SpecFinding type and constants to stage.go**
-
-In `internal/v2/stage/stage.go`, after the `LLMCostSummary` struct, add:
-
-```go
-// SpecFindingSeverity classifies how urgent a spec-level review finding is.
-type SpecFindingSeverity string
-
-const (
-	SeverityCritical   SpecFindingSeverity = "critical"
-	SeverityWarning    SpecFindingSeverity = "warning"
-	SeveritySuggestion SpecFindingSeverity = "suggestion"
-)
-
-// SpecFindingCategory classifies the kind of issue found by spec-level review.
-type SpecFindingCategory string
-
-const (
-	CategoryBug          SpecFindingCategory = "bug"
-	CategorySecurity     SpecFindingCategory = "security"
-	CategoryQuality      SpecFindingCategory = "quality"
-	CategoryTestGap      SpecFindingCategory = "test-gap"
-	CategoryArchitecture SpecFindingCategory = "architecture"
-	CategoryAcceptance   SpecFindingCategory = "acceptance"
-)
-
-// SpecFindingScope identifies whether a finding is within this spec's changes or general.
-type SpecFindingScope string
-
-const (
-	ScopeSpec    SpecFindingScope = "spec"
-	ScopeGeneral SpecFindingScope = "general"
-)
-
-// SpecFinding represents a single observation from spec-level review or accept evaluation.
-type SpecFinding struct {
-	Severity     SpecFindingSeverity `json:"severity"`
-	Category     SpecFindingCategory `json:"category"`
-	Scope        SpecFindingScope    `json:"scope"`
-	Description  string              `json:"description"`
-	AffectedFiles []string           `json:"affected_files"`
-}
-
-// HasCritical returns true if any finding has critical severity.
-func HasCritical(findings []SpecFinding) bool {
-	for _, f := range findings {
-		if f.Severity == SeverityCritical {
-			return true
-		}
-	}
-	return false
-}
-```
-
-**Step 2: Add Findings field to StageRequest**
-
-In the `StageRequest` struct (around line 20), add after `GapAnalysis string`:
-
-```go
-Findings []SpecFinding // structured findings for findings-based remediation decompose
-```
-
-**Step 3: Run tests to confirm no breakage**
-
-Run: `go test ./internal/v2/stage/...`
-Expected: All existing tests pass (additive changes)
-
-**Step 4: Commit**
-
-```bash
-git add internal/v2/stage/stage.go
-git commit -m "feat: add SpecFinding type and Findings field to StageRequest"
-```
+**Spec:** `.gromit/specs/spec-level-review-and-targeted-remediation.md`
 
 ---
 
-### Task 2: Create specreview stage package
+## Architecture
+
+### Component Map
+
+```
+spec_loop.go
+  ├── [bead loop]
+  ├── accept stage              → AcceptArtifacts { GapSummary, Findings []Finding }
+  ├── spec-level review stage   → SpecReviewArtifacts { Verdict, Findings []Finding }
+  ├── [combine findings]
+  │     both pass → pass-with-improvements (create from-review beads if any findings)
+  │     either fails → remediation runner (findings as input)
+  └── remediation runner
+        └── decompose (findings template) → bead loop → return
+              spec loop re-runs accept + review
+
+internal/v2/stage/stage.go        Finding types, Findings field on StageRequest
+internal/v2/stage/specreview/     new package: spec-level review stage
+internal/v2/stage/accept/         add Findings []Finding to AcceptArtifacts
+internal/v2/stage/decompose/      add findingsDecomposePromptTemplate
+internal/v2/remediation/          Run(ctx, specID, worktree, findings) — no internal accept
+internal/v2/loop/run2_components/ wire SpecReviewStage with highest tier
+cmd/gromit/run2.go                --from-review flag
+review_spec_v2.md                 spec-level review prompt fragment (project root)
+```
+
+### Finding Type (stage.go)
+
+```go
+type FindingSeverity string
+const (
+    FindingSeverityCritical   FindingSeverity = "critical"
+    FindingSeverityWarning    FindingSeverity = "warning"
+    FindingSeveritySuggestion FindingSeverity = "suggestion"
+)
+
+type FindingCategory string
+const (
+    FindingCategoryBug          FindingCategory = "bug"
+    FindingCategorySecurity     FindingCategory = "security"
+    FindingCategoryQuality      FindingCategory = "quality"
+    FindingCategoryTestGap      FindingCategory = "test-gap"
+    FindingCategoryArchitecture FindingCategory = "architecture"
+    FindingCategoryAcceptance   FindingCategory = "acceptance"
+)
+
+type FindingScope string
+const (
+    FindingScopeSpec    FindingScope = "spec"
+    FindingScopeGeneral FindingScope = "general"
+)
+
+type Finding struct {
+    Severity      FindingSeverity
+    Category      FindingCategory
+    Scope         FindingScope
+    Description   string
+    AffectedFiles []string
+}
+```
+
+### Verdict Logic
+
+- Any `Finding.Severity == "critical"` → `verdict: "fail"`
+- Only warning/suggestion findings → `verdict: "pass"`
+- No findings → `verdict: "pass"`
+
+### remediationRunner Interface Change
+
+Before: `Run(ctx context.Context, specID, worktree string) error`
+After:  `Run(ctx context.Context, specID, worktree string, findings []stage.Finding) error`
+
+The remediation runner no longer has AcceptStage or a retry loop. It receives findings from the spec loop, decomposes targeted fix beads, runs the bead loop, and returns. The spec loop owns the retry outer loop.
+
+### DiffFromBase Access
+
+The spec-level review stage reads the cumulative diff via `git.DiffFromBase(ctx, req.Worktree)`. The plan is read from `req.Worktree + "/.gromit/v2/plan.md"`. Both the accept stage and the gate satisfaction stage already use this pattern.
+
+### From-Review Bead Labels
+
+- spec-scoped findings: `[]string{"from-review", "spec:" + specID}`
+- general findings: `[]string{"from-review"}`
+
+### Routing
+
+The spec-level review stage always uses the highest tier. In `run2_components.go`, the LLM adapter passed to `specreview.New` is constructed with `routing.TierHigh` (or the router's highest configured tier). The phase name `"spec-review"` is registered in the phase models map.
+
+---
+
+## Test Strategy
+
+**Unit tests per package:**
+- `specreview_test.go`: verdict logic, JSON parsing, DiffFromBase invoked, findings returned
+- `accept_test.go`: existing tests still pass; new findings fields populated on failure
+- `decompose_test.go`: findings template route taken when `req.Findings` non-empty; beads map to findings
+- `remediation_test.go`: new signature accepted; decompose + bead runner called with findings in request; no accept invoked
+
+**Integration tests:**
+- `spec_loop_specreview_test.go`: accept fails → spec-level review called → combined findings → remediation → accept + review re-run
+- `spec_loop_specreview_test.go`: review passes with spec-scoped findings → from-review beads created with spec label → spec proceeds to present
+- `spec_loop_specreview_test.go`: review passes with general findings → from-review beads created without spec label
+
+**Mocking:** All LLM calls use `llmtypes.MockLLMProvider`. All git calls use the existing `testutil.MockGitAdapter` or inline implementations. TaskTracker uses `trackertypes.MockTaskTracker` or inline.
+
+**Test helpers:** Reuse shared `test/toolcalls` helpers for any tool-call log parsing per project rules.
+
+---
+
+## Implementation Tasks
+
+### Task 1: Add Structured Findings Types to Stage Package
 
 **Files:**
-- Create: `internal/v2/stage/specreview/specreview.go`
+- Modify: `internal/v2/stage/stage.go`
+
+**What to Do:**
+
+Add the Finding types and constants immediately after the `LLMCostSummary` struct. Add `Findings []Finding` to `StageRequest`.
+
+```go
+// FindingSeverity classifies the urgency of a review finding.
+type FindingSeverity string
+
+const (
+    FindingSeverityCritical   FindingSeverity = "critical"
+    FindingSeverityWarning    FindingSeverity = "warning"
+    FindingSeveritySuggestion FindingSeverity = "suggestion"
+)
+
+// FindingCategory classifies the domain of a review finding.
+type FindingCategory string
+
+const (
+    FindingCategoryBug          FindingCategory = "bug"
+    FindingCategorySecurity     FindingCategory = "security"
+    FindingCategoryQuality      FindingCategory = "quality"
+    FindingCategoryTestGap      FindingCategory = "test-gap"
+    FindingCategoryArchitecture FindingCategory = "architecture"
+    FindingCategoryAcceptance   FindingCategory = "acceptance"
+)
+
+// FindingScope indicates whether a finding is within the spec's changed files or general.
+type FindingScope string
+
+const (
+    FindingScopeSpec    FindingScope = "spec"
+    FindingScopeGeneral FindingScope = "general"
+)
+
+// Finding captures a single issue identified by spec-level or accept review.
+type Finding struct {
+    Severity      FindingSeverity
+    Category      FindingCategory
+    Scope         FindingScope
+    Description   string
+    AffectedFiles []string
+}
+```
+
+In `StageRequest`, add:
+```go
+    Findings []Finding
+```
+after the `GapAnalysis` field.
+
+**Acceptance Criteria:**
+1. `go build ./internal/v2/stage/...` passes with no errors
+2. All fields and constants are exported and named exactly as specified
+3. `StageRequest` has `Findings []Finding` field
+
+**Dependencies:** none
+
+---
+
+### Task 2: Write the Spec-Level Review Prompt Fragment
+
+**Files:**
+- Create: `review_spec_v2.md` (at project root, same level as `review_v2.md`, `accept_v2.md`)
+
+**What to Do:**
+
+Model this after `accept_v2.md` and `review_v2.md`. The fragment tells the LLM how to evaluate the cumulative diff holistically. It must produce valid JSON with the exact schema the `specreview` stage parses.
+
+```markdown
+# Spec-Level Review Instructions
+
+You are performing a holistic code review of all changes made during a spec implementation.
+Your goal is to find critical bugs, security issues, test gaps, and architectural drift that
+span multiple beads or only become visible when reviewing the cumulative output.
+
+## Review Scope
+
+Evaluate:
+- **Correctness**: Logic errors, off-by-one errors, incorrect conditionals, wrong return values
+- **Security**: OWASP Top 10 — injection, broken auth, sensitive data exposure, XSS, insecure deserialization
+- **Error handling**: Unchecked errors, missing context propagation, panic paths without recovery
+- **Test coverage**: Missing tests for critical paths, tests that only assert documentation
+- **Code quality**: Dead code, duplicated logic, exported names without comments, unexported types leaking across package boundaries
+- **Architecture**: Violations of package contracts, nil-safety without centralized guards, state outside canonical locations
+
+## Scope Classification
+
+- `spec`: the finding is in files changed by this spec (visible in the diff)
+- `general`: the finding is in surrounding code not changed by this spec
+
+## Severity Classification
+
+- `critical`: will cause incorrect behavior, data loss, security vulnerability, or test regression
+- `warning`: degrades reliability or maintainability; should be fixed before merging
+- `suggestion`: improvement worth making but not blocking
+
+## Verdict
+
+- `fail`: one or more `critical` findings exist
+- `pass`: no critical findings (warnings and suggestions are allowed)
+
+## Output Format
+
+Output ONLY a JSON object. Do NOT output markdown or prose.
+
+{
+  "verdict": "pass",
+  "findings": [
+    {
+      "severity": "critical",
+      "category": "bug",
+      "scope": "spec",
+      "description": "what is wrong and where",
+      "affected_files": ["path/to/file.go"]
+    }
+  ]
+}
+
+If there are no findings, output: {"verdict": "pass", "findings": []}
+```
+
+**Acceptance Criteria:**
+1. File exists at project root as `review_spec_v2.md`
+2. JSON schema in the file matches exactly what `specreview.go` will parse (verdict + findings array with severity/category/scope/description/affected_files)
+3. All four severity and category values documented
+
+**Dependencies:** none
+
+---
+
+### Task 3: Spec-Level Review Stage — Failing Tests
+
+**Files:**
 - Create: `internal/v2/stage/specreview/specreview_test.go`
 
-**Step 1: Write the failing tests first**
+**What to Do:**
 
-Create `internal/v2/stage/specreview/specreview_test.go`:
+Write the failing tests first. The stage takes `git GitDiffer`, `llm llmtypes.LLMProvider`, `planPath string`, `fragment string`. Its `Run` method:
+1. Calls `git.DiffFromBase(ctx, req.Worktree)`
+2. Reads the plan from the file at `planPath` (relative to worktree, typically `.gromit/v2/plan.md`)
+3. Builds a prompt from the fragment + diff + plan
+4. Calls `llm.Complete(ctx, prompt, req.Tier)`
+5. Parses JSON response into `SpecReviewArtifacts{Verdict string, Findings []stage.Finding}`
+6. Returns `DecisionProceed` when `verdict == "pass"`, `DecisionFail` when `verdict == "fail"`
+
+Write tests:
 
 ```go
 package specreview_test
 
 import (
-	"context"
-	"testing"
+    "context"
+    "os"
+    "path/filepath"
+    "testing"
 
-	"github.com/danabrams/gromit/internal/config"
-	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
-	"github.com/danabrams/gromit/internal/v2/stage/specreview"
+    stagepkg "github.com/danabrams/gromit/internal/v2/stage"
+    "github.com/danabrams/gromit/internal/v2/stage/specreview"
+    // mock types as used elsewhere in the codebase
 )
 
-type stubGit struct{ diff string; err error }
-func (s *stubGit) DiffFromBase(_ context.Context, _ string) (string, error) { return s.diff, s.err }
-
-type stubLLM struct{ output string; success bool }
-func (s *stubLLM) Invoke(_ context.Context, req interface{}) (interface{}, error) {
-	// test via integration; use fake LLM provider type
-	return nil, nil
+func TestSpecReview_PassWhenNoFindings(t *testing.T) {
+    // LLM returns {"verdict":"pass","findings":[]}
+    // expect Decision==DecisionProceed, Artifacts.Verdict=="pass"
 }
 
-func TestNew_nilConfigReturnsError(t *testing.T) {
-	_, err := specreview.New(nil, &stubGit{}, &fakeLLM{}, "base", "proj", "")
-	if err == nil {
-		t.Fatal("expected error for nil config")
-	}
+func TestSpecReview_FailWhenCriticalFinding(t *testing.T) {
+    // LLM returns {"verdict":"fail","findings":[{"severity":"critical",...}]}
+    // expect Decision==DecisionFail, Artifacts.Findings has one critical finding
 }
 
-func TestNew_nilGitReturnsError(t *testing.T) {
-	cfg := &config.Config{}
-	_, err := specreview.New(cfg, nil, &fakeLLM{}, "base", "proj", "")
-	if err == nil {
-		t.Fatal("expected error for nil git")
-	}
+func TestSpecReview_PassWithWarnings(t *testing.T) {
+    // LLM returns {"verdict":"pass","findings":[{"severity":"warning",...}]}
+    // expect Decision==DecisionProceed (not fail), Artifacts.Findings has one warning
 }
 
-func TestNew_nilLLMReturnsError(t *testing.T) {
-	cfg := &config.Config{}
-	_, err := specreview.New(cfg, &stubGit{}, nil, "base", "proj", "")
-	if err == nil {
-		t.Fatal("expected error for nil llm")
-	}
+func TestSpecReview_VerdictForcedFailOnCritical(t *testing.T) {
+    // LLM returns {"verdict":"pass"} but findings contain a critical
+    // stage must override to fail — enforces local verdict logic
 }
 
-func TestParseSpecReviewOutput_verdictPass(t *testing.T) {
-	raw := `{"verdict":"pass","findings":[]}`
-	verdict, findings, err := specreview.ParseSpecReviewOutput(raw)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if verdict != "pass" {
-		t.Errorf("expected pass, got %s", verdict)
-	}
-	if len(findings) != 0 {
-		t.Errorf("expected no findings, got %d", len(findings))
-	}
+func TestSpecReview_DiffFromBaseCalledWithWorktree(t *testing.T) {
+    // Verify git.DiffFromBase is called with req.Worktree
 }
 
-func TestParseSpecReviewOutput_criticalForcesFailVerdict(t *testing.T) {
-	raw := `{"verdict":"pass","findings":[{"severity":"critical","category":"bug","scope":"spec","description":"nil pointer","affected_files":["foo.go"]}]}`
-	verdict, findings, err := specreview.ParseSpecReviewOutput(raw)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	// Even if LLM said pass, critical finding forces fail
-	if verdict != "fail" {
-		t.Errorf("expected fail due to critical finding, got %s", verdict)
-	}
-	if len(findings) != 1 {
-		t.Errorf("expected 1 finding, got %d", len(findings))
-	}
-}
-
-func TestParseSpecReviewOutput_warningKeepsPass(t *testing.T) {
-	raw := `{"verdict":"pass","findings":[{"severity":"warning","category":"quality","scope":"general","description":"minor style","affected_files":[]}]}`
-	verdict, _, err := specreview.ParseSpecReviewOutput(raw)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if verdict != "pass" {
-		t.Errorf("expected pass with warning, got %s", verdict)
-	}
-}
-
-func TestRun_nilRequestReturnsError(t *testing.T) {
-	cfg := &config.Config{}
-	cfg.Models.P0 = "claude-opus"
-	s, _ := specreview.New(cfg, &stubGit{diff: ""}, &fakeLLM{output: `{"verdict":"pass","findings":[]}`}, "", "", "")
-	_, err := s.Run(context.Background(), nil)
-	if err == nil {
-		t.Fatal("expected error for nil request")
-	}
+func TestSpecReview_FindingsSurfacedInArtifacts(t *testing.T) {
+    // All fields: severity, category, scope, description, affected_files
+    // are preserved in Artifacts.Findings
 }
 ```
 
-Note: The `fakeLLM` in tests should implement `llmtypes.LLMProvider`. Create a test helper that returns canned JSON.
+Run: `go test ./internal/v2/stage/specreview/... -v`
+Expected: FAIL (package does not exist yet)
 
-**Step 2: Run tests to see them fail**
+**Acceptance Criteria:**
+1. Tests compile once the package is created (they will fail until implementation exists)
+2. Each test covers a distinct behavioral path
+3. No `os.Chdir` in tests (use `t.Chdir` if directory change needed)
 
-Run: `go test ./internal/v2/stage/specreview/...`
-Expected: compilation failure (package doesn't exist yet)
+**Dependencies:** Task 1
 
-**Step 3: Create the implementation**
+---
 
-Create `internal/v2/stage/specreview/specreview.go`:
+### Task 4: Spec-Level Review Stage — Implementation
+
+**Files:**
+- Create: `internal/v2/stage/specreview/specreview.go`
+
+**What to Do:**
 
 ```go
 package specreview
 
 import (
-	"context"
-	"fmt"
-	"strings"
+    "context"
+    "encoding/json"
+    "fmt"
+    "os"
+    "path/filepath"
+    "strings"
 
-	"github.com/danabrams/gromit/internal/config"
-	"github.com/danabrams/gromit/internal/jsonutil"
-	"github.com/danabrams/gromit/internal/v2/llmtypes"
-	"github.com/danabrams/gromit/internal/v2/prompt"
-	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
-	stagedesc "github.com/danabrams/gromit/internal/v2/stage/names"
+    "github.com/danabrams/gromit/internal/v2/llmtypes"
+    stagepkg "github.com/danabrams/gromit/internal/v2/stage"
 )
 
-const defaultSpecReviewFragment = `# Spec-Level Code Review Instructions
-
-You are performing a holistic review of all changes made during this spec's implementation.
-This review evaluates the CUMULATIVE diff — the combined output of all beads in the spec.
-
-## Review Dimensions
-
-### 1. Correctness
-- Does the code work beyond the test coverage?
-- Are error conditions handled?
-- Edge cases not accounted for?
-
-### 2. Security (OWASP Top 10)
-- SQL/command/template injection risks?
-- Authentication/authorization bypass?
-- Data exposure, logging of secrets, missing input validation?
-
-### 3. Error Handling
-- Are errors propagated, not swallowed?
-- Are sentinel errors used for callers to distinguish?
-- Missing nil checks on external returns?
-
-### 4. Test Coverage Gaps
-- Untested code paths?
-- Missing edge case tests?
-- Are tests asserting behavior, or just coverage?
-
-### 5. Code Quality
-- Dead code, unused imports?
-- Overly complex logic that should be simplified?
-- Naming convention violations?
-
-### 6. Architectural Fit
-- Does new code follow the project's existing patterns?
-- Are packages used at the right abstraction level?
-- Does new behavior belong in the right layer?
-
-## Scope Classification
-
-For each finding, classify scope:
-- "spec": the issue is in code introduced or modified by this spec
-- "general": the issue exists in pre-existing code this spec did not touch
-
-## Output Format
-
-Respond with ONLY a JSON object:
-
-{"verdict":"pass","findings":[{"severity":"critical","category":"bug","scope":"spec","description":"...","affected_files":["path/file.go"]}]}
-
-Verdict rules:
-- "fail" if ANY finding has severity "critical"
-- "pass" if all findings are "warning" or "suggestion" (or no findings)
-
-severity values: "critical", "warning", "suggestion"
-category values: "bug", "security", "quality", "test-gap", "architecture"
-scope values: "spec", "general"
-
-Respond with ONLY the JSON object. No markdown wrapper, no explanation.
-`
-
-// GitDiffer provides the DiffFromBase capability needed by specreview.
+// GitDiffer provides DiffFromBase for the spec-level review.
 type GitDiffer interface {
-	DiffFromBase(ctx context.Context, worktree string) (string, error)
+    DiffFromBase(ctx context.Context, worktree string) (string, error)
 }
 
-// SpecReviewArtifacts captures the output of the spec-level review stage.
+// SpecReviewArtifacts carries the review outcome.
 type SpecReviewArtifacts struct {
-	Verdict  string               // "pass" or "fail"
-	Findings []stagepkg.SpecFinding
+    Verdict  string            // "pass" or "fail"
+    Findings []stagepkg.Finding
 }
 
-// Stage executes the spec-level review after the bead loop completes.
 type Stage struct {
-	name     string
-	cfg      *config.Config
-	git      GitDiffer
-	llm      llmtypes.LLMProvider
-	base     string
-	project  string
-	fragment string
+    git      GitDiffer
+    llm      llmtypes.LLMProvider
+    fragment string
 }
 
-var _ stagepkg.Stage = (*Stage)(nil)
-
-// New constructs a specreview stage.
-func New(cfg *config.Config, git GitDiffer, llm llmtypes.LLMProvider, base, project, fragment string) (*Stage, error) {
-	if cfg == nil {
-		return nil, fmt.Errorf("config required")
-	}
-	if git == nil {
-		return nil, fmt.Errorf("git adapter required")
-	}
-	if llm == nil {
-		return nil, fmt.Errorf("llm provider required")
-	}
-	if strings.TrimSpace(fragment) == "" {
-		fragment = defaultSpecReviewFragment
-	}
-	return &Stage{
-		name:     stagedesc.Describe("specreview", cfg),
-		cfg:      cfg,
-		git:      git,
-		llm:      llm,
-		base:     base,
-		project:  project,
-		fragment: fragment,
-	}, nil
+func New(git GitDiffer, llm llmtypes.LLMProvider, fragment string) (*Stage, error) {
+    if git == nil { return nil, fmt.Errorf("git adapter required") }
+    if llm == nil { return nil, fmt.Errorf("llm provider required") }
+    return &Stage{git: git, llm: llm, fragment: fragment}, nil
 }
 
-// Name returns the canonical stage identifier.
-func (s *Stage) Name() string { return s.name }
+func (s *Stage) Name() string { return "spec-review" }
 
-// Run invokes the spec-level review LLM and returns structured findings.
-func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Result, error) {
-	if req == nil {
-		return nil, fmt.Errorf("request required")
-	}
-	cfg := req.Config
-	if cfg == nil {
-		cfg = s.cfg
-	}
-
-	root := strings.TrimSpace(req.Worktree)
-	if root == "" {
-		root = cfg.ProjectRoot
-	}
-	if root == "" {
-		root = "."
-	}
-
-	diff, err := s.git.DiffFromBase(ctx, root)
-	if err != nil {
-		return nil, fmt.Errorf("specreview: git diff: %w", err)
-	}
-
-	instance := buildInstance(diff)
-	promptText := prompt.NewPromptAssembler(s.base, s.project, instance, s.fragment).
-		Assemble("specreview", prompt.BeadInfo{Title: req.Bead.ID})
-
-	provider := s.llm
-	if req.Provider != nil {
-		provider = req.Provider
-	}
-
-	model := s.selectModel(cfg, req)
-	resp, err := provider.Invoke(ctx, llmtypes.LLMInvokeRequest{Prompt: promptText, Model: model, Dir: req.Worktree})
-	if err != nil {
-		return nil, fmt.Errorf("specreview: invoke: %w", err)
-	}
-	if resp == nil {
-		return nil, fmt.Errorf("specreview: nil response")
-	}
-	if !resp.Success {
-		return nil, fmt.Errorf("specreview: invocation failed: %s", resp.Output)
-	}
-
-	verdict, findings, err := ParseSpecReviewOutput(resp.Output)
-	if err != nil {
-		return nil, fmt.Errorf("specreview: parse output: %w", err)
-	}
-
-	artifacts := &SpecReviewArtifacts{Verdict: verdict, Findings: findings}
-	if verdict == "fail" {
-		return &stagepkg.Result{Decision: stagepkg.DecisionFail, Artifacts: artifacts}, nil
-	}
-	return &stagepkg.Result{Decision: stagepkg.DecisionProceed, Artifacts: artifacts}, nil
-}
-
-// ParseSpecReviewOutput parses the LLM JSON response and enforces verdict logic.
-// Exported for testing.
-func ParseSpecReviewOutput(raw string) (verdict string, findings []stagepkg.SpecFinding, err error) {
-	trimmed := strings.TrimSpace(raw)
-	if trimmed == "" {
-		return "", nil, fmt.Errorf("empty output")
-	}
-
-	var out struct {
-		Verdict  string `json:"verdict"`
-		Findings []struct {
-			Severity      string   `json:"severity"`
-			Category      string   `json:"category"`
-			Scope         string   `json:"scope"`
-			Description   string   `json:"description"`
-			AffectedFiles []string `json:"affected_files"`
-		} `json:"findings"`
-	}
-	if err := jsonutil.ExtractObject(trimmed, &out); err != nil {
-		return "", nil, fmt.Errorf("parse spec review output: %w", err)
-	}
-
-	findings = make([]stagepkg.SpecFinding, 0, len(out.Findings))
-	for _, f := range out.Findings {
-		findings = append(findings, stagepkg.SpecFinding{
-			Severity:      stagepkg.SpecFindingSeverity(f.Severity),
-			Category:      stagepkg.SpecFindingCategory(f.Category),
-			Scope:         stagepkg.SpecFindingScope(f.Scope),
-			Description:   f.Description,
-			AffectedFiles: append([]string(nil), f.AffectedFiles...),
-		})
-	}
-
-	// Enforce: any critical finding forces fail regardless of LLM-stated verdict.
-	if stagepkg.HasCritical(findings) {
-		return "fail", findings, nil
-	}
-	verdict = strings.TrimSpace(out.Verdict)
-	if verdict != "pass" && verdict != "fail" {
-		verdict = "fail" // default to fail on unrecognized verdict
-	}
-	return verdict, findings, nil
-}
-
-func (s *Stage) selectModel(cfg *config.Config, req *stagepkg.Request) string {
-	if req != nil {
-		if m := strings.TrimSpace(req.Model); m != "" {
-			return m
-		}
-	}
-	// Always use highest-tier model for spec-level review.
-	if m := strings.TrimSpace(cfg.Models.P0); m != "" {
-		return m
-	}
-	return config.ModelOpus
-}
-
-func buildInstance(diff string) string {
-	if trimmed := strings.TrimSpace(diff); trimmed != "" {
-		return fmt.Sprintf("## Cumulative Diff\n\n%s", trimmed)
-	}
-	return "## Cumulative Diff\n\n(no changes)"
-}
-```
-
-**Step 4: Run tests**
-
-Run: `go test ./internal/v2/stage/specreview/...`
-Expected: Tests pass
-
-**Step 5: Run full suite to check for regressions**
-
-Run: `go test ./internal/v2/...`
-Expected: All tests pass
-
-**Step 6: Commit**
-
-```bash
-git add internal/v2/stage/specreview/
-git commit -m "feat: add specreview stage with structured findings and verdict logic"
-```
-
----
-
-### Task 3: Create review_spec_v2.md prompt fragment
-
-**Files:**
-- Create: `review_spec_v2.md` (project root)
-
-**Step 1: Create the file**
-
-The `defaultSpecReviewFragment` in the specreview stage is used when no file is provided.
-The file at project root overrides it for production runs. Create `review_spec_v2.md` with the same content as `defaultSpecReviewFragment` so operators can customize it:
-
-```markdown
-# Spec-Level Code Review Instructions
-
-You are performing a holistic review of all changes made during this spec's implementation.
-This review evaluates the CUMULATIVE diff — the combined output of all beads in the spec.
-
-## Review Dimensions
-
-### 1. Correctness
-- Does the code work beyond the test coverage?
-- Are error conditions handled?
-- Edge cases not accounted for?
-
-### 2. Security (OWASP Top 10)
-- SQL/command/template injection risks?
-- Authentication/authorization bypass?
-- Data exposure, logging of secrets, missing input validation?
-
-### 3. Error Handling
-- Are errors propagated, not swallowed?
-- Are sentinel errors used for callers to distinguish?
-- Missing nil checks on external returns?
-
-### 4. Test Coverage Gaps
-- Untested code paths?
-- Missing edge case tests?
-- Are tests asserting behavior, or just coverage?
-
-### 5. Code Quality
-- Dead code, unused imports?
-- Overly complex logic that should be simplified?
-- Naming convention violations?
-
-### 6. Architectural Fit
-- Does new code follow the project's existing patterns?
-- Are packages used at the right abstraction level?
-- Does new behavior belong in the right layer?
-
-## Scope Classification
-
-For each finding, classify scope:
-- "spec": the issue is in code introduced or modified by this spec
-- "general": the issue exists in pre-existing code this spec did not touch
-
-## Output Format
-
-Respond with ONLY a JSON object:
-
-{"verdict":"pass","findings":[{"severity":"critical","category":"bug","scope":"spec","description":"...","affected_files":["path/file.go"]}]}
-
-Verdict rules:
-- "fail" if ANY finding has severity "critical"
-- "pass" if all findings are "warning" or "suggestion" (or no findings)
-
-severity values: "critical", "warning", "suggestion"
-category values: "bug", "security", "quality", "test-gap", "architecture"
-scope values: "spec", "general"
-
-Respond with ONLY the JSON object. No markdown wrapper, no explanation.
-```
-
-**Step 2: Verify it loads (no test needed — loadFragment already handles missing gracefully)**
-
-Run: `go build ./...`
-Expected: Clean build
-
-**Step 3: Commit**
-
-```bash
-git add review_spec_v2.md
-git commit -m "feat: add review_spec_v2.md prompt fragment for spec-level review"
-```
-
----
-
-### Task 4: Add structured findings to accept stage
-
-**Files:**
-- Modify: `internal/v2/stage/accept/accept.go:60-72` (AcceptArtifacts struct)
-- Modify: `internal/v2/stage/accept/accept.go:210-232` (failure collection)
-- Test: `internal/v2/stage/accept/accept_test.go`
-
-**Step 1: Write the failing tests**
-
-In `accept_test.go`, add tests that verify findings are populated on failure. Look for existing tests that mock the LLM returning `{"pass":false,"summary":"missing implementation"}` and add assertions:
-
-```go
-func TestRun_failedCriterion_populatesFindings(t *testing.T) {
-    // Set up stage with LLM that returns fail for one criterion
-    // Run stage
-    // Extract AcceptArtifacts
-    artifacts, ok := result.Artifacts.(*accept.AcceptArtifacts)
-    if !ok {
-        t.Fatal("expected AcceptArtifacts")
+func (s *Stage) Run(ctx context.Context, req *stagepkg.StageRequest) (*stagepkg.StageResult, error) {
+    diff, err := s.git.DiffFromBase(ctx, req.Worktree)
+    if err != nil {
+        return nil, fmt.Errorf("diff from base: %w", err)
     }
-    if len(artifacts.Findings) == 0 {
-        t.Error("expected findings for failed criterion")
+
+    planPath := filepath.Join(req.Worktree, ".gromit", "v2", "plan.md")
+    planBytes, _ := os.ReadFile(planPath) // missing plan is non-fatal
+
+    prompt := s.buildPrompt(string(planBytes), diff)
+    output, err := s.llm.Complete(ctx, prompt, req.Tier)
+    if err != nil {
+        return nil, fmt.Errorf("llm: %w", err)
     }
-    if artifacts.Findings[0].Severity != stagepkg.SeverityCritical {
-        t.Errorf("expected critical severity, got %s", artifacts.Findings[0].Severity)
+
+    result, err := parseReviewOutput(output)
+    if err != nil {
+        return nil, fmt.Errorf("parse review output: %w", err)
     }
-    if artifacts.Findings[0].Category != stagepkg.CategoryAcceptance {
-        t.Errorf("expected acceptance category, got %s", artifacts.Findings[0].Category)
-    }
-}
-```
 
-**Step 2: Run tests to see them fail**
-
-Run: `go test ./internal/v2/stage/accept/...`
-Expected: FAIL (Findings field doesn't exist yet)
-
-**Step 3: Modify AcceptArtifacts**
-
-In `internal/v2/stage/accept/accept.go`, update `AcceptArtifacts`:
-
-```go
-// AcceptArtifacts captures acceptance evaluation results produced by the stage.
-type AcceptArtifacts struct {
-	Results    []presentation.AcceptanceResult
-	GapSummary string
-	Findings   []stagepkg.SpecFinding // structured findings for findings-based remediation
-}
-```
-
-**Step 4: Populate findings in Run()**
-
-In `internal/v2/stage/accept/accept.go`, in the `Run()` method where failures are collected (around line 215-232), after the existing `failures` slice append, also append to a new findings slice:
-
-```go
-// In the Run() method, after declaring failures:
-findings := make([]stagepkg.SpecFinding, 0)
-
-// Inside the loop where criterion fails (where score == "FAIL"):
-findings = append(findings, stagepkg.SpecFinding{
-    Severity:    stagepkg.SeverityCritical,
-    Category:    stagepkg.CategoryAcceptance,
-    Scope:       stagepkg.ScopeSpec,
-    Description: fmt.Sprintf("Criterion %d: %s — %s", criterion.Number, trimmed, summaryOrDefault(summary)),
-})
-```
-
-Then set `artifacts.Findings = findings` before the `DecisionFail` return.
-
-**Step 5: Run tests**
-
-Run: `go test ./internal/v2/stage/accept/...`
-Expected: All tests pass including new finding assertion
-
-**Step 6: Commit**
-
-```bash
-git add internal/v2/stage/accept/accept.go internal/v2/stage/accept/accept_test.go
-git commit -m "feat: accept stage produces structured SpecFinding records for failed criteria"
-```
-
----
-
-### Task 5: Add findings-based decompose template
-
-**Files:**
-- Modify: `internal/v2/stage/decompose/decompose.go:68-105` (after remediationDecomposePromptTemplate)
-- Modify: `internal/v2/stage/decompose/decompose.go:160-188` (Run() prompt selection)
-- Test: `internal/v2/stage/decompose/decompose_test.go`
-
-**Step 1: Write failing tests**
-
-In `decompose_test.go`, add:
-
-```go
-func TestRun_withFindings_usesFindingsTemplate(t *testing.T) {
-    // Set up stage with stub LLM that captures the prompt text
-    // Set req.Findings = []stagepkg.SpecFinding{...}
-    // Run stage
-    // Assert the captured prompt contains "targeted fix beads" or findings JSON
-    // Assert it does NOT contain the full plan decompose instructions
-}
-```
-
-**Step 2: Run tests to see them fail**
-
-Run: `go test ./internal/v2/stage/decompose/...`
-Expected: FAIL (findings logic not implemented)
-
-**Step 3: Add the findings decompose prompt template**
-
-In `decompose.go`, after `remediationDecomposePromptTemplate`, add:
-
-```go
-var findingsDecomposePromptTemplate = `# Targeted Fix Decompose: %s
-
-You are creating TARGETED beads to address specific review findings. Do NOT re-implement work that already exists.
-
-## Full Plan (architectural context only — do NOT re-decompose it)
-
-%s
-
-## Specific Findings to Fix (create beads ONLY for these)
-
-%s
-
-## Skill Instructions
-
-%s
-
-## Rules
-
-- Create one bead per finding or per tightly-coupled group of findings.
-- Do NOT create beads for work not listed in the findings above.
-- Each bead acceptance_criteria must describe observable behavior, NOT file paths.
-- depends_on_index: 0-based index of prerequisite beads in THIS output array.
-
-## Output
-
-Output ONLY a JSON array of bead definitions. No markdown, no explanations.
-Each bead: title, description, priority, acceptance_criteria, expected_outputs, covers_tasks, depends_on_index.
-
-The spec label will be added automatically: spec:%s
-`
-```
-
-**Step 4: Update Run() to route on findings**
-
-In `decompose.go`'s `Run()` method, update the prompt selection block (around line 183-188):
-
-```go
-gapAnalysis := s.resolveGapAnalysis(req)
-switch {
-case len(req.Findings) > 0:
-    findingsJSON := formatFindingsForPrompt(req.Findings)
-    promptText = fmt.Sprintf(findingsDecomposePromptTemplate, specID, string(planBody), findingsJSON, skills.DecomposeSkill, specID)
-case req.Remediation && gapAnalysis != "":
-    promptText = fmt.Sprintf(remediationDecomposePromptTemplate, specID, string(planBody), gapAnalysis, skills.DecomposeSkill, specID)
-default:
-    promptText = fmt.Sprintf(s.promptTemplate, specID, string(planBody), skills.DecomposeSkill, specID)
-}
-```
-
-Add the helper function:
-
-```go
-func formatFindingsForPrompt(findings []stagepkg.SpecFinding) string {
-    if len(findings) == 0 {
-        return "(no findings)"
-    }
-    var sb strings.Builder
-    for i, f := range findings {
-        sb.WriteString(fmt.Sprintf("%d. [%s/%s/%s] %s", i+1, f.Severity, f.Category, f.Scope, f.Description))
-        if len(f.AffectedFiles) > 0 {
-            sb.WriteString(fmt.Sprintf(" (files: %s)", strings.Join(f.AffectedFiles, ", ")))
+    // Enforce: any critical finding forces fail regardless of LLM verdict field
+    for _, f := range result.Findings {
+        if f.Severity == stagepkg.FindingSeverityCritical {
+            result.Verdict = "fail"
+            break
         }
-        sb.WriteString("\n")
     }
+
+    decision := stagepkg.DecisionProceed
+    if result.Verdict == "fail" {
+        decision = stagepkg.DecisionFail
+    }
+
+    return &stagepkg.StageResult{
+        Decision:  decision,
+        Artifacts: result,
+    }, nil
+}
+
+type llmReviewOutput struct {
+    Verdict  string `json:"verdict"`
+    Findings []struct {
+        Severity      string   `json:"severity"`
+        Category      string   `json:"category"`
+        Scope         string   `json:"scope"`
+        Description   string   `json:"description"`
+        AffectedFiles []string `json:"affected_files"`
+    } `json:"findings"`
+}
+
+func parseReviewOutput(raw string) (*SpecReviewArtifacts, error) {
+    raw = strings.TrimSpace(raw)
+    var out llmReviewOutput
+    if err := json.Unmarshal([]byte(raw), &out); err != nil {
+        return nil, fmt.Errorf("json: %w (raw: %.200s)", err, raw)
+    }
+    findings := make([]stagepkg.Finding, 0, len(out.Findings))
+    for _, f := range out.Findings {
+        findings = append(findings, stagepkg.Finding{
+            Severity:      stagepkg.FindingSeverity(f.Severity),
+            Category:      stagepkg.FindingCategory(f.Category),
+            Scope:         stagepkg.FindingScope(f.Scope),
+            Description:   f.Description,
+            AffectedFiles: f.AffectedFiles,
+        })
+    }
+    return &SpecReviewArtifacts{Verdict: out.Verdict, Findings: findings}, nil
+}
+
+func (s *Stage) buildPrompt(plan, diff string) string {
+    var sb strings.Builder
+    sb.WriteString(s.fragment)
+    sb.WriteString("\n\n## Plan\n\n")
+    sb.WriteString(plan)
+    sb.WriteString("\n\n## Cumulative Diff\n\n```diff\n")
+    sb.WriteString(diff)
+    sb.WriteString("\n```\n")
     return sb.String()
 }
 ```
 
-**Step 5: Run tests**
+Run: `go test ./internal/v2/stage/specreview/... -v`
+Expected: PASS
 
-Run: `go test ./internal/v2/stage/decompose/...`
-Expected: All tests pass including new findings routing test
+Run: `go build ./...`
+Expected: no errors
 
-**Step 6: Commit**
+**Acceptance Criteria:**
+1. All tests from Task 3 pass
+2. Critical findings force `verdict: fail` even if LLM returned `"pass"` in the verdict field
+3. `go build ./...` passes
 
-```bash
-git add internal/v2/stage/decompose/decompose.go internal/v2/stage/decompose/decompose_test.go
-git commit -m "feat: decompose stage routes to findings-based template when SpecFindings present"
-```
+**Dependencies:** Task 3
 
 ---
 
-### Task 6: Update remediation runner to use SpecReviewStage and structured findings
+### Task 5: Accept Stage — Structured Findings Output (Failing Tests)
 
 **Files:**
-- Modify: `internal/v2/remediation/remediation.go` (all key sections)
+- Modify: `internal/v2/stage/accept/accept_test.go`
+
+**What to Do:**
+
+Add tests verifying that when acceptance criteria fail, the `AcceptArtifacts.Findings` field is populated with `Finding{Severity: "critical", Category: "acceptance", Scope: "spec"}` for each failing criterion.
+
+Find the existing test file:
+```
+internal/v2/stage/accept/accept_test.go
+```
+
+Add:
+```go
+func TestAccept_FindingsPopulatedOnFailure(t *testing.T) {
+    // Setup: LLM returns {"pass":false,"summary":"criterion not met"} for one criterion
+    // Expect: AcceptArtifacts.Findings has one Finding with:
+    //   Severity == FindingSeverityCritical
+    //   Category == FindingCategoryAcceptance
+    //   Scope == FindingScopeSpec
+    //   Description contains the criterion text
+}
+
+func TestAccept_FindingsEmptyOnPass(t *testing.T) {
+    // Setup: LLM returns {"pass":true} for all criteria
+    // Expect: AcceptArtifacts.Findings is empty
+}
+```
+
+Run: `go test ./internal/v2/stage/accept/... -v`
+Expected: FAIL (Findings field does not exist on AcceptArtifacts yet)
+
+**Acceptance Criteria:**
+1. Tests added to the existing test file
+2. Tests are behavioral (assert Findings content, not just documentation)
+3. Tests fail before implementation (they reference the not-yet-added Findings field)
+
+**Dependencies:** Task 1
+
+---
+
+### Task 6: Accept Stage — Structured Findings Implementation
+
+**Files:**
+- Modify: `internal/v2/stage/accept/accept.go`
+
+**What to Do:**
+
+Add `Findings []stage.Finding` to `AcceptArtifacts`:
+
+```go
+type AcceptArtifacts struct {
+    Results    []presentation.AcceptanceResult
+    GapSummary string
+    Findings   []stage.Finding  // one per failing criterion
+}
+```
+
+In the criterion evaluation loop, when a criterion fails, append a finding:
+
+```go
+failures = append(failures, criterion+" — "+summary)
+artifacts.Findings = append(artifacts.Findings, stage.Finding{
+    Severity:      stage.FindingSeverityCritical,
+    Category:      stage.FindingCategoryAcceptance,
+    Scope:         stage.FindingScopeSpec,
+    Description:   criterion + ": " + summary,
+    AffectedFiles: []string{},
+})
+```
+
+The `GapSummary` field and `writeGapAnalysis` call remain unchanged for backward compat with any code that reads the gap analysis file.
+
+Add import: `stagepkg "github.com/danabrams/gromit/internal/v2/stage"` (or adjust to existing alias).
+
+Run: `go test ./internal/v2/stage/accept/... -v`
+Expected: PASS (new tests from Task 5 now pass, existing tests still pass)
+
+**Acceptance Criteria:**
+1. All existing accept tests pass
+2. New tests from Task 5 pass
+3. `Findings` is nil/empty when all criteria pass
+4. Each failing criterion produces exactly one Finding with severity=critical, category=acceptance, scope=spec
+
+**Dependencies:** Task 5
+
+---
+
+### Task 7: Decompose Stage — Findings-Based Template (Failing Tests)
+
+**Files:**
+- Modify: `internal/v2/stage/decompose/decompose_test.go`
+
+**What to Do:**
+
+Add tests verifying that when `req.Findings` is non-empty, the decompose stage uses a findings-based prompt template instead of the gap analysis template.
+
+```go
+func TestDecompose_FindingsTemplateUsedWhenFindingsPresent(t *testing.T) {
+    // Setup: req.Remediation=true, req.Findings=[{...}]
+    // Expect: LLM prompt contains findings content (not original plan decompose text)
+    // Expect: result contains beads created from findings
+}
+
+func TestDecompose_GapAnalysisTemplateUsedWhenNoFindings(t *testing.T) {
+    // Setup: req.Remediation=true, req.GapAnalysis="some gap", req.Findings=nil
+    // Expect: LLM prompt contains gap analysis (original behavior preserved)
+}
+```
+
+Run: `go test ./internal/v2/stage/decompose/... -v`
+Expected: Tests likely compile but fail (Findings field may compile; routing logic not yet changed)
+
+**Acceptance Criteria:**
+1. Tests express the routing distinction clearly
+2. Tests reference `req.Findings` (now valid after Task 1)
+
+**Dependencies:** Task 1, Task 6
+
+---
+
+### Task 8: Decompose Stage — Findings-Based Template Implementation
+
+**Files:**
+- Modify: `internal/v2/stage/decompose/decompose.go`
+
+**What to Do:**
+
+Add a `findingsDecomposePromptTemplate`. The template receives a JSON-serialized list of findings and instructs the LLM to create one or more targeted fix beads per finding. Keep the existing templates unchanged.
+
+```go
+const findingsDecomposePromptTemplate = `You are creating targeted fix beads for specific findings from a spec-level code review.
+
+## Spec: %s
+
+## Original Plan (for context only — do not re-decompose it)
+%s
+
+## Findings to Fix
+%s
+
+Create one or more beads that directly address each finding above. Do NOT create beads for work already done. Each bead must reference the specific finding it fixes in its description.
+
+Output the beads as a JSON array using the same schema as normal decompose output.`
+```
+
+In the routing logic (around the `resolveGapAnalysis` call), add:
+
+```go
+if req.Remediation && len(req.Findings) > 0 {
+    findingsJSON, _ := json.Marshal(req.Findings)
+    promptText = fmt.Sprintf(findingsDecomposePromptTemplate, specID, string(planBody), string(findingsJSON))
+} else if req.Remediation && gapAnalysis != "" {
+    promptText = fmt.Sprintf(remediationDecomposePromptTemplate, ...)
+} else {
+    // normal template
+}
+```
+
+Run: `go test ./internal/v2/stage/decompose/... -v`
+Expected: PASS
+
+**Acceptance Criteria:**
+1. All tests from Task 7 pass
+2. All pre-existing decompose tests pass
+3. When `req.Findings` is non-empty AND `req.Remediation` is true, findings template is selected
+4. When `req.GapAnalysis` is set and `req.Findings` is empty, gap analysis template is selected (no regression)
+
+**Dependencies:** Task 7
+
+---
+
+### Task 9: Remediation Runner — Findings-Based Interface (Failing Tests)
+
+**Files:**
 - Modify: `internal/v2/remediation/remediation_test.go`
 
-**Step 1: Write failing tests**
+**What to Do:**
 
-In `remediation_test.go`, add:
+The remediation runner's `Run` method will change signature to accept findings. It will no longer run accept internally. Add tests:
 
 ```go
-func TestRemediationRunner_passesWhenBothAcceptAndReviewPass(t *testing.T) {
-    // specReviewStage returns DecisionProceed
-    // acceptStage returns DecisionProceed
-    // Run() should return nil without calling bead runner
+func TestRemediationRunner_RunWithFindings_CallsDecomposeAndBeadRunner(t *testing.T) {
+    // Setup: provide findings, mock decompose and bead runner
+    // Expect: decompose called with req.Findings set, bead runner called
+    // Expect: accept stage NOT called
 }
 
-func TestRemediationRunner_decomposeReceivesFindings_whenAcceptFails(t *testing.T) {
-    // acceptStage returns DecisionFail with AcceptArtifacts.Findings populated
-    // specReviewStage returns DecisionProceed with no critical findings
-    // decomposeStage captures the request
-    // Assert req.Findings contains the accept findings
-}
-
-func TestRemediationRunner_combinesAcceptAndReviewFindings(t *testing.T) {
-    // acceptStage fails with 1 finding
-    // specReviewStage fails with 1 critical finding
-    // Decompose receives 2 findings total
+func TestRemediationRunner_RunWithFindings_GenerationCapRespected(t *testing.T) {
+    // Setup: generationCap=1, call Run twice
+    // Expect: second call returns generation cap error
 }
 ```
 
-**Step 2: Run tests to see them fail**
+Run: `go test ./internal/v2/remediation/... -v`
+Expected: FAIL (signature mismatch or new behavior not yet present)
 
-Run: `go test ./internal/v2/remediation/...`
-Expected: FAIL
+**Acceptance Criteria:**
+1. Tests express the new contract clearly: findings in, no accept invoked
+2. Tests reference the new `Run(..., findings []stage.Finding)` signature
 
-**Step 3: Add SpecReviewStage to RemediationRunnerConfig**
+**Dependencies:** Task 1
 
-In `remediation.go`, update `RemediationRunnerConfig`:
+---
 
-```go
-type RemediationRunnerConfig struct {
-    AcceptStage     stage.Stage
-    SpecReviewStage stage.Stage // spec-level review; optional, run alongside accept
-    GapStage        stage.Stage
-    DecomposeStage  stage.Stage
-    BeadRunner      BeadRunner
-    GenerationCap   int
-    Presenter       adapter.PresenterAdapter
-    Emitter         *events.Emitter
-    WorktreeCleaner WorktreeCleaner
-}
-```
+### Task 10: Remediation Runner — Findings-Based Implementation
 
-**Step 4: Update Run() to evaluate both accept and specreview**
+**Files:**
+- Modify: `internal/v2/remediation/remediation.go`
 
-Replace the current `Run()` loop body:
+**What to Do:**
+
+Change `Run` signature and remove the internal accept loop:
 
 ```go
-func (r *RemediationRunner) Run(ctx context.Context, specID, worktree string) error {
-    r.generationCount = 0
+// Run executes one remediation generation: decompose targeted fix beads from findings, then run them.
+// The caller (spec loop) owns the outer accept+review retry cycle.
+func (r *RemediationRunner) Run(ctx context.Context, specID, worktree string, findings []stage.Finding) error {
     if specID == "" {
         return ErrSpecIDRequired
     }
-    if r.cfg.AcceptStage == nil {
-        return ErrAcceptStageRequired
-    }
-
-    reqTemplate := stage.Request{Bead: stage.BeadInfo{ID: specID}, Worktree: worktree}
-    for {
-        req := reqTemplate
-
-        // Run accept stage.
-        acceptRes, err := r.cfg.AcceptStage.Run(ctx, &req)
-        if err != nil {
-            return err
-        }
-
-        // Run spec-level review stage (if configured).
-        var reviewRes *stage.Result
-        if r.cfg.SpecReviewStage != nil {
-            reviewRes, err = r.cfg.SpecReviewStage.Run(ctx, &req)
-            if err != nil {
-                return err
-            }
-        }
-
-        // Collect all critical findings.
-        findings := collectFindings(acceptRes, reviewRes)
-        if !stage.HasCritical(findings) {
-            // Both passed (or only non-critical findings) — done.
-            if err := r.cleanup(ctx, specID); err != nil {
-                return err
-            }
-            return nil
-        }
-
-        if err := r.executeRemediation(ctx, &req, findings); err != nil {
-            return err
-        }
-    }
-}
-```
-
-**Step 5: Add collectFindings helper**
-
-```go
-func collectFindings(acceptRes, reviewRes *stage.Result) []stage.SpecFinding {
-    var findings []stage.SpecFinding
-    if acceptRes != nil {
-        if arts, ok := acceptRes.Artifacts.(findingsProvider); ok {
-            findings = append(findings, arts.GetFindings()...)
-        }
-    }
-    if reviewRes != nil {
-        if arts, ok := reviewRes.Artifacts.(findingsProvider); ok {
-            findings = append(findings, arts.GetFindings()...)
-        }
-    }
-    return findings
-}
-
-type findingsProvider interface {
-    GetFindings() []stage.SpecFinding
-}
-```
-
-Add `GetFindings()` to `AcceptArtifacts` in accept package (do this in the same commit or note as a dependency):
-
-In `internal/v2/stage/accept/accept.go`:
-```go
-func (a *AcceptArtifacts) GetFindings() []stagepkg.SpecFinding {
-    if a == nil {
-        return nil
-    }
-    return a.Findings
-}
-```
-
-Add `GetFindings()` to `SpecReviewArtifacts` in specreview package:
-```go
-func (a *SpecReviewArtifacts) GetFindings() []stagepkg.SpecFinding {
-    if a == nil {
-        return nil
-    }
-    return a.Findings
-}
-```
-
-**Step 6: Update executeRemediation to take findings**
-
-```go
-func (r *RemediationRunner) executeRemediation(ctx context.Context, req *stage.Request, findings []stage.SpecFinding) error {
-    specID := req.Bead.ID
     if !r.canRemediate() {
         return r.handleGenerationCap(ctx, specID)
     }
 
-    req.Remediation = true
-    req.Findings = findings  // pass structured findings to decompose
-
-    if r.cfg.GapStage != nil {
-        if _, err := r.cfg.GapStage.Run(ctx, req); err != nil {
-            return err
-        }
+    req := stage.Request{
+        Bead:       stage.BeadInfo{ID: specID},
+        Worktree:   worktree,
+        Remediation: true,
+        Findings:   findings,
     }
 
-    beads, err := r.decompose(ctx, req)
+    beads, err := r.decompose(ctx, &req)
     if err != nil {
         return err
     }
@@ -941,108 +729,113 @@ func (r *RemediationRunner) executeRemediation(ctx context.Context, req *stage.R
 }
 ```
 
-**Step 7: Run tests**
+Remove `AcceptStage` from `RemediationRunnerConfig` (it is no longer used). Keep `GapStage` if still needed, or remove if unused after this change.
 
-Run: `go test ./internal/v2/remediation/...`
-Expected: All tests pass
+Update `remediationRunnerConfig` validation: remove `ErrAcceptStageRequired` check.
 
-Run: `go test ./internal/v2/...`
-Expected: All tests pass
+Run: `go test ./internal/v2/remediation/... -v`
+Expected: PASS
 
-**Step 8: Commit**
+Run: `go build ./...`
+Expected: compile errors in `spec_loop.go` (interface mismatch — expected, fixed in Task 11)
 
-```bash
-git add internal/v2/remediation/remediation.go internal/v2/remediation/remediation_test.go \
-    internal/v2/stage/accept/accept.go internal/v2/stage/specreview/specreview.go
-git commit -m "feat: remediation runner runs specreview alongside accept, decomposes from structured findings"
-```
+**Acceptance Criteria:**
+1. All tests from Task 9 pass
+2. `Run` no longer calls accept stage
+3. `Run` sets `req.Findings` from the provided findings slice
+4. Generation cap still enforced
+
+**Dependencies:** Task 9
 
 ---
 
-### Task 7: Wire specreview into spec_loop
+### Task 11: Spec Loop — Spec-Level Review Stage + Combined Gating (Failing Tests)
 
 **Files:**
-- Modify: `internal/v2/loop/spec_loop.go` (SpecLoop struct, ensureAcceptance, StageSequence)
-- Modify: `internal/v2/loop/spec_loop_test.go`
+- Create: `internal/v2/loop/spec_loop_specreview_test.go`
 
-**Step 1: Write failing tests**
+**What to Do:**
 
-In `spec_loop_test.go` or a new `spec_loop_specreview_test.go`:
+Write integration tests for the new spec loop behavior:
 
 ```go
-func TestSpecLoop_runsSpecReviewAfterBeadLoop(t *testing.T) {
-    // Install stub specReviewStage that records it was called
-    // Run spec loop with stubs
-    // Assert specReviewStage.Run was called
+func TestSpecLoop_SpecReviewCalledAfterAcceptPass(t *testing.T) {
+    // accept passes, spec-level review called
+    // review returns pass → spec proceeds to present
 }
 
-func TestSpecLoop_failsWhenSpecReviewReturnsCritical(t *testing.T) {
-    // Install specReviewStage that returns DecisionFail
-    // Install acceptStage that returns DecisionProceed
-    // Run spec loop
-    // Expect error (combined failure triggers remediation or terminal fail)
+func TestSpecLoop_SpecReviewFailTriggerRemediation(t *testing.T) {
+    // accept passes, spec-level review returns critical finding
+    // remediation called with combined findings (review findings)
+    // after remediation: accept + review called again, both pass
+    // spec proceeds to present
 }
 
-func TestSpecLoop_createsFromReviewBeads_onPassWithImprovements(t *testing.T) {
-    // Install specReviewStage returning pass with warning findings
-    // Install stub task tracker
-    // Run spec loop
-    // Assert tracker.CreateBead was called for spec-scoped findings with "from-review" label
+func TestSpecLoop_AcceptFailTriggerRemediationWithFindings(t *testing.T) {
+    // accept fails with unmet criterion
+    // remediation called with accept's structured findings
+}
+
+func TestSpecLoop_BothFailCombinesFindings(t *testing.T) {
+    // accept fails (1 finding) + review fails (1 critical finding)
+    // remediation called with 2 combined findings
+}
+
+func TestSpecLoop_PassWithImprovements_SpecScopedBeadsCreated(t *testing.T) {
+    // accept passes, review passes with spec-scoped warning finding
+    // from-review bead created with labels ["from-review", "spec:<specID>"]
+    // spec proceeds to present
+}
+
+func TestSpecLoop_PassWithImprovements_GeneralBeadsCreated(t *testing.T) {
+    // review passes with general-scoped finding
+    // from-review bead created with label ["from-review"] only (no spec label)
 }
 ```
 
-**Step 2: Run tests to see them fail**
+Run: `go test ./internal/v2/loop/... -run TestSpecLoop_SpecReview -v`
+Expected: FAIL (specReviewStage field does not exist on SpecLoop yet)
 
-Run: `go test ./internal/v2/loop/...`
-Expected: FAIL
+**Acceptance Criteria:**
+1. Tests are behavioral, not documentation-only
+2. Tests do not use `os.Chdir`
+3. Tests restore any package-level vars via `t.Cleanup`
 
-**Step 3: Add specReviewStage to SpecLoop**
+**Dependencies:** Task 4, Task 10
 
-In `spec_loop.go`, in the `SpecLoop` struct (around line 197-218), add:
+---
 
+### Task 12: Spec Loop — Spec-Level Review Integration Implementation
+
+**Files:**
+- Modify: `internal/v2/loop/spec_loop.go`
+
+**What to Do:**
+
+**Step 1:** Update the `remediationRunner` interface:
 ```go
-specReviewStage stagepkg.Stage
+type remediationRunner interface {
+    Run(ctx context.Context, specID, worktree string, findings []stagepkg.Finding) error
+}
 ```
 
-Add the option:
-
+**Step 2:** Add `specReviewStage stagepkg.Stage` field to `SpecLoop` struct and a `WithSpecReviewStage` option:
 ```go
-// WithSpecReviewStage configures the spec-level review stage.
 func WithSpecReviewStage(stage stagepkg.Stage) SpecLoopOption {
-    return func(s *SpecLoop) {
-        s.specReviewStage = stage
-    }
+    return func(s *SpecLoop) { s.specReviewStage = stage }
 }
 ```
 
-Add "specreview" to `StageSequence` after "accept":
+**Step 3:** Replace `ensureAcceptance` with a new method `ensureAcceptanceAndReview` that:
+1. Runs accept stage
+2. If accept passes, runs spec-level review stage
+3. Collects findings from both
+4. If both pass and there are findings → create from-review beads (see Task 13)
+5. If either fails → call `remediationRunner.Run(ctx, specID, worktree, combinedFindings)`
+6. Decrement retries, loop
 
 ```go
-var StageSequence = []string{
-    "plan",
-    "decompose",
-    "gate",
-    "build",
-    "validate",
-    "review",
-    "epilogue",
-    "accept",
-    "specreview",
-    "present",
-}
-```
-
-**Step 4: Update ensureAcceptance to also call specreview**
-
-Rename `ensureAcceptance` to `ensureAcceptanceAndReview` (update all call sites) or update in place. The method now:
-1. Runs accept
-2. Runs specreview (if configured)
-3. Combines findings
-4. If any critical findings → call remediationRunner
-5. If no critical but review has warnings/suggestions → create from-review beads (after remediation loop exits successfully)
-
-```go
-func (s *SpecLoop) ensureAcceptance(ctx context.Context, req *stagepkg.Request, specID string) (*stagepkg.Result, error) {
+func (s *SpecLoop) ensureAcceptanceAndReview(ctx context.Context, req *stagepkg.Request, specID string) (*stagepkg.Result, error) {
     retriesRemaining := maxAcceptanceRetries
     for {
         if err := s.ctxErr(ctx); err != nil {
@@ -1055,421 +848,346 @@ func (s *SpecLoop) ensureAcceptance(ctx context.Context, req *stagepkg.Request, 
             return acceptRes, err
         }
 
-        s.recordStage("specreview")
-        reviewRes, err := s.runSpecReviewStage(ctx, req)
-        if err != nil {
-            return nil, err
+        var reviewRes *stagepkg.Result
+        if !s.acceptFailed(acceptRes) && s.specReviewStage != nil {
+            s.applyRouting(req, "spec-review")
+            reviewRes, err = s.specReviewStage.Run(ctx, req)
+            if err != nil {
+                return reviewRes, err
+            }
         }
 
-        // Both passed — collect non-critical findings for from-review beads.
-        acceptFailed := s.acceptFailed(acceptRes)
-        reviewFailed := reviewRes != nil && reviewRes.Decision == stagepkg.DecisionFail
+        acceptFindings := extractFindings(acceptRes)
+        reviewFindings := extractSpecReviewFindings(reviewRes)
+        combined := append(acceptFindings, reviewFindings...)
 
-        if !acceptFailed && !reviewFailed {
-            // Create from-review beads for non-critical review findings.
-            if reviewRes != nil {
-                s.createFromReviewBeads(ctx, specID, reviewRes)
+        bothPass := !s.acceptFailed(acceptRes) && !s.specReviewFailed(reviewRes)
+        if bothPass {
+            if err := s.createFromReviewBeads(ctx, specID, reviewFindings); err != nil {
+                return acceptRes, err
             }
             return acceptRes, nil
         }
 
         if s.remediationRunner == nil {
-            return acceptRes, fmt.Errorf("accept/review failed")
+            return acceptRes, fmt.Errorf("accept or spec-review failed")
         }
         if retriesRemaining <= 0 {
             return acceptRes, fmt.Errorf("%w: limit %d reached", ErrAcceptanceRetriesExceeded, maxAcceptanceRetries)
         }
-        if err := s.remediationRunner.Run(ctx, specID, req.Worktree); err != nil {
+        if err := s.remediationRunner.Run(ctx, specID, req.Worktree, combined); err != nil {
             return acceptRes, err
         }
         retriesRemaining--
     }
 }
-
-func (s *SpecLoop) runSpecReviewStage(ctx context.Context, req *stagepkg.Request) (*stagepkg.Result, error) {
-    if s.specReviewStage == nil {
-        return nil, nil
-    }
-    return s.specReviewStage.Run(ctx, req)
-}
 ```
 
-**Step 5: Add createFromReviewBeads**
+**Step 4:** In `Run()`, replace the `ensureAcceptance` call with `ensureAcceptanceAndReview`.
 
+**Step 5:** Add helper `specReviewFailed`:
 ```go
-func (s *SpecLoop) createFromReviewBeads(ctx context.Context, specID string, reviewRes *stagepkg.Result) {
-    if s.adapters.TaskTracker == nil || reviewRes == nil {
-        return
-    }
-    arts, ok := reviewRes.Artifacts.(*specreview.SpecReviewArtifacts)
-    if !ok || arts == nil {
-        return
-    }
-    for _, finding := range arts.Findings {
-        if finding.Severity == stagepkg.SeverityCritical {
-            continue // critical findings were remediated; skip
-        }
-        labels := []string{"from-review"}
-        if finding.Scope == stagepkg.ScopeSpec {
-            labels = append(labels, "spec:"+specID)
-        }
-        _, _ = s.adapters.TaskTracker.CreateBead(ctx, trackertypes.TaskTrackerCreateBeadRequest{
-            Title:       fmt.Sprintf("[from-review] %s: %s", finding.Category, shortDescription(finding.Description)),
-            Description: finding.Description,
-            Priority:    1,
-            Labels:      labels,
-        })
-    }
-}
-
-func shortDescription(desc string) string {
-    if len(desc) > 80 {
-        return desc[:80] + "..."
-    }
-    return desc
+func (s *SpecLoop) specReviewFailed(res *stagepkg.Result) bool {
+    if res == nil { return false }
+    return res.Decision == stagepkg.DecisionFail
 }
 ```
 
-Note: import `specreview "github.com/danabrams/gromit/internal/v2/stage/specreview"` in spec_loop.go.
+**Step 6:** Add `extractFindings` and `extractSpecReviewFindings` helpers to extract findings from stage results.
 
-**Step 6: Run tests**
+Run: `go build ./...`
+Expected: compile error in `run2_components.go` (remediationRunner.Run call needs updating — expected)
 
-Run: `go test ./internal/v2/loop/...`
-Expected: All tests pass
+Run: `go test ./internal/v2/loop/... -run TestSpecLoop_SpecReview -v`
+Expected: some tests pass (depends on from-review bead creation in Task 13)
 
-**Step 7: Commit**
+**Acceptance Criteria:**
+1. `remediationRunner` interface updated to new signature
+2. `ensureAcceptanceAndReview` drives both accept and spec-level review
+3. Combined findings passed to remediation when either fails
+4. `specReviewStage == nil` is safe: skips review, accept-only gating preserved
 
-```bash
-git add internal/v2/loop/spec_loop.go internal/v2/loop/spec_loop_test.go
-git commit -m "feat: spec_loop runs specreview after accept, creates from-review beads on pass-with-improvements"
-```
+**Dependencies:** Task 11
 
 ---
 
-### Task 8: Wire specreview into run2_components and RemediationRunner
+### Task 13: Spec Loop — Pass-With-Improvements Bead Creation
+
+**Files:**
+- Modify: `internal/v2/loop/spec_loop.go`
+
+**What to Do:**
+
+Add `createFromReviewBeads` method. It creates beads via `s.adapters.TaskTracker` for each finding when review passes. Spec-scoped findings get the spec label; general findings do not.
+
+```go
+func (s *SpecLoop) createFromReviewBeads(ctx context.Context, specID string, findings []stagepkg.Finding) error {
+    if len(findings) == 0 || s.adapters.TaskTracker == nil {
+        return nil
+    }
+    for _, f := range findings {
+        labels := []string{"from-review"}
+        if f.Scope == stagepkg.FindingScopeSpec {
+            labels = append(labels, "spec:"+specID)
+        }
+        _, err := s.adapters.TaskTracker.CreateBead(ctx, trackertypes.CreateBeadRequest{
+            Title:       fmt.Sprintf("Review improvement: %s", f.Description),
+            Description: f.Description,
+            Priority:    bead.PriorityP1,
+            Labels:      labels,
+        })
+        if err != nil {
+            return fmt.Errorf("create from-review bead: %w", err)
+        }
+    }
+    return nil
+}
+```
+
+Run: `go test ./internal/v2/loop/... -run TestSpecLoop -v`
+Expected: all spec loop specreview tests pass
+
+**Acceptance Criteria:**
+1. Spec-scoped findings produce beads labeled `["from-review", "spec:<specID>"]`
+2. General findings produce beads labeled `["from-review"]` only
+3. No beads created when findings slice is empty
+4. `TaskTracker == nil` is safe (returns nil, no panic)
+
+**Dependencies:** Task 12
+
+---
+
+### Task 14: Run2 Components — Wire Spec-Level Review + Update RemediationRunner
 
 **Files:**
 - Modify: `internal/v2/loop/run2_components.go`
-- Modify: `internal/v2/loop/run2_components_test.go` (if it tests component wiring)
+- Modify: `internal/v2/remediation/remediation.go` (remove AcceptStage from config used here)
 
-**Step 1: Add SpecReviewStage to Run2LoopComponents**
+**What to Do:**
 
-In `run2_components.go`, update `Run2LoopComponents`:
-
+**Step 1:** Add `SpecReviewStage stagepkg.Stage` to `Run2LoopComponents`:
 ```go
 type Run2LoopComponents struct {
-    PlanStage             stagepkg.Stage
-    PresentStage          stagepkg.Stage
-    PresentSummaryContext *present.SummaryContext
-    DecomposeStage        stagepkg.Stage
-    BeadLoop              *BeadLoop
-    AcceptStage           stagepkg.Stage
-    SpecReviewStage       stagepkg.Stage // new
-    RemediationRunner     remediationRunner
-    Emitter               Run2LoopEmitter
-    StageCommitter        StageCommitter
-    TypedEmitter          *event.Emitter
+    // ... existing fields ...
+    SpecReviewStage stagepkg.Stage
 }
 ```
 
-**Step 2: Load review_spec_v2.md fragment and create specreview stage**
-
-In `NewRun2LoopComponents()`, after loading `acceptFragment`, add:
-
+**Step 2:** In `NewRun2LoopComponents`, load `review_spec_v2.md` fragment:
 ```go
-specReviewFragment, err := loadFragment(cfg.ProjectRoot, "review_spec_v2.md")
+specReviewFragment, err := loadOptionalFragment(cfg.ProjectRoot, "review_spec_v2.md")
+```
+Add `loadOptionalFragment` helper (returns empty string if file missing, no error).
+
+**Step 3:** Construct the spec-level review stage using the highest tier provider:
+```go
+specReviewLLM := adapters.LLM // use with tier "high" via applyRouting in spec loop
+specReviewStage, err := specreviewstage.New(adapters.Git, specReviewLLM, specReviewFragment)
 if err != nil {
     cleanup()
-    return nil, err
+    return nil, fmt.Errorf("spec review stage: %w", err)
 }
+components.SpecReviewStage = specReviewStage
 ```
 
-After creating `acceptStage`, add:
-
+**Step 4:** Remove `AcceptStage` from `RemediationRunnerConfig` in the construction call (it no longer takes AcceptStage):
 ```go
-specReviewStage, err := specreviewstage.New(cfg, adapters.Git, adapters.LLM, baseInstructions, projectContext, specReviewFragment)
-if err != nil {
-    cleanup()
-    return nil, err
-}
-```
-
-Note: `adapters.Git` must implement `specreviewstage.GitDiffer` (needs `DiffFromBase`). Check that the git adapter already has this method — it does, since `accept.go` already calls `DiffFromBase`.
-
-**Step 3: Pass highest-tier model to specreview**
-
-The specreview stage already selects `cfg.Models.P0` internally in `selectModel()`. No additional wiring needed for model selection.
-
-**Step 4: Wire specreview into RemediationRunner**
-
-Update the `remediationRunner` construction:
-
-```go
-remediationRunner := v2remediation.NewRemediationRunner(v2remediation.RemediationRunnerConfig{
-    AcceptStage:     acceptStage,
-    SpecReviewStage: specReviewStage, // add this
-    DecomposeStage:  decomposeStage,
-    BeadRunner:      &remediationBeadRunner{loop: beadLoop},
-    GenerationCap:   v2remediation.DefaultGenerationCap,
-    Emitter:         legacyEmitter,
+remRunner := v2remediation.NewRemediationRunner(v2remediation.RemediationRunnerConfig{
+    // AcceptStage removed
+    DecomposeStage:  components.DecomposeStage,
+    BeadRunner:      beadRunnerAdapter,
+    GenerationCap:   cfg.Remediation.GenerationCap,
     Presenter:       adapters.Presenter,
+    Emitter:         legacyEmitter,
+    WorktreeCleaner: worktreeCleaner,
 })
 ```
 
-**Step 5: Pass specreview to SpecLoop via option**
-
-In `run2.go` where the spec loop is constructed, add `loop.WithSpecReviewStage(components.SpecReviewStage)`. (Alternatively, this is done in SpecLoop construction in run2.go — see next task.)
-
-Actually, `SpecLoop` construction happens in `run2.go`. We just need to add the `SpecReviewStage` to `Run2LoopComponents` and pass it when constructing the spec loop. Update `run2_components.go` to set:
-
+**Step 5:** In `run2.go`, pass `SpecReviewStage` to the SpecLoop via `WithSpecReviewStage`:
 ```go
-return &Run2LoopComponents{
-    ...
-    SpecReviewStage:  specReviewStage,
-    ...
-}, nil
+loopOpts = append(loopOpts, loop.WithSpecReviewStage(components.SpecReviewStage))
 ```
 
-**Step 6: Run tests**
+**Step 6:** Add `"spec-review"` to `StageSequence` in `spec_loop.go`:
+```go
+var StageSequence = []string{
+    "plan", "decompose", "gate", "build", "validate",
+    "review", "epilogue", "accept", "spec-review", "present",
+}
+```
 
-Run: `go test ./internal/v2/loop/...`
-Expected: All tests pass
+Run: `go build ./...`
+Expected: PASS (all compile errors resolved)
 
 Run: `go test ./...`
-Expected: All tests pass
+Expected: PASS
 
-**Step 7: Commit**
+**Acceptance Criteria:**
+1. `go build ./...` passes
+2. `go test ./...` passes
+3. `SpecReviewStage` constructed with git adapter + LLM + fragment
+4. RemediationRunner no longer receives AcceptStage
 
-```bash
-git add internal/v2/loop/run2_components.go
-git commit -m "feat: wire specreview stage into run2 components and remediation runner"
-```
+**Dependencies:** Task 4, Task 12, Task 13
 
 ---
 
-### Task 9: Wire SpecReviewStage into SpecLoop construction in run2.go
+### Task 15: `--from-review` Flag on run2 (Failing Tests)
 
 **Files:**
-- Modify: `cmd/gromit/run2.go` (SpecLoop construction call)
+- Modify: `cmd/gromit/run2_test.go` (or create if absent)
 
-**Step 1: Add WithSpecReviewStage option to SpecLoop construction**
+**What to Do:**
 
-In `run2.go`, find where `NewSpecLoop` is called (via `newSpecLoopFn`) and where spec loop options are assembled. Add `loop.WithSpecReviewStage(components.SpecReviewStage)` to the options list.
-
-Look for the section that builds loop options (search for `WithAcceptStage`, `WithDecomposeStage`, etc.) and add:
+Add tests for `--from-review` behavior. The flag skips plan/decompose/accept/review and runs only beads labeled `from-review`.
 
 ```go
-loop.WithSpecReviewStage(components.SpecReviewStage),
+func TestRun2_FromReviewFlag_QueriesFromReviewBeads(t *testing.T) {
+    // Setup: task tracker has two open beads: one with "from-review", one without
+    // Run with --from-review
+    // Expect: only the from-review bead is passed to bead loop
+}
+
+func TestRun2_FromReviewFlag_WithSpec_FiltersToSpecLabel(t *testing.T) {
+    // Setup: two from-review beads: one with "spec:foo", one with "spec:bar"
+    // Run with --from-review --spec foo
+    // Expect: only the "spec:foo" bead passed to bead loop
+}
+
+func TestRun2_FromReviewFlag_NoAcceptOrReviewInvoked(t *testing.T) {
+    // Run with --from-review
+    // Expect: accept stage not called, spec-review stage not called
+}
 ```
 
-**Step 2: Run build and tests**
+Run: `go test ./cmd/gromit/... -run TestRun2_FromReview -v`
+Expected: FAIL
 
-Run: `go build ./cmd/gromit/`
-Expected: Clean build
+**Acceptance Criteria:**
+1. Tests cover bead filtering by label
+2. Tests verify accept/review stages are not invoked in from-review mode
 
-Run: `go test ./cmd/gromit/...`
-Expected: All tests pass
-
-**Step 3: Commit**
-
-```bash
-git add cmd/gromit/run2.go
-git commit -m "feat: pass SpecReviewStage option to SpecLoop in run2 command"
-```
+**Dependencies:** Task 12
 
 ---
 
-### Task 10: Add --from-review flag to run2
+### Task 16: `--from-review` Flag Implementation
 
 **Files:**
 - Modify: `cmd/gromit/run2.go`
 
-**Step 1: Write tests for from-review flag behavior**
+**What to Do:**
 
-Examine existing run2 tests for patterns, then add:
-
-```go
-func TestRun2_fromReviewFlag_queriesFromReviewBeads(t *testing.T) {
-    // Set --from-review flag
-    // Stub task tracker to return beads with "from-review" label
-    // Assert: plan stage NOT called, decompose NOT called, accept NOT called
-    // Assert: bead loop WAS called with the from-review beads
-}
-
-func TestRun2_fromReviewFlag_withSpecScope(t *testing.T) {
-    // Set --from-review --spec myspec
-    // Stub tracker to return beads with "from-review" AND "spec:myspec" labels
-    // Assert bead loop called with only those beads
-}
-```
-
-**Step 2: Run tests to see them fail**
-
-Run: `go test ./cmd/gromit/...`
-Expected: FAIL (flag doesn't exist yet)
-
-**Step 3: Add the flag in init()**
-
-In `run2.go`'s `init()`:
-
-```go
-func init() {
-    run2Cmd.Flags().String("epic", "", "Run specs scoped to the specified epic")
-    run2Cmd.Flags().Bool("from-review", false, "Run only from-review beads (skip plan/decompose/accept/review)")
-    run2Cmd.Flags().String("spec", "", "Scope --from-review to a specific spec ID")
-}
-```
-
-**Step 4: Handle --from-review in run2()**
-
-At the top of `run2()`, after loading config:
+Add `--from-review` and `--spec` flags (note: `--spec` may already exist for spec ID; add separate `--from-review-spec` or reuse the existing `--spec` flag scoping):
 
 ```go
 fromReview, _ := cmd.Flags().GetBool("from-review")
-if fromReview {
-    specScope, _ := cmd.Flags().GetString("spec")
-    return runFromReview(cmd.Context(), cfg, specScope)
-}
+fromReviewSpec, _ := cmd.Flags().GetString("spec") // reuse existing flag if present
 ```
 
-**Step 5: Implement runFromReview()**
+When `fromReview` is true:
+1. Skip plan, skip decompose
+2. Query open beads with label `"from-review"` (and optional spec label)
+3. Pass them directly to `components.BeadLoop.Run`
+4. Do NOT run accept or spec-level review after the bead loop
 
 ```go
-func runFromReview(ctx context.Context, cfg *config.Config, specScope string) error {
-    // Build minimal adapters: task tracker + bead loop (no LLM needed for querying)
-    gromitDir := resolveGromitDir(cfg)
-    ttAdapter, err := tasktracker.NewBdAdapter(gromitDir)
-    if err != nil {
-        return fmt.Errorf("task tracker: %w", err)
-    }
-
+if fromReview {
     labels := []string{"from-review"}
-    if specScope != "" {
-        labels = append(labels, "spec:"+specScope)
+    if fromReviewSpec != "" {
+        labels = append(labels, "spec:"+fromReviewSpec)
     }
-
-    beads, err := ttAdapter.QueryBeads(ctx, trackertypes.TaskTrackerQueryBeadsRequest{
+    resp, err := taskTracker.QueryBeads(ctx, trackertypes.TaskTrackerQueryBeadsRequest{
         Labels: labels,
         Status: "open",
     })
     if err != nil {
         return fmt.Errorf("query from-review beads: %w", err)
     }
-    if len(beads) == 0 {
-        fmt.Println("No open from-review beads found.")
-        return nil
-    }
-
-    // Build full adapters for bead loop execution.
-    // ... (same adapter setup as regular run2, excluding plan/accept/specreview)
-    // Run beads through bead loop.
-    // No accept, no specreview, no remediation cycle.
-    fmt.Printf("Running %d from-review beads...\n", len(beads))
-    // ... bead loop execution
-    return nil
+    beads := convertBeads(resp.Beads)
+    _, err = components.BeadLoop.Run(ctx, beads, stopCh)
+    return err
 }
 ```
 
-Note: The full adapter setup is complex — reuse `NewRun2LoopComponents` but only invoke `components.BeadLoop.Run(ctx, beads, stopCh)` directly, skipping plan/accept/specreview.
-
-**Step 6: Run tests**
-
-Run: `go test ./cmd/gromit/...`
-Expected: All tests pass
-
-Run: `go test ./...`
-Expected: All tests pass
-
-**Step 7: Run build**
-
-Run: `go build ./cmd/gromit/`
-Expected: Clean build
-
-**Step 8: Commit**
-
-```bash
-git add cmd/gromit/run2.go
-git commit -m "feat: add --from-review flag to run2 for executing from-review beads directly"
-```
-
----
-
-### Task 11: Integration test — full post-bead-loop pipeline
-
-**Files:**
-- Create: `internal/v2/loop/spec_loop_specreview_integration_test.go`
-
-**Step 1: Write integration test**
-
+Register the flag:
 ```go
-func TestIntegration_SpecLoop_AcceptPassReviewPass_Succeeds(t *testing.T) {
-    // Stubs: accept → pass, specreview → pass
-    // Run spec loop through the full pipeline
-    // Assert: no error, no remediation
-}
-
-func TestIntegration_SpecLoop_ReviewFailCritical_TriggersRemediation(t *testing.T) {
-    // Stubs: accept → pass, specreview → fail (critical)
-    // First remediation pass: accept → pass, specreview → pass
-    // Assert: bead loop ran once for remediation beads
-}
-
-func TestIntegration_SpecLoop_AcceptFailReviewFail_CombinesFindings(t *testing.T) {
-    // Stubs: accept → fail with 1 finding, specreview → fail with 1 critical
-    // Assert: decompose receives 2 findings
-}
-
-func TestIntegration_SpecLoop_PassWithImprovements_CreatesFromReviewBeads(t *testing.T) {
-    // Stubs: accept → pass, specreview → pass with 2 warning findings (1 spec, 1 general)
-    // Assert: tracker.CreateBead called twice
-    // Assert: spec-scoped bead has "from-review" and "spec:<id>" labels
-    // Assert: general bead has only "from-review" label
-}
+run2Cmd.Flags().Bool("from-review", false, "run only beads labeled from-review through the bead loop")
 ```
 
-**Step 2: Run integration tests**
+Run: `go test ./cmd/gromit/... -run TestRun2_FromReview -v`
+Expected: PASS
 
-Run: `go test ./internal/v2/loop/... -run TestIntegration_SpecLoop`
-Expected: All pass
+Run: `go build ./...`
+Expected: PASS
 
-**Step 3: Commit**
+**Acceptance Criteria:**
+1. All tests from Task 15 pass
+2. `--from-review` skips plan, decompose, accept, and spec-level review stages
+3. `--spec <id>` with `--from-review` scopes to beads with `spec:<id>` label
+4. From-review beads are not re-triaged for accept/review after bead loop
 
-```bash
-git add internal/v2/loop/spec_loop_specreview_integration_test.go
-git commit -m "test: integration tests for post-bead-loop specreview pipeline"
-```
+**Dependencies:** Task 15, Task 14
 
 ---
 
-## Architecture Summary
+### Task 17: Full Test Suite Pass + Build
 
-```
-SpecLoop.Run()
-  ├── plan stage
-  ├── decompose stage (default template)
-  ├── bead loop (gate → build → validate → review → epilogue)
-  └── ensureAcceptance()
-        ├── accept stage → AcceptArtifacts{Findings: [...SpecFinding]}
-        ├── specreview stage → SpecReviewArtifacts{Verdict, Findings: [...SpecFinding]}
-        ├── if both pass && review has non-critical findings:
-        │     └── createFromReviewBeads() → tracker.CreateBead("from-review"/"spec:<id>")
-        ├── if either has critical findings:
-        │     └── remediationRunner.Run()
-        │           ├── accept + specreview loop
-        │           ├── collectFindings()
-        │           └── executeRemediation(findings)
-        │                 └── decompose (findingsDecomposePromptTemplate)
-        │                       └── bead loop → repeat
-        └── on generation cap → fail
+**Files:** none
 
-run2 --from-review [--spec <id>]
-  └── query open beads with "from-review" label → bead loop (no accept/specreview/remediation)
+**What to Do:**
+
+Run the complete test suite and fix any remaining failures:
+
+```bash
+go build ./...
+go test ./... -v 2>&1 | tail -50
 ```
 
-## Key Invariants
+Check for:
+- Any test that calls `remediationRunner.Run` with old signature (2 args → needs updating to 4 args)
+- Any test that injects `AcceptStage` into `RemediationRunnerConfig` (remove those)
+- Any test that asserts accept is called by the remediation runner (update expectations)
 
-1. **specreview always uses P0 model** — hardcoded in `selectModel()`, not routed
-2. **critical findings always force fail verdict** — enforced in `ParseSpecReviewOutput()`, not trusted from LLM
-3. **findings-based decompose fires when `req.Findings` non-empty** — takes priority over `req.Remediation`+gap-analysis
-4. **from-review beads never trigger accept/specreview** — `runFromReview` calls bead loop directly
-5. **GetFindings() is nil-safe** — `AcceptArtifacts.GetFindings()` and `SpecReviewArtifacts.GetFindings()` return nil on nil receiver
+Fix each failure individually.
+
+**Acceptance Criteria:**
+1. `go build ./...` exits 0
+2. `go test ./...` exits 0 with no test failures
+3. No `os.Chdir` in test files (run: `grep -rn 'os\.Chdir' cmd/ internal/ --include='*_test.go'` returns zero hits)
+
+**Dependencies:** Task 16
+
+---
+
+### Task 18: Commit
+
+**Files:** all modified/created
+
+**What to Do:**
+
+```bash
+git add \
+  internal/v2/stage/stage.go \
+  internal/v2/stage/specreview/ \
+  internal/v2/stage/accept/accept.go \
+  internal/v2/stage/accept/accept_test.go \
+  internal/v2/stage/decompose/decompose.go \
+  internal/v2/stage/decompose/decompose_test.go \
+  internal/v2/remediation/remediation.go \
+  internal/v2/remediation/remediation_test.go \
+  internal/v2/loop/spec_loop.go \
+  internal/v2/loop/spec_loop_specreview_test.go \
+  internal/v2/loop/run2_components.go \
+  cmd/gromit/run2.go \
+  review_spec_v2.md \
+  docs/plans/2026-03-09-spec-level-review-and-targeted-remediation.md
+
+git commit -m "feat: spec-level review, targeted remediation, and --from-review flag"
+```
+
+**Acceptance Criteria:**
+1. Commit includes all new and modified files
+2. No unrelated files staged
+
+**Dependencies:** Task 17
