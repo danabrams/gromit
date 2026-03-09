@@ -14,6 +14,7 @@ import (
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/events"
+	"github.com/danabrams/gromit/internal/tracker"
 	"github.com/danabrams/gromit/internal/v2/adapter"
 	"github.com/danabrams/gromit/internal/v2/adapter/tasktracker"
 	"github.com/danabrams/gromit/internal/v2/event"
@@ -24,9 +25,11 @@ import (
 	"github.com/danabrams/gromit/internal/v2/routing"
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
 	stageaccept "github.com/danabrams/gromit/internal/v2/stage/accept"
+	"github.com/danabrams/gromit/internal/v2/stage/finding"
 	planstage "github.com/danabrams/gromit/internal/v2/stage/plan"
 	present "github.com/danabrams/gromit/internal/v2/stage/present"
 	specreview "github.com/danabrams/gromit/internal/v2/stage/specreview"
+	"github.com/danabrams/gromit/internal/v2/trackertypes"
 )
 
 func TestNewSpecLoopValidation(t *testing.T) {
@@ -157,7 +160,7 @@ func TestSpecLoopHappyPathExecutesPipeline(t *testing.T) {
 	presenter := newFakePresenterAdapter(t)
 	planStage := newFakePlanStage(specID)
 	presentStage, summaryCtx := newPresentStageForTest(t, cfg, presenter)
-	specReviewStage := newScriptedSpecReviewStage(&stagepkg.Result{
+	specReviewStage := newScriptedSpecReviewStage(stagepkg.Result{
 		Decision: stagepkg.DecisionProceed,
 		Artifacts: &specreview.SpecReviewArtifacts{
 			Verdict: "pass",
@@ -504,6 +507,149 @@ func TestSpecLoopSpecreviewDecisionAffectsOutcome(t *testing.T) {
 	})
 }
 
+func TestSpecLoopCreatesFromReviewBeadsBeforePresent(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	specID := "spec-loop-from-review"
+	cfg := &config.Config{}
+
+	git := newFakeGitAdapter(t)
+	taskTracker := &recordingCreateTaskTracker{}
+	presenter := newFakePresenterAdapter(t)
+	presentStage := &assertFromReviewPresentStage{tracker: taskTracker}
+	summaryCtx := &present.SummaryContext{}
+
+	specReviewStage := newScriptedSpecReviewStage(stagepkg.Result{
+		Decision: stagepkg.DecisionProceed,
+		Artifacts: &specreview.SpecReviewArtifacts{
+			Verdict: "pass",
+			Findings: []finding.Finding{
+				{
+					Severity:    finding.SeverityWarning,
+					Category:    finding.CategoryQuality,
+					Scope:       "spec",
+					Description: "spec finding",
+				},
+				{
+					Severity:    finding.SeveritySuggestion,
+					Category:    finding.CategoryQuality,
+					Scope:       "general",
+					Description: "general finding",
+				},
+			},
+		},
+	})
+
+	loopInstance, err := NewSpecLoop(adapter.AdapterSet{
+		Git:         git,
+		LLM:         newFakeLLMAdapter(),
+		TaskTracker: taskTracker,
+		Presenter:   presenter,
+	}, cfg, noopDependencyGate{},
+		WithPlanStage(newFakePlanStage(specID)),
+		WithPresentStage(presentStage, summaryCtx),
+		WithDecomposeStage(newFakeDecomposeStage(specID)),
+		WithBeadLoop(newFakeBeadRunner()),
+		WithAcceptStage(newFakeAcceptStage()),
+		WithSpecReviewStage(specReviewStage),
+	)
+	if err != nil {
+		t.Fatalf("create spec loop: %v", err)
+	}
+
+	if err := loopInstance.Run(ctx, specID, nil); err != nil {
+		t.Fatalf("run spec loop: %v", err)
+	}
+
+	if !presentStage.called {
+		t.Fatal("present stage was not called")
+	}
+	if presentStage.createdAtCall != 2 {
+		t.Fatalf("created beads at present call = %d, want 2", presentStage.createdAtCall)
+	}
+	if len(taskTracker.created) != 2 {
+		t.Fatalf("created beads = %d, want 2", len(taskTracker.created))
+	}
+
+	specLabel := tracker.SpecLabelFor(specID)
+	if !reflect.DeepEqual(taskTracker.created[0].Labels, []string{"from-review", specLabel}) {
+		t.Fatalf("spec finding labels = %v, want [from-review %s]", taskTracker.created[0].Labels, specLabel)
+	}
+	if !reflect.DeepEqual(taskTracker.created[1].Labels, []string{"from-review"}) {
+		t.Fatalf("general finding labels = %v, want [from-review]", taskTracker.created[1].Labels)
+	}
+}
+
+func TestSpecLoopSpecreviewFailurePassesMergedFindingsToRemediation(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	specID := "spec-loop-specreview-merged-findings"
+	cfg := &config.Config{}
+
+	acceptFindings := []finding.Finding{{
+		Severity:    finding.SeverityCritical,
+		Category:    finding.CategoryAcceptance,
+		Scope:       "spec",
+		Description: "accept finding",
+	}}
+	reviewFindings := []finding.Finding{{
+		Severity:    finding.SeverityWarning,
+		Category:    finding.CategoryQuality,
+		Scope:       "general",
+		Description: "review finding",
+	}}
+
+	acceptStage := newScriptedAcceptStage(stagepkg.Result{
+		Decision: stagepkg.DecisionProceed,
+		Artifacts: &stageaccept.AcceptArtifacts{
+			Results: []presentation.AcceptanceResult{{Title: "criterion", Description: "desc"}},
+			Findings: acceptFindings,
+		},
+	})
+	specReviewStage := newScriptedSpecReviewStage(stagepkg.Result{
+		Decision: stagepkg.DecisionFail,
+		Artifacts: &specreview.SpecReviewArtifacts{
+			Verdict:  "fail",
+			Findings: reviewFindings,
+		},
+	})
+	runner := &findingsAwareRemediationRunner{}
+
+	loopInstance, err := NewSpecLoop(adapter.AdapterSet{
+		Git:         newFakeGitAdapter(t),
+		LLM:         newFakeLLMAdapter(),
+		TaskTracker: newFakeTaskTrackerAdapter(),
+		Presenter:   newFakePresenterAdapter(t),
+	}, cfg, noopDependencyGate{},
+		WithPlanStage(newFakePlanStage(specID)),
+		WithPresentStage(newFakePresentStage(), &present.SummaryContext{}),
+		WithDecomposeStage(newFakeDecomposeStage(specID)),
+		WithBeadLoop(newFakeBeadRunner()),
+		WithAcceptStage(acceptStage),
+		WithSpecReviewStage(specReviewStage),
+		WithRemediationRunner(runner),
+	)
+	if err != nil {
+		t.Fatalf("create spec loop: %v", err)
+	}
+
+	if err := loopInstance.Run(ctx, specID, nil); err == nil {
+		t.Fatal("expected failure from specreview stage")
+	}
+
+	if runner.callsWithFindings != 1 {
+		t.Fatalf("remediation calls with findings = %d, want 1", runner.callsWithFindings)
+	}
+	if len(runner.lastFindings) != 2 {
+		t.Fatalf("merged findings count = %d, want 2", len(runner.lastFindings))
+	}
+	if runner.lastFindings[0].Description != "accept finding" || runner.lastFindings[1].Description != "review finding" {
+		t.Fatalf("merged findings = %#v", runner.lastFindings)
+	}
+}
+
 func waitForSpecVerdictEvent(t *testing.T, ch <-chan events.Event, specID string) *events.SpecVerdictEvent {
 	t.Helper()
 	deadline := time.After(5 * time.Second)
@@ -627,11 +773,31 @@ func TestEnsureAcceptanceRetriesRemediationUntilSuccess(t *testing.T) {
 	specID := "spec-loop-ensure-acceptance"
 
 	accept := newScriptedAcceptStage(
-		stagepkg.Result{Decision: stagepkg.DecisionFail},
-		stagepkg.Result{Decision: stagepkg.DecisionFail},
+		stagepkg.Result{
+			Decision: stagepkg.DecisionFail,
+			Artifacts: &stageaccept.AcceptArtifacts{
+				Findings: []finding.Finding{{
+					Severity:    finding.SeverityCritical,
+					Category:    finding.CategoryAcceptance,
+					Scope:       "spec",
+					Description: "first accept failure",
+				}},
+			},
+		},
+		stagepkg.Result{
+			Decision: stagepkg.DecisionFail,
+			Artifacts: &stageaccept.AcceptArtifacts{
+				Findings: []finding.Finding{{
+					Severity:    finding.SeverityCritical,
+					Category:    finding.CategoryAcceptance,
+					Scope:       "spec",
+					Description: "second accept failure",
+				}},
+			},
+		},
 		stagepkg.Result{Decision: stagepkg.DecisionProceed},
 	)
-	runner := &fakeRemediationRunner{}
+	runner := &findingsAwareRemediationRunner{}
 	s := &SpecLoop{
 		acceptStage:       accept,
 		remediationRunner: runner,
@@ -650,6 +816,18 @@ func TestEnsureAcceptanceRetriesRemediationUntilSuccess(t *testing.T) {
 	}
 	if runner.calls != 2 {
 		t.Fatalf("remediation runner calls = %d, want 2", runner.calls)
+	}
+	if runner.callsWithFindings != 2 {
+		t.Fatalf("remediation calls with findings = %d, want 2", runner.callsWithFindings)
+	}
+	if len(runner.findingsByCall) != 2 {
+		t.Fatalf("findings call count = %d, want 2", len(runner.findingsByCall))
+	}
+	if len(runner.findingsByCall[0]) != 1 || runner.findingsByCall[0][0].Description != "first accept failure" {
+		t.Fatalf("first remediation findings = %#v", runner.findingsByCall[0])
+	}
+	if len(runner.findingsByCall[1]) != 1 || runner.findingsByCall[1][0].Description != "second accept failure" {
+		t.Fatalf("second remediation findings = %#v", runner.findingsByCall[1])
 	}
 }
 
@@ -2188,4 +2366,67 @@ func TestSpecLoop_ResumeSkipsPlanWhenPlanFileExists(t *testing.T) {
 		t.Fatal("decompose stage should NOT be called when open beads already exist")
 	}
 	requireBeadIDs(t, beadRunner, []string{"bead-open-1", "bead-open-2"})
+}
+
+type recordingCreateTaskTracker struct {
+	created []trackertypes.TaskTrackerCreateBeadRequest
+}
+
+func (r *recordingCreateTaskTracker) NextBead(_ context.Context, _ trackertypes.TaskTrackerNextBeadRequest) (*trackertypes.TaskTrackerNextBeadResponse, error) {
+	return &trackertypes.TaskTrackerNextBeadResponse{}, nil
+}
+
+func (r *recordingCreateTaskTracker) ShowBead(_ context.Context, _ string) (*trackertypes.Bead, error) {
+	return nil, nil
+}
+
+func (r *recordingCreateTaskTracker) CreateBead(_ context.Context, req trackertypes.TaskTrackerCreateBeadRequest) (*trackertypes.TaskTrackerCreateBeadResponse, error) {
+	r.created = append(r.created, req)
+	return &trackertypes.TaskTrackerCreateBeadResponse{}, nil
+}
+
+func (r *recordingCreateTaskTracker) CloseBead(_ context.Context, _ trackertypes.TaskTrackerCloseBeadRequest) (*trackertypes.TaskTrackerCloseBeadResponse, error) {
+	return &trackertypes.TaskTrackerCloseBeadResponse{Closed: true}, nil
+}
+
+func (r *recordingCreateTaskTracker) QueryBeads(_ context.Context, _ trackertypes.TaskTrackerQueryBeadsRequest) (*trackertypes.TaskTrackerQueryBeadsResponse, error) {
+	return &trackertypes.TaskTrackerQueryBeadsResponse{}, nil
+}
+
+type assertFromReviewPresentStage struct {
+	tracker       *recordingCreateTaskTracker
+	called        bool
+	createdAtCall int
+}
+
+func (s *assertFromReviewPresentStage) Name() string { return "present" }
+
+func (s *assertFromReviewPresentStage) Run(_ context.Context, _ *stagepkg.Request) (*stagepkg.Result, error) {
+	s.called = true
+	if s.tracker != nil {
+		s.createdAtCall = len(s.tracker.created)
+	}
+	return &stagepkg.Result{Decision: stagepkg.DecisionProceed}, nil
+}
+
+type findingsAwareRemediationRunner struct {
+	calls             int
+	callsWithFindings int
+	lastFindings      []finding.Finding
+	findingsByCall    [][]finding.Finding
+	err               error
+}
+
+func (r *findingsAwareRemediationRunner) Run(_ context.Context, _, _ string) error {
+	r.calls++
+	return r.err
+}
+
+func (r *findingsAwareRemediationRunner) RunWithFindings(_ context.Context, _, _ string, findings []finding.Finding) error {
+	r.calls++
+	r.callsWithFindings++
+	cloned := cloneStageFindings(findings)
+	r.lastFindings = cloned
+	r.findingsByCall = append(r.findingsByCall, cloned)
+	return r.err
 }
