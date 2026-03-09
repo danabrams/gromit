@@ -108,17 +108,15 @@ The spec label will be added automatically: spec:%s
 
 var findingsDecomposePromptTemplate = `# Findings Decompose: %s
 
-You are decomposing an implementation plan into targeted fix beads, one per finding listed below.
+You are creating TARGETED beads to address the following findings. Do NOT re-implement work that already exists; focus only on the unmet findings listed below.
 
-## Full Plan
-
-%s
-
-## Findings JSON
+## Full Plan (for architectural context only)
 
 %s
 
-Each finding object includes severity, category, description, and affected files. Create exactly one targeted fix bead per finding. Mention the affected files or directories when describing the bead, the acceptance criteria, or expected outputs, and tie the work back to the reported description. If a finding depends on another fix in this output, reference that earlier bead's 0-based index via depends_on_index so the tracker captures the dependency. Always set depends_on_index when shared affected files appear in multiple findings. Link dependencies whenever files or behaviors overlap across findings.
+## Findings to address
+
+%s
 
 ## Skill Instructions
 
@@ -135,12 +133,13 @@ The implementation may consolidate or restructure deliverables — criteria must
 
 ## Output
 
+ONLY create beads that directly address the findings listed above. Do not create beads that address criteria already satisfied.
 Output ONLY a JSON array of bead definitions. No markdown, no explanations, no wrapper.
 Each bead must include: title, description, priority, acceptance_criteria, expected_outputs, covers_tasks, depends_on_index.
 
 expected_outputs: list each individual deliverable, function, or independently testable item as a separate entry. These drive TDD RED-GREEN cycles — one cycle per entry. Do not summarize or group; enumerate fine-grained items.
-covers_tasks: list the 1-based Task numbers from the plan that this bead covers. Every Task in the plan must be covered by at least one bead.
-depends_on_index: array of 0-based indices of prerequisite beads in THIS output array. If bead at index 2 needs types or functions introduced by beads at indices 0 and 1, set "depends_on_index": [0, 1]. Plans with sequential tasks MUST produce dependency chains — only root beads with no prerequisites should have an empty array. Most beads should depend on at least one earlier bead.
+covers_tasks: list the 1-based Task numbers from the plan that this bead covers (only tasks related to the listed findings).
+depends_on_index: array of 0-based indices of prerequisite beads in THIS output array.
 
 The spec label will be added automatically: spec:%s
 `
@@ -222,23 +221,19 @@ func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Resul
 
 	var promptText string
 	gapAnalysis := s.resolveGapAnalysis(req)
-
-	findingsJSON := ""
-	if len(req.Findings) > 0 {
-		var err error
-		findingsJSON, err = serializeFindings(req.Findings)
-		if err != nil {
-			return nil, err
+	planContent := string(planBody)
+	findings := formatFindings(req)
+	if req.Remediation {
+		switch {
+		case findings != "":
+			promptText = fmt.Sprintf(findingsDecomposePromptTemplate, specID, planContent, findings, skills.DecomposeSkill, specID)
+		case gapAnalysis != "":
+			promptText = fmt.Sprintf(remediationDecomposePromptTemplate, specID, planContent, gapAnalysis, skills.DecomposeSkill, specID)
+		default:
+			promptText = fmt.Sprintf(s.promptTemplate, specID, planContent, skills.DecomposeSkill, specID)
 		}
-	}
-
-	switch {
-	case len(req.Findings) > 0:
-		promptText = fmt.Sprintf(findingsDecomposePromptTemplate, specID, string(planBody), findingsJSON, skills.DecomposeSkill, specID)
-	case req.Remediation && gapAnalysis != "":
-		promptText = fmt.Sprintf(remediationDecomposePromptTemplate, specID, string(planBody), gapAnalysis, skills.DecomposeSkill, specID)
-	default:
-		promptText = fmt.Sprintf(s.promptTemplate, specID, string(planBody), skills.DecomposeSkill, specID)
+	} else {
+		promptText = fmt.Sprintf(s.promptTemplate, specID, planContent, skills.DecomposeSkill, specID)
 	}
 	// Resolve provider: prefer req.Provider, fall back to s.llm.
 	resolvedProvider := s.llm
@@ -347,6 +342,28 @@ func (s *Stage) resolveGapAnalysis(req *stagepkg.Request) string {
 		return ""
 	}
 	return strings.TrimSpace(string(data))
+}
+
+func formatFindings(req *stagepkg.Request) string {
+	if req == nil || len(req.Findings) == 0 {
+		return ""
+	}
+	var builder strings.Builder
+	for idx, finding := range req.Findings {
+		if idx > 0 {
+			builder.WriteString("\n\n")
+		}
+		title := strings.TrimSpace(finding.Title)
+		if title == "" {
+			title = "Untitled finding"
+		}
+		description := strings.TrimSpace(finding.Description)
+		if description == "" {
+			description = "No description available"
+		}
+		fmt.Fprintf(&builder, "- %s\n  Description: %s\n  Severity: %s\n  Category: %s\n  Scope: %s", title, description, finding.Severity, finding.Category, finding.Scope)
+	}
+	return strings.TrimSpace(builder.String())
 }
 
 func (s *Stage) gapAnalysisPath(req *stagepkg.Request) string {
