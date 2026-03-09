@@ -220,6 +220,56 @@ func TestSpecLoopHappyPathExecutesPipeline(t *testing.T) {
 	}
 }
 
+func TestSpecLoopRunsSpecReviewStage(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	specID := "spec-loop-specreview"
+	cfg := &config.Config{}
+
+	recorder := newRecordingStageRecorder()
+
+	git := newFakeGitAdapter(t)
+	llm := newFakeLLMAdapter()
+	taskTracker := newFakeTaskTrackerAdapter()
+	presenter := newFakePresenterAdapter(t)
+	planStage := newFakePlanStage(specID)
+	presentStage, summaryCtx := newPresentStageForTest(t, cfg, presenter)
+
+	adapters := adapter.AdapterSet{
+		Git:         git,
+		LLM:         llm,
+		TaskTracker: taskTracker,
+		Presenter:   presenter,
+	}
+
+	decompose := newFakeDecomposeStage(specID)
+	beadRunner := newFakeBeadRunner()
+	accept := newFakeAcceptStage()
+	specReview := &fakeSpecReviewStage{}
+
+	loopInstance, err := NewSpecLoop(adapters, cfg, noopDependencyGate{},
+		WithStageRecorder(recorder),
+		WithPlanStage(planStage),
+		WithPresentStage(presentStage, summaryCtx),
+		WithDecomposeStage(decompose),
+		WithBeadLoop(beadRunner),
+		WithAcceptStage(accept),
+		WithSpecReviewStage(specReview),
+	)
+	if err != nil {
+		t.Fatalf("create spec loop: %v", err)
+	}
+
+	if err := loopInstance.Run(ctx, specID, nil); err != nil {
+		t.Fatalf("run spec loop: %v", err)
+	}
+
+	if !specReview.called {
+		t.Fatalf("spec review stage did not run")
+	}
+}
+
 func TestBuildSuccessSummaryIncludesOutOfScopeFindings(t *testing.T) {
 	t.Parallel()
 
@@ -1029,6 +1079,21 @@ func (f *fakeAcceptStage) Run(ctx context.Context, req *stagepkg.Request) (*stag
 		Decision:  stagepkg.DecisionProceed,
 		Artifacts: &stageaccept.AcceptArtifacts{Results: append([]presentation.AcceptanceResult(nil), f.results...)},
 	}, nil
+}
+
+type fakeSpecReviewStage struct {
+	called bool
+	result *stagepkg.Result
+}
+
+func (f *fakeSpecReviewStage) Name() string { return "specreview" }
+
+func (f *fakeSpecReviewStage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Result, error) {
+	f.called = true
+	if f.result != nil {
+		return f.result, nil
+	}
+	return &stagepkg.Result{Decision: stagepkg.DecisionProceed}, nil
 }
 
 type fakePlanStage struct {
