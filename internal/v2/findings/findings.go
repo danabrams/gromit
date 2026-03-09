@@ -5,7 +5,9 @@ type Severity string
 
 const (
 	// SeverityCritical signals a failure that forces a fail verdict.
-	SeverityCritical Severity = "critical"
+	SeverityCritical   Severity = "critical"
+	SeverityWarning    Severity = "warning"
+	SeveritySuggestion Severity = "suggestion"
 )
 
 // Verdict describes the pass/fail outcome derived from findings.
