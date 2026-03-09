@@ -333,17 +333,43 @@ func run2FromReview(cmd *cobra.Command, cfg *config.Config) error {
 }
 
 func run2Args(cmd *cobra.Command, args []string) error {
+	fromReview, err := cmd.Flags().GetBool("from-review")
+	if err != nil {
+		return fmt.Errorf("reading from-review flag: %w", err)
+	}
+
+	specScope, err := cmd.Flags().GetString("spec")
+	if err != nil {
+		return fmt.Errorf("reading spec flag: %w", err)
+	}
+
 	epicID, err := cmd.Flags().GetString("epic")
 	if err != nil {
 		return fmt.Errorf("reading epic flag: %w", err)
 	}
 	epicID = strings.TrimSpace(epicID)
+
+	if specScope = strings.TrimSpace(specScope); specScope != "" && !fromReview {
+		return fmt.Errorf("the --spec flag requires --from-review")
+	}
+
+	if fromReview {
+		if epicID != "" {
+			return fmt.Errorf("--from-review cannot be combined with --epic")
+		}
+		if len(args) > 0 {
+			return fmt.Errorf("--from-review cannot be combined with a spec file")
+		}
+		return nil
+	}
+
 	if epicID != "" {
 		if len(args) > 0 {
 			return fmt.Errorf("the --epic flag cannot be combined with a spec file")
 		}
 		return nil
 	}
+
 	if len(args) != 1 {
 		return fmt.Errorf("spec file argument required")
 	}
