@@ -9,6 +9,7 @@ import (
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/v2/stage"
+	"github.com/danabrams/gromit/internal/v2/stage/finding"
 )
 
 func TestRemediationRunnerRun_requiresSpecID(t *testing.T) {
@@ -443,6 +444,78 @@ func TestRemediation_CreatesRemediationPlanNotOriginal(t *testing.T) {
 	}
 	if !decomposeCalled {
 		t.Fatal("decompose stage was not called")
+	}
+}
+
+func TestRemediationRunnerSkipsPlanStageWhenFindingsProvided(t *testing.T) {
+	t.Parallel()
+
+	findings := []finding.Finding{
+		{
+			Severity:    finding.SeverityWarning,
+			Category:    finding.CategoryQuality,
+			Description: "existing review finding",
+		},
+	}
+
+	acceptCalls := 0
+	accept := &testStage{
+		name: "accept",
+		run: func(ctx context.Context, req *stage.Request) (*stage.Result, error) {
+			acceptCalls++
+			if acceptCalls == 1 {
+				return &stage.Result{
+					Decision:  stage.DecisionFail,
+					Artifacts: &gapArtifacts{gap: "gap"},
+				}, nil
+			}
+			return &stage.Result{
+				Decision: stage.DecisionProceed,
+			}, nil
+		},
+	}
+
+	planCalled := false
+	planStage := &testStage{
+		name: "plan",
+		run: func(ctx context.Context, req *stage.Request) (*stage.Result, error) {
+			planCalled = true
+			return &stage.Result{}, nil
+		},
+	}
+
+	var capturedFindings []finding.Finding
+	decompose := &testStage{
+		name: "decompose",
+		run: func(ctx context.Context, req *stage.Request) (*stage.Result, error) {
+			capturedFindings = req.Findings
+			return &stage.Result{
+				Artifacts: &stage.DecomposeArtifacts{
+					Beads: []*bead.Bead{{ID: "remediation-bead"}},
+				},
+			}, nil
+		},
+	}
+
+	runner := NewRemediationRunner(RemediationRunnerConfig{
+		AcceptStage:    accept,
+		PlanStage:      planStage,
+		DecomposeStage: decompose,
+		BeadRunner:     &testBeadRunner{},
+		GenerationCap:  1,
+		Findings:       findings,
+	})
+
+	if err := runner.Run(context.Background(), "spec-findings", ""); err != nil {
+		t.Fatalf("run failed: %v", err)
+	}
+
+	if planCalled {
+		t.Fatal("plan stage should not run when findings exist")
+	}
+
+	if len(capturedFindings) != len(findings) || capturedFindings[0].Description != findings[0].Description {
+		t.Fatalf("findings were not forwarded to decompose: %v", capturedFindings)
 	}
 }
 
