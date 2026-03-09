@@ -49,6 +49,14 @@ type planContentProvider interface {
 	GetPlanContent() string
 }
 
+// planContentProvider is implemented by artifacts that carry generated plan text.
+// The plan stage's PlanArtifacts satisfies this interface when a GetPlanContent
+// method is added, allowing the remediation runner to persist the actual
+// remediation plan rather than just the gap analysis.
+type planContentProvider interface {
+	GetPlanContent() string
+}
+
 var (
 	ErrSpecIDRequired               = errors.New("spec ID required")
 	ErrBeadRunnerRequired           = errors.New("bead runner required")
@@ -170,6 +178,16 @@ func extractPlanContent(res *stage.Result) string {
 	return ""
 }
 
+func extractPlanContent(res *stage.Result) string {
+	if res == nil || res.Artifacts == nil {
+		return ""
+	}
+	if pp, ok := res.Artifacts.(planContentProvider); ok {
+		return pp.GetPlanContent()
+	}
+	return ""
+}
+
 func (r *RemediationRunner) executeRemediation(ctx context.Context, req *stage.Request, gapAnalysis string) error {
 	specID := req.Bead.ID
 	if !r.canRemediate() {
@@ -211,18 +229,27 @@ func (r *RemediationRunner) executeRemediation(ctx context.Context, req *stage.R
 		}
 	}
 
+	var planContent string
 	if r.cfg.PlanStage != nil {
-		if _, err := r.cfg.PlanStage.Run(ctx, req); err != nil {
+		planRes, err := r.cfg.PlanStage.Run(ctx, req)
+		if err != nil {
 			return fmt.Errorf("remediation plan: %w", err)
 		}
+		planContent = extractPlanContent(planRes)
 	}
 
 	if req.Worktree != "" {
+		// Persist the plan stage output when available; otherwise fall back to
+		// the gap analysis so there is always a remediation record on disk.
+		content := planContent
+		if content == "" {
+			content = gapAnalysis
+		}
 		planPath := r.remediationPlanPath(req.Worktree)
 		if err := os.MkdirAll(filepath.Dir(planPath), 0o755); err != nil {
 			return fmt.Errorf("create remediation plan dir: %w", err)
 		}
-		if err := os.WriteFile(planPath, []byte(gapAnalysis), 0o644); err != nil {
+		if err := os.WriteFile(planPath, []byte(content), 0o644); err != nil {
 			return fmt.Errorf("persist remediation plan: %w", err)
 		}
 	}
