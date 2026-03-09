@@ -3,11 +3,10 @@ package remediation
 import (
 	"context"
 	"errors"
-	"reflect"
+	"fmt"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/bead"
-	"github.com/danabrams/gromit/internal/v2/findings"
 	"github.com/danabrams/gromit/internal/v2/stage"
 )
 
@@ -49,6 +48,40 @@ func TestRemediationRunnerRun_requiresValidDecomposeArtifacts(t *testing.T) {
 
 	if err := runner.Run(context.Background(), "spec-id", ""); !errors.Is(err, ErrUnexpectedDecomposeArtifacts) {
 		t.Fatalf("expected ErrUnexpectedDecomposeArtifacts, got %v", err)
+	}
+}
+
+func TestRemediationRunnerRunWithFindingsCallsDecomposeAndBeadRunner(t *testing.T) {
+	findings := []stage.Finding{{Description: "Fix flake", Severity: stage.FindingSeverityWarning}}
+	var capturedReq *stage.Request
+	decompose := &testStage{
+		name: "decompose",
+		run: func(ctx context.Context, req *stage.Request) (*stage.StageResult, error) {
+			capturedReq = req
+			return &stage.StageResult{
+				Artifacts: &stage.DecomposeArtifacts{Beads: []*bead.Bead{{ID: "fix-bead"}}},
+			}, nil
+		},
+	}
+
+	beadRunner := &recordingBeadRunner{expectedBeadID: "fix-bead"}
+	runner := newRunnerForRemediationCycle(nil, decompose, beadRunner, 1)
+
+	if err := runner.Run(context.Background(), "spec-id", "/worktree", findings); err != nil {
+		t.Fatalf("runner.Run failed: %v", err)
+	}
+
+	if capturedReq == nil {
+		t.Fatal("decompose stage was not called")
+	}
+	if !capturedReq.Remediation {
+		t.Fatal("expected remediation flag to be set")
+	}
+	if len(capturedReq.Findings) != len(findings) || capturedReq.Findings[0].Description != "Fix flake" {
+		t.Fatalf("Findings = %v, want %v", capturedReq.Findings, findings)
+	}
+	if beadRunner.callCount != 1 {
+		t.Fatalf("bead runner called %d times, want 1", beadRunner.callCount)
 	}
 }
 
@@ -297,77 +330,13 @@ func TestRemediationRunnerGapAnalysisFlowsToDecompose(t *testing.T) {
 	}
 }
 
-func TestRemediationRunnerPassesFindingsToDecompose(t *testing.T) {
-	t.Parallel()
-
-	expected := []findings.Finding{
-		{
-			Severity:    findings.SeverityCritical,
-			Category:    "acceptance",
-			Scope:       "spec",
-			Description: "criterion 1 failed",
-		},
-	}
-
-	acceptCalls := 0
-	accept := &testStage{
-		name: "accept",
-		run: func(ctx context.Context, req *stage.Request) (*stage.StageResult, error) {
-			acceptCalls++
-			if acceptCalls == 1 {
-				return &stage.StageResult{
-					Decision: stage.DecisionFail,
-					Artifacts: &gapArtifacts{
-						gap:      "failed",
-						findings: expected,
-					},
-				}, nil
-			}
-			return &stage.StageResult{Decision: stage.DecisionProceed}, nil
-		},
-	}
-
-	var captured []findings.Finding
-	decompose := &testStage{
-		name: "decompose",
-		run: func(ctx context.Context, req *stage.Request) (*stage.StageResult, error) {
-			captured = append([]findings.Finding(nil), req.Findings...)
-			return &stage.StageResult{
-				Artifacts: &stage.DecomposeArtifacts{Beads: []*bead.Bead{{ID: "remediation-bead"}}},
-			}, nil
-		},
-	}
-
-	runner := newRunnerForRemediationCycle(accept, decompose, &testBeadRunner{}, 1)
-	if err := runner.Run(context.Background(), "spec-findings", ""); err != nil {
-		t.Fatalf("run failed: %v", err)
-	}
-
-	if !reflect.DeepEqual(captured, expected) {
-		t.Fatalf("findings = %#v, want %#v", captured, expected)
-	}
-}
-
 // gapArtifacts is a test helper implementing the gapSummaryProvider interface.
 type gapArtifacts struct {
-	gap      string
-	findings []findings.Finding
+	gap string
 }
 
 func (g *gapArtifacts) GetGapSummary() string {
-	if g == nil {
-		return ""
-	}
 	return g.gap
-}
-
-func (g *gapArtifacts) GetFindings() []findings.Finding {
-	if g == nil || len(g.findings) == 0 {
-		return nil
-	}
-	result := make([]findings.Finding, len(g.findings))
-	copy(result, g.findings)
-	return result
 }
 
 func newRunnerForSpecValidation() *RemediationRunner {
@@ -432,5 +401,21 @@ func (s *testStage) Run(ctx context.Context, req *stage.Request) (*stage.StageRe
 type testBeadRunner struct{}
 
 func (testBeadRunner) Run(context.Context, []*bead.Bead) error {
+	return nil
+}
+
+type recordingBeadRunner struct {
+	callCount      int
+	expectedBeadID string
+}
+
+func (r *recordingBeadRunner) Run(ctx context.Context, beads []*bead.Bead) error {
+	r.callCount++
+	if len(beads) != 1 {
+		return fmt.Errorf("expected 1 bead, got %d", len(beads))
+	}
+	if r.expectedBeadID != "" && beads[0].ID != r.expectedBeadID {
+		return fmt.Errorf("unexpected bead id %q", beads[0].ID)
+	}
 	return nil
 }
