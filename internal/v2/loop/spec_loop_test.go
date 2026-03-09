@@ -270,6 +270,49 @@ func TestSpecLoopRunsSpecReviewStage(t *testing.T) {
 	}
 }
 
+func TestSpecLoopFailsWhenSpecreviewFails(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	specID := "spec-loop-specreview-fail"
+	cfg := &config.Config{}
+
+	git := newFakeGitAdapter(t)
+	llm := newFakeLLMAdapter()
+	taskTracker := newFakeTaskTrackerAdapter()
+	presenter := newFakePresenterAdapter(t)
+	planStage := newFakePlanStage(specID)
+	presentStage, summaryCtx := newPresentStageForTest(t, cfg, presenter)
+
+	adapters := adapter.AdapterSet{
+		Git:         git,
+		LLM:         llm,
+		TaskTracker: taskTracker,
+		Presenter:   presenter,
+	}
+
+	decompose := newFakeDecomposeStage(specID)
+	beadRunner := newFakeBeadRunner()
+	accept := newFakeAcceptStage()
+	specReview := &fakeSpecReviewStage{result: &stagepkg.Result{Decision: stagepkg.DecisionFail}}
+
+	loopInstance, err := NewSpecLoop(adapters, cfg, noopDependencyGate{},
+		WithPlanStage(planStage),
+		WithPresentStage(presentStage, summaryCtx),
+		WithDecomposeStage(decompose),
+		WithBeadLoop(beadRunner),
+		WithAcceptStage(accept),
+		WithSpecReviewStage(specReview),
+	)
+	if err != nil {
+		t.Fatalf("create spec loop: %v", err)
+	}
+
+	if err := loopInstance.Run(ctx, specID, nil); err == nil {
+		t.Fatal("expected error when spec review stage fails")
+	}
+}
+
 func TestBuildSuccessSummaryIncludesOutOfScopeFindings(t *testing.T) {
 	t.Parallel()
 
