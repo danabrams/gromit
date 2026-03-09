@@ -229,6 +229,7 @@ func NewRun2LoopComponents(cfg *config.Config, adapters adapter.AdapterSet, lega
 
 	remediationRunner := v2remediation.NewRemediationRunner(v2remediation.RemediationRunnerConfig{
 		DecomposeStage: decomposeStage,
+		PlanStage:      planStage,
 		BeadRunner:     &remediationBeadRunner{loop: beadLoop},
 		GenerationCap:  v2remediation.DefaultGenerationCap,
 		Emitter:        legacyEmitter,
