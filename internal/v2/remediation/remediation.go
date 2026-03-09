@@ -131,7 +131,7 @@ func extractPlanContent(res *stage.Result) string {
 	return ""
 }
 
-func (r *RemediationRunner) executeRemediation(ctx context.Context, req *stage.Request, gapAnalysis string, findings []finding.Finding) error {
+func (r *RemediationRunner) executeRemediation(ctx context.Context, req *stage.Request, gapAnalysis string) error {
 	specID := req.Bead.ID
 	if !r.canRemediate() {
 		return r.handleGenerationCap(ctx, specID)
@@ -174,18 +174,27 @@ func (r *RemediationRunner) executeRemediation(ctx context.Context, req *stage.R
 		}
 	}
 
+	var planContent string
 	if r.cfg.PlanStage != nil {
-		if _, err := r.cfg.PlanStage.Run(ctx, req); err != nil {
+		planRes, err := r.cfg.PlanStage.Run(ctx, req)
+		if err != nil {
 			return fmt.Errorf("remediation plan: %w", err)
 		}
+		planContent = extractPlanContent(planRes)
 	}
 
 	if req.Worktree != "" {
+		// Persist the plan stage output when available; otherwise fall back to
+		// the gap analysis so there is always a remediation record on disk.
+		content := planContent
+		if content == "" {
+			content = gapAnalysis
+		}
 		planPath := r.remediationPlanPath(req.Worktree)
 		if err := os.MkdirAll(filepath.Dir(planPath), 0o755); err != nil {
 			return fmt.Errorf("create remediation plan dir: %w", err)
 		}
-		if err := os.WriteFile(planPath, []byte(gapAnalysis), 0o644); err != nil {
+		if err := os.WriteFile(planPath, []byte(content), 0o644); err != nil {
 			return fmt.Errorf("persist remediation plan: %w", err)
 		}
 	}

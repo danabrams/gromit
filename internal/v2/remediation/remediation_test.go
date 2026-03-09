@@ -608,3 +608,148 @@ func TestRemediation_SecondRemediationCreatesRemediationPlan2(t *testing.T) {
 		t.Fatalf("remediation-2.md = %q, want %q", string(rem2), gap2)
 	}
 }
+
+// planArtifactsWithContent is a test helper implementing planContentProvider.
+type planArtifactsWithContent struct {
+	plan string
+}
+
+func (p *planArtifactsWithContent) GetPlanContent() string {
+	return p.plan
+}
+
+func TestRemediation_PersistsPlanContentOverGapAnalysis(t *testing.T) {
+	t.Parallel()
+
+	worktree := t.TempDir()
+	gapText := "Criterion 1 failed: missing integration"
+	planText := "# Remediation Plan\n\n## Tasks\n1. Add integration tests"
+
+	acceptCalls := 0
+	accept := &testStage{
+		name: "accept",
+		run: func(ctx context.Context, req *stage.Request) (*stage.Result, error) {
+			acceptCalls++
+			if acceptCalls == 1 {
+				return &stage.Result{
+					Decision:  stage.DecisionFail,
+					Artifacts: &gapArtifacts{gap: gapText},
+				}, nil
+			}
+			return &stage.Result{Decision: stage.DecisionProceed}, nil
+		},
+	}
+
+	planStage := &testStage{
+		name: "plan",
+		run: func(ctx context.Context, req *stage.Request) (*stage.Result, error) {
+			return &stage.Result{
+				Artifacts: &planArtifactsWithContent{plan: planText},
+			}, nil
+		},
+	}
+
+	decompose := &testStage{
+		name: "decompose",
+		run: func(ctx context.Context, req *stage.Request) (*stage.Result, error) {
+			return &stage.Result{
+				Artifacts: &stage.DecomposeArtifacts{
+					Beads: []*bead.Bead{{ID: "b1"}},
+				},
+			}, nil
+		},
+	}
+
+	runner := NewRemediationRunner(RemediationRunnerConfig{
+		AcceptStage:    accept,
+		PlanStage:      planStage,
+		DecomposeStage: decompose,
+		BeadRunner:     &testBeadRunner{},
+		GenerationCap:  1,
+	})
+
+	if err := runner.Run(context.Background(), "spec-plan-content", worktree); err != nil {
+		t.Fatalf("run failed: %v", err)
+	}
+
+	gromitDir := filepath.Join(worktree, ".gromit", "v2")
+	remContent, err := os.ReadFile(filepath.Join(gromitDir, "remediation-1.md"))
+	if err != nil {
+		t.Fatalf("remediation-1.md not found: %v", err)
+	}
+	if string(remContent) != planText {
+		t.Fatalf("remediation-1.md = %q, want plan content %q", string(remContent), planText)
+	}
+}
+
+func TestRemediation_FallsBackToGapAnalysisWhenNoPlanContent(t *testing.T) {
+	t.Parallel()
+
+	worktree := t.TempDir()
+	gapText := "Criterion 3 failed: no event log"
+
+	acceptCalls := 0
+	accept := &testStage{
+		name: "accept",
+		run: func(ctx context.Context, req *stage.Request) (*stage.Result, error) {
+			acceptCalls++
+			if acceptCalls == 1 {
+				return &stage.Result{
+					Decision:  stage.DecisionFail,
+					Artifacts: &gapArtifacts{gap: gapText},
+				}, nil
+			}
+			return &stage.Result{Decision: stage.DecisionProceed}, nil
+		},
+	}
+
+	// Plan stage returns empty artifacts (no plan content).
+	planStage := &testStage{
+		name: "plan",
+		run: func(ctx context.Context, req *stage.Request) (*stage.Result, error) {
+			return &stage.Result{}, nil
+		},
+	}
+
+	decompose := &testStage{
+		name: "decompose",
+		run: func(ctx context.Context, req *stage.Request) (*stage.Result, error) {
+			return &stage.Result{
+				Artifacts: &stage.DecomposeArtifacts{
+					Beads: []*bead.Bead{{ID: "b1"}},
+				},
+			}, nil
+		},
+	}
+
+	runner := NewRemediationRunner(RemediationRunnerConfig{
+		AcceptStage:    accept,
+		PlanStage:      planStage,
+		DecomposeStage: decompose,
+		BeadRunner:     &testBeadRunner{},
+		GenerationCap:  1,
+	})
+
+	if err := runner.Run(context.Background(), "spec-fallback", worktree); err != nil {
+		t.Fatalf("run failed: %v", err)
+	}
+
+	gromitDir := filepath.Join(worktree, ".gromit", "v2")
+	remContent, err := os.ReadFile(filepath.Join(gromitDir, "remediation-1.md"))
+	if err != nil {
+		t.Fatalf("remediation-1.md not found: %v", err)
+	}
+	if string(remContent) != gapText {
+		t.Fatalf("remediation-1.md = %q, want gap analysis %q", string(remContent), gapText)
+	}
+}
+
+func TestRemediation_RemediationBeadsCarrySpecLabel(t *testing.T) {
+	// SKIP: The spec label (e.g. "spec:SPECID") is applied by the decompose
+	// stage (internal/v2/stage/decompose), not by the remediation runner.
+	// The remediation runner receives beads from DecomposeStage.Run() with
+	// labels already attached. Testing spec-label presence here would require
+	// wiring up the real decompose stage, which is an integration-level concern.
+	// The unit-level spec-label tests belong in internal/v2/stage/decompose/.
+	t.Skip("spec labels are applied by the decompose stage, not the remediation runner")
+}
