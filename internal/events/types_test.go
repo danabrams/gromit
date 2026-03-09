@@ -23,6 +23,7 @@ func TestAllEventTypesImplementEvent(t *testing.T) {
 	beadStuckEvent := &BeadStuckEvent{BeadID: "b1", BeadTitle: "Test", Reason: "stalled"}
 	beadUnstickedEvent := &BeadUnstickedEvent{BeadID: "b1", Reason: "manual"}
 	beadSkippedEvent := &BeadSkippedEvent{BeadID: "b1", Reason: "test"}
+	specVerdictEvent := &SpecVerdictEvent{SpecID: "spec-1", Worktree: "/tmp", AcceptDecision: "proceed", SpecReviewDecision: "proceed", SpecReviewVerdict: "pass", Success: true}
 
 	// Phase events
 	buildStartEvent := &BuildStartEvent{BeadID: "b1", Model: "opus", Attempt: 1}
@@ -70,6 +71,7 @@ func TestAllEventTypesImplementEvent(t *testing.T) {
 	events := []Event{
 		runStartEvent, runCompleteEvent, iterStartEvent, iterCompleteEvent,
 		beadCompleteEvent, beadFailedEvent, beadStuckEvent, beadUnstickedEvent, beadSkippedEvent,
+		specVerdictEvent,
 		buildStartEvent, buildCompleteEvent, validationStartEvent, validationPassEvent,
 		validationFailEvent, reviewStartEvent, reviewCompleteEvent, reviewFindingEvent,
 		analysisStartEvent, analysisCompleteEvent, retroStartEvent, retroCompleteEvent,
@@ -141,11 +143,12 @@ func TestEventTypeStringsAreUnique(t *testing.T) {
 		(&EpilogueCompleteEvent{}).EventType():  true,
 		(&BeadCloseEvent{}).EventType():         true,
 		(&BeadCleanupEvent{}).EventType():       true,
+		(&SpecVerdictEvent{}).EventType():       true,
 	}
 
 	// If we reach here, all EventType() strings are unique (map keys are unique)
-	if len(eventTypes) != 37 {
-		t.Errorf("Expected 37 unique event types, got %d", len(eventTypes))
+	if len(eventTypes) != 38 {
+		t.Errorf("Expected 38 unique event types, got %d", len(eventTypes))
 	}
 }
 

@@ -23,6 +23,7 @@ import (
 	stageaccept "github.com/danabrams/gromit/internal/v2/stage/accept"
 	planstage "github.com/danabrams/gromit/internal/v2/stage/plan"
 	present "github.com/danabrams/gromit/internal/v2/stage/present"
+	specreview "github.com/danabrams/gromit/internal/v2/stage/specreview"
 	"github.com/danabrams/gromit/internal/v2/trackertypes"
 )
 
@@ -42,6 +43,7 @@ var StageSequence = []string{
 	"review",
 	"epilogue",
 	"accept",
+	"specreview",
 	"present",
 }
 
@@ -116,6 +118,13 @@ func WithRemediationRunner(r remediationRunner) SpecLoopOption {
 func WithAcceptStage(stage stagepkg.Stage) SpecLoopOption {
 	return func(s *SpecLoop) {
 		s.acceptStage = stage
+	}
+}
+
+// WithSpecReviewStage configures the spec-level review stage the loop should evaluate.
+func WithSpecReviewStage(stage stagepkg.Stage) SpecLoopOption {
+	return func(s *SpecLoop) {
+		s.specReviewStage = stage
 	}
 }
 
@@ -201,6 +210,7 @@ type SpecLoop struct {
 	gate                  DependencyGate
 	recorder              StageRecorder
 	acceptStage           stagepkg.Stage
+	specReviewStage       stagepkg.Stage
 	emitter               *events.Emitter
 	typedEmitter          *event.Emitter
 	stageCommitter        StageCommitter
@@ -424,6 +434,28 @@ func (s *SpecLoop) Run(ctx context.Context, specID string, stopCh <-chan struct{
 		return err
 	}
 
+	s.recordStage("specreview")
+	if s.specReviewStage != nil {
+		specreviewRes, err := s.runSpecReviewStage(ctx, &req)
+		if err != nil {
+			handleFailureCleaned = true
+			return s.handleFailure(ctx, specID, summary, err)
+		}
+		if specreviewRes == nil {
+			handleFailureCleaned = true
+			return s.handleFailure(ctx, specID, summary, fmt.Errorf("spec review stage returned no result"))
+		}
+		s.emitSpecVerdict(specID, worktree, acceptRes, specreviewRes)
+		if s.specReviewFailed(specreviewRes) {
+			verdict := s.extractSpecReviewVerdict(specreviewRes)
+			handleFailureCleaned = true
+			return s.handleFailure(ctx, specID, summary, fmt.Errorf("spec review failed: verdict=%s", verdict))
+		}
+		if err := s.commitStage(ctx, worktree, "specreview", 0, "proceed"); err != nil {
+			return fmt.Errorf("commit after specreview: %w", err)
+		}
+	}
+
 	if err := s.presentSummary(ctx, specID, summary); err != nil {
 		return err
 	}
@@ -575,6 +607,71 @@ func (s *SpecLoop) acceptFailed(res *stagepkg.Result) bool {
 		return false
 	}
 	return res.Decision == stagepkg.DecisionFail
+}
+
+func (s *SpecLoop) runSpecReviewStage(ctx context.Context, req *stagepkg.Request) (*stagepkg.Result, error) {
+	if s.specReviewStage == nil {
+		return nil, nil
+	}
+	res, err := s.specReviewStage.Run(ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("spec review stage: %w", err)
+	}
+	return res, nil
+}
+
+func (s *SpecLoop) specReviewFailed(res *stagepkg.Result) bool {
+	if res == nil {
+		return false
+	}
+	return res.Decision == stagepkg.DecisionFail
+}
+
+func (s *SpecLoop) extractSpecReviewVerdict(res *stagepkg.Result) string {
+	if res == nil || res.Artifacts == nil {
+		return ""
+	}
+	artifacts, ok := res.Artifacts.(*specreview.SpecReviewArtifacts)
+	if !ok || artifacts == nil {
+		return ""
+	}
+	return strings.TrimSpace(artifacts.Verdict)
+}
+
+func (s *SpecLoop) emitSpecVerdict(specID, worktree string, acceptRes, specreviewRes *stagepkg.Result) {
+	if acceptRes == nil || specreviewRes == nil {
+		return
+	}
+	acceptDecision := acceptRes.Decision.String()
+	specReviewDecision := specreviewRes.Decision.String()
+	specReviewVerdict := s.extractSpecReviewVerdict(specreviewRes)
+	success := acceptRes.Decision == stagepkg.DecisionProceed && specreviewRes.Decision == stagepkg.DecisionProceed
+	timestamp := time.Now()
+	typedEvt := event.SpecVerdictEvent{
+		Event: event.Event{
+			SchemaVersion: event.SchemaVersion,
+			Timestamp:     timestamp,
+			Type:          event.EventTypeSpecVerdict,
+		},
+		SpecID:             specID,
+		Worktree:           worktree,
+		AcceptDecision:     acceptDecision,
+		SpecReviewDecision: specReviewDecision,
+		SpecReviewVerdict:  specReviewVerdict,
+		Success:            success,
+	}
+	if s.typedEmitter != nil {
+		s.typedEmitter.Emit(typedEvt)
+	}
+	s.emit(&events.SpecVerdictEvent{
+		SpecID:             specID,
+		Worktree:           worktree,
+		AcceptDecision:     acceptDecision,
+		SpecReviewDecision: specReviewDecision,
+		SpecReviewVerdict:  specReviewVerdict,
+		Success:            success,
+		TimeMixin:          events.TimeMixin{Time: timestamp},
+	})
 }
 
 func (s *SpecLoop) buildSuccessSummary(specID, worktree, plan string, beads []*bead.Bead, acceptRes *stagepkg.Result, outOfScope []v2review.Finding) presentation.PresentationSummary {

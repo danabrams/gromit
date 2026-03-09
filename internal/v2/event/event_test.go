@@ -42,6 +42,7 @@ func TestEventDefinitions(t *testing.T) {
 		expectEmbeddedEvent(t, reflect.TypeOf(ValidationEvent{}))
 		expectEmbeddedEvent(t, reflect.TypeOf(ReviewEvent{}))
 		expectEmbeddedEvent(t, reflect.TypeOf(SpecReviewCompletedEvent{}))
+		expectEmbeddedEvent(t, reflect.TypeOf(SpecVerdictEvent{}))
 		expectEmbeddedEvent(t, reflect.TypeOf(ScopeEvent{}))
 		expectEmbeddedEvent(t, reflect.TypeOf(TelemetryEvent{}))
 	})
@@ -201,6 +202,19 @@ func TestEventJSONRoundTrip(t *testing.T) {
 				Success:          false,
 			},
 			expectedFields: []string{"schema_version", "spec_id", "worktree", "verdict", "finding_count", "critical_findings", "success"},
+		},
+		{
+			name: "SpecVerdictEvent",
+			event: SpecVerdictEvent{
+				Event:              event.Event{SchemaVersion: SchemaVersion, Timestamp: now, Type: EventTypeSpecVerdict},
+				SpecID:             "spec-456",
+				Worktree:           "/tmp/worktree",
+				AcceptDecision:     "proceed",
+				SpecReviewDecision: "proceed",
+				SpecReviewVerdict:  "pass",
+				Success:            true,
+			},
+			expectedFields: []string{"schema_version", "spec_id", "worktree", "accept_decision", "spec_review_decision", "spec_review_verdict", "success"},
 		},
 		{
 			name: "ScopeEvent",
@@ -448,6 +462,19 @@ func TestEventJSONFieldNames(t *testing.T) {
 				FailureReason: "timeout",
 			},
 			expectedSnakeCase: []string{"schema_version", "spec_id", "failure_reason"},
+		},
+		{
+			name: "SpecVerdictEvent",
+			event: SpecVerdictEvent{
+				Event:              Event{SchemaVersion: SchemaVersion, Timestamp: now, Type: EventTypeSpecVerdict},
+				SpecID:             "s2",
+				Worktree:           "/w2",
+				AcceptDecision:     "proceed",
+				SpecReviewDecision: "proceed",
+				SpecReviewVerdict:  "pass",
+				Success:            true,
+			},
+			expectedSnakeCase: []string{"spec_id", "worktree", "accept_decision", "spec_review_decision", "spec_review_verdict", "success"},
 		},
 		{
 			name: "BeadStartedEvent",

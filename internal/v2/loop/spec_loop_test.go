@@ -481,7 +481,7 @@ func TestSpecLoopSpecreviewDecisionAffectsOutcome(t *testing.T) {
 
 	t.Run("proceed", func(t *testing.T) {
 		review := newScriptedSpecReviewStage(stagepkg.Result{
-			Decision: stagepkg.DecisionProceed,
+			Decision:  stagepkg.DecisionProceed,
 			Artifacts: &specreview.SpecReviewArtifacts{Verdict: "pass"},
 		})
 		runLoop(t, review, false, true, "pass")
@@ -489,7 +489,7 @@ func TestSpecLoopSpecreviewDecisionAffectsOutcome(t *testing.T) {
 
 	t.Run("fail", func(t *testing.T) {
 		review := newScriptedSpecReviewStage(stagepkg.Result{
-			Decision: stagepkg.DecisionFail,
+			Decision:  stagepkg.DecisionFail,
 			Artifacts: &specreview.SpecReviewArtifacts{Verdict: "fail"},
 		})
 		runLoop(t, review, true, false, "fail")

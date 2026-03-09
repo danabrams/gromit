@@ -21,6 +21,7 @@ const (
 	EventTypeSpecStarted             = "spec.started"
 	EventTypeSpecCompleted           = "spec.completed"
 	EventTypeSpecFailed              = "spec.failed"
+	EventTypeSpecVerdict             = "spec.verdict"
 	EventTypeBeadStarted             = "bead.started"
 	EventTypeBeadCompleted           = "bead.completed"
 	EventTypeStageStarted            = "stage.started"
@@ -180,6 +181,19 @@ type SpecReviewCompletedEvent struct {
 }
 
 func (SpecReviewCompletedEvent) EventType() string { return EventTypeSpecReviewCompleted }
+
+// SpecVerdictEvent records the combined acceptance and spec review verdict for a spec run.
+type SpecVerdictEvent struct {
+	Event
+	SpecID             string `json:"spec_id,omitempty"`
+	Worktree           string `json:"worktree,omitempty"`
+	AcceptDecision     string `json:"accept_decision,omitempty"`
+	SpecReviewDecision string `json:"spec_review_decision,omitempty"`
+	SpecReviewVerdict  string `json:"spec_review_verdict,omitempty"`
+	Success            bool   `json:"success"`
+}
+
+func (SpecVerdictEvent) EventType() string { return EventTypeSpecVerdict }
 
 // ScopeEvent captures the result of a scope check.
 type ScopeEvent struct {

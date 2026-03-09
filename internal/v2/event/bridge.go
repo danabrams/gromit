@@ -61,6 +61,10 @@ func legacyEventsFromTyped(evt TypedEvent) []events.Event {
 		return legacySpecReviewCompleted(e)
 	case SpecReviewCompletedEvent:
 		return legacySpecReviewCompleted(&e)
+	case *SpecVerdictEvent:
+		return legacySpecVerdict(e)
+	case SpecVerdictEvent:
+		return legacySpecVerdict(&e)
 	case *ScopeEvent:
 		return legacyScope(e)
 	case ScopeEvent:
@@ -191,6 +195,21 @@ func legacySpecReviewCompleted(e *SpecReviewCompletedEvent) []events.Event {
 	}
 	message := fmt.Sprintf("spec review %s verdict=%s: findings=%d (critical=%d)", e.SpecID, e.Verdict, e.FindingCount, e.CriticalFindings)
 	return []events.Event{logEvent("info", message, e.Timestamp)}
+}
+
+func legacySpecVerdict(e *SpecVerdictEvent) []events.Event {
+	if e == nil {
+		return nil
+	}
+	return []events.Event{&events.SpecVerdictEvent{
+		SpecID:             e.SpecID,
+		Worktree:           e.Worktree,
+		AcceptDecision:     e.AcceptDecision,
+		SpecReviewDecision: e.SpecReviewDecision,
+		SpecReviewVerdict:  e.SpecReviewVerdict,
+		Success:            e.Success,
+		TimeMixin:          toTimeMixin(e.Timestamp),
+	}}
 }
 
 func legacyTelemetry(e *TelemetryEvent) []events.Event {
