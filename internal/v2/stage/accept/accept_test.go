@@ -10,9 +10,9 @@ import (
 
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/v2/adapter/llm"
-	"github.com/danabrams/gromit/internal/v2/findings"
 	"github.com/danabrams/gromit/internal/v2/llmtypes"
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
+	"github.com/danabrams/gromit/internal/v2/stage/finding"
 )
 
 func TestNewRejectsNilLLM(t *testing.T) {
@@ -105,16 +105,45 @@ func TestRunWritesGapAnalysisWhenCriterionFails(t *testing.T) {
 	}
 }
 
-func TestRunFailedCriterionPopulatesFindings(t *testing.T) {
+func TestRunReportsFindingsForFailingCriteria(t *testing.T) {
 	t.Parallel()
 
-	provider := &fakeLLM{
-		responses: []*llm.LLMResponse{
-			{Success: true, Output: `{"pass": false, "summary": "missing implementation"}`},
+	specID := "spec-findings"
+	tmp := t.TempDir()
+	specDir := filepath.Join(tmp, ".gromit", "specs")
+	if err := os.MkdirAll(specDir, 0o755); err != nil {
+		t.Fatalf("create specs dir: %v", err)
+	}
+	specPath := filepath.Join(specDir, specID+".md")
+	content := "# Findings spec\n\n## Acceptance Criteria\n- find me\n"
+	if err := os.WriteFile(specPath, []byte(content), 0o644); err != nil {
+		t.Fatalf("write spec: %v", err)
+	}
+
+	cfg := &config.Config{
+		ProjectRoot: tmp,
+		Paths: config.PathsConfig{
+			GromitDir: ".gromit",
+			Specs:     ".gromit/specs",
 		},
 	}
 
-	stageInstance, req := setupAcceptStage(t, provider)
+	git := &fakeGitAdapter{diff: "diff content"}
+	llmProvider := &fakeLLM{
+		responses: []*llm.LLMResponse{
+			{Success: true, Output: `{"pass": false, "summary": "missing tests"}`},
+		},
+	}
+
+	stageInstance, err := New(cfg, git, llmProvider, "BASE", "PROJECT", "FRAGMENT")
+	if err != nil {
+		t.Fatalf("create stage: %v", err)
+	}
+
+	req := &stagepkg.Request{
+		Bead:     stagepkg.BeadInfo{ID: specID},
+		Worktree: tmp,
+	}
 
 	res, err := stageInstance.Run(context.Background(), req)
 	if err != nil {
@@ -133,21 +162,21 @@ func TestRunFailedCriterionPopulatesFindings(t *testing.T) {
 		t.Fatalf("findings count = %d, want 1", len(artifacts.Findings))
 	}
 
-	finding := artifacts.Findings[0]
-	if finding.Severity != findings.SeverityCritical {
-		t.Fatalf("finding severity = %s, want %s", finding.Severity, findings.SeverityCritical)
+	f := artifacts.Findings[0]
+	if f.Severity != finding.SeverityCritical {
+		t.Fatalf("finding severity = %v, want %v", f.Severity, finding.SeverityCritical)
 	}
-	if finding.Category != "acceptance" {
-		t.Fatalf("finding category = %q, want %q", finding.Category, "acceptance")
+	if f.Category != finding.CategoryAcceptance {
+		t.Fatalf("finding category = %v, want %v", f.Category, finding.CategoryAcceptance)
 	}
-	if finding.Scope != "spec" {
-		t.Fatalf("finding scope = %q, want %q", finding.Scope, "spec")
+	if f.Scope != "Spec" {
+		t.Fatalf("finding scope = %q, want %q", f.Scope, "Spec")
 	}
-	if finding.Description == "" {
-		t.Fatal("finding description is empty")
+	if f.Description != "missing tests" {
+		t.Fatalf("finding description = %q, want %q", f.Description, "missing tests")
 	}
-	if finding.Description != artifacts.GapSummary {
-		t.Fatalf("finding description %q != gap summary %q", finding.Description, artifacts.GapSummary)
+	if f.AffectedFiles != nil {
+		t.Fatalf("affected files = %v, want nil", f.AffectedFiles)
 	}
 }
 
@@ -224,78 +253,6 @@ func TestRunProceedWhenAllCriteriaPass(t *testing.T) {
 
 	if got := len(llmProvider.calls); got != 2 {
 		t.Fatalf("llm calls = %d, want 2", got)
-	}
-}
-
-func TestAccept_FindingsPopulatedOnFailure(t *testing.T) {
-	t.Parallel()
-
-	llmProvider := &fakeLLM{
-		responses: []*llm.LLMResponse{
-			{Success: true, Output: `{"pass": false, "summary": "missing documentation"}`},
-		},
-	}
-
-	stageInstance, req := setupAcceptStage(t, llmProvider)
-
-	res, err := stageInstance.Run(context.Background(), req)
-	if err != nil {
-		t.Fatalf("run stage: %v", err)
-	}
-	if res.Decision != stagepkg.DecisionFail {
-		t.Fatalf("decision = %v, want %v", res.Decision, stagepkg.DecisionFail)
-	}
-
-	artifacts, ok := res.Artifacts.(*AcceptArtifacts)
-	if !ok {
-		t.Fatalf("artifacts type = %T, want *AcceptArtifacts", res.Artifacts)
-	}
-	if got := len(artifacts.Findings); got != 1 {
-		t.Fatalf("findings count = %d, want 1", got)
-	}
-	finding := artifacts.Findings[0]
-	if finding.Severity != findings.SeverityCritical {
-		t.Fatalf("finding severity = %q, want %q", finding.Severity, findings.SeverityCritical)
-	}
-	if finding.Category != "acceptance" {
-		t.Fatalf("finding category = %q, want acceptance", finding.Category)
-	}
-	if finding.Scope != "spec" {
-		t.Fatalf("finding scope = %q, want spec", finding.Scope)
-	}
-	if !strings.Contains(finding.Description, "criterion A") {
-		t.Fatalf("finding description = %q, want it to mention criterion text", finding.Description)
-	}
-	if !strings.Contains(finding.Description, "missing documentation") {
-		t.Fatalf("finding description = %q, want it to mention summary", finding.Description)
-	}
-}
-
-func TestAccept_FindingsEmptyOnPass(t *testing.T) {
-	t.Parallel()
-
-	llmProvider := &fakeLLM{
-		responses: []*llm.LLMResponse{
-			{Success: true, Output: `{"pass": true, "summary": "ok"}`},
-		},
-	}
-
-	stageInstance, req := setupAcceptStage(t, llmProvider)
-
-	res, err := stageInstance.Run(context.Background(), req)
-	if err != nil {
-		t.Fatalf("run stage: %v", err)
-	}
-	if res.Decision != stagepkg.DecisionProceed {
-		t.Fatalf("decision = %v, want %v", res.Decision, stagepkg.DecisionProceed)
-	}
-
-	artifacts, ok := res.Artifacts.(*AcceptArtifacts)
-	if !ok {
-		t.Fatalf("artifacts type = %T, want *AcceptArtifacts", res.Artifacts)
-	}
-	if len(artifacts.Findings) != 0 {
-		t.Fatalf("findings count = %d, want 0", len(artifacts.Findings))
 	}
 }
 
