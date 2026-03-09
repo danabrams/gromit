@@ -12,7 +12,7 @@ import (
 )
 
 func TestSpecLoopEnsureAcceptanceAndReviewCreatesFromReviewBeads(t *testing.T) {
-    t.Parallel()
+	t.Parallel()
 
     ctx := context.Background()
     specID := "spec-review-loop"
@@ -68,6 +68,49 @@ func TestSpecLoopEnsureAcceptanceAndReviewCreatesFromReviewBeads(t *testing.T) {
             t.Fatalf("labels for finding[%d] = %v, want %v", idx, created.Labels, wantLabels)
         }
     }
+}
+
+func TestSpecLoopCreateFromReviewBeadsIgnoresCriticalFindings(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	specID := "spec-review-loop"
+
+	tracker := newRecordingTaskTracker()
+	s := &SpecLoop{adapters: adapter.AdapterSet{TaskTracker: tracker}}
+
+	findings := []stagepkg.Finding{
+		{
+			Severity:    stagepkg.FindingSeverityCritical,
+			Category:    stagepkg.FindingCategoryQuality,
+			Scope:       stagepkg.FindingScopeSpec,
+			Description: "critical",
+		},
+		{
+			Severity:    stagepkg.FindingSeverityWarning,
+			Category:    stagepkg.FindingCategoryQuality,
+			Scope:       stagepkg.FindingScopeSpec,
+			Description: "non-critical",
+		},
+	}
+
+	if err := s.createFromReviewBeads(ctx, specID, findings); err != nil {
+		t.Fatalf("create from-review beads: %v", err)
+	}
+
+	if got, want := len(tracker.created), 1; got != want {
+		t.Fatalf("created beads = %d, want %d", got, want)
+	}
+
+	created := tracker.created[0]
+	if got, want := created.Description, "non-critical"; got != want {
+		t.Fatalf("created bead description = %q, want %q", got, want)
+	}
+
+	wantLabels := []string{"from-review", "spec:" + specID}
+	if !reflect.DeepEqual(created.Labels, wantLabels) {
+		t.Fatalf("created labels = %v, want %v", created.Labels, wantLabels)
+	}
 }
 
 // recordingTaskTracker captures create requests for verification.
