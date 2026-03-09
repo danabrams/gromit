@@ -1152,6 +1152,9 @@
 {"issue_id":"gromit-bei6f","label":"spec:bead-client-runfn-consolidation"}
 {"issue_id":"gromit-bf100","label":"spec:dynamic-code-map"}
 {"issue_id":"gromit-bgeu","label":"spec:list-with-label-all-statuses"}
+{"issue_id":"gromit-bk3l1","label":"estimated-files:1"}
+{"issue_id":"gromit-bk3l1","label":"gen:0"}
+{"issue_id":"gromit-bk3l1","label":"spec:spec-level-review-and-targeted-remediation"}
 {"issue_id":"gromit-bkia1","label":"from-review"}
 {"issue_id":"gromit-bkia1","label":"spec:immutable-pipeline"}
 {"issue_id":"gromit-bkia1","label":"test-gap"}
