@@ -11,6 +11,7 @@ import (
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/v2/adapter/llm"
 	"github.com/danabrams/gromit/internal/v2/adapter/tasktracker"
+	"github.com/danabrams/gromit/internal/v2/stage/finding"
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
 )
 
@@ -395,7 +396,7 @@ func TestRunReadsGapAnalysisFromDiskWhenFieldEmpty(t *testing.T) {
 	}
 }
 
-func TestRun_withFindings_usesFindingsTemplate(t *testing.T) {
+func TestRunUsesFindingsTemplateWhenFindingsPresent(t *testing.T) {
 	t.Parallel()
 
 	tmpDir := t.TempDir()
@@ -403,7 +404,7 @@ func TestRun_withFindings_usesFindingsTemplate(t *testing.T) {
 	if err := os.MkdirAll(planDir, 0o755); err != nil {
 		t.Fatalf("mkdir plan dir: %v", err)
 	}
-	planContent := "# Full Plan\nTask 1: Build widget"
+	planContent := "# Plan\nTask 1: fix the loop"
 	if err := os.WriteFile(filepath.Join(planDir, "plan.md"), []byte(planContent), 0o644); err != nil {
 		t.Fatalf("write plan: %v", err)
 	}
@@ -414,29 +415,22 @@ func TestRun_withFindings_usesFindingsTemplate(t *testing.T) {
 	}
 
 	llmFake := &fakeLLM{
-		responses: []*llm.LLMResponse{{Success: true, Output: `[
-			{
-				"title": "fix widget commits",
-				"description": "add event commits",
-				"priority": "P1",
-				"acceptance_criteria": ["widgets commit events"],
-				"expected_outputs": ["commit after widget stage"],
-				"covers_tasks": [1],
-				"depends_on_index": []
-			},
-			{
-				"title": "verify widget events",
-				"description": "add tests for widget event commits",
-				"priority": "P1",
-				"acceptance_criteria": ["widget event tests pass"],
-				"expected_outputs": ["widget event test file"],
-				"covers_tasks": [2],
-				"depends_on_index": [0]
-			}
-		]`}},
+		responses: []*llm.LLMResponse{{
+			Success: true,
+			Output: `[
+				{
+					"title": "fix loop",
+					"description": "repair the decompose loop",
+					"priority": "P2",
+					"acceptance_criteria": ["loop runs"],
+					"expected_outputs": ["loop passes"],
+					"depends_on_index": []
+				}
+			]`,
+		}},
 	}
 	tracker := &fakeTracker{}
-	stg, err := New(cfg, llmFake, tracker)
+	stage, err := New(cfg, llmFake, tracker)
 	if err != nil {
 		t.Fatalf("create stage: %v", err)
 	}
@@ -444,113 +438,35 @@ func TestRun_withFindings_usesFindingsTemplate(t *testing.T) {
 	req := &stagepkg.Request{
 		Bead:        stagepkg.BeadInfo{ID: "spec"},
 		Config:      cfg,
+		Worktree:    tmpDir,
 		Remediation: true,
-		Findings: []stagepkg.Finding{
+		GapAnalysis: "this gap should be ignored",
+		Findings: []finding.Finding{
 			{
-				Severity:      stagepkg.FindingSeverityCritical,
-				Category:      stagepkg.FindingCategoryQuality,
-				Scope:         stagepkg.FindingScopeSpec,
-				Description:   "tests missing",
-				AffectedFiles: []string{"internal/v2/stage"},
+				Severity:      finding.SeverityWarning,
+				Category:      finding.CategoryQuality,
+				Description:   "missing decompose tests",
+				AffectedFiles: []string{"internal/v2/stage/decompose/decompose.go"},
 			},
 		},
 	}
 
-	_, err = stg.Run(context.Background(), req)
+	_, err = stage.Run(context.Background(), req)
 	if err != nil {
 		t.Fatalf("run stage: %v", err)
 	}
-
 	if len(llmFake.calls) == 0 {
 		t.Fatal("expected llm invocation")
 	}
 	prompt := llmFake.calls[0].Prompt
-	if !strings.Contains(prompt, "Findings to Fix") {
-		t.Fatalf("prompt missing findings section: %s", prompt)
+	if !strings.Contains(prompt, planContent) {
+		t.Fatal("prompt missing plan context")
 	}
-	if !strings.Contains(prompt, "Targeted Fix Decompose") {
-		t.Fatalf("prompt missing findings-targeted template: %s", prompt)
+	if !strings.Contains(prompt, "Findings JSON") {
+		t.Fatal("prompt missing findings section")
 	}
-	if strings.Contains(prompt, "Unmet Acceptance Criteria") {
-		t.Fatalf("findings prompt should not include unmet acceptance criteria section: %s", prompt)
-	}
-}
-
-func TestRunWithFindingsUsesJSONPromptDuringRemediation(t *testing.T) {
-	t.Parallel()
-
-	tmpDir := t.TempDir()
-	planDir := filepath.Join(tmpDir, ".gromit", "v2")
-	if err := os.MkdirAll(planDir, 0o755); err != nil {
-		t.Fatalf("mkdir plan dir: %v", err)
-	}
-	planContent := "# Full Plan\nTask 1: address findings"
-	if err := os.WriteFile(filepath.Join(planDir, "plan.md"), []byte(planContent), 0o644); err != nil {
-		t.Fatalf("write plan: %v", err)
-	}
-
-	cfg := &config.Config{
-		ProjectRoot: tmpDir,
-		Paths:       config.PathsConfig{GromitDir: ".gromit"},
-	}
-
-	llmFake := &fakeLLM{
-		responses: []*llm.LLMResponse{{Success: true, Output: `[
-			{
-				"title": "handle findings",
-				"description": "address critical finding",
-				"priority": "P1",
-				"acceptance_criteria": ["fix behavior"],
-				"expected_outputs": ["updated behavior"],
-				"depends_on_index": []
-			},
-			{
-				"title": "verify findings coverage",
-				"description": "add regression tests for the finding",
-				"priority": "P1",
-				"acceptance_criteria": ["tests cover the bug"],
-				"expected_outputs": ["finding regression test file"],
-				"depends_on_index": [0]
-			}
-		]`}},
-	}
-	tracker := &fakeTracker{}
-	stg, err := New(cfg, llmFake, tracker)
-	if err != nil {
-		t.Fatalf("create stage: %v", err)
-	}
-
-	req := &stagepkg.Request{
-		Bead:        stagepkg.BeadInfo{ID: "spec"},
-		Config:      cfg,
-		Remediation: true,
-		Findings: []stagepkg.Finding{
-			{
-				Severity:    stagepkg.FindingSeverityCritical,
-				Category:    stagepkg.FindingCategoryQuality,
-				Scope:       stagepkg.FindingScopeSpec,
-				Description: "tests missing",
-			},
-		},
-	}
-
-	_, err = stg.Run(context.Background(), req)
-	if err != nil {
-		t.Fatalf("run stage: %v", err)
-	}
-
-	if len(llmFake.calls) == 0 {
-		t.Fatal("expected llm invocation")
-	}
-	prompt := llmFake.calls[0].Prompt
-	if !strings.Contains(prompt, "Findings to Fix") {
-		t.Fatalf("prompt should include findings section header: %s", prompt)
-	}
-	if !strings.Contains(prompt, "\"Severity\"") {
-		t.Fatalf("prompt should embed JSON findings: %s", prompt)
-	}
-	if strings.Contains(prompt, "Unmet Acceptance Criteria") {
-		t.Fatalf("findings prompt should not include gap instructions: %s", prompt)
+	if !strings.Contains(prompt, "missing decompose tests") {
+		t.Fatal("prompt missing serialized finding data")
 	}
 }
 
