@@ -118,7 +118,7 @@ You are decomposing an implementation plan into targeted fix beads, one per find
 
 %s
 
-Each finding object includes severity, category, description, and affected files. Create exactly one bead per finding, mention the affected files or directories when describing the bead, the acceptance criteria, or expected outputs, and tie the work back to the reported description. If a finding depends on another fix in this output, reference that earlier bead's 0-based index via depends_on_index so the tracker captures the dependency. Link dependencies whenever files or behaviors overlap across findings.
+Each finding object includes severity, category, description, and affected files. Create exactly one targeted fix bead per finding. Mention the affected files or directories when describing the bead, the acceptance criteria, or expected outputs, and tie the work back to the reported description. If a finding depends on another fix in this output, reference that earlier bead's 0-based index via depends_on_index so the tracker captures the dependency. Always set depends_on_index when shared affected files appear in multiple findings. Link dependencies whenever files or behaviors overlap across findings.
 
 ## Skill Instructions
 
