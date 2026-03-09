@@ -652,6 +652,9 @@ func (s *SpecLoop) createFromReviewBeads(ctx context.Context, specID string, fin
 	}
 	specLabel := strings.TrimSpace(specID)
 	for _, finding := range findings {
+		if finding.Severity == stagepkg.FindingSeverityCritical {
+			continue
+		}
 		labels := []string{"from-review"}
 		if specLabel != "" && finding.Scope == stagepkg.FindingScopeSpec {
 			labels = append(labels, "spec:"+specLabel)
