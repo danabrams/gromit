@@ -501,7 +501,7 @@ func (b *BeadLoop) runStageEntry(ctx context.Context, beadItem *bead.Bead, itera
 			if res != nil && res.Artifacts != nil {
 				if ba, ok := res.Artifacts.(*buildstage.BuildArtifacts); ok {
 					costUSD = ba.CostUSD
-					inputTokens = ba.Tokens
+					inputTokens = ba.InputTokens
 					outputTokens = ba.OutputTokens
 					promptSize = len(ba.Prompt)
 				}
@@ -760,7 +760,7 @@ func (b *BeadLoop) emitBeadCompleted(beadItem *bead.Bead, iteration int, success
 		evt.Model = b.lastBuildArtifacts.Model
 		evt.Provider = b.lastBuildProvider
 		evt.CostUSD = b.lastBuildArtifacts.CostUSD
-		evt.InputTokens = b.lastBuildArtifacts.Tokens
+		evt.InputTokens = b.lastBuildArtifacts.InputTokens
 		evt.OutputTokens = b.lastBuildArtifacts.OutputTokens
 		evt.Duration = b.lastBuildArtifacts.Duration
 	}

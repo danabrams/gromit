@@ -194,7 +194,7 @@ func convertBeadCompleted(e *BeadCompletedEvent) []events.Event {
 		Iteration: e.Iteration,
 		BeadID:    e.BeadID,
 		Success:   e.Success,
-		Duration:  0,
+		Duration:  e.Duration,
 		TimeMixin: toTimeMixin(e.Timestamp),
 	}}
 	if e.Success {
