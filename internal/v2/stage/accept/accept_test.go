@@ -227,6 +227,78 @@ func TestRunProceedWhenAllCriteriaPass(t *testing.T) {
 	}
 }
 
+func TestAccept_FindingsPopulatedOnFailure(t *testing.T) {
+	t.Parallel()
+
+	llmProvider := &fakeLLM{
+		responses: []*llm.LLMResponse{
+			{Success: true, Output: `{"pass": false, "summary": "missing documentation"}`},
+		},
+	}
+
+	stageInstance, req := setupAcceptStage(t, llmProvider)
+
+	res, err := stageInstance.Run(context.Background(), req)
+	if err != nil {
+		t.Fatalf("run stage: %v", err)
+	}
+	if res.Decision != stagepkg.DecisionFail {
+		t.Fatalf("decision = %v, want %v", res.Decision, stagepkg.DecisionFail)
+	}
+
+	artifacts, ok := res.Artifacts.(*AcceptArtifacts)
+	if !ok {
+		t.Fatalf("artifacts type = %T, want *AcceptArtifacts", res.Artifacts)
+	}
+	if got := len(artifacts.Findings); got != 1 {
+		t.Fatalf("findings count = %d, want 1", got)
+	}
+	finding := artifacts.Findings[0]
+	if finding.Severity != stagepkg.FindingSeverityCritical {
+		t.Fatalf("finding severity = %q, want %q", finding.Severity, stagepkg.FindingSeverityCritical)
+	}
+	if finding.Category != stagepkg.FindingCategoryAcceptance {
+		t.Fatalf("finding category = %q, want %q", finding.Category, stagepkg.FindingCategoryAcceptance)
+	}
+	if finding.Scope != stagepkg.FindingScopeSpec {
+		t.Fatalf("finding scope = %q, want %q", finding.Scope, stagepkg.FindingScopeSpec)
+	}
+	if !strings.Contains(finding.Description, "criterion A") {
+		t.Fatalf("finding description = %q, want it to mention criterion text", finding.Description)
+	}
+	if !strings.Contains(finding.Description, "missing documentation") {
+		t.Fatalf("finding description = %q, want it to mention summary", finding.Description)
+	}
+}
+
+func TestAccept_FindingsEmptyOnPass(t *testing.T) {
+	t.Parallel()
+
+	llmProvider := &fakeLLM{
+		responses: []*llm.LLMResponse{
+			{Success: true, Output: `{"pass": true, "summary": "ok"}`},
+		},
+	}
+
+	stageInstance, req := setupAcceptStage(t, llmProvider)
+
+	res, err := stageInstance.Run(context.Background(), req)
+	if err != nil {
+		t.Fatalf("run stage: %v", err)
+	}
+	if res.Decision != stagepkg.DecisionProceed {
+		t.Fatalf("decision = %v, want %v", res.Decision, stagepkg.DecisionProceed)
+	}
+
+	artifacts, ok := res.Artifacts.(*AcceptArtifacts)
+	if !ok {
+		t.Fatalf("artifacts type = %T, want *AcceptArtifacts", res.Artifacts)
+	}
+	if len(artifacts.Findings) != 0 {
+		t.Fatalf("findings count = %d, want 0", len(artifacts.Findings))
+	}
+}
+
 type fakeLLM struct {
 	calls     []llm.InvokeRequest
 	responses []*llm.LLMResponse
