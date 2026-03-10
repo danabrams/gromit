@@ -7,15 +7,6 @@ import (
 	"github.com/danabrams/gromit/internal/v2/generation"
 )
 
-// Finding represents a review observation that may or may not belong to the current scope.
-type Finding struct {
-	Title         string
-	Description   string
-	Priority      int
-	AffectedFiles []string
-	InScope       bool
-}
-
 // ClassificationResult captures how review findings were handled.
 type ClassificationResult struct {
 	Beads      []*bead.Bead
