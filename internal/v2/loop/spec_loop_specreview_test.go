@@ -10,6 +10,7 @@ import (
 	"github.com/danabrams/gromit/internal/tracker"
 	"github.com/danabrams/gromit/internal/v2/adapter"
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
+	"github.com/danabrams/gromit/internal/v2/stage/finding"
 	stageaccept "github.com/danabrams/gromit/internal/v2/stage/accept"
 	stagepresent "github.com/danabrams/gromit/internal/v2/stage/present"
 	"github.com/danabrams/gromit/internal/v2/stage/specreview"
@@ -71,7 +72,7 @@ func TestSpecLoopEnsureAcceptanceAndReviewCreatesFromReviewBeads(t *testing.T) {
 	for idx, created := range tracker.created {
 		finding := reviewFindings[idx]
 		wantLabels := []string{"from-review"}
-		if finding.Scope == stagepkg.FindingScopeSpec {
+		if finding.Scope == stagepkg.SpecFindingScopeSpec {
 			wantLabels = append(wantLabels, "spec:"+specID)
 		}
 		if !reflect.DeepEqual(created.Labels, wantLabels) {
@@ -136,17 +137,17 @@ func TestSpecLoopCreateFromReviewBeadsIgnoresCriticalFindings(t *testing.T) {
 	tracker := newRecordingTaskTracker()
 	s := &SpecLoop{adapters: adapter.AdapterSet{TaskTracker: tracker}}
 
-	findings := []stagepkg.Finding{
+	findings := []finding.Finding{
 		{
-			Severity:    stagepkg.SeverityCritical,
-			Category:    stagepkg.CategoryQuality,
-			Scope:       stagepkg.ScopeSpec,
+			Severity:    finding.SeverityCritical,
+			Category:    finding.CategoryQuality,
+			Scope:       string(stagepkg.SpecFindingScopeSpec),
 			Description: "critical",
 		},
 		{
-			Severity:    stagepkg.SeverityWarning,
-			Category:    stagepkg.CategoryQuality,
-			Scope:       stagepkg.ScopeSpec,
+			Severity:    finding.SeverityWarning,
+			Category:    finding.CategoryQuality,
+			Scope:       string(stagepkg.SpecFindingScopeSpec),
 			Description: "non-critical",
 		},
 	}
@@ -331,6 +332,80 @@ func TestSpecLoopPostBeadPipelineWarningsCreateReviewBeads(t *testing.T) {
 		t.Fatalf("spec bead missing spec label: %v", specBead.Labels)
 	}
 	stageBead := taskTracker.created[1]
+	if !containsLabel(stageBead.Labels, "from-review") {
+		t.Fatalf("stage bead missing from-review label: %v", stageBead.Labels)
+	}
+	if containsLabel(stageBead.Labels, specLabel) {
+		t.Fatalf("stage bead unexpectedly contains spec label: %v", stageBead.Labels)
+	}
+}
+
+func TestSpecLoopPostBeadPipelineImprovementsUseTitleFallback(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	specID := "spec-post-bead-improvements"
+
+	acceptStage := newFakeAcceptStage()
+
+	specFinding := specreview.SpecReviewFinding{
+		Title:       "document spec improvements",
+		Description: "",
+		Severity:    specReviewSeverityWarning,
+		Category:    stagepkg.SpecFindingCategoryQuality,
+		Scope:       stagepkg.SpecFindingScopeSpec,
+	}
+	stageFinding := specreview.SpecReviewFinding{
+		Title:       "general cleanup opportunity",
+		Description: " ",
+		Severity:    specReviewSeveritySuggestion,
+		Category:    stagepkg.SpecFindingCategoryArchitecture,
+		Scope:       stagepkg.SpecFindingScopeStage,
+	}
+
+	passResult := stagepkg.Result{
+		Decision: stagepkg.DecisionProceed,
+		Artifacts: &specreview.SpecReviewArtifacts{
+			Verdict:  "pass",
+			Findings: []specreview.SpecReviewFinding{specFinding, stageFinding},
+		},
+	}
+	specReviewStage := newFakeSpecReviewStage(passResult, passResult)
+
+	taskTracker := newRecordingTaskTracker()
+	loop, presentStage, _ := buildPostBeadLoopSpecLoop(t, specID, acceptStage, specReviewStage, nil, taskTracker)
+	if err := loop.Run(ctx, specID, nil); err != nil {
+		t.Fatalf("run spec loop: %v", err)
+	}
+	if !presentStage.called {
+		t.Fatal("present stage should run after improvements")
+	}
+	if got, want := len(taskTracker.created), 2; got != want {
+		t.Fatalf("created beads = %d, want %d", got, want)
+	}
+
+	specLabel := tracker.SpecLabelFor(specID)
+	specBead := taskTracker.created[0]
+	if specBead.Title != "document spec improvements" {
+		t.Fatalf("spec bead title = %q, want %q", specBead.Title, "document spec improvements")
+	}
+	if specBead.Description != "document spec improvements" {
+		t.Fatalf("spec bead description = %q, want %q", specBead.Description, "document spec improvements")
+	}
+	if !containsLabel(specBead.Labels, "from-review") {
+		t.Fatalf("spec bead missing from-review label: %v", specBead.Labels)
+	}
+	if !containsLabel(specBead.Labels, specLabel) {
+		t.Fatalf("spec bead missing spec label: %v", specBead.Labels)
+	}
+
+	stageBead := taskTracker.created[1]
+	if stageBead.Title != "general cleanup opportunity" {
+		t.Fatalf("stage bead title = %q, want %q", stageBead.Title, "general cleanup opportunity")
+	}
+	if stageBead.Description != "general cleanup opportunity" {
+		t.Fatalf("stage bead description = %q, want %q", stageBead.Description, "general cleanup opportunity")
+	}
 	if !containsLabel(stageBead.Labels, "from-review") {
 		t.Fatalf("stage bead missing from-review label: %v", stageBead.Labels)
 	}
