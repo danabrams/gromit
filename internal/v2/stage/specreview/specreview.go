@@ -401,3 +401,65 @@ func convertFindings(raw []rawFinding) []stagepkg.Finding {
 	}
 	return converted
 }
+
+func (s *Stage) createFromReviewBeads(ctx context.Context, specID string, findings []stagepkg.Finding) ([]*trackertypes.Bead, error) {
+	if s.tracker == nil || len(findings) == 0 {
+		return nil, nil
+	}
+
+	created := make([]*trackertypes.Bead, 0, len(findings))
+	for _, f := range findings {
+		req := trackertypes.TaskTrackerCreateBeadRequest{
+			Title:       beadTitleForFinding(f),
+			Description: strings.TrimSpace(f.Description),
+			Priority:    priorityForSeverity(f.Severity),
+			Labels:      labelsForFinding(specID, f.Scope),
+		}
+
+		resp, err := s.tracker.CreateBead(ctx, req)
+		if err != nil {
+			return nil, fmt.Errorf("specreview: creating bead %q: %w", req.Title, err)
+		}
+		if resp == nil || resp.Bead == nil {
+			return nil, fmt.Errorf("specreview: create bead response missing for %q", req.Title)
+		}
+		created = append(created, resp.Bead)
+	}
+	return created, nil
+}
+
+func labelsForFinding(specID, scope string) []string {
+	labels := []string{"from-review"}
+	if strings.EqualFold(strings.TrimSpace(scope), "spec") {
+		if spec := strings.TrimSpace(specID); spec != "" {
+			labels = append(labels, tracker.SpecLabelFor(spec))
+		}
+	}
+	return labels
+}
+
+func beadTitleForFinding(f stagepkg.Finding) string {
+	if trimmed := strings.TrimSpace(f.Description); trimmed != "" {
+		return trimmed
+	}
+	if trimmed := strings.TrimSpace(f.Category); trimmed != "" {
+		return fmt.Sprintf("Spec review: %s", trimmed)
+	}
+	if trimmed := strings.TrimSpace(f.Scope); trimmed != "" {
+		return fmt.Sprintf("Spec review: %s finding", trimmed)
+	}
+	return "Spec review finding"
+}
+
+func priorityForSeverity(severity string) int {
+	switch strings.ToLower(strings.TrimSpace(severity)) {
+	case "critical":
+		return 0
+	case "warning":
+		return 1
+	case "suggestion":
+		return 2
+	default:
+		return 2
+	}
+}
