@@ -62,6 +62,7 @@ var StageSequence = []string{
 	"epilogue",
 	"accept",
 	"spec-review",
+	"specreview",
 	"present",
 }
 

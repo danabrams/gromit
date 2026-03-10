@@ -9,6 +9,7 @@ import (
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/tracker"
 	"github.com/danabrams/gromit/internal/v2/adapter"
+	finding "github.com/danabrams/gromit/internal/v2/stage/finding"
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
 	stageaccept "github.com/danabrams/gromit/internal/v2/stage/accept"
 	stagepresent "github.com/danabrams/gromit/internal/v2/stage/present"
@@ -25,18 +26,22 @@ func TestSpecLoopEnsureAcceptanceAndReviewCreatesFromReviewBeads(t *testing.T) {
 	tracker := newRecordingTaskTracker()
 	acceptStage := newFakeAcceptStage()
 
-	reviewFindings := []stagepkg.Finding{
+	reviewFindings := []specreview.SpecReviewFinding{
 		{
-			Severity:    stagepkg.FindingSeverityWarning,
-			Category:    stagepkg.FindingCategoryQuality,
-			Scope:       stagepkg.FindingScopeSpec,
+			Title:       "spec scoped warning",
 			Description: "spec scoped warning",
+			Verdict:     "pass",
+			Severity:    stagepkg.SpecFindingSeverityWarning,
+			Category:    stagepkg.SpecFindingCategoryQuality,
+			Scope:       stagepkg.SpecFindingScopeSpec,
 		},
 		{
-			Severity:    stagepkg.FindingSeveritySuggestion,
-			Category:    stagepkg.FindingCategoryQuality,
-			Scope:       stagepkg.FindingScopeGeneral,
+			Title:       "general suggestion",
 			Description: "general suggestion",
+			Verdict:     "pass",
+			Severity:    stagepkg.SpecFindingSeveritySuggestion,
+			Category:    stagepkg.SpecFindingCategoryQuality,
+			Scope:       stagepkg.SpecFindingScopeGeneral,
 		},
 	}
 
@@ -55,8 +60,15 @@ func TestSpecLoopEnsureAcceptanceAndReviewCreatesFromReviewBeads(t *testing.T) {
 	}
 
 	req := stagepkg.Request{Bead: stagepkg.BeadInfo{ID: specID}, Worktree: "worktree"}
-	if _, err := s.ensureAcceptance(ctx, &req, specID); err != nil {
+	var (
+		specReviewRes *stagepkg.Result
+		err           error
+	)
+	if _, specReviewRes, err = s.ensureAcceptance(ctx, &req, specID); err != nil {
 		t.Fatalf("ensure acceptance and review: %v", err)
+	}
+	if err = s.createFromReviewBeads(ctx, specID, extractSpecReviewFindings(specReviewRes)); err != nil {
+		t.Fatalf("create from review beads: %v", err)
 	}
 
 	if got, want := len(tracker.created), len(reviewFindings); got != want {
@@ -66,7 +78,7 @@ func TestSpecLoopEnsureAcceptanceAndReviewCreatesFromReviewBeads(t *testing.T) {
 	for idx, created := range tracker.created {
 		finding := reviewFindings[idx]
 		wantLabels := []string{"from-review"}
-		if finding.Scope == stagepkg.FindingScopeSpec {
+		if finding.Scope == stagepkg.SpecFindingScopeSpec {
 			wantLabels = append(wantLabels, "spec:"+specID)
 		}
 		if !reflect.DeepEqual(created.Labels, wantLabels) {
@@ -84,18 +96,20 @@ func TestSpecLoopCreateFromReviewBeadsIgnoresCriticalFindings(t *testing.T) {
 	tracker := newRecordingTaskTracker()
 	s := &SpecLoop{adapters: adapter.AdapterSet{TaskTracker: tracker}}
 
-	findings := []stagepkg.Finding{
+	findings := []finding.Finding{
 		{
-			Severity:    stagepkg.FindingSeverityCritical,
-			Category:    stagepkg.FindingCategoryQuality,
-			Scope:       stagepkg.FindingScopeSpec,
+			Title:       "critical",
 			Description: "critical",
+			Severity:    finding.SeverityCritical,
+			Category:    finding.CategoryQuality,
+			Scope:       "spec",
 		},
 		{
-			Severity:    stagepkg.FindingSeverityWarning,
-			Category:    stagepkg.FindingCategoryQuality,
-			Scope:       stagepkg.FindingScopeSpec,
+			Title:       "non-critical",
 			Description: "non-critical",
+			Severity:    finding.SeverityWarning,
+			Category:    finding.CategoryQuality,
+			Scope:       "spec",
 		},
 	}
 
@@ -201,7 +215,7 @@ func TestSpecLoopPostBeadPipelineSpecReviewFailureSkipsPresent(t *testing.T) {
 		Title:       "critical review issue",
 		Description: "A blocking security concern was found.",
 		Severity:    stagepkg.SpecFindingSeverityCritical,
-		Category:    stagepkg.SpecFindingCategorySecurity,
+		Category:    stagepkg.SpecFindingCategorySafety,
 		Scope:       stagepkg.SpecFindingScopeSpec,
 	}
 	specReviewStage := newFakeSpecReviewStage(stagepkg.Result{
@@ -234,7 +248,7 @@ func TestSpecLoopPostBeadPipelineWarningsCreateReviewBeads(t *testing.T) {
 		Description:   "No automated tests cover the new parsing logic.",
 		Verdict:       "pass",
 		Severity:      stagepkg.SpecFindingSeverityWarning,
-		Category:      stagepkg.SpecFindingCategoryTestGap,
+		Category:      stagepkg.SpecFindingCategoryQuality,
 		Scope:         stagepkg.SpecFindingScopeSpec,
 		AffectedFiles: []string{"internal/v2/loop/spec_loop.go"},
 	}
@@ -243,7 +257,7 @@ func TestSpecLoopPostBeadPipelineWarningsCreateReviewBeads(t *testing.T) {
 		Description:   "The onboarding doc has a typo about the new flag.",
 		Verdict:       "pass",
 		Severity:      stagepkg.SpecFindingSeveritySuggestion,
-		Category:      stagepkg.SpecFindingCategoryArchitecture,
+		Category:      stagepkg.SpecFindingCategoryScope,
 		Scope:         stagepkg.SpecFindingScopeStage,
 		AffectedFiles: []string{"docs/README.md"},
 	}
