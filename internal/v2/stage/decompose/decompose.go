@@ -201,6 +201,7 @@ func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Resul
 		return nil, fmt.Errorf("read plan: %w", err)
 	}
 
+	planText := string(planBody)
 	var promptText string
 	gapAnalysis := s.resolveGapAnalysis(req)
 	planContent := string(planBody)
@@ -551,6 +552,39 @@ func buildComplexityRepromptFeedback(defs []beadDef) string {
 		return ""
 	}
 	return "Complexity feedback:\n" + feedback
+}
+
+func formatFindingsForPrompt(findings []stagepkg.Finding) string {
+	if len(findings) == 0 {
+		return ""
+	}
+	var entries []string
+	for idx, finding := range findings {
+		severity := strings.TrimSpace(string(finding.Severity))
+		if severity == "" {
+			severity = "unspecified"
+		}
+		category := strings.TrimSpace(string(finding.Category))
+		if category == "" {
+			category = "unspecified"
+		}
+		scope := strings.TrimSpace(string(finding.Scope))
+		if scope == "" {
+			scope = "unspecified"
+		}
+		description := strings.TrimSpace(finding.Description)
+		if description == "" {
+			description = "No description provided."
+		}
+		affected := "none"
+		if len(finding.AffectedFiles) > 0 {
+			affected = strings.Join(finding.AffectedFiles, ", ")
+		}
+		entry := fmt.Sprintf("Finding %d:\n- Severity: %s\n- Category: %s\n- Scope: %s\n- Description: %s\n- Affected files: %s",
+			idx+1, severity, category, scope, description, affected)
+		entries = append(entries, entry)
+	}
+	return strings.Join(entries, "\n\n")
 }
 
 func normalizeMaxValidationRetries(maxRetries int) int {
