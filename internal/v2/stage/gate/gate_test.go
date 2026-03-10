@@ -165,6 +165,56 @@ func TestGateBlocksBeadWithBlockedByDependencies(t *testing.T) {
 	}
 }
 
+func TestGateClosesSatisfiedBead(t *testing.T) {
+	t.Parallel()
+
+	const beadID = "bead-satisfied"
+
+	tracker := &fakeTaskTracker{
+		beads: map[string]*tasktracker.Bead{
+			beadID: {ID: beadID, Status: "open"},
+		},
+	}
+
+	llm := &fakeLLM{responses: []string{
+		`{"pass": true, "summary": "already satisfied"}`,
+	}}
+	git := &fakeGitDiffer{diff: "existing diff"}
+
+	stageInstance, err := New(
+		&config.Config{},
+		tracker,
+		WithSatisfactionCheck(llm, git),
+	)
+	if err != nil {
+		t.Fatalf("unexpected stage creation error: %v", err)
+	}
+
+	req := &stagepkg.Request{
+		Bead: stagepkg.BeadInfo{
+			ID:          beadID,
+			Title:       "satisfied bead",
+			Description: "Acceptance Criteria\n- already done",
+			Labels:      []string{"gen:1"},
+		},
+		Worktree: "/tmp/worktree",
+	}
+
+	res, err := stageInstance.Run(context.Background(), req)
+	if err != nil {
+		t.Fatalf("run stage: %v", err)
+	}
+	if res == nil {
+		t.Fatal("expected result")
+	}
+	if res.Decision != stagepkg.DecisionSkip {
+		t.Fatalf("decision = %v, want skip", res.Decision)
+	}
+	if !tracker.closedBeads[beadID] {
+		t.Fatalf("bead %s not closed", beadID)
+	}
+}
+
 // fakeTaskTracker provides a minimal TaskTracker implementation for gate tests.
 type fakeTaskTracker struct {
 	beads       map[string]*tasktracker.Bead
