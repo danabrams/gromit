@@ -23,6 +23,9 @@ func TestMarkdownRenderer_Render(t *testing.T) {
 	if !strings.Contains(md, "# payments-api") {
 		t.Error("missing project heading")
 	}
+	if !strings.Contains(md, "## Project Overview") {
+		t.Error("missing Project Overview section")
+	}
 	if !strings.Contains(md, "PCI") {
 		t.Error("missing glossary entry")
 	}
@@ -41,5 +44,8 @@ func TestMarkdownRenderer_OmitsEmptySections(t *testing.T) {
 	}
 	if strings.Contains(md, "## Risky Areas") {
 		t.Error("should omit empty Risky Areas section")
+	}
+	if !strings.Contains(md, "## Project Overview") {
+		t.Error("Project Overview should always be present")
 	}
 }

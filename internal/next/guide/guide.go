@@ -8,12 +8,36 @@ package guide
 import (
 	"bytes"
 	"fmt"
-
-	"github.com/danabrams/gromit/internal/next/architecture"
-	"github.com/danabrams/gromit/internal/next/doctrine"
-	"github.com/danabrams/gromit/internal/next/sourcemap"
-	"github.com/danabrams/gromit/internal/next/validation"
 )
+
+// Module describes a high-level architectural module.
+type Module struct {
+	Name        string
+	Description string
+	Language    string
+}
+
+// SourceMapEntry describes a single file in the source map.
+type SourceMapEntry struct {
+	Path     string
+	Language string
+	Lines    int
+}
+
+// ValidationCommand describes a validation command to run.
+type ValidationCommand struct {
+	Name   string
+	Kind   string
+	Run    string
+	Source string
+}
+
+// DoctrineRule describes a single doctrine rule.
+type DoctrineRule struct {
+	ID      string
+	Summary string
+	Scope   string
+}
 
 // GlossaryEntry defines a domain term and its definition.
 type GlossaryEntry struct {
@@ -37,14 +61,39 @@ type Invariant struct {
 
 // RenderInput holds everything needed to render an agent guide.
 type RenderInput struct {
-	ProjectName  string
-	Architecture architecture.Architecture
-	SourceMap    sourcemap.SourceMap
-	Validation   validation.CommandSet
-	Risks        []Risk
-	Invariants   []Invariant
-	Glossary     []GlossaryEntry
-	Doctrine     doctrine.Doctrine
+	ProjectName string
+	Modules     []Module
+	SourceMap   []SourceMapEntry
+	Validation  []ValidationCommand
+	Risks       []Risk
+	Invariants  []Invariant
+	Glossary    []GlossaryEntry
+	Doctrine    []DoctrineRule
+}
+
+// NormalizeNilFields maps nil slices to empty values.
+func (r *RenderInput) NormalizeNilFields() {
+	if r.Modules == nil {
+		r.Modules = []Module{}
+	}
+	if r.SourceMap == nil {
+		r.SourceMap = []SourceMapEntry{}
+	}
+	if r.Validation == nil {
+		r.Validation = []ValidationCommand{}
+	}
+	if r.Risks == nil {
+		r.Risks = []Risk{}
+	}
+	if r.Invariants == nil {
+		r.Invariants = []Invariant{}
+	}
+	if r.Glossary == nil {
+		r.Glossary = []GlossaryEntry{}
+	}
+	if r.Doctrine == nil {
+		r.Doctrine = []DoctrineRule{}
+	}
 }
 
 // Renderer produces agent-guide markdown from a RenderInput.
@@ -68,29 +117,33 @@ func (r *MarkdownRenderer) Render(input RenderInput) ([]byte, error) {
 	// Always render project heading
 	fmt.Fprintf(&buf, "# %s\n\n", input.ProjectName)
 
+	// Always render project overview
+	fmt.Fprintf(&buf, "## Project Overview\n\n")
+	fmt.Fprintf(&buf, "**Project:** %s\n\n", input.ProjectName)
+
 	// Architecture section - only if modules exist
-	if len(input.Architecture.Modules) > 0 {
+	if len(input.Modules) > 0 {
 		fmt.Fprintf(&buf, "## Architecture\n\n")
-		for _, m := range input.Architecture.Modules {
+		for _, m := range input.Modules {
 			fmt.Fprintf(&buf, "- **%s** (%s): %s\n", m.Name, m.Language, m.Description)
 		}
 		buf.WriteString("\n")
 	}
 
 	// Source Map section - only if entries exist
-	if len(input.SourceMap.Entries) > 0 {
+	if len(input.SourceMap) > 0 {
 		fmt.Fprintf(&buf, "## Source Map\n\n")
-		for _, e := range input.SourceMap.Entries {
+		for _, e := range input.SourceMap {
 			fmt.Fprintf(&buf, "- `%s` (%s, %d lines)\n", e.Path, e.Language, e.Lines)
 		}
 		buf.WriteString("\n")
 	}
 
 	// Validation section - only if commands exist
-	if len(input.Validation.Commands) > 0 {
+	if len(input.Validation) > 0 {
 		fmt.Fprintf(&buf, "## Validation\n\n")
-		for _, cmd := range input.Validation.Commands {
-			fmt.Fprintf(&buf, "- **%s** [%s]: `%s` (from %s)\n", cmd.Name, cmd.Kind.String(), cmd.Run, cmd.Source)
+		for _, cmd := range input.Validation {
+			fmt.Fprintf(&buf, "- **%s** [%s]: `%s` (from %s)\n", cmd.Name, cmd.Kind, cmd.Run, cmd.Source)
 		}
 		buf.WriteString("\n")
 	}
@@ -123,9 +176,9 @@ func (r *MarkdownRenderer) Render(input RenderInput) ([]byte, error) {
 	}
 
 	// Doctrine - only if rules exist
-	if len(input.Doctrine.Rules) > 0 {
+	if len(input.Doctrine) > 0 {
 		fmt.Fprintf(&buf, "## Doctrine\n\n")
-		for _, rule := range input.Doctrine.Rules {
+		for _, rule := range input.Doctrine {
 			fmt.Fprintf(&buf, "- [%s] %s (scope: %s)\n", rule.ID, rule.Summary, rule.Scope)
 		}
 		buf.WriteString("\n")
