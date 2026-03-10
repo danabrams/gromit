@@ -60,3 +60,8 @@ func ComputeVerdict(findings []Finding) Verdict {
 	}
 	return VerdictPass
 }
+
+// HasFindings reports whether the slice contains any review findings.
+func HasFindings(findings []Finding) bool {
+	return len(findings) > 0
+}
