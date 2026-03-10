@@ -75,6 +75,22 @@ func (a *AcceptArtifacts) GetGapSummary() string {
 	return a.GapSummary
 }
 
+func buildFailureFindings(failures []string) []stagepkg.Finding {
+	if len(failures) == 0 {
+		return nil
+	}
+	findings := make([]stagepkg.Finding, 0, len(failures))
+	for _, failure := range failures {
+		findings = append(findings, stagepkg.Finding{
+			Severity:    "critical",
+			Category:    "acceptance",
+			Scope:       "spec",
+			Description: failure,
+		})
+	}
+	return findings
+}
+
 // Stage evaluates acceptance criteria against the current worktree.
 type Stage struct {
 	name               string
@@ -220,7 +236,7 @@ func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Resul
 		return nil, evalErr
 	}
 
-	artifacts := &AcceptArtifacts{Results: results}
+	artifacts := &AcceptArtifacts{Results: results, Findings: buildFailureFindings(failures)}
 	if len(failures) > 0 {
 		gapSummary := strings.Join(failures, "\n")
 		artifacts.GapSummary = gapSummary
