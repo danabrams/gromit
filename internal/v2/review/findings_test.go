@@ -28,3 +28,17 @@ func TestComputeVerdictPassesWhenNoCritical(t *testing.T) {
 		t.Fatalf("verdict = %q, want %q", verdict, VerdictPass)
 	}
 }
+
+func TestHasFindings(t *testing.T) {
+	t.Parallel()
+
+	if HasFindings(nil) {
+		t.Fatal("expected nil slice to mean no findings")
+	}
+	if HasFindings([]Finding{}) {
+		t.Fatal("expected empty slice to mean no findings")
+	}
+	if !HasFindings([]Finding{{Description: "something"}}) {
+		t.Fatal("expected non-empty slice to report findings")
+	}
+}
