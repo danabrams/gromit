@@ -17,6 +17,15 @@ type Stage interface {
 	Run(context.Context, *StageRequest) (*StageResult, error)
 }
 
+// Finding captures a scoped observation tied to a stage.
+type Finding struct {
+	Severity      string
+	Category      string
+	Scope         string
+	Description   string
+	AffectedFiles []string
+}
+
 // StageRequest captures metadata the loop passes to each stage during execution.
 type StageRequest struct {
 	Bead         BeadInfo
