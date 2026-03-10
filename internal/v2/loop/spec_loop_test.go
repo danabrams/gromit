@@ -1654,6 +1654,38 @@ func (f *fakePlanStage) Run(ctx context.Context, req *stagepkg.Request) (*stagep
 	}, nil
 }
 
+type fakeSpecReviewStage struct {
+	calls   int
+	results []*stagepkg.Result
+	err     error
+}
+
+func newFakeSpecReviewStage(results ...*stagepkg.Result) *fakeSpecReviewStage {
+	copied := append([]*stagepkg.Result(nil), results...)
+	return &fakeSpecReviewStage{results: copied}
+}
+
+func (f *fakeSpecReviewStage) Name() string { return "spec-review" }
+
+func (f *fakeSpecReviewStage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Result, error) {
+	f.calls++
+	if f.err != nil {
+		return nil, f.err
+	}
+	if len(f.results) == 0 {
+		return &stagepkg.Result{Decision: stagepkg.DecisionProceed}, nil
+	}
+	idx := f.calls - 1
+	if idx >= len(f.results) {
+		idx = len(f.results) - 1
+	}
+	result := f.results[idx]
+	if result == nil {
+		return &stagepkg.Result{Decision: stagepkg.DecisionProceed}, nil
+	}
+	return result, nil
+}
+
 type fakePresentStage struct {
 	called bool
 }
