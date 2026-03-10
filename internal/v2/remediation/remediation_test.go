@@ -94,6 +94,70 @@ func TestRemediationRunnerPassesFindingsToDecompose(t *testing.T) {
 	}
 }
 
+func TestRemediationRunnerUsesConfiguredFindings(t *testing.T) {
+    t.Parallel()
+
+    configFindings := []finding.Finding{{
+        Title:         "targeted fix",
+        Severity:      finding.SeverityWarning,
+        Category:      finding.CategoryQuality,
+        Scope:         "spec",
+        Description:   "resolve gap",
+        AffectedFiles: []string{"internal/v2/remediation/remediation.go"},
+    }}
+
+    var capturedReq *stage.Request
+    decompose := &testStage{
+        name: "decompose",
+        run: func(ctx context.Context, req *stage.Request) (*stage.StageResult, error) {
+            capturedReq = req
+            return &stage.StageResult{Artifacts: &stage.DecomposeArtifacts{Beads: []*bead.Bead{{ID: "b"}}}}, nil
+        },
+    }
+
+    runner := NewRemediationRunner(RemediationRunnerConfig{
+        DecomposeStage: decompose,
+        BeadRunner:     &testBeadRunner{},
+        GenerationCap:  DefaultGenerationCap,
+        Findings:       append([]finding.Finding(nil), configFindings...),
+    })
+
+    if err := runner.Run(context.Background(), "spec-config", "", nil); err != nil {
+        t.Fatalf("run failed: %v", err)
+    }
+
+    if capturedReq == nil {
+        t.Fatal("decompose was not invoked")
+    }
+
+    if len(capturedReq.Findings) != len(configFindings) {
+        t.Fatalf("findings count = %d, want %d", len(capturedReq.Findings), len(configFindings))
+    }
+    got := capturedReq.Findings[0]
+    want := configFindings[0]
+    if got.Title != want.Title {
+        t.Fatalf("finding title = %q, want %q", got.Title, want.Title)
+    }
+    if got.Description != want.Description {
+        t.Fatalf("finding description = %q, want %q", got.Description, want.Description)
+    }
+    if got.Severity != stage.Severity(want.Severity) {
+        t.Fatalf("finding severity = %q, want %q", got.Severity, stage.Severity(want.Severity))
+    }
+    if got.Category != stage.Category(want.Category) {
+        t.Fatalf("finding category = %q, want %q", got.Category, stage.Category(want.Category))
+    }
+    if got.Scope != stage.Scope(want.Scope) {
+        t.Fatalf("finding scope = %q, want %q", got.Scope, stage.Scope(want.Scope))
+    }
+    if len(got.AffectedFiles) != len(want.AffectedFiles) {
+        t.Fatalf("affected files count = %d, want %d", len(got.AffectedFiles), len(want.AffectedFiles))
+    }
+    if got.AffectedFiles[0] != want.AffectedFiles[0] {
+        t.Fatalf("affected file = %q, want %q", got.AffectedFiles[0], want.AffectedFiles[0])
+    }
+}
+
 func TestRemediationRunnerFallsBackToGapAnalysisFileWhenNoFindings(t *testing.T) {
 	worktree := t.TempDir()
 	gapDir := filepath.Join(worktree, ".gromit", "v2")
