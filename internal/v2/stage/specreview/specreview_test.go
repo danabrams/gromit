@@ -297,6 +297,38 @@ func TestRunCreatesFromReviewBeads(t *testing.T) {
 	}
 }
 
+func TestStage_RunFailsOnCriticalFinding(t *testing.T) {
+	t.Parallel()
+
+	git := &fakeGitDiffer{diff: "cumulative diff"}
+	provider := &fakeProvider{
+		response: &llmtypes.LLMInvokeResponse{
+			Success: true,
+			Output:  `{"verdict": "reject", "findings": [{"severity": "critical", "category": "bug", "scope": "spec", "description": "blocking issue"}]}`,
+		},
+	}
+
+	cfg := &config.Config{}
+	stage, err := New(cfg, git, provider, "", "", "")
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	req := &stagepkg.Request{
+		Bead:     stagepkg.BeadInfo{ID: "spec-2", Title: "Spec Review"},
+		Worktree: "worktree",
+	}
+
+	result, err := stage.Run(context.Background(), req)
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+
+	if result.Decision != stagepkg.DecisionFail {
+		t.Fatalf("Decision = %v, want Fail", result.Decision)
+	}
+}
+
 type fakeGitDiffer struct {
 	diff string
 }
