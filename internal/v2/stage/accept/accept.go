@@ -213,13 +213,13 @@ func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Resul
 		}
 
 		s.Log("info", "accept: diff is %d bytes (>%d threshold), using targeted evaluation for %d criteria", len(diff), threshold, len(criteria))
-		results, failures, evalErr := s.runTargetedEvaluation(ctx, provider, specID, criteria, diff, cfg, req)
-		if evalErr != nil {
-			return nil, evalErr
-		}
+	results, failures, evalErr := s.runTargetedEvaluation(ctx, provider, specID, criteria, diff, cfg, req)
+	if evalErr != nil {
+		return nil, evalErr
+	}
 
-		artifacts := &AcceptArtifacts{Results: results}
-		if len(failures) > 0 {
+	artifacts := &AcceptArtifacts{Results: results, Findings: buildFailureFindings(failures)}
+	if len(failures) > 0 {
 			gapSummary := strings.Join(failures, "\n")
 			artifacts.GapSummary = gapSummary
 			if err := s.writeGapAnalysis(root, cfg, gapSummary); err != nil {
