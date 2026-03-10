@@ -174,17 +174,6 @@ func NewRun2LoopComponents(cfg *config.Config, adapters adapter.AdapterSet, lega
 		return nil, err
 	}
 
-	var specReviewStage stagepkg.Stage
-	if router != nil {
-		if provider, _, _, selectErr := router.Select("spec-review", routing.TierHigh); selectErr == nil && provider != nil {
-			specReviewStage, err = specreview.New(cfg, adapters.Git, provider, adapters.TaskTracker, baseInstructions, projectContext, specReviewFragment)
-			if err != nil {
-				cleanup()
-				return nil, err
-			}
-		}
-	}
-
 	epilogueStage, err := epiloguestage.New(cfg, adapters.TaskTracker)
 	if err != nil {
 		cleanup()
@@ -220,21 +209,12 @@ func NewRun2LoopComponents(cfg *config.Config, adapters adapter.AdapterSet, lega
 	}
 	acceptStage = acceptStage.WithEmitter(legacyEmitter)
 
-	specReviewFragment, err := loadFragment(cfg.ProjectRoot, "review_spec_v2.md")
-	if err != nil {
-		cleanup()
-		return nil, err
-	}
-
 	specReviewStageBase, err := specreviewstage.New(cfg, adapters.Git, adapters.LLM, adapters.TaskTracker, baseInstructions, projectContext, specReviewFragment)
 	if err != nil {
 		cleanup()
 		return nil, err
 	}
-	specReviewStageBase = specReviewStageBase.WithTypedEmitter(typedEmitter)
-
-	var specReviewStage stagepkg.Stage = specReviewStageBase
-	specReviewStage = newTieredSpecReviewStage(specReviewStage, router)
+	specReviewStage := newTieredSpecReviewStage(specReviewStageBase, router)
 
 	remediationRunner := v2remediation.NewRemediationRunner(v2remediation.RemediationRunnerConfig{
 		Config:         cfg,
