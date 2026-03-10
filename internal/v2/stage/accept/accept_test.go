@@ -175,6 +175,28 @@ func TestRunProducesFindingsForMultipleFailedCriteria(t *testing.T) {
 	}
 }
 
+func TestBuildFailureFindingsProducesSpecFindingAttributes(t *testing.T) {
+	failures := []string{"first failure", "second failure"}
+	findings := buildFailureFindings(failures)
+	if len(findings) != len(failures) {
+		t.Fatalf("findings count = %d, want %d", len(findings), len(failures))
+	}
+	for i, finding := range findings {
+		if strings.TrimSpace(finding.Description) != failures[i] {
+			t.Fatalf("finding description = %q, want %q", finding.Description, failures[i])
+		}
+		if string(finding.Severity) != string(stagepkg.SpecFindingSeverityCritical) {
+			t.Fatalf("finding severity = %q, want %q", finding.Severity, stagepkg.SpecFindingSeverityCritical)
+		}
+		if string(finding.Category) != string(stagepkg.SpecFindingCategoryAcceptance) {
+			t.Fatalf("finding category = %q, want %q", finding.Category, stagepkg.SpecFindingCategoryAcceptance)
+		}
+		if string(finding.Scope) != string(stagepkg.SpecFindingScopeSpec) {
+			t.Fatalf("finding scope = %q, want %q", finding.Scope, stagepkg.SpecFindingScopeSpec)
+		}
+	}
+}
+
 func TestRunTargetedFailureProducesFindings(t *testing.T) {
 	t.Parallel()
 
