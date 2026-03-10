@@ -13,13 +13,17 @@ import (
 	"github.com/danabrams/gromit/internal/events"
 	"github.com/danabrams/gromit/internal/v2/adapter"
 	"github.com/danabrams/gromit/internal/v2/presentation"
+	stageaccept "github.com/danabrams/gromit/internal/v2/stage/accept"
 	"github.com/danabrams/gromit/internal/v2/stage"
 	"github.com/danabrams/gromit/internal/v2/stage/finding"
+	"github.com/danabrams/gromit/internal/v2/stage/specreview"
 )
 
 // RemediationRunnerConfig captures dependencies for remediation orchestration.
 type RemediationRunnerConfig struct {
+	AcceptStage     stage.Stage
 	PlanStage       stage.Stage
+	SpecReviewStage stage.Stage
 	GapStage        stage.Stage
 	Findings        []finding.Finding
 	DecomposeStage  stage.Stage
@@ -53,9 +57,6 @@ type planContentProvider interface {
 // The plan stage's PlanArtifacts satisfies this interface when a GetPlanContent
 // method is added, allowing the remediation runner to persist the actual
 // remediation plan rather than just the gap analysis.
-type planContentProvider interface {
-	GetPlanContent() string
-}
 
 var (
 	ErrSpecIDRequired               = errors.New("spec ID required")
@@ -97,11 +98,35 @@ func (r *RemediationRunner) Run(ctx context.Context, specID, worktree string, fi
 
 	gapAnalysis := r.resolveGapAnalysis(worktree, findings)
 
-	if err := r.executeRemediation(ctx, &req, gapAnalysis); err != nil {
-		return err
+	if r.cfg.AcceptStage == nil {
+		req.GapAnalysis = gapAnalysis
+		return r.executeRemediation(ctx, &req, gapAnalysis)
 	}
 
-	return nil
+	acceptRes, err := r.cfg.AcceptStage.Run(ctx, &req)
+	if err != nil {
+		return err
+	}
+	if !r.acceptFailed(acceptRes) {
+		return nil
+	}
+
+	req.SpecFindings = appendSpecFindings(req.SpecFindings, r.acceptSpecFindings(acceptRes))
+
+	specReviewRes, err := r.runSpecReviewStage(ctx, &req)
+	if err != nil {
+		return err
+	}
+	req.SpecFindings = appendSpecFindings(req.SpecFindings, r.specReviewSpecFindings(specReviewRes))
+
+	if len(req.SpecFindings) > 0 {
+		req.Findings = cloneFindings(convertSpecFindings(req.SpecFindings))
+	}
+
+	finalGap := r.gapAnalysisWithAcceptSummary(acceptRes, gapAnalysis)
+	req.GapAnalysis = finalGap
+
+	return r.executeRemediation(ctx, &req, finalGap)
 }
 
 func (r *RemediationRunner) resolveGapAnalysis(worktree string, findings []stage.SpecFinding) string {
@@ -178,16 +203,6 @@ func extractPlanContent(res *stage.Result) string {
 	return ""
 }
 
-func extractPlanContent(res *stage.Result) string {
-	if res == nil || res.Artifacts == nil {
-		return ""
-	}
-	if pp, ok := res.Artifacts.(planContentProvider); ok {
-		return pp.GetPlanContent()
-	}
-	return ""
-}
-
 func (r *RemediationRunner) executeRemediation(ctx context.Context, req *stage.Request, gapAnalysis string) error {
 	specID := req.Bead.ID
 	if !r.canRemediate() {
@@ -195,8 +210,12 @@ func (r *RemediationRunner) executeRemediation(ctx context.Context, req *stage.R
 	}
 
 	req.Remediation = true
-	req.GapAnalysis = gapAnalysis
-	req.Findings = cloneFindings(convertSpecFindings(req.SpecFindings))
+	if req.GapAnalysis == "" {
+		req.GapAnalysis = gapAnalysis
+	}
+	if len(req.Findings) == 0 {
+		req.Findings = cloneFindings(convertSpecFindings(req.SpecFindings))
+	}
 
 	if r.cfg.GapStage != nil {
 		if _, err := r.cfg.GapStage.Run(ctx, req); err != nil {
@@ -218,32 +237,7 @@ func (r *RemediationRunner) executeRemediation(ctx context.Context, req *stage.R
 		// the gap analysis so there is always a remediation record on disk.
 		content := planContent
 		if content == "" {
-			content = gapAnalysis
-		}
-		planPath := r.remediationPlanPath(req.Worktree)
-		if err := os.MkdirAll(filepath.Dir(planPath), 0o755); err != nil {
-			return fmt.Errorf("create remediation plan dir: %w", err)
-		}
-		if err := os.WriteFile(planPath, []byte(content), 0o644); err != nil {
-			return fmt.Errorf("persist remediation plan: %w", err)
-		}
-	}
-
-	var planContent string
-	if r.cfg.PlanStage != nil {
-		planRes, err := r.cfg.PlanStage.Run(ctx, req)
-		if err != nil {
-			return fmt.Errorf("remediation plan: %w", err)
-		}
-		planContent = extractPlanContent(planRes)
-	}
-
-	if req.Worktree != "" {
-		// Persist the plan stage output when available; otherwise fall back to
-		// the gap analysis so there is always a remediation record on disk.
-		content := planContent
-		if content == "" {
-			content = gapAnalysis
+			content = req.GapAnalysis
 		}
 		planPath := r.remediationPlanPath(req.Worktree)
 		if err := os.MkdirAll(filepath.Dir(planPath), 0o755); err != nil {
@@ -374,6 +368,78 @@ func mapSpecCategory(category stage.SpecFindingCategory) finding.Category {
 	default:
 		return finding.CategoryQuality
 	}
+}
+
+func appendSpecFindings(dst, src []stage.SpecFinding) []stage.SpecFinding {
+	if len(src) == 0 {
+		return dst
+	}
+	if len(dst) == 0 {
+		return append([]stage.SpecFinding(nil), src...)
+	}
+	merged := append([]stage.SpecFinding(nil), dst...)
+	merged = append(merged, src...)
+	return merged
+}
+
+func (r *RemediationRunner) acceptFailed(res *stage.Result) bool {
+	return res != nil && res.Decision == stage.DecisionFail
+}
+
+func (r *RemediationRunner) acceptArtifacts(res *stage.Result) *stageaccept.AcceptArtifacts {
+	if res == nil || res.Artifacts == nil {
+		return nil
+	}
+	artifacts, _ := res.Artifacts.(*stageaccept.AcceptArtifacts)
+	return artifacts
+}
+
+func (r *RemediationRunner) acceptSpecFindings(res *stage.Result) []stage.SpecFinding {
+	if a := r.acceptArtifacts(res); a != nil {
+		return append([]stage.SpecFinding(nil), a.Findings...)
+	}
+	return nil
+}
+
+func (r *RemediationRunner) specReviewSpecFindings(res *stage.Result) []stage.SpecFinding {
+	if res == nil || res.Artifacts == nil {
+		return nil
+	}
+	artifacts, ok := res.Artifacts.(*specreview.SpecReviewArtifacts)
+	if !ok || len(artifacts.Findings) == 0 {
+		return nil
+	}
+	result := make([]stage.SpecFinding, 0, len(artifacts.Findings))
+	for _, raw := range artifacts.Findings {
+		result = append(result, stage.SpecFinding{
+			Title:       strings.TrimSpace(raw.Title),
+			Description: strings.TrimSpace(raw.Description),
+			Severity:    raw.Severity,
+			Category:    raw.Category,
+			Scope:       raw.Scope,
+		})
+	}
+	return result
+}
+
+func (r *RemediationRunner) runSpecReviewStage(ctx context.Context, req *stage.Request) (*stage.Result, error) {
+	if r.cfg.SpecReviewStage == nil {
+		return nil, nil
+	}
+	res, err := r.cfg.SpecReviewStage.Run(ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("spec review stage: %w", err)
+	}
+	return res, nil
+}
+
+func (r *RemediationRunner) gapAnalysisWithAcceptSummary(res *stage.Result, fallback string) string {
+	if a := r.acceptArtifacts(res); a != nil {
+		if summary := strings.TrimSpace(a.GapSummary); summary != "" {
+			return summary
+		}
+	}
+	return fallback
 }
 
 func (r *RemediationRunner) decompose(ctx context.Context, req *stage.Request) ([]*bead.Bead, error) {
