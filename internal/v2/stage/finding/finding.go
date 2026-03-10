@@ -23,6 +23,7 @@ const (
 
 // Finding captures a post-review issue discovered during the stage.
 type Finding struct {
+	Title         string
 	Severity      Severity
 	Category      Category
 	Scope         string
@@ -40,7 +41,7 @@ func HasCritical(findings []Finding) bool {
 	return false
 }
 
-// NormalizeNilFields ensures that slice fields are never nil.
+// NormalizeNilFields ensures that slice fields are never nil (see CLAUDE.md's nil-field normalization visibility convention).
 func (f *Finding) NormalizeNilFields() {
 	if f == nil {
 		return

@@ -26,6 +26,24 @@ type Finding struct {
 	AffectedFiles []string
 }
 
+const (
+	FindingSeverityCritical   = "critical"
+	FindingSeverityWarning    = "warning"
+	FindingSeveritySuggestion = "suggestion"
+)
+
+const (
+	FindingCategoryQuality    = "quality"
+	FindingCategoryAcceptance = "acceptance"
+	FindingCategorySecurity   = "security"
+)
+
+const (
+	FindingScopeSpec    = "spec"
+	FindingScopeBead    = "bead"
+	FindingScopeGeneral = "general"
+)
+
 // StageRequest captures metadata the loop passes to each stage during execution.
 type StageRequest struct {
 	Bead         BeadInfo
@@ -125,10 +143,12 @@ type SpecFinding struct {
 type SpecFindingSeverity string
 
 const (
-	SpecFindingSeverityCritical SpecFindingSeverity = "critical"
-	SpecFindingSeverityHigh     SpecFindingSeverity = "high"
-	SpecFindingSeverityMedium   SpecFindingSeverity = "medium"
-	SpecFindingSeverityLow      SpecFindingSeverity = "low"
+	SpecFindingSeverityCritical   SpecFindingSeverity = "critical"
+	SpecFindingSeverityHigh       SpecFindingSeverity = "high"
+	SpecFindingSeverityMedium     SpecFindingSeverity = "medium"
+	SpecFindingSeverityLow        SpecFindingSeverity = "low"
+	SpecFindingSeverityWarning    SpecFindingSeverity = "warning"
+	SpecFindingSeveritySuggestion SpecFindingSeverity = "suggestion"
 )
 
 // SpecFindingCategory groups findings by their domain.
@@ -145,9 +165,10 @@ const (
 type SpecFindingScope string
 
 const (
-	SpecFindingScopeSpec  SpecFindingScope = "spec"
-	SpecFindingScopeBead  SpecFindingScope = "bead"
-	SpecFindingScopeStage SpecFindingScope = "stage"
+	SpecFindingScopeSpec    SpecFindingScope = "spec"
+	SpecFindingScopeBead    SpecFindingScope = "bead"
+	SpecFindingScopeStage   SpecFindingScope = "stage"
+	SpecFindingScopeGeneral SpecFindingScope = "general"
 )
 
 // LLMCostSummary captures telemetry about the LLM invocation that drove the iteration.

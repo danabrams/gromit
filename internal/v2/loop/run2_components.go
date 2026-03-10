@@ -16,7 +16,6 @@ import (
 	"github.com/danabrams/gromit/internal/v2/adapter"
 	"github.com/danabrams/gromit/internal/v2/adapter/llm"
 	"github.com/danabrams/gromit/internal/v2/event"
-	"github.com/danabrams/gromit/internal/v2/llmtypes"
 	"github.com/danabrams/gromit/internal/v2/pipeline"
 	v2remediation "github.com/danabrams/gromit/internal/v2/remediation"
 	"github.com/danabrams/gromit/internal/v2/routing"
@@ -58,7 +57,7 @@ type Run2LoopComponents struct {
 }
 
 // NewRun2LoopComponents builds the stages and bead loop that power the Run2 command.
-func NewRun2LoopComponents(cfg *config.Config, adapters adapter.AdapterSet, legacyEmitter *events.Emitter, output io.Writer, router *routing.Router, phaseModels map[string]string) (*Run2LoopComponents, error) {
+func NewRun2LoopComponents(cfg *config.Config, adapters adapter.AdapterSet, legacyEmitter *events.Emitter, output io.Writer, router LoopRouter, phaseModels map[string]string) (*Run2LoopComponents, error) {
 	typedEmitter := event.NewEmitter()
 	cleanup := func() {
 		typedEmitter.Close()
@@ -174,17 +173,6 @@ func NewRun2LoopComponents(cfg *config.Config, adapters adapter.AdapterSet, lega
 		return nil, err
 	}
 
-	var specReviewStage stagepkg.Stage
-	if router != nil {
-		if provider, _, _, selectErr := router.Select("spec-review", routing.TierHigh); selectErr == nil && provider != nil {
-			specReviewStage, err = specreview.New(cfg, adapters.Git, provider, adapters.TaskTracker, baseInstructions, projectContext, specReviewFragment)
-			if err != nil {
-				cleanup()
-				return nil, err
-			}
-		}
-	}
-
 	epilogueStage, err := epiloguestage.New(cfg, adapters.TaskTracker)
 	if err != nil {
 		cleanup()
@@ -220,21 +208,12 @@ func NewRun2LoopComponents(cfg *config.Config, adapters adapter.AdapterSet, lega
 	}
 	acceptStage = acceptStage.WithEmitter(legacyEmitter)
 
-	specReviewFragment, err := loadFragment(cfg.ProjectRoot, "review_spec_v2.md")
-	if err != nil {
-		cleanup()
-		return nil, err
-	}
-
 	specReviewStageBase, err := specreviewstage.New(cfg, adapters.Git, adapters.LLM, adapters.TaskTracker, baseInstructions, projectContext, specReviewFragment)
 	if err != nil {
 		cleanup()
 		return nil, err
 	}
-	specReviewStageBase = specReviewStageBase.WithTypedEmitter(typedEmitter)
-
-	var specReviewStage stagepkg.Stage = specReviewStageBase
-	specReviewStage = newTieredSpecReviewStage(specReviewStage, router)
+	specReviewStage := newTieredSpecReviewStage(specReviewStageBase, router)
 
 	remediationRunner := v2remediation.NewRemediationRunner(v2remediation.RemediationRunnerConfig{
 		Config:         cfg,
@@ -439,18 +418,14 @@ func loadFragment(projectRoot, filename string) (string, error) {
 
 const specReviewPhase = "specreview"
 
-type specReviewRouter interface {
-	Select(phase, tier string) (llmtypes.LLMProvider, string, string, error)
-}
-
 type tieredSpecReviewStage struct {
 	inner  stagepkg.Stage
-	router specReviewRouter
+	router LoopRouter
 	phase  string
 	tier   string
 }
 
-func newTieredSpecReviewStage(inner stagepkg.Stage, router specReviewRouter) stagepkg.Stage {
+func newTieredSpecReviewStage(inner stagepkg.Stage, router LoopRouter) stagepkg.Stage {
 	if inner == nil || router == nil {
 		return inner
 	}

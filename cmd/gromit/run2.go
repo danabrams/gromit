@@ -62,7 +62,11 @@ var (
 	newTaskTrackerAdapterFn = func(client *bead.Client) tasktracker.TaskTracker {
 		return tasktracker.NewBDAdapter(client)
 	}
-	runBeadLoopFn = func(runLoop *loop.BeadLoop, ctx context.Context, beads []*bead.Bead, stopCh <-chan struct{}) (loop.BeadLoopResult, error) {
+	newTaskTrackerFn = func(client *bead.Client) (adapter.TaskTracker, error) {
+		return newTaskTrackerAdapterFn(client), nil
+	}
+	newBeadClientFn = bead.NewClient
+	runBeadLoopFn   = func(runLoop *loop.BeadLoop, ctx context.Context, beads []*bead.Bead, stopCh <-chan struct{}) (loop.BeadLoopResult, error) {
 		if runLoop == nil {
 			return loop.BeadLoopResult{}, fmt.Errorf("bead loop required")
 		}
@@ -88,11 +92,6 @@ func run2(cmd *cobra.Command, args []string) error {
 		return run2FromReview(cmd, cfg)
 	}
 
-	specsDir := resolveSpecsDir(cfg)
-	specFiles, err := resolveRun2Specs(cmd, args, specsDir)
-	if err != nil {
-		return fmt.Errorf("reading from-review flag: %w", err)
-	}
 	specFilter, err := cmd.Flags().GetString("spec")
 	if err != nil {
 		return fmt.Errorf("reading spec flag: %w", err)
@@ -210,10 +209,9 @@ func run2(cmd *cobra.Command, args []string) error {
 		loop.WithAcceptStage(components.AcceptStage),
 		loop.WithSpecReviewStage(components.SpecReviewStage),
 		loop.WithRemediationRunner(components.RemediationRunner),
-		loop.WithSpecReviewStage(components.SpecReviewStage),
 		loop.WithStageCommitter(components.StageCommitter),
 		loop.WithTypedEmitter(components.TypedEmitter),
-	)
+	}
 	if router != nil {
 		baseOpts = append(baseOpts, loop.WithRouter(router))
 	}

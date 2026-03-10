@@ -8,12 +8,14 @@ import (
 	"testing"
 
 	"github.com/danabrams/gromit/internal/bead"
-	"github.com/danabrams/gromit/internal/events"
-	stageaccept "github.com/danabrams/gromit/internal/v2/stage/accept"
 	"github.com/danabrams/gromit/internal/v2/stage"
-	"github.com/danabrams/gromit/internal/v2/stage/finding"
+	stageaccept "github.com/danabrams/gromit/internal/v2/stage/accept"
 	"github.com/danabrams/gromit/internal/v2/stage/specreview"
 )
+
+type gapArtifacts struct {
+	gap string
+}
 
 func TestRemediationRunnerRun_requiresSpecID(t *testing.T) {
 	runner := NewRemediationRunner(RemediationRunnerConfig{})
@@ -211,7 +213,7 @@ func TestRemediation_CreatesRemediationPlanNotOriginal(t *testing.T) {
 		GenerationCap:  1,
 	})
 
-	if err := runner.Run(context.Background(), "spec-plan", ""); err != nil {
+	if err := runner.Run(context.Background(), "spec-plan", "", nil); err != nil {
 		t.Fatalf("run failed: %v", err)
 	}
 
@@ -288,7 +290,7 @@ func TestRemediation_RemediationPlanPersistedSeparately(t *testing.T) {
 		GenerationCap:  1,
 	})
 
-	if err := runner.Run(context.Background(), "spec-persist", worktree); err != nil {
+	if err := runner.Run(context.Background(), "spec-persist", worktree, nil); err != nil {
 		t.Fatalf("run failed: %v", err)
 	}
 
@@ -372,7 +374,7 @@ func TestRemediation_SecondRemediationCreatesRemediationPlan2(t *testing.T) {
 		GenerationCap:  3,
 	})
 
-	if err := runner.Run(context.Background(), "spec-multi", worktree); err != nil {
+	if err := runner.Run(context.Background(), "spec-multi", worktree, nil); err != nil {
 		t.Fatalf("run failed: %v", err)
 	}
 
@@ -452,7 +454,7 @@ func TestRemediation_PersistsPlanContentOverGapAnalysis(t *testing.T) {
 		GenerationCap:  1,
 	})
 
-	if err := runner.Run(context.Background(), "spec-plan-content", worktree); err != nil {
+	if err := runner.Run(context.Background(), "spec-plan-content", worktree, nil); err != nil {
 		t.Fatalf("run failed: %v", err)
 	}
 
@@ -514,7 +516,7 @@ func TestRemediation_FallsBackToGapAnalysisWhenNoPlanContent(t *testing.T) {
 		GenerationCap:  1,
 	})
 
-	if err := runner.Run(context.Background(), "spec-fallback", worktree); err != nil {
+	if err := runner.Run(context.Background(), "spec-fallback", worktree, nil); err != nil {
 		t.Fatalf("run failed: %v", err)
 	}
 
@@ -599,7 +601,7 @@ func TestRemediationRunnerCollectsAcceptAndSpecReviewFindings(t *testing.T) {
 		GenerationCap:   DefaultGenerationCap,
 	})
 
-	if err := runner.Run(context.Background(), "spec-findings", ""); err != nil {
+	if err := runner.Run(context.Background(), "spec-findings", "", nil); err != nil {
 		t.Fatalf("run failed: %v", err)
 	}
 	if specReviewCalls != 1 {

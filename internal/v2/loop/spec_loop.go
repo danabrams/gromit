@@ -231,7 +231,6 @@ type SpecLoop struct {
 	gapAnalyzer           GapAnalyzer
 	router                *routing.Router
 	phaseModels           map[string]string
-	specReviewStage       stagepkg.Stage
 }
 
 type worktreeSetter interface {
@@ -692,20 +691,7 @@ func (s *SpecLoop) extractSpecReviewFindings(res *stagepkg.Result) []stagepkg.Sp
 	if !ok {
 		return nil
 	}
-	if len(artifacts.Findings) == 0 {
-		return nil
-	}
-	findings := make([]stagepkg.SpecFinding, 0, len(artifacts.Findings))
-	for _, finding := range artifacts.Findings {
-		findings = append(findings, stagepkg.SpecFinding{
-			Title:       finding.Title,
-			Description: finding.Description,
-			Severity:    finding.Severity,
-			Category:    finding.Category,
-			Scope:       finding.Scope,
-		})
-	}
-	return findings
+	return specReviewArtifactsToSpecFindings(artifacts)
 }
 
 func (s *SpecLoop) runAcceptStage(ctx context.Context, req *stagepkg.Request) (*stagepkg.Result, error) {
@@ -754,17 +740,6 @@ func (s *SpecLoop) acceptFailed(res *stagepkg.Result) bool {
 	return res.Decision == stagepkg.DecisionFail
 }
 
-func (s *SpecLoop) runSpecReviewStage(ctx context.Context, req *stagepkg.Request) (*stagepkg.Result, error) {
-	if s.specReviewStage == nil {
-		return nil, nil
-	}
-	res, err := s.specReviewStage.Run(ctx, req)
-	if err != nil {
-		return nil, fmt.Errorf("spec review stage: %w", err)
-	}
-	return res, nil
-}
-
 func (s *SpecLoop) specReviewFailed(res *stagepkg.Result) bool {
 	if res == nil {
 		return false
@@ -773,6 +748,17 @@ func (s *SpecLoop) specReviewFailed(res *stagepkg.Result) bool {
 		return true
 	}
 	return s.specReviewVerdictFailed(res)
+}
+
+func (s *SpecLoop) runRemediation(ctx context.Context, specID, worktree string, reviewFindings []finding.Finding) error {
+	if s.remediationRunner == nil {
+		return nil
+	}
+	if runner, ok := s.remediationRunner.(remediationRunnerWithFindings); ok {
+		return runner.RunWithFindings(ctx, specID, worktree, reviewFindings)
+	}
+	specFindings := convertFindingsToSpecFindings(reviewFindings)
+	return s.remediationRunner.Run(ctx, specID, worktree, specFindings)
 }
 
 func (s *SpecLoop) extractSpecReviewVerdict(res *stagepkg.Result) string {
@@ -794,7 +780,8 @@ func extractSpecReviewFindings(res *stagepkg.Result) []finding.Finding {
 	if !ok || artifacts == nil {
 		return nil
 	}
-	return cloneStageFindings(artifacts.Findings)
+	stageFindings := specReviewArtifactsToSpecFindings(artifacts)
+	return convertStageSpecFindingsToFindings(stageFindings)
 }
 
 func specReviewCreatedBeads(res *stagepkg.Result) bool {
@@ -906,18 +893,6 @@ func cloneOutOfScopeFindings(findings []v2review.Finding) []v2review.Finding {
 	return clones
 }
 
-func cloneStageFindings(src []finding.Finding) []finding.Finding {
-	if len(src) == 0 {
-		return nil
-	}
-	clones := make([]finding.Finding, len(src))
-	for i, item := range src {
-		clones[i] = item
-		clones[i].AffectedFiles = append([]string(nil), item.AffectedFiles...)
-	}
-	return clones
-}
-
 func extractAcceptFindings(res *stagepkg.Result) []finding.Finding {
 	if res == nil || res.Artifacts == nil {
 		return nil
@@ -926,7 +901,7 @@ func extractAcceptFindings(res *stagepkg.Result) []finding.Finding {
 	if !ok || artifacts == nil {
 		return nil
 	}
-	return cloneStageFindings(artifacts.Findings)
+	return convertStageSpecFindingsToFindings(artifacts.Findings)
 }
 
 func mergeFindings(acceptRes, specreviewRes *stagepkg.Result) []finding.Finding {
@@ -939,6 +914,124 @@ func mergeFindings(acceptRes, specreviewRes *stagepkg.Result) []finding.Finding 
 	merged = append(merged, acceptFindings...)
 	merged = append(merged, reviewFindings...)
 	return merged
+}
+
+func specReviewArtifactsToSpecFindings(artifacts *specreview.SpecReviewArtifacts) []stagepkg.SpecFinding {
+	if artifacts == nil || len(artifacts.Findings) == 0 {
+		return nil
+	}
+	findings := make([]stagepkg.SpecFinding, 0, len(artifacts.Findings))
+	for _, item := range artifacts.Findings {
+		findings = append(findings, stagepkg.SpecFinding{
+			Title:       strings.TrimSpace(item.Title),
+			Description: strings.TrimSpace(item.Description),
+			Severity:    item.Severity,
+			Category:    item.Category,
+			Scope:       item.Scope,
+		})
+	}
+	return findings
+}
+
+func convertStageSpecFindingsToFindings(src []stagepkg.SpecFinding) []finding.Finding {
+	if len(src) == 0 {
+		return nil
+	}
+	converted := make([]finding.Finding, 0, len(src))
+	for _, spec := range src {
+		converted = append(converted, finding.Finding{
+			Severity:    mapSpecSeverityToFinding(spec.Severity),
+			Category:    mapSpecCategoryToFinding(spec.Category),
+			Scope:       strings.TrimSpace(string(spec.Scope)),
+			Description: strings.TrimSpace(spec.Description),
+		})
+	}
+	return converted
+}
+
+func convertFindingsToSpecFindings(src []finding.Finding) []stagepkg.SpecFinding {
+	if len(src) == 0 {
+		return nil
+	}
+	converted := make([]stagepkg.SpecFinding, 0, len(src))
+	for _, item := range src {
+		description := strings.TrimSpace(item.Description)
+		title := description
+		if title == "" {
+			title = strings.TrimSpace(item.Scope)
+		}
+		converted = append(converted, stagepkg.SpecFinding{
+			Title:       title,
+			Description: description,
+			Severity:    mapFindingSeverityToSpecSeverity(item.Severity),
+			Category:    mapFindingCategoryToSpecCategory(item.Category),
+			Scope:       mapFindingScopeToSpecScope(item.Scope),
+		})
+	}
+	return converted
+}
+
+func mapSpecSeverityToFinding(severity stagepkg.SpecFindingSeverity) finding.Severity {
+	switch severity {
+	case stagepkg.SpecFindingSeverityCritical:
+		return finding.SeverityCritical
+	case stagepkg.SpecFindingSeverityHigh, stagepkg.SpecFindingSeverityMedium:
+		return finding.SeverityWarning
+	default:
+		return finding.SeveritySuggestion
+	}
+}
+
+func mapSpecCategoryToFinding(category stagepkg.SpecFindingCategory) finding.Category {
+	switch category {
+	case stagepkg.SpecFindingCategoryAcceptance:
+		return finding.CategoryAcceptance
+	case stagepkg.SpecFindingCategoryScope:
+		return finding.CategoryArchitecture
+	case stagepkg.SpecFindingCategoryQuality:
+		return finding.CategoryQuality
+	case stagepkg.SpecFindingCategorySafety:
+		return finding.CategorySecurity
+	default:
+		return finding.CategoryQuality
+	}
+}
+
+func mapFindingSeverityToSpecSeverity(severity finding.Severity) stagepkg.SpecFindingSeverity {
+	switch severity {
+	case finding.SeverityCritical:
+		return stagepkg.SpecFindingSeverityCritical
+	case finding.SeverityWarning:
+		return stagepkg.SpecFindingSeverityHigh
+	default:
+		return stagepkg.SpecFindingSeverityLow
+	}
+}
+
+func mapFindingCategoryToSpecCategory(category finding.Category) stagepkg.SpecFindingCategory {
+	switch category {
+	case finding.CategoryAcceptance:
+		return stagepkg.SpecFindingCategoryAcceptance
+	case finding.CategoryArchitecture:
+		return stagepkg.SpecFindingCategoryScope
+	case finding.CategorySecurity:
+		return stagepkg.SpecFindingCategorySafety
+	case finding.CategoryTestGap, finding.CategoryQuality:
+		return stagepkg.SpecFindingCategoryQuality
+	default:
+		return stagepkg.SpecFindingCategoryQuality
+	}
+}
+
+func mapFindingScopeToSpecScope(scope string) stagepkg.SpecFindingScope {
+	switch strings.ToLower(strings.TrimSpace(scope)) {
+	case "bead":
+		return stagepkg.SpecFindingScopeBead
+	case "stage":
+		return stagepkg.SpecFindingScopeStage
+	default:
+		return stagepkg.SpecFindingScopeSpec
+	}
 }
 
 func (s *SpecLoop) createFromReviewBeads(ctx context.Context, specID string, reviewFindings []finding.Finding) error {

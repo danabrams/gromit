@@ -58,7 +58,7 @@ type BeadLoopConfig struct {
 	StartGeneration            int
 	Git                        GitCommitter
 	StageCommitter             StageCommitter
-	Router                     *routing.Router   // optional: if nil, routing is skipped
+	Router                     LoopRouter        // optional: if nil, routing is skipped
 	PhaseModels                map[string]string // optional: phase -> starting tier
 }
 
@@ -84,7 +84,7 @@ type BeadLoop struct {
 	outOfScopeFindings         []v2review.Finding
 	git                        GitCommitter
 	stageCommitter             StageCommitter
-	router                     *routing.Router
+	router                     LoopRouter
 	phaseModels                map[string]string
 	// lastBuildArtifacts stores the build artifacts from the most recent
 	// successful build stage run for the current bead. Reset at the start

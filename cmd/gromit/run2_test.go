@@ -24,6 +24,7 @@ import (
 	"github.com/danabrams/gromit/internal/v2/routing"
 	v2spec "github.com/danabrams/gromit/internal/v2/spec"
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
+	trackertypes "github.com/danabrams/gromit/internal/v2/trackertypes"
 )
 
 func TestRun2FailsWhenDependenciesBlocked(t *testing.T) {
@@ -396,7 +397,7 @@ func TestRun2FromReviewUsesBeadLoop(t *testing.T) {
 	defer func() { runBeadLoopFn = origRunBeadLoopFn }()
 
 	origComponentsFn := newRun2LoopComponentsFn
-	newRun2LoopComponentsFn = func(cfg *config.Config, adapters adapter.AdapterSet, legacyEmitter *events.Emitter, output io.Writer, router *routing.Router, phaseModels map[string]string) (*loop.Run2LoopComponents, error) {
+	newRun2LoopComponentsFn = func(cfg *config.Config, adapters adapter.AdapterSet, legacyEmitter *events.Emitter, output io.Writer, router loop.LoopRouter, phaseModels map[string]string) (*loop.Run2LoopComponents, error) {
 		emitter := events.NewEmitter()
 		return &loop.Run2LoopComponents{
 			BeadLoop:     &loop.BeadLoop{},
@@ -457,7 +458,7 @@ func TestRun2FromReviewLogsSummary(t *testing.T) {
 	defer func() { newTaskTrackerAdapterFn = origTrackerFn }()
 
 	origComponentsFn := newRun2LoopComponentsFn
-	newRun2LoopComponentsFn = func(cfg *config.Config, adapters adapter.AdapterSet, legacyEmitter *events.Emitter, output io.Writer, router *routing.Router, phaseModels map[string]string) (*loop.Run2LoopComponents, error) {
+	newRun2LoopComponentsFn = func(cfg *config.Config, adapters adapter.AdapterSet, legacyEmitter *events.Emitter, output io.Writer, router loop.LoopRouter, phaseModels map[string]string) (*loop.Run2LoopComponents, error) {
 		emitter := events.NewEmitter()
 		return &loop.Run2LoopComponents{
 			BeadLoop:     &loop.BeadLoop{},
@@ -542,7 +543,7 @@ func TestRun2_FromReviewFlag_WithSpec_FiltersToSpecLabel(t *testing.T) {
 	defer func() { runBeadLoopFn = origLoopFn }()
 
 	origComponentsFn := newRun2LoopComponentsFn
-	newRun2LoopComponentsFn = func(cfg *config.Config, adapters adapter.AdapterSet, legacyEmitter *events.Emitter, output io.Writer, router *routing.Router, phaseModels map[string]string) (*loop.Run2LoopComponents, error) {
+	newRun2LoopComponentsFn = func(cfg *config.Config, adapters adapter.AdapterSet, legacyEmitter *events.Emitter, output io.Writer, router loop.LoopRouter, phaseModels map[string]string) (*loop.Run2LoopComponents, error) {
 		emitter := events.NewEmitter()
 		return &loop.Run2LoopComponents{
 			BeadLoop:     &loop.BeadLoop{},
@@ -595,7 +596,7 @@ func TestRun2_FromReviewFlag_NoAcceptOrReviewInvoked(t *testing.T) {
 	defer func() { runBeadLoopFn = origLoopFn }()
 
 	origComponentsFn := newRun2LoopComponentsFn
-	newRun2LoopComponentsFn = func(cfg *config.Config, adapters adapter.AdapterSet, legacyEmitter *events.Emitter, output io.Writer, router *routing.Router, phaseModels map[string]string) (*loop.Run2LoopComponents, error) {
+	newRun2LoopComponentsFn = func(cfg *config.Config, adapters adapter.AdapterSet, legacyEmitter *events.Emitter, output io.Writer, router loop.LoopRouter, phaseModels map[string]string) (*loop.Run2LoopComponents, error) {
 		emitter := events.NewEmitter()
 		return &loop.Run2LoopComponents{
 			BeadLoop:        &loop.BeadLoop{},
@@ -663,7 +664,7 @@ func TestRun2FromReviewFiltersBeadsByLabel(t *testing.T) {
 	defer func() { newTaskTrackerAdapterFn = origTrackerFn }()
 
 	origComponentsFn := newRun2LoopComponentsFn
-	newRun2LoopComponentsFn = func(cfg *config.Config, adapters adapter.AdapterSet, legacyEmitter *events.Emitter, output io.Writer, router *routing.Router, phaseModels map[string]string) (*loop.Run2LoopComponents, error) {
+	newRun2LoopComponentsFn = func(cfg *config.Config, adapters adapter.AdapterSet, legacyEmitter *events.Emitter, output io.Writer, router loop.LoopRouter, phaseModels map[string]string) (*loop.Run2LoopComponents, error) {
 		emitter := events.NewEmitter()
 		return &loop.Run2LoopComponents{
 			BeadLoop:     &loop.BeadLoop{},

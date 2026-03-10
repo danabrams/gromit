@@ -206,7 +206,7 @@ func TestEventJSONRoundTrip(t *testing.T) {
 		{
 			name: "SpecVerdictEvent",
 			event: SpecVerdictEvent{
-				Event:              event.Event{SchemaVersion: SchemaVersion, Timestamp: now, Type: EventTypeSpecVerdict},
+				Event:              Event{SchemaVersion: SchemaVersion, Timestamp: now, Type: EventTypeSpecVerdict},
 				SpecID:             "spec-456",
 				Worktree:           "/tmp/worktree",
 				AcceptDecision:     "proceed",
