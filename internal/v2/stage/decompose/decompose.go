@@ -76,7 +76,7 @@ You are creating TARGETED beads to address specific unmet acceptance criteria. D
 ## Unmet Acceptance Criteria (create beads ONLY for these)
 
 %s
-
+%s%s
 ## Skill Instructions
 
 %s
@@ -182,7 +182,9 @@ func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Resul
 	var promptText string
 	gapAnalysis := s.resolveGapAnalysis(req)
 	if req.Remediation && gapAnalysis != "" {
-		promptText = fmt.Sprintf(remediationDecomposePromptTemplate, specID, string(planBody), gapAnalysis, skills.DecomposeSkill, specID)
+		completedSection := formatCompletedBeadTitles(req.CompletedBeadTitles)
+		failedSection := formatFailedAcceptanceCriteria(req.FailedAcceptanceCriteria)
+		promptText = fmt.Sprintf(remediationDecomposePromptTemplate, specID, string(planBody), gapAnalysis, completedSection, failedSection, skills.DecomposeSkill, specID)
 	} else {
 		promptText = fmt.Sprintf(s.promptTemplate, specID, string(planBody), skills.DecomposeSkill, specID)
 	}
@@ -465,6 +467,36 @@ func parsePriority(p string) int {
 	default:
 		return 1
 	}
+}
+
+func formatCompletedBeadTitles(titles []string) string {
+	if len(titles) == 0 {
+		return ""
+	}
+	var b strings.Builder
+	b.WriteString("\n## Already Completed Beads (DO NOT recreate these)\n\n")
+	for _, t := range titles {
+		b.WriteString("- ")
+		b.WriteString(t)
+		b.WriteString("\n")
+	}
+	b.WriteString("\n")
+	return b.String()
+}
+
+func formatFailedAcceptanceCriteria(criteria []string) string {
+	if len(criteria) == 0 {
+		return ""
+	}
+	var b strings.Builder
+	b.WriteString("\n## Failed Acceptance Criteria (focus ONLY on these)\n\n")
+	for _, c := range criteria {
+		b.WriteString("- ")
+		b.WriteString(c)
+		b.WriteString("\n")
+	}
+	b.WriteString("\n")
+	return b.String()
 }
 
 type beadDef struct {

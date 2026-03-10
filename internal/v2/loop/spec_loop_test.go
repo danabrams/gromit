@@ -496,16 +496,16 @@ func TestSpecLoopPassesStopChannelToBeadRunner(t *testing.T) {
 	}
 }
 
-func TestEnsureAcceptanceRetriesRemediationUntilSuccess(t *testing.T) {
+func TestEnsureAcceptanceReturnsSuccessAfterRemediation(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
 	specID := "spec-loop-ensure-acceptance"
 
+	// Accept fails once, remediation succeeds → ensureAcceptance trusts
+	// the remediation result and returns success without re-checking.
 	accept := newScriptedAcceptStage(
 		stagepkg.Result{Decision: stagepkg.DecisionFail},
-		stagepkg.Result{Decision: stagepkg.DecisionFail},
-		stagepkg.Result{Decision: stagepkg.DecisionProceed},
 	)
 	runner := &fakeRemediationRunner{}
 	s := &SpecLoop{
@@ -518,50 +518,47 @@ func TestEnsureAcceptanceRetriesRemediationUntilSuccess(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ensure acceptance: %v", err)
 	}
-	if res == nil || res.Decision != stagepkg.DecisionProceed {
-		t.Fatalf("accept decision = %v, want proceed", res)
+	// Result is nil because we trust the remediation runner's success.
+	if res != nil {
+		t.Fatalf("expected nil result after successful remediation, got %v", res)
 	}
-	if accept.calls != 3 {
-		t.Fatalf("accept stage calls = %d, want 3", accept.calls)
+	if accept.calls != 1 {
+		t.Fatalf("accept stage calls = %d, want 1", accept.calls)
 	}
-	if runner.calls != 2 {
-		t.Fatalf("remediation runner calls = %d, want 2", runner.calls)
+	if runner.calls != 1 {
+		t.Fatalf("remediation runner calls = %d, want 1", runner.calls)
 	}
 }
 
-func TestEnsureAcceptanceStopsAfterMaxRetries(t *testing.T) {
+func TestEnsureAcceptancePropagatesRemediationError(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	specID := "spec-loop-ensure-acceptance-max-retries"
+	specID := "spec-loop-ensure-acceptance-remediation-error"
 
-	failures := make([]stagepkg.Result, maxAcceptanceRetries+1)
-	for i := range failures {
-		failures[i].Decision = stagepkg.DecisionFail
-	}
-	accept := newScriptedAcceptStage(failures...)
-	runner := &fakeRemediationRunner{}
+	accept := newScriptedAcceptStage(
+		stagepkg.Result{Decision: stagepkg.DecisionFail},
+	)
+	remediationErr := fmt.Errorf("remediation failed")
+	runner := &fakeRemediationRunner{err: remediationErr}
 	s := &SpecLoop{
 		acceptStage:       accept,
 		remediationRunner: runner,
 	}
 
 	req := stagepkg.Request{Bead: stagepkg.BeadInfo{ID: specID}}
-	res, err := s.ensureAcceptance(ctx, &req, specID)
+	_, err := s.ensureAcceptance(ctx, &req, specID)
 	if err == nil {
 		t.Fatalf("ensure acceptance succeeded unexpectedly")
 	}
-	if !errors.Is(err, ErrAcceptanceRetriesExceeded) {
-		t.Fatalf("expected error %v, got %v", ErrAcceptanceRetriesExceeded, err)
+	if err != remediationErr {
+		t.Fatalf("expected remediation error, got %v", err)
 	}
-	if res == nil || res.Decision != stagepkg.DecisionFail {
-		t.Fatalf("accept decision = %v, want fail", res)
+	if accept.calls != 1 {
+		t.Fatalf("accept stage calls = %d, want 1", accept.calls)
 	}
-	if accept.calls != maxAcceptanceRetries+1 {
-		t.Fatalf("accept stage calls = %d, want %d", accept.calls, maxAcceptanceRetries+1)
-	}
-	if runner.calls != maxAcceptanceRetries {
-		t.Fatalf("remediation runner calls = %d, want %d", runner.calls, maxAcceptanceRetries)
+	if runner.calls != 1 {
+		t.Fatalf("remediation runner calls = %d, want 1", runner.calls)
 	}
 }
 

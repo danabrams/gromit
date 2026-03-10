@@ -70,6 +70,14 @@ type AcceptArtifacts struct {
 	GapSummary string
 }
 
+// GetAcceptanceResults returns the acceptance results, or nil if the receiver is nil.
+func (a *AcceptArtifacts) GetAcceptanceResults() []presentation.AcceptanceResult {
+	if a == nil {
+		return nil
+	}
+	return a.Results
+}
+
 // GetGapSummary returns the gap summary, or empty string if the receiver is nil.
 func (a *AcceptArtifacts) GetGapSummary() string {
 	if a == nil {

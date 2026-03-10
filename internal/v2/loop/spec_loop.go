@@ -552,11 +552,40 @@ func (s *SpecLoop) ensureAcceptance(ctx context.Context, req *stagepkg.Request, 
 		if retriesRemaining <= 0 {
 			return res, fmt.Errorf("%w: limit %d reached", ErrAcceptanceRetriesExceeded, maxAcceptanceRetries)
 		}
+		if setter, ok := s.remediationRunner.(completedBeadTitlesSetter); ok {
+			titles := s.closedBeadTitles(ctx, specID)
+			setter.SetCompletedBeadTitles(titles)
+		}
 		if err := s.remediationRunner.Run(ctx, specID, req.Worktree, res); err != nil {
 			return res, err
 		}
-		retriesRemaining--
+		// The remediation runner already verified acceptance internally.
+		// Trust its result and return success to avoid a redundant
+		// acceptance check that could trigger another remediation cycle.
+		return nil, nil
 	}
+}
+
+// completedBeadTitlesSetter is an optional interface that a remediationRunner
+// may implement to receive bead titles that have already been completed.
+type completedBeadTitlesSetter interface {
+	SetCompletedBeadTitles(titles []string)
+}
+
+// closedBeadTitles queries all beads for the spec and returns the titles
+// of those that have been closed, so remediation can avoid re-creating them.
+func (s *SpecLoop) closedBeadTitles(ctx context.Context, specID string) []string {
+	allBeads, err := s.beadsForSpec(ctx, specID)
+	if err != nil || len(allBeads) == 0 {
+		return nil
+	}
+	var titles []string
+	for _, b := range allBeads {
+		if b.Status == tracker.StatusClosed {
+			titles = append(titles, b.Title)
+		}
+	}
+	return titles
 }
 
 func (s *SpecLoop) runAcceptStage(ctx context.Context, req *stagepkg.Request) (*stagepkg.Result, error) {

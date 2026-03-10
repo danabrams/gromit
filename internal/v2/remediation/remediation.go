@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/events"
@@ -60,10 +61,16 @@ var (
 
 const DefaultGenerationCap = 3
 
+// acceptResultsProvider is implemented by artifacts that carry acceptance results.
+type acceptResultsProvider interface {
+	GetAcceptanceResults() []presentation.AcceptanceResult
+}
+
 // RemediationRunner drives the accept-gap-decompose-bead loop cycle.
 type RemediationRunner struct {
-	cfg             RemediationRunnerConfig
-	generationCount int
+	cfg                 RemediationRunnerConfig
+	generationCount     int
+	completedBeadTitles []string
 }
 
 // NewRemediationRunner constructs a remediation runner using the provided config.
@@ -71,12 +78,17 @@ func NewRemediationRunner(cfg RemediationRunnerConfig) *RemediationRunner {
 	return &RemediationRunner{cfg: cfg}
 }
 
+// SetCompletedBeadTitles records bead titles that have already been closed,
+// so the decompose stage can avoid re-creating equivalent work.
+func (r *RemediationRunner) SetCompletedBeadTitles(titles []string) {
+	r.completedBeadTitles = append([]string(nil), titles...)
+}
+
 // Run executes the remediation cycle for the provided spec.
 // When initialResult is non-nil, it is used as the first accept evaluation
 // result, avoiding a redundant accept call when the caller already knows
 // the current state failed.
 func (r *RemediationRunner) Run(ctx context.Context, specID, worktree string, initialResult *stage.Result) error {
-	r.generationCount = 0
 	if specID == "" {
 		return ErrSpecIDRequired
 	}
@@ -102,7 +114,8 @@ func (r *RemediationRunner) Run(ctx context.Context, specID, worktree string, in
 		}
 		if res != nil && res.Decision == stage.DecisionFail {
 			gapAnalysis := extractGapSummary(res)
-			if err := r.executeRemediation(ctx, &req, gapAnalysis); err != nil {
+			failedCriteria := extractFailedCriteria(res)
+			if err := r.executeRemediation(ctx, &req, gapAnalysis, failedCriteria); err != nil {
 				return err
 			}
 			continue
@@ -131,6 +144,23 @@ func extractGapSummary(res *stage.Result) string {
 	return ""
 }
 
+func extractFailedCriteria(res *stage.Result) []string {
+	if res == nil || res.Artifacts == nil {
+		return nil
+	}
+	arp, ok := res.Artifacts.(acceptResultsProvider)
+	if !ok {
+		return nil
+	}
+	var failed []string
+	for _, r := range arp.GetAcceptanceResults() {
+		if strings.HasPrefix(r.Description, "FAIL:") {
+			failed = append(failed, fmt.Sprintf("%s: %s", r.Title, r.Description))
+		}
+	}
+	return failed
+}
+
 func extractPlanContent(res *stage.Result) string {
 	if res == nil || res.Artifacts == nil {
 		return ""
@@ -141,7 +171,7 @@ func extractPlanContent(res *stage.Result) string {
 	return ""
 }
 
-func (r *RemediationRunner) executeRemediation(ctx context.Context, req *stage.Request, gapAnalysis string) error {
+func (r *RemediationRunner) executeRemediation(ctx context.Context, req *stage.Request, gapAnalysis string, failedCriteria []string) error {
 	specID := req.Bead.ID
 	if !r.canRemediate() {
 		return r.handleGenerationCap(ctx, specID)
@@ -149,6 +179,8 @@ func (r *RemediationRunner) executeRemediation(ctx context.Context, req *stage.R
 
 	req.Remediation = true
 	req.GapAnalysis = gapAnalysis
+	req.CompletedBeadTitles = append([]string(nil), r.completedBeadTitles...)
+	req.FailedAcceptanceCriteria = append([]string(nil), failedCriteria...)
 
 	if r.cfg.GapStage != nil {
 		if _, err := r.cfg.GapStage.Run(ctx, req); err != nil {

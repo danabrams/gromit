@@ -25,8 +25,10 @@ type StageRequest struct {
 	Iteration    int
 	Config       *config.Config
 	Worktree     string
-	Remediation  bool
-	GapAnalysis  string
+	Remediation              bool
+	GapAnalysis              string
+	CompletedBeadTitles      []string // titles of beads already closed
+	FailedAcceptanceCriteria []string // specific criteria that failed acceptance
 	RetryContext *RetryContext
 	Telemetry    *LLMCostSummary
 }

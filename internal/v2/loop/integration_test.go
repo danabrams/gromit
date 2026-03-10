@@ -199,8 +199,8 @@ func TestIntegration_SpecLoopRemediationAppliesGapAnalysis(t *testing.T) {
 		t.Fatalf("remediation calls = %d, want 1", runnerImpl.calls)
 	}
 
-	if accept.calls != 2 {
-		t.Fatalf("accept calls = %d, want 2", accept.calls)
+	if accept.calls != 1 {
+		t.Fatalf("accept calls = %d, want 1", accept.calls)
 	}
 
 	assertPresenterSuccess(t, presenter, true)
@@ -824,12 +824,10 @@ func TestIntegration_AcceptFailureRemediationAddsBeads(t *testing.T) {
 		t.Fatalf("decompose calls = %d, want 2 (1 original + 1 remediation)", decomposeCalls)
 	}
 
-	// Accept called: first fail + remediation runner calls accept internally + spec loop second call.
-	// The remediation runner's accept call fails (it gets the "proceed" verdict which stops it),
-	// so total accept calls = 3 (spec loop: fail, remediation: proceed, spec loop final: proceed).
-	// However the scriptedAcceptStage returns proceed after all scripted results are consumed.
-	if accept.calls < 2 {
-		t.Fatalf("accept calls = %d, want >= 2", accept.calls)
+	// Accept called once (initial fail). After remediation succeeds,
+	// ensureAcceptance trusts the result and returns without re-checking.
+	if accept.calls < 1 {
+		t.Fatalf("accept calls = %d, want >= 1", accept.calls)
 	}
 
 	// Verify remediation-1.md was persisted.

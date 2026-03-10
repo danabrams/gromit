@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/danabrams/gromit/internal/bead"
+	"github.com/danabrams/gromit/internal/v2/presentation"
 	"github.com/danabrams/gromit/internal/v2/stage"
 )
 
@@ -90,10 +91,10 @@ func TestRemediationRunnerUsesDefaultGenerationCapWhenNegative(t *testing.T) {
 	}
 }
 
-func TestRemediationRunnerRun_resetsGenerationCountBetweenRuns(t *testing.T) {
+func TestRemediationRunnerRun_generationCountCumulativeAcrossRuns(t *testing.T) {
 	ctx := context.Background()
 
-	// Accept stage: fail once then succeed (per run).
+	// Accept stage: always fail once then succeed.
 	callCount := 0
 	accept := &testStage{
 		name: "accept",
@@ -118,7 +119,7 @@ func TestRemediationRunnerRun_resetsGenerationCountBetweenRuns(t *testing.T) {
 		},
 	}
 
-	// GenerationCap=1: only one remediation allowed per run.
+	// GenerationCap=1: only one remediation allowed across ALL runs.
 	runner := newRunnerForRemediationCycle(accept, decompose, &testBeadRunner{}, 1)
 
 	// First run: should succeed (one remediation, then accept passes).
@@ -126,10 +127,14 @@ func TestRemediationRunnerRun_resetsGenerationCountBetweenRuns(t *testing.T) {
 		t.Fatalf("first run failed: %v", err)
 	}
 
-	// Second run: if generationCount is not reset, the runner thinks it already
-	// hit the cap and returns "generation cap reached" immediately.
-	if err := runner.Run(ctx, "spec-2", "", nil); err != nil {
-		t.Fatalf("second run should succeed but got: %v", err)
+	// Second run: generationCount is cumulative, so the cap is already
+	// reached and the runner should return "generation cap reached".
+	err := runner.Run(ctx, "spec-2", "", nil)
+	if err == nil {
+		t.Fatal("second run should fail with generation cap reached")
+	}
+	if err.Error() != "generation cap reached" {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 
@@ -750,4 +755,194 @@ func TestRemediation_RemediationBeadsCarrySpecLabel(t *testing.T) {
 	// wiring up the real decompose stage, which is an integration-level concern.
 	// The unit-level spec-label tests belong in internal/v2/stage/decompose/.
 	t.Skip("spec labels are applied by the decompose stage, not the remediation runner")
+}
+
+func TestRemediationRunnerRun_generationCountNotResetAcrossRuns(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	// Accept: always fail so we consume a generation on each Run().
+	acceptCalls := 0
+	accept := &testStage{
+		name: "accept",
+		run: func(ctx context.Context, _ *stage.Request) (*stage.StageResult, error) {
+			acceptCalls++
+			// First call per Run() fails, second call per Run() passes.
+			if acceptCalls%2 == 1 {
+				return &stage.StageResult{Decision: stage.DecisionFail}, nil
+			}
+			return &stage.StageResult{Decision: stage.DecisionProceed}, nil
+		},
+	}
+
+	decompose := &testStage{
+		name: "decompose",
+		run: func(ctx context.Context, _ *stage.Request) (*stage.StageResult, error) {
+			return &stage.StageResult{
+				Artifacts: &stage.DecomposeArtifacts{
+					Beads: []*bead.Bead{{ID: "b"}},
+				},
+			}, nil
+		},
+	}
+
+	runner := newRunnerForRemediationCycle(accept, decompose, &testBeadRunner{}, 2)
+
+	// First Run: consumes 1 generation (cap=2, remaining=1).
+	if err := runner.Run(ctx, "spec-a", "", nil); err != nil {
+		t.Fatalf("first run: %v", err)
+	}
+
+	// Second Run: consumes 1 more generation (cap=2, remaining=0).
+	if err := runner.Run(ctx, "spec-b", "", nil); err != nil {
+		t.Fatalf("second run: %v", err)
+	}
+
+	// Third Run: cap exceeded, should fail immediately.
+	err := runner.Run(ctx, "spec-c", "", nil)
+	if err == nil {
+		t.Fatal("third run should fail with generation cap reached")
+	}
+	if err.Error() != "generation cap reached" {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestRemediationRunnerSetCompletedBeadTitles(t *testing.T) {
+	t.Parallel()
+
+	runner := NewRemediationRunner(RemediationRunnerConfig{})
+	runner.SetCompletedBeadTitles([]string{"bead-1", "bead-2"})
+
+	if len(runner.completedBeadTitles) != 2 {
+		t.Fatalf("completedBeadTitles = %v, want 2 elements", runner.completedBeadTitles)
+	}
+	if runner.completedBeadTitles[0] != "bead-1" || runner.completedBeadTitles[1] != "bead-2" {
+		t.Fatalf("completedBeadTitles = %v, want [bead-1, bead-2]", runner.completedBeadTitles)
+	}
+
+	// Setting again replaces, doesn't append.
+	runner.SetCompletedBeadTitles([]string{"bead-3"})
+	if len(runner.completedBeadTitles) != 1 {
+		t.Fatalf("completedBeadTitles = %v, want 1 element after reset", runner.completedBeadTitles)
+	}
+}
+
+func TestRemediationRunnerPassesCompletedBeadTitlesToDecompose(t *testing.T) {
+	t.Parallel()
+
+	acceptCalls := 0
+	accept := &testStage{
+		name: "accept",
+		run: func(ctx context.Context, _ *stage.Request) (*stage.Result, error) {
+			acceptCalls++
+			if acceptCalls == 1 {
+				return &stage.Result{Decision: stage.DecisionFail}, nil
+			}
+			return &stage.Result{Decision: stage.DecisionProceed}, nil
+		},
+	}
+
+	var capturedReq *stage.Request
+	decompose := &testStage{
+		name: "decompose",
+		run: func(ctx context.Context, req *stage.Request) (*stage.Result, error) {
+			capturedReq = req
+			return &stage.Result{
+				Artifacts: &stage.DecomposeArtifacts{
+					Beads: []*bead.Bead{{ID: "b1"}},
+				},
+			}, nil
+		},
+	}
+
+	runner := newRunnerForRemediationCycle(accept, decompose, &testBeadRunner{}, 1)
+	runner.SetCompletedBeadTitles([]string{"already-done", "also-done"})
+
+	if err := runner.Run(context.Background(), "spec-titles", "", nil); err != nil {
+		t.Fatalf("run failed: %v", err)
+	}
+
+	if capturedReq == nil {
+		t.Fatal("decompose was not called")
+	}
+	if len(capturedReq.CompletedBeadTitles) != 2 {
+		t.Fatalf("CompletedBeadTitles = %v, want 2 elements", capturedReq.CompletedBeadTitles)
+	}
+	if capturedReq.CompletedBeadTitles[0] != "already-done" {
+		t.Fatalf("CompletedBeadTitles[0] = %q, want %q", capturedReq.CompletedBeadTitles[0], "already-done")
+	}
+}
+
+// acceptArtifactsWithResults is a test helper implementing both gapSummaryProvider
+// and acceptResultsProvider.
+type acceptArtifactsWithResults struct {
+	gap     string
+	results []presentation.AcceptanceResult
+}
+
+func (a *acceptArtifactsWithResults) GetGapSummary() string {
+	return a.gap
+}
+
+func (a *acceptArtifactsWithResults) GetAcceptanceResults() []presentation.AcceptanceResult {
+	return a.results
+}
+
+func TestRemediationRunnerExtractsFailedCriteria(t *testing.T) {
+	t.Parallel()
+
+	acceptCalls := 0
+	accept := &testStage{
+		name: "accept",
+		run: func(ctx context.Context, _ *stage.Request) (*stage.Result, error) {
+			acceptCalls++
+			if acceptCalls == 1 {
+				return &stage.Result{
+					Decision: stage.DecisionFail,
+					Artifacts: &acceptArtifactsWithResults{
+						gap: "some gap",
+						results: []presentation.AcceptanceResult{
+							{Title: "criterion 1", Description: "PASS: looks good"},
+							{Title: "criterion 2", Description: "FAIL: not implemented"},
+							{Title: "criterion 3", Description: "FAIL: partially done"},
+						},
+					},
+				}, nil
+			}
+			return &stage.Result{Decision: stage.DecisionProceed}, nil
+		},
+	}
+
+	var capturedReq *stage.Request
+	decompose := &testStage{
+		name: "decompose",
+		run: func(ctx context.Context, req *stage.Request) (*stage.Result, error) {
+			capturedReq = req
+			return &stage.Result{
+				Artifacts: &stage.DecomposeArtifacts{
+					Beads: []*bead.Bead{{ID: "b1"}},
+				},
+			}, nil
+		},
+	}
+
+	runner := newRunnerForRemediationCycle(accept, decompose, &testBeadRunner{}, 1)
+
+	if err := runner.Run(context.Background(), "spec-criteria", "", nil); err != nil {
+		t.Fatalf("run failed: %v", err)
+	}
+
+	if capturedReq == nil {
+		t.Fatal("decompose was not called")
+	}
+	if len(capturedReq.FailedAcceptanceCriteria) != 2 {
+		t.Fatalf("FailedAcceptanceCriteria = %v, want 2 elements", capturedReq.FailedAcceptanceCriteria)
+	}
+	if capturedReq.FailedAcceptanceCriteria[0] != "criterion 2: FAIL: not implemented" {
+		t.Fatalf("FailedAcceptanceCriteria[0] = %q, unexpected", capturedReq.FailedAcceptanceCriteria[0])
+	}
+	if capturedReq.FailedAcceptanceCriteria[1] != "criterion 3: FAIL: partially done" {
+		t.Fatalf("FailedAcceptanceCriteria[1] = %q, unexpected", capturedReq.FailedAcceptanceCriteria[1])
+	}
 }
