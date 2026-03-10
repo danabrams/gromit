@@ -478,6 +478,92 @@ func TestRunUsesFindingsPromptWhenFindingsProvided(t *testing.T) {
 	}
 }
 
+func TestRunUsesStructuredFindingsPromptWhenFindingsProvided(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	planDir := filepath.Join(tmpDir, ".gromit", "v2")
+	if err := os.MkdirAll(planDir, 0o755); err != nil {
+		t.Fatalf("mkdir plan dir: %v", err)
+	}
+	planContent := "# Plan\nTask 1: Fix beans"
+	if err := os.WriteFile(filepath.Join(planDir, "plan.md"), []byte(planContent), 0o644); err != nil {
+		t.Fatalf("write plan file: %v", err)
+	}
+
+	cfg := &config.Config{
+		ProjectRoot: tmpDir,
+		Paths:       config.PathsConfig{GromitDir: ".gromit"},
+	}
+
+	llmFake := &fakeLLM{
+		responses: []*llm.LLMResponse{{Success: true, Output: `[
+			{
+				"title": "fix beans",
+				"description": "add bean coverage",
+				"priority": "P1",
+				"acceptance_criteria": ["bean tests"],
+				"expected_outputs": ["bean test file"],
+				"covers_tasks": [1],
+				"depends_on_index": []
+			},
+			{
+				"title": "verify beans",
+				"description": "add bean verification",
+				"priority": "P1",
+				"acceptance_criteria": ["bean verification"],
+				"expected_outputs": ["bean verification file"],
+				"covers_tasks": [1],
+				"depends_on_index": [0]
+			}
+		]`}},
+	}
+	tracker := &fakeTracker{}
+	stg, err := New(cfg, llmFake, tracker)
+	if err != nil {
+		t.Fatalf("create stage: %v", err)
+	}
+
+	req := &stagepkg.Request{
+		Bead:        stagepkg.BeadInfo{ID: "spec", Labels: []string{"gen:0"}},
+		Config:      cfg,
+		Remediation: true,
+		Findings: []stagepkg.Finding{
+			{
+				Severity:      stagepkg.SeverityCritical,
+				Category:      stagepkg.CategoryQuality,
+				Scope:         stagepkg.ScopeSpec,
+				Description:   "Beans are not covered by automated tests",
+				AffectedFiles: []string{"docs/beans.md"},
+			},
+		},
+	}
+
+	if _, err := stg.Run(context.Background(), req); err != nil {
+		t.Fatalf("run stage: %v", err)
+	}
+
+	if len(llmFake.calls) == 0 {
+		t.Fatal("expected llm invocation")
+	}
+	prompt := llmFake.calls[0].Prompt
+	if !strings.Contains(prompt, "Finding 1:") {
+		t.Fatalf("prompt missing structured finding entry: %q", prompt)
+	}
+	if !strings.Contains(prompt, "- Severity: critical") {
+		t.Fatalf("prompt missing severity detail: %q", prompt)
+	}
+	if !strings.Contains(prompt, "- Category: quality") {
+		t.Fatalf("prompt missing category detail: %q", prompt)
+	}
+	if !strings.Contains(prompt, "- Description: Beans are not covered by automated tests") {
+		t.Fatalf("prompt missing description detail: %q", prompt)
+	}
+	if !strings.Contains(prompt, "- Affected files: docs/beans.md") {
+		t.Fatalf("prompt missing affected-files detail: %q", prompt)
+	}
+}
+
 func TestFormatFindingsIncludesSeverityCategoryScopeDescriptionAndAffectedFiles(t *testing.T) {
 	t.Parallel()
 	req := &stagepkg.Request{
