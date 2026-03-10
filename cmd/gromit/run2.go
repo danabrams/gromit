@@ -189,7 +189,7 @@ func run2(cmd *cobra.Command, args []string) error {
 		loop.WithSpecReviewStage(components.SpecReviewStage),
 		loop.WithStageCommitter(components.StageCommitter),
 		loop.WithTypedEmitter(components.TypedEmitter),
-	}
+	)
 	if router != nil {
 		baseOpts = append(baseOpts, loop.WithRouter(router))
 	}

@@ -238,7 +238,17 @@ func TestNewRun2LoopComponentsWiring(t *testing.T) {
 
 	var output bytes.Buffer
 
-	components, err := NewRun2LoopComponents(cfg, adapters, legacyEmitter, &output, nil, nil)
+	router := routing.NewRouter(routing.RouterConfig{
+		Providers: map[string]llmtypes.LLMProvider{
+			"fake": newFakeLLMAdapter(),
+		},
+		Models: map[string]map[string]string{
+			"fake": {
+				routing.TierHigh: "fake-model",
+			},
+		},
+	})
+	components, err := NewRun2LoopComponents(cfg, adapters, legacyEmitter, &output, router, nil)
 	if err != nil {
 		t.Fatalf("NewRun2LoopComponents returned error: %v", err)
 	}
@@ -301,8 +311,18 @@ func TestNewRun2LoopComponentsWiresSpecReviewStage(t *testing.T) {
 	defer legacyEmitter.Close()
 
 	var output bytes.Buffer
+	router := routing.NewRouter(routing.RouterConfig{
+		Providers: map[string]llmtypes.LLMProvider{
+			"fake": newFakeLLMAdapter(),
+		},
+		Models: map[string]map[string]string{
+			"fake": {
+				routing.TierHigh: "fake-model",
+			},
+		},
+	})
 
-	components, err := NewRun2LoopComponents(cfg, adapters, legacyEmitter, &output, nil, nil)
+	components, err := NewRun2LoopComponents(cfg, adapters, legacyEmitter, &output, router, nil)
 	if err != nil {
 		t.Fatalf("NewRun2LoopComponents returned error: %v", err)
 	}
