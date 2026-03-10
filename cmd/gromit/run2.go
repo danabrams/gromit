@@ -309,10 +309,15 @@ func run2FromReview(cmd *cobra.Command, cfg *config.Config) error {
 	}
 	beads := trackerBeads(resp)
 	beads = filterFromReviewBeads(beads, specScope)
+	specSuffix := ""
+	if specScope != "" {
+		specSuffix = fmt.Sprintf(" for spec %q", specScope)
+	}
 	if len(beads) == 0 {
 		fmt.Fprintln(cmd.OutOrStdout(), "No open from-review beads found.")
 		return nil
 	}
+	fmt.Fprintf(cmd.OutOrStdout(), "Found %d from-review bead(s)%s.\n", len(beads), specSuffix)
 
 	if components.BeadLoop == nil {
 		return fmt.Errorf("bead loop unavailable")
@@ -326,12 +331,9 @@ func run2FromReview(cmd *cobra.Command, cfg *config.Config) error {
 		}
 	}
 	components.BeadLoop.SetWorktree(worktree)
-
-	if _, err := runBeadLoopFn(components.BeadLoop, ctx, beads, stopCh); err != nil {
-		return err
-	}
-
-	return nil
+	_, err = runBeadLoopFn(components.BeadLoop, ctx, beads, stopCh)
+	fmt.Fprintf(cmd.OutOrStdout(), "Executed %d from-review bead(s)%s through the bead loop.\n", len(beads), specSuffix)
+	return err
 }
 
 func run2Args(cmd *cobra.Command, args []string) error {
