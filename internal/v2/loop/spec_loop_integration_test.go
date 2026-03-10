@@ -81,6 +81,22 @@ func TestIntegration_SpecLoop_RemediationFindingsTargetedBeads(t *testing.T) {
 		t.Fatalf("create spec review stage: %v", err)
 	}
 
+	decompose.onRun = func() {
+		if decompose.lastRequest == nil || !decompose.lastRequest.Remediation {
+			return
+		}
+		beads := make([]*bead.Bead, len(decompose.lastRequest.Findings))
+		for i, f := range decompose.lastRequest.Findings {
+			beads[i] = &bead.Bead{
+				ID:          fmt.Sprintf("%s-remediation-%d", specID, i),
+				Title:       f.Description,
+				Description: fmt.Sprintf("Targeted fix for %s", f.Description),
+				Priority:    1,
+			}
+		}
+		decompose.producedBeads = beads
+	}
+
 	remediationRunner := &targetedRemediationRunner{
 		decompose:  decompose,
 		beadRunner: beadRunner,
@@ -113,7 +129,48 @@ func TestIntegration_SpecLoop_RemediationFindingsTargetedBeads(t *testing.T) {
 		t.Fatalf("run spec loop: %v", reviewErr)
 	}
 
-	t.Fatalf("not implemented: verify remediation findings pipeline")
+	expectedDescriptions := []string{acceptFinding.Description, specReviewDescription}
+	if len(remediationRunner.findings) != len(expectedDescriptions) {
+		t.Fatalf("remediation findings = %d, want %d", len(remediationRunner.findings), len(expectedDescriptions))
+	}
+	for i, expected := range expectedDescriptions {
+		if remediationRunner.findings[i].Description != expected {
+			t.Fatalf("remediation finding[%d] = %q, want %q", i, remediationRunner.findings[i].Description, expected)
+		}
+	}
+
+	if !decompose.remediationRequest {
+		t.Fatalf("decompose not invoked for remediation")
+	}
+	if len(decompose.remediationFindings) != len(expectedDescriptions) {
+		t.Fatalf("recorded remediation findings = %d, want %d", len(decompose.remediationFindings), len(expectedDescriptions))
+	}
+	for i, expected := range expectedDescriptions {
+		if decompose.remediationFindings[i].Description != expected {
+			t.Fatalf("decompose finding[%d] = %q, want %q", i, decompose.remediationFindings[i].Description, expected)
+		}
+	}
+
+	if remediationRunner.request == nil {
+		t.Fatalf("remediation runner request not captured")
+	}
+	if len(remediationRunner.request.Findings) != len(expectedDescriptions) {
+		t.Fatalf("request findings = %d, want %d", len(remediationRunner.request.Findings), len(expectedDescriptions))
+	}
+	for i, expected := range expectedDescriptions {
+		if remediationRunner.request.Findings[i].Description != expected {
+			t.Fatalf("request finding[%d] = %q, want %q", i, remediationRunner.request.Findings[i].Description, expected)
+		}
+	}
+
+	if len(beadRunner.lastBeads) != len(expectedDescriptions) {
+		t.Fatalf("bead loop ran with %d beads, want %d", len(beadRunner.lastBeads), len(expectedDescriptions))
+	}
+	for i, bead := range beadRunner.lastBeads {
+		if bead.Title != expectedDescriptions[i] {
+			t.Fatalf("bead[%d].Title = %q, want %q", i, bead.Title, expectedDescriptions[i])
+		}
+	}
 }
 
 type targetedRemediationRunner struct {
