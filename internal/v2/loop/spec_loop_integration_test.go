@@ -18,6 +18,7 @@ import (
 	"github.com/danabrams/gromit/internal/v2/stage/finding"
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
 	specreview "github.com/danabrams/gromit/internal/v2/stage/specreview"
+	"github.com/danabrams/gromit/internal/v2/trackertypes"
 )
 
 func TestIntegration_SpecLoop_RemediationFindingsTargetedBeads(t *testing.T) {
@@ -358,4 +359,30 @@ func convertSpecFindings(src []stagepkg.SpecFinding) []finding.Finding {
 		}
 	}
 	return out
+}
+
+func collectOpenFromReviewBeads(ctx context.Context, trackerAdapter trackertypes.TaskTracker) ([]trackertypes.Bead, error) {
+	if trackerAdapter == nil {
+		return nil, fmt.Errorf("task tracker required")
+	}
+	resp, err := trackerAdapter.QueryBeads(ctx, trackertypes.TaskTrackerQueryBeadsRequest{
+		Status: tracker.StatusOpen,
+		Labels: []string{"from-review"},
+	})
+	if err != nil {
+		return nil, err
+	}
+	if resp == nil {
+		return nil, nil
+	}
+	return resp.Beads, nil
+}
+
+func labelContains(labels []string, target string) bool {
+	for _, label := range labels {
+		if label == target {
+			return true
+		}
+	}
+	return false
 }
