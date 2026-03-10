@@ -9,8 +9,10 @@ import (
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/events"
+	stageaccept "github.com/danabrams/gromit/internal/v2/stage/accept"
 	"github.com/danabrams/gromit/internal/v2/stage"
 	"github.com/danabrams/gromit/internal/v2/stage/finding"
+	"github.com/danabrams/gromit/internal/v2/stage/specreview"
 )
 
 func TestRemediationRunnerRun_requiresSpecID(t *testing.T) {
@@ -523,6 +525,94 @@ func TestRemediation_FallsBackToGapAnalysisWhenNoPlanContent(t *testing.T) {
 	}
 	if string(remContent) != gapText {
 		t.Fatalf("remediation-1.md = %q, want gap analysis %q", string(remContent), gapText)
+	}
+}
+
+func TestRemediationRunnerCollectsAcceptAndSpecReviewFindings(t *testing.T) {
+	t.Parallel()
+
+	gapText := "Criterion 4 failed: no docs"
+	acceptFindings := []stage.SpecFinding{{
+		Title:       "missing docs",
+		Description: "Document the APIs",
+		Severity:    stage.SpecFindingSeverityHigh,
+		Category:    stage.SpecFindingCategoryQuality,
+		Scope:       stage.SpecFindingScopeSpec,
+	}}
+	specReviewFinding := specreview.SpecReviewFinding{
+		Title:       "cleanup",
+		Description: "Remove dead code",
+		Severity:    stage.SpecFindingSeverityMedium,
+		Category:    stage.SpecFindingCategoryQuality,
+		Scope:       stage.SpecFindingScopeGeneral,
+	}
+
+	var acceptCalls, specReviewCalls int
+	accept := &testStage{
+		name: "accept",
+		run: func(ctx context.Context, req *stage.Request) (*stage.Result, error) {
+			acceptCalls++
+			if acceptCalls == 1 {
+				return &stage.Result{
+					Decision: stage.DecisionFail,
+					Artifacts: &stageaccept.AcceptArtifacts{
+						GapSummary: gapText,
+						Findings:   append([]stage.SpecFinding(nil), acceptFindings...),
+					},
+				}, nil
+			}
+			return &stage.Result{Decision: stage.DecisionProceed}, nil
+		},
+	}
+
+	specReview := &testStage{
+		name: "spec-review",
+		run: func(ctx context.Context, req *stage.Request) (*stage.Result, error) {
+			specReviewCalls++
+			return &stage.Result{
+				Decision: stage.DecisionFail,
+				Artifacts: &specreview.SpecReviewArtifacts{
+					Findings: []specreview.SpecReviewFinding{specReviewFinding},
+				},
+			}, nil
+		},
+	}
+
+	var capturedReq *stage.Request
+	decompose := &testStage{
+		name: "decompose",
+		run: func(ctx context.Context, req *stage.Request) (*stage.Result, error) {
+			capturedReq = req
+			return &stage.Result{
+				Artifacts: &stage.DecomposeArtifacts{
+					Beads: []*bead.Bead{{ID: "fix"}},
+				},
+			}, nil
+		},
+	}
+
+	runner := NewRemediationRunner(RemediationRunnerConfig{
+		AcceptStage:     accept,
+		SpecReviewStage: specReview,
+		DecomposeStage:  decompose,
+		BeadRunner:      &testBeadRunner{},
+		GenerationCap:   DefaultGenerationCap,
+	})
+
+	if err := runner.Run(context.Background(), "spec-findings", ""); err != nil {
+		t.Fatalf("run failed: %v", err)
+	}
+	if specReviewCalls != 1 {
+		t.Fatalf("spec review calls = %d, want 1", specReviewCalls)
+	}
+	if capturedReq == nil {
+		t.Fatal("decompose stage not invoked")
+	}
+	if capturedReq.GapAnalysis != gapText {
+		t.Fatalf("gap analysis = %q, want %q", capturedReq.GapAnalysis, gapText)
+	}
+	if len(capturedReq.Findings) != 2 {
+		t.Fatalf("findings = %d, want 2", len(capturedReq.Findings))
 	}
 }
 
