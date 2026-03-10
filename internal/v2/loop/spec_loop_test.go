@@ -2785,3 +2785,20 @@ func (f *findingsAwareRemediationRunner) RunWithFindings(_ context.Context, _ st
 	f.lastFindings = copied
 	return nil
 }
+
+func newVerdictFailSpecReviewStage(failure specreview.SpecReviewFinding, repeat int) stagepkg.Stage {
+	if repeat <= 0 {
+		repeat = 1
+	}
+	results := make([]*stagepkg.Result, repeat)
+	for i := range results {
+		results[i] = &stagepkg.Result{
+			Decision: stagepkg.DecisionProceed,
+			Artifacts: &specreview.SpecReviewArtifacts{
+				Verdict:  "fail",
+				Findings: []specreview.SpecReviewFinding{failure},
+			},
+		}
+	}
+	return newScriptedSpecReviewStage(results...)
+}
