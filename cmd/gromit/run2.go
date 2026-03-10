@@ -91,12 +91,29 @@ func run2(cmd *cobra.Command, args []string) error {
 	specsDir := resolveSpecsDir(cfg)
 	specFiles, err := resolveRun2Specs(cmd, args, specsDir)
 	if err != nil {
-		return err
+		return fmt.Errorf("reading from-review flag: %w", err)
+	}
+	specFilter, err := cmd.Flags().GetString("spec")
+	if err != nil {
+		return fmt.Errorf("reading spec flag: %w", err)
+	}
+	specFilter = strings.TrimSpace(specFilter)
+
+	specsDir := resolveSpecsDir(cfg)
+	var specFiles []*v2spec.Spec
+	if !fromReview {
+		specFiles, err = resolveRun2Specs(cmd, args, specsDir)
+		if err != nil {
+			return err
+		}
 	}
 
-	gate, err := dep.NewSpecDependencyGate(specsDir)
-	if err != nil {
-		return fmt.Errorf("dependency gate: %w", err)
+	var gate loop.DependencyGate
+	if !fromReview {
+		gate, err = dep.NewSpecDependencyGate(specsDir)
+		if err != nil {
+			return fmt.Errorf("dependency gate: %w", err)
+		}
 	}
 
 	planBinary := "claude"
@@ -128,7 +145,7 @@ func run2(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("resolving repo root: %w", err)
 	}
 
-	beadClient, err := bead.NewClient()
+	beadClient, err := newBeadClientFn()
 	if err != nil {
 		return fmt.Errorf("create bd client: %w", err)
 	}
@@ -138,7 +155,10 @@ func run2(cmd *cobra.Command, args []string) error {
 	// scheduled bd invocations outside gromit's control. To prevent those
 	// commits from landing on main during a spec run, the user should avoid
 	// running bd backup while gromit run2 is executing.
-	trackerAdapter := tasktracker.NewBDAdapter(beadClient)
+	trackerAdapter, err := newTaskTrackerFn(beadClient)
+	if err != nil {
+		return fmt.Errorf("create task tracker: %w", err)
+	}
 	adapters := adapter.AdapterSet{
 		Git:         gitadapter.NewExecGitAdapter(repoRoot, worktreesDir),
 		LLM:         llmAdapter,
@@ -163,7 +183,7 @@ func run2(cmd *cobra.Command, args []string) error {
 	}
 	router, phaseModels := buildRouter(cfg)
 
-	components, err := loop.NewRun2LoopComponents(cfg, adapters, emitter, cmd.ErrOrStderr(), router, phaseModels)
+	components, err := newRun2LoopComponentsFn(cfg, adapters, emitter, cmd.ErrOrStderr(), router, phaseModels)
 	if err != nil {
 		emitter.Close()
 		wg.Wait()
@@ -176,6 +196,10 @@ func run2(cmd *cobra.Command, args []string) error {
 		emitter.Close()
 		wg.Wait()
 	}()
+
+	if fromReview {
+		return runFromReview(ctx, cmd, cfg, adapters, components, stopCh, specFilter)
+	}
 
 	baseOpts := []loop.SpecLoopOption{
 		newSpecLoopEmitterFn(emitter),
@@ -378,6 +402,21 @@ func run2Args(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("spec file argument required")
 	}
 	return nil
+}
+
+func runFromReview(ctx context.Context, cmd *cobra.Command, cfg *config.Config, adapters adapter.AdapterSet, components *loop.Run2LoopComponents, stopCh <-chan struct{}, specFilter string) error {
+	if adapters.TaskTracker == nil {
+		return fmt.Errorf("task tracker adapter required for --from-review")
+	}
+	beads, err := loop.QueryFromReviewBeads(ctx, adapters.TaskTracker, specFilter)
+	if err != nil {
+		return err
+	}
+	if len(beads) == 0 {
+		fmt.Fprintln(cmd.ErrOrStderr(), "No from-review beads found")
+		return nil
+	}
+	return fmt.Errorf("runFromReview is not implemented yet")
 }
 
 func resolveRun2Specs(cmd *cobra.Command, args []string, specsDir string) ([]*v2spec.Spec, error) {
