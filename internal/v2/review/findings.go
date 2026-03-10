@@ -1,5 +1,7 @@
 package review
 
+import "strings"
+
 // FindingSeverity describes how severe a review finding is.
 type FindingSeverity string
 
@@ -49,10 +51,12 @@ const (
 	VerdictFail Verdict = "fail"
 )
 
-// ComputeVerdict returns a fail verdict whenever any findings exist.
+// ComputeVerdict returns a fail verdict when any finding is critical.
 func ComputeVerdict(findings []Finding) Verdict {
-	if len(findings) > 0 {
-		return VerdictFail
+	for _, finding := range findings {
+		if strings.EqualFold(strings.TrimSpace(string(finding.Severity)), string(SeverityCritical)) {
+			return VerdictFail
+		}
 	}
 	return VerdictPass
 }
