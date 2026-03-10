@@ -175,6 +175,66 @@ func TestRunProducesFindingsForMultipleFailedCriteria(t *testing.T) {
 	}
 }
 
+func TestRunTargetedFailureProducesFindings(t *testing.T) {
+	t.Parallel()
+
+	specID := "spec-targeted"
+	tmp := t.TempDir()
+	specDir := filepath.Join(tmp, ".gromit", "specs")
+	if err := os.MkdirAll(specDir, 0o755); err != nil {
+		t.Fatalf("create specs dir: %v", err)
+	}
+	specPath := filepath.Join(specDir, specID+".md")
+	content := "# Targeted spec\n\n## Acceptance Criteria\n- scoped behavior"
+	if err := os.WriteFile(specPath, []byte(content), 0o644); err != nil {
+		t.Fatalf("write spec: %v", err)
+	}
+
+	cfg := &config.Config{
+		ProjectRoot: tmp,
+		Paths: config.PathsConfig{
+			GromitDir: ".gromit",
+			Specs:     ".gromit/specs",
+		},
+	}
+
+	diff := strings.Repeat("diff --git a/file.go b/file.go\n+change\n", 10)
+	git := &fakeGitAdapter{diff: diff}
+	llmProvider := &fakeLLM{
+		responses: []*llm.LLMResponse{
+			{Success: true, Output: `{"1": ["file.go"]}`},
+			{Success: true, Output: `{"pass": false, "summary": "needs fixing"}`},
+		},
+	}
+
+	stageInstance, err := New(cfg, git, llmProvider, "BASE", "PROJECT", "FRAGMENT")
+	if err != nil {
+		t.Fatalf("create stage: %v", err)
+	}
+	stageInstance.batchDiffThreshold = 1 // force targeted evaluation
+
+	req := &stagepkg.Request{
+		Bead:     stagepkg.BeadInfo{ID: specID},
+		Worktree: tmp,
+	}
+
+	res, err := stageInstance.Run(context.Background(), req)
+	if err != nil {
+		t.Fatalf("run stage: %v", err)
+	}
+	artifacts, ok := res.Artifacts.(*AcceptArtifacts)
+	if !ok {
+		t.Fatalf("artifacts type = %T, want *AcceptArtifacts", res.Artifacts)
+	}
+	if len(artifacts.Findings) != 1 {
+		t.Fatalf("findings count = %d, want 1", len(artifacts.Findings))
+	}
+	finding := artifacts.Findings[0]
+	if finding.Description == "" {
+		t.Fatalf("unexpected empty finding description")
+	}
+}
+
 func TestRunProceedWhenAllCriteriaPass(t *testing.T) {
 	t.Parallel()
 
