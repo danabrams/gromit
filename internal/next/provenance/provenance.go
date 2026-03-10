@@ -1,43 +1,81 @@
-// Package provenance tracks the lineage and freshness of workspace artifacts.
-//
-// Every derived artifact (architecture.json, source-map.json, guide, etc.)
-// has provenance metadata recording when it was produced, from what inputs,
-// and whether it is still fresh relative to the current repo state.
-//
-// TODO: implement provenance capture (record git SHA, timestamp, input hashes)
-// TODO: implement freshness checking (compare stored SHA against HEAD)
-// TODO: implement provenance-based cache invalidation
-// TODO: implement provenance querying for debugging/auditing
 package provenance
 
-import "time"
+import (
+	"encoding/json"
+	"fmt"
+	"os"
+	"time"
+)
 
-// Record captures the lineage of a single artifact.
 type Record struct {
-	// ArtifactName identifies which artifact this record describes.
-	ArtifactName string `json:"artifact_name"`
-
-	// GitSHA is the commit hash of the repo at the time of generation.
-	GitSHA string `json:"git_sha"`
-
-	// Timestamp is when the artifact was generated.
+	FactID    string    `json:"fact_id"`
+	Artifact  string    `json:"artifact"`
+	Category  string    `json:"category"`
+	GitSHA    string    `json:"git_sha"`
 	Timestamp time.Time `json:"timestamp"`
-
-	// InputHashes maps input names to their content hashes.
-	InputHashes map[string]string `json:"input_hashes,omitempty"`
+	Extractor string    `json:"extractor"`
+	InputHash string    `json:"input_hash"`
 }
 
-// Tracker manages provenance records for a project cell.
-//
-// TODO: implement file-based provenance storage
-// TODO: implement freshness comparison logic
 type Tracker interface {
-	// Record stores provenance for a newly generated artifact.
-	Record(record Record) error
-
-	// Check returns the provenance record for an artifact, if it exists.
-	Check(artifactName string) (*Record, bool, error)
-
-	// IsFresh returns true if the artifact is up-to-date with the current repo state.
+	Record(rec Record) error
+	Check(artifactName string) (Record, error)
 	IsFresh(artifactName string, currentSHA string) (bool, error)
+}
+
+type FSTracker struct {
+	path string
+}
+
+func NewFSTracker(path string) *FSTracker {
+	return &FSTracker{path: path}
+}
+
+func (t *FSTracker) Record(rec Record) error {
+	records, _ := t.load()
+	records[rec.Artifact] = rec
+	return t.save(records)
+}
+
+func (t *FSTracker) Check(artifactName string) (Record, error) {
+	records, err := t.load()
+	if err != nil {
+		return Record{}, err
+	}
+	rec, ok := records[artifactName]
+	if !ok {
+		return Record{}, fmt.Errorf("no provenance for artifact %q", artifactName)
+	}
+	return rec, nil
+}
+
+func (t *FSTracker) IsFresh(artifactName string, currentSHA string) (bool, error) {
+	rec, err := t.Check(artifactName)
+	if err != nil {
+		return false, err
+	}
+	return rec.GitSHA == currentSHA, nil
+}
+
+func (t *FSTracker) load() (map[string]Record, error) {
+	data, err := os.ReadFile(t.path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return make(map[string]Record), nil
+		}
+		return nil, err
+	}
+	var records map[string]Record
+	if err := json.Unmarshal(data, &records); err != nil {
+		return nil, err
+	}
+	return records, nil
+}
+
+func (t *FSTracker) save(records map[string]Record) error {
+	data, err := json.MarshalIndent(records, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(t.path, data, 0o644)
 }
