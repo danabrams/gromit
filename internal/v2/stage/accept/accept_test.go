@@ -105,6 +105,14 @@ func TestRunWritesGapAnalysisWhenCriterionFails(t *testing.T) {
 	}
 }
 
+func TestAcceptArtifactsFindingsField(t *testing.T) {
+	t.Parallel()
+	var artifacts AcceptArtifacts
+	if len(artifacts.Findings) != 0 {
+		t.Fatalf("expected zero findings, got %d", len(artifacts.Findings))
+	}
+}
+
 func TestRunProceedWhenAllCriteriaPass(t *testing.T) {
 	t.Parallel()
 
