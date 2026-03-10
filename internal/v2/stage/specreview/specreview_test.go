@@ -25,7 +25,7 @@ func TestVerdictFromFindings(t *testing.T) {
 		{
 			name:     "issue present",
 			findings: []SpecReviewFinding{{Verdict: "issue"}},
-			want:     "issue",
+			want:     "fail",
 		},
 		{
 			name: "all pass",
@@ -48,6 +48,13 @@ func TestVerdictFromFindings(t *testing.T) {
 				t.Fatalf("%s: verdict = %q, want %q", tt.name, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestDecisionFromArtifactsFailsOnFailVerdict(t *testing.T) {
+	artifacts := &SpecReviewArtifacts{Verdict: "fail"}
+	if decisionFromArtifacts(artifacts) != stagepkg.DecisionFail {
+		t.Fatalf("decision = %v, want fail", decisionFromArtifacts(artifacts))
 	}
 }
 
@@ -82,8 +89,8 @@ func TestParseSpecReviewOutput(t *testing.T) {
 	if artifacts.Summary != "Spec-level review summary." {
 		t.Fatalf("summary = %q, want %q", artifacts.Summary, "Spec-level review summary.")
 	}
-	if artifacts.Verdict != "issue" {
-		t.Fatalf("verdict = %q, want issue", artifacts.Verdict)
+	if artifacts.Verdict != "fail" {
+		t.Fatalf("verdict = %q, want fail", artifacts.Verdict)
 	}
 	if got := len(artifacts.Findings); got != 2 {
 		t.Fatalf("findings count = %d, want 2", got)

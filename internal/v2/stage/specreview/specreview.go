@@ -109,8 +109,9 @@ func cloneStrings(src []string) []string {
 
 func verdictFromFindings(findings []SpecReviewFinding) string {
 	for _, finding := range findings {
-		if strings.EqualFold(strings.TrimSpace(finding.Verdict), "issue") {
-			return "issue"
+		verdict := strings.ToLower(strings.TrimSpace(finding.Verdict))
+		if verdict == "issue" || verdict == "fail" {
+			return "fail"
 		}
 	}
 	return "pass"
@@ -320,7 +321,8 @@ func decisionFromArtifacts(artifacts *SpecReviewArtifacts) stagepkg.Decision {
 	if artifacts == nil {
 		return stagepkg.DecisionProceed
 	}
-	if strings.EqualFold(strings.TrimSpace(artifacts.Verdict), "issue") {
+	verdict := strings.ToLower(strings.TrimSpace(artifacts.Verdict))
+	if verdict == "issue" || verdict == "fail" {
 		return stagepkg.DecisionFail
 	}
 	for _, finding := range artifacts.Findings {
