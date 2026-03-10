@@ -166,6 +166,20 @@ func (b *BeadLoop) SetWorktree(worktree string) {
 	b.worktree = strings.TrimSpace(worktree)
 }
 
+// RunWithoutReview processes beads through the loop while skipping the review
+// stage for the duration of this call.
+func (b *BeadLoop) RunWithoutReview(ctx context.Context, beads []*bead.Bead, stopCh <-chan struct{}) (BeadLoopResult, error) {
+	if b == nil {
+		return BeadLoopResult{}, fmt.Errorf("bead loop required")
+	}
+	originalReview := b.review
+	b.review = nil
+	defer func() {
+		b.review = originalReview
+	}()
+	return b.Run(ctx, beads, stopCh)
+}
+
 // Run processes the provided beads through the stage pipeline.
 func (b *BeadLoop) Run(ctx context.Context, beads []*bead.Bead, stopCh <-chan struct{}) (BeadLoopResult, error) {
 	highestGeneration := 0

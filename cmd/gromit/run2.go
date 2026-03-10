@@ -419,7 +419,7 @@ func runFromReview(ctx context.Context, cmd *cobra.Command, cfg *config.Config, 
 	if components == nil || components.BeadLoop == nil {
 		return fmt.Errorf("bead loop required for --from-review")
 	}
-	_, err = components.BeadLoop.Run(ctx, beads, stopCh)
+	_, err = components.BeadLoop.RunWithoutReview(ctx, beads, stopCh)
 	if err != nil {
 		return fmt.Errorf("running from-review bead loop: %w", err)
 	}
