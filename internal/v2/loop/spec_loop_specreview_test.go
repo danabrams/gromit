@@ -16,6 +16,11 @@ import (
 	"github.com/danabrams/gromit/internal/v2/trackertypes"
 )
 
+const (
+	specReviewSeverityWarning    = stagepkg.SpecFindingSeverity("warning")
+	specReviewSeveritySuggestion = stagepkg.SpecFindingSeverity("suggestion")
+)
+
 func TestSpecLoopEnsureAcceptanceAndReviewCreatesFromReviewBeads(t *testing.T) {
 	t.Parallel()
 
@@ -25,17 +30,17 @@ func TestSpecLoopEnsureAcceptanceAndReviewCreatesFromReviewBeads(t *testing.T) {
 	tracker := newRecordingTaskTracker()
 	acceptStage := newFakeAcceptStage()
 
-	reviewFindings := []stagepkg.Finding{
+	reviewFindings := []specreview.SpecReviewFinding{
 		{
-			Severity:    stagepkg.FindingSeverityWarning,
-			Category:    stagepkg.FindingCategoryQuality,
-			Scope:       stagepkg.FindingScopeSpec,
+			Severity:    specReviewSeverityWarning,
+			Category:    stagepkg.SpecFindingCategoryQuality,
+			Scope:       stagepkg.SpecFindingScopeSpec,
 			Description: "spec scoped warning",
 		},
 		{
-			Severity:    stagepkg.FindingSeveritySuggestion,
-			Category:    stagepkg.FindingCategoryQuality,
-			Scope:       stagepkg.FindingScopeGeneral,
+			Severity:    specReviewSeveritySuggestion,
+			Category:    stagepkg.SpecFindingCategoryQuality,
+			Scope:       stagepkg.SpecFindingScopeStage,
 			Description: "general suggestion",
 		},
 	}
@@ -55,7 +60,7 @@ func TestSpecLoopEnsureAcceptanceAndReviewCreatesFromReviewBeads(t *testing.T) {
 	}
 
 	req := stagepkg.Request{Bead: stagepkg.BeadInfo{ID: specID}, Worktree: "worktree"}
-	if _, err := s.ensureAcceptanceAndReview(ctx, &req, specID); err != nil {
+	if _, _, err := s.ensureAcceptance(ctx, &req, specID); err != nil {
 		t.Fatalf("ensure acceptance and review: %v", err)
 	}
 
@@ -104,7 +109,7 @@ func TestSpecLoopPassWithImprovementsUsesMediumSeverityFindings(t *testing.T) {
 		specReviewStage: specReviewStage,
 	}
 	req := stagepkg.Request{Bead: stagepkg.BeadInfo{ID: specID}, Worktree: "worktree"}
-	if _, err := s.ensureAcceptance(ctx, &req, specID); err != nil {
+	if _, _, err := s.ensureAcceptance(ctx, &req, specID); err != nil {
 		t.Fatalf("ensure acceptance and review: %v", err)
 	}
 
@@ -133,15 +138,15 @@ func TestSpecLoopCreateFromReviewBeadsIgnoresCriticalFindings(t *testing.T) {
 
 	findings := []stagepkg.Finding{
 		{
-			Severity:    stagepkg.FindingSeverityCritical,
-			Category:    stagepkg.FindingCategoryQuality,
-			Scope:       stagepkg.FindingScopeSpec,
+			Severity:    stagepkg.SeverityCritical,
+			Category:    stagepkg.CategoryQuality,
+			Scope:       stagepkg.ScopeSpec,
 			Description: "critical",
 		},
 		{
-			Severity:    stagepkg.FindingSeverityWarning,
-			Category:    stagepkg.FindingCategoryQuality,
-			Scope:       stagepkg.FindingScopeSpec,
+			Severity:    stagepkg.SeverityWarning,
+			Category:    stagepkg.CategoryQuality,
+			Scope:       stagepkg.ScopeSpec,
 			Description: "non-critical",
 		},
 	}

@@ -338,10 +338,13 @@ func TestNewRun2LoopComponentsSpecReviewStageUsesHighTierRouter(t *testing.T) {
 	writeReviewSpecFragment(t, tmpDir)
 
 	cfg := &config.Config{ProjectRoot: tmpDir}
-	router := &spySpecReviewRouter{
-		provider: &fakeLLMProvider{},
-		model:    "router-model",
-	}
+	router := routing.NewRouter(routing.RouterConfig{
+		Providers: map[string]llmtypes.LLMProvider{"fake": &fakeLLMProvider{}},
+		Models: map[string]map[string]string{
+			"fake": {routing.TierHigh: "router-model"},
+		},
+		PhasePreferences: map[string]string{specReviewPhase: "fake"},
+	})
 	adapters := adapter.AdapterSet{
 		Git:         testutil.NewFakeGit(),
 		LLM:         newFakeLLMAdapter(),

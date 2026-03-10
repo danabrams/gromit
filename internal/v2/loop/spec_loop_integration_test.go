@@ -46,7 +46,7 @@ func TestIntegration_SpecLoop_RemediationFindingsTargetedBeads(t *testing.T) {
 	}
 
 	git := newIntegrationGitAdapter(t)
-	tracker := newIntegrationTaskTrackerAdapter()
+	taskTracker := newIntegrationTaskTrackerAdapter()
 	planStage := newFakePlanStage(specID)
 	decompose := newFakeDecomposeStage(specID)
 	beadRunner := newFakeBeadRunner()
@@ -78,7 +78,7 @@ func TestIntegration_SpecLoop_RemediationFindingsTargetedBeads(t *testing.T) {
 		Output:  `{"verdict":"pass","summary":"ok","findings":[]}`,
 	}
 	provider := newSequentialLLMProvider(failureResponse, passResponse)
-	specReviewStage, err := specreview.New(cfg, git, provider, tracker, baseInstructions, projectContext, specReviewFragment)
+	specReviewStage, err := specreview.New(cfg, git, provider, taskTracker, baseInstructions, projectContext, specReviewFragment)
 	if err != nil {
 		t.Fatalf("create spec review stage: %v", err)
 	}
@@ -110,7 +110,7 @@ func TestIntegration_SpecLoop_RemediationFindingsTargetedBeads(t *testing.T) {
 	adapters := adapter.AdapterSet{
 		Git:         git,
 		LLM:         newFakeLLMAdapter(),
-		TaskTracker: tracker,
+		TaskTracker: taskTracker,
 		Presenter:   presenter,
 	}
 
@@ -127,8 +127,8 @@ func TestIntegration_SpecLoop_RemediationFindingsTargetedBeads(t *testing.T) {
 		t.Fatalf("create spec loop: %v", err)
 	}
 
-	if _, reviewErr := loopInstance.Run(ctx, specID, nil); reviewErr != nil {
-		t.Fatalf("run spec loop: %v", reviewErr)
+	if err := loopInstance.Run(ctx, specID, nil); err != nil {
+		t.Fatalf("run spec loop: %v", err)
 	}
 
 	expectedDescriptions := []string{acceptFinding.Description, specReviewDescription}
@@ -201,7 +201,7 @@ func TestIntegration_SpecLoop_PassWithImprovementsCreatesDeferredBeads(t *testin
 	}
 
 	git := newIntegrationGitAdapter(t)
-	tracker := newIntegrationTaskTrackerAdapter()
+	taskTracker := newIntegrationTaskTrackerAdapter()
 	planStage := newFakePlanStage(specID)
 	decompose := newFakeDecomposeStage(specID)
 	beadRunner := newFakeBeadRunner()
@@ -216,7 +216,7 @@ func TestIntegration_SpecLoop_PassWithImprovementsCreatesDeferredBeads(t *testin
 			`]}`,
 	}
 	provider := newSequentialLLMProvider(passResponse)
-	specReviewStage, err := specreview.New(cfg, git, provider, tracker, baseInstructions, projectContext, specReviewFragment)
+	specReviewStage, err := specreview.New(cfg, git, provider, taskTracker, baseInstructions, projectContext, specReviewFragment)
 	if err != nil {
 		t.Fatalf("create spec review stage: %v", err)
 	}
@@ -227,7 +227,7 @@ func TestIntegration_SpecLoop_PassWithImprovementsCreatesDeferredBeads(t *testin
 	adapters := adapter.AdapterSet{
 		Git:         git,
 		LLM:         newFakeLLMAdapter(),
-		TaskTracker: tracker,
+		TaskTracker: taskTracker,
 		Presenter:   presenter,
 	}
 
@@ -249,7 +249,7 @@ func TestIntegration_SpecLoop_PassWithImprovementsCreatesDeferredBeads(t *testin
 
 	assertPresenterSuccess(t, presenter, true)
 
-	beads, err := collectOpenFromReviewBeads(ctx, tracker)
+	beads, err := collectOpenFromReviewBeads(ctx, taskTracker)
 	if err != nil {
 		t.Fatalf("collect from-review beads: %v", err)
 	}
@@ -290,12 +290,11 @@ type targetedRemediationRunner struct {
 
 func (r *targetedRemediationRunner) Run(ctx context.Context, specID, worktree string, findings []stagepkg.SpecFinding) error {
 	r.findings = append([]stagepkg.SpecFinding(nil), findings...)
-	req := stagepkg.Request{
-		Bead:         stagepkg.BeadInfo{ID: specID},
-		Worktree:     worktree,
-		Findings:     convertSpecFindings(findings),
-		SpecFindings: append([]stagepkg.SpecFinding(nil), findings...),
-	}
+		req := stagepkg.Request{
+			Bead:         stagepkg.BeadInfo{ID: specID},
+			Worktree:     worktree,
+			SpecFindings: append([]stagepkg.SpecFinding(nil), findings...),
+		}
 	r.request = &req
 	res, err := r.decompose.Run(ctx, &req)
 	if err != nil {
@@ -342,23 +341,6 @@ func (p *sequentialLLMProvider) StreamInvoke(ctx context.Context, req llm.LLMStr
 		_, _ = io.WriteString(req.Output, resp.Output)
 	}
 	return resp, nil
-}
-
-func convertSpecFindings(src []stagepkg.SpecFinding) []finding.Finding {
-	if len(src) == 0 {
-		return nil
-	}
-	out := make([]finding.Finding, len(src))
-	for i, entry := range src {
-		out[i] = finding.Finding{
-			Severity:      finding.Severity(entry.Severity),
-			Category:      finding.Category(entry.Category),
-			Scope:         string(entry.Scope),
-			Description:   entry.Description,
-			AffectedFiles: nil,
-		}
-	}
-	return out
 }
 
 func collectOpenFromReviewBeads(ctx context.Context, trackerAdapter trackertypes.TaskTracker) ([]trackertypes.Bead, error) {

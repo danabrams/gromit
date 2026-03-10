@@ -1856,38 +1856,6 @@ func (f *fakePlanStage) Run(ctx context.Context, req *stagepkg.Request) (*stagep
 	}, nil
 }
 
-type fakeSpecReviewStage struct {
-	calls   int
-	results []*stagepkg.Result
-	err     error
-}
-
-func newFakeSpecReviewStage(results ...*stagepkg.Result) *fakeSpecReviewStage {
-	copied := append([]*stagepkg.Result(nil), results...)
-	return &fakeSpecReviewStage{results: copied}
-}
-
-func (f *fakeSpecReviewStage) Name() string { return "spec-review" }
-
-func (f *fakeSpecReviewStage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Result, error) {
-	f.calls++
-	if f.err != nil {
-		return nil, f.err
-	}
-	if len(f.results) == 0 {
-		return &stagepkg.Result{Decision: stagepkg.DecisionProceed}, nil
-	}
-	idx := f.calls - 1
-	if idx >= len(f.results) {
-		idx = len(f.results) - 1
-	}
-	result := f.results[idx]
-	if result == nil {
-		return &stagepkg.Result{Decision: stagepkg.DecisionProceed}, nil
-	}
-	return result, nil
-}
-
 type fakePresentStage struct {
 	called bool
 }
@@ -1900,6 +1868,47 @@ func (f *fakePresentStage) Name() string { return "present" }
 
 func (f *fakePresentStage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Result, error) {
 	f.called = true
+	return &stagepkg.Result{Decision: stagepkg.DecisionProceed}, nil
+}
+
+type recordingCreateTaskTracker struct {
+	created []trackertypes.TaskTrackerCreateBeadRequest
+}
+
+func (r *recordingCreateTaskTracker) NextBead(_ context.Context, _ trackertypes.TaskTrackerNextBeadRequest) (*trackertypes.TaskTrackerNextBeadResponse, error) {
+	return &trackertypes.TaskTrackerNextBeadResponse{}, nil
+}
+
+func (r *recordingCreateTaskTracker) ShowBead(_ context.Context, _ string) (*trackertypes.Bead, error) {
+	return nil, nil
+}
+
+func (r *recordingCreateTaskTracker) CreateBead(_ context.Context, req trackertypes.TaskTrackerCreateBeadRequest) (*trackertypes.TaskTrackerCreateBeadResponse, error) {
+	r.created = append(r.created, req)
+	return &trackertypes.TaskTrackerCreateBeadResponse{Bead: &trackertypes.Bead{ID: fmt.Sprintf("bead-%d", len(r.created))}}, nil
+}
+
+func (r *recordingCreateTaskTracker) CloseBead(_ context.Context, _ trackertypes.TaskTrackerCloseBeadRequest) (*trackertypes.TaskTrackerCloseBeadResponse, error) {
+	return &trackertypes.TaskTrackerCloseBeadResponse{Closed: true}, nil
+}
+
+func (r *recordingCreateTaskTracker) QueryBeads(_ context.Context, _ trackertypes.TaskTrackerQueryBeadsRequest) (*trackertypes.TaskTrackerQueryBeadsResponse, error) {
+	return &trackertypes.TaskTrackerQueryBeadsResponse{}, nil
+}
+
+type assertFromReviewPresentStage struct {
+	tracker        trackertypes.TaskTracker
+	createdAtCall  int
+	called         bool
+}
+
+func (s *assertFromReviewPresentStage) Name() string { return "present" }
+
+func (s *assertFromReviewPresentStage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Result, error) {
+	s.called = true
+	if ct, ok := s.tracker.(*recordingCreateTaskTracker); ok {
+		s.createdAtCall = len(ct.created)
+	}
 	return &stagepkg.Result{Decision: stagepkg.DecisionProceed}, nil
 }
 

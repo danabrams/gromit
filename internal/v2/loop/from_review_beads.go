@@ -55,15 +55,6 @@ func convertTrackerBead(src *trackertypes.Bead) *bead.Bead {
 	}
 }
 
-func cloneStrings(src []string) []string {
-	if len(src) == 0 {
-		return nil
-	}
-	dst := make([]string, len(src))
-	copy(dst, src)
-	return dst
-}
-
 func dependencyList(ids []string) []bead.Dependency {
 	if len(ids) == 0 {
 		return nil

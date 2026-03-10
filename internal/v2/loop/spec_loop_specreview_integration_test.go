@@ -12,6 +12,11 @@ import (
 	specreview "github.com/danabrams/gromit/internal/v2/stage/specreview"
 )
 
+const (
+	specFindingSeverityWarning    = stagepkg.SpecFindingSeverity("warning")
+	specFindingSeveritySuggestion = stagepkg.SpecFindingSeverity("suggestion")
+)
+
 func TestIntegration_SpecLoop_RemediationFindingsFlowToRunner(t *testing.T) {
 	t.Parallel()
 
@@ -48,7 +53,7 @@ func TestIntegration_SpecLoop_RemediationFindingsFlowToRunner(t *testing.T) {
 	reviewFinding := specreview.SpecReviewFinding{
 		Title:       "spec review issue",
 		Description: "value drift",
-		Severity:    stagepkg.SpecFindingSeverityWarning,
+		Severity:    specFindingSeverityWarning,
 		Category:    stagepkg.SpecFindingCategoryQuality,
 		Scope:       stagepkg.SpecFindingScopeSpec,
 	}
@@ -130,14 +135,14 @@ func TestIntegration_SpecLoop_FromReviewWarningsCreateBeads(t *testing.T) {
 		{
 			Title:       "fix spec detail",
 			Description: "adjust spec behavior",
-			Severity:    stagepkg.SpecFindingSeverityWarning,
+			Severity:    specFindingSeverityWarning,
 			Category:    stagepkg.SpecFindingCategoryQuality,
 			Scope:       stagepkg.SpecFindingScopeSpec,
 		},
 		{
 			Title:       "general observation",
 			Description: "nice to have improvement",
-			Severity:    stagepkg.SpecFindingSeveritySuggestion,
+			Severity:    specFindingSeveritySuggestion,
 			Category:    stagepkg.SpecFindingCategoryQuality,
 			Scope:       stagepkg.SpecFindingScopeBead,
 		},

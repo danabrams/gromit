@@ -223,7 +223,7 @@ type integrationRemediationRunner struct {
 	calls         int
 	generationCap int
 	emitter       *events.Emitter
-	lastFindings  []stagepkg.Finding
+	lastFindings  []stagepkg.SpecFinding
 }
 
 func newIntegrationRemediationRunner(t *testing.T, emitter *events.Emitter, cfg integrationRemediationConfig) remediationRunner {
@@ -255,9 +255,9 @@ func defaultIntegrationBeadLoopConfig() BeadLoopConfig {
 	}
 }
 
-func (r *integrationRemediationRunner) Run(ctx context.Context, specID, _ string, _ []stagepkg.SpecFinding) error {
+func (r *integrationRemediationRunner) Run(ctx context.Context, specID, _ string, findings []stagepkg.SpecFinding) error {
 	r.calls++
-	r.lastFindings = append([]stagepkg.Finding(nil), findings...)
+	r.lastFindings = append([]stagepkg.SpecFinding(nil), findings...)
 	if r.generationCap >= 0 {
 		r.emitGenerationCapEvents(specID)
 		return fmt.Errorf("generation cap reached")
@@ -975,12 +975,12 @@ func (r *testRemediationRunnerAdapter) Run(ctx context.Context, specID, worktree
 	r.calls++
 
 	// Run plan stage for remediation.
-	req := stagepkg.Request{
-		Bead:        stagepkg.BeadInfo{ID: specID},
-		Worktree:    worktree,
-		Remediation: true,
-		Findings:    append([]stagepkg.SpecFinding(nil), findings...),
-	}
+		req := stagepkg.Request{
+			Bead:         stagepkg.BeadInfo{ID: specID},
+			Worktree:     worktree,
+			Remediation:  true,
+			SpecFindings: append([]stagepkg.SpecFinding(nil), findings...),
+		}
 	if r.planStage != nil {
 		if _, err := r.planStage.Run(ctx, &req); err != nil {
 			return fmt.Errorf("remediation plan: %w", err)
