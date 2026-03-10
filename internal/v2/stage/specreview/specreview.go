@@ -387,3 +387,17 @@ func computeVerdict(findings []rawFinding) string {
 	}
 	return "pass"
 }
+
+func convertFindings(raw []rawFinding) []stagepkg.Finding {
+	converted := make([]stagepkg.Finding, len(raw))
+	for i, f := range raw {
+		converted[i] = stagepkg.Finding{
+			Severity:      f.Severity,
+			Category:      f.Category,
+			Scope:         f.Scope,
+			Description:   f.Description,
+			AffectedFiles: append([]string(nil), f.AffectedFiles...),
+		}
+	}
+	return converted
+}
