@@ -450,64 +450,21 @@ func (s *SpecLoop) Run(ctx context.Context, specID string, stopCh <-chan struct{
 		return fmt.Errorf("commit after spec review: %w", err)
 	}
 
-	summary := s.buildSuccessSummary(specID, worktree, plan, beads, acceptRes, beadResult.OutOfScopeFindings)
-
-	s.recordStage("specreview")
-	if _, reviewErr := s.runSpecReview(ctx, &req); reviewErr != nil {
-		handleFailureCleaned = true
-		return s.handleFailure(ctx, specID, summary, reviewErr)
-	}
-
 	if err := s.ctxErr(ctx); err != nil {
 		return err
 	}
 
+	summary := s.buildSuccessSummary(specID, worktree, plan, beads, acceptRes, beadResult.OutOfScopeFindings)
+
 	s.recordStage("specreview")
-	if s.specReviewStage != nil {
-		specreviewRes, err := s.runSpecReviewStage(ctx, &req)
-		if err != nil {
-			if s.remediationRunner != nil {
-				merged := mergeFindings(acceptRes, nil)
-				if remediationErr := s.runRemediation(ctx, specID, req.Worktree, merged); remediationErr != nil {
-					handleFailureCleaned = true
-					return s.handleFailure(ctx, specID, summary, remediationErr)
-				}
-			}
-			handleFailureCleaned = true
-			return s.handleFailure(ctx, specID, summary, err)
+	s.emitSpecVerdict(specID, worktree, acceptRes, specReviewRes)
+	if !specReviewCreatedBeads(specReviewRes) {
+		if err := s.createFromReviewBeads(ctx, specID, extractSpecReviewFindings(specReviewRes)); err != nil {
+			return fmt.Errorf("create from-review beads: %w", err)
 		}
-		if specreviewRes == nil {
-			if s.remediationRunner != nil {
-				merged := mergeFindings(acceptRes, nil)
-				if remediationErr := s.runRemediation(ctx, specID, req.Worktree, merged); remediationErr != nil {
-					handleFailureCleaned = true
-					return s.handleFailure(ctx, specID, summary, remediationErr)
-				}
-			}
-			handleFailureCleaned = true
-			return s.handleFailure(ctx, specID, summary, fmt.Errorf("spec review stage returned no result"))
-		}
-		s.emitSpecVerdict(specID, worktree, acceptRes, specreviewRes)
-		if s.specReviewFailed(specreviewRes) {
-			if s.remediationRunner != nil {
-				merged := mergeFindings(acceptRes, specreviewRes)
-				if remediationErr := s.runRemediation(ctx, specID, req.Worktree, merged); remediationErr != nil {
-					handleFailureCleaned = true
-					return s.handleFailure(ctx, specID, summary, remediationErr)
-				}
-			}
-			verdict := s.extractSpecReviewVerdict(specreviewRes)
-			handleFailureCleaned = true
-			return s.handleFailure(ctx, specID, summary, fmt.Errorf("spec review failed: verdict=%s", verdict))
-		}
-		if !specReviewCreatedBeads(specreviewRes) {
-			if err := s.createFromReviewBeads(ctx, specID, extractSpecReviewFindings(specreviewRes)); err != nil {
-				return fmt.Errorf("create from-review beads: %w", err)
-			}
-		}
-		if err := s.commitStage(ctx, worktree, "specreview", 0, "proceed"); err != nil {
-			return fmt.Errorf("commit after specreview: %w", err)
-		}
+	}
+	if err := s.commitStage(ctx, worktree, "specreview", 0, "proceed"); err != nil {
+		return fmt.Errorf("commit after specreview: %w", err)
 	}
 
 	if err := s.presentSummary(ctx, specID, summary); err != nil {
@@ -601,21 +558,6 @@ func (s *SpecLoop) runPlanStage(ctx context.Context, req stagepkg.Request) (*sta
 	return res, nil
 }
 
-func (s *SpecLoop) runSpecReview(ctx context.Context, req *stagepkg.Request) (*stagepkg.Result, error) {
-	if s.specReviewStage == nil {
-		return nil, nil
-	}
-	s.applyRouting(req, "specreview")
-	res, err := s.specReviewStage.Run(ctx, req)
-	if err != nil {
-		return res, fmt.Errorf("spec review stage: %w", err)
-	}
-	if res != nil && res.Decision == stagepkg.DecisionFail {
-		return res, fmt.Errorf("spec review failed")
-	}
-	return res, nil
-}
-
 func (s *SpecLoop) recordBeadStages() {
 	for _, name := range []string{"gate", "build", "validate", "review", "epilogue"} {
 		s.recordStage(name)
@@ -651,7 +593,7 @@ func (s *SpecLoop) ensureAcceptance(ctx context.Context, req *stagepkg.Request, 
 			return acceptRes, specReviewRes, err
 		}
 
-		if !s.acceptFailed(acceptRes) && !s.acceptFailed(specReviewRes) {
+		if !s.acceptFailed(acceptRes) && !s.specReviewFailed(specReviewRes) {
 			return acceptRes, specReviewRes, nil
 		}
 		if s.remediationRunner == nil {

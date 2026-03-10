@@ -271,8 +271,8 @@ func TestSpecLoopInvokesSpecReviewStage(t *testing.T) {
 		t.Fatalf("run spec loop: %v", err)
 	}
 
-	if specReviewStage.calls == 0 {
-		t.Fatalf("spec review stage not invoked")
+	if specReviewStage.calls != 1 {
+		t.Fatalf("spec review stage called %d times, want 1", specReviewStage.calls)
 	}
 }
 
