@@ -520,6 +520,82 @@ func TestRun2FromReviewLogsSummary(t *testing.T) {
 	}
 }
 
+func TestRun2FromReviewSkipsSpecStages(t *testing.T) {
+	_, cleanup := setupRun2TestEnv(t)
+	defer cleanup()
+
+	cfg, err := loadConfig()
+	if err != nil {
+		t.Fatalf("loadConfig: %v", err)
+	}
+
+	var calls struct {
+		beadLoop     bool
+		acceptStage  bool
+		specReview   bool
+	}
+
+	origBeadHook := run2FromReviewBeadLoopHook
+	run2FromReviewBeadLoopHook = func() {
+		calls.beadLoop = true
+	}
+	defer func() { run2FromReviewBeadLoopHook = origBeadHook }()
+
+	loop.SetSpecLoopAcceptStageHook(func() {
+		calls.acceptStage = true
+	})
+	defer loop.SetSpecLoopAcceptStageHook(nil)
+	loop.SetSpecLoopSpecReviewStageHook(func() {
+		calls.specReview = true
+	})
+	defer loop.SetSpecLoopSpecReviewStageHook(nil)
+
+	fakeTracker := &fakeTaskTracker{
+		response: []tasktracker.Bead{{ID: "from-review-1", Labels: []string{"from-review"}}},
+	}
+	origTrackerFn := newTaskTrackerAdapterFn
+	newTaskTrackerAdapterFn = func(_ *bead.Client) tasktracker.TaskTracker {
+		return fakeTracker
+	}
+	defer func() { newTaskTrackerAdapterFn = origTrackerFn }()
+
+	origComponentsFn := newRun2LoopComponentsFn
+	newRun2LoopComponentsFn = func(cfg *config.Config, adapters adapter.AdapterSet, legacyEmitter *events.Emitter, output io.Writer, router loop.LoopRouter, phaseModels map[string]string) (*loop.Run2LoopComponents, error) {
+		return &loop.Run2LoopComponents{
+			BeadLoop:     &loop.BeadLoop{},
+			Emitter:      events.NewEmitter(),
+			TypedEmitter: event.NewEmitter(),
+		}, nil
+	}
+	defer func() { newRun2LoopComponentsFn = origComponentsFn }()
+
+	origRunBeadLoop := runBeadLoopFn
+	runBeadLoopFn = func(*loop.BeadLoop, context.Context, []*bead.Bead, <-chan struct{}) (loop.BeadLoopResult, error) {
+		return loop.BeadLoopResult{}, nil
+	}
+	defer func() { runBeadLoopFn = origRunBeadLoop }()
+
+	origSubscribers := startRun2SubscribersFn
+	startRun2SubscribersFn = func(ctx context.Context, emitter *events.Emitter, output io.Writer, logsDir string) (*sync.WaitGroup, error) {
+		return &sync.WaitGroup{}, nil
+	}
+	defer func() { startRun2SubscribersFn = origSubscribers }()
+
+	if err := run2FromReview(run2Cmd, cfg); err != nil {
+		t.Fatalf("run2FromReview = %v", err)
+	}
+
+	if !calls.beadLoop {
+		t.Fatal("expected bead loop to run for from-review beads")
+	}
+	if calls.acceptStage {
+		t.Fatal("accept stage should not run for from-review beads")
+	}
+	if calls.specReview {
+		t.Fatal("spec-review stage should not run for from-review beads")
+	}
+}
+
 func TestRun2_FromReviewFlag_WithSpec_FiltersToSpecLabel(t *testing.T) {
 	_, cleanup := setupRun2TestEnv(t)
 	defer cleanup()
