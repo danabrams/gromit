@@ -13,7 +13,6 @@ import (
 	"github.com/danabrams/gromit/internal/tracker"
 	"github.com/danabrams/gromit/internal/v2/adapter"
 	"github.com/danabrams/gromit/internal/v2/adapter/llm"
-	"github.com/danabrams/gromit/internal/v2/stage"
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
 	stageaccept "github.com/danabrams/gromit/internal/v2/stage/accept"
 	"github.com/danabrams/gromit/internal/v2/stage/finding"

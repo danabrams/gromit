@@ -188,7 +188,7 @@ func TestSpecLoopPostBeadPipelineAcceptFailureCapturesFindings(t *testing.T) {
 		stagepkg.Result{
 			Decision: stagepkg.DecisionFail,
 			Artifacts: &stageaccept.AcceptArtifacts{
-				Findings: []stagepkg.SpecFinding{acceptFinding},
+				SpecFindings: []stagepkg.SpecFinding{acceptFinding},
 			},
 		},
 		stagepkg.Result{

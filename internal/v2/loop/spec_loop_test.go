@@ -171,6 +171,7 @@ func TestSpecLoopHappyPathExecutesPipeline(t *testing.T) {
 	decompose := newFakeDecomposeStage(specID)
 	beadRunner := newFakeBeadRunner()
 	accept := newFakeAcceptStage()
+	specReviewStage := newFakeSpecReviewStage(stagepkg.Result{Decision: stagepkg.DecisionProceed})
 
 	loopInstance, err := NewSpecLoop(adapters, cfg, noopDependencyGate{},
 		WithStageRecorder(recorder),
@@ -456,17 +457,17 @@ func TestSpecLoopSpecReviewFailureTriggersRemediationWithFindings(t *testing.T) 
 	beadRunner := newFakeBeadRunner()
 	accept := newFakeAcceptStage()
 
-	criticalFinding := stagepkg.Finding{
-		Severity:    stagepkg.SeverityCritical,
+	criticalFinding := specreview.SpecReviewFinding{
+		Severity:    stagepkg.SpecFindingSeverityCritical,
 		Description: "critical spec review issue",
 	}
-	failRes := &stagepkg.Result{
+	failRes := stagepkg.Result{
 		Decision: stagepkg.DecisionFail,
 		Artifacts: &specreview.SpecReviewArtifacts{
-			Findings: []stagepkg.Finding{criticalFinding},
+			Findings: []specreview.SpecReviewFinding{criticalFinding},
 		},
 	}
-	passRes := &stagepkg.Result{
+	passRes := stagepkg.Result{
 		Decision:  stagepkg.DecisionProceed,
 		Artifacts: &specreview.SpecReviewArtifacts{},
 	}
@@ -524,18 +525,18 @@ func TestSpecLoopSpecReviewWarningsCreateFromReviewBeads(t *testing.T) {
 	beadRunner := newFakeBeadRunner()
 	accept := newFakeAcceptStage()
 
-	warningFinding := stagepkg.Finding{
-		Severity:      stagepkg.SeverityWarning,
-		Category:      stagepkg.CategoryQuality,
-		Scope:         stagepkg.ScopeSpec,
+	warningFinding := specreview.SpecReviewFinding{
+		Severity:      stagepkg.SpecFindingSeverityWarning,
+		Category:      stagepkg.SpecFindingCategoryQuality,
+		Scope:         stagepkg.SpecFindingScopeSpec,
 		Description:   "spec warning",
 		AffectedFiles: []string{"spec.md"},
 	}
-	specReview := newFakeSpecReviewStage(&stagepkg.Result{
+	specReview := newFakeSpecReviewStage(stagepkg.Result{
 		Decision: stagepkg.DecisionProceed,
 		Artifacts: &specreview.SpecReviewArtifacts{
 			Verdict:  "passed with warnings",
-			Findings: []stagepkg.Finding{warningFinding},
+			Findings: []specreview.SpecReviewFinding{warningFinding},
 		},
 	})
 
@@ -561,9 +562,6 @@ func TestSpecLoopSpecReviewWarningsCreateFromReviewBeads(t *testing.T) {
 	created := taskTracker.createdBeads[0]
 	if !bead.HasLabel(created.Labels, "from-review") {
 		t.Fatalf("labels = %v, missing from-review", created.Labels)
-	}
-	if !bead.HasLabel(created.Labels, "scope:spec") {
-		t.Fatalf("labels = %v, missing scope:spec", created.Labels)
 	}
 	if !bead.HasLabel(created.Labels, tracker.SpecLabelFor(specID)) {
 		t.Fatalf("labels = %v, missing spec label", created.Labels)
@@ -592,17 +590,17 @@ func TestSpecLoopSpecReviewWarningsWithoutPassVerdictDoNotCreateFromReviewBeads(
 	beadRunner := newFakeBeadRunner()
 	accept := newFakeAcceptStage()
 
-	warningFinding := stagepkg.Finding{
-		Severity:    stagepkg.SeverityWarning,
-		Category:    stagepkg.CategoryQuality,
-		Scope:       stagepkg.ScopeGeneral,
+	warningFinding := specreview.SpecReviewFinding{
+		Severity:    stagepkg.SpecFindingSeverityWarning,
+		Category:    stagepkg.SpecFindingCategoryQuality,
+		Scope:       stagepkg.SpecFindingScopeStage,
 		Description: "general warning",
 	}
-	specReview := newFakeSpecReviewStage(&stagepkg.Result{
+	specReview := newFakeSpecReviewStage(stagepkg.Result{
 		Decision: stagepkg.DecisionProceed,
 		Artifacts: &specreview.SpecReviewArtifacts{
 			Verdict:  "pass",
-			Findings: []stagepkg.Finding{warningFinding},
+			Findings: []specreview.SpecReviewFinding{warningFinding},
 		},
 	})
 
@@ -622,19 +620,40 @@ func TestSpecLoopSpecReviewWarningsWithoutPassVerdictDoNotCreateFromReviewBeads(
 		t.Fatalf("run spec loop: %v", err)
 	}
 
-	if len(taskTracker.createdBeads) != 0 {
-		t.Fatalf("created beads = %d, want 0", len(taskTracker.createdBeads))
+	// Stage-scoped findings create from-review beads but without a spec label.
+	if len(taskTracker.createdBeads) != 1 {
+		t.Fatalf("created beads = %d, want 1", len(taskTracker.createdBeads))
+	}
+	if bead.HasLabel(taskTracker.createdBeads[0].Labels, tracker.SpecLabelFor(specID)) {
+		t.Fatalf("stage-scoped finding should not have spec label: %v", taskTracker.createdBeads[0].Labels)
 	}
 }
 
 type recordingSpecReviewRemediationRunner struct {
 	calls        int
-	lastFindings []stagepkg.Finding
+	lastFindings []stagepkg.SpecFinding
 }
 
-func (r *recordingSpecReviewRemediationRunner) Run(_ context.Context, _, _ string, _ *stagepkg.Result, findings []stagepkg.Finding) error {
+func (r *recordingSpecReviewRemediationRunner) Run(_ context.Context, _, _ string, findings []stagepkg.SpecFinding) error {
 	r.calls++
-	r.lastFindings = append([]stagepkg.Finding(nil), findings...)
+	r.lastFindings = append([]stagepkg.SpecFinding(nil), findings...)
+	return nil
+}
+
+type findingsAwareRemediationRunner struct {
+	calls             int
+	callsWithFindings int
+	lastFindings      []stagepkg.SpecFinding
+	findingsByCall    [][]stagepkg.SpecFinding
+}
+
+func (r *findingsAwareRemediationRunner) Run(_ context.Context, _, _ string, findings []stagepkg.SpecFinding) error {
+	r.calls++
+	if len(findings) > 0 {
+		r.callsWithFindings++
+	}
+	r.lastFindings = append([]stagepkg.SpecFinding(nil), findings...)
+	r.findingsByCall = append(r.findingsByCall, append([]stagepkg.SpecFinding(nil), findings...))
 	return nil
 }
 
@@ -889,7 +908,7 @@ func TestSpecLoopSpecreviewDecisionAffectsOutcome(t *testing.T) {
 	}
 
 	t.Run("proceed", func(t *testing.T) {
-		review := newScriptedSpecReviewStage(stagepkg.Result{
+		review := newScriptedSpecReviewStage(&stagepkg.Result{
 			Decision:  stagepkg.DecisionProceed,
 			Artifacts: &specreview.SpecReviewArtifacts{Verdict: "pass"},
 		})
@@ -897,7 +916,7 @@ func TestSpecLoopSpecreviewDecisionAffectsOutcome(t *testing.T) {
 	})
 
 	t.Run("fail", func(t *testing.T) {
-		review := newScriptedSpecReviewStage(stagepkg.Result{
+		review := newScriptedSpecReviewStage(&stagepkg.Result{
 			Decision:  stagepkg.DecisionFail,
 			Artifacts: &specreview.SpecReviewArtifacts{Verdict: "fail"},
 		})
@@ -905,7 +924,7 @@ func TestSpecLoopSpecreviewDecisionAffectsOutcome(t *testing.T) {
 	})
 
 	t.Run("fail verdict with proceed decision", func(t *testing.T) {
-		review := newScriptedSpecReviewStage(stagepkg.Result{
+		review := newScriptedSpecReviewStage(&stagepkg.Result{
 			Decision:  stagepkg.DecisionProceed,
 			Artifacts: &specreview.SpecReviewArtifacts{Verdict: "fail"},
 		})
@@ -926,21 +945,21 @@ func TestSpecLoopCreatesFromReviewBeadsBeforePresent(t *testing.T) {
 	presentStage := &assertFromReviewPresentStage{tracker: taskTracker}
 	summaryCtx := &present.SummaryContext{}
 
-	specReviewStage := newScriptedSpecReviewStage(stagepkg.Result{
+	specReviewStage := newScriptedSpecReviewStage(&stagepkg.Result{
 		Decision: stagepkg.DecisionProceed,
 		Artifacts: &specreview.SpecReviewArtifacts{
 			Verdict: "pass",
-			Findings: []finding.Finding{
+			Findings: []specreview.SpecReviewFinding{
 				{
-					Severity:    finding.SeverityWarning,
-					Category:    finding.CategoryQuality,
-					Scope:       "spec",
+					Severity:    stagepkg.SpecFindingSeverityWarning,
+					Category:    stagepkg.SpecFindingCategoryQuality,
+					Scope:       stagepkg.SpecFindingScopeSpec,
 					Description: "spec finding",
 				},
 				{
-					Severity:    finding.SeveritySuggestion,
-					Category:    finding.CategoryQuality,
-					Scope:       "general",
+					Severity:    stagepkg.SpecFindingSeveritySuggestion,
+					Category:    stagepkg.SpecFindingCategoryQuality,
+					Scope:       stagepkg.SpecFindingScopeStage,
 					Description: "general finding",
 				},
 			},
@@ -994,31 +1013,28 @@ func TestSpecLoopSpecreviewFailurePassesMergedFindingsToRemediation(t *testing.T
 	specID := "spec-loop-specreview-merged-findings"
 	cfg := &config.Config{}
 
-	acceptFindings := []finding.Finding{{
-		Severity:    finding.SeverityCritical,
-		Category:    finding.CategoryAcceptance,
-		Scope:       "spec",
-		Description: "accept finding",
-	}}
-	reviewFindings := []finding.Finding{{
-		Severity:    finding.SeverityWarning,
-		Category:    finding.CategoryQuality,
-		Scope:       "general",
-		Description: "review finding",
-	}}
-
 	acceptStage := newScriptedAcceptStage(stagepkg.Result{
 		Decision: stagepkg.DecisionProceed,
 		Artifacts: &stageaccept.AcceptArtifacts{
-			Results:  []presentation.AcceptanceResult{{Title: "criterion", Description: "desc"}},
-			Findings: acceptFindings,
+			Results: []presentation.AcceptanceResult{{Title: "criterion", Description: "desc"}},
+			SpecFindings: []stagepkg.SpecFinding{{
+				Severity:    stagepkg.SpecFindingSeverityCritical,
+				Category:    stagepkg.SpecFindingCategoryAcceptance,
+				Scope:       stagepkg.SpecFindingScopeSpec,
+				Description: "accept finding",
+			}},
 		},
 	})
-	specReviewStage := newScriptedSpecReviewStage(stagepkg.Result{
+	specReviewStage := newScriptedSpecReviewStage(&stagepkg.Result{
 		Decision: stagepkg.DecisionFail,
 		Artifacts: &specreview.SpecReviewArtifacts{
-			Verdict:  "fail",
-			Findings: reviewFindings,
+			Verdict: "fail",
+			Findings: []specreview.SpecReviewFinding{{
+				Severity:    stagepkg.SpecFindingSeverityWarning,
+				Category:    stagepkg.SpecFindingCategoryQuality,
+				Scope:       stagepkg.SpecFindingScopeSpec,
+				Description: "review finding",
+			}},
 		},
 	})
 	runner := &findingsAwareRemediationRunner{}
@@ -1182,10 +1198,10 @@ func TestEnsureAcceptanceRetriesRemediationUntilSuccess(t *testing.T) {
 		stagepkg.Result{
 			Decision: stagepkg.DecisionFail,
 			Artifacts: &stageaccept.AcceptArtifacts{
-				Findings: []finding.Finding{{
-					Severity:    finding.SeverityCritical,
-					Category:    finding.CategoryAcceptance,
-					Scope:       "spec",
+				SpecFindings: []stagepkg.SpecFinding{{
+					Severity:    stagepkg.SpecFindingSeverityCritical,
+					Category:    stagepkg.SpecFindingCategoryAcceptance,
+					Scope:       stagepkg.SpecFindingScopeSpec,
 					Description: "first accept failure",
 				}},
 			},
@@ -1193,10 +1209,10 @@ func TestEnsureAcceptanceRetriesRemediationUntilSuccess(t *testing.T) {
 		stagepkg.Result{
 			Decision: stagepkg.DecisionFail,
 			Artifacts: &stageaccept.AcceptArtifacts{
-				Findings: []finding.Finding{{
-					Severity:    finding.SeverityCritical,
-					Category:    finding.CategoryAcceptance,
-					Scope:       "spec",
+				SpecFindings: []stagepkg.SpecFinding{{
+					Severity:    stagepkg.SpecFindingSeverityCritical,
+					Category:    stagepkg.SpecFindingCategoryAcceptance,
+					Scope:       stagepkg.SpecFindingScopeSpec,
 					Description: "second accept failure",
 				}},
 			},
