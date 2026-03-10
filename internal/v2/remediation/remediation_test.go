@@ -690,6 +690,27 @@ func TestRemediation_RemediationBeadsCarrySpecLabel(t *testing.T) {
 	t.Skip("spec labels are applied by the decompose stage, not the remediation runner")
 }
 
+func TestConvertSpecFindingsPreservesTitle(t *testing.T) {
+	t.Parallel()
+
+	src := []stage.SpecFinding{{
+		Title:       "document security posture",
+		Description: "missing defender plan",
+		Severity:    stage.SpecFindingSeverityCritical,
+		Category:    stage.SpecFindingCategorySafety,
+		Scope:       stage.SpecFindingScopeSpec,
+	}}
+
+	got := convertSpecFindings(src)
+	if len(got) != 1 {
+		t.Fatalf("convertSpecFindings returned %d entries, want 1", len(got))
+	}
+
+	if got[0].Title != src[0].Title {
+		t.Fatalf("converted finding Title = %q, want %q", got[0].Title, src[0].Title)
+	}
+}
+
 func TestRemediation_CreatesRemediationPlanNotOriginal(t *testing.T) {
 	t.Parallel()
 
