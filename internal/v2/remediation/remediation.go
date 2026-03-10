@@ -228,7 +228,11 @@ func (r *RemediationRunner) executeRemediation(ctx context.Context, req *stage.R
 		req.GapAnalysis = gapAnalysis
 	}
 	if len(req.Findings) == 0 {
-		req.Findings = cloneFindings(convertSpecFindings(req.SpecFindings))
+		if len(req.SpecFindings) > 0 {
+			req.Findings = cloneFindings(convertSpecFindings(req.SpecFindings))
+		} else if len(r.cfg.Findings) > 0 {
+			req.Findings = cloneFindings(r.cfg.Findings)
+		}
 	}
 
 	if r.cfg.GapStage != nil {
