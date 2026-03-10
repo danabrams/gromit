@@ -1869,6 +1869,9 @@
 {"issue_id":"gromit-hwb","label":"from-review"}
 {"issue_id":"gromit-hwb","label":"spec:immutable-pipeline"}
 {"issue_id":"gromit-hwg9s","label":"tdd:true"}
+{"issue_id":"gromit-hy7cq","label":"estimated-files:3"}
+{"issue_id":"gromit-hy7cq","label":"gen:1"}
+{"issue_id":"gromit-hy7cq","label":"spec:spec-level-review-and-targeted-remediation"}
 {"issue_id":"gromit-hz1p6","label":"from-review"}
 {"issue_id":"gromit-hz1p6","label":"refactor"}
 {"issue_id":"gromit-hz1p6","label":"spec:immutable-pipeline"}
@@ -1974,6 +1977,9 @@
 {"issue_id":"gromit-j5x0","label":"spec:learning-quality-filter"}
 {"issue_id":"gromit-j62sq","label":"estimated-files:4"}
 {"issue_id":"gromit-j62sq","label":"spec:fix-prelaunch-checkout-failure-and-stale-run-status"}
+{"issue_id":"gromit-j73yy","label":"estimated-files:2"}
+{"issue_id":"gromit-j73yy","label":"gen:1"}
+{"issue_id":"gromit-j73yy","label":"spec:spec-level-review-and-targeted-remediation"}
 {"issue_id":"gromit-j7nnm","label":"from-review"}
 {"issue_id":"gromit-j7nnm","label":"refactor"}
 {"issue_id":"gromit-j7nnm","label":"spec:immutable-pipeline"}
@@ -2993,6 +2999,9 @@
 {"issue_id":"gromit-slife","label":"spec:failure-reason-metrics"}
 {"issue_id":"gromit-sliw","label":"spec:filtered-hash-eviction"}
 {"issue_id":"gromit-slll","label":"spec:reduce-iteration-cost"}
+{"issue_id":"gromit-slxwd","label":"estimated-files:1"}
+{"issue_id":"gromit-slxwd","label":"gen:1"}
+{"issue_id":"gromit-slxwd","label":"spec:spec-level-review-and-targeted-remediation"}
 {"issue_id":"gromit-snap","label":"spec:codex-streaming-parity"}
 {"issue_id":"gromit-soe06","label":"estimated-files:2"}
 {"issue_id":"gromit-soe06","label":"gen:0"}
