@@ -3,9 +3,9 @@ package specreview
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
-	"reflect"
 	"strings"
 	"testing"
 
@@ -332,23 +332,32 @@ func TestBeadTitleForFindingFallbacks(t *testing.T) {
 func TestStage_RunFailsOnCriticalFinding(t *testing.T) {
 	t.Parallel()
 
+	root := t.TempDir()
+	planDir := filepath.Join(root, defaultGromitDir, v2DirName)
+	if err := os.MkdirAll(planDir, 0o755); err != nil {
+		t.Fatalf("mkdir plan dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(planDir, planFileName), []byte("plan"), 0o644); err != nil {
+		t.Fatalf("write plan: %v", err)
+	}
+
 	git := &fakeGitDiffer{diff: "cumulative diff"}
-	provider := &fakeProvider{
-		response: &llmtypes.LLMInvokeResponse{
+	provider := &fakeLLMProvider{
+		resp: &githubllm.LLMInvokeResponse{
 			Success: true,
 			Output:  `{"verdict": "reject", "findings": [{"severity": "critical", "category": "bug", "scope": "spec", "description": "blocking issue"}]}`,
 		},
 	}
 
 	cfg := &config.Config{}
-	stage, err := New(cfg, git, provider, "", "", "")
+	stage, err := New(cfg, git, provider, nil, "", "", "")
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
 
 	req := &stagepkg.Request{
 		Bead:     stagepkg.BeadInfo{ID: "spec-2", Title: "Spec Review"},
-		Worktree: "worktree",
+		Worktree: root,
 	}
 
 	result, err := stage.Run(context.Background(), req)

@@ -393,10 +393,10 @@ func beadTitleForFinding(f stagepkg.Finding) string {
 	if trimmed := strings.TrimSpace(f.Description); trimmed != "" {
 		return trimmed
 	}
-	if trimmed := strings.TrimSpace(f.Category); trimmed != "" {
+	if trimmed := strings.TrimSpace(string(f.Category)); trimmed != "" {
 		return fmt.Sprintf("Spec review: %s", trimmed)
 	}
-	if trimmed := strings.TrimSpace(f.Scope); trimmed != "" {
+	if trimmed := strings.TrimSpace(string(f.Scope)); trimmed != "" {
 		return fmt.Sprintf("Spec review: %s finding", trimmed)
 	}
 	return "Spec review finding"
