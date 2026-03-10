@@ -54,6 +54,32 @@ func TestFSStore_EmptyRepo(t *testing.T) {
 	}
 }
 
+func TestFSStore_PathTraversal(t *testing.T) {
+	workspace := t.TempDir()
+	repoDir := t.TempDir()
+	initGitRepo(t, repoDir)
+
+	store := NewFSStore(filepath.Join(workspace, "projects"))
+
+	// Create with traversal name should fail
+	_, err := store.Create("../../etc/evil", repoDir)
+	if err == nil {
+		t.Error("expected error for path traversal in Create")
+	}
+
+	// Get with traversal name should fail
+	_, err = store.Get("../../../tmp/evil")
+	if err == nil {
+		t.Error("expected error for path traversal in Get")
+	}
+
+	// Delete with traversal name should fail
+	err = store.Delete("../../etc")
+	if err == nil {
+		t.Error("expected error for path traversal in Delete")
+	}
+}
+
 func TestFSStore_MissingSubdirectories(t *testing.T) {
 	workspace := t.TempDir()
 	repoDir := t.TempDir()

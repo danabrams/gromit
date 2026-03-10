@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -31,7 +32,19 @@ func NewFSStore(projectsDir string) *FSStore {
 	return &FSStore{projectsDir: projectsDir}
 }
 
+func (s *FSStore) validateName(name string) error {
+	cellDir := filepath.Clean(filepath.Join(s.projectsDir, name))
+	prefix := filepath.Clean(s.projectsDir) + string(filepath.Separator)
+	if !strings.HasPrefix(cellDir, prefix) {
+		return fmt.Errorf("invalid project name %q: path traversal detected", name)
+	}
+	return nil
+}
+
 func (s *FSStore) Create(name string, repoPath string) (Cell, error) {
+	if err := s.validateName(name); err != nil {
+		return Cell{}, err
+	}
 	cellDir := filepath.Join(s.projectsDir, name)
 	if _, err := os.Stat(cellDir); err == nil {
 		return Cell{}, fmt.Errorf("project %q already exists", name)
@@ -66,6 +79,9 @@ func (s *FSStore) Create(name string, repoPath string) (Cell, error) {
 }
 
 func (s *FSStore) Get(name string) (Cell, error) {
+	if err := s.validateName(name); err != nil {
+		return Cell{}, err
+	}
 	cellDir := filepath.Join(s.projectsDir, name)
 	data, err := os.ReadFile(filepath.Join(cellDir, "project.json"))
 	if err != nil {
@@ -87,7 +103,7 @@ func (s *FSStore) List() ([]Cell, error) {
 		}
 		return nil, err
 	}
-	var cells []Cell
+	cells := []Cell{}
 	for _, e := range entries {
 		if !e.IsDir() {
 			continue
@@ -102,6 +118,9 @@ func (s *FSStore) List() ([]Cell, error) {
 }
 
 func (s *FSStore) Delete(name string) error {
+	if err := s.validateName(name); err != nil {
+		return err
+	}
 	cellDir := filepath.Join(s.projectsDir, name)
 	return os.RemoveAll(cellDir)
 }

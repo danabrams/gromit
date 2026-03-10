@@ -355,7 +355,7 @@ func trimToBudget(sections []Section, budget int) []Section {
 				chars = len(content)
 			}
 			// Back up to a valid UTF-8 rune boundary
-			for chars > 0 && !utf8.RuneStart(content[chars]) {
+			for chars > 0 && chars < len(content) && !utf8.RuneStart(content[chars]) {
 				chars--
 			}
 			result = append(result, Section{
