@@ -86,7 +86,7 @@ func init() {
 
 // artifactsDirStore wraps artifact.JSONStore to read from the artifacts/ subdirectory.
 type artifactsDirStore struct {
-	store *artifact.JSONStore
+	store artifact.Store
 }
 
 func (a *artifactsDirStore) Read(cellPath string, art string, dest any) error {

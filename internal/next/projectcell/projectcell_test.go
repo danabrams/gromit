@@ -82,7 +82,17 @@ func TestFSStore_List(t *testing.T) {
 		t.Fatalf("List: %v", err)
 	}
 	if len(cells) != 2 {
-		t.Errorf("List returned %d cells, want 2", len(cells))
+		t.Fatalf("List returned %d cells, want 2", len(cells))
+	}
+	names := map[string]bool{}
+	for _, c := range cells {
+		names[c.Name] = true
+	}
+	if !names["alpha"] {
+		t.Error("List missing cell named \"alpha\"")
+	}
+	if !names["beta"] {
+		t.Error("List missing cell named \"beta\"")
 	}
 }
 

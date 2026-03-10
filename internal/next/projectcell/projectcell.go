@@ -2,6 +2,7 @@ package projectcell
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -81,8 +82,8 @@ func (s *FSStore) Get(name string) (Cell, error) {
 func (s *FSStore) List() ([]Cell, error) {
 	entries, err := os.ReadDir(s.projectsDir)
 	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, nil
+		if errors.Is(err, os.ErrNotExist) {
+			return []Cell{}, nil
 		}
 		return nil, err
 	}

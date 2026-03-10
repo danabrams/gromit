@@ -77,6 +77,17 @@ func TestKind_JSONRoundTrip(t *testing.T) {
 	}
 }
 
+func TestKind_UnmarshalJSON_Unknown(t *testing.T) {
+	var k Kind
+	err := json.Unmarshal([]byte(`"bogus"`), &k)
+	if err == nil {
+		t.Fatal("expected error for unknown kind, got nil")
+	}
+	if !strings.Contains(err.Error(), "bogus") {
+		t.Errorf("error %q should mention the invalid value", err.Error())
+	}
+}
+
 func TestNewCommandSet_InitializesEmpty(t *testing.T) {
 	cs := NewCommandSet()
 	if cs.Commands == nil {

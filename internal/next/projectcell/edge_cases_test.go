@@ -1,7 +1,6 @@
 package projectcell
 
 import (
-	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -76,20 +75,4 @@ func TestFSStore_MissingSubdirectories(t *testing.T) {
 	}
 }
 
-func TestArtifactStore_CorruptedJSON(t *testing.T) {
-	// Test is in this file for proximity to edge cases.
-	// Uses a raw JSON file approach since artifact store is in another package.
-	dir := t.TempDir()
-	artPath := filepath.Join(dir, "architecture.json")
-	os.WriteFile(artPath, []byte("{broken json!!!"), 0o644)
 
-	data, err := os.ReadFile(artPath)
-	if err != nil {
-		t.Fatalf("ReadFile: %v", err)
-	}
-	var dest map[string]any
-	err = json.Unmarshal(data, &dest)
-	if err == nil {
-		t.Error("expected error for corrupted artifact JSON")
-	}
-}

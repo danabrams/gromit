@@ -4,10 +4,18 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-
-	"github.com/danabrams/gromit/internal/next/architecture"
-	"github.com/danabrams/gromit/internal/next/doctrine"
+	"unicode/utf8"
 )
+
+// Local types for deserializing artifacts without importing concrete packages.
+type archData struct {
+	Modules    []json.RawMessage `json:"modules"`
+	Components []json.RawMessage `json:"components"`
+}
+
+type doctrineData struct {
+	Rules []json.RawMessage `json:"rules"`
+}
 
 type Level int
 
@@ -16,6 +24,41 @@ const (
 	LevelSpec
 	LevelTask
 )
+
+func (l Level) String() string {
+	switch l {
+	case LevelProject:
+		return "project"
+	case LevelSpec:
+		return "spec"
+	case LevelTask:
+		return "task"
+	default:
+		return "unknown"
+	}
+}
+
+func (l Level) MarshalJSON() ([]byte, error) {
+	return json.Marshal(l.String())
+}
+
+func (l *Level) UnmarshalJSON(data []byte) error {
+	var s string
+	if err := json.Unmarshal(data, &s); err != nil {
+		return err
+	}
+	switch s {
+	case "project":
+		*l = LevelProject
+	case "spec":
+		*l = LevelSpec
+	case "task":
+		*l = LevelTask
+	default:
+		return fmt.Errorf("unknown level: %q", s)
+	}
+	return nil
+}
 
 // Cell is the local type used by the Compiler. This decouples contextpkt
 // from projectcell so callers can construct a Cell without importing that package.
@@ -40,6 +83,11 @@ type Packet struct {
 func (p *Packet) NormalizeNilFields() {
 	if p.Sections == nil {
 		p.Sections = []Section{}
+	}
+	for i := range p.Sections {
+		if p.Sections[i].Facts == nil {
+			p.Sections[i].Facts = []FactRef{}
+		}
 	}
 }
 
@@ -132,16 +180,12 @@ func (c *DefaultCompiler) buildProjectSections(cell Cell) []Section {
 		sections = append(sections, s)
 	}
 
-	sections = append(sections, Section{
-		Name:          "glossary",
-		Content:       "Project glossary placeholder",
-		TokenEstimate: estimateTokens("Project glossary placeholder"),
-	})
-	sections = append(sections, Section{
-		Name:          "validation",
-		Content:       "Project validation rules placeholder",
-		TokenEstimate: estimateTokens("Project validation rules placeholder"),
-	})
+	if s, ok := c.glossarySection(cell); ok {
+		sections = append(sections, s)
+	}
+	if s, ok := c.validationSection(cell); ok {
+		sections = append(sections, s)
+	}
 
 	return sections
 }
@@ -191,14 +235,23 @@ func (c *DefaultCompiler) buildTaskSections(cell Cell, opts CompileOpts) []Secti
 
 // architectureSection loads and marshals the architecture artifact.
 func (c *DefaultCompiler) architectureSection(cell Cell) (Section, bool) {
-	var arch architecture.Architecture
-	if err := c.store.Read(cell.CellPath, "architecture", &arch); err != nil {
+	var raw json.RawMessage
+	if err := c.store.Read(cell.CellPath, "architecture", &raw); err != nil {
 		return Section{}, false
 	}
-	if len(arch.Modules) == 0 && len(arch.Components) == 0 {
+	var data archData
+	if err := json.Unmarshal(raw, &data); err != nil {
 		return Section{}, false
 	}
-	content, err := json.MarshalIndent(arch, "", "  ")
+	if len(data.Modules) == 0 && len(data.Components) == 0 {
+		return Section{}, false
+	}
+	// Re-indent the raw JSON for consistent formatting.
+	var indented json.RawMessage
+	if err := json.Unmarshal(raw, &indented); err != nil {
+		return Section{}, false
+	}
+	content, err := json.MarshalIndent(indented, "", "  ")
 	if err != nil {
 		return Section{}, false
 	}
@@ -211,19 +264,68 @@ func (c *DefaultCompiler) architectureSection(cell Cell) (Section, bool) {
 
 // doctrineSection loads and marshals the doctrine artifact.
 func (c *DefaultCompiler) doctrineSection(cell Cell) (Section, bool) {
-	var doc doctrine.Doctrine
-	if err := c.store.Read(cell.CellPath, "doctrine", &doc); err != nil {
+	var raw json.RawMessage
+	if err := c.store.Read(cell.CellPath, "doctrine", &raw); err != nil {
 		return Section{}, false
 	}
-	if len(doc.Rules) == 0 {
+	var data doctrineData
+	if err := json.Unmarshal(raw, &data); err != nil {
 		return Section{}, false
 	}
-	content, err := json.MarshalIndent(doc, "", "  ")
+	if len(data.Rules) == 0 {
+		return Section{}, false
+	}
+	// Re-indent the raw JSON for consistent formatting.
+	var indented json.RawMessage
+	if err := json.Unmarshal(raw, &indented); err != nil {
+		return Section{}, false
+	}
+	content, err := json.MarshalIndent(indented, "", "  ")
 	if err != nil {
 		return Section{}, false
 	}
 	return Section{
 		Name:          "doctrine",
+		Content:       string(content),
+		TokenEstimate: estimateTokens(string(content)),
+	}, true
+}
+
+// glossarySection loads the glossary artifact if it exists.
+func (c *DefaultCompiler) glossarySection(cell Cell) (Section, bool) {
+	if !c.store.Exists(cell.CellPath, "glossary") {
+		return Section{}, false
+	}
+	var raw json.RawMessage
+	if err := c.store.Read(cell.CellPath, "glossary", &raw); err != nil {
+		return Section{}, false
+	}
+	content, err := json.MarshalIndent(raw, "", "  ")
+	if err != nil {
+		return Section{}, false
+	}
+	return Section{
+		Name:          "glossary",
+		Content:       string(content),
+		TokenEstimate: estimateTokens(string(content)),
+	}, true
+}
+
+// validationSection loads the validation artifact if it exists.
+func (c *DefaultCompiler) validationSection(cell Cell) (Section, bool) {
+	if !c.store.Exists(cell.CellPath, "validation") {
+		return Section{}, false
+	}
+	var raw json.RawMessage
+	if err := c.store.Read(cell.CellPath, "validation", &raw); err != nil {
+		return Section{}, false
+	}
+	content, err := json.MarshalIndent(raw, "", "  ")
+	if err != nil {
+		return Section{}, false
+	}
+	return Section{
+		Name:          "validation",
 		Content:       string(content),
 		TokenEstimate: estimateTokens(string(content)),
 	}, true
@@ -239,7 +341,7 @@ func estimateTokens(s string) int {
 }
 
 func trimToBudget(sections []Section, budget int) []Section {
-	var result []Section
+	result := []Section{}
 	remaining := budget
 	for _, s := range sections {
 		if s.TokenEstimate <= remaining {
@@ -248,12 +350,17 @@ func trimToBudget(sections []Section, budget int) []Section {
 		} else if remaining > 0 {
 			// Truncate content to fit
 			chars := remaining * 4
-			if chars > len(s.Content) {
-				chars = len(s.Content)
+			content := s.Content
+			if chars > len(content) {
+				chars = len(content)
+			}
+			// Back up to a valid UTF-8 rune boundary
+			for chars > 0 && !utf8.RuneStart(content[chars]) {
+				chars--
 			}
 			result = append(result, Section{
 				Name:          s.Name,
-				Content:       s.Content[:chars],
+				Content:       content[:chars],
 				TokenEstimate: remaining,
 				Facts:         s.Facts,
 			})

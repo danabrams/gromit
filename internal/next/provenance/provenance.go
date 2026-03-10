@@ -2,8 +2,10 @@ package provenance
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 )
 
@@ -63,7 +65,7 @@ func (t *FSTracker) IsFresh(artifactName string, currentSHA string) (bool, error
 func (t *FSTracker) load() (map[string]Record, error) {
 	data, err := os.ReadFile(t.path)
 	if err != nil {
-		if os.IsNotExist(err) {
+		if errors.Is(err, os.ErrNotExist) {
 			return make(map[string]Record), nil
 		}
 		return nil, err
@@ -78,6 +80,9 @@ func (t *FSTracker) load() (map[string]Record, error) {
 func (t *FSTracker) save(records map[string]Record) error {
 	data, err := json.MarshalIndent(records, "", "  ")
 	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(t.path), 0o755); err != nil {
 		return err
 	}
 	return os.WriteFile(t.path, data, 0o644)

@@ -12,31 +12,31 @@ import (
 
 // Module describes a high-level architectural module.
 type Module struct {
-	Name        string
-	Description string
-	Language    string
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Language    string `json:"language"`
 }
 
 // SourceMapEntry describes a single file in the source map.
 type SourceMapEntry struct {
-	Path     string
-	Language string
-	Lines    int
+	Path     string `json:"path"`
+	Language string `json:"language"`
+	Lines    int    `json:"lines"`
 }
 
 // ValidationCommand describes a validation command to run.
 type ValidationCommand struct {
-	Name   string
-	Kind   string
-	Run    string
-	Source string
+	Name   string `json:"name"`
+	Kind   string `json:"kind"`
+	Run    string `json:"run"`
+	Source string `json:"source"`
 }
 
 // DoctrineRule describes a single doctrine rule.
 type DoctrineRule struct {
-	ID      string
-	Summary string
-	Scope   string
+	ID      string `json:"id"`
+	Summary string `json:"summary"`
+	Scope   string `json:"scope"`
 }
 
 // GlossaryEntry defines a domain term and its definition.

@@ -2,45 +2,59 @@ package contextpkt
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"testing"
-
-	"github.com/danabrams/gromit/internal/next/architecture"
-	"github.com/danabrams/gromit/internal/next/doctrine"
 )
 
 type mockArtifactStore struct {
-	arch     architecture.Architecture
-	doctrine doctrine.Doctrine
+	artifacts map[string]json.RawMessage
+}
+
+func newMockArtifactStore() *mockArtifactStore {
+	return &mockArtifactStore{artifacts: map[string]json.RawMessage{}}
+}
+
+func (m *mockArtifactStore) setArtifact(name string, v any) {
+	data, _ := json.Marshal(v)
+	m.artifacts[name] = data
 }
 
 func (m *mockArtifactStore) Read(cellPath string, artifact string, dest any) error {
-	switch d := dest.(type) {
-	case *architecture.Architecture:
-		*d = m.arch
-	case *doctrine.Doctrine:
-		*d = m.doctrine
-	default:
-		return fmt.Errorf("mock: unsupported type %T", dest)
+	raw, ok := m.artifacts[artifact]
+	if !ok {
+		return fmt.Errorf("mock: artifact %q not found", artifact)
 	}
-	return nil
+	return json.Unmarshal(raw, dest)
 }
 func (m *mockArtifactStore) Write(cellPath string, artifact string, src any) error { return nil }
-func (m *mockArtifactStore) Exists(cellPath string, artifact string) bool          { return true }
+func (m *mockArtifactStore) Exists(cellPath string, artifact string) bool {
+	_, ok := m.artifacts[artifact]
+	return ok
+}
 
 func TestCompiler_ProjectLevel(t *testing.T) {
-	store := &mockArtifactStore{
-		arch: architecture.Architecture{
-			Modules: []architecture.Module{
-				{Name: "internal/auth", Description: "Auth module", Language: "go"},
-			},
+	store := newMockArtifactStore()
+	store.setArtifact("architecture", map[string]any{
+		"modules": []map[string]any{
+			{"name": "internal/auth", "description": "Auth module", "language": "go"},
 		},
-		doctrine: doctrine.Doctrine{
-			Rules: []doctrine.Rule{
-				{ID: "arch-001", Summary: "Use hexagonal architecture", Scope: "architecture"},
-			},
+	})
+	store.setArtifact("doctrine", map[string]any{
+		"rules": []map[string]any{
+			{"id": "arch-001", "summary": "Use hexagonal architecture", "scope": "architecture"},
 		},
-	}
+	})
+	store.setArtifact("glossary", map[string]any{
+		"terms": []map[string]any{
+			{"term": "module", "definition": "A logical boundary"},
+		},
+	})
+	store.setArtifact("validation", map[string]any{
+		"rules": []map[string]any{
+			{"id": "v1", "check": "lint passes"},
+		},
+	})
 
 	cell := Cell{Name: "test", CellPath: t.TempDir()}
 	compiler := NewCompiler(store)
@@ -71,20 +85,19 @@ func TestCompiler_ProjectLevel(t *testing.T) {
 }
 
 func TestCompiler_TokenBudget(t *testing.T) {
-	store := &mockArtifactStore{
-		arch: architecture.Architecture{
-			Modules: []architecture.Module{
-				{Name: "internal/auth", Description: "Auth module with a long description that takes up tokens", Language: "go"},
-				{Name: "internal/billing", Description: "Billing module with another long description", Language: "go"},
-			},
+	store := newMockArtifactStore()
+	store.setArtifact("architecture", map[string]any{
+		"modules": []map[string]any{
+			{"name": "internal/auth", "description": "Auth module with a long description that takes up tokens", "language": "go"},
+			{"name": "internal/billing", "description": "Billing module with another long description", "language": "go"},
 		},
-		doctrine: doctrine.Doctrine{
-			Rules: []doctrine.Rule{
-				{ID: "r1", Summary: "Rule one", Scope: "all"},
-				{ID: "r2", Summary: "Rule two", Scope: "all"},
-			},
+	})
+	store.setArtifact("doctrine", map[string]any{
+		"rules": []map[string]any{
+			{"id": "r1", "summary": "Rule one", "scope": "all"},
+			{"id": "r2", "summary": "Rule two", "scope": "all"},
 		},
-	}
+	})
 
 	cell := Cell{Name: "test", CellPath: t.TempDir()}
 	compiler := NewCompiler(store)
@@ -99,18 +112,17 @@ func TestCompiler_TokenBudget(t *testing.T) {
 }
 
 func TestCompiler_SpecLevel(t *testing.T) {
-	store := &mockArtifactStore{
-		arch: architecture.Architecture{
-			Modules: []architecture.Module{
-				{Name: "internal/auth", Description: "Auth module", Language: "go"},
-			},
+	store := newMockArtifactStore()
+	store.setArtifact("architecture", map[string]any{
+		"modules": []map[string]any{
+			{"name": "internal/auth", "description": "Auth module", "language": "go"},
 		},
-		doctrine: doctrine.Doctrine{
-			Rules: []doctrine.Rule{
-				{ID: "r1", Summary: "Use hexagonal architecture", Scope: "architecture"},
-			},
+	})
+	store.setArtifact("doctrine", map[string]any{
+		"rules": []map[string]any{
+			{"id": "r1", "summary": "Use hexagonal architecture", "scope": "architecture"},
 		},
-	}
+	})
 
 	cell := Cell{Name: "test", CellPath: t.TempDir()}
 	compiler := NewCompiler(store)
@@ -147,18 +159,17 @@ func TestCompiler_SpecLevel(t *testing.T) {
 }
 
 func TestCompiler_TaskLevel(t *testing.T) {
-	store := &mockArtifactStore{
-		arch: architecture.Architecture{
-			Modules: []architecture.Module{
-				{Name: "internal/auth", Description: "Auth module", Language: "go"},
-			},
+	store := newMockArtifactStore()
+	store.setArtifact("architecture", map[string]any{
+		"modules": []map[string]any{
+			{"name": "internal/auth", "description": "Auth module", "language": "go"},
 		},
-		doctrine: doctrine.Doctrine{
-			Rules: []doctrine.Rule{
-				{ID: "r1", Summary: "TDD required", Scope: "testing"},
-			},
+	})
+	store.setArtifact("doctrine", map[string]any{
+		"rules": []map[string]any{
+			{"id": "r1", "summary": "TDD required", "scope": "testing"},
 		},
-	}
+	})
 
 	cell := Cell{Name: "test", CellPath: t.TempDir()}
 	compiler := NewCompiler(store)
@@ -193,7 +204,7 @@ func TestCompiler_TaskLevel(t *testing.T) {
 }
 
 func TestCompiler_SpecLevelMissingSpecPath(t *testing.T) {
-	store := &mockArtifactStore{}
+	store := newMockArtifactStore()
 	cell := Cell{Name: "test", CellPath: t.TempDir()}
 	compiler := NewCompiler(store)
 
@@ -204,7 +215,7 @@ func TestCompiler_SpecLevelMissingSpecPath(t *testing.T) {
 }
 
 func TestCompiler_TaskLevelMissingTaskID(t *testing.T) {
-	store := &mockArtifactStore{}
+	store := newMockArtifactStore()
 	cell := Cell{Name: "test", CellPath: t.TempDir()}
 	compiler := NewCompiler(store)
 
@@ -227,5 +238,41 @@ func TestPacket_NormalizeNilFields(t *testing.T) {
 	}
 	if len(p.Sections) != 0 {
 		t.Error("NormalizeNilFields should set Sections to empty (not populated) slice")
+	}
+}
+
+func TestTrimToBudget(t *testing.T) {
+	sections := []Section{
+		{Name: "a", Content: "aaaaaaaaaaaaaaaaaaaa", TokenEstimate: 5},  // 20 chars = 5 tokens
+		{Name: "b", Content: "bbbbbbbbbbbbbbbbbbbb", TokenEstimate: 5},  // 20 chars = 5 tokens
+		{Name: "c", Content: "cccccccccccccccccccc", TokenEstimate: 5},  // 20 chars = 5 tokens
+	}
+	// Total is 15 tokens; set budget to 8 so at least one section is truncated.
+	budget := 8
+	result := trimToBudget(sections, budget)
+
+	// Total tokens in result should equal budget.
+	totalTokens := 0
+	for _, s := range result {
+		totalTokens += s.TokenEstimate
+	}
+	if totalTokens != budget {
+		t.Errorf("total tokens = %d, want %d", totalTokens, budget)
+	}
+
+	// At least one section should have been truncated (shorter content than original).
+	truncated := false
+	origByName := map[string]string{}
+	for _, s := range sections {
+		origByName[s.Name] = s.Content
+	}
+	for _, s := range result {
+		if len(s.Content) < len(origByName[s.Name]) {
+			truncated = true
+			break
+		}
+	}
+	if !truncated {
+		t.Error("expected at least one section to be truncated")
 	}
 }

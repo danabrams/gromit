@@ -43,6 +43,25 @@ func TestArchitecture_AddDependency(t *testing.T) {
 	}
 }
 
+func TestArchitecture_AddComponent(t *testing.T) {
+	arch := New()
+	arch.AddComponent(Component{
+		Name:        "auth-system",
+		Description: "Authentication subsystem",
+		Modules:     []string{"internal/auth", "internal/token"},
+	})
+
+	if len(arch.Components) != 1 {
+		t.Fatalf("expected 1 component, got %d", len(arch.Components))
+	}
+	if arch.Components[0].Name != "auth-system" {
+		t.Errorf("Name = %q, want %q", arch.Components[0].Name, "auth-system")
+	}
+	if len(arch.Components[0].Modules) != 2 {
+		t.Errorf("expected 2 modules in component, got %d", len(arch.Components[0].Modules))
+	}
+}
+
 func TestNew_InitializesEmptySlices(t *testing.T) {
 	arch := New()
 	if arch.Modules == nil {

@@ -4,18 +4,22 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"github.com/danabrams/gromit/internal/next/architecture"
 	"github.com/danabrams/gromit/internal/next/artifact"
 	"github.com/danabrams/gromit/internal/next/doctrine"
 	"github.com/danabrams/gromit/internal/next/extract"
+	"github.com/danabrams/gromit/internal/next/fact"
 	"github.com/danabrams/gromit/internal/next/guide"
 	"github.com/danabrams/gromit/internal/next/infer"
 	"github.com/danabrams/gromit/internal/next/inspect"
 	"github.com/danabrams/gromit/internal/next/projectcell"
 	"github.com/danabrams/gromit/internal/next/provenance"
 	"github.com/danabrams/gromit/internal/next/sourcemap"
+	"github.com/danabrams/gromit/internal/next/validation"
 	"github.com/danabrams/gromit/internal/next/workspace"
 	"github.com/spf13/cobra"
 )
@@ -80,23 +84,43 @@ var inspectCmd = &cobra.Command{
 
 		// Write artifacts
 		artStore := artifact.NewJSONStore()
-		allFacts := append(result.Observed, result.Inferred...)
+		artifactsDir := filepath.Join(cell.CellPath, "artifacts")
+
+		// Get current git HEAD SHA for provenance
+		gitSHA := gitHeadSHA(cell.RepoPath)
 
 		// Build and write source map
 		sm := sourcemap.BuildFromFacts(result.Observed)
-		if err := artStore.Write(filepath.Join(cell.CellPath, "artifacts"), "sourcemap", sm); err != nil {
+		if err := artStore.Write(artifactsDir, "sourcemap", sm); err != nil {
 			return fmt.Errorf("write sourcemap: %w", err)
 		}
 
-		// Record provenance
+		// Record provenance per written artifact (keyed by artifact name,
+		// so IsFresh lookups by artifact name find matching records).
 		tracker := provenance.NewFSTracker(filepath.Join(cell.CellPath, "provenance", "provenance.json"))
-		for _, f := range allFacts {
-			tracker.Record(provenance.Record{
-				FactID:   f.ID,
-				Artifact: f.Source,
-				Category: f.Category.String(),
-			})
+		if err := tracker.Record(provenance.Record{
+			Artifact: "sourcemap",
+			GitSHA:   gitSHA,
+		}); err != nil {
+			return fmt.Errorf("record provenance: %w", err)
 		}
+
+		// Build and write validation command set from extracted facts
+		cs := buildValidationCommandSet(result.Observed)
+		if err := artStore.Write(artifactsDir, "validation", cs); err != nil {
+			return fmt.Errorf("write validation: %w", err)
+		}
+		if err := tracker.Record(provenance.Record{
+			Artifact: "validation",
+			GitSHA:   gitSHA,
+		}); err != nil {
+			return fmt.Errorf("record provenance: %w", err)
+		}
+
+		// TODO: When a real Inferrer replaces StubInferrer, write additional artifacts:
+		// - architecture (from inferred facts)
+		// - glossary (from inferred facts)
+		// - risks (from inferred facts)
 
 		fmt.Printf("Inspected %q: %d observed, %d inferred facts\n",
 			args[0], len(result.Observed), len(result.Inferred))
@@ -143,7 +167,10 @@ var guideCmd = &cobra.Command{
 		}
 
 		// Load doctrine and convert to guide local types
-		doc, _ := docStore.Load(filepath.Join(cell.CellPath, "doctrine"))
+		doc, err := docStore.Load(filepath.Join(cell.CellPath, "doctrine"))
+		if err != nil {
+			return fmt.Errorf("load doctrine: %w", err)
+		}
 		for _, r := range doc.Rules {
 			input.Doctrine = append(input.Doctrine, guide.DoctrineRule{ID: r.ID, Summary: r.Summary, Scope: r.Scope})
 		}
@@ -155,6 +182,9 @@ var guideCmd = &cobra.Command{
 		}
 
 		guidePath := filepath.Join(cell.CellPath, "guide", "agent-guide.md")
+		if err := os.MkdirAll(filepath.Dir(guidePath), 0o755); err != nil {
+			return fmt.Errorf("create guide directory: %w", err)
+		}
 		if err := os.WriteFile(guidePath, output, 0o644); err != nil {
 			return err
 		}
@@ -198,7 +228,78 @@ func init() {
 	projectCmd.AddCommand(listCmd)
 }
 
-func resolveProjectStore() (*projectcell.FSStore, error) {
+// gitHeadSHA returns the current HEAD commit SHA for the repo at the given path.
+// Returns an empty string if the SHA cannot be determined.
+func gitHeadSHA(repoPath string) string {
+	out, err := exec.Command("git", "-C", repoPath, "rev-parse", "HEAD").Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(out))
+}
+
+// buildValidationCommandSet converts validation-commands facts into a CommandSet.
+// Each fact has Content like "Makefile target 'test': go test ./..." or
+// "CI workflow 'ci.yml' run step: go test ./...".
+func buildValidationCommandSet(observed []fact.Fact) validation.CommandSet {
+	cs := validation.NewCommandSet()
+	for _, f := range observed {
+		if f.Source != "validation-commands" {
+			continue
+		}
+		name, run, source := parseValidationFact(f.Content)
+		cs.Add(validation.Command{
+			Name:   name,
+			Kind:   inferValidationKind(run),
+			Run:    run,
+			Source: source,
+		})
+	}
+	return cs
+}
+
+// parseValidationFact extracts a name, run command, and source from a
+// validation-commands fact content string.
+func parseValidationFact(content string) (name, run, source string) {
+	// "Makefile target 'test': go test ./..."
+	if strings.HasPrefix(content, "Makefile target '") {
+		rest := strings.TrimPrefix(content, "Makefile target '")
+		if idx := strings.Index(rest, "': "); idx >= 0 {
+			name = rest[:idx]
+			run = rest[idx+3:]
+			source = "Makefile"
+			return
+		}
+	}
+	// "CI workflow 'ci.yml' run step: go test ./..."
+	if strings.HasPrefix(content, "CI workflow '") {
+		rest := strings.TrimPrefix(content, "CI workflow '")
+		if idx := strings.Index(rest, "' run step: "); idx >= 0 {
+			workflow := rest[:idx]
+			run = rest[idx+12:]
+			name = workflow + "-run"
+			source = workflow
+			return
+		}
+	}
+	// Fallback: use the whole content as the run command.
+	return "unknown", content, "unknown"
+}
+
+// inferValidationKind guesses the Kind of a command from its run string.
+func inferValidationKind(run string) validation.Kind {
+	lower := strings.ToLower(run)
+	switch {
+	case strings.Contains(lower, "lint") || strings.Contains(lower, "vet") || strings.Contains(lower, "staticcheck"):
+		return validation.Lint
+	case strings.Contains(lower, "build") || strings.Contains(lower, "compile"):
+		return validation.Build
+	default:
+		return validation.Test
+	}
+}
+
+func resolveProjectStore() (projectcell.Store, error) {
 	resolver := workspace.NewEnvResolver()
 	root, err := resolver.Resolve()
 	if err != nil {

@@ -205,14 +205,14 @@ These packages underpin all user stories and must be tested independently.
 
 | Section | Project | Spec | Task |
 |---------|---------|------|------|
-| Architecture (full) | Yes | - | - |
-| Architecture (scoped) | - | Yes | Yes |
-| Doctrine | Yes | Relevant subset | Relevant subset |
-| Glossary | Yes | Relevant terms | Relevant terms |
-| Validation commands | Yes | Scoped commands | Task-specific commands |
+| Architecture | Yes | Yes | - |
+| Doctrine | Yes | Yes | Yes |
+| Glossary | Yes (placeholder) | - | - |
+| Validation | Yes (placeholder) | - | - |
 | Spec text | - | Yes | Yes |
-| Task scope / proof requirements | - | - | Yes |
-| Risks (scoped) | - | Yes | Yes |
+| Proof requirements | - | - | Yes |
+
+> **Note:** Glossary and Validation are placeholder-only at project level; inference for scoping these to spec/task levels is stubbed. The matrix reflects the current implementation, not the aspirational design.
 
 **Manual check:** Compile a project-level context, then a task-level context for the same project. The task-level packet should be smaller and more focused.
 

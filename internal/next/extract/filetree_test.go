@@ -3,6 +3,7 @@ package extract
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -31,8 +32,20 @@ func TestFileTreeExtractor_Extract(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Extract: %v", err)
 	}
-	if len(facts) == 0 {
-		t.Fatal("expected at least one fact")
+	if len(facts) != 4 {
+		t.Fatalf("expected 4 facts (one per file), got %d", len(facts))
+	}
+
+	// At least one fact should reference main.go
+	found := false
+	for _, f := range facts {
+		if strings.Contains(f.Content, "main.go") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("expected at least one fact with Content containing \"main.go\"")
 	}
 
 	// All facts should be observed

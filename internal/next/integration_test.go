@@ -108,14 +108,28 @@ func TestIntegration_FullProjectCellFlow(t *testing.T) {
 		t.Fatalf("write doctrine artifact: %v", err)
 	}
 
+	// Write glossary artifact for context compiler
+	glossary := map[string]any{"terms": []map[string]any{{"term": "cell", "definition": "project directory"}}}
+	if err := artStore.Write(artifactsDir, "glossary", glossary); err != nil {
+		t.Fatalf("write glossary artifact: %v", err)
+	}
+
+	// Write validation artifact for context compiler
+	validation := map[string]any{"commands": []string{"go test ./...", "go vet ./..."}}
+	if err := artStore.Write(artifactsDir, "validation", validation); err != nil {
+		t.Fatalf("write validation artifact: %v", err)
+	}
+
 	// Record provenance
 	tracker := provenance.NewFSTracker(filepath.Join(cell.CellPath, "provenance", "provenance.json"))
-	tracker.Record(provenance.Record{
+	if err := tracker.Record(provenance.Record{
 		FactID:   "sourcemap",
 		Artifact: "sourcemap",
 		Category: "observed",
 		GitSHA:   "abc123",
-	})
+	}); err != nil {
+		t.Fatalf("record provenance: %v", err)
+	}
 
 	// Verify artifacts exist
 	if !artStore.Exists(artifactsDir, "sourcemap") {
@@ -185,6 +199,17 @@ func TestIntegration_FullProjectCellFlow(t *testing.T) {
 		t.Error("project packet should have sections")
 	}
 
+	// Verify project packet contains expected sections
+	projectSectionNames := map[string]bool{}
+	for _, s := range projectPacket.Sections {
+		projectSectionNames[s.Name] = true
+	}
+	for _, expected := range []string{"architecture", "doctrine", "glossary", "validation"} {
+		if !projectSectionNames[expected] {
+			t.Errorf("project packet missing expected section %q", expected)
+		}
+	}
+
 	// Compile at spec level
 	specPacket, err := compiler.Compile(context.Background(), ctxCell, contextpkt.LevelSpec, contextpkt.CompileOpts{
 		SpecPath: "specs/001-feature.md",
@@ -200,6 +225,13 @@ func TestIntegration_FullProjectCellFlow(t *testing.T) {
 	}
 	if !hasSpecText {
 		t.Error("spec packet should include spec-text section")
+	}
+
+	// Verify spec packet does NOT contain project-level-only sections
+	for _, s := range specPacket.Sections {
+		if s.Name == "glossary" || s.Name == "validation" {
+			t.Errorf("spec packet should not contain project-level section %q", s.Name)
+		}
 	}
 
 	// Compile at task level
@@ -232,6 +264,15 @@ func TestIntegration_FullProjectCellFlow(t *testing.T) {
 	stale, _ := tracker.IsFresh("sourcemap", "def456")
 	if stale {
 		t.Error("sourcemap should not be fresh with different SHA")
+	}
+
+	// Actually re-run the inspector on the same repo (same HEAD) and verify identical results
+	reResult, err := inspector.Inspect(context.Background(), inspectCell)
+	if err != nil {
+		t.Fatalf("Re-inspect: %v", err)
+	}
+	if len(reResult.Observed) != len(result.Observed) {
+		t.Errorf("re-inspection observed fact count differs: got %d, want %d", len(reResult.Observed), len(result.Observed))
 	}
 
 	// 9. Attach a second project, verify isolation
@@ -381,8 +422,12 @@ func createFixtureRepo(t *testing.T) string {
 	}
 
 	// Configure git for commits
-	exec.Command("git", "-C", dir, "config", "user.email", "test@test.com").Run()
-	exec.Command("git", "-C", dir, "config", "user.name", "Test").Run()
+	if err := exec.Command("git", "-C", dir, "config", "user.email", "test@test.com").Run(); err != nil {
+		t.Fatalf("git config user.email: %v", err)
+	}
+	if err := exec.Command("git", "-C", dir, "config", "user.name", "Test").Run(); err != nil {
+		t.Fatalf("git config user.name: %v", err)
+	}
 
 	// Write files
 	files := map[string]string{
@@ -419,24 +464,41 @@ lint:
 build:
 	go build -o bin/app .
 `,
+		".github/workflows/ci.yml": `name: CI
+on: [push]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - run: go test ./...
+      - run: go vet ./...
+`,
 	}
 
 	for path, content := range files {
 		full := filepath.Join(dir, path)
-		os.MkdirAll(filepath.Dir(full), 0o755)
-		os.WriteFile(full, []byte(content), 0o644)
+		if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
+			t.Fatalf("MkdirAll %s: %v", filepath.Dir(full), err)
+		}
+		if err := os.WriteFile(full, []byte(content), 0o644); err != nil {
+			t.Fatalf("WriteFile %s: %v", full, err)
+		}
 	}
 
 	// Make initial commit
-	exec.Command("git", "-C", dir, "add", ".").Run()
-	exec.Command("git", "-C", dir, "commit", "-m", "initial").Run()
+	if err := exec.Command("git", "-C", dir, "add", ".").Run(); err != nil {
+		t.Fatalf("git add: %v", err)
+	}
+	if err := exec.Command("git", "-C", dir, "commit", "-m", "initial").Run(); err != nil {
+		t.Fatalf("git commit: %v", err)
+	}
 
 	return dir
 }
 
 // testArtifactStore wraps artifact.JSONStore to read from a specific artifacts directory.
 type testArtifactStore struct {
-	store        *artifact.JSONStore
+	store        artifact.Store
 	artifactsDir string
 }
 
@@ -450,4 +512,55 @@ func (a *testArtifactStore) Write(cellPath string, art string, src any) error {
 
 func (a *testArtifactStore) Exists(cellPath string, art string) bool {
 	return a.store.Exists(a.artifactsDir, art)
+}
+
+func TestIntegration_CorruptedArtifactDuringCompilation(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	workspaceDir := t.TempDir()
+	artifactsDir := filepath.Join(workspaceDir, "artifacts")
+	os.MkdirAll(artifactsDir, 0o755)
+
+	// 1. Write a corrupted (invalid JSON) architecture artifact
+	corruptedPath := filepath.Join(artifactsDir, "architecture.json")
+	if err := os.WriteFile(corruptedPath, []byte("{not valid json!!!"), 0o644); err != nil {
+		t.Fatalf("write corrupted architecture: %v", err)
+	}
+
+	// 2. Write a valid doctrine artifact
+	artStore := artifact.NewJSONStore()
+	doc := doctrine.Doctrine{
+		Rules: []doctrine.Rule{
+			doctrine.NewRule("d1", "Always test", "all"),
+		},
+	}
+	if err := artStore.Write(artifactsDir, "doctrine", doc); err != nil {
+		t.Fatalf("write doctrine: %v", err)
+	}
+
+	// 3. Compile at project level
+	wrapper := &testArtifactStore{store: artStore, artifactsDir: artifactsDir}
+	compiler := contextpkt.NewCompiler(wrapper)
+
+	ctxCell := contextpkt.Cell{Name: "corrupt-test", CellPath: workspaceDir}
+	packet, err := compiler.Compile(context.Background(), ctxCell, contextpkt.LevelProject, contextpkt.CompileOpts{})
+
+	// 4. Verify compilation succeeds (corrupt artifact skipped gracefully)
+	if err != nil {
+		t.Fatalf("Compile should succeed despite corrupted artifact, got: %v", err)
+	}
+
+	// 5. Verify doctrine is present but architecture is not
+	sectionNames := map[string]bool{}
+	for _, s := range packet.Sections {
+		sectionNames[s.Name] = true
+	}
+	if !sectionNames["doctrine"] {
+		t.Error("packet should contain doctrine section")
+	}
+	if sectionNames["architecture"] {
+		t.Error("packet should not contain architecture section (corrupted artifact should be skipped)")
+	}
 }

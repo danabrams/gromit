@@ -7,6 +7,7 @@ package doctrine
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"time"
@@ -85,7 +86,7 @@ func (s *FSStore) Save(doctrineDir string, d Doctrine) error {
 func (s *FSStore) Load(doctrineDir string) (Doctrine, error) {
 	data, err := os.ReadFile(filepath.Join(doctrineDir, "rules.json"))
 	if err != nil {
-		if os.IsNotExist(err) {
+		if errors.Is(err, os.ErrNotExist) {
 			return Doctrine{Rules: []Rule{}}, nil
 		}
 		return Doctrine{}, err

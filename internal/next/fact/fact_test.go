@@ -38,6 +38,17 @@ func TestNewFact(t *testing.T) {
 	}
 }
 
+func TestCategory_UnmarshalJSON_Unknown(t *testing.T) {
+	var c Category
+	err := json.Unmarshal([]byte(`"bogus"`), &c)
+	if err == nil {
+		t.Fatal("expected error for unknown category, got nil")
+	}
+	if !strings.Contains(err.Error(), "bogus") {
+		t.Errorf("error %q should mention the invalid value", err.Error())
+	}
+}
+
 func TestCategory_JSONRoundTrip(t *testing.T) {
 	f := New("test-001", Observed, "test content", "test-source")
 	data, err := json.Marshal(f)

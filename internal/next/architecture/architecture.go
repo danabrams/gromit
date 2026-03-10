@@ -73,4 +73,9 @@ func (a *Architecture) NormalizeNilFields() {
 	if a.Components == nil {
 		a.Components = []Component{}
 	}
+	for i := range a.Components {
+		if a.Components[i].Modules == nil {
+			a.Components[i].Modules = []string{}
+		}
+	}
 }

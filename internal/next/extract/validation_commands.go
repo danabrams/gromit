@@ -2,6 +2,7 @@ package extract
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -53,7 +54,7 @@ func (e *ValidationCommandsExtractor) Extract(repoPath string) ([]fact.Fact, err
 func (e *ValidationCommandsExtractor) extractMakefile(repoPath string) ([]fact.Fact, error) {
 	path := filepath.Join(repoPath, "Makefile")
 	f, err := os.Open(path)
-	if os.IsNotExist(err) {
+	if errors.Is(err, os.ErrNotExist) {
 		return nil, nil
 	}
 	if err != nil {
@@ -104,7 +105,7 @@ func (e *ValidationCommandsExtractor) extractMakefile(repoPath string) ([]fact.F
 func (e *ValidationCommandsExtractor) extractCIWorkflows(repoPath string) ([]fact.Fact, error) {
 	workflowDir := filepath.Join(repoPath, ".github", "workflows")
 	entries, err := os.ReadDir(workflowDir)
-	if os.IsNotExist(err) {
+	if errors.Is(err, os.ErrNotExist) {
 		return nil, nil
 	}
 	if err != nil {
@@ -120,27 +121,42 @@ func (e *ValidationCommandsExtractor) extractCIWorkflows(repoPath string) ([]fac
 			continue
 		}
 
-		f, err := os.Open(filepath.Join(workflowDir, name))
+		fileFacts, err := e.scanWorkflowFile(filepath.Join(workflowDir, name), name, idx)
 		if err != nil {
 			return nil, err
 		}
+		facts = append(facts, fileFacts...)
+		idx += len(fileFacts)
+	}
 
-		scanner := bufio.NewScanner(f)
-		for scanner.Scan() {
-			line := scanner.Text()
-			if m := ciRunPattern.FindStringSubmatch(line); m != nil {
-				cmd := strings.TrimSpace(m[1])
-				id := fmt.Sprintf("valcmd-ci-%d", idx)
-				content := fmt.Sprintf("CI workflow '%s' run step: %s", name, cmd)
-				facts = append(facts, fact.New(id, fact.Observed, content, "validation-commands"))
-				idx++
-			}
+	return facts, nil
+}
+
+// scanWorkflowFile scans a single CI workflow file for run steps, returning
+// facts with IDs starting at startIdx. Using a separate function ensures the
+// file handle is closed via defer even if a panic occurs.
+func (e *ValidationCommandsExtractor) scanWorkflowFile(path, name string, startIdx int) ([]fact.Fact, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	var facts []fact.Fact
+	idx := startIdx
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if m := ciRunPattern.FindStringSubmatch(line); m != nil {
+			cmd := strings.TrimSpace(m[1])
+			id := fmt.Sprintf("valcmd-ci-%d", idx)
+			content := fmt.Sprintf("CI workflow '%s' run step: %s", name, cmd)
+			facts = append(facts, fact.New(id, fact.Observed, content, "validation-commands"))
+			idx++
 		}
-		if err := scanner.Err(); err != nil {
-			f.Close()
-			return nil, err
-		}
-		f.Close()
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, err
 	}
 
 	return facts, nil

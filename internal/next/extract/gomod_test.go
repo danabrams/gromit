@@ -3,6 +3,7 @@ package extract
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -24,8 +25,20 @@ require (
 	if err != nil {
 		t.Fatalf("Extract: %v", err)
 	}
-	if len(facts) < 3 {
-		t.Fatalf("expected at least 3 facts (module, go version, deps), got %d", len(facts))
+	if len(facts) != 4 {
+		t.Fatalf("expected 4 facts (module path, go version, 2 deps), got %d", len(facts))
+	}
+
+	// Verify one fact contains the module path
+	found := false
+	for _, f := range facts {
+		if strings.Contains(f.Content, "github.com/example/myapp") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("expected at least one fact with Content containing \"github.com/example/myapp\"")
 	}
 
 	for _, f := range facts {
