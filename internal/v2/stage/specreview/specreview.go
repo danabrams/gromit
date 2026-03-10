@@ -379,55 +379,6 @@ func (s *Stage) createFromReviewBeads(ctx context.Context, specID string, artifa
 	return nil
 }
 
-func computeVerdict(findings []rawFinding) string {
-	for _, f := range findings {
-		if strings.EqualFold(f.Severity, "critical") {
-			return "fail"
-		}
-	}
-	return "pass"
-}
-
-func convertFindings(raw []rawFinding) []stagepkg.Finding {
-	converted := make([]stagepkg.Finding, len(raw))
-	for i, f := range raw {
-		converted[i] = stagepkg.Finding{
-			Severity:      f.Severity,
-			Category:      f.Category,
-			Scope:         f.Scope,
-			Description:   f.Description,
-			AffectedFiles: append([]string(nil), f.AffectedFiles...),
-		}
-	}
-	return converted
-}
-
-func (s *Stage) createFromReviewBeads(ctx context.Context, specID string, findings []stagepkg.Finding) ([]*trackertypes.Bead, error) {
-	if s.tracker == nil || len(findings) == 0 {
-		return nil, nil
-	}
-
-	created := make([]*trackertypes.Bead, 0, len(findings))
-	for _, f := range findings {
-		req := trackertypes.TaskTrackerCreateBeadRequest{
-			Title:       beadTitleForFinding(f),
-			Description: strings.TrimSpace(f.Description),
-			Priority:    priorityForSeverity(f.Severity),
-			Labels:      labelsForFinding(specID, f.Scope),
-		}
-
-		resp, err := s.tracker.CreateBead(ctx, req)
-		if err != nil {
-			return nil, fmt.Errorf("specreview: creating bead %q: %w", req.Title, err)
-		}
-		if resp == nil || resp.Bead == nil {
-			return nil, fmt.Errorf("specreview: create bead response missing for %q", req.Title)
-		}
-		created = append(created, resp.Bead)
-	}
-	return created, nil
-}
-
 func labelsForFinding(specID, scope string) []string {
 	labels := []string{"from-review"}
 	if strings.EqualFold(strings.TrimSpace(scope), "spec") {
