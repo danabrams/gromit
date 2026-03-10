@@ -64,10 +64,20 @@ type GitDiffer interface {
 	DiffFromBase(ctx context.Context, worktree string) (string, error)
 }
 
+// Finding describes a structured observation about an unmet acceptance criterion.
+type Finding struct {
+	Severity      string
+	Category      string
+	Scope         string
+	Description   string
+	AffectedFiles []string
+}
+
 // AcceptArtifacts captures acceptance evaluation results produced by the stage.
 type AcceptArtifacts struct {
 	Results    []presentation.AcceptanceResult
 	GapSummary string
+	Findings   []Finding
 }
 
 // GetGapSummary returns the gap summary, or empty string if the receiver is nil.
