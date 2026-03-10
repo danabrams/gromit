@@ -528,6 +528,9 @@
 {"issue_id":"gromit-5eql6","label":"spec:immutable-pipeline"}
 {"issue_id":"gromit-5f5g","label":"spec:validation-duration-spc"}
 {"issue_id":"gromit-5fd7","label":"spec:debug-runbook"}
+{"issue_id":"gromit-5gf93","label":"estimated-files:2"}
+{"issue_id":"gromit-5gf93","label":"gen:1"}
+{"issue_id":"gromit-5gf93","label":"spec:spec-level-review-and-targeted-remediation"}
 {"issue_id":"gromit-5hhhh","label":"estimated-files:1"}
 {"issue_id":"gromit-5hhhh","label":"gen:1"}
 {"issue_id":"gromit-5hhhh","label":"spec:immutable-pipeline"}
@@ -1706,6 +1709,9 @@
 {"issue_id":"gromit-g4y","label":"bug"}
 {"issue_id":"gromit-g4y","label":"from-review"}
 {"issue_id":"gromit-g4y","label":"spec:immutable-pipeline"}
+{"issue_id":"gromit-g5tbe","label":"estimated-files:2"}
+{"issue_id":"gromit-g5tbe","label":"gen:1"}
+{"issue_id":"gromit-g5tbe","label":"spec:spec-level-review-and-targeted-remediation"}
 {"issue_id":"gromit-g7oi","label":"spec:usage-limit-detection"}
 {"issue_id":"gromit-g7q9","label":"spec:tskip-audit"}
 {"issue_id":"gromit-g810","label":"atdd"}
@@ -2608,6 +2614,9 @@
 {"issue_id":"gromit-ojq9e","label":"spec:immutable-pipeline"}
 {"issue_id":"gromit-ok34","label":"spec:decomposition-granularity"}
 {"issue_id":"gromit-okv","label":"spec:pipeline-chaining"}
+{"issue_id":"gromit-olkor","label":"estimated-files:2"}
+{"issue_id":"gromit-olkor","label":"gen:1"}
+{"issue_id":"gromit-olkor","label":"spec:spec-level-review-and-targeted-remediation"}
 {"issue_id":"gromit-onpye","label":"estimated-files:2"}
 {"issue_id":"gromit-onpye","label":"gen:0"}
 {"issue_id":"gromit-onpye","label":"spec:spec-level-review-and-targeted-remediation"}
@@ -3198,6 +3207,9 @@
 {"issue_id":"gromit-uossk","label":"spec:v2-run-loop"}
 {"issue_id":"gromit-up4bg","label":"from-review"}
 {"issue_id":"gromit-up4bg","label":"spec:runner-pipeline"}
+{"issue_id":"gromit-upknx","label":"estimated-files:1"}
+{"issue_id":"gromit-upknx","label":"gen:1"}
+{"issue_id":"gromit-upknx","label":"spec:spec-level-review-and-targeted-remediation"}
 {"issue_id":"gromit-uqmu","label":"bug"}
 {"issue_id":"gromit-uqmu","label":"from-review"}
 {"issue_id":"gromit-uqmu","label":"spec:immutable-pipeline"}
