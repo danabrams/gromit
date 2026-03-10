@@ -23,7 +23,6 @@ import (
 	gitadapter "github.com/danabrams/gromit/internal/v2/adapter/git"
 	llm "github.com/danabrams/gromit/internal/v2/adapter/llm"
 	"github.com/danabrams/gromit/internal/v2/adapter/presenter"
-	"github.com/danabrams/gromit/internal/v2/adapter/tasktracker"
 	"github.com/danabrams/gromit/internal/v2/dep"
 	"github.com/danabrams/gromit/internal/v2/llmtypes"
 	"github.com/danabrams/gromit/internal/v2/loop"
@@ -219,7 +218,7 @@ func run2(cmd *cobra.Command, args []string) error {
 		loop.WithSpecReviewStage(components.SpecReviewStage),
 		loop.WithStageCommitter(components.StageCommitter),
 		loop.WithTypedEmitter(components.TypedEmitter),
-	)
+	}
 	if router != nil {
 		baseOpts = append(baseOpts, loop.WithRouter(router))
 	}
@@ -330,15 +329,10 @@ func run2FromReview(cmd *cobra.Command, cfg *config.Config) error {
 		wg.Wait()
 	}()
 
-	resp, err := adapters.TaskTracker.QueryBeads(ctx, tasktracker.TaskTrackerQueryBeadsRequest{
-		Labels: fromReviewLabels(specScope),
-		Status: "open",
-	})
+	beads, err := loop.QueryFromReviewBeads(ctx, adapters.TaskTracker, specScope)
 	if err != nil {
 		return fmt.Errorf("query from-review beads: %w", err)
 	}
-	beads := trackerBeads(resp)
-	beads = filterFromReviewBeads(beads, specScope)
 	specSuffix := ""
 	if specScope != "" {
 		specSuffix = fmt.Sprintf(" for spec %q", specScope)
@@ -361,7 +355,7 @@ func run2FromReview(cmd *cobra.Command, cfg *config.Config) error {
 		}
 	}
 	components.BeadLoop.SetWorktree(worktree)
-	_, err = runBeadLoopFn(components.BeadLoop, ctx, beads, stopCh)
+	_, err = runBeadLoopWithoutReviewFn(components.BeadLoop, ctx, beads, stopCh)
 	fmt.Fprintf(cmd.OutOrStdout(), "Executed %d from-review bead(s)%s through the bead loop.\n", len(beads), specSuffix)
 	return err
 }
@@ -500,73 +494,6 @@ func loadSpecFromArg(arg string) (*v2spec.Spec, error) {
 		return nil, fmt.Errorf("loading spec %s: %w", specPath, err)
 	}
 	return specFile, nil
-}
-
-func fromReviewLabels(spec string) []string {
-	labels := []string{"from-review"}
-	spec = strings.TrimSpace(spec)
-	if spec != "" {
-		labels = append(labels, fmt.Sprintf("spec:%s", spec))
-	}
-	return labels
-}
-
-func filterFromReviewBeads(beads []*bead.Bead, spec string) []*bead.Bead {
-	if len(beads) == 0 {
-		return beads
-	}
-	specLabel := ""
-	if trimmed := strings.TrimSpace(spec); trimmed != "" {
-		specLabel = fmt.Sprintf("spec:%s", trimmed)
-	}
-	filtered := make([]*bead.Bead, 0, len(beads))
-	for _, item := range beads {
-		if item == nil {
-			continue
-		}
-		if !bead.HasLabel(item.Labels, "from-review") {
-			continue
-		}
-		if specLabel != "" && !bead.HasLabel(item.Labels, specLabel) {
-			continue
-		}
-		filtered = append(filtered, item)
-	}
-	return filtered
-}
-
-func trackerBeads(resp *tasktracker.TaskTrackerQueryBeadsResponse) []*bead.Bead {
-	if resp == nil {
-		return nil
-	}
-	result := make([]*bead.Bead, 0, len(resp.Beads))
-	for _, item := range resp.Beads {
-		beadCopy := &bead.Bead{
-			ID:          item.ID,
-			Title:       item.Title,
-			Description: item.Description,
-			Priority:    item.Priority,
-			Labels:      append([]string(nil), item.Labels...),
-			Status:      item.Status,
-			DependsOn:   dependenciesFromStrings(item.DependsOn),
-			BlockedBy:   dependenciesFromStrings(item.BlockedBy),
-		}
-		result = append(result, beadCopy)
-	}
-	return result
-}
-
-func dependenciesFromStrings(ids []string) []bead.Dependency {
-	if len(ids) == 0 {
-		return nil
-	}
-	deps := make([]bead.Dependency, 0, len(ids))
-	for _, id := range ids {
-		if trimmed := strings.TrimSpace(id); trimmed != "" {
-			deps = append(deps, bead.Dependency{ID: trimmed})
-		}
-	}
-	return deps
 }
 
 // buildRouter constructs a Router from the config's provider and routing
