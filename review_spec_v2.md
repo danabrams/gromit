@@ -1,43 +1,109 @@
 # Spec-Level Review Prompt Template (v2)
 
-You are performing a **spec-level review** of the cumulative diff for the current bead. Treat the diff as the authoritative set of changes that will be shipped, and evaluate every line of that diff through the lenses described below. Always assume the context provided by the bead title and description; never invent missing facts.
+You are executing a **spec-level review** of the bead diff described by the current task. Treat the cumulative diff as the authoritative body of work that will ship, and answer every question through the specificity of this bead’s title, description, and files. Do not invent behavior that is not represented in the diff.
 
-## Review Focus
-Evaluate the cumulative diff for each of the following dimensions:
+Every finding must tie to the **cumulative diff** (all files together) rather than a single excerpt, so cross-file effects, instrumentation changes, and contract gaps are surfaced before downstream merges.
 
-1. **Correctness** – Does the new spec behave as intended? Are invariants preserved? Do control flows handle edge cases, branching logic, and preconditions safely?
-2. **Security** – Identify any new sensitive data exposure, authentication/authorization gaps, injection risks, or other OWASP-style weaknesses introduced by the change.
-3. **Error handling** – Are failure paths, retries, and diagnostics surfaced consistently (including logging, wrapping, and cleanup)? Are panic/exception paths covered?
-4. **Test coverage** – Does the diff add or require tests? What gaps remain? Are critical branches or regression risks left unverified?
-5. **Code quality** – Look for clarity, naming, duplication, dead code, or overly complex constructs that reduce maintainability.
-6. **Architectural fit** – Does the change respect the architecture contracts (context propagation, telemetry persistence, strict writers, single schema owners, etc.)? Does it align with documented caps/flows and maintain the expected ownership boundaries?
+## Review Mission
 
-When evaluating, reason about the **cumulative diff** (all files changed together) rather than isolated snippets. Look for systemic issues that only materialize after the entire change is considered.
+For each dimension below you should consider both the new code and how it integrates with the existing surface area touched by the diff. Highlight what the change does, call out any missing contributors, and surface the most critical risks to launch.
+
+## Review Dimensions
+
+### Correctness
+Does the diff do what the spec promises? Validate invariants, control-flow guards, branching coverage, concurrency safety, and data integrity (including allows/denies for identifiers and filesystem paths). Treat off-by-one loops, missing nil checks, and unchecked context cancelations as correctness gaps.
+
+### Security
+Look for new credential exposure, authorization bypasses, injection lints, or dependency misuse. Ask whether the diff introduces sensitive data in logs, allows attacker-provided paths past allowlists, or fails to validate input before executing privileged subprocesses.
+
+### Error handling
+Confirm that every failure path logs actionable diagnostics, wraps root causes, cleans up resources, and drives the shared metrics persist epilogue (including sentinel attribution rows). Check retry logic, cancel propagation, and whether goroutines that write to subprocess stdin surface write errors before closing.
+
+### Test coverage
+Verify that the diff adds the necessary tests for its new behavior (unit, integration, or telemetry). Identify missing branches, unstubbed dependencies, or architecture contracts that lack parity tests (e.g., telemetry emitters, persist epilogue guards, manifest-derived benchmarks, reducer contracts for attribution). If no tests exist, explain what kind of test would cover the risk.
+
+### Code quality
+Look for duplication, unclear naming, dead branches, or overly clever code that obscures intent. Confirm that normalization helpers (`NormalizeNilFields` or `normalizeNilFields`) are used when cross-package types change, and that synchronous flows do not rely on global state.
+
+### Architectural fit
+Validate that the change obeys the architecture rules: context must flow end-to-end, allowlist-validated identifiers only, single schema writers for externally consumed artifacts, manifest-only benchmark execution, single telemetry persist epilogue for every exit, and reducer/telemetry contracts for attribution or stream-event paths. Call out violations or confirm compatibility with process contracts (telemetry gating, beads for usage, decomposition rules, etc.).
+
+## Scope Classification Rules
+
+When populating `scope` for a finding, describe the subsystem touched by the issue, not just a file name. Use connective phrases such as:
+
+- `prompt rendering` for changes centered on prompt/fragment files or rendering helpers.
+- `cmd/gromit/review_spec_validation` for CLI-level validation logic.
+- `runner/context-guard` when the issue spans runner control flow or context propagation.
+- `telemetry/persist-epilogue` when calling out usage attribution or metrics.
+
+If an issue crosses components, choose a short descriptor that reflects the dominant effect (e.g., `system telemetry` for architecture-level data-quality gaps). Keep `scope` to 3–4 words, use repo-relative paths when more precision is required, and avoid generic labels like “misc”.
+
+## Severity Examples
+
+Use severity to describe how urgently the issue must be fixed:
+
+- **Critical** – Blocks launch or data quality: e.g., a missing metrics persist epilogue on every exit, an unknown-attribution row reaching SPC, or telemetry failing to mark a data_quality_invalid run.
+- **High** – Violates architecture contracts or security rules: e.g., a subprocess launched with `runCmd` after accepting user input, missing allowlist validation, or a reducer contract without parity tests.
+- **Medium** – Behavior drains confidence but may be mitigated: e.g., missing validation for non-critical branches, insufficient tests for a complex new helper, or missing nil normalization after a type change.
+- **Low** – Style, readability, or duplication issues that do not block correctness but should be cleaned up before merge.
 
 ## Output Format
-Return a JSON object containing the overall assessment described below. Do not wrap the JSON in markdown or additional text.
+
+Return a single JSON object describing your findings. Do not wrap it in markdown or additional text. Cite **every** blocking issue as `"verdict": "issue"` with the proper `severity`. If no issues exist, still emit at least one `"pass"` finding explaining why the spec is ready.
+
+Each finding must explain why it matters, mention the architecture or process guard it affects, and list touched files in `affected_files` (repository-relative paths).
+
+## Output Schema
 
 ```json
 {
-  "findings": [
-    {
-      "verdict": "issue" | "pass",
-      "severity": "critical" | "high" | "medium" | "low",
-      "category": "correctness" | "security" | "error_handling" | "test_coverage" | "code_quality" | "architecture",
-      "scope": "Short descriptor of the subsystem or area under review (e.g., \"prompt rendering\" or \"cmd/gromit/review_spec_validation\").",
-      "description": "Describe the finding, cite the relevant diff surface, and explain why it matters.",
-      "affected_files": ["list", "of", "changed", "files", "impacted"]
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": ["findings", "summary"],
+  "properties": {
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["verdict", "severity", "category", "scope", "description", "affected_files"],
+        "properties": {
+          "verdict": {
+            "type": "string",
+            "enum": ["issue", "pass"]
+          },
+          "severity": {
+            "type": "string",
+            "enum": ["critical", "high", "medium", "low"]
+          },
+          "category": {
+            "type": "string",
+            "enum": ["correctness", "security", "error_handling", "test_coverage", "code_quality", "architecture"]
+          },
+          "scope": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1
+          },
+          "affected_files": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1
+          }
+        }
+      }
+    },
+    "summary": {
+      "type": "string",
+      "minLength": 1
     }
-  ],
-  "summary": "Two-sentence overview of the health of this spec-level diff and next steps (e.g., blockers, confidence, follow-up work)."
+  }
 }
 ```
 
-### Guidelines for findings
-- Report **every blocking issue** as a finding with `verdict`: `issue` and `severity` set to the appropriate level. Use `category` to tie the issue to one of the six review dimensions above. Provide an actionable description and list the files touched.
-- If no problems exist, emit at least one `verdict": "pass"` finding that summarises why the spec is ready and which areas were exercised.
-- Mention both **positive behaviors** (tests added, architectural alignments) and **risks** (missing checks, unknown attribution) in separate findings when helpful.
-- Be explicit about architectural fit: call out adherence or violations of the architecture rules (context/threading contracts, single schema writers, telemetry epilogue, etc.).
-- Keep `affected_files` relative to the repository root.
-
-Treat this prompt as the **final spec-level gate** before acceptance: the JSON you return should drive go/no-go decisions, so be precise, concise, and comprehensive.
+Treat this schema as normative: the final JSON must conform exactly, and every issue should map to one of the six `category` values above. The `summary` should be a crisp two-sentence overview of the diff’s health and any next steps.
