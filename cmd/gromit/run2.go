@@ -62,7 +62,7 @@ var (
 	newTaskTrackerAdapterFn = func(client *bead.Client) tasktracker.TaskTracker {
 		return tasktracker.NewBDAdapter(client)
 	}
-	newTaskTrackerFn = func(client *bead.Client) (adapter.TaskTracker, error) {
+	newTaskTrackerFn = func(client *bead.Client) (adapter.TaskTrackerAdapter, error) {
 		return newTaskTrackerAdapterFn(client), nil
 	}
 	newBeadClientFn = bead.NewClient
