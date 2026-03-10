@@ -12,7 +12,6 @@ import (
 	"github.com/danabrams/gromit/internal/v2/adapter/llm"
 	"github.com/danabrams/gromit/internal/v2/llmtypes"
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
-	"github.com/danabrams/gromit/internal/v2/stage/finding"
 )
 
 func TestNewRejectsNilLLM(t *testing.T) {

@@ -28,6 +28,9 @@ const (
 	defaultPromptBase   = "You are evaluating a single acceptance criterion. Use the provided diff and criterion text to determine whether the implementation satisfies the criterion. Respond with a JSON object containing \"pass\" (true/false) and \"summary\" (explain your reasoning). Output only the JSON object."
 	maxEvalParseRetries = 1
 	outputPreviewMaxLen = 500
+	// batchDiffThreshold is the diff size (bytes) above which the stage opts for
+	// batch or targeted evaluation instead of per-criterion invocations.
+	batchDiffThreshold = 50000 // ~12K tokens
 )
 
 const defaultAcceptFragment = `# Acceptance Criterion Evaluation Instructions
@@ -75,17 +78,18 @@ func (a *AcceptArtifacts) GetGapSummary() string {
 	return a.GapSummary
 }
 
-func buildFailureFindings(failures []string) []stagepkg.Finding {
+func buildFailureFindings(failures []string) []stagepkg.SpecFinding {
 	if len(failures) == 0 {
 		return nil
 	}
-	findings := make([]stagepkg.Finding, 0, len(failures))
+	findings := make([]stagepkg.SpecFinding, 0, len(failures))
 	for _, failure := range failures {
-		findings = append(findings, stagepkg.Finding{
-			Severity:    "critical",
-			Category:    "acceptance",
-			Scope:       "spec",
+		findings = append(findings, stagepkg.SpecFinding{
+			Title:       failure,
 			Description: failure,
+			Severity:    stagepkg.SpecFindingSeverityCritical,
+			Category:    stagepkg.SpecFindingCategoryAcceptance,
+			Scope:       stagepkg.SpecFindingScopeSpec,
 		})
 	}
 	return findings
@@ -213,13 +217,13 @@ func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Resul
 		}
 
 		s.Log("info", "accept: diff is %d bytes (>%d threshold), using targeted evaluation for %d criteria", len(diff), threshold, len(criteria))
-	results, failures, evalErr := s.runTargetedEvaluation(ctx, provider, specID, criteria, diff, cfg, req)
-	if evalErr != nil {
-		return nil, evalErr
-	}
+		results, failures, evalErr := s.runTargetedEvaluation(ctx, provider, specID, criteria, diff, cfg, req)
+		if evalErr != nil {
+			return nil, evalErr
+		}
 
-	artifacts := &AcceptArtifacts{Results: results, Findings: buildFailureFindings(failures)}
-	if len(failures) > 0 {
+		artifacts := &AcceptArtifacts{Results: results, Findings: buildFailureFindings(failures)}
+		if len(failures) > 0 {
 			gapSummary := strings.Join(failures, "\n")
 			artifacts.GapSummary = gapSummary
 			if err := s.writeGapAnalysis(root, cfg, gapSummary); err != nil {
@@ -253,8 +257,7 @@ func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Resul
 // Used when the diff is small enough that per-criterion calls are practical.
 func (s *Stage) runPerCriterionEvaluation(ctx context.Context, provider llmtypes.LLMProvider, specID string, criteria []coverage.Criterion, diff string, cfg *config.Config, req *stagepkg.Request) ([]presentation.AcceptanceResult, []string, error) {
 	results := make([]presentation.AcceptanceResult, 0, len(criteria))
-	failures := make([]string, 0, len(criteria))
-	findings := make([]stagepkg.SpecFinding, 0, len(criteria))
+	failures := make([]string, 0)
 
 	for _, criterion := range criteria {
 		if ctx.Err() != nil {
@@ -288,15 +291,7 @@ func (s *Stage) runPerCriterionEvaluation(ctx context.Context, provider llmtypes
 		score := "PASS"
 		if !pass {
 			score = "FAIL"
-			failureMessage := fmt.Sprintf("Criterion %d failed: %s — %s", criterion.Number, trimmed, summaryOrDefault(summary))
-			failures = append(failures, failureMessage)
-			findings = append(findings, stagepkg.SpecFinding{
-				Title:       trimmed,
-				Description: failureMessage,
-				Severity:    stagepkg.SpecFindingSeverityCritical,
-				Category:    stagepkg.SpecFindingCategoryAcceptance,
-				Scope:       stagepkg.SpecFindingScopeSpec,
-			})
+			failures = append(failures, fmt.Sprintf("Criterion %d failed: %s — %s", criterion.Number, trimmed, summaryOrDefault(summary)))
 		}
 
 		s.Log("info", "accept: criterion %d %s (%s)", criterion.Number, score, elapsed.Truncate(time.Second))
@@ -307,7 +302,357 @@ func (s *Stage) runPerCriterionEvaluation(ctx context.Context, provider llmtypes
 		})
 	}
 
-	artifacts := &AcceptArtifacts{Results: results, Findings: findings}
+	return results, failures, nil
+}
+
+func (s *Stage) runTargetedEvaluation(ctx context.Context, provider llmtypes.LLMProvider, specID string, criteria []coverage.Criterion, diff string, cfg *config.Config, req *stagepkg.Request) ([]presentation.AcceptanceResult, []string, error) {
+	model := s.selectModel(cfg, req)
+	fileDiffs := splitDiffByFile(diff)
+
+	fileNames := make([]string, 0, len(fileDiffs))
+	for name := range fileDiffs {
+		fileNames = append(fileNames, name)
+	}
+
+	fileMapping, err := s.mapCriteriaToFiles(ctx, provider, model, specID, criteria, fileNames, req)
+	if err != nil {
+		if isDeadlineExceeded(err) {
+			s.Log("info", "accept: criteria-to-file mapping timed out, falling back to full diff per criterion")
+			return s.runPerCriterionEvaluation(ctx, provider, specID, criteria, diff, cfg, req)
+		}
+		return nil, nil, fmt.Errorf("map criteria to files: %w", err)
+	}
+
+	results := make([]presentation.AcceptanceResult, 0, len(criteria))
+	failures := make([]string, 0)
+
+	for _, criterion := range criteria {
+		if ctx.Err() != nil {
+			return nil, nil, fmt.Errorf("accept interrupted: %w", ctx.Err())
+		}
+
+		trimmed := strings.TrimSpace(criterion.Text)
+		if trimmed == "" {
+			trimmed = fmt.Sprintf("criterion %d", criterion.Number)
+		}
+
+		relevantFiles := fileMapping[criterion.Number]
+		targetedDiff := buildTargetedDiff(relevantFiles, fileDiffs)
+
+		s.Log("info", "accept: evaluating criterion %d/%d with %d/%d files: %s",
+			criterion.Number, len(criteria), len(relevantFiles), len(fileDiffs), trimmed)
+		start := time.Now()
+
+		pass, summary, evalErr := s.evaluateCriterion(ctx, provider, specID, criterion, targetedDiff, cfg, req)
+		elapsed := time.Since(start)
+
+		if evalErr != nil {
+			if ctx.Err() != nil {
+				return nil, nil, fmt.Errorf("accept interrupted during criterion %d: %w", criterion.Number, evalErr)
+			}
+			if isDeadlineExceeded(evalErr) {
+				s.Log("info", "accept: criterion %d timed out after %s, marking FAIL", criterion.Number, elapsed.Truncate(time.Second))
+				pass = false
+				summary = fmt.Sprintf("evaluation timed out after %s", elapsed.Truncate(time.Second))
+			} else {
+				return nil, nil, fmt.Errorf("evaluate criterion %d: %w", criterion.Number, evalErr)
+			}
+		}
+
+		score := "PASS"
+		if !pass {
+			score = "FAIL"
+			failures = append(failures, fmt.Sprintf("Criterion %d failed: %s — %s", criterion.Number, trimmed, summaryOrDefault(summary)))
+		}
+
+		s.Log("info", "accept: criterion %d %s (%s)", criterion.Number, score, elapsed.Truncate(time.Second))
+
+		results = append(results, presentation.AcceptanceResult{
+			Title:       trimmed,
+			Description: fmt.Sprintf("%s: %s", score, summaryOrDefault(summary)),
+		})
+	}
+
+	return results, failures, nil
+}
+
+func (s *Stage) mapCriteriaToFiles(ctx context.Context, provider llmtypes.LLMProvider, model, specID string, criteria []coverage.Criterion, files []string, req *stagepkg.Request) (map[int][]string, error) {
+	var criteriaList strings.Builder
+	for _, c := range criteria {
+		text := strings.TrimSpace(c.Text)
+		if text == "" {
+			text = fmt.Sprintf("criterion %d", c.Number)
+		}
+		fmt.Fprintf(&criteriaList, "  %d. %s\n", c.Number, text)
+	}
+
+	prompt := fmt.Sprintf(`You are mapping acceptance criteria to relevant source files.
+
+Spec: %s
+
+Acceptance Criteria:
+%s
+Changed Files:
+%s
+
+For each criterion, identify which changed files are relevant to evaluating whether that criterion is satisfied. Include files that implement, test, or configure the behavior described by the criterion. When in doubt, include the file.
+
+Output ONLY a JSON object mapping criterion numbers to arrays of file paths:
+{"1": ["path/to/file.go", "path/to/other.go"], "2": ["path/to/file.go"], ...}
+
+Do NOT output markdown or anything other than the JSON object.`,
+		specID, criteriaList.String(), strings.Join(files, "\n"))
+
+	resp, err := provider.Invoke(ctx, llmtypes.LLMInvokeRequest{Prompt: prompt, Model: model, Dir: req.Worktree})
+	if err != nil {
+		return nil, err
+	}
+	if resp == nil {
+		return nil, fmt.Errorf("provider returned nil response")
+	}
+	if !resp.Success {
+		return nil, fmt.Errorf("provider reported unsuccessful invocation")
+	}
+
+	var rawMapping map[string][]string
+	if err := jsonutil.ExtractObject(strings.TrimSpace(resp.Output), &rawMapping); err != nil {
+		s.Log("info", "accept: failed to parse file mapping, using all files for every criterion: %v", err)
+		result := make(map[int][]string, len(criteria))
+		for _, c := range criteria {
+			result[c.Number] = files
+		}
+		return result, nil
+	}
+
+	result := make(map[int][]string, len(criteria))
+	for _, c := range criteria {
+		key := fmt.Sprintf("%d", c.Number)
+		if mapped, ok := rawMapping[key]; ok && len(mapped) > 0 {
+			result[c.Number] = mapped
+		} else {
+			result[c.Number] = files
+		}
+	}
+	return result, nil
+}
+
+func splitDiffByFile(diff string) map[string]string {
+	result := make(map[string]string)
+	segments := strings.Split(diff, "diff --git ")
+	for _, seg := range segments {
+		seg = strings.TrimSpace(seg)
+		if seg == "" {
+			continue
+		}
+		firstLine := seg
+		if idx := strings.IndexByte(seg, '\n'); idx >= 0 {
+			firstLine = seg[:idx]
+		}
+		parts := strings.Fields(firstLine)
+		var filePath string
+		if len(parts) >= 2 {
+			filePath = strings.TrimPrefix(parts[1], "b/")
+		} else if len(parts) == 1 {
+			filePath = strings.TrimPrefix(parts[0], "a/")
+		}
+		if filePath == "" {
+			continue
+		}
+		result[filePath] = "diff --git " + seg
+	}
+	return result
+}
+
+func buildTargetedDiff(files []string, fileDiffs map[string]string) string {
+	if len(files) == 0 {
+		return "(no relevant files identified)"
+	}
+	var b strings.Builder
+	for _, f := range files {
+		if d, ok := fileDiffs[f]; ok {
+			if b.Len() > 0 {
+				b.WriteByte('\n')
+			}
+			b.WriteString(d)
+		}
+	}
+	if b.Len() == 0 {
+		return fmt.Sprintf("(mapped files not found in diff: %s)", strings.Join(files, ", "))
+	}
+	return b.String()
+}
+
+func (s *Stage) runBatchEvaluation(ctx context.Context, provider llmtypes.LLMProvider, specID string, criteria []coverage.Criterion, diff string, cfg *config.Config, req *stagepkg.Request, root string) (*stagepkg.Result, error) {
+	model := s.selectModel(cfg, req)
+
+	var criteriaList strings.Builder
+	for _, c := range criteria {
+		text := strings.TrimSpace(c.Text)
+		if text == "" {
+			text = fmt.Sprintf("criterion %d", c.Number)
+		}
+		fmt.Fprintf(&criteriaList, "  %d. %s\n", c.Number, text)
+	}
+
+	batchPrompt := fmt.Sprintf(`You are evaluating whether acceptance criteria have been satisfied by the implementation.
+
+Spec: %s
+
+Acceptance Criteria:
+%s
+Diff:
+%s
+
+## Instructions
+
+Evaluate EACH criterion against the diff. For each criterion, determine:
+- PASS: The diff clearly demonstrates the criterion is satisfied
+- FAIL: The criterion is not met, only partially met, or does not match the spec's intent
+
+## Output Format
+
+Output ONLY a JSON array with one object per criterion, in order:
+[{"criterion": 1, "pass": true, "summary": "Brief explanation."}, {"criterion": 2, "pass": false, "summary": "Brief explanation."}, ...]
+
+Do NOT output markdown, commentary, or anything other than the JSON array.`,
+		specID, criteriaList.String(), strings.TrimSpace(diff))
+
+	instance := batchPrompt
+	assembler := v2prompt.NewPromptAssembler(s.baseLayer(), s.project, instance, s.fragment)
+	fullPrompt := assembler.Assemble("accept", v2prompt.BeadInfo{})
+
+	s.Log("info", "accept: batch evaluating %d criteria in single invocation", len(criteria))
+	start := time.Now()
+
+	var lastOutput string
+	for attempt := 0; attempt <= maxEvalParseRetries; attempt++ {
+		currentPrompt := fullPrompt
+		if attempt > 0 && lastOutput != "" {
+			currentPrompt = buildBatchRepairPrompt(lastOutput, len(criteria))
+		}
+		resp, err := provider.Invoke(ctx, llmtypes.LLMInvokeRequest{Prompt: currentPrompt, Model: model, Dir: req.Worktree})
+		elapsed := time.Since(start)
+
+		if err != nil {
+			if isDeadlineExceeded(err) {
+				s.Log("info", "accept: batch evaluation timed out after %s, marking all criteria FAIL", elapsed.Truncate(time.Second))
+				return s.allCriteriaFailed(criteria, fmt.Sprintf("batch evaluation timed out after %s", elapsed.Truncate(time.Second)), root, cfg)
+			}
+			return nil, fmt.Errorf("batch evaluate: %w", err)
+		}
+		if resp == nil {
+			return nil, fmt.Errorf("batch evaluate: provider returned nil response")
+		}
+		if !resp.Success {
+			detail := strings.TrimSpace(resp.Output)
+			if detail == "" {
+				detail = "no detail available"
+			}
+			return nil, fmt.Errorf("batch evaluate: provider reported unsuccessful invocation: %s", detail)
+		}
+
+		lastOutput = resp.Output
+		batchResults, parseErr := parseBatchEvaluation(resp.Output, len(criteria))
+		if parseErr == nil {
+			s.Log("info", "accept: batch evaluation completed in %s", elapsed.Truncate(time.Second))
+			return s.buildBatchResult(criteria, batchResults, root, cfg)
+		}
+		if attempt == maxEvalParseRetries {
+			preview := lastOutput
+			if len(preview) > outputPreviewMaxLen {
+				preview = preview[:outputPreviewMaxLen] + "... (truncated)"
+			}
+			return nil, fmt.Errorf("parse batch evaluation: %w\nLLM output preview: %s", parseErr, preview)
+		}
+	}
+	return nil, fmt.Errorf("unreachable: batch evaluation loop exited without result")
+}
+
+func (s *Stage) allCriteriaFailed(criteria []coverage.Criterion, reason string, root string, cfg *config.Config) (*stagepkg.Result, error) {
+	results := make([]presentation.AcceptanceResult, 0, len(criteria))
+	failures := make([]string, 0, len(criteria))
+	for _, c := range criteria {
+		text := strings.TrimSpace(c.Text)
+		if text == "" {
+			text = fmt.Sprintf("criterion %d", c.Number)
+		}
+		results = append(results, presentation.AcceptanceResult{
+			Title:       text,
+			Description: fmt.Sprintf("FAIL: %s", reason),
+		})
+		failures = append(failures, fmt.Sprintf("Criterion %d failed: %s — %s", c.Number, text, reason))
+	}
+	artifacts := &AcceptArtifacts{Results: results, GapSummary: strings.Join(failures, "\n"), Findings: buildFailureFindings(failures)}
+	if err := s.writeGapAnalysis(root, cfg, artifacts.GapSummary); err != nil {
+		return nil, fmt.Errorf("write gap analysis: %w", err)
+	}
+	return &stagepkg.Result{Decision: stagepkg.DecisionFail, Artifacts: artifacts}, nil
+}
+
+type batchEvalResult struct {
+	Criterion int    `json:"criterion"`
+	Pass      bool   `json:"pass"`
+	Summary   string `json:"summary"`
+}
+
+func parseBatchEvaluation(output string, expectedCount int) ([]batchEvalResult, error) {
+	trimmed := strings.TrimSpace(output)
+	if trimmed == "" {
+		return nil, fmt.Errorf("batch evaluation output empty")
+	}
+
+	var results []batchEvalResult
+	if err := jsonutil.ExtractObject(trimmed, &results); err == nil && len(results) > 0 {
+		return results, nil
+	}
+
+	var single batchEvalResult
+	if err := jsonutil.ExtractObject(trimmed, &single); err != nil {
+		return nil, fmt.Errorf("parse batch evaluation output: %w", err)
+	}
+	if single.Criterion == 0 {
+		single.Criterion = 1
+	}
+	return []batchEvalResult{single}, nil
+}
+
+func (s *Stage) buildBatchResult(criteria []coverage.Criterion, batchResults []batchEvalResult, root string, cfg *config.Config) (*stagepkg.Result, error) {
+	resultMap := make(map[int]batchEvalResult, len(batchResults))
+	for _, br := range batchResults {
+		resultMap[br.Criterion] = br
+	}
+
+	results := make([]presentation.AcceptanceResult, 0, len(criteria))
+	failures := make([]string, 0)
+
+	for _, c := range criteria {
+		text := strings.TrimSpace(c.Text)
+		if text == "" {
+			text = fmt.Sprintf("criterion %d", c.Number)
+		}
+
+		br, found := resultMap[c.Number]
+		pass := found && br.Pass
+		summary := "no evaluation returned for this criterion"
+		if found {
+			summary = strings.TrimSpace(br.Summary)
+		}
+
+		score := "PASS"
+		if !pass {
+			score = "FAIL"
+			failures = append(failures, fmt.Sprintf("Criterion %d failed: %s — %s", c.Number, text, summaryOrDefault(summary)))
+		}
+
+		s.Log("info", "accept: criterion %d %s", c.Number, score)
+
+		results = append(results, presentation.AcceptanceResult{
+			Title:       text,
+			Description: fmt.Sprintf("%s: %s", score, summaryOrDefault(summary)),
+		})
+	}
+
+	artifacts := &AcceptArtifacts{Results: results, Findings: buildFailureFindings(failures)}
 	if len(failures) > 0 {
 		gapSummary := strings.Join(failures, "\n")
 		artifacts.GapSummary = gapSummary
