@@ -21,7 +21,6 @@ import (
 	tasktracker "github.com/danabrams/gromit/internal/v2/adapter/tasktracker"
 	"github.com/danabrams/gromit/internal/v2/event"
 	"github.com/danabrams/gromit/internal/v2/loop"
-	"github.com/danabrams/gromit/internal/v2/routing"
 	v2spec "github.com/danabrams/gromit/internal/v2/spec"
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
 	trackertypes "github.com/danabrams/gromit/internal/v2/trackertypes"
@@ -355,6 +354,26 @@ func TestRun2ArgsFromReviewFlag(t *testing.T) {
 	if err := run2Args(run2Cmd, nil); err == nil {
 		t.Fatal("run2Args should reject --epic when --from-review is active")
 	}
+}
+
+func TestNewTaskTrackerFnReturnsAdapter(t *testing.T) {
+	defer func(orig func(*bead.Client) tasktracker.TaskTracker) {
+		newTaskTrackerAdapterFn = orig
+	}(newTaskTrackerAdapterFn)
+
+	fakeTracker := &fakeTaskTracker{}
+	newTaskTrackerAdapterFn = func(*bead.Client) tasktracker.TaskTracker {
+		return fakeTracker
+	}
+
+	tracker, err := newTaskTrackerFn(nil)
+	if err != nil {
+		t.Fatalf("newTaskTrackerFn: %v", err)
+	}
+	if tracker != fakeTracker {
+		t.Fatalf("tracker %T, want %T", tracker, fakeTracker)
+	}
+	var _ adapter.TaskTrackerAdapter = tracker
 }
 
 func TestRun2FromReviewUsesBeadLoop(t *testing.T) {
@@ -852,6 +871,8 @@ func (f *fakeTaskTracker) QueryBeads(_ context.Context, req tasktracker.TaskTrac
 	}
 	return resp, nil
 }
+
+type fakeNoBeadsTaskTracker = fakeTaskTracker
 
 func expectBeadIDs(t *testing.T, beads []*bead.Bead, want []string) {
 	t.Helper()
