@@ -416,7 +416,14 @@ func runFromReview(ctx context.Context, cmd *cobra.Command, cfg *config.Config, 
 		fmt.Fprintln(cmd.ErrOrStderr(), "No from-review beads found")
 		return nil
 	}
-	return fmt.Errorf("runFromReview is not implemented yet")
+	if components == nil || components.BeadLoop == nil {
+		return fmt.Errorf("bead loop required for --from-review")
+	}
+	_, err = components.BeadLoop.Run(ctx, beads, stopCh)
+	if err != nil {
+		return fmt.Errorf("running from-review bead loop: %w", err)
+	}
+	return nil
 }
 
 func resolveRun2Specs(cmd *cobra.Command, args []string, specsDir string) ([]*v2spec.Spec, error) {
