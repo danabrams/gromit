@@ -1027,6 +1027,38 @@ func TestRunFromReviewRunsBeadLoopForQueriedBeads(t *testing.T) {
 	}
 }
 
+func TestRunFromReviewSkipsReviewStage(t *testing.T) {
+	tracker := &fakeQueryTaskTracker{
+		resp: &trackertypes.TaskTrackerQueryBeadsResponse{
+			Beads: []trackertypes.Bead{
+				{ID: "bd-123", Title: "from-review bead"},
+			},
+		},
+	}
+
+	reviewRuns := 0
+	beadLoop, err := loop.NewBeadLoop(loop.BeadLoopConfig{
+		Gate:     &recordingStage{name: "gate"},
+		Build:    &recordingStage{name: "build"},
+		Validate: &recordingStage{name: "validate"},
+		Review:   &recordingStage{name: "review", onRun: func(_ *stagepkg.Request) { reviewRuns++ }},
+		Epilogue: &recordingStage{name: "epilogue"},
+	})
+	if err != nil {
+		t.Fatalf("creating bead loop: %v", err)
+	}
+
+	adapters := adapter.AdapterSet{TaskTracker: tracker}
+	components := &loop.Run2LoopComponents{BeadLoop: beadLoop}
+
+	if err := runFromReview(context.Background(), run2Cmd, &config.Config{}, adapters, components, nil, ""); err != nil {
+		t.Fatalf("unexpected runFromReview error: %v", err)
+	}
+	if reviewRuns != 0 {
+		t.Fatalf("review stage ran %d times, want 0", reviewRuns)
+	}
+}
+
 type fakeQueryTaskTracker struct {
 	resp      *trackertypes.TaskTrackerQueryBeadsResponse
 	queryErr  error
