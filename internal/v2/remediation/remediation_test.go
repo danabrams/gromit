@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/bead"
@@ -95,67 +96,100 @@ func TestRemediationRunnerPassesFindingsToDecompose(t *testing.T) {
 }
 
 func TestRemediationRunnerUsesConfiguredFindings(t *testing.T) {
-    t.Parallel()
+	t.Parallel()
 
-    configFindings := []finding.Finding{{
-        Title:         "targeted fix",
-        Severity:      finding.SeverityWarning,
-        Category:      finding.CategoryQuality,
-        Scope:         "spec",
-        Description:   "resolve gap",
-        AffectedFiles: []string{"internal/v2/remediation/remediation.go"},
-    }}
+	configFindings := []finding.Finding{{
+		Title:         "targeted fix",
+		Severity:      finding.SeverityWarning,
+		Category:      finding.CategoryQuality,
+		Scope:         "spec",
+		Description:   "resolve gap",
+		AffectedFiles: []string{"internal/v2/remediation/remediation.go"},
+	}}
 
-    var capturedReq *stage.Request
-    decompose := &testStage{
-        name: "decompose",
-        run: func(ctx context.Context, req *stage.Request) (*stage.StageResult, error) {
-            capturedReq = req
-            return &stage.StageResult{Artifacts: &stage.DecomposeArtifacts{Beads: []*bead.Bead{{ID: "b"}}}}, nil
-        },
-    }
+	var capturedReq *stage.Request
+	decompose := &testStage{
+		name: "decompose",
+		run: func(ctx context.Context, req *stage.Request) (*stage.StageResult, error) {
+			capturedReq = req
+			return &stage.StageResult{Artifacts: &stage.DecomposeArtifacts{Beads: []*bead.Bead{{ID: "b"}}}}, nil
+		},
+	}
 
-    runner := NewRemediationRunner(RemediationRunnerConfig{
-        DecomposeStage: decompose,
-        BeadRunner:     &testBeadRunner{},
-        GenerationCap:  DefaultGenerationCap,
-        Findings:       append([]finding.Finding(nil), configFindings...),
-    })
+	runner := NewRemediationRunner(RemediationRunnerConfig{
+		DecomposeStage: decompose,
+		BeadRunner:     &testBeadRunner{},
+		GenerationCap:  DefaultGenerationCap,
+		Findings:       append([]finding.Finding(nil), configFindings...),
+	})
 
-    if err := runner.Run(context.Background(), "spec-config", "", nil); err != nil {
-        t.Fatalf("run failed: %v", err)
-    }
+	if err := runner.Run(context.Background(), "spec-config", "", nil); err != nil {
+		t.Fatalf("run failed: %v", err)
+	}
 
-    if capturedReq == nil {
-        t.Fatal("decompose was not invoked")
-    }
+	if capturedReq == nil {
+		t.Fatal("decompose was not invoked")
+	}
 
-    if len(capturedReq.Findings) != len(configFindings) {
-        t.Fatalf("findings count = %d, want %d", len(capturedReq.Findings), len(configFindings))
-    }
-    got := capturedReq.Findings[0]
-    want := configFindings[0]
-    if got.Title != want.Title {
-        t.Fatalf("finding title = %q, want %q", got.Title, want.Title)
-    }
-    if got.Description != want.Description {
-        t.Fatalf("finding description = %q, want %q", got.Description, want.Description)
-    }
-    if got.Severity != stage.Severity(want.Severity) {
-        t.Fatalf("finding severity = %q, want %q", got.Severity, stage.Severity(want.Severity))
-    }
-    if got.Category != stage.Category(want.Category) {
-        t.Fatalf("finding category = %q, want %q", got.Category, stage.Category(want.Category))
-    }
-    if got.Scope != stage.Scope(want.Scope) {
-        t.Fatalf("finding scope = %q, want %q", got.Scope, stage.Scope(want.Scope))
-    }
-    if len(got.AffectedFiles) != len(want.AffectedFiles) {
-        t.Fatalf("affected files count = %d, want %d", len(got.AffectedFiles), len(want.AffectedFiles))
-    }
-    if got.AffectedFiles[0] != want.AffectedFiles[0] {
-        t.Fatalf("affected file = %q, want %q", got.AffectedFiles[0], want.AffectedFiles[0])
-    }
+	if len(capturedReq.Findings) != len(configFindings) {
+		t.Fatalf("findings count = %d, want %d", len(capturedReq.Findings), len(configFindings))
+	}
+	got := capturedReq.Findings[0]
+	want := configFindings[0]
+	if got.Title != want.Title {
+		t.Fatalf("finding title = %q, want %q", got.Title, want.Title)
+	}
+	if got.Description != want.Description {
+		t.Fatalf("finding description = %q, want %q", got.Description, want.Description)
+	}
+	if got.Severity != stage.Severity(want.Severity) {
+		t.Fatalf("finding severity = %q, want %q", got.Severity, stage.Severity(want.Severity))
+	}
+	if got.Category != stage.Category(want.Category) {
+		t.Fatalf("finding category = %q, want %q", got.Category, stage.Category(want.Category))
+	}
+	if got.Scope != stage.Scope(want.Scope) {
+		t.Fatalf("finding scope = %q, want %q", got.Scope, stage.Scope(want.Scope))
+	}
+	if len(got.AffectedFiles) != len(want.AffectedFiles) {
+		t.Fatalf("affected files count = %d, want %d", len(got.AffectedFiles), len(want.AffectedFiles))
+	}
+	if got.AffectedFiles[0] != want.AffectedFiles[0] {
+		t.Fatalf("affected file = %q, want %q", got.AffectedFiles[0], want.AffectedFiles[0])
+	}
+}
+
+func TestRemediationRunnerSpecReviewSpecFindingsCopiesAffectedFiles(t *testing.T) {
+	t.Parallel()
+
+	runner := NewRemediationRunner(RemediationRunnerConfig{})
+	artifacts := &specreview.SpecReviewArtifacts{
+		Findings: []specreview.SpecReviewFinding{
+			{
+				Title:         "issue title",
+				Description:   "desc",
+				Severity:      stage.SpecFindingSeverityHigh,
+				Category:      stage.SpecFindingCategoryQuality,
+				Scope:         stage.SpecFindingScopeSpec,
+				AffectedFiles: []string{"a.go", "b.go"},
+			},
+		},
+	}
+
+	results := runner.specReviewSpecFindings(&stage.Result{Artifacts: artifacts})
+	if len(results) != 1 {
+		t.Fatalf("results count = %d, want 1", len(results))
+	}
+	got := results[0]
+	wantFiles := []string{"a.go", "b.go"}
+	if !reflect.DeepEqual(got.AffectedFiles, wantFiles) {
+		t.Fatalf("affected files = %v, want %v", got.AffectedFiles, wantFiles)
+	}
+
+	artifacts.Findings[0].AffectedFiles[0] = "changed"
+	if got.AffectedFiles[0] != "a.go" {
+		t.Fatalf("affected files mutated = %v", got.AffectedFiles)
+	}
 }
 
 func TestRemediationRunnerFallsBackToGapAnalysisFileWhenNoFindings(t *testing.T) {
