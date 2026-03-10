@@ -119,3 +119,11 @@ func TestStageRequestIncludesFindings(t *testing.T) {
 		t.Fatalf("expected category %s, got %s", CategoryQuality, reqFinding.Category)
 	}
 }
+
+func TestSpecFindingNormalizeNilFields(t *testing.T) {
+	f := SpecFinding{}
+	f.NormalizeNilFields()
+	if f.AffectedFiles == nil {
+		t.Fatalf("Expected AffectedFiles to be initialized, got nil")
+	}
+}
