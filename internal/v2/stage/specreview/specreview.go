@@ -378,3 +378,12 @@ func (s *Stage) createFromReviewBeads(ctx context.Context, specID string, artifa
 	}
 	return nil
 }
+
+func computeVerdict(findings []rawFinding) string {
+	for _, f := range findings {
+		if strings.EqualFold(f.Severity, "critical") {
+			return "fail"
+		}
+	}
+	return "pass"
+}
