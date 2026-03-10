@@ -133,27 +133,30 @@ type Compiler interface {
 }
 ```
 
-## Scaffold Status
+## Implementation Status
 
-The following packages exist as stubs with placeholder types that MUST be replaced:
+The following packages are fully implemented with tests:
 
-- **workspace/** — `Root` is a struct, must become `type Root string`; uses `GROMIT_WORKSPACE` env var, must use `GROMIT_HOME`
-- **projectcell/** — uses YAML and `ProjectConfig` struct, must use JSON and simpler `Cell` struct; missing `Delete` method
-- **inspect/** — single `Inspect` method, `types.go` has inline domain types that move to their own packages
-- **doctrine/** — missing `Source` and `CreatedAt` fields on `Rule`
-- **provenance/** — different field names and `Check` returns 3 values instead of 2
-- **guide/** — `Render` returns `string` not `[]byte`, `Input` uses flat strings not typed structs
-- **contextpkt/** — uses `Builder` not `Compiler`, different method signature, package renamed to `contextpkt`
-- **validation/** — models pass/fail results not validation commands
-- **sourcemap/** — skeleton only
-- **architecture/** — skeleton only
+- **workspace/** — `Root` type (string), `EnvResolver` with `GROMIT_HOME` → `XDG_DATA_HOME` → default fallback
+- **projectcell/** — `Cell` struct (JSON), `FSStore` with `Create`/`Get`/`List`/`Delete`, git repo validation
+- **fact/** — `Category` enum (`Declared`/`Observed`/`Inferred`) with JSON marshaling, `Fact` struct, `New()` constructor
+- **artifact/** — `Store` interface, `JSONStore` implementation (JSON files on disk)
+- **extract/** — `Extractor` interface, three implementations:
+  - `FileTreeExtractor` — walks directory tree, produces file inventory facts
+  - `GoModExtractor` — parses `go.mod` for module path, Go version, dependencies
+  - `ValidationCommandsExtractor` — parses Makefile targets and CI workflow `run:` steps
+- **infer/** — `Inferrer` interface, `StubInferrer` (returns empty; real LLM implementation deferred)
+- **inspect/** — `Inspector` interface, `DefaultInspector` with extract-then-infer pipeline
+- **doctrine/** — `Rule` (with `Source`/`CreatedAt`), `Doctrine`, `FSStore` with `Save`/`Load`
+- **provenance/** — `Record` struct, `Tracker` interface, `FSTracker` with `Record`/`Check`/`IsFresh`
+- **guide/** — `Renderer` interface, `MarkdownRenderer` with section omission for empty data
+- **sourcemap/** — `SourceMap`/`Entry` types, `BuildFromFacts()` from file-tree facts
+- **architecture/** — `Module`/`Dependency`/`Component`/`Architecture` types with `NormalizeNilFields()`
+- **validation/** — `Kind` enum (`Test`/`Lint`/`Build`), `Command`/`CommandSet` types with `ByKind()`
 
-The following packages do not yet exist and must be created from scratch:
+Not yet implemented:
 
-- **fact/** — Fact types and knowledge categories
-- **extract/** — Deterministic repo extractors
-- **infer/** — LLM inference phase
-- **artifact/** — JSON artifact storage abstraction
+- **contextpkt/** — Context packet compiler (replacing `context/` scaffold)
 - **cmd/gromit-next/** — CLI binary entry point
 
 ## Knowledge Categories
