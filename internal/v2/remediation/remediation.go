@@ -82,9 +82,9 @@ func (r *RemediationRunner) Run(ctx context.Context, specID, worktree string, fi
 	}
 
 	req := stage.Request{
-		Bead:     stage.BeadInfo{ID: specID},
-		Worktree: worktree,
-		Findings: append([]stage.SpecFinding(nil), findings...),
+		Bead:        stage.BeadInfo{ID: specID},
+		Worktree:    worktree,
+		SpecFindings: append([]stage.SpecFinding(nil), findings...),
 	}
 
 	gapAnalysis := r.resolveGapAnalysis(worktree, findings)
@@ -178,7 +178,7 @@ func (r *RemediationRunner) executeRemediation(ctx context.Context, req *stage.R
 
 	req.Remediation = true
 	req.GapAnalysis = gapAnalysis
-	req.Findings = cloneFindings(findings)
+	req.Findings = cloneFindings(convertSpecFindings(req.SpecFindings))
 
 	if r.cfg.GapStage != nil {
 		if _, err := r.cfg.GapStage.Run(ctx, req); err != nil {
@@ -187,34 +187,7 @@ func (r *RemediationRunner) executeRemediation(ctx context.Context, req *stage.R
 	}
 	skipPlan := len(req.Findings) > 0
 	var planContent string
-	if !skipPlan {
-		if r.cfg.PlanStage != nil {
-			planRes, err := r.cfg.PlanStage.Run(ctx, req)
-			if err != nil {
-				return fmt.Errorf("remediation plan: %w", err)
-			}
-			planContent = extractPlanContent(planRes)
-		}
-
-		if req.Worktree != "" {
-			// Persist the plan stage output when available; otherwise fall back to
-			// the gap analysis so there is always a remediation record on disk.
-			content := planContent
-			if content == "" {
-				content = gapAnalysis
-			}
-			planPath := r.remediationPlanPath(req.Worktree)
-			if err := os.MkdirAll(filepath.Dir(planPath), 0o755); err != nil {
-				return fmt.Errorf("create remediation plan dir: %w", err)
-			}
-			if err := os.WriteFile(planPath, []byte(content), 0o644); err != nil {
-				return fmt.Errorf("persist remediation plan: %w", err)
-			}
-		}
-	}
-
-	var planContent string
-	if r.cfg.PlanStage != nil {
+	if !skipPlan && r.cfg.PlanStage != nil {
 		planRes, err := r.cfg.PlanStage.Run(ctx, req)
 		if err != nil {
 			return fmt.Errorf("remediation plan: %w", err)
@@ -316,6 +289,48 @@ func cloneFindings(src []finding.Finding) []finding.Finding {
 		clones[i].AffectedFiles = append([]string(nil), f.AffectedFiles...)
 	}
 	return clones
+}
+
+func convertSpecFindings(src []stage.SpecFinding) []finding.Finding {
+	if len(src) == 0 {
+		return nil
+	}
+	converted := make([]finding.Finding, 0, len(src))
+	for _, spec := range src {
+		converted = append(converted, finding.Finding{
+			Severity:    mapSpecSeverity(spec.Severity),
+			Category:    mapSpecCategory(spec.Category),
+			Scope:       strings.TrimSpace(string(spec.Scope)),
+			Description: strings.TrimSpace(spec.Description),
+		})
+	}
+	return converted
+}
+
+func mapSpecSeverity(severity stage.SpecFindingSeverity) finding.Severity {
+	switch severity {
+	case stage.SpecFindingSeverityCritical:
+		return finding.SeverityCritical
+	case stage.SpecFindingSeverityHigh, stage.SpecFindingSeverityMedium:
+		return finding.SeverityWarning
+	default:
+		return finding.SeveritySuggestion
+	}
+}
+
+func mapSpecCategory(category stage.SpecFindingCategory) finding.Category {
+	switch category {
+	case stage.SpecFindingCategoryAcceptance:
+		return finding.CategoryAcceptance
+	case stage.SpecFindingCategoryScope:
+		return finding.CategoryArchitecture
+	case stage.SpecFindingCategoryQuality:
+		return finding.CategoryQuality
+	case stage.SpecFindingCategorySafety:
+		return finding.CategorySecurity
+	default:
+		return finding.CategoryQuality
+	}
 }
 
 func (r *RemediationRunner) decompose(ctx context.Context, req *stage.Request) ([]*bead.Bead, error) {

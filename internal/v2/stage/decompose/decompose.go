@@ -353,7 +353,10 @@ func formatFindings(req *stagepkg.Request) string {
 		if idx > 0 {
 			builder.WriteString("\n\n")
 		}
-		title := strings.TrimSpace(finding.Title)
+		title := strings.TrimSpace(finding.Scope)
+		if title == "" {
+			title = strings.TrimSpace(string(finding.Category))
+		}
 		if title == "" {
 			title = "Untitled finding"
 		}

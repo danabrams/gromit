@@ -17,7 +17,6 @@ import (
 	"github.com/danabrams/gromit/internal/v2/presentation"
 	v2prompt "github.com/danabrams/gromit/internal/v2/prompt"
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
-	"github.com/danabrams/gromit/internal/v2/stage/finding"
 	stagedesc "github.com/danabrams/gromit/internal/v2/stage/names"
 )
 
