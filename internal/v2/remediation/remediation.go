@@ -53,15 +53,6 @@ type planContentProvider interface {
 	GetPlanContent() string
 }
 
-type findingsProvider interface {
-	GetFindings() []stage.Finding
-}
-
-// planContentProvider is implemented by artifacts that carry generated plan text.
-// The plan stage's PlanArtifacts satisfies this interface when a GetPlanContent
-// method is added, allowing the remediation runner to persist the actual
-// remediation plan rather than just the gap analysis.
-
 var (
 	ErrSpecIDRequired               = errors.New("spec ID required")
 	ErrBeadRunnerRequired           = errors.New("bead runner required")
@@ -205,16 +196,6 @@ func extractPlanContent(res *stage.Result) string {
 		return pp.GetPlanContent()
 	}
 	return ""
-}
-
-func extractFindings(res *stage.Result) []stage.Finding {
-	if res == nil || res.Artifacts == nil {
-		return nil
-	}
-	if fp, ok := res.Artifacts.(findingsProvider); ok {
-		return fp.GetFindings()
-	}
-	return nil
 }
 
 func (r *RemediationRunner) executeRemediation(ctx context.Context, req *stage.Request, gapAnalysis string) error {
