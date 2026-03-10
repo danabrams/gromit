@@ -158,26 +158,42 @@ type SpecFinding struct {
 	Severity    SpecFindingSeverity
 	Category    SpecFindingCategory
 	Scope       SpecFindingScope
+	AffectedFiles []string
+}
+
+// NormalizeNilFields ensures slice fields are non-nil.
+func (f *SpecFinding) NormalizeNilFields() {
+	if f == nil {
+		return
+	}
+	if f.AffectedFiles == nil {
+		f.AffectedFiles = []string{}
+	}
 }
 
 // SpecFindingSeverity classifies the urgency of a finding.
 type SpecFindingSeverity string
 
 const (
-	SpecFindingSeverityCritical SpecFindingSeverity = "critical"
-	SpecFindingSeverityHigh     SpecFindingSeverity = "high"
-	SpecFindingSeverityMedium   SpecFindingSeverity = "medium"
-	SpecFindingSeverityLow      SpecFindingSeverity = "low"
+	SpecFindingSeverityCritical    SpecFindingSeverity = "critical"
+	SpecFindingSeverityHigh        SpecFindingSeverity = "high"
+	SpecFindingSeverityMedium      SpecFindingSeverity = "medium"
+	SpecFindingSeverityLow         SpecFindingSeverity = "low"
+	SpecFindingSeverityWarning     SpecFindingSeverity = "warning"
+	SpecFindingSeveritySuggestion  SpecFindingSeverity = "suggestion"
 )
 
 // SpecFindingCategory groups findings by their domain.
 type SpecFindingCategory string
 
 const (
-	SpecFindingCategoryAcceptance SpecFindingCategory = "acceptance"
-	SpecFindingCategoryScope      SpecFindingCategory = "scope"
-	SpecFindingCategoryQuality    SpecFindingCategory = "quality"
-	SpecFindingCategorySafety     SpecFindingCategory = "safety"
+	SpecFindingCategoryAcceptance   SpecFindingCategory = "acceptance"
+	SpecFindingCategoryScope        SpecFindingCategory = "scope"
+	SpecFindingCategoryQuality      SpecFindingCategory = "quality"
+	SpecFindingCategorySafety       SpecFindingCategory = "safety"
+	SpecFindingCategorySecurity     SpecFindingCategory = "security"
+	SpecFindingCategoryTestGap      SpecFindingCategory = "test_gap"
+	SpecFindingCategoryArchitecture SpecFindingCategory = "architecture"
 )
 
 // SpecFindingScope identifies the artifact affected by a finding.
