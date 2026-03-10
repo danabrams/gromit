@@ -203,7 +203,7 @@ func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Resul
 	var promptText string
 	gapAnalysis := s.resolveGapAnalysis(req)
 	planContent := string(planBody)
-	findings := formatFindings(req)
+	findings := formatFindingsForPrompt(req.Findings)
 	templateChoice := s.selectTemplate(req, gapAnalysis)
 	switch templateChoice.kind {
 	case templateKindFindings:
