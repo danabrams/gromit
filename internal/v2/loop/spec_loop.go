@@ -13,6 +13,7 @@ import (
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/events"
+	reviewpkg "github.com/danabrams/gromit/internal/review"
 	"github.com/danabrams/gromit/internal/tracker"
 	"github.com/danabrams/gromit/internal/v2/adapter"
 	"github.com/danabrams/gromit/internal/v2/event"
@@ -706,6 +707,86 @@ func (s *SpecLoop) extractSpecReviewFindings(res *stagepkg.Result) []stagepkg.Sp
 		})
 	}
 	return findings
+}
+
+func (s *SpecLoop) createSpecReviewWarningBeads(ctx context.Context, specID string, artifacts *specreviewstage.SpecReviewArtifacts) error {
+	if s.adapters.TaskTracker == nil || artifacts == nil {
+		return nil
+	}
+	if !isPassWithWarningsVerdict(artifacts.Verdict) {
+		return nil
+	}
+	for _, finding := range artifacts.Findings {
+		if finding.Severity != stagepkg.SeverityWarning {
+			continue
+		}
+		if err := s.createSpecReviewWarningBead(ctx, specID, artifacts.Verdict, finding); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *SpecLoop) createSpecReviewWarningBead(ctx context.Context, specID, verdict string, finding stagepkg.Finding) error {
+	trackerAdapter := s.adapters.TaskTracker
+	if trackerAdapter == nil {
+		return nil
+	}
+	category := strings.TrimSpace(string(finding.Category))
+	if category == "" {
+		category = string(stagepkg.CategoryQuality)
+	}
+	title := fmt.Sprintf("Spec review warning (%s)", strings.ToLower(category))
+
+	var parts []string
+	if trimmed := strings.TrimSpace(verdict); trimmed != "" {
+		parts = append(parts, fmt.Sprintf("Spec review verdict: %s", trimmed))
+	}
+	if trimmed := strings.TrimSpace(finding.Description); trimmed != "" {
+		parts = append(parts, trimmed)
+	}
+	if len(finding.AffectedFiles) > 0 {
+		var files []string
+		for _, file := range finding.AffectedFiles {
+			files = append(files, fmt.Sprintf("- %s", file))
+		}
+		parts = append(parts, fmt.Sprintf("Affected files:\n%s", strings.Join(files, "\n")))
+	}
+
+	description := strings.TrimSpace(strings.Join(parts, "\n\n"))
+	if description == "" {
+		description = "Spec review warning recorded."
+	}
+
+	scope := finding.Scope
+	if strings.TrimSpace(string(scope)) == "" {
+		scope = stagepkg.ScopeGeneral
+	}
+	scopeLabel := fmt.Sprintf("scope:%s", scope)
+	labels := []string{scopeLabel}
+	if finding.Scope == stagepkg.ScopeSpec && specID != "" {
+		labels = append(labels, tracker.SpecLabelFor(specID))
+	}
+	finalLabels := reviewpkg.BuildReviewBeadLabels(labels)
+
+	req := trackertypes.TaskTrackerCreateBeadRequest{
+		Title:       title,
+		Description: description,
+		Priority:    1,
+		Labels:      finalLabels,
+	}
+	if _, err := trackerAdapter.CreateBead(ctx, req); err != nil {
+		return fmt.Errorf("spec review: create bead: %w", err)
+	}
+	return nil
+}
+
+func isPassWithWarningsVerdict(verdict string) bool {
+	normalized := strings.ToLower(strings.TrimSpace(verdict))
+	normalized = strings.ReplaceAll(normalized, "-", " ")
+	normalized = strings.ReplaceAll(normalized, "_", " ")
+	normalized = strings.Join(strings.Fields(normalized), " ")
+	return normalized == "pass with warnings" || normalized == "passed with warnings"
 }
 
 func (s *SpecLoop) runAcceptStage(ctx context.Context, req *stagepkg.Request) (*stagepkg.Result, error) {
