@@ -353,20 +353,35 @@ func formatFindings(req *stagepkg.Request) string {
 		if idx > 0 {
 			builder.WriteString("\n\n")
 		}
-		title := strings.TrimSpace(finding.Scope)
-		if title == "" {
-			title = strings.TrimSpace(string(finding.Category))
+		entry := finding
+		entry.NormalizeNilFields()
+		severity := strings.TrimSpace(string(entry.Severity))
+		if severity == "" {
+			severity = "unspecified severity"
 		}
-		if title == "" {
-			title = "Untitled finding"
+		category := strings.TrimSpace(string(entry.Category))
+		if category == "" {
+			category = "unspecified category"
 		}
-		description := strings.TrimSpace(finding.Description)
+		scope := strings.TrimSpace(entry.Scope)
+		if scope == "" {
+			scope = "unspecified scope"
+		}
+		description := strings.TrimSpace(entry.Description)
 		if description == "" {
-			description = "No description available"
+			description = "No description provided"
 		}
-		fmt.Fprintf(&builder, "- %s\n  Description: %s\n  Severity: %s\n  Category: %s\n  Scope: %s", title, description, finding.Severity, finding.Category, finding.Scope)
+		affected := formatAffectedFiles(entry.AffectedFiles)
+		fmt.Fprintf(&builder, "### %s — %s (%s)\n%s\nAffected files: %s", severity, category, scope, description, affected)
 	}
 	return strings.TrimSpace(builder.String())
+}
+
+func formatAffectedFiles(files []string) string {
+	if len(files) == 0 {
+		return "none"
+	}
+	return strings.Join(files, ", ")
 }
 
 func (s *Stage) gapAnalysisPath(req *stagepkg.Request) string {
