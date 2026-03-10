@@ -254,6 +254,106 @@ func TestIntegration_FullProjectCellFlow(t *testing.T) {
 	}
 }
 
+func TestIntegration_DeterministicExtraction(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	fixtureRepo := createFixtureRepo(t)
+
+	extractors := []inspect.Extractor{
+		extract.NewFileTreeExtractor(),
+		extract.NewGoModExtractor(),
+		extract.NewValidationCommandsExtractor(),
+	}
+
+	cell := projectcell.Cell{
+		Name:     "det-test",
+		RepoPath: fixtureRepo,
+		CellPath: t.TempDir(),
+	}
+	inferrer := infer.NewStubInferrer()
+	inspector := inspect.NewInspector(extractors, inferrer)
+
+	// Run inspect twice on unchanged repo
+	result1, err := inspector.Inspect(context.Background(), cell)
+	if err != nil {
+		t.Fatalf("Inspect 1: %v", err)
+	}
+	result2, err := inspector.Inspect(context.Background(), cell)
+	if err != nil {
+		t.Fatalf("Inspect 2: %v", err)
+	}
+
+	// Observed facts should be identical count
+	if len(result1.Observed) != len(result2.Observed) {
+		t.Errorf("observed fact count differs: %d vs %d", len(result1.Observed), len(result2.Observed))
+	}
+
+	// Build source maps from both and compare
+	sm1 := sourcemap.BuildFromFacts(result1.Observed)
+	sm2 := sourcemap.BuildFromFacts(result2.Observed)
+	if len(sm1.Entries) != len(sm2.Entries) {
+		t.Errorf("source map entry count differs: %d vs %d", len(sm1.Entries), len(sm2.Entries))
+	}
+}
+
+func TestIntegration_RelevanceBeforeBudgeting(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	workspaceDir := t.TempDir()
+	t.Setenv("GROMIT_HOME", workspaceDir)
+
+	artStore := artifact.NewJSONStore()
+	artifactsDir := filepath.Join(workspaceDir, "artifacts")
+	os.MkdirAll(artifactsDir, 0o755)
+
+	// Write architecture with multiple modules
+	arch := architecture.New()
+	arch.AddModule(architecture.Module{Name: "internal/auth", Description: "Auth module", Language: "go"})
+	arch.AddModule(architecture.Module{Name: "internal/billing", Description: "Billing module", Language: "go"})
+	artStore.Write(artifactsDir, "architecture", arch)
+
+	doc := doctrine.Doctrine{
+		Rules: []doctrine.Rule{
+			doctrine.NewRule("r1", "Rule one with some text", "all"),
+			doctrine.NewRule("r2", "Rule two with more text", "all"),
+		},
+	}
+	artStore.Write(artifactsDir, "doctrine", doc)
+
+	cell := projectcell.Cell{Name: "budget-test", CellPath: workspaceDir}
+	wrapper := &testArtifactStore{store: artStore, artifactsDir: artifactsDir}
+	compiler := contextpkt.NewCompiler(wrapper)
+
+	// Compile without budget
+	unbounded, err := compiler.Compile(context.Background(), cell, contextpkt.LevelSpec, contextpkt.CompileOpts{
+		SpecPath: "specs/001.md",
+	})
+	if err != nil {
+		t.Fatalf("Compile unbounded: %v", err)
+	}
+
+	// Compile with small budget
+	bounded, err := compiler.Compile(context.Background(), cell, contextpkt.LevelSpec, contextpkt.CompileOpts{
+		SpecPath:    "specs/001.md",
+		TokenBudget: 20,
+	})
+	if err != nil {
+		t.Fatalf("Compile bounded: %v", err)
+	}
+
+	// Bounded should have fewer or equal tokens
+	if bounded.TokenCount > unbounded.TokenCount {
+		t.Errorf("bounded (%d) > unbounded (%d)", bounded.TokenCount, unbounded.TokenCount)
+	}
+	if bounded.TokenCount > 20 {
+		t.Errorf("bounded token count %d exceeds budget 20", bounded.TokenCount)
+	}
+}
+
 func createFixtureRepo(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
