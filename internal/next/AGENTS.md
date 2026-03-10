@@ -154,10 +154,10 @@ The following packages are fully implemented with tests:
 - **architecture/** — `Module`/`Dependency`/`Component`/`Architecture` types with `NormalizeNilFields()`
 - **validation/** — `Kind` enum (`Test`/`Lint`/`Build`), `Command`/`CommandSet` types with `ByKind()`
 
-Not yet implemented:
+- **contextpkt/** — `Compiler` interface, `DefaultCompiler` with project/spec/task level compilation, token budgeting
+- **cmd/gromit-next/** — Cobra CLI with `project attach/inspect/guide/list` and `context build` commands
 
-- **contextpkt/** — Context packet compiler (replacing `context/` scaffold)
-- **cmd/gromit-next/** — CLI binary entry point
+All packages have unit tests. Integration test at `internal/next/integration_test.go` covers the full flow: attach → inspect → guide → compile context at all levels → freshness check → isolation verification.
 
 ## Knowledge Categories
 
