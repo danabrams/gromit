@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -353,5 +354,30 @@ func (r *recordingTaskTracker) CloseBead(_ context.Context, _ trackertypes.TaskT
 }
 
 func (r *recordingTaskTracker) QueryBeads(_ context.Context, _ trackertypes.TaskTrackerQueryBeadsRequest) (*trackertypes.TaskTrackerQueryBeadsResponse, error) {
+	return &trackertypes.TaskTrackerQueryBeadsResponse{}, nil
+}
+
+type fakeTaskTracker struct {
+	requests []trackertypes.TaskTrackerCreateBeadRequest
+}
+
+func (f *fakeTaskTracker) NextBead(_ context.Context, _ trackertypes.TaskTrackerNextBeadRequest) (*trackertypes.TaskTrackerNextBeadResponse, error) {
+	return nil, nil
+}
+
+func (f *fakeTaskTracker) ShowBead(_ context.Context, _ string) (*trackertypes.Bead, error) {
+	return nil, nil
+}
+
+func (f *fakeTaskTracker) CreateBead(_ context.Context, req trackertypes.TaskTrackerCreateBeadRequest) (*trackertypes.TaskTrackerCreateBeadResponse, error) {
+	f.requests = append(f.requests, req)
+	return &trackertypes.TaskTrackerCreateBeadResponse{Bead: &trackertypes.Bead{ID: fmt.Sprintf("created-%d", len(f.requests))}}, nil
+}
+
+func (f *fakeTaskTracker) CloseBead(_ context.Context, _ trackertypes.TaskTrackerCloseBeadRequest) (*trackertypes.TaskTrackerCloseBeadResponse, error) {
+	return nil, nil
+}
+
+func (f *fakeTaskTracker) QueryBeads(_ context.Context, _ trackertypes.TaskTrackerQueryBeadsRequest) (*trackertypes.TaskTrackerQueryBeadsResponse, error) {
 	return &trackertypes.TaskTrackerQueryBeadsResponse{}, nil
 }
