@@ -1,28 +1,51 @@
 // Package inspect performs static analysis on a project repository to produce
-// structured artifacts (architecture.json, source-map.json, glossary.json).
+// structured facts about the codebase.
 //
-// Inspection is the primary input-gathering phase. It reads the repo and
-// produces artifacts that downstream stages (guide, context) consume.
-//
-// TODO: implement repo inspection orchestration
-// TODO: implement architecture extraction (module boundaries, dependency graph)
-// TODO: implement source map generation (file inventory, language detection)
-// TODO: implement glossary extraction (domain terms from code and docs)
-// TODO: implement incremental inspection (diff-based updates)
+// Inspection is the primary input-gathering phase. It runs a set of extractors
+// to produce observed facts, then passes those to an inferrer to derive
+// higher-level inferred facts.
 package inspect
 
-import "github.com/danabrams/gromit/internal/next/projectcell"
+import (
+	"context"
+	"fmt"
 
-// Result holds the output of a full repo inspection pass.
-type Result struct {
-	Architecture Architecture
-	SourceMap    SourceMap
-	Glossary     Glossary
+	"github.com/danabrams/gromit/internal/next/fact"
+	"github.com/danabrams/gromit/internal/next/projectcell"
+)
+
+// DefaultInspector orchestrates the extract-then-infer pipeline.
+type DefaultInspector struct {
+	extractors []Extractor
+	inferrer   Inferrer
 }
 
-// Inspector performs repo inspection and writes artifacts to a project cell.
-//
-// TODO: implement inspector with configurable analysis passes
-type Inspector interface {
-	Inspect(cell *projectcell.Cell) (*Result, error)
+// NewInspector creates a DefaultInspector with the given extractors and inferrer.
+func NewInspector(extractors []Extractor, inferrer Inferrer) *DefaultInspector {
+	return &DefaultInspector{
+		extractors: extractors,
+		inferrer:   inferrer,
+	}
+}
+
+// Inspect runs all extractors against the cell's repo, then infers higher-level facts.
+func (d *DefaultInspector) Inspect(ctx context.Context, cell projectcell.Cell) (Result, error) {
+	var observed []fact.Fact
+	for _, ext := range d.extractors {
+		facts, err := ext.Extract(cell.RepoPath)
+		if err != nil {
+			return Result{}, fmt.Errorf("extractor %s: %w", ext.Name(), err)
+		}
+		observed = append(observed, facts...)
+	}
+
+	inferred, err := d.inferrer.Infer(ctx, observed)
+	if err != nil {
+		return Result{}, fmt.Errorf("inferrer: %w", err)
+	}
+
+	return Result{
+		Observed: observed,
+		Inferred: inferred,
+	}, nil
 }

@@ -1,53 +1,30 @@
 package inspect
 
-// Architecture represents the architecture.json artifact.
-//
-// Captures module boundaries, dependency relationships, and key abstractions
-// discovered during repo inspection.
-//
-// TODO: define full schema based on inspection requirements
-type Architecture struct {
-	// Modules is the list of discovered architectural modules.
-	Modules []Module `json:"modules"`
+import (
+	"context"
+
+	"github.com/danabrams/gromit/internal/next/fact"
+	"github.com/danabrams/gromit/internal/next/projectcell"
+)
+
+// Result holds the output of a full repo inspection pass.
+type Result struct {
+	Observed []fact.Fact
+	Inferred []fact.Fact
 }
 
-// Module represents a single architectural module or package boundary.
-type Module struct {
-	Name         string   `json:"name"`
-	Path         string   `json:"path"`
-	Dependencies []string `json:"dependencies,omitempty"`
+// Extractor produces observed facts from a repository path.
+type Extractor interface {
+	Name() string
+	Extract(repoPath string) ([]fact.Fact, error)
 }
 
-// SourceMap represents the source-map.json artifact.
-//
-// Provides a structured inventory of all source files, their languages,
-// and their roles within the project.
-//
-// TODO: define full schema (file roles, size tiers, change frequency)
-type SourceMap struct {
-	// Files is the list of source files in the repository.
-	Files []SourceFile `json:"files"`
+// Inferrer derives inferred facts from a set of observed facts.
+type Inferrer interface {
+	Infer(ctx context.Context, observed []fact.Fact) ([]fact.Fact, error)
 }
 
-// SourceFile represents a single file entry in the source map.
-type SourceFile struct {
-	Path     string `json:"path"`
-	Language string `json:"language"`
-	Lines    int    `json:"lines"`
-}
-
-// Glossary represents the glossary.json artifact.
-//
-// Captures domain-specific terminology found in code and documentation.
-//
-// TODO: define full schema (term sources, confidence scores)
-type Glossary struct {
-	// Terms is the list of domain terms.
-	Terms []GlossaryTerm `json:"terms"`
-}
-
-// GlossaryTerm is a single domain term with its definition.
-type GlossaryTerm struct {
-	Term       string `json:"term"`
-	Definition string `json:"definition"`
+// Inspector performs repo inspection and writes artifacts to a project cell.
+type Inspector interface {
+	Inspect(ctx context.Context, cell projectcell.Cell) (Result, error)
 }
