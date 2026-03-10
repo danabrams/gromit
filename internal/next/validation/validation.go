@@ -1,5 +1,10 @@
 package validation
 
+import (
+	"encoding/json"
+	"fmt"
+)
+
 type Kind int
 
 const (
@@ -19,6 +24,28 @@ func (k Kind) String() string {
 	default:
 		return "unknown"
 	}
+}
+
+func (k Kind) MarshalJSON() ([]byte, error) {
+	return json.Marshal(k.String())
+}
+
+func (k *Kind) UnmarshalJSON(data []byte) error {
+	var s string
+	if err := json.Unmarshal(data, &s); err != nil {
+		return err
+	}
+	switch s {
+	case "test":
+		*k = Test
+	case "lint":
+		*k = Lint
+	case "build":
+		*k = Build
+	default:
+		return fmt.Errorf("unknown kind: %q", s)
+	}
+	return nil
 }
 
 type Command struct {

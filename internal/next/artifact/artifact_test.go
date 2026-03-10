@@ -1,9 +1,15 @@
 package artifact
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 )
+
+func fileExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
+}
 
 func TestJSONStore_WriteAndRead(t *testing.T) {
 	dir := t.TempDir()

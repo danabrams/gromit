@@ -65,12 +65,14 @@ func (e *ValidationCommandsExtractor) extractMakefile(repoPath string) ([]fact.F
 	scanner := bufio.NewScanner(f)
 
 	var currentTarget string
+	cmdIndex := 0
 	for scanner.Scan() {
 		line := scanner.Text()
 
 		// Check for a target line.
 		if m := targetPattern.FindStringSubmatch(line); m != nil {
 			currentTarget = m[1]
+			cmdIndex = 0
 			continue
 		}
 
@@ -78,10 +80,10 @@ func (e *ValidationCommandsExtractor) extractMakefile(repoPath string) ([]fact.F
 		if currentTarget != "" && strings.HasPrefix(line, "\t") {
 			cmd := strings.TrimSpace(line)
 			if cmd != "" {
-				id := fmt.Sprintf("valcmd-makefile-%s", currentTarget)
+				id := fmt.Sprintf("valcmd-makefile-%s-%d", currentTarget, cmdIndex)
 				content := fmt.Sprintf("Makefile target '%s': %s", currentTarget, cmd)
 				facts = append(facts, fact.New(id, fact.Observed, content, "validation-commands"))
-				currentTarget = ""
+				cmdIndex++
 			}
 			continue
 		}

@@ -77,6 +77,26 @@ func TestValidationCommandsExtractor_NoFiles(t *testing.T) {
 	}
 }
 
+func TestValidationCommandsExtractor_MultiCommandTarget(t *testing.T) {
+	dir := t.TempDir()
+	makefile := `.PHONY: test
+
+test:
+	go test ./...
+	go test -race ./...
+`
+	os.WriteFile(filepath.Join(dir, "Makefile"), []byte(makefile), 0o644)
+
+	ext := NewValidationCommandsExtractor()
+	facts, err := ext.Extract(dir)
+	if err != nil {
+		t.Fatalf("Extract: %v", err)
+	}
+	if len(facts) < 2 {
+		t.Fatalf("expected at least 2 facts for multi-command target, got %d", len(facts))
+	}
+}
+
 func TestValidationCommandsExtractor_Name(t *testing.T) {
 	ext := NewValidationCommandsExtractor()
 	if ext.Name() != "validation-commands" {

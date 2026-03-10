@@ -40,8 +40,3 @@ func (s *JSONStore) Exists(cellPath string, artifact string) bool {
 func (s *JSONStore) path(cellPath string, artifact string) string {
 	return filepath.Join(cellPath, artifact+".json")
 }
-
-func fileExists(path string) bool {
-	_, err := os.Stat(path)
-	return err == nil
-}

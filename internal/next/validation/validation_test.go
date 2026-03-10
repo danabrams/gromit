@@ -1,6 +1,10 @@
 package validation
 
-import "testing"
+import (
+	"encoding/json"
+	"strings"
+	"testing"
+)
 
 func TestCommand_String(t *testing.T) {
 	cmd := Command{
@@ -52,6 +56,24 @@ func TestCommandSet_ByKind(t *testing.T) {
 	tests := cs.ByKind(Test)
 	if len(tests) != 2 {
 		t.Errorf("expected 2 test commands, got %d", len(tests))
+	}
+}
+
+func TestKind_JSONRoundTrip(t *testing.T) {
+	cmd := Command{Name: "test", Kind: Test, Run: "go test ./...", Source: "Makefile"}
+	data, err := json.Marshal(cmd)
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+	if !strings.Contains(string(data), `"test"`) {
+		t.Errorf("expected JSON to contain \"test\", got %s", data)
+	}
+	var cmd2 Command
+	if err := json.Unmarshal(data, &cmd2); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+	if cmd2.Kind != Test {
+		t.Errorf("Kind = %v, want Test", cmd2.Kind)
 	}
 }
 
