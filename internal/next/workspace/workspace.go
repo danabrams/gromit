@@ -1,26 +1,40 @@
-// Package workspace resolves and manages the Gromit workspace root.
-//
-// The workspace is the top-level directory that contains all project cells.
-// Unlike legacy Gromit, the workspace is NOT a repo-local .gromit/ directory —
-// it is a user-scoped location (e.g. ~/.gromit/ or XDG-based).
-//
-// TODO: implement workspace root resolution (XDG_DATA_HOME, fallback to ~/.gromit)
-// TODO: implement workspace initialization (create directory structure on first use)
-// TODO: implement workspace locking for concurrent CLI invocations
 package workspace
 
-// Root represents a resolved workspace root directory.
-type Root struct {
-	// Path is the absolute path to the workspace root.
-	Path string
+import (
+	"os"
+	"path/filepath"
+)
+
+type Root string
+
+func (r Root) ProjectsDir() string {
+	return filepath.Join(string(r), "projects")
 }
 
-// Resolver finds or initializes the workspace root.
-//
-// TODO: implement resolution strategy:
-//   - check GROMIT_WORKSPACE env var
-//   - check XDG_DATA_HOME/gromit
-//   - fall back to ~/.gromit-next (avoiding collision with legacy ~/.gromit)
+func (r Root) ProjectCell(name string) string {
+	return filepath.Join(r.ProjectsDir(), name)
+}
+
 type Resolver interface {
 	Resolve() (Root, error)
+}
+
+type EnvResolver struct{}
+
+func NewEnvResolver() *EnvResolver {
+	return &EnvResolver{}
+}
+
+func (r *EnvResolver) Resolve() (Root, error) {
+	if v := os.Getenv("GROMIT_HOME"); v != "" {
+		return Root(v), nil
+	}
+	if v := os.Getenv("XDG_DATA_HOME"); v != "" {
+		return Root(filepath.Join(v, "gromit")), nil
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	return Root(filepath.Join(home, ".local", "share", "gromit")), nil
 }
