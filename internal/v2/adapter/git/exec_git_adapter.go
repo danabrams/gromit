@@ -47,18 +47,39 @@ func (a *ExecGitAdapter) Checkout(ctx context.Context, specID string) (string, e
 	}
 
 	branchName := "gromit/spec/" + specID
-	cmd := exec.CommandContext(ctx, "git", "worktree", "add", "-B", branchName, wtPath, "HEAD")
-	cmd.Dir = a.repoRoot
-	if out, err := cmd.CombinedOutput(); err != nil {
-		return "", fmt.Errorf("git worktree add: %s: %w", out, err)
+
+	// If the branch already exists with commits ahead of HEAD, resume from the
+	// branch tip instead of resetting it. This preserves partial work (plan
+	// files, stage commits) from a previous failed run.
+	resumed := false
+	if a.branchExistsAhead(ctx, branchName) {
+		cmd := exec.CommandContext(ctx, "git", "worktree", "add", wtPath, branchName)
+		cmd.Dir = a.repoRoot
+		if out, err := cmd.CombinedOutput(); err == nil {
+			resumed = true
+		} else {
+			// Fall back to creating a fresh branch if resume fails.
+			_ = out
+		}
 	}
 
-	// Record the base commit SHA so DiffFromBase can compute cumulative diffs.
-	baseOut, baseErr := runGitCommand(ctx, a.repoRoot, "rev-parse", "HEAD")
-	if baseErr == nil {
-		baseDir := filepath.Join(wtPath, ".gromit", "v2")
-		if mkErr := os.MkdirAll(baseDir, 0o755); mkErr == nil {
-			_ = os.WriteFile(filepath.Join(baseDir, branchBaseFileName), []byte(strings.TrimSpace(string(baseOut))), 0o644)
+	if !resumed {
+		cmd := exec.CommandContext(ctx, "git", "worktree", "add", "-B", branchName, wtPath, "HEAD")
+		cmd.Dir = a.repoRoot
+		if out, err := cmd.CombinedOutput(); err != nil {
+			return "", fmt.Errorf("git worktree add: %s: %w", out, err)
+		}
+	}
+
+	if !resumed {
+		// Record the base commit SHA so DiffFromBase can compute cumulative diffs.
+		// Only write on fresh checkouts — resumed branches already have the correct base.
+		baseOut, baseErr := runGitCommand(ctx, a.repoRoot, "rev-parse", "HEAD")
+		if baseErr == nil {
+			baseDir := filepath.Join(wtPath, ".gromit", "v2")
+			if mkErr := os.MkdirAll(baseDir, 0o755); mkErr == nil {
+				_ = os.WriteFile(filepath.Join(baseDir, branchBaseFileName), []byte(strings.TrimSpace(string(baseOut))), 0o644)
+			}
 		}
 	}
 
@@ -71,6 +92,36 @@ func (a *ExecGitAdapter) Checkout(ctx context.Context, specID string) (string, e
 	}
 
 	return absPath, nil
+}
+
+// branchExistsAhead returns true when branchName exists and its tip is ahead
+// of the current HEAD (i.e., it contains commits not on HEAD).
+func (a *ExecGitAdapter) branchExistsAhead(ctx context.Context, branchName string) bool {
+	// Check that the branch ref exists.
+	out, err := runGitCommand(ctx, a.repoRoot, "rev-parse", "--verify", branchName)
+	if err != nil {
+		return false
+	}
+	branchSHA := strings.TrimSpace(string(out))
+
+	headOut, err := runGitCommand(ctx, a.repoRoot, "rev-parse", "HEAD")
+	if err != nil {
+		return false
+	}
+	headSHA := strings.TrimSpace(string(headOut))
+
+	// Same commit means no partial work to resume.
+	if branchSHA == headSHA {
+		return false
+	}
+
+	// Verify the branch is actually ahead (not just diverged).
+	countOut, err := runGitCommand(ctx, a.repoRoot, "rev-list", "--count", headSHA+".."+branchSHA)
+	if err != nil {
+		return false
+	}
+	ahead := strings.TrimSpace(string(countOut))
+	return ahead != "0"
 }
 
 const branchBaseFileName = "branch-base"

@@ -534,6 +534,129 @@ func TestCheckout_WritesBranchBaseFile(t *testing.T) {
 	}
 }
 
+// TestCheckout_ResumesExistingBranch verifies that when a branch has commits
+// ahead of HEAD (e.g. partial work from a failed run), a second Checkout
+// preserves those commits instead of resetting the branch to HEAD.
+func TestCheckout_ResumesExistingBranch(t *testing.T) {
+	t.Parallel()
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not available")
+	}
+
+	repoDir := initTestRepo(t)
+	worktreesDir := t.TempDir()
+	adapter := NewExecGitAdapter(repoDir, worktreesDir)
+	ctx := context.Background()
+
+	// First checkout — creates worktree and branch.
+	wtPath, err := adapter.Checkout(ctx, "resume-spec")
+	if err != nil {
+		t.Fatalf("first Checkout: %v", err)
+	}
+
+	// Simulate partial work: write a plan file and commit it.
+	planDir := filepath.Join(wtPath, ".gromit", "v2")
+	if err := os.MkdirAll(planDir, 0o755); err != nil {
+		t.Fatalf("mkdir plan dir: %v", err)
+	}
+	planContent := "# Remediation Plan\n\nFix the widget.\n"
+	if err := os.WriteFile(filepath.Join(planDir, "plan.md"), []byte(planContent), 0o644); err != nil {
+		t.Fatalf("write plan: %v", err)
+	}
+	runGitBinary(t, wtPath, "add", "-A")
+	runGitBinary(t, wtPath, "commit", "-m", "[gromit: partial work] spec resume-spec")
+
+	// Record the branch tip (ahead of main HEAD).
+	branchTip := runGitBinaryOutput(t, wtPath, "rev-parse", "HEAD")
+	mainHead := runGitBinaryOutput(t, repoDir, "rev-parse", "HEAD")
+	if branchTip == mainHead {
+		t.Fatal("branch tip should differ from main HEAD after partial work commit")
+	}
+
+	// Remove the worktree (simulates what happens between runs).
+	if err := adapter.RemoveWorktree(ctx, wtPath); err != nil {
+		t.Fatalf("RemoveWorktree: %v", err)
+	}
+
+	// Second checkout — should resume from branch tip, not reset to HEAD.
+	wtPath2, err := adapter.Checkout(ctx, "resume-spec")
+	if err != nil {
+		t.Fatalf("second Checkout: %v", err)
+	}
+
+	// Verify the plan file survived (branch was not reset).
+	planData, err := os.ReadFile(filepath.Join(wtPath2, ".gromit", "v2", "plan.md"))
+	if err != nil {
+		t.Fatalf("plan file missing after resume: %v", err)
+	}
+	if string(planData) != planContent {
+		t.Fatalf("plan content = %q, want %q", string(planData), planContent)
+	}
+
+	// Verify the worktree HEAD matches the original branch tip.
+	resumedHead := runGitBinaryOutput(t, wtPath2, "rev-parse", "HEAD")
+	if resumedHead != branchTip {
+		t.Fatalf("resumed HEAD = %s, want branch tip %s", resumedHead, branchTip)
+	}
+}
+
+// TestCheckout_ResumesExistingBranch_PreservesBranchBase verifies that when
+// resuming an existing branch, the original branch-base file is NOT overwritten.
+func TestCheckout_ResumesExistingBranch_PreservesBranchBase(t *testing.T) {
+	t.Parallel()
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not available")
+	}
+
+	repoDir := initTestRepo(t)
+	worktreesDir := t.TempDir()
+	adapter := NewExecGitAdapter(repoDir, worktreesDir)
+	ctx := context.Background()
+
+	// Record the original base SHA before first checkout.
+	originalBase := runGitBinaryOutput(t, repoDir, "rev-parse", "HEAD")
+
+	// First checkout.
+	wtPath, err := adapter.Checkout(ctx, "base-spec")
+	if err != nil {
+		t.Fatalf("first Checkout: %v", err)
+	}
+
+	// Commit partial work so the branch is ahead.
+	if err := os.WriteFile(filepath.Join(wtPath, "work.txt"), []byte("partial"), 0o644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	runGitBinary(t, wtPath, "add", "-A")
+	runGitBinary(t, wtPath, "commit", "-m", "partial work")
+
+	// Remove worktree.
+	if err := adapter.RemoveWorktree(ctx, wtPath); err != nil {
+		t.Fatalf("RemoveWorktree: %v", err)
+	}
+
+	// Advance main HEAD so we can detect if branch-base gets overwritten.
+	runGitBinary(t, repoDir, "commit", "--allow-empty", "-m", "advance main")
+	newMainHead := runGitBinaryOutput(t, repoDir, "rev-parse", "HEAD")
+	if newMainHead == originalBase {
+		t.Fatal("main HEAD should have advanced")
+	}
+
+	// Second checkout — should resume branch and keep original branch-base.
+	wtPath2, err := adapter.Checkout(ctx, "base-spec")
+	if err != nil {
+		t.Fatalf("second Checkout: %v", err)
+	}
+
+	basePath := filepath.Join(wtPath2, ".gromit", "v2", "branch-base")
+	data, err := os.ReadFile(basePath)
+	if err != nil {
+		t.Fatalf("read branch-base: %v", err)
+	}
+	if got := strings.TrimSpace(string(data)); got != originalBase {
+		t.Fatalf("branch-base = %q, want original %q (not new main %q)", got, originalBase, newMainHead)
+	}
+}
+
 func TestExecGitAdapterRemoveWorktreeSetsDir(t *testing.T) {
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git not available")
