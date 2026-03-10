@@ -3,9 +3,9 @@ package specreview
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
-	"reflect"
 	"strings"
 	"testing"
 
@@ -121,6 +121,14 @@ func TestNewSpecReviewStageRequiresConfig(t *testing.T) {
 	want := stagedesc.Describe("spec-review", cfg)
 	if stage.Name() != want {
 		t.Fatalf("stage name = %q, want %q", stage.Name(), want)
+	}
+}
+
+func TestSelectModelDefaultsToOpus(t *testing.T) {
+	stage := &Stage{}
+	got := stage.selectModel(nil, nil)
+	if got != config.ModelOpus {
+		t.Fatalf("selectModel default = %q, want %q", got, config.ModelOpus)
 	}
 }
 
