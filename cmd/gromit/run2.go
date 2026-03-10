@@ -68,6 +68,12 @@ var (
 		}
 		return runLoop.Run(ctx, beads, stopCh)
 	}
+	runBeadLoopWithoutReviewFn = func(runLoop *loop.BeadLoop, ctx context.Context, beads []*bead.Bead, stopCh <-chan struct{}) (loop.BeadLoopResult, error) {
+		if runLoop == nil {
+			return loop.BeadLoopResult{}, fmt.Errorf("bead loop required")
+		}
+		return runLoop.RunWithoutReview(ctx, beads, stopCh)
+	}
 )
 
 type specLoop interface {

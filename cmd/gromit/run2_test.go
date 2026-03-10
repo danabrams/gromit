@@ -628,6 +628,66 @@ func TestRun2_FromReviewFlag_NoAcceptOrReviewInvoked(t *testing.T) {
 	}
 }
 
+func TestRun2FromReviewUsesRunWithoutReview(t *testing.T) {
+	_, cleanup := setupRun2TestEnv(t)
+	defer cleanup()
+
+	cfg, err := loadConfig()
+	if err != nil {
+		t.Fatalf("loadConfig: %v", err)
+	}
+
+	fakeTracker := &fakeTaskTracker{
+		response: []tasktracker.Bead{{ID: "from-review"}},
+	}
+	origTrackerFn := newTaskTrackerAdapterFn
+	newTaskTrackerAdapterFn = func(_ *bead.Client) tasktracker.TaskTracker { return fakeTracker }
+	defer func() { newTaskTrackerAdapterFn = origTrackerFn }()
+
+	var withoutReviewCalled bool
+	origRunWithoutReviewFn := runBeadLoopWithoutReviewFn
+	runBeadLoopWithoutReviewFn = func(runLoop *loop.BeadLoop, ctx context.Context, beads []*bead.Bead, stopCh <-chan struct{}) (loop.BeadLoopResult, error) {
+		withoutReviewCalled = true
+		return loop.BeadLoopResult{}, nil
+	}
+	defer func() { runBeadLoopWithoutReviewFn = origRunWithoutReviewFn }()
+
+	origRunFn := runBeadLoopFn
+	runBeadLoopFn = func(runLoop *loop.BeadLoop, ctx context.Context, beads []*bead.Bead, stopCh <-chan struct{}) (loop.BeadLoopResult, error) {
+		t.Fatalf("runBeadLoopFn should not be called when running from review")
+		return loop.BeadLoopResult{}, nil
+	}
+	defer func() { runBeadLoopFn = origRunFn }()
+
+	origComponentsFn := newRun2LoopComponentsFn
+	newRun2LoopComponentsFn = func(cfg *config.Config, adapters adapter.AdapterSet, legacyEmitter *events.Emitter, output io.Writer, router *routing.Router, phaseModels map[string]string) (*loop.Run2LoopComponents, error) {
+		emitter := events.NewEmitter()
+		return &loop.Run2LoopComponents{
+			BeadLoop:     &loop.BeadLoop{},
+			Emitter:      emitter,
+			TypedEmitter: event.NewEmitter(),
+		}, nil
+	}
+	defer func() { newRun2LoopComponentsFn = origComponentsFn }()
+
+	origSubscribers := startRun2SubscribersFn
+	startRun2SubscribersFn = func(ctx context.Context, emitter *events.Emitter, output io.Writer, logsDir string) (*sync.WaitGroup, error) {
+		return &sync.WaitGroup{}, nil
+	}
+	defer func() { startRun2SubscribersFn = origSubscribers }()
+
+	run2Cmd.SetOut(io.Discard)
+	run2Cmd.SetErr(io.Discard)
+
+	if err := run2FromReview(run2Cmd, cfg); err != nil {
+		t.Fatalf("run2FromReview = %v", err)
+	}
+
+	if !withoutReviewCalled {
+		t.Fatal("RunWithoutReview was not invoked")
+	}
+}
+
 func TestRun2FromReviewFiltersBeadsByLabel(t *testing.T) {
 	_, cleanup := setupRun2TestEnv(t)
 	defer cleanup()
