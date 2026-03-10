@@ -611,6 +611,9 @@ func (s *SpecLoop) runSpecReview(ctx context.Context, req *stagepkg.Request) (*s
 	if err != nil {
 		return res, fmt.Errorf("spec review stage: %w", err)
 	}
+	if res != nil && res.Decision == stagepkg.DecisionFail {
+		return res, fmt.Errorf("spec review failed")
+	}
 	return res, nil
 }
 
