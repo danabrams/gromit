@@ -453,6 +453,12 @@ func (s *SpecLoop) Run(ctx context.Context, specID string, stopCh <-chan struct{
 
 	summary := s.buildSuccessSummary(specID, worktree, plan, beads, acceptRes, beadResult.OutOfScopeFindings)
 
+	s.recordStage("specreview")
+	if _, reviewErr := s.runSpecReview(ctx, &req); reviewErr != nil {
+		handleFailureCleaned = true
+		return s.handleFailure(ctx, specID, summary, reviewErr)
+	}
+
 	if err := s.ctxErr(ctx); err != nil {
 		return err
 	}
@@ -592,6 +598,18 @@ func (s *SpecLoop) runPlanStage(ctx context.Context, req stagepkg.Request) (*sta
 	res, err := s.planStage.Run(ctx, &req)
 	if err != nil {
 		return nil, err
+	}
+	return res, nil
+}
+
+func (s *SpecLoop) runSpecReview(ctx context.Context, req *stagepkg.Request) (*stagepkg.Result, error) {
+	if s.specReviewStage == nil {
+		return nil, nil
+	}
+	s.applyRouting(req, "specreview")
+	res, err := s.specReviewStage.Run(ctx, req)
+	if err != nil {
+		return res, fmt.Errorf("spec review stage: %w", err)
 	}
 	return res, nil
 }
