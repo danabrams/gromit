@@ -47,6 +47,13 @@ type Doctrine struct {
 	Rules []Rule `json:"rules"`
 }
 
+// NormalizeNilFields maps nil slices to empty values.
+func (d *Doctrine) NormalizeNilFields() {
+	if d.Rules == nil {
+		d.Rules = []Rule{}
+	}
+}
+
 // Store is the interface for persisting and loading doctrine.
 type Store interface {
 	Save(doctrineDir string, d Doctrine) error

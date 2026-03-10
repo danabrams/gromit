@@ -28,6 +28,13 @@ type SourceMap struct {
 	Entries []Entry `json:"entries"`
 }
 
+// NormalizeNilFields maps nil slices to empty values.
+func (sm *SourceMap) NormalizeNilFields() {
+	if sm.Entries == nil {
+		sm.Entries = []Entry{}
+	}
+}
+
 // BuildFromFacts constructs a SourceMap from a slice of facts, filtering for
 // facts whose Source begins with "file-tree" and unmarshalling their Content
 // as Entry structs.
