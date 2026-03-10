@@ -23,6 +23,7 @@ const (
 
 // Finding captures a post-review issue discovered during the stage.
 type Finding struct {
+	Title         string
 	Severity      Severity
 	Category      Category
 	Scope         string

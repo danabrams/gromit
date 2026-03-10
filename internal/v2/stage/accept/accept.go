@@ -217,7 +217,7 @@ func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Resul
 		}
 
 		s.Log("info", "accept: diff is %d bytes (>%d threshold), using targeted evaluation for %d criteria", len(diff), threshold, len(criteria))
-		results, failures, findings, evalErr := s.runTargetedEvaluation(ctx, provider, specID, criteria, diff, cfg, req)
+		results, failures, _, evalErr := s.runTargetedEvaluation(ctx, provider, specID, criteria, diff, cfg, req)
 		if evalErr != nil {
 			return nil, evalErr
 		}
@@ -235,7 +235,7 @@ func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Resul
 	}
 
 	// Per-criterion fallback (threshold disabled or negative).
-	results, failures, findings, evalErr := s.runPerCriterionEvaluation(ctx, provider, specID, criteria, diff, cfg, req)
+	results, failures, _, evalErr := s.runPerCriterionEvaluation(ctx, provider, specID, criteria, diff, cfg, req)
 	if evalErr != nil {
 		return nil, evalErr
 	}
@@ -307,7 +307,7 @@ func (s *Stage) runPerCriterionEvaluation(ctx context.Context, provider llmtypes
 	return results, failures, findings, nil
 }
 
-func (s *Stage) runTargetedEvaluation(ctx context.Context, provider llmtypes.LLMProvider, specID string, criteria []coverage.Criterion, diff string, cfg *config.Config, req *stagepkg.Request) ([]presentation.AcceptanceResult, []string, error) {
+func (s *Stage) runTargetedEvaluation(ctx context.Context, provider llmtypes.LLMProvider, specID string, criteria []coverage.Criterion, diff string, cfg *config.Config, req *stagepkg.Request) ([]presentation.AcceptanceResult, []string, []stagepkg.Finding, error) {
 	model := s.selectModel(cfg, req)
 	fileDiffs := splitDiffByFile(diff)
 

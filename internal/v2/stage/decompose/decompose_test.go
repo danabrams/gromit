@@ -12,7 +12,6 @@ import (
 	"github.com/danabrams/gromit/internal/v2/adapter/llm"
 	"github.com/danabrams/gromit/internal/v2/adapter/tasktracker"
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
-	"github.com/danabrams/gromit/internal/v2/stage/finding"
 )
 
 func TestRunErrorsWhenPlanMissing(t *testing.T) {
@@ -443,14 +442,14 @@ func TestRunUsesFindingsPromptWhenFindingsProvided(t *testing.T) {
 	}
 
 	req := &stagepkg.Request{
-		Bead: stagepkg.BeadInfo{ID: "spec", Labels: []string{"gen:0"}},
+		Bead:        stagepkg.BeadInfo{ID: "spec", Labels: []string{"gen:0"}},
 		Config:      cfg,
 		Remediation: true,
-		Findings: []finding.Finding{
+		Findings: []stagepkg.Finding{
 			{
-				Severity:      finding.SeverityCritical,
-				Category:      finding.CategoryQuality,
-				Scope:         "spec",
+				Severity:      stagepkg.SeverityCritical,
+				Category:      stagepkg.CategoryQuality,
+				Scope:         stagepkg.ScopeSpec,
 				Description:   "Beans are not covered by automated tests",
 				AffectedFiles: []string{"docs/beans.md"},
 			},
@@ -482,11 +481,11 @@ func TestRunUsesFindingsPromptWhenFindingsProvided(t *testing.T) {
 func TestFormatFindingsIncludesSeverityCategoryScopeDescriptionAndAffectedFiles(t *testing.T) {
 	t.Parallel()
 	req := &stagepkg.Request{
-		Findings: []finding.Finding{
+		Findings: []stagepkg.Finding{
 			{
-				Severity:      finding.SeverityCritical,
-				Category:      finding.CategoryBug,
-				Scope:         "spec",
+				Severity:      stagepkg.SeverityCritical,
+				Category:      stagepkg.CategoryBug,
+				Scope:         stagepkg.ScopeSpec,
 				Description:   "Beans need tests",
 				AffectedFiles: []string{"beans.go", "beans_test.go"},
 			},

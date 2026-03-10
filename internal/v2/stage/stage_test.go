@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/danabrams/gromit/internal/v2/event"
-	findingpkg "github.com/danabrams/gromit/internal/v2/stage/finding"
 )
 
 func TestStageResultEventsAcceptTypedEvent(t *testing.T) {
@@ -96,11 +95,11 @@ func TestDecisionStrings(t *testing.T) {
 
 func TestStageRequestIncludesFindings(t *testing.T) {
 	req := StageRequest{
-		Findings: []findingpkg.Finding{
+		Findings: []Finding{
 			{
-				Severity:      findingpkg.SeverityWarning,
-				Category:      findingpkg.CategoryQuality,
-				Scope:         "general",
+				Severity:      SeverityWarning,
+				Category:      CategoryQuality,
+				Scope:         ScopeGeneral,
 				Description:   "needs review",
 				AffectedFiles: []string{"review_spec_v2.md"},
 			},
@@ -112,11 +111,11 @@ func TestStageRequestIncludesFindings(t *testing.T) {
 	}
 
 	reqFinding := req.Findings[0]
-	if reqFinding.Severity != findingpkg.SeverityWarning {
-		t.Fatalf("expected severity %s, got %s", findingpkg.SeverityWarning, reqFinding.Severity)
+	if reqFinding.Severity != SeverityWarning {
+		t.Fatalf("expected severity %s, got %s", SeverityWarning, reqFinding.Severity)
 	}
 
-	if reqFinding.Category != findingpkg.CategoryQuality {
-		t.Fatalf("expected category %s, got %s", findingpkg.CategoryQuality, reqFinding.Category)
+	if reqFinding.Category != CategoryQuality {
+		t.Fatalf("expected category %s, got %s", CategoryQuality, reqFinding.Category)
 	}
 }

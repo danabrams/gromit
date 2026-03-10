@@ -15,7 +15,6 @@ import (
 	"github.com/danabrams/gromit/internal/v2/generation"
 	"github.com/danabrams/gromit/internal/v2/llmtypes"
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
-	"github.com/danabrams/gromit/internal/v2/stage/finding"
 	stagedesc "github.com/danabrams/gromit/internal/v2/stage/names"
 	"github.com/danabrams/gromit/internal/v2/trackertypes"
 	"github.com/danabrams/gromit/internal/validate"
@@ -201,7 +200,6 @@ func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Resul
 		return nil, fmt.Errorf("read plan: %w", err)
 	}
 
-	planText := string(planBody)
 	var promptText string
 	gapAnalysis := s.resolveGapAnalysis(req)
 	planContent := string(planBody)
@@ -366,7 +364,7 @@ func formatFindings(req *stagepkg.Request) string {
 		if category == "" {
 			category = "unspecified category"
 		}
-		scope := strings.TrimSpace(entry.Scope)
+		scope := strings.TrimSpace(string(entry.Scope))
 		if scope == "" {
 			scope = "unspecified scope"
 		}
@@ -459,11 +457,11 @@ func (s *Stage) generationForRequest(req *stagepkg.Request) int {
 	return gen
 }
 
-func serializeFindings(findings []finding.Finding) (string, error) {
+func serializeFindings(findings []stagepkg.Finding) (string, error) {
 	if len(findings) == 0 {
 		return "", nil
 	}
-	copies := append([]finding.Finding(nil), findings...)
+	copies := append([]stagepkg.Finding(nil), findings...)
 	for i := range copies {
 		copies[i].NormalizeNilFields()
 	}

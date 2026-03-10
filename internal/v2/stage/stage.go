@@ -8,7 +8,6 @@ import (
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/v2/event"
 	"github.com/danabrams/gromit/internal/v2/llmtypes"
-	"github.com/danabrams/gromit/internal/v2/stage/finding"
 )
 
 // Stage defines a single beam within the run loop.
@@ -28,7 +27,7 @@ type StageRequest struct {
 	Worktree     string
 	Remediation  bool
 	GapAnalysis  string
-	Findings     []finding.Finding
+	Findings     []Finding
 	RetryContext *RetryContext
 	Telemetry    *LLMCostSummary
 	SpecFindings []SpecFinding
@@ -43,11 +42,22 @@ type StageResult struct {
 
 // Finding captures structured issues discovered during a stage run.
 type Finding struct {
+	Title         string
 	Severity      Severity
 	Category      Category
 	Scope         Scope
 	Description   string
 	AffectedFiles []string
+}
+
+// NormalizeNilFields ensures slice fields are non-nil.
+func (f *Finding) NormalizeNilFields() {
+	if f == nil {
+		return
+	}
+	if f.AffectedFiles == nil {
+		f.AffectedFiles = []string{}
+	}
 }
 
 // Severity describes the signal-level urgency of a finding.

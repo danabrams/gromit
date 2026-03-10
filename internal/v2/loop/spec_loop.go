@@ -1016,7 +1016,7 @@ func convertSpecFindings(src []stagepkg.SpecFinding) []finding.Finding {
 	}
 	out := make([]finding.Finding, 0, len(src))
 	for _, entry := range src {
-		out = append(out, convertToFinding(entry.Severity, entry.Category, entry.Scope, entry.Description, entry.AffectedFiles))
+		out = append(out, convertToFinding(entry.Title, entry.Severity, entry.Category, entry.Scope, entry.Description, entry.AffectedFiles))
 	}
 	return out
 }
@@ -1027,13 +1027,14 @@ func convertSpecReviewFindings(src []specreview.SpecReviewFinding) []finding.Fin
 	}
 	out := make([]finding.Finding, 0, len(src))
 	for _, entry := range src {
-		out = append(out, convertToFinding(entry.Severity, entry.Category, entry.Scope, entry.Description, entry.AffectedFiles))
+		out = append(out, convertToFinding(entry.Title, entry.Severity, entry.Category, entry.Scope, entry.Description, entry.AffectedFiles))
 	}
 	return out
 }
 
-func convertToFinding(severity stagepkg.SpecFindingSeverity, category stagepkg.SpecFindingCategory, scope stagepkg.SpecFindingScope, description string, affected []string) finding.Finding {
+func convertToFinding(title string, severity stagepkg.SpecFindingSeverity, category stagepkg.SpecFindingCategory, scope stagepkg.SpecFindingScope, description string, affected []string) finding.Finding {
 	return finding.Finding{
+		Title:         title,
 		Severity:      convertSeverity(severity),
 		Category:      convertCategory(category),
 		Scope:         normalizeScope(scope),
