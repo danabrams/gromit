@@ -53,8 +53,7 @@ var contextBuildCmd = &cobra.Command{
 		artStore := artifact.NewJSONStore()
 		// Wrap to read from artifacts subdirectory
 		wrappedStore := &artifactsDirStore{
-			store:   artStore,
-			cellPath: cell.CellPath,
+			store: artStore,
 		}
 
 		compiler := contextpkt.NewCompiler(wrappedStore)
@@ -87,8 +86,7 @@ func init() {
 
 // artifactsDirStore wraps artifact.JSONStore to read from the artifacts/ subdirectory.
 type artifactsDirStore struct {
-	store    *artifact.JSONStore
-	cellPath string
+	store *artifact.JSONStore
 }
 
 func (a *artifactsDirStore) Read(cellPath string, art string, dest any) error {

@@ -146,18 +146,18 @@ The following packages are fully implemented with tests:
   - `GoModExtractor` — parses `go.mod` for module path, Go version, dependencies
   - `ValidationCommandsExtractor` — parses Makefile targets and CI workflow `run:` steps
 - **infer/** — `Inferrer` interface, `StubInferrer` (returns empty; real LLM implementation deferred)
-- **inspect/** — `Inspector` interface, `DefaultInspector` with extract-then-infer pipeline
-- **doctrine/** — `Rule` (with `Source`/`CreatedAt`), `Doctrine`, `FSStore` with `Save`/`Load`
+- **inspect/** — `Inspector` interface, `DefaultInspector` with extract-then-infer pipeline. Local `Cell` type decouples from `projectcell`. `Result.NormalizeNilFields()`.
+- **doctrine/** — `Rule` (with `Source`/`CreatedAt`), `Doctrine`, `FSStore` with `Save`/`Load`. `Doctrine.NormalizeNilFields()`.
 - **provenance/** — `Record` struct, `Tracker` interface, `FSTracker` with `Record`/`Check`/`IsFresh`
-- **guide/** — `Renderer` interface, `MarkdownRenderer` with section omission for empty data
-- **sourcemap/** — `SourceMap`/`Entry` types, `BuildFromFacts()` from file-tree facts
+- **guide/** — `Renderer` interface, `MarkdownRenderer` with Project Overview section, section omission for empty data. Local types (`Module`, `SourceMapEntry`, `DoctrineRule`, etc.) decouple from sibling packages. `RenderInput.NormalizeNilFields()`.
+- **sourcemap/** — `SourceMap`/`Entry` types, `BuildFromFacts()` from file-tree facts. `SourceMap.NormalizeNilFields()`.
 - **architecture/** — `Module`/`Dependency`/`Component`/`Architecture` types with `NormalizeNilFields()`
-- **validation/** — `Kind` enum (`Test`/`Lint`/`Build`), `Command`/`CommandSet` types with `ByKind()`
+- **validation/** — `Kind` enum (`Test`/`Lint`/`Build`) with JSON marshal/unmarshal, `Command`/`CommandSet` types with `ByKind()`, `CommandSet.NormalizeNilFields()`
 
-- **contextpkt/** — `Compiler` interface, `DefaultCompiler` with project/spec/task level compilation, token budgeting
-- **cmd/gromit-next/** — Cobra CLI with `project attach/inspect/guide/list` and `context build` commands
+- **contextpkt/** — `Compiler` interface, `DefaultCompiler` with level-specific compilation (project: arch+doctrine+glossary+validation; spec: arch+doctrine+spec-text; task: doctrine+spec-text+proof-requirements), token budgeting. Local `Cell` type decouples from `projectcell`. `Packet.NormalizeNilFields()`.
+- **cmd/gromit-next/** — Cobra CLI with `project attach/inspect/guide/list` and `context build` commands. Guide command loads architecture artifact.
 
-All packages have unit tests. Integration test at `internal/next/integration_test.go` covers the full flow: attach → inspect → guide → compile context at all levels → freshness check → isolation verification.
+All packages have unit tests. Integration test at `internal/next/integration_test.go` covers the full flow: attach → inspect → guide → compile context at all levels → freshness check → isolation verification. Additional tests: deterministic extraction, relevance-before-budgeting.
 
 ## Knowledge Categories
 

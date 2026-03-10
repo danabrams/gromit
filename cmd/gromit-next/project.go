@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/danabrams/gromit/internal/next/architecture"
 	"github.com/danabrams/gromit/internal/next/artifact"
 	"github.com/danabrams/gromit/internal/next/doctrine"
 	"github.com/danabrams/gromit/internal/next/extract"
@@ -71,7 +72,8 @@ var inspectCmd = &cobra.Command{
 		inferrer := infer.NewStubInferrer()
 		inspector := inspect.NewInspector(extractors, inferrer)
 
-		result, err := inspector.Inspect(context.Background(), cell)
+		inspCell := inspect.Cell{Name: cell.Name, RepoPath: cell.RepoPath, CellPath: cell.CellPath}
+		result, err := inspector.Inspect(context.Background(), inspCell)
 		if err != nil {
 			return err
 		}
@@ -124,11 +126,27 @@ var guideCmd = &cobra.Command{
 			ProjectName: cell.Name,
 		}
 
-		// Load artifacts (ignore errors — sections with no data are omitted)
-		artStore.Read(filepath.Join(cell.CellPath, "artifacts"), "sourcemap", &input.SourceMap)
+		// Load sourcemap and convert to guide local types
+		var sm sourcemap.SourceMap
+		if err := artStore.Read(filepath.Join(cell.CellPath, "artifacts"), "sourcemap", &sm); err == nil {
+			for _, e := range sm.Entries {
+				input.SourceMap = append(input.SourceMap, guide.SourceMapEntry{Path: e.Path, Language: e.Language, Lines: e.Lines})
+			}
+		}
 
+		// Load architecture and convert to guide local types
+		var arch architecture.Architecture
+		if err := artStore.Read(filepath.Join(cell.CellPath, "artifacts"), "architecture", &arch); err == nil {
+			for _, m := range arch.Modules {
+				input.Modules = append(input.Modules, guide.Module{Name: m.Name, Description: m.Description, Language: m.Language})
+			}
+		}
+
+		// Load doctrine and convert to guide local types
 		doc, _ := docStore.Load(filepath.Join(cell.CellPath, "doctrine"))
-		input.Doctrine = doc
+		for _, r := range doc.Rules {
+			input.Doctrine = append(input.Doctrine, guide.DoctrineRule{ID: r.ID, Summary: r.Summary, Scope: r.Scope})
+		}
 
 		renderer := guide.NewMarkdownRenderer()
 		output, err := renderer.Render(input)

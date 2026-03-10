@@ -68,7 +68,8 @@ func TestIntegration_FullProjectCellFlow(t *testing.T) {
 	inferrer := infer.NewStubInferrer()
 	inspector := inspect.NewInspector(extractors, inferrer)
 
-	result, err := inspector.Inspect(context.Background(), cell)
+	inspectCell := inspect.Cell{Name: cell.Name, RepoPath: cell.RepoPath, CellPath: cell.CellPath}
+	result, err := inspector.Inspect(context.Background(), inspectCell)
 	if err != nil {
 		t.Fatalf("Inspect: %v", err)
 	}
@@ -134,10 +135,23 @@ func TestIntegration_FullProjectCellFlow(t *testing.T) {
 	doc, _ := docStore.Load(filepath.Join(cell.CellPath, "doctrine"))
 
 	renderer := guide.NewMarkdownRenderer()
+
+	// Convert sourcemap entries to guide local types
+	var smEntries []guide.SourceMapEntry
+	for _, e := range sm.Entries {
+		smEntries = append(smEntries, guide.SourceMapEntry{Path: e.Path, Language: e.Language, Lines: e.Lines})
+	}
+
+	// Convert doctrine rules to guide local types
+	var docRules []guide.DoctrineRule
+	for _, r := range doc.Rules {
+		docRules = append(docRules, guide.DoctrineRule{ID: r.ID, Summary: r.Summary, Scope: r.Scope})
+	}
+
 	guideInput := guide.RenderInput{
 		ProjectName: cell.Name,
-		SourceMap:   sm,
-		Doctrine:    doc,
+		SourceMap:   smEntries,
+		Doctrine:    docRules,
 	}
 	output, err := renderer.Render(guideInput)
 	if err != nil {
@@ -228,7 +242,8 @@ func TestIntegration_FullProjectCellFlow(t *testing.T) {
 	}
 
 	// Inspect second project
-	result2, err := inspector.Inspect(context.Background(), cell2)
+	inspectCell2 := inspect.Cell{Name: cell2.Name, RepoPath: cell2.RepoPath, CellPath: cell2.CellPath}
+	result2, err := inspector.Inspect(context.Background(), inspectCell2)
 	if err != nil {
 		t.Fatalf("Inspect second: %v", err)
 	}
@@ -268,7 +283,7 @@ func TestIntegration_DeterministicExtraction(t *testing.T) {
 		extract.NewValidationCommandsExtractor(),
 	}
 
-	cell := projectcell.Cell{
+	detCell := inspect.Cell{
 		Name:     "det-test",
 		RepoPath: fixtureRepo,
 		CellPath: t.TempDir(),
@@ -277,11 +292,11 @@ func TestIntegration_DeterministicExtraction(t *testing.T) {
 	inspector := inspect.NewInspector(extractors, inferrer)
 
 	// Run inspect twice on unchanged repo
-	result1, err := inspector.Inspect(context.Background(), cell)
+	result1, err := inspector.Inspect(context.Background(), detCell)
 	if err != nil {
 		t.Fatalf("Inspect 1: %v", err)
 	}
-	result2, err := inspector.Inspect(context.Background(), cell)
+	result2, err := inspector.Inspect(context.Background(), detCell)
 	if err != nil {
 		t.Fatalf("Inspect 2: %v", err)
 	}
@@ -337,7 +352,7 @@ func TestIntegration_RelevanceBeforeBudgeting(t *testing.T) {
 		t.Fatalf("Compile unbounded: %v", err)
 	}
 
-	// Compile with small budget
+	// Compile with small budget (same cell, different budget)
 	bounded, err := compiler.Compile(context.Background(), budgetCell, contextpkt.LevelSpec, contextpkt.CompileOpts{
 		SpecPath:    "specs/001.md",
 		TokenBudget: 20,
