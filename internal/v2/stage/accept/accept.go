@@ -77,14 +77,25 @@ func (a *AcceptArtifacts) GetGapSummary() string {
 
 // Stage evaluates acceptance criteria against the current worktree.
 type Stage struct {
-	name     string
-	cfg      *config.Config
-	git      GitDiffer
-	llm      llmtypes.LLMProvider
-	base     string
-	project  string
-	fragment string
+	name               string
+	cfg                *config.Config
+	git                GitDiffer
+	llm                llmtypes.LLMProvider
+	base               string
+	project            string
+	fragment           string
+	batchDiffThreshold int // 0 means use default
 	events.EmitterMixin
+}
+
+// diffThreshold returns the effective batch diff threshold.
+// A negative value disables both batch and targeted evaluation
+// (forces per-criterion mode for all diffs).
+func (s *Stage) diffThreshold() int {
+	if s.batchDiffThreshold != 0 {
+		return s.batchDiffThreshold
+	}
+	return batchDiffThreshold
 }
 
 // WithEmitter attaches an emitter for logging criterion evaluations.
@@ -175,14 +186,63 @@ func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Resul
 		provider = req.Provider
 	}
 
+	// Small diffs: evaluate all criteria in one invocation (cheap, fast).
+	// Large diffs: first identify relevant files per criterion, then evaluate
+	// each criterion with only its relevant portion of the diff.
+	threshold := s.diffThreshold()
+	if threshold > 0 {
+		if len(diff) <= threshold {
+			s.Log("info", "accept: diff is %d bytes (≤%d threshold), using batch evaluation for %d criteria", len(diff), threshold, len(criteria))
+			return s.runBatchEvaluation(ctx, provider, specID, criteria, diff, cfg, req, root)
+		}
+
+		s.Log("info", "accept: diff is %d bytes (>%d threshold), using targeted evaluation for %d criteria", len(diff), threshold, len(criteria))
+		results, failures, evalErr := s.runTargetedEvaluation(ctx, provider, specID, criteria, diff, cfg, req)
+		if evalErr != nil {
+			return nil, evalErr
+		}
+
+		artifacts := &AcceptArtifacts{Results: results}
+		if len(failures) > 0 {
+			gapSummary := strings.Join(failures, "\n")
+			artifacts.GapSummary = gapSummary
+			if err := s.writeGapAnalysis(root, cfg, gapSummary); err != nil {
+				return nil, fmt.Errorf("write gap analysis: %w", err)
+			}
+			return &stagepkg.Result{Decision: stagepkg.DecisionFail, Artifacts: artifacts}, nil
+		}
+		return &stagepkg.Result{Decision: stagepkg.DecisionProceed, Artifacts: artifacts}, nil
+	}
+
+	// Per-criterion fallback (threshold disabled or negative).
+	results, failures, evalErr := s.runPerCriterionEvaluation(ctx, provider, specID, criteria, diff, cfg, req)
+	if evalErr != nil {
+		return nil, evalErr
+	}
+
+	artifacts := &AcceptArtifacts{Results: results}
+	if len(failures) > 0 {
+		gapSummary := strings.Join(failures, "\n")
+		artifacts.GapSummary = gapSummary
+		if err := s.writeGapAnalysis(root, cfg, gapSummary); err != nil {
+			return nil, fmt.Errorf("write gap analysis: %w", err)
+		}
+		return &stagepkg.Result{Decision: stagepkg.DecisionFail, Artifacts: artifacts}, nil
+	}
+
+	return &stagepkg.Result{Decision: stagepkg.DecisionProceed, Artifacts: artifacts}, nil
+}
+
+// runPerCriterionEvaluation evaluates each criterion in a separate LLM invocation.
+// Used when the diff is small enough that per-criterion calls are practical.
+func (s *Stage) runPerCriterionEvaluation(ctx context.Context, provider llmtypes.LLMProvider, specID string, criteria []coverage.Criterion, diff string, cfg *config.Config, req *stagepkg.Request) ([]presentation.AcceptanceResult, []string, error) {
 	results := make([]presentation.AcceptanceResult, 0, len(criteria))
 	failures := make([]string, 0, len(criteria))
 	findings := make([]stagepkg.SpecFinding, 0, len(criteria))
 
 	for _, criterion := range criteria {
-		// Bail if the parent context was explicitly cancelled (e.g. user stop).
 		if ctx.Err() != nil {
-			return nil, fmt.Errorf("accept interrupted: %w", ctx.Err())
+			return nil, nil, fmt.Errorf("accept interrupted: %w", ctx.Err())
 		}
 
 		trimmed := strings.TrimSpace(criterion.Text)
@@ -197,17 +257,15 @@ func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Resul
 		elapsed := time.Since(start)
 
 		if evalErr != nil {
-			// Parent context cancelled — stop entirely.
 			if ctx.Err() != nil {
-				return nil, fmt.Errorf("accept interrupted during criterion %d: %w", criterion.Number, evalErr)
+				return nil, nil, fmt.Errorf("accept interrupted during criterion %d: %w", criterion.Number, evalErr)
 			}
-			// Per-criterion timeout — soft failure, continue evaluating.
-			if errors.Is(evalErr, context.DeadlineExceeded) {
+			if isDeadlineExceeded(evalErr) {
 				s.Log("info", "accept: criterion %d timed out after %s, marking FAIL", criterion.Number, elapsed.Truncate(time.Second))
 				pass = false
 				summary = fmt.Sprintf("evaluation timed out after %s", elapsed.Truncate(time.Second))
 			} else {
-				return nil, fmt.Errorf("evaluate criterion %d: %w", criterion.Number, evalErr)
+				return nil, nil, fmt.Errorf("evaluate criterion %d: %w", criterion.Number, evalErr)
 			}
 		}
 
@@ -242,8 +300,20 @@ func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Resul
 		}
 		return &stagepkg.Result{Decision: stagepkg.DecisionFail, Artifacts: artifacts}, nil
 	}
-
 	return &stagepkg.Result{Decision: stagepkg.DecisionProceed, Artifacts: artifacts}, nil
+}
+
+func buildBatchRepairPrompt(previousOutput string, criteriaCount int) string {
+	return fmt.Sprintf(`Your previous response was not valid JSON. Here is what you wrote:
+
+---
+%s
+---
+
+Please convert your evaluation above into ONLY a JSON array with one object per criterion (%d total), in order:
+[{"criterion": 1, "pass": true, "summary": "Brief explanation."}, ...]
+
+Output ONLY the JSON array, nothing else.`, previousOutput, criteriaCount)
 }
 
 // evaluateCriterion runs the LLM evaluation for a single criterion with retry on parse failure.
@@ -394,6 +464,16 @@ func parseEvaluation(output string) (bool, string, error) {
 		return false, "", fmt.Errorf("parse evaluation output: %w", err)
 	}
 	return eval.Pass, strings.TrimSpace(eval.Summary), nil
+}
+
+// isDeadlineExceeded checks whether err represents a context deadline exceeded,
+// using both errors.Is and string matching. Go's exec.CommandContext with custom
+// Cancel functions can produce error chains where errors.Is misses the match.
+func isDeadlineExceeded(err error) bool {
+	if errors.Is(err, context.DeadlineExceeded) {
+		return true
+	}
+	return strings.Contains(err.Error(), "context deadline exceeded")
 }
 
 func summaryOrDefault(summary string) string {
