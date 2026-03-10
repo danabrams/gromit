@@ -19467,3 +19467,7 @@
 {"actor":"Dan Abrams","comment":null,"created_at":"2026-03-10T09:46:25Z","event_type":"closed","id":19468,"issue_id":"gromit-5pom0","new_value":"Closed","old_value":""}
 {"actor":"Dan Abrams","comment":null,"created_at":"2026-03-10T09:57:06Z","event_type":"closed","id":19469,"issue_id":"gromit-dkum6","new_value":"Closed","old_value":""}
 {"actor":"Dan Abrams","comment":null,"created_at":"2026-03-10T10:05:38Z","event_type":"closed","id":19470,"issue_id":"gromit-0bq18","new_value":"Closed","old_value":""}
+{"actor":"Dan Abrams","comment":null,"created_at":"2026-03-10T10:38:53Z","event_type":"created","id":19471,"issue_id":"gromit-b1ebs","new_value":"","old_value":""}
+{"actor":"Dan Abrams","comment":"Added label: spec:spec-level-review-and-targeted-remediation","created_at":"2026-03-10T10:38:53Z","event_type":"label_added","id":19472,"issue_id":"gromit-b1ebs","new_value":null,"old_value":null}
+{"actor":"Dan Abrams","comment":"Added label: gen:1","created_at":"2026-03-10T10:38:53Z","event_type":"label_added","id":19473,"issue_id":"gromit-b1ebs","new_value":null,"old_value":null}
+{"actor":"Dan Abrams","comment":"Added label: estimated-files:2","created_at":"2026-03-10T10:38:53Z","event_type":"label_added","id":19474,"issue_id":"gromit-b1ebs","new_value":null,"old_value":null}

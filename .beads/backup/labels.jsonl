@@ -1181,6 +1181,9 @@
 {"issue_id":"gromit-b05fm","label":"spec:strengthen-quality-gates"}
 {"issue_id":"gromit-b0a3c","label":"spec:spec-level-atdd-gates"}
 {"issue_id":"gromit-b0xw","label":"spec:pipeline-extraction"}
+{"issue_id":"gromit-b1ebs","label":"estimated-files:2"}
+{"issue_id":"gromit-b1ebs","label":"gen:1"}
+{"issue_id":"gromit-b1ebs","label":"spec:spec-level-review-and-targeted-remediation"}
 {"issue_id":"gromit-b1l1i","label":"spec:v2-run-loop"}
 {"issue_id":"gromit-b1w","label":"spec:precheck-already-done"}
 {"issue_id":"gromit-b39ja","label":"estimated-files:1"}
