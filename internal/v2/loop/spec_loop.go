@@ -876,7 +876,7 @@ func convertSpecFindings(src []stagepkg.SpecFinding) []finding.Finding {
 	}
 	out := make([]finding.Finding, 0, len(src))
 	for _, entry := range src {
-		out = append(out, convertToFinding(entry.Title, entry.Severity, entry.Category, entry.Scope, entry.Description, nil))
+		out = append(out, convertToFinding(entry.Title, entry.Severity, entry.Category, entry.Scope, entry.Description, entry.AffectedFiles))
 	}
 	return out
 }
