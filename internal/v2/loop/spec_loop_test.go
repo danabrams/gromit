@@ -571,6 +571,63 @@ func TestSpecLoopSpecReviewWarningsCreateFromReviewBeads(t *testing.T) {
 	}
 }
 
+func TestSpecLoopSpecReviewWarningsWithoutPassVerdictDoNotCreateFromReviewBeads(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	specID := "spec-review-warning-no-pass"
+	cfg := &config.Config{}
+
+	planStage := newFakePlanStage(specID)
+	presentStage, summaryCtx := newPresentStageForTest(t, cfg, newFakePresenterAdapter(t))
+
+	taskTracker := newFakeTaskTrackerAdapter()
+	adapters := adapter.AdapterSet{
+		Git:         newFakeGitAdapter(t),
+		LLM:         newFakeLLMAdapter(),
+		TaskTracker: taskTracker,
+		Presenter:   newFakePresenterAdapter(t),
+	}
+
+	decompose := newFakeDecomposeStage(specID)
+	beadRunner := newFakeBeadRunner()
+	accept := newFakeAcceptStage()
+
+	warningFinding := stagepkg.Finding{
+		Severity:    stagepkg.SeverityWarning,
+		Category:    stagepkg.CategoryQuality,
+		Scope:       stagepkg.ScopeGeneral,
+		Description: "general warning",
+	}
+	specReview := newFakeSpecReviewStage(&stagepkg.Result{
+		Decision: stagepkg.DecisionProceed,
+		Artifacts: &specreview.SpecReviewArtifacts{
+			Verdict:  "pass",
+			Findings: []stagepkg.Finding{warningFinding},
+		},
+	})
+
+	loopInstance, err := NewSpecLoop(adapters, cfg, noopDependencyGate{},
+		WithPlanStage(planStage),
+		WithPresentStage(presentStage, summaryCtx),
+		WithDecomposeStage(decompose),
+		WithBeadLoop(beadRunner),
+		WithAcceptStage(accept),
+		WithSpecReviewStage(specReview),
+	)
+	if err != nil {
+		t.Fatalf("create spec loop: %v", err)
+	}
+
+	if err := loopInstance.Run(ctx, specID, nil); err != nil {
+		t.Fatalf("run spec loop: %v", err)
+	}
+
+	if len(taskTracker.createdBeads) != 0 {
+		t.Fatalf("created beads = %d, want 0", len(taskTracker.createdBeads))
+	}
+}
+
 type recordingSpecReviewRemediationRunner struct {
 	calls        int
 	lastFindings []stagepkg.Finding
