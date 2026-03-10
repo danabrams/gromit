@@ -738,6 +738,14 @@ func TestConvertSpecFindingsCopiesAffectedFiles(t *testing.T) {
 	}
 }
 
+func TestMapSpecSeverityHighIsCritical(t *testing.T) {
+	t.Parallel()
+
+	if got := mapSpecSeverity(stage.SpecFindingSeverityHigh); got != finding.SeverityCritical {
+		t.Fatalf("mapSpecSeverity(high) = %q, want %q", got, finding.SeverityCritical)
+	}
+}
+
 func TestRemediation_CreatesRemediationPlanNotOriginal(t *testing.T) {
 	t.Parallel()
 
