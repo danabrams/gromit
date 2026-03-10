@@ -451,7 +451,7 @@ func (s *SpecLoop) Run(ctx context.Context, specID string, stopCh <-chan struct{
 		return fmt.Errorf("commit after spec review: %w", err)
 	}
 
-	summary := s.buildSuccessSummary(specID, worktree, plan, beads, acceptRes, beadResult.OutOfScopeFindings)
+	summary := s.buildSuccessSummary(specID, worktree, plan, beads, finalAcceptRes, beadResult.OutOfScopeFindings)
 
 	s.recordStage("specreview")
 	if _, reviewErr := s.runSpecReview(ctx, &req); reviewErr != nil {
