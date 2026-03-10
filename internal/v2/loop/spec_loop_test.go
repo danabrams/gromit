@@ -400,6 +400,42 @@ func TestSpecLoopRemediatesSpecReviewFindings(t *testing.T) {
 	}
 }
 
+func TestSpecLoopSpecreviewFailureHaltsRun(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	specID := "spec-loop-specreview-fail"
+
+	reviewFailStage := newFakeStage("specreview", &stagepkg.Result{Decision: stagepkg.DecisionFail}, nil)
+
+	loopInstance, err := NewSpecLoop(
+		adapter.AdapterSet{
+			Git:         newFakeGitAdapter(t),
+			LLM:         newFakeLLMAdapter(),
+			TaskTracker: newFakeTaskTrackerAdapter(),
+			Presenter:   newFakePresenterAdapter(t),
+		},
+		&config.Config{}, noopDependencyGate{},
+		WithPlanStage(newFakePlanStage(specID)),
+		WithPresentStage(newFakePresentStage(), &present.SummaryContext{}),
+		WithDecomposeStage(newFakeDecomposeStage(specID)),
+		WithBeadLoop(newFakeBeadRunner()),
+		WithAcceptStage(newFakeAcceptStage()),
+		WithSpecReviewStage(reviewFailStage),
+	)
+	if err != nil {
+		t.Fatalf("create spec loop: %v", err)
+	}
+
+	err = loopInstance.Run(ctx, specID, nil)
+	if err == nil {
+		t.Fatal("expected spec loop to fail when specreview fails")
+	}
+	if !reviewFailStage.called {
+		t.Fatal("spec review stage was not invoked for failure path")
+	}
+}
+
 func TestBuildSuccessSummaryIncludesOutOfScopeFindings(t *testing.T) {
 	t.Parallel()
 
