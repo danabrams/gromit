@@ -3315,6 +3315,9 @@
 {"issue_id":"gromit-wzx","label":"complexity:low"}
 {"issue_id":"gromit-x0dqh","label":"backlog"}
 {"issue_id":"gromit-x0dqh","label":"tdd:false"}
+{"issue_id":"gromit-x1xsn","label":"estimated-files:1"}
+{"issue_id":"gromit-x1xsn","label":"gen:1"}
+{"issue_id":"gromit-x1xsn","label":"spec:spec-level-review-and-targeted-remediation"}
 {"issue_id":"gromit-x316","label":"spec:epic-scoped-execution"}
 {"issue_id":"gromit-x3n","label":"spec:pipeline-stages"}
 {"issue_id":"gromit-x5abw","label":"estimated-files:1"}
