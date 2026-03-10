@@ -1,6 +1,7 @@
 package provenance
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -52,6 +53,18 @@ func TestFSTracker_IsFresh(t *testing.T) {
 	fresh, _ = tracker.IsFresh("architecture", "def456")
 	if fresh {
 		t.Error("should not be fresh with different SHA")
+	}
+}
+
+func TestFSTracker_RecordWithCorruptFile(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "provenance.json")
+	os.WriteFile(path, []byte("{corrupt json!!!"), 0o644)
+
+	tracker := NewFSTracker(path)
+	err := tracker.Record(Record{Artifact: "test", GitSHA: "abc"})
+	if err == nil {
+		t.Error("expected error for corrupt provenance file")
 	}
 }
 

@@ -32,7 +32,10 @@ func NewFSTracker(path string) *FSTracker {
 }
 
 func (t *FSTracker) Record(rec Record) error {
-	records, _ := t.load()
+	records, err := t.load()
+	if err != nil {
+		return fmt.Errorf("load provenance: %w", err)
+	}
 	records[rec.Artifact] = rec
 	return t.save(records)
 }
