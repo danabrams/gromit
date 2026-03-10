@@ -1,53 +1,111 @@
-// Package projectcell manages per-project storage cells within the workspace.
-//
-// Each attached project gets its own cell directory containing all derived
-// artifacts (architecture.json, source-map.json, etc.). Cells are keyed by
-// a stable project identifier derived from the repo URL or local path.
-//
-// TODO: implement project registration (create cell directory, write project.yaml)
-// TODO: implement project listing (enumerate cells in workspace)
-// TODO: implement project lookup by repo path or alias
-// TODO: implement multi-project isolation (cells must not share mutable state)
 package projectcell
 
-// Cell represents a single project's storage directory within the workspace.
+import (
+	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
+	"time"
+)
+
 type Cell struct {
-	// ID is the stable identifier for this project cell.
-	ID string
-
-	// Path is the absolute path to the cell directory.
-	Path string
-
-	// Project holds the project configuration.
-	Project ProjectConfig
+	Name      string    `json:"name"`
+	RepoPath  string    `json:"repo_path"`
+	CreatedAt time.Time `json:"created_at"`
+	CellPath  string    `json:"-"`
 }
 
-// ProjectConfig is the in-memory representation of project.yaml.
-//
-// TODO: implement YAML serialization
-// TODO: implement validation (required fields, path existence)
-type ProjectConfig struct {
-	// Name is the human-readable project name.
-	Name string `yaml:"name"`
-
-	// RepoPath is the absolute path to the project's git repository.
-	RepoPath string `yaml:"repo_path"`
-
-	// Alias is an optional short name for CLI convenience.
-	Alias string `yaml:"alias,omitempty"`
-}
-
-// Store manages project cell lifecycle within a workspace.
-//
-// TODO: implement file-based storage backend
-// TODO: implement cell creation, lookup, and enumeration
 type Store interface {
-	// Create initializes a new project cell.
-	Create(config ProjectConfig) (*Cell, error)
+	Create(name string, repoPath string) (Cell, error)
+	Get(name string) (Cell, error)
+	List() ([]Cell, error)
+	Delete(name string) error
+}
 
-	// Get retrieves a project cell by ID.
-	Get(id string) (*Cell, error)
+type FSStore struct {
+	projectsDir string
+}
 
-	// List returns all project cells in the workspace.
-	List() ([]*Cell, error)
+func NewFSStore(projectsDir string) *FSStore {
+	return &FSStore{projectsDir: projectsDir}
+}
+
+func (s *FSStore) Create(name string, repoPath string) (Cell, error) {
+	cellDir := filepath.Join(s.projectsDir, name)
+	if _, err := os.Stat(cellDir); err == nil {
+		return Cell{}, fmt.Errorf("project %q already exists", name)
+	}
+	if !isGitRepo(repoPath) {
+		return Cell{}, fmt.Errorf("%q is not a git repository", repoPath)
+	}
+
+	abs, err := filepath.Abs(repoPath)
+	if err != nil {
+		return Cell{}, err
+	}
+
+	cell := Cell{
+		Name:      name,
+		RepoPath:  abs,
+		CreatedAt: time.Now(),
+		CellPath:  cellDir,
+	}
+
+	for _, sub := range []string{"artifacts", "doctrine", "provenance", "guide"} {
+		if err := os.MkdirAll(filepath.Join(cellDir, sub), 0o755); err != nil {
+			return Cell{}, err
+		}
+	}
+
+	data, err := json.MarshalIndent(cell, "", "  ")
+	if err != nil {
+		return Cell{}, err
+	}
+	return cell, os.WriteFile(filepath.Join(cellDir, "project.json"), data, 0o644)
+}
+
+func (s *FSStore) Get(name string) (Cell, error) {
+	cellDir := filepath.Join(s.projectsDir, name)
+	data, err := os.ReadFile(filepath.Join(cellDir, "project.json"))
+	if err != nil {
+		return Cell{}, fmt.Errorf("project %q not found: %w", name, err)
+	}
+	var cell Cell
+	if err := json.Unmarshal(data, &cell); err != nil {
+		return Cell{}, err
+	}
+	cell.CellPath = cellDir
+	return cell, nil
+}
+
+func (s *FSStore) List() ([]Cell, error) {
+	entries, err := os.ReadDir(s.projectsDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	var cells []Cell
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		cell, err := s.Get(e.Name())
+		if err != nil {
+			continue
+		}
+		cells = append(cells, cell)
+	}
+	return cells, nil
+}
+
+func (s *FSStore) Delete(name string) error {
+	cellDir := filepath.Join(s.projectsDir, name)
+	return os.RemoveAll(cellDir)
+}
+
+func isGitRepo(path string) bool {
+	_, err := os.Stat(filepath.Join(path, ".git"))
+	return err == nil
 }
