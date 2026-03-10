@@ -75,6 +75,53 @@ func TestSpecLoopEnsureAcceptanceAndReviewCreatesFromReviewBeads(t *testing.T) {
 	}
 }
 
+func TestSpecLoopPassWithImprovementsUsesMediumSeverityFindings(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	specID := "spec-review-medium"
+
+	tracker := newRecordingTaskTracker()
+	acceptStage := newFakeAcceptStage()
+
+	reviewArtifact := &specreview.SpecReviewArtifacts{
+		Verdict: "pass",
+		Findings: []specreview.SpecReviewFinding{ {
+			Severity:    stagepkg.SpecFindingSeverityMedium,
+			Category:    stagepkg.SpecFindingCategoryQuality,
+			Scope:       stagepkg.SpecFindingScopeSpec,
+			Description: "medium improvement",
+		}},
+	}
+	specReviewStage := newScriptedSpecReviewStage(&stagepkg.Result{
+		Decision:  stagepkg.DecisionProceed,
+		Artifacts: reviewArtifact,
+	})
+
+	s := &SpecLoop{
+		adapters:        adapter.AdapterSet{TaskTracker: tracker},
+		acceptStage:     acceptStage,
+		specReviewStage: specReviewStage,
+	}
+	req := stagepkg.Request{Bead: stagepkg.BeadInfo{ID: specID}, Worktree: "worktree"}
+	if _, err := s.ensureAcceptance(ctx, &req, specID); err != nil {
+		t.Fatalf("ensure acceptance and review: %v", err)
+	}
+
+	if got, want := len(tracker.created), 1; got != want {
+		t.Fatalf("created beads = %d, want %d", got, want)
+	}
+
+	created := tracker.created[0]
+	if created.Description != "medium improvement" {
+		t.Fatalf("created description = %q, want %q", created.Description, "medium improvement")
+	}
+	wantLabels := []string{"from-review", "spec:" + specID}
+	if !reflect.DeepEqual(created.Labels, wantLabels) {
+		t.Fatalf("created labels = %v, want %v", created.Labels, wantLabels)
+	}
+}
+
 func TestSpecLoopCreateFromReviewBeadsIgnoresCriticalFindings(t *testing.T) {
 	t.Parallel()
 

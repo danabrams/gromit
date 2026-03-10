@@ -875,7 +875,7 @@ func extractSpecReviewFindings(res *stagepkg.Result) []finding.Finding {
 	if !ok || artifacts == nil {
 		return nil
 	}
-	return cloneStageFindings(artifacts.Findings)
+	return convertSpecReviewFindings(artifacts.Findings)
 }
 
 func specReviewCreatedBeads(res *stagepkg.Result) bool {
@@ -987,18 +987,6 @@ func cloneOutOfScopeFindings(findings []v2review.Finding) []v2review.Finding {
 	return clones
 }
 
-func cloneStageFindings(src []finding.Finding) []finding.Finding {
-	if len(src) == 0 {
-		return nil
-	}
-	clones := make([]finding.Finding, len(src))
-	for i, item := range src {
-		clones[i] = item
-		clones[i].AffectedFiles = append([]string(nil), item.AffectedFiles...)
-	}
-	return clones
-}
-
 func extractAcceptFindings(res *stagepkg.Result) []finding.Finding {
 	if res == nil || res.Artifacts == nil {
 		return nil
@@ -1007,7 +995,7 @@ func extractAcceptFindings(res *stagepkg.Result) []finding.Finding {
 	if !ok || artifacts == nil {
 		return nil
 	}
-	return cloneStageFindings(artifacts.Findings)
+	return convertSpecFindings(artifacts.Findings)
 }
 
 func mergeFindings(acceptRes, specreviewRes *stagepkg.Result) []finding.Finding {
@@ -1020,6 +1008,89 @@ func mergeFindings(acceptRes, specreviewRes *stagepkg.Result) []finding.Finding 
 	merged = append(merged, acceptFindings...)
 	merged = append(merged, reviewFindings...)
 	return merged
+}
+
+func convertSpecFindings(src []stagepkg.SpecFinding) []finding.Finding {
+	if len(src) == 0 {
+		return nil
+	}
+	out := make([]finding.Finding, 0, len(src))
+	for _, entry := range src {
+		out = append(out, convertToFinding(entry.Severity, entry.Category, entry.Scope, entry.Description, entry.AffectedFiles))
+	}
+	return out
+}
+
+func convertSpecReviewFindings(src []specreview.SpecReviewFinding) []finding.Finding {
+	if len(src) == 0 {
+		return nil
+	}
+	out := make([]finding.Finding, 0, len(src))
+	for _, entry := range src {
+		out = append(out, convertToFinding(entry.Severity, entry.Category, entry.Scope, entry.Description, entry.AffectedFiles))
+	}
+	return out
+}
+
+func convertToFinding(severity stagepkg.SpecFindingSeverity, category stagepkg.SpecFindingCategory, scope stagepkg.SpecFindingScope, description string, affected []string) finding.Finding {
+	return finding.Finding{
+		Severity:      convertSeverity(severity),
+		Category:      convertCategory(category),
+		Scope:         normalizeScope(scope),
+		Description:   strings.TrimSpace(description),
+		AffectedFiles: cloneStrings(affected),
+	}
+}
+
+func convertSeverity(severity stagepkg.SpecFindingSeverity) finding.Severity {
+	switch strings.ToLower(strings.TrimSpace(string(severity))) {
+	case string(stagepkg.SpecFindingSeverityCritical):
+		return finding.SeverityCritical
+	case string(stagepkg.SpecFindingSeverityHigh):
+		return finding.SeverityCritical
+	case string(stagepkg.SpecFindingSeverityMedium):
+		return finding.SeverityWarning
+	case string(stagepkg.SpecFindingSeverityLow):
+		return finding.SeveritySuggestion
+	default:
+		return finding.SeveritySuggestion
+	}
+}
+
+func convertCategory(category stagepkg.SpecFindingCategory) finding.Category {
+	trimmed := strings.ToLower(strings.TrimSpace(string(category)))
+	switch trimmed {
+	case string(stagepkg.SpecFindingCategoryAcceptance):
+		return finding.CategoryAcceptance
+	case string(stagepkg.SpecFindingCategoryQuality):
+		return finding.CategoryQuality
+	case string(stagepkg.SpecFindingCategoryTestGap):
+		return finding.CategoryTestGap
+	case string(stagepkg.SpecFindingCategoryArchitecture):
+		return finding.CategoryArchitecture
+	case string(stagepkg.SpecFindingCategorySecurity):
+		return finding.CategorySecurity
+	case string(stagepkg.SpecFindingCategoryBug):
+		return finding.CategoryBug
+	default:
+		if trimmed == "" {
+			return ""
+		}
+		return finding.Category(trimmed)
+	}
+}
+
+func normalizeScope(scope stagepkg.SpecFindingScope) string {
+	return strings.TrimSpace(string(scope))
+}
+
+func cloneStrings(src []string) []string {
+	if len(src) == 0 {
+		return nil
+	}
+	dst := make([]string, len(src))
+	copy(dst, src)
+	return dst
 }
 
 func (s *SpecLoop) createFromReviewBeads(ctx context.Context, specID string, reviewFindings []finding.Finding) error {
