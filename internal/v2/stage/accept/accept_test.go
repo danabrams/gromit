@@ -190,6 +190,80 @@ func TestRunProceedWhenAllCriteriaPass(t *testing.T) {
 	}
 }
 
+func TestAcceptStageProducesFindingsForFailedCriteria(t *testing.T) {
+	t.Parallel()
+
+	specID := "spec-findings"
+	tmp := t.TempDir()
+	specDir := filepath.Join(tmp, ".gromit", "specs")
+	if err := os.MkdirAll(specDir, 0o755); err != nil {
+		t.Fatalf("create specs dir: %v", err)
+	}
+	specPath := filepath.Join(specDir, specID+".md")
+	content := "# Findings spec\n\n## Acceptance Criteria\n- ensure mapping works\n"
+	if err := os.WriteFile(specPath, []byte(content), 0o644); err != nil {
+		t.Fatalf("write spec: %v", err)
+	}
+
+	cfg := &config.Config{
+		ProjectRoot: tmp,
+		Paths: config.PathsConfig{
+			GromitDir: ".gromit",
+			Specs:     ".gromit/specs",
+		},
+	}
+
+	git := &fakeGitAdapter{
+		diff: "diff --git a/foo/bar.go b/foo/bar.go\nindex 0000000..1111111 100644\n--- a/foo/bar.go\n+++ b/foo/bar.go\n@@\n+func foo() {}\n",
+	}
+	llmProvider := &fakeLLM{
+		responses: []*llm.LLMResponse{
+			{Success: true, Output: `{"1":["foo/bar.go"]}`},
+			{Success: true, Output: `{"pass": false, "summary": "needs tests"}`},
+		},
+	}
+
+	stageInstance, err := New(cfg, git, llmProvider, "BASE", "PROJECT", "FRAGMENT")
+	if err != nil {
+		t.Fatalf("create stage: %v", err)
+	}
+	stageInstance.batchDiffThreshold = 5 // ensure diff exceeds threshold for targeted evaluation
+
+	req := &stagepkg.Request{
+		Bead:     stagepkg.BeadInfo{ID: specID},
+		Worktree: tmp,
+	}
+
+	res, err := stageInstance.Run(context.Background(), req)
+	if err != nil {
+		t.Fatalf("run stage: %v", err)
+	}
+	if res.Decision != stagepkg.DecisionFail {
+		t.Fatalf("decision = %v, want %v", res.Decision, stagepkg.DecisionFail)
+	}
+
+	artifacts, ok := res.Artifacts.(*AcceptArtifacts)
+	if !ok {
+		t.Fatalf("artifacts type = %T, want *AcceptArtifacts", res.Artifacts)
+	}
+	if len(artifacts.Findings) != 1 {
+		t.Fatalf("findings count = %d, want 1", len(artifacts.Findings))
+	}
+	finding := artifacts.Findings[0]
+	if finding.Severity != "critical" {
+		t.Fatalf("severity = %q, want critical", finding.Severity)
+	}
+	if finding.Category != "acceptance" {
+		t.Fatalf("category = %q, want acceptance", finding.Category)
+	}
+	if finding.Scope != "spec" {
+		t.Fatalf("scope = %q, want spec", finding.Scope)
+	}
+	if len(finding.AffectedFiles) != 1 || finding.AffectedFiles[0] != "foo/bar.go" {
+		t.Fatalf("affected files = %v, want [foo/bar.go]", finding.AffectedFiles)
+	}
+}
+
 type fakeLLM struct {
 	calls     []llm.InvokeRequest
 	responses []*llm.LLMResponse
