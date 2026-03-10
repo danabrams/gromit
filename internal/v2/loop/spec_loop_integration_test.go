@@ -10,6 +10,7 @@ import (
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/tracker"
 	"github.com/danabrams/gromit/internal/v2/adapter"
 	"github.com/danabrams/gromit/internal/v2/adapter/llm"
 	"github.com/danabrams/gromit/internal/v2/stage"
@@ -170,6 +171,112 @@ func TestIntegration_SpecLoop_RemediationFindingsTargetedBeads(t *testing.T) {
 		if bead.Title != expectedDescriptions[i] {
 			t.Fatalf("bead[%d].Title = %q, want %q", i, bead.Title, expectedDescriptions[i])
 		}
+	}
+}
+
+func TestIntegration_SpecLoop_PassWithImprovementsCreatesDeferredBeads(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	specID := "spec-integration-pass-with-improvements"
+	projectRoot := filepath.Clean(".")
+	cfg := &config.Config{
+		ProjectRoot: projectRoot,
+		Paths:       config.PathsConfig{GromitDir: ".gromit"},
+		SpecGate:    config.SpecGateConfig{Model: config.ModelOpus},
+	}
+
+	baseInstructions, err := loadBaseInstructions(projectRoot)
+	if err != nil {
+		t.Fatalf("load base instructions: %v", err)
+	}
+	projectContext, err := loadProjectContext(projectRoot)
+	if err != nil {
+		t.Fatalf("load project context: %v", err)
+	}
+	specReviewFragment, err := loadFragment(projectRoot, "review_spec_v2.md")
+	if err != nil {
+		t.Fatalf("load spec review fragment: %v", err)
+	}
+
+	git := newIntegrationGitAdapter(t)
+	tracker := newIntegrationTaskTrackerAdapter()
+	planStage := newFakePlanStage(specID)
+	decompose := newFakeDecomposeStage(specID)
+	beadRunner := newFakeBeadRunner()
+
+	acceptStage := newScriptedAcceptStage(stagepkg.Result{Decision: stagepkg.DecisionProceed})
+
+	passResponse := &llm.LLMInvokeResponse{
+		Success: true,
+		Output: `{"verdict":"pass","summary":"pass with improvements","findings":[` +
+			`{"verdict":"pass","severity":"warning","category":"quality","scope":"spec","description":"Improve spec detail","affected_files":["internal/v2/loop/spec_loop.go"]},` +
+			`{"verdict":"pass","severity":"suggestion","category":"architecture","scope":"stage","description":"General cleanup","affected_files":["docs/README.md"]}` +
+			`]}`,
+	}
+	provider := newSequentialLLMProvider(passResponse)
+	specReviewStage, err := specreview.New(cfg, git, provider, tracker, baseInstructions, projectContext, specReviewFragment)
+	if err != nil {
+		t.Fatalf("create spec review stage: %v", err)
+	}
+
+	presenter := newIntegrationPresenterAdapter(t)
+	presentStage, summaryCtx := newPresentStageForTest(t, cfg, presenter)
+
+	adapters := adapter.AdapterSet{
+		Git:         git,
+		LLM:         newFakeLLMAdapter(),
+		TaskTracker: tracker,
+		Presenter:   presenter,
+	}
+
+	loopInstance, err := NewSpecLoop(adapters, cfg, noopDependencyGate{},
+		WithPlanStage(planStage),
+		WithPresentStage(presentStage, summaryCtx),
+		WithDecomposeStage(decompose),
+		WithBeadLoop(beadRunner),
+		WithAcceptStage(acceptStage),
+		WithSpecReviewStage(specReviewStage),
+	)
+	if err != nil {
+		t.Fatalf("create spec loop: %v", err)
+	}
+
+	if err := loopInstance.Run(ctx, specID, nil); err != nil {
+		t.Fatalf("run spec loop: %v", err)
+	}
+
+	assertPresenterSuccess(t, presenter, true)
+
+	beads, err := collectOpenFromReviewBeads(ctx, tracker)
+	if err != nil {
+		t.Fatalf("collect from-review beads: %v", err)
+	}
+	if len(beads) != 2 {
+		t.Fatalf("found %d from-review beads, want 2", len(beads))
+	}
+
+	specLabel := tracker.SpecLabelFor(specID)
+	specCount := 0
+	generalCount := 0
+	for _, bead := range beads {
+		if bead.Status != tracker.StatusOpen {
+			t.Fatalf("bead %s status = %q, want %q", bead.ID, bead.Status, tracker.StatusOpen)
+		}
+		if !labelContains(bead.Labels, "from-review") {
+			t.Fatalf("bead %s missing from-review label: %v", bead.ID, bead.Labels)
+		}
+		if labelContains(bead.Labels, specLabel) {
+			specCount++
+		} else {
+			generalCount++
+		}
+	}
+	if specCount != 1 {
+		t.Fatalf("spec-scoped beads = %d, want 1", specCount)
+	}
+	if generalCount != 1 {
+		t.Fatalf("general beads = %d, want 1", generalCount)
 	}
 }
 
