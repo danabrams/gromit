@@ -213,7 +213,17 @@ func extractPlanContent(res *stage.Result) string {
 	return ""
 }
 
-func (r *RemediationRunner) executeRemediation(ctx context.Context, req *stage.Request, gapAnalysis string) error {
+func extractFindings(res *stage.Result) []stage.Finding {
+	if res == nil || res.Artifacts == nil {
+		return nil
+	}
+	if fp, ok := res.Artifacts.(findingsProvider); ok {
+		return fp.GetFindings()
+	}
+	return nil
+}
+
+func (r *RemediationRunner) executeRemediation(ctx context.Context, req *stage.Request, gapAnalysis string, findings []stage.Finding) error {
 	specID := req.Bead.ID
 	if !r.canRemediate() {
 		return r.handleGenerationCap(ctx, specID)

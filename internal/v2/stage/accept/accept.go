@@ -217,7 +217,7 @@ func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Resul
 		}
 
 		s.Log("info", "accept: diff is %d bytes (>%d threshold), using targeted evaluation for %d criteria", len(diff), threshold, len(criteria))
-	results, failures, findings, evalErr := s.runTargetedEvaluation(ctx, provider, specID, criteria, diff, cfg, req)
+		results, failures, findings, evalErr := s.runTargetedEvaluation(ctx, provider, specID, criteria, diff, cfg, req)
 		if evalErr != nil {
 			return nil, evalErr
 		}
