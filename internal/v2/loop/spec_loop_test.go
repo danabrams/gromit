@@ -1141,6 +1141,55 @@ func TestEnsureAcceptanceMergesAcceptAndSpecReviewFindingsForRemediation(t *test
 	}
 }
 
+func TestEnsureAcceptanceHandlesSpecReviewVerdictFailureWithRemediation(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	specID := "spec-loop-accept-pass-spec-review-verd-fail"
+
+	accept := newFakeAcceptStage()
+	failureFinding := specreview.SpecReviewFinding{
+		Title:       "review verdict fail",
+		Description: "spec review verdict fail path",
+		Severity:    stagepkg.SpecFindingSeverityHigh,
+		Category:    stagepkg.SpecFindingCategoryQuality,
+		Scope:       stagepkg.SpecFindingScopeSpec,
+	}
+	specReview := newVerdictFailSpecReviewStage(failureFinding, maxAcceptanceRetries+1)
+	runner := &recordingRemediationRunner{}
+	s := &SpecLoop{
+		acceptStage:       accept,
+		specReviewStage:   specReview,
+		remediationRunner: runner,
+	}
+	req := stagepkg.Request{Bead: stagepkg.BeadInfo{ID: specID}, Worktree: "/tmp/worktree"}
+	acceptRes, specReviewRes, err := s.ensureAcceptance(ctx, &req, specID)
+	if err == nil {
+		t.Fatalf("ensure acceptance succeeded unexpectedly")
+	}
+	if !errors.Is(err, ErrAcceptanceRetriesExceeded) {
+		t.Fatalf("error = %v, want ErrAcceptanceRetriesExceeded", err)
+	}
+	if acceptRes == nil || acceptRes.Decision != stagepkg.DecisionProceed {
+		t.Fatalf("accept decision = %v, want proceed", acceptRes)
+	}
+	if specReviewRes == nil {
+		t.Fatal("spec review result missing")
+	}
+	if runner.calls != maxAcceptanceRetries {
+		t.Fatalf("remediation runner calls = %d, want %d", runner.calls, maxAcceptanceRetries)
+	}
+	if runner.lastSpecID != specID {
+		t.Fatalf("remediation spec ID = %q, want %q", runner.lastSpecID, specID)
+	}
+	if len(runner.lastFindings) != 1 {
+		t.Fatalf("remediation findings = %d, want 1", len(runner.lastFindings))
+	}
+	if runner.lastFindings[0].Description != failureFinding.Description {
+		t.Fatalf("finding description = %q, want %q", runner.lastFindings[0].Description, failureFinding.Description)
+	}
+}
+
 func TestSpecLoopReusesExistingPlan(t *testing.T) {
 	t.Parallel()
 
