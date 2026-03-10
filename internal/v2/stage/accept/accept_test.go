@@ -235,6 +235,58 @@ func TestRunTargetedFailureProducesFindings(t *testing.T) {
 	}
 }
 
+func TestRunBatchFailureProducesFindings(t *testing.T) {
+	t.Parallel()
+
+	specID := "spec-batch"
+	tmp := t.TempDir()
+	specDir := filepath.Join(tmp, ".gromit", "specs")
+	if err := os.MkdirAll(specDir, 0o755); err != nil {
+		t.Fatalf("create specs dir: %v", err)
+	}
+	specPath := filepath.Join(specDir, specID+".md")
+	content := "# Batch spec\n\n## Acceptance Criteria\n- aggregated behavior"
+	if err := os.WriteFile(specPath, []byte(content), 0o644); err != nil {
+		t.Fatalf("write spec: %v", err)
+	}
+
+	cfg := &config.Config{
+		ProjectRoot: tmp,
+		Paths: config.PathsConfig{
+			GromitDir: ".gromit",
+			Specs:     ".gromit/specs",
+		},
+	}
+
+	git := &fakeGitAdapter{diff: "diff --git a/b.go b/b.go\n"}
+	llmProvider := &fakeLLM{
+		responses: []*llm.LLMResponse{{Success: true, Output: `[{"criterion": 1, "pass": false, "summary": "batch fail"}]`}},
+	}
+
+	stageInstance, err := New(cfg, git, llmProvider, "BASE", "PROJECT", "FRAGMENT")
+	if err != nil {
+		t.Fatalf("create stage: %v", err)
+	}
+	stageInstance.batchDiffThreshold = 100 // force batch evaluation
+
+	req := &stagepkg.Request{
+		Bead:     stagepkg.BeadInfo{ID: specID},
+		Worktree: tmp,
+	}
+
+	res, err := stageInstance.Run(context.Background(), req)
+	if err != nil {
+		t.Fatalf("run stage: %v", err)
+	}
+	artifacts, ok := res.Artifacts.(*AcceptArtifacts)
+	if !ok {
+		t.Fatalf("artifacts type = %T, want *AcceptArtifacts", res.Artifacts)
+	}
+	if len(artifacts.Findings) != 1 {
+		t.Fatalf("findings count = %d, want 1", len(artifacts.Findings))
+	}
+}
+
 func TestRunProceedWhenAllCriteriaPass(t *testing.T) {
 	t.Parallel()
 
