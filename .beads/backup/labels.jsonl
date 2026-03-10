@@ -3207,6 +3207,9 @@
 {"issue_id":"gromit-vdhpv","label":"bug"}
 {"issue_id":"gromit-vdhpv","label":"from-review"}
 {"issue_id":"gromit-vdhpv","label":"spec:immutable-pipeline"}
+{"issue_id":"gromit-veios","label":"estimated-files:2"}
+{"issue_id":"gromit-veios","label":"gen:1"}
+{"issue_id":"gromit-veios","label":"spec:spec-level-review-and-targeted-remediation"}
 {"issue_id":"gromit-vflg","label":"spec:status-bead-breakdown"}
 {"issue_id":"gromit-vgsvw","label":"estimated-files:2"}
 {"issue_id":"gromit-vgsvw","label":"spec:unstick-beads"}
