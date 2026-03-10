@@ -313,7 +313,7 @@ func (s *Stage) selectModel(cfg *config.Config, req *stagepkg.Request) string {
 			return trimmed
 		}
 	}
-	return config.ModelSonnet
+	return config.ModelOpus
 }
 
 func decisionFromArtifacts(artifacts *SpecReviewArtifacts) stagepkg.Decision {
