@@ -896,6 +896,9 @@
 {"issue_id":"gromit-80xs2","label":"gen:1"}
 {"issue_id":"gromit-80xs2","label":"spec:immutable-pipeline"}
 {"issue_id":"gromit-81bz","label":"spec:epic-scoped-execution"}
+{"issue_id":"gromit-81reo","label":"estimated-files:3"}
+{"issue_id":"gromit-81reo","label":"gen:1"}
+{"issue_id":"gromit-81reo","label":"spec:spec-level-review-and-targeted-remediation"}
 {"issue_id":"gromit-82ilf","label":"from-review"}
 {"issue_id":"gromit-82ilf","label":"refactor"}
 {"issue_id":"gromit-82ilf","label":"spec:immutable-pipeline"}
@@ -1916,6 +1919,9 @@
 {"issue_id":"gromit-j99sy","label":"spec:immutable-pipeline"}
 {"issue_id":"gromit-j9d4b","label":"spec:tdd-cycle-coverage-tracker"}
 {"issue_id":"gromit-j9h5","label":"spec:concurrent-interactive-worktrees"}
+{"issue_id":"gromit-jb0h4","label":"estimated-files:1"}
+{"issue_id":"gromit-jb0h4","label":"gen:1"}
+{"issue_id":"gromit-jb0h4","label":"spec:spec-level-review-and-targeted-remediation"}
 {"issue_id":"gromit-jb6o","label":"spec:concurrent-interactive-worktrees"}
 {"issue_id":"gromit-jba","label":"spec:expanded-status"}
 {"issue_id":"gromit-jbec","label":"spec:invocation-result-consolidation"}
