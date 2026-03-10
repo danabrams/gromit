@@ -4,13 +4,29 @@ import (
 	"context"
 
 	"github.com/danabrams/gromit/internal/next/fact"
-	"github.com/danabrams/gromit/internal/next/projectcell"
 )
+
+// Cell contains the information the inspector needs about a project cell.
+type Cell struct {
+	Name     string
+	RepoPath string
+	CellPath string
+}
 
 // Result holds the output of a full repo inspection pass.
 type Result struct {
 	Observed []fact.Fact
 	Inferred []fact.Fact
+}
+
+// NormalizeNilFields maps nil slices to empty values.
+func (r *Result) NormalizeNilFields() {
+	if r.Observed == nil {
+		r.Observed = []fact.Fact{}
+	}
+	if r.Inferred == nil {
+		r.Inferred = []fact.Fact{}
+	}
 }
 
 // Extractor produces observed facts from a repository path.
@@ -26,5 +42,5 @@ type Inferrer interface {
 
 // Inspector performs repo inspection and writes artifacts to a project cell.
 type Inspector interface {
-	Inspect(ctx context.Context, cell projectcell.Cell) (Result, error)
+	Inspect(ctx context.Context, cell Cell) (Result, error)
 }

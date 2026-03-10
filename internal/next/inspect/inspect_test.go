@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/danabrams/gromit/internal/next/fact"
-	"github.com/danabrams/gromit/internal/next/projectcell"
 )
 
 type mockExtractor struct {
@@ -25,7 +24,7 @@ func (m *mockInferrer) Infer(ctx context.Context, observed []fact.Fact) ([]fact.
 }
 
 func TestDefaultInspector_Inspect(t *testing.T) {
-	cell := projectcell.Cell{
+	cell := Cell{
 		Name:     "test",
 		RepoPath: t.TempDir(),
 		CellPath: t.TempDir(),

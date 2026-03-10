@@ -11,7 +11,6 @@ import (
 	"fmt"
 
 	"github.com/danabrams/gromit/internal/next/fact"
-	"github.com/danabrams/gromit/internal/next/projectcell"
 )
 
 // DefaultInspector orchestrates the extract-then-infer pipeline.
@@ -29,7 +28,7 @@ func NewInspector(extractors []Extractor, inferrer Inferrer) *DefaultInspector {
 }
 
 // Inspect runs all extractors against the cell's repo, then infers higher-level facts.
-func (d *DefaultInspector) Inspect(ctx context.Context, cell projectcell.Cell) (Result, error) {
+func (d *DefaultInspector) Inspect(ctx context.Context, cell Cell) (Result, error) {
 	var observed []fact.Fact
 	for _, ext := range d.extractors {
 		facts, err := ext.Extract(cell.RepoPath)
