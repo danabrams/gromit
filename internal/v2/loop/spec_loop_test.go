@@ -436,6 +436,84 @@ func TestSpecLoopSpecreviewFailureHaltsRun(t *testing.T) {
 	}
 }
 
+func TestSpecLoopSpecReviewFailureTriggersRemediationWithFindings(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	specID := "spec-review-remediation"
+	cfg := &config.Config{}
+
+	planStage := newFakePlanStage(specID)
+	presentStage, summaryCtx := newPresentStageForTest(t, cfg, newFakePresenterAdapter(t))
+
+	adapters := adapter.AdapterSet{
+		Git:         newFakeGitAdapter(t),
+		LLM:         newFakeLLMAdapter(),
+		TaskTracker: newFakeTaskTrackerAdapter(),
+		Presenter:   newFakePresenterAdapter(t),
+	}
+
+	decompose := newFakeDecomposeStage(specID)
+	beadRunner := newFakeBeadRunner()
+	accept := newFakeAcceptStage()
+
+	criticalFinding := stagepkg.Finding{
+		Severity:    stagepkg.SeverityCritical,
+		Description: "critical spec review issue",
+	}
+	failRes := &stagepkg.Result{
+		Decision: stagepkg.DecisionFail,
+		Artifacts: &specreview.SpecReviewArtifacts{
+			Findings: []stagepkg.Finding{criticalFinding},
+		},
+	}
+	passRes := &stagepkg.Result{
+		Decision:  stagepkg.DecisionProceed,
+		Artifacts: &specreview.SpecReviewArtifacts{},
+	}
+	specReview := newFakeSpecReviewStage(failRes, passRes)
+
+	runner := &recordingSpecReviewRemediationRunner{}
+
+	loopInstance, err := NewSpecLoop(adapters, cfg, noopDependencyGate{},
+		WithPlanStage(planStage),
+		WithPresentStage(presentStage, summaryCtx),
+		WithDecomposeStage(decompose),
+		WithBeadLoop(beadRunner),
+		WithAcceptStage(accept),
+		WithSpecReviewStage(specReview),
+		WithRemediationRunner(runner),
+	)
+	if err != nil {
+		t.Fatalf("create spec loop: %v", err)
+	}
+
+	if err := loopInstance.Run(ctx, specID, nil); err != nil {
+		t.Fatalf("run spec loop: %v", err)
+	}
+
+	if runner.calls != 1 {
+		t.Fatalf("remediation runner calls = %d, want 1", runner.calls)
+	}
+	if len(runner.lastFindings) != 1 {
+		t.Fatalf("findings count = %d, want 1", len(runner.lastFindings))
+	}
+	if runner.lastFindings[0].Description != criticalFinding.Description {
+		t.Fatalf("finding description = %q, want %q", runner.lastFindings[0].Description, criticalFinding.Description)
+	}
+}
+
+type recordingSpecReviewRemediationRunner struct {
+	calls        int
+	lastFindings []stagepkg.Finding
+}
+
+func (r *recordingSpecReviewRemediationRunner) Run(_ context.Context, _, _ string, _ *stagepkg.Result, findings []stagepkg.Finding) error {
+	r.calls++
+	r.lastFindings = append([]stagepkg.Finding(nil), findings...)
+	return nil
+}
+
 func TestBuildSuccessSummaryIncludesOutOfScopeFindings(t *testing.T) {
 	t.Parallel()
 
