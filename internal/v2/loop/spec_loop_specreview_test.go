@@ -55,7 +55,7 @@ func TestSpecLoopEnsureAcceptanceAndReviewCreatesFromReviewBeads(t *testing.T) {
 	}
 
 	req := stagepkg.Request{Bead: stagepkg.BeadInfo{ID: specID}, Worktree: "worktree"}
-	if _, err := s.ensureAcceptanceAndReview(ctx, &req, specID); err != nil {
+	if _, err := s.ensureAcceptance(ctx, &req, specID); err != nil {
 		t.Fatalf("ensure acceptance and review: %v", err)
 	}
 
