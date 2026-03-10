@@ -297,6 +297,38 @@ func TestRunCreatesFromReviewBeads(t *testing.T) {
 	}
 }
 
+func TestBeadTitleForFindingFallbacks(t *testing.T) {
+	cases := []struct {
+		name    string
+		finding stagepkg.Finding
+		want    string
+	}{
+		{
+			name:    "description wins",
+			finding: stagepkg.Finding{Description: "  explicit desc  "},
+			want:    "explicit desc",
+		},
+		{
+			name:    "category fallback",
+			finding: stagepkg.Finding{Category: stagepkg.CategoryBug},
+			want:    "Spec review: bug",
+		},
+		{
+			name:    "scope fallback",
+			finding: stagepkg.Finding{Scope: stagepkg.ScopeGeneral},
+			want:    "Spec review: general finding",
+		},
+	}
+
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := beadTitleForFinding(tt.finding); got != tt.want {
+				t.Fatalf("bead title = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestStage_RunFailsOnCriticalFinding(t *testing.T) {
 	t.Parallel()
 
