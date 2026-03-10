@@ -3766,6 +3766,9 @@
 {"issue_id":"gromit-zf3u","label":"bug"}
 {"issue_id":"gromit-zf3u","label":"from-review"}
 {"issue_id":"gromit-zf3u","label":"spec:immutable-pipeline"}
+{"issue_id":"gromit-zfn13","label":"estimated-files:2"}
+{"issue_id":"gromit-zfn13","label":"gen:1"}
+{"issue_id":"gromit-zfn13","label":"spec:spec-level-review-and-targeted-remediation"}
 {"issue_id":"gromit-zg9pd","label":"estimated-files:2"}
 {"issue_id":"gromit-zg9pd","label":"gen:1"}
 {"issue_id":"gromit-zg9pd","label":"spec:immutable-pipeline"}
