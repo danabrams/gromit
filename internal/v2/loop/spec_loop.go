@@ -966,9 +966,16 @@ func (s *SpecLoop) createFromReviewBeads(ctx context.Context, specID string, rev
 			continue
 		}
 
+		title := strings.TrimSpace(item.Title)
 		description := strings.TrimSpace(item.Description)
 		if description == "" {
+			description = title
+		}
+		if description == "" {
 			continue
+		}
+		if title == "" {
+			title = description
 		}
 
 		labels := []string{"from-review"}
@@ -977,7 +984,7 @@ func (s *SpecLoop) createFromReviewBeads(ctx context.Context, specID string, rev
 		}
 
 		_, err := s.adapters.TaskTracker.CreateBead(ctx, trackertypes.TaskTrackerCreateBeadRequest{
-			Title:       description,
+			Title:       title,
 			Description: description,
 			Priority:    2,
 			Labels:      labels,
