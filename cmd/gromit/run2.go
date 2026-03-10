@@ -72,6 +72,7 @@ var (
 		}
 		return runLoop.Run(ctx, beads, stopCh)
 	}
+	run2FromReviewBeadLoopHook func()
 )
 
 type specLoop interface {
@@ -353,6 +354,9 @@ func run2FromReview(cmd *cobra.Command, cfg *config.Config) error {
 		}
 	}
 	components.BeadLoop.SetWorktree(worktree)
+	if run2FromReviewBeadLoopHook != nil {
+		run2FromReviewBeadLoopHook()
+	}
 	_, err = runBeadLoopFn(components.BeadLoop, ctx, beads, stopCh)
 	fmt.Fprintf(cmd.OutOrStdout(), "Executed %d from-review bead(s)%s through the bead loop.\n", len(beads), specSuffix)
 	return err

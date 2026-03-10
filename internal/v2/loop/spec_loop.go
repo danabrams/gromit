@@ -34,6 +34,23 @@ const (
 	maxAcceptanceRetries = 5
 )
 
+var (
+	specLoopAcceptStageHook     func()
+	specLoopSpecReviewStageHook func()
+)
+
+// SetSpecLoopAcceptStageHook registers a hook that runs whenever the accept
+// stage executes within the spec loop.
+func SetSpecLoopAcceptStageHook(fn func()) {
+	specLoopAcceptStageHook = fn
+}
+
+// SetSpecLoopSpecReviewStageHook registers a hook that runs whenever the spec
+// review stage executes within the spec loop.
+func SetSpecLoopSpecReviewStageHook(fn func()) {
+	specLoopSpecReviewStageHook = fn
+}
+
 // StageSequence lists the canonical stages the spec loop emits.
 var StageSequence = []string{
 	"plan",
@@ -641,6 +658,9 @@ func (s *SpecLoop) runAcceptStage(ctx context.Context, req *stagepkg.Request) (*
 		return nil, nil
 	}
 	res, err := s.acceptStage.Run(ctx, req)
+	if specLoopAcceptStageHook != nil {
+		specLoopAcceptStageHook()
+	}
 	if err != nil {
 		return res, err
 	}
@@ -652,6 +672,9 @@ func (s *SpecLoop) runSpecReviewStage(ctx context.Context, req *stagepkg.Request
 		return &stagepkg.Result{Decision: stagepkg.DecisionProceed}, nil
 	}
 	res, err := s.specReviewStage.Run(ctx, req)
+	if specLoopSpecReviewStageHook != nil {
+		specLoopSpecReviewStageHook()
+	}
 	if err != nil {
 		return nil, fmt.Errorf("spec review stage: %w", err)
 	}

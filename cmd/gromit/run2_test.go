@@ -530,9 +530,9 @@ func TestRun2FromReviewSkipsSpecStages(t *testing.T) {
 	}
 
 	var calls struct {
-		beadLoop     bool
-		acceptStage  bool
-		specReview   bool
+		beadLoop    bool
+		acceptStage bool
+		specReview  bool
 	}
 
 	origBeadHook := run2FromReviewBeadLoopHook
