@@ -311,6 +311,47 @@ func TestNewRun2LoopComponentsWiresSpecReviewStage(t *testing.T) {
 	}
 }
 
+func TestNewRun2LoopComponentsSpecReviewStageUsesHighTierRouter(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	writeReviewSpecFragment(t, tmpDir)
+
+	cfg := &config.Config{ProjectRoot: tmpDir}
+	router := &spySpecReviewRouter{
+		provider: &fakeLLMProvider{},
+		model:    "router-model",
+	}
+	adapters := adapter.AdapterSet{
+		Git:         testutil.NewFakeGit(),
+		LLM:         newFakeLLMAdapter(),
+		TaskTracker: testutil.NewFakeTaskTracker(),
+		Presenter:   testutil.NewFakePresenter(),
+	}
+	legacyEmitter := events.NewEmitter()
+	defer legacyEmitter.Close()
+
+	var output bytes.Buffer
+	components, err := NewRun2LoopComponents(cfg, adapters, legacyEmitter, &output, router, nil)
+	if err != nil {
+		t.Fatalf("NewRun2LoopComponents returned error: %v", err)
+	}
+
+	tiered, ok := components.SpecReviewStage.(*tieredSpecReviewStage)
+	if !ok {
+		t.Fatalf("expected tieredSpecReviewStage wrapper, got %T", components.SpecReviewStage)
+	}
+	if tiered.router != router {
+		t.Fatalf("router = %T, want %T", tiered.router, router)
+	}
+	if tiered.tier != routing.TierHigh {
+		t.Fatalf("tier = %q, want %q", tiered.tier, routing.TierHigh)
+	}
+	if tiered.phase != specReviewPhase {
+		t.Fatalf("phase = %q, want %q", tiered.phase, specReviewPhase)
+	}
+}
+
 func TestNewRun2LoopComponentsWiresStageCommitterAndTypedEmitter(t *testing.T) {
 	t.Parallel()
 
