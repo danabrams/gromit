@@ -50,6 +50,44 @@ type StageResult struct {
 	Events    []event.TypedEvent
 }
 
+// Finding captures structured issues discovered during a stage run.
+type Finding struct {
+	Severity      Severity
+	Category      Category
+	Scope         Scope
+	Description   string
+	AffectedFiles []string
+}
+
+// Severity describes the signal-level urgency of a finding.
+type Severity string
+
+const (
+	SeverityCritical   Severity = "critical"
+	SeverityWarning    Severity = "warning"
+	SeveritySuggestion Severity = "suggestion"
+)
+
+// Category identifies the type of work a finding represents.
+type Category string
+
+const (
+	CategoryBug          Category = "bug"
+	CategoryAcceptance   Category = "acceptance"
+	CategorySecurity     Category = "security"
+	CategoryQuality      Category = "quality"
+	CategoryTestGap      Category = "test_gap"
+	CategoryArchitecture Category = "architecture"
+)
+
+// Scope bounds the surface area impacted by the finding.
+type Scope string
+
+const (
+	ScopeSpec    Scope = "spec"
+	ScopeGeneral Scope = "general"
+)
+
 // Request is the legacy stage request type.
 type Request = StageRequest
 
