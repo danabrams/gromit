@@ -952,3 +952,45 @@ func TestFromReviewLabels(t *testing.T) {
 		})
 	}
 }
+
+func TestRun2FromReviewLogsWhenNoBeads(t *testing.T) {
+	_, cleanup := setupRun2TestEnv(t)
+	defer cleanup()
+
+	if err := run2Cmd.Flags().Set("from-review", "true"); err != nil {
+		t.Fatalf("set from-review flag: %v", err)
+	}
+	defer func() {
+		if err := run2Cmd.Flags().Set("from-review", "false"); err != nil {
+			t.Fatalf("reset from-review flag: %v", err)
+		}
+	}()
+
+	origBeadFn := newBeadClientFn
+	origTrackerFn := newTaskTrackerFn
+	defer func() {
+		newBeadClientFn = origBeadFn
+		newTaskTrackerFn = origTrackerFn
+	}()
+	newBeadClientFn = func() (*bead.Client, error) { return nil, nil }
+	newTaskTrackerFn = func(_ *bead.Client) (adapter.TaskTrackerAdapter, error) {
+		return &fakeNoBeadsTaskTracker{}, nil
+	}
+
+	oldOut := run2Cmd.OutOrStdout()
+	oldErr := run2Cmd.ErrOrStderr()
+	var stderr bytes.Buffer
+	run2Cmd.SetOut(io.Discard)
+	run2Cmd.SetErr(&stderr)
+	defer func() {
+		run2Cmd.SetOut(oldOut)
+		run2Cmd.SetErr(oldErr)
+	}()
+
+	if err := run2Cmd.RunE(run2Cmd, nil); err != nil {
+		t.Fatalf("unexpected run error: %v", err)
+	}
+	if !strings.Contains(stderr.String(), "No from-review beads found") {
+		t.Fatalf("stderr = %q, want log about no beads", stderr.String())
+	}
+}
