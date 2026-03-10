@@ -108,40 +108,22 @@ The spec label will be added automatically: spec:%s
 
 var findingsDecomposePromptTemplate = `# Findings Decompose: %s
 
-You are creating TARGETED beads to address the following findings. Do NOT re-implement work that already exists; focus only on the unmet findings listed below.
+You are creating targeted fix beads for specific findings from spec-level review and acceptance evaluation.
 
-## Full Plan (for architectural context only)
-
+## Original Plan (for context only — do not re-decompose it)
 %s
 
-## Findings to address
-
+## Findings to Fix
 %s
+
+## Instructions
+Create one or more beads that specifically address the findings above. Create exactly one targeted fix bead per finding. Do NOT recreate beads for work already done. Each bead must target a specific finding. Reference the finding description in the bead's acceptance criteria. Always set depends_on_index when shared affected files appear in multiple findings.
 
 ## Skill Instructions
 
 %s
 
-## Acceptance Criteria Rules
-
-acceptance_criteria: each criterion MUST describe an observable behavior or capability, NOT a file path, function name, or code structure.
-
-Good: "debug command identifies root cause category from event log"
-Bad: "create internal/v2/debug/diagnose.go with Diagnose() function"
-
-The implementation may consolidate or restructure deliverables — criteria must remain valid regardless of how the code is organized.
-
-## Output
-
-ONLY create beads that directly address the findings listed above. Do not create beads that address criteria already satisfied.
-Output ONLY a JSON array of bead definitions. No markdown, no explanations, no wrapper.
-Each bead must include: title, description, priority, acceptance_criteria, expected_outputs, covers_tasks, depends_on_index.
-
-expected_outputs: list each individual deliverable, function, or independently testable item as a separate entry. These drive TDD RED-GREEN cycles — one cycle per entry. Do not summarize or group; enumerate fine-grained items.
-covers_tasks: list the 1-based Task numbers from the plan that this bead covers (only tasks related to the listed findings).
-depends_on_index: array of 0-based indices of prerequisite beads in THIS output array.
-
-The spec label will be added automatically: spec:%s
+spec:%s
 `
 
 // Stage implements the decompose stage of the run loop.
@@ -223,17 +205,14 @@ func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Resul
 	gapAnalysis := s.resolveGapAnalysis(req)
 	planContent := string(planBody)
 	findings := formatFindings(req)
-	if req.Remediation {
-		switch {
-		case findings != "":
-			promptText = fmt.Sprintf(findingsDecomposePromptTemplate, specID, planContent, findings, skills.DecomposeSkill, specID)
-		case gapAnalysis != "":
-			promptText = fmt.Sprintf(remediationDecomposePromptTemplate, specID, planContent, gapAnalysis, skills.DecomposeSkill, specID)
-		default:
-			promptText = fmt.Sprintf(s.promptTemplate, specID, planContent, skills.DecomposeSkill, specID)
-		}
-	} else {
-		promptText = fmt.Sprintf(s.promptTemplate, specID, planContent, skills.DecomposeSkill, specID)
+	templateChoice := s.selectTemplate(req, gapAnalysis)
+	switch templateChoice.kind {
+	case templateKindFindings:
+		promptText = fmt.Sprintf(templateChoice.tmpl, specID, planContent, findings, skills.DecomposeSkill, specID)
+	case templateKindRemediation:
+		promptText = fmt.Sprintf(templateChoice.tmpl, specID, planContent, gapAnalysis, skills.DecomposeSkill, specID)
+	default:
+		promptText = fmt.Sprintf(templateChoice.tmpl, specID, planContent, skills.DecomposeSkill, specID)
 	}
 	// Resolve provider: prefer req.Provider, fall back to s.llm.
 	resolvedProvider := s.llm
@@ -305,6 +284,29 @@ func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Resul
 		Decision:  stagepkg.DecisionProceed,
 		Artifacts: &stagepkg.DecomposeArtifacts{Beads: createdBeads},
 	}, nil
+}
+
+type decomposeTemplateKind int
+
+const (
+	templateKindDefault decomposeTemplateKind = iota
+	templateKindRemediation
+	templateKindFindings
+)
+
+type templateChoice struct {
+	kind decomposeTemplateKind
+	tmpl string
+}
+
+func (s *Stage) selectTemplate(req *stagepkg.Request, gapAnalysis string) templateChoice {
+	if req != nil && len(req.Findings) > 0 {
+		return templateChoice{kind: templateKindFindings, tmpl: findingsDecomposePromptTemplate}
+	}
+	if req != nil && req.Remediation && gapAnalysis != "" {
+		return templateChoice{kind: templateKindRemediation, tmpl: remediationDecomposePromptTemplate}
+	}
+	return templateChoice{kind: templateKindDefault, tmpl: s.promptTemplate}
 }
 
 func (s *Stage) planPath(req *stagepkg.Request) (string, error) {
