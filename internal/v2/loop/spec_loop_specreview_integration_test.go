@@ -38,7 +38,7 @@ func TestIntegration_SpecLoop_RemediationFindingsFlowToRunner(t *testing.T) {
 	acceptStage := newScriptedAcceptStage(
 		stagepkg.Result{
 			Decision: stagepkg.DecisionFail,
-			Artifacts: &stageaccept.AcceptArtifacts{Findings: []stagepkg.SpecFinding{
+			Artifacts: &stageaccept.AcceptArtifacts{SpecFindings: []stagepkg.SpecFinding{
 				acceptFinding,
 			}},
 		},

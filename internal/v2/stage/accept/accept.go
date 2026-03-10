@@ -65,9 +65,10 @@ type GitDiffer interface {
 
 // AcceptArtifacts captures acceptance evaluation results produced by the stage.
 type AcceptArtifacts struct {
-	Results    []presentation.AcceptanceResult
-	GapSummary string
-	Findings   []stagepkg.SpecFinding
+	Results      []presentation.AcceptanceResult
+	GapSummary   string
+	Findings     []stagepkg.Finding
+	SpecFindings []stagepkg.SpecFinding
 }
 
 // GetGapSummary returns the gap summary, or empty string if the receiver is nil.
@@ -217,12 +218,16 @@ func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Resul
 		}
 
 		s.Log("info", "accept: diff is %d bytes (>%d threshold), using targeted evaluation for %d criteria", len(diff), threshold, len(criteria))
-		results, failures, _, evalErr := s.runTargetedEvaluation(ctx, provider, specID, criteria, diff, cfg, req)
+		results, failures, findings, evalErr := s.runTargetedEvaluation(ctx, provider, specID, criteria, diff, cfg, req)
 		if evalErr != nil {
 			return nil, evalErr
 		}
 
-		artifacts := &AcceptArtifacts{Results: results, Findings: buildFailureFindings(failures)}
+		artifacts := &AcceptArtifacts{
+			Results:      results,
+			Findings:     findings,
+			SpecFindings: buildFailureFindings(failures),
+		}
 		if len(failures) > 0 {
 			gapSummary := strings.Join(failures, "\n")
 			artifacts.GapSummary = gapSummary
@@ -235,12 +240,16 @@ func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Resul
 	}
 
 	// Per-criterion fallback (threshold disabled or negative).
-	results, failures, _, evalErr := s.runPerCriterionEvaluation(ctx, provider, specID, criteria, diff, cfg, req)
+	results, failures, findings, evalErr := s.runPerCriterionEvaluation(ctx, provider, specID, criteria, diff, cfg, req)
 	if evalErr != nil {
 		return nil, evalErr
 	}
 
-	artifacts := &AcceptArtifacts{Results: results, Findings: buildFailureFindings(failures)}
+	artifacts := &AcceptArtifacts{
+		Results:      results,
+		Findings:     findings,
+		SpecFindings: buildFailureFindings(failures),
+	}
 	if len(failures) > 0 {
 		gapSummary := strings.Join(failures, "\n")
 		artifacts.GapSummary = gapSummary
@@ -588,7 +597,12 @@ func (s *Stage) allCriteriaFailed(criteria []coverage.Criterion, reason string, 
 		failures = append(failures, fmt.Sprintf("Criterion %d failed: %s — %s", c.Number, text, reason))
 		findings = append(findings, newAcceptanceFinding(text))
 	}
-	artifacts := &AcceptArtifacts{Results: results, GapSummary: strings.Join(failures, "\n"), Findings: buildFailureFindings(failures)}
+	artifacts := &AcceptArtifacts{
+		Results:      results,
+		GapSummary:   strings.Join(failures, "\n"),
+		Findings:     findings,
+		SpecFindings: buildFailureFindings(failures),
+	}
 	if err := s.writeGapAnalysis(root, cfg, artifacts.GapSummary); err != nil {
 		return nil, fmt.Errorf("write gap analysis: %w", err)
 	}
@@ -660,7 +674,11 @@ func (s *Stage) buildBatchResult(criteria []coverage.Criterion, batchResults []b
 		})
 	}
 
-	artifacts := &AcceptArtifacts{Results: results, Findings: buildFailureFindings(failures)}
+	artifacts := &AcceptArtifacts{
+		Results:      results,
+		Findings:     findings,
+		SpecFindings: buildFailureFindings(failures),
+	}
 	if len(failures) > 0 {
 		gapSummary := strings.Join(failures, "\n")
 		artifacts.GapSummary = gapSummary

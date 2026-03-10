@@ -682,7 +682,7 @@ func (s *SpecLoop) extractAcceptFindings(res *stagepkg.Result) []stagepkg.SpecFi
 	if !ok {
 		return nil
 	}
-	return append([]stagepkg.SpecFinding(nil), artifacts.Findings...)
+	return append([]stagepkg.SpecFinding(nil), artifacts.SpecFindings...)
 }
 
 func (s *SpecLoop) extractSpecReviewFindings(res *stagepkg.Result) []stagepkg.SpecFinding {
@@ -995,7 +995,7 @@ func extractAcceptFindings(res *stagepkg.Result) []finding.Finding {
 	if !ok || artifacts == nil {
 		return nil
 	}
-	return convertSpecFindings(artifacts.Findings)
+	return convertSpecFindings(artifacts.SpecFindings)
 }
 
 func mergeFindings(acceptRes, specreviewRes *stagepkg.Result) []finding.Finding {

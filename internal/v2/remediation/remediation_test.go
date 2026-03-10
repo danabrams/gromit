@@ -9,8 +9,8 @@ import (
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/events"
-	stageaccept "github.com/danabrams/gromit/internal/v2/stage/accept"
 	"github.com/danabrams/gromit/internal/v2/stage"
+	stageaccept "github.com/danabrams/gromit/internal/v2/stage/accept"
 	"github.com/danabrams/gromit/internal/v2/stage/finding"
 	"github.com/danabrams/gromit/internal/v2/stage/specreview"
 )
@@ -556,8 +556,8 @@ func TestRemediationRunnerCollectsAcceptAndSpecReviewFindings(t *testing.T) {
 				return &stage.Result{
 					Decision: stage.DecisionFail,
 					Artifacts: &stageaccept.AcceptArtifacts{
-						GapSummary: gapText,
-						Findings:   append([]stage.SpecFinding(nil), acceptFindings...),
+						GapSummary:   gapText,
+						SpecFindings: append([]stage.SpecFinding(nil), acceptFindings...),
 					},
 				}, nil
 			}

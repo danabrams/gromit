@@ -416,7 +416,7 @@ func (r *RemediationRunner) acceptArtifacts(res *stage.Result) *stageaccept.Acce
 
 func (r *RemediationRunner) acceptSpecFindings(res *stage.Result) []stage.SpecFinding {
 	if a := r.acceptArtifacts(res); a != nil {
-		return append([]stage.SpecFinding(nil), a.Findings...)
+		return append([]stage.SpecFinding(nil), a.SpecFindings...)
 	}
 	return nil
 }

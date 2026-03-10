@@ -22,7 +22,6 @@ import (
 	"github.com/danabrams/gromit/internal/v2/llmtypes"
 	"github.com/danabrams/gromit/internal/v2/presentation"
 	v2review "github.com/danabrams/gromit/internal/v2/review"
-	specreview "github.com/danabrams/gromit/internal/v2/stage/specreview"
 	"github.com/danabrams/gromit/internal/v2/routing"
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
 	stageaccept "github.com/danabrams/gromit/internal/v2/stage/accept"
@@ -155,7 +154,7 @@ func TestSpecLoopHappyPathExecutesPipeline(t *testing.T) {
 
 	recorder := newRecordingStageRecorder()
 
- 	git := newFakeGitAdapter(t)
+	git := newFakeGitAdapter(t)
 	llm := newFakeLLMAdapter()
 	taskTracker := newFakeTaskTrackerAdapter()
 	planStage := newFakePlanStage(specID)
@@ -1011,7 +1010,7 @@ func TestSpecLoopSpecreviewFailurePassesMergedFindingsToRemediation(t *testing.T
 	acceptStage := newScriptedAcceptStage(stagepkg.Result{
 		Decision: stagepkg.DecisionProceed,
 		Artifacts: &stageaccept.AcceptArtifacts{
-			Results: []presentation.AcceptanceResult{{Title: "criterion", Description: "desc"}},
+			Results:  []presentation.AcceptanceResult{{Title: "criterion", Description: "desc"}},
 			Findings: acceptFindings,
 		},
 	})
@@ -1299,7 +1298,7 @@ func TestEnsureAcceptanceMergesAcceptAndSpecReviewFindingsForRemediation(t *test
 		stagepkg.Result{
 			Decision: stagepkg.DecisionFail,
 			Artifacts: &stageaccept.AcceptArtifacts{
-				Findings: []stagepkg.SpecFinding{acceptFinding},
+				SpecFindings: []stagepkg.SpecFinding{acceptFinding},
 			},
 		},
 		stagepkg.Result{Decision: stagepkg.DecisionProceed},

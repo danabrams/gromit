@@ -14,9 +14,9 @@ import (
 	"github.com/danabrams/gromit/internal/v2/adapter"
 	"github.com/danabrams/gromit/internal/v2/adapter/llm"
 	"github.com/danabrams/gromit/internal/v2/stage"
+	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
 	stageaccept "github.com/danabrams/gromit/internal/v2/stage/accept"
 	"github.com/danabrams/gromit/internal/v2/stage/finding"
-	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
 	specreview "github.com/danabrams/gromit/internal/v2/stage/specreview"
 	"github.com/danabrams/gromit/internal/v2/trackertypes"
 )
@@ -61,7 +61,7 @@ func TestIntegration_SpecLoop_RemediationFindingsTargetedBeads(t *testing.T) {
 	acceptStage := newScriptedAcceptStage(
 		stagepkg.Result{
 			Decision: stagepkg.DecisionFail,
-			Artifacts: &stageaccept.AcceptArtifacts{Findings: []stagepkg.SpecFinding{
+			Artifacts: &stageaccept.AcceptArtifacts{SpecFindings: []stagepkg.SpecFinding{
 				acceptFinding,
 			}},
 		},
@@ -71,11 +71,11 @@ func TestIntegration_SpecLoop_RemediationFindingsTargetedBeads(t *testing.T) {
 	specReviewDescription := "spec review indicates a drift"
 	failureResponse := &llm.LLMInvokeResponse{
 		Success: true,
-		Output: fmt.Sprintf(`{"verdict":"issue","summary":"issue","findings":[{"verdict":"issue","severity":"critical","category":"bug","scope":"spec","description":"%s","affected_files":["internal/v2/loop/spec_loop.go"]}]}`, specReviewDescription),
+		Output:  fmt.Sprintf(`{"verdict":"issue","summary":"issue","findings":[{"verdict":"issue","severity":"critical","category":"bug","scope":"spec","description":"%s","affected_files":["internal/v2/loop/spec_loop.go"]}]}`, specReviewDescription),
 	}
 	passResponse := &llm.LLMInvokeResponse{
 		Success: true,
-		Output: `{"verdict":"pass","summary":"ok","findings":[]}`,
+		Output:  `{"verdict":"pass","summary":"ok","findings":[]}`,
 	}
 	provider := newSequentialLLMProvider(failureResponse, passResponse)
 	specReviewStage, err := specreview.New(cfg, git, provider, tracker, baseInstructions, projectContext, specReviewFragment)
@@ -291,9 +291,9 @@ type targetedRemediationRunner struct {
 func (r *targetedRemediationRunner) Run(ctx context.Context, specID, worktree string, findings []stagepkg.SpecFinding) error {
 	r.findings = append([]stagepkg.SpecFinding(nil), findings...)
 	req := stagepkg.Request{
-		Bead:        stagepkg.BeadInfo{ID: specID},
-		Worktree:    worktree,
-		Findings:    convertSpecFindings(findings),
+		Bead:         stagepkg.BeadInfo{ID: specID},
+		Worktree:     worktree,
+		Findings:     convertSpecFindings(findings),
 		SpecFindings: append([]stagepkg.SpecFinding(nil), findings...),
 	}
 	r.request = &req
