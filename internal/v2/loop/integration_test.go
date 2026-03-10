@@ -254,7 +254,7 @@ func defaultIntegrationBeadLoopConfig() BeadLoopConfig {
 	}
 }
 
-func (r *integrationRemediationRunner) Run(ctx context.Context, specID, _ string) error {
+func (r *integrationRemediationRunner) Run(ctx context.Context, specID, _ string, _ *stagepkg.Result) error {
 	r.calls++
 	if r.generationCap >= 0 {
 		r.emitGenerationCapEvents(specID)
@@ -969,7 +969,7 @@ func newTestRemediationRunner(cfg testRemediationRunnerConfig) *testRemediationR
 	}
 }
 
-func (r *testRemediationRunnerAdapter) Run(ctx context.Context, specID, worktree string) error {
+func (r *testRemediationRunnerAdapter) Run(ctx context.Context, specID, worktree string, _ *stagepkg.Result) error {
 	r.calls++
 
 	// Run plan stage for remediation.

@@ -14,7 +14,7 @@ import (
 func TestRemediationRunnerRun_requiresSpecID(t *testing.T) {
 	runner := newRunnerForSpecValidation()
 
-	if err := runner.Run(context.Background(), "", ""); !errors.Is(err, ErrSpecIDRequired) {
+	if err := runner.Run(context.Background(), "", "", nil); !errors.Is(err, ErrSpecIDRequired) {
 		t.Fatalf("expected ErrSpecIDRequired, got %v", err)
 	}
 }
@@ -22,7 +22,7 @@ func TestRemediationRunnerRun_requiresSpecID(t *testing.T) {
 func TestRemediationRunnerRun_requiresAcceptStage(t *testing.T) {
 	runner := newRunnerWithAcceptStage(nil)
 
-	if err := runner.Run(context.Background(), "spec-id", ""); !errors.Is(err, ErrAcceptStageRequired) {
+	if err := runner.Run(context.Background(), "spec-id", "", nil); !errors.Is(err, ErrAcceptStageRequired) {
 		t.Fatalf("expected ErrAcceptStageRequired, got %v", err)
 	}
 }
@@ -31,7 +31,7 @@ func TestRemediationRunnerRun_requiresBeadRunner(t *testing.T) {
 	artifacts := &stage.DecomposeArtifacts{Beads: []*bead.Bead{}}
 	runner := newRunnerForRemediationCycle(newDecisionFailStage(), newDecomposeStageReturning(artifacts), nil, 1)
 
-	if err := runner.Run(context.Background(), "spec-id", ""); !errors.Is(err, ErrBeadRunnerRequired) {
+	if err := runner.Run(context.Background(), "spec-id", "", nil); !errors.Is(err, ErrBeadRunnerRequired) {
 		t.Fatalf("expected ErrBeadRunnerRequired, got %v", err)
 	}
 }
@@ -39,7 +39,7 @@ func TestRemediationRunnerRun_requiresBeadRunner(t *testing.T) {
 func TestRemediationRunnerRun_requiresDecomposeStage(t *testing.T) {
 	runner := newRunnerForDecomposeFailure(newDecisionFailStage(), 1)
 
-	if err := runner.Run(context.Background(), "spec-id", ""); !errors.Is(err, ErrDecomposeStageRequired) {
+	if err := runner.Run(context.Background(), "spec-id", "", nil); !errors.Is(err, ErrDecomposeStageRequired) {
 		t.Fatalf("expected ErrDecomposeStageRequired, got %v", err)
 	}
 }
@@ -47,7 +47,7 @@ func TestRemediationRunnerRun_requiresDecomposeStage(t *testing.T) {
 func TestRemediationRunnerRun_requiresValidDecomposeArtifacts(t *testing.T) {
 	runner := newRunnerForUnexpectedArtifacts(newDecisionFailStage(), newDecomposeStageReturning("unexpected"), 1)
 
-	if err := runner.Run(context.Background(), "spec-id", ""); !errors.Is(err, ErrUnexpectedDecomposeArtifacts) {
+	if err := runner.Run(context.Background(), "spec-id", "", nil); !errors.Is(err, ErrUnexpectedDecomposeArtifacts) {
 		t.Fatalf("expected ErrUnexpectedDecomposeArtifacts, got %v", err)
 	}
 }
@@ -81,7 +81,7 @@ func TestRemediationRunnerUsesDefaultGenerationCapWhenNegative(t *testing.T) {
 	}
 
 	runner := newRunnerForRemediationCycle(accept, decompose, &testBeadRunner{}, -1)
-	if err := runner.Run(ctx, "spec-id", ""); err != nil {
+	if err := runner.Run(ctx, "spec-id", "", nil); err != nil {
 		t.Fatalf("remediation run failed: %v", err)
 	}
 
@@ -122,13 +122,13 @@ func TestRemediationRunnerRun_resetsGenerationCountBetweenRuns(t *testing.T) {
 	runner := newRunnerForRemediationCycle(accept, decompose, &testBeadRunner{}, 1)
 
 	// First run: should succeed (one remediation, then accept passes).
-	if err := runner.Run(ctx, "spec-1", ""); err != nil {
+	if err := runner.Run(ctx, "spec-1", "", nil); err != nil {
 		t.Fatalf("first run failed: %v", err)
 	}
 
 	// Second run: if generationCount is not reset, the runner thinks it already
 	// hit the cap and returns "generation cap reached" immediately.
-	if err := runner.Run(ctx, "spec-2", ""); err != nil {
+	if err := runner.Run(ctx, "spec-2", "", nil); err != nil {
 		t.Fatalf("second run should succeed but got: %v", err)
 	}
 }
@@ -169,7 +169,7 @@ func TestRemediationRunnerRun_contextCancelledDuringLoop(t *testing.T) {
 
 	runner := newRunnerForRemediationCycle(accept, decompose, &testBeadRunner{}, 10)
 
-	err := runner.Run(ctx, "spec-cancel", "")
+	err := runner.Run(ctx, "spec-cancel", "", nil)
 	if err == nil {
 		t.Fatal("expected error when context is cancelled")
 	}
@@ -196,7 +196,7 @@ func TestRemediationRunnerRun_worktreePopulatedInRequest(t *testing.T) {
 	}
 
 	runner := NewRemediationRunner(RemediationRunnerConfig{AcceptStage: accept})
-	if err := runner.Run(context.Background(), "spec-id", worktree); err != nil {
+	if err := runner.Run(context.Background(), "spec-id", worktree, nil); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -239,7 +239,7 @@ func TestRemediationRunnerPassesGapAnalysisToDecompose(t *testing.T) {
 	}
 
 	runner := newRunnerForRemediationCycle(accept, decompose, &testBeadRunner{}, 1)
-	if err := runner.Run(context.Background(), "spec-gap", ""); err != nil {
+	if err := runner.Run(context.Background(), "spec-gap", "", nil); err != nil {
 		t.Fatalf("run failed: %v", err)
 	}
 
@@ -282,7 +282,7 @@ func TestRemediationRunnerGapAnalysisFlowsToDecompose(t *testing.T) {
 	}
 
 	runner := newRunnerForRemediationCycle(accept, decompose, &testBeadRunner{}, 1)
-	if err := runner.Run(context.Background(), "spec-gap-flow", ""); err != nil {
+	if err := runner.Run(context.Background(), "spec-gap-flow", "", nil); err != nil {
 		t.Fatalf("run failed: %v", err)
 	}
 
@@ -425,7 +425,7 @@ func TestRemediation_CreatesRemediationPlanNotOriginal(t *testing.T) {
 		GenerationCap:  1,
 	})
 
-	if err := runner.Run(context.Background(), "spec-plan", ""); err != nil {
+	if err := runner.Run(context.Background(), "spec-plan", "", nil); err != nil {
 		t.Fatalf("run failed: %v", err)
 	}
 
@@ -502,7 +502,7 @@ func TestRemediation_RemediationPlanPersistedSeparately(t *testing.T) {
 		GenerationCap:  1,
 	})
 
-	if err := runner.Run(context.Background(), "spec-persist", worktree); err != nil {
+	if err := runner.Run(context.Background(), "spec-persist", worktree, nil); err != nil {
 		t.Fatalf("run failed: %v", err)
 	}
 
@@ -586,7 +586,7 @@ func TestRemediation_SecondRemediationCreatesRemediationPlan2(t *testing.T) {
 		GenerationCap:  3,
 	})
 
-	if err := runner.Run(context.Background(), "spec-multi", worktree); err != nil {
+	if err := runner.Run(context.Background(), "spec-multi", worktree, nil); err != nil {
 		t.Fatalf("run failed: %v", err)
 	}
 
@@ -666,7 +666,7 @@ func TestRemediation_PersistsPlanContentOverGapAnalysis(t *testing.T) {
 		GenerationCap:  1,
 	})
 
-	if err := runner.Run(context.Background(), "spec-plan-content", worktree); err != nil {
+	if err := runner.Run(context.Background(), "spec-plan-content", worktree, nil); err != nil {
 		t.Fatalf("run failed: %v", err)
 	}
 
@@ -728,7 +728,7 @@ func TestRemediation_FallsBackToGapAnalysisWhenNoPlanContent(t *testing.T) {
 		GenerationCap:  1,
 	})
 
-	if err := runner.Run(context.Background(), "spec-fallback", worktree); err != nil {
+	if err := runner.Run(context.Background(), "spec-fallback", worktree, nil); err != nil {
 		t.Fatalf("run failed: %v", err)
 	}
 

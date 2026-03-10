@@ -72,7 +72,10 @@ func NewRemediationRunner(cfg RemediationRunnerConfig) *RemediationRunner {
 }
 
 // Run executes the remediation cycle for the provided spec.
-func (r *RemediationRunner) Run(ctx context.Context, specID, worktree string) error {
+// When initialResult is non-nil, it is used as the first accept evaluation
+// result, avoiding a redundant accept call when the caller already knows
+// the current state failed.
+func (r *RemediationRunner) Run(ctx context.Context, specID, worktree string, initialResult *stage.Result) error {
 	r.generationCount = 0
 	if specID == "" {
 		return ErrSpecIDRequired
@@ -82,11 +85,20 @@ func (r *RemediationRunner) Run(ctx context.Context, specID, worktree string) er
 	}
 
 	reqTemplate := stage.Request{Bead: stage.BeadInfo{ID: specID}, Worktree: worktree}
+	first := true
 	for {
 		req := reqTemplate
-		res, err := r.cfg.AcceptStage.Run(ctx, &req)
-		if err != nil {
-			return err
+		var res *stage.Result
+		var err error
+		if first && initialResult != nil {
+			res = initialResult
+			first = false
+		} else {
+			first = false
+			res, err = r.cfg.AcceptStage.Run(ctx, &req)
+			if err != nil {
+				return err
+			}
 		}
 		if res != nil && res.Decision == stage.DecisionFail {
 			gapAnalysis := extractGapSummary(res)
