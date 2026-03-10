@@ -58,6 +58,7 @@ func TestRunWritesGapAnalysisWhenCriterionFails(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create stage: %v", err)
 	}
+	stageInstance.batchDiffThreshold = -1 // force per-criterion evaluation
 
 	req := &stagepkg.Request{
 		Bead:     stagepkg.BeadInfo{ID: specID},
@@ -139,6 +140,7 @@ func TestRunProceedWhenAllCriteriaPass(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create stage: %v", err)
 	}
+	stageInstance.batchDiffThreshold = -1 // force per-criterion evaluation
 
 	req := &stagepkg.Request{
 		Bead:     stagepkg.BeadInfo{ID: specID},
@@ -269,6 +271,7 @@ func setupAcceptStage(t *testing.T, llmProvider *fakeLLM) (*Stage, *stagepkg.Req
 	if err != nil {
 		t.Fatalf("create stage: %v", err)
 	}
+	stageInstance.batchDiffThreshold = -1 // force per-criterion evaluation
 
 	req := &stagepkg.Request{
 		Bead:     stagepkg.BeadInfo{ID: specID},
@@ -311,6 +314,7 @@ func TestRunUsesDiffFromBase(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create stage: %v", err)
 	}
+	stageInstance.batchDiffThreshold = -1 // force per-criterion evaluation
 
 	req := &stagepkg.Request{
 		Bead:     stagepkg.BeadInfo{ID: specID},
@@ -421,6 +425,7 @@ func setupAcceptStageWithProvider(t *testing.T, provider llmtypes.LLMProvider) (
 	if err != nil {
 		t.Fatalf("create stage: %v", err)
 	}
+	stageInstance.batchDiffThreshold = -1 // force per-criterion evaluation
 
 	req := &stagepkg.Request{
 		Bead:     stagepkg.BeadInfo{ID: specID},
