@@ -468,11 +468,14 @@ func TestRunUsesFindingsPromptWhenFindingsProvided(t *testing.T) {
 	if !strings.Contains(prompt, planContent) {
 		t.Fatal("prompt missing plan content for context")
 	}
-	if !strings.Contains(prompt, "## Findings to address") {
+	if !strings.Contains(prompt, "## Findings to Fix") {
 		t.Fatal("expected findings template header to appear")
 	}
-	if !strings.Contains(prompt, "Missing bean tests") {
-		t.Fatal("prompt missing finding description")
+	if !strings.Contains(prompt, "Create one or more beads that specifically address the findings above") {
+		t.Fatal("prompt missing findings instructions")
+	}
+	if !strings.Contains(prompt, "Affected files: docs/beans.md") {
+		t.Fatal("prompt missing affected files list")
 	}
 }
 
