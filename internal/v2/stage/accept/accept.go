@@ -217,7 +217,7 @@ func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Resul
 		}
 
 		s.Log("info", "accept: diff is %d bytes (>%d threshold), using targeted evaluation for %d criteria", len(diff), threshold, len(criteria))
-		results, failures, evalErr := s.runTargetedEvaluation(ctx, provider, specID, criteria, diff, cfg, req)
+	results, failures, findings, evalErr := s.runTargetedEvaluation(ctx, provider, specID, criteria, diff, cfg, req)
 		if evalErr != nil {
 			return nil, evalErr
 		}
@@ -235,7 +235,7 @@ func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Resul
 	}
 
 	// Per-criterion fallback (threshold disabled or negative).
-	results, failures, evalErr := s.runPerCriterionEvaluation(ctx, provider, specID, criteria, diff, cfg, req)
+	results, failures, findings, evalErr := s.runPerCriterionEvaluation(ctx, provider, specID, criteria, diff, cfg, req)
 	if evalErr != nil {
 		return nil, evalErr
 	}
@@ -255,13 +255,14 @@ func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Resul
 
 // runPerCriterionEvaluation evaluates each criterion in a separate LLM invocation.
 // Used when the diff is small enough that per-criterion calls are practical.
-func (s *Stage) runPerCriterionEvaluation(ctx context.Context, provider llmtypes.LLMProvider, specID string, criteria []coverage.Criterion, diff string, cfg *config.Config, req *stagepkg.Request) ([]presentation.AcceptanceResult, []string, error) {
+func (s *Stage) runPerCriterionEvaluation(ctx context.Context, provider llmtypes.LLMProvider, specID string, criteria []coverage.Criterion, diff string, cfg *config.Config, req *stagepkg.Request) ([]presentation.AcceptanceResult, []string, []stagepkg.Finding, error) {
 	results := make([]presentation.AcceptanceResult, 0, len(criteria))
 	failures := make([]string, 0)
+	findings := make([]stagepkg.Finding, 0, len(criteria))
 
 	for _, criterion := range criteria {
 		if ctx.Err() != nil {
-			return nil, nil, fmt.Errorf("accept interrupted: %w", ctx.Err())
+			return nil, nil, nil, fmt.Errorf("accept interrupted: %w", ctx.Err())
 		}
 
 		trimmed := strings.TrimSpace(criterion.Text)
@@ -277,14 +278,14 @@ func (s *Stage) runPerCriterionEvaluation(ctx context.Context, provider llmtypes
 
 		if evalErr != nil {
 			if ctx.Err() != nil {
-				return nil, nil, fmt.Errorf("accept interrupted during criterion %d: %w", criterion.Number, evalErr)
+				return nil, nil, nil, fmt.Errorf("accept interrupted during criterion %d: %w", criterion.Number, evalErr)
 			}
 			if isDeadlineExceeded(evalErr) {
 				s.Log("info", "accept: criterion %d timed out after %s, marking FAIL", criterion.Number, elapsed.Truncate(time.Second))
 				pass = false
 				summary = fmt.Sprintf("evaluation timed out after %s", elapsed.Truncate(time.Second))
 			} else {
-				return nil, nil, fmt.Errorf("evaluate criterion %d: %w", criterion.Number, evalErr)
+				return nil, nil, nil, fmt.Errorf("evaluate criterion %d: %w", criterion.Number, evalErr)
 			}
 		}
 
@@ -292,6 +293,7 @@ func (s *Stage) runPerCriterionEvaluation(ctx context.Context, provider llmtypes
 		if !pass {
 			score = "FAIL"
 			failures = append(failures, fmt.Sprintf("Criterion %d failed: %s — %s", criterion.Number, trimmed, summaryOrDefault(summary)))
+			findings = append(findings, newAcceptanceFinding(trimmed))
 		}
 
 		s.Log("info", "accept: criterion %d %s (%s)", criterion.Number, score, elapsed.Truncate(time.Second))
@@ -302,7 +304,7 @@ func (s *Stage) runPerCriterionEvaluation(ctx context.Context, provider llmtypes
 		})
 	}
 
-	return results, failures, nil
+	return results, failures, findings, nil
 }
 
 func (s *Stage) runTargetedEvaluation(ctx context.Context, provider llmtypes.LLMProvider, specID string, criteria []coverage.Criterion, diff string, cfg *config.Config, req *stagepkg.Request) ([]presentation.AcceptanceResult, []string, error) {
@@ -320,15 +322,16 @@ func (s *Stage) runTargetedEvaluation(ctx context.Context, provider llmtypes.LLM
 			s.Log("info", "accept: criteria-to-file mapping timed out, falling back to full diff per criterion")
 			return s.runPerCriterionEvaluation(ctx, provider, specID, criteria, diff, cfg, req)
 		}
-		return nil, nil, fmt.Errorf("map criteria to files: %w", err)
+		return nil, nil, nil, fmt.Errorf("map criteria to files: %w", err)
 	}
 
 	results := make([]presentation.AcceptanceResult, 0, len(criteria))
 	failures := make([]string, 0)
+	findings := make([]stagepkg.Finding, 0, len(criteria))
 
 	for _, criterion := range criteria {
 		if ctx.Err() != nil {
-			return nil, nil, fmt.Errorf("accept interrupted: %w", ctx.Err())
+			return nil, nil, nil, fmt.Errorf("accept interrupted: %w", ctx.Err())
 		}
 
 		trimmed := strings.TrimSpace(criterion.Text)
@@ -348,14 +351,14 @@ func (s *Stage) runTargetedEvaluation(ctx context.Context, provider llmtypes.LLM
 
 		if evalErr != nil {
 			if ctx.Err() != nil {
-				return nil, nil, fmt.Errorf("accept interrupted during criterion %d: %w", criterion.Number, evalErr)
+				return nil, nil, nil, fmt.Errorf("accept interrupted during criterion %d: %w", criterion.Number, evalErr)
 			}
 			if isDeadlineExceeded(evalErr) {
 				s.Log("info", "accept: criterion %d timed out after %s, marking FAIL", criterion.Number, elapsed.Truncate(time.Second))
 				pass = false
 				summary = fmt.Sprintf("evaluation timed out after %s", elapsed.Truncate(time.Second))
 			} else {
-				return nil, nil, fmt.Errorf("evaluate criterion %d: %w", criterion.Number, evalErr)
+				return nil, nil, nil, fmt.Errorf("evaluate criterion %d: %w", criterion.Number, evalErr)
 			}
 		}
 
@@ -363,6 +366,7 @@ func (s *Stage) runTargetedEvaluation(ctx context.Context, provider llmtypes.LLM
 		if !pass {
 			score = "FAIL"
 			failures = append(failures, fmt.Sprintf("Criterion %d failed: %s — %s", criterion.Number, trimmed, summaryOrDefault(summary)))
+			findings = append(findings, newAcceptanceFinding(trimmed))
 		}
 
 		s.Log("info", "accept: criterion %d %s (%s)", criterion.Number, score, elapsed.Truncate(time.Second))
@@ -373,7 +377,7 @@ func (s *Stage) runTargetedEvaluation(ctx context.Context, provider llmtypes.LLM
 		})
 	}
 
-	return results, failures, nil
+	return results, failures, findings, nil
 }
 
 func (s *Stage) mapCriteriaToFiles(ctx context.Context, provider llmtypes.LLMProvider, model, specID string, criteria []coverage.Criterion, files []string, req *stagepkg.Request) (map[int][]string, error) {
@@ -571,6 +575,7 @@ Do NOT output markdown, commentary, or anything other than the JSON array.`,
 func (s *Stage) allCriteriaFailed(criteria []coverage.Criterion, reason string, root string, cfg *config.Config) (*stagepkg.Result, error) {
 	results := make([]presentation.AcceptanceResult, 0, len(criteria))
 	failures := make([]string, 0, len(criteria))
+	findings := make([]stagepkg.Finding, 0, len(criteria))
 	for _, c := range criteria {
 		text := strings.TrimSpace(c.Text)
 		if text == "" {
@@ -581,6 +586,7 @@ func (s *Stage) allCriteriaFailed(criteria []coverage.Criterion, reason string, 
 			Description: fmt.Sprintf("FAIL: %s", reason),
 		})
 		failures = append(failures, fmt.Sprintf("Criterion %d failed: %s — %s", c.Number, text, reason))
+		findings = append(findings, newAcceptanceFinding(text))
 	}
 	artifacts := &AcceptArtifacts{Results: results, GapSummary: strings.Join(failures, "\n"), Findings: buildFailureFindings(failures)}
 	if err := s.writeGapAnalysis(root, cfg, artifacts.GapSummary); err != nil {
@@ -624,6 +630,7 @@ func (s *Stage) buildBatchResult(criteria []coverage.Criterion, batchResults []b
 
 	results := make([]presentation.AcceptanceResult, 0, len(criteria))
 	failures := make([]string, 0)
+	findings := make([]stagepkg.Finding, 0, len(criteria))
 
 	for _, c := range criteria {
 		text := strings.TrimSpace(c.Text)
@@ -642,6 +649,7 @@ func (s *Stage) buildBatchResult(criteria []coverage.Criterion, batchResults []b
 		if !pass {
 			score = "FAIL"
 			failures = append(failures, fmt.Sprintf("Criterion %d failed: %s — %s", c.Number, text, summaryOrDefault(summary)))
+			findings = append(findings, newAcceptanceFinding(text))
 		}
 
 		s.Log("info", "accept: criterion %d %s", c.Number, score)
@@ -825,6 +833,15 @@ func parseEvaluation(output string) (bool, string, error) {
 		return false, "", fmt.Errorf("parse evaluation output: %w", err)
 	}
 	return eval.Pass, strings.TrimSpace(eval.Summary), nil
+}
+
+func newAcceptanceFinding(description string) stagepkg.Finding {
+	return stagepkg.Finding{
+		Severity:    stagepkg.SeverityCritical,
+		Category:    stagepkg.CategoryAcceptance,
+		Scope:       stagepkg.ScopeSpec,
+		Description: description,
+	}
 }
 
 // isDeadlineExceeded checks whether err represents a context deadline exceeded,
