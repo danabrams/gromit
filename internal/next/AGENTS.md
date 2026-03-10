@@ -154,10 +154,10 @@ The following packages are fully implemented with tests:
 - **architecture/** — `Module`/`Dependency`/`Component`/`Architecture` types with `NormalizeNilFields()`
 - **validation/** — `Kind` enum (`Test`/`Lint`/`Build`) with JSON marshal/unmarshal, `Command`/`CommandSet` types with `ByKind()`, `CommandSet.NormalizeNilFields()`
 
-- **contextpkt/** — `Compiler` interface, `DefaultCompiler` with level-specific compilation (project: arch+doctrine+glossary+validation; spec: arch+doctrine+spec-text; task: doctrine+spec-text+proof-requirements), token budgeting. Local `Cell` type decouples from `projectcell`. `Packet.NormalizeNilFields()`.
-- **cmd/gromit-next/** — Cobra CLI with `project attach/inspect/guide/list` and `context build` commands. Guide command loads architecture artifact.
+- **contextpkt/** — `Compiler` interface, `DefaultCompiler` with level-specific compilation (project: arch+doctrine+glossary+validation; spec: arch+doctrine+spec-text; task: doctrine+spec-text+proof-requirements), token budgeting with UTF-8-safe truncation. Local `Cell` type and `json.RawMessage` deserialization decouple from all sibling packages. `Level` with JSON marshal/unmarshal. `Packet.NormalizeNilFields()` (including `Section.Facts`).
+- **cmd/gromit-next/** — Cobra CLI with `project attach/inspect/guide/list` and `context build` commands. Inspect writes sourcemap and validation artifacts with provenance (git SHA). Guide loads architecture, sourcemap, and doctrine artifacts. All store references use interfaces.
 
-All packages have unit tests. Integration test at `internal/next/integration_test.go` covers the full flow: attach → inspect → guide → compile context at all levels → freshness check → isolation verification. Additional tests: deterministic extraction, relevance-before-budgeting.
+All packages have unit tests. Integration test at `internal/next/integration_test.go` covers the full flow: attach → inspect → guide → compile context at all levels → freshness check → re-inspection determinism → isolation verification → corrupted artifact graceful degradation. Additional tests: deterministic extraction, relevance-before-budgeting.
 
 ## Knowledge Categories
 
