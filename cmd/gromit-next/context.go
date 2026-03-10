@@ -9,6 +9,7 @@ import (
 
 	"github.com/danabrams/gromit/internal/next/artifact"
 	"github.com/danabrams/gromit/internal/next/contextpkt"
+
 	"github.com/spf13/cobra"
 )
 
@@ -57,7 +58,8 @@ var contextBuildCmd = &cobra.Command{
 		}
 
 		compiler := contextpkt.NewCompiler(wrappedStore)
-		packet, err := compiler.Compile(context.Background(), cell, level, contextpkt.CompileOpts{
+		ctxCell := contextpkt.Cell{Name: cell.Name, CellPath: cell.CellPath}
+		packet, err := compiler.Compile(context.Background(), ctxCell, level, contextpkt.CompileOpts{
 			SpecPath:    specPath,
 			TaskID:      taskID,
 			TokenBudget: budgetTokens,

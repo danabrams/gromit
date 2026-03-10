@@ -162,7 +162,8 @@ func TestIntegration_FullProjectCellFlow(t *testing.T) {
 	artStoreWrapper := &testArtifactStore{store: artStore, artifactsDir: artifactsDir}
 	compiler := contextpkt.NewCompiler(artStoreWrapper)
 
-	projectPacket, err := compiler.Compile(context.Background(), cell, contextpkt.LevelProject, contextpkt.CompileOpts{})
+	ctxCell := contextpkt.Cell{Name: cell.Name, CellPath: cell.CellPath}
+	projectPacket, err := compiler.Compile(context.Background(), ctxCell, contextpkt.LevelProject, contextpkt.CompileOpts{})
 	if err != nil {
 		t.Fatalf("Compile project: %v", err)
 	}
@@ -171,7 +172,7 @@ func TestIntegration_FullProjectCellFlow(t *testing.T) {
 	}
 
 	// Compile at spec level
-	specPacket, err := compiler.Compile(context.Background(), cell, contextpkt.LevelSpec, contextpkt.CompileOpts{
+	specPacket, err := compiler.Compile(context.Background(), ctxCell, contextpkt.LevelSpec, contextpkt.CompileOpts{
 		SpecPath: "specs/001-feature.md",
 	})
 	if err != nil {
@@ -188,7 +189,7 @@ func TestIntegration_FullProjectCellFlow(t *testing.T) {
 	}
 
 	// Compile at task level
-	taskPacket, err := compiler.Compile(context.Background(), cell, contextpkt.LevelTask, contextpkt.CompileOpts{
+	taskPacket, err := compiler.Compile(context.Background(), ctxCell, contextpkt.LevelTask, contextpkt.CompileOpts{
 		SpecPath: "specs/001-feature.md",
 		TaskID:   "task-1",
 	})
@@ -324,12 +325,12 @@ func TestIntegration_RelevanceBeforeBudgeting(t *testing.T) {
 	}
 	artStore.Write(artifactsDir, "doctrine", doc)
 
-	cell := projectcell.Cell{Name: "budget-test", CellPath: workspaceDir}
+	budgetCell := contextpkt.Cell{Name: "budget-test", CellPath: workspaceDir}
 	wrapper := &testArtifactStore{store: artStore, artifactsDir: artifactsDir}
 	compiler := contextpkt.NewCompiler(wrapper)
 
 	// Compile without budget
-	unbounded, err := compiler.Compile(context.Background(), cell, contextpkt.LevelSpec, contextpkt.CompileOpts{
+	unbounded, err := compiler.Compile(context.Background(), budgetCell, contextpkt.LevelSpec, contextpkt.CompileOpts{
 		SpecPath: "specs/001.md",
 	})
 	if err != nil {
@@ -337,7 +338,7 @@ func TestIntegration_RelevanceBeforeBudgeting(t *testing.T) {
 	}
 
 	// Compile with small budget
-	bounded, err := compiler.Compile(context.Background(), cell, contextpkt.LevelSpec, contextpkt.CompileOpts{
+	bounded, err := compiler.Compile(context.Background(), budgetCell, contextpkt.LevelSpec, contextpkt.CompileOpts{
 		SpecPath:    "specs/001.md",
 		TokenBudget: 20,
 	})

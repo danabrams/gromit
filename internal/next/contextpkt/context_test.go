@@ -7,7 +7,6 @@ import (
 
 	"github.com/danabrams/gromit/internal/next/architecture"
 	"github.com/danabrams/gromit/internal/next/doctrine"
-	"github.com/danabrams/gromit/internal/next/projectcell"
 )
 
 type mockArtifactStore struct {
@@ -43,7 +42,7 @@ func TestCompiler_ProjectLevel(t *testing.T) {
 		},
 	}
 
-	cell := projectcell.Cell{Name: "test", CellPath: t.TempDir()}
+	cell := Cell{Name: "test", CellPath: t.TempDir()}
 	compiler := NewCompiler(store)
 
 	packet, err := compiler.Compile(context.Background(), cell, LevelProject, CompileOpts{})
@@ -58,10 +57,13 @@ func TestCompiler_ProjectLevel(t *testing.T) {
 	for _, s := range packet.Sections {
 		sectionNames[s.Name] = true
 	}
-	for _, want := range []string{"architecture", "doctrine"} {
+	for _, want := range []string{"architecture", "doctrine", "glossary", "validation"} {
 		if !sectionNames[want] {
 			t.Errorf("missing section %q in packet", want)
 		}
+	}
+	if sectionNames["spec-text"] {
+		t.Error("project level should NOT include spec-text section")
 	}
 	if packet.TokenCount == 0 {
 		t.Error("token count should be populated")
@@ -84,7 +86,7 @@ func TestCompiler_TokenBudget(t *testing.T) {
 		},
 	}
 
-	cell := projectcell.Cell{Name: "test", CellPath: t.TempDir()}
+	cell := Cell{Name: "test", CellPath: t.TempDir()}
 	compiler := NewCompiler(store)
 
 	packet, err := compiler.Compile(context.Background(), cell, LevelProject, CompileOpts{TokenBudget: 50})
@@ -110,7 +112,7 @@ func TestCompiler_SpecLevel(t *testing.T) {
 		},
 	}
 
-	cell := projectcell.Cell{Name: "test", CellPath: t.TempDir()}
+	cell := Cell{Name: "test", CellPath: t.TempDir()}
 	compiler := NewCompiler(store)
 
 	packet, err := compiler.Compile(context.Background(), cell, LevelSpec, CompileOpts{
@@ -128,10 +130,19 @@ func TestCompiler_SpecLevel(t *testing.T) {
 		sectionNames[s.Name] = true
 	}
 	if !sectionNames["architecture"] {
-		t.Error("spec level should include architecture section from project")
+		t.Error("spec level should include architecture section")
+	}
+	if !sectionNames["doctrine"] {
+		t.Error("spec level should include doctrine section")
 	}
 	if !sectionNames["spec-text"] {
 		t.Error("spec level should include spec-text section")
+	}
+	if sectionNames["glossary"] {
+		t.Error("spec level should NOT include glossary section")
+	}
+	if sectionNames["validation"] {
+		t.Error("spec level should NOT include validation section")
 	}
 }
 
@@ -149,7 +160,7 @@ func TestCompiler_TaskLevel(t *testing.T) {
 		},
 	}
 
-	cell := projectcell.Cell{Name: "test", CellPath: t.TempDir()}
+	cell := Cell{Name: "test", CellPath: t.TempDir()}
 	compiler := NewCompiler(store)
 
 	packet, err := compiler.Compile(context.Background(), cell, LevelTask, CompileOpts{
@@ -170,14 +181,20 @@ func TestCompiler_TaskLevel(t *testing.T) {
 	if !sectionNames["doctrine"] {
 		t.Error("task level should include doctrine section")
 	}
+	if !sectionNames["spec-text"] {
+		t.Error("task level should include spec-text section")
+	}
 	if !sectionNames["proof-requirements"] {
 		t.Error("task level should include proof-requirements section")
+	}
+	if sectionNames["architecture"] {
+		t.Error("task level should NOT include architecture section")
 	}
 }
 
 func TestCompiler_SpecLevelMissingSpecPath(t *testing.T) {
 	store := &mockArtifactStore{}
-	cell := projectcell.Cell{Name: "test", CellPath: t.TempDir()}
+	cell := Cell{Name: "test", CellPath: t.TempDir()}
 	compiler := NewCompiler(store)
 
 	_, err := compiler.Compile(context.Background(), cell, LevelSpec, CompileOpts{})
@@ -188,7 +205,7 @@ func TestCompiler_SpecLevelMissingSpecPath(t *testing.T) {
 
 func TestCompiler_TaskLevelMissingTaskID(t *testing.T) {
 	store := &mockArtifactStore{}
-	cell := projectcell.Cell{Name: "test", CellPath: t.TempDir()}
+	cell := Cell{Name: "test", CellPath: t.TempDir()}
 	compiler := NewCompiler(store)
 
 	_, err := compiler.Compile(context.Background(), cell, LevelTask, CompileOpts{
@@ -196,5 +213,19 @@ func TestCompiler_TaskLevelMissingTaskID(t *testing.T) {
 	})
 	if err == nil {
 		t.Error("expected error when task ID is empty for task level")
+	}
+}
+
+func TestPacket_NormalizeNilFields(t *testing.T) {
+	p := Packet{Level: LevelProject}
+	if p.Sections != nil {
+		t.Fatal("precondition: Sections should be nil")
+	}
+	p.NormalizeNilFields()
+	if p.Sections == nil {
+		t.Error("NormalizeNilFields should set Sections to empty slice")
+	}
+	if len(p.Sections) != 0 {
+		t.Error("NormalizeNilFields should set Sections to empty (not populated) slice")
 	}
 }

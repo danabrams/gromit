@@ -7,7 +7,6 @@ import (
 
 	"github.com/danabrams/gromit/internal/next/architecture"
 	"github.com/danabrams/gromit/internal/next/doctrine"
-	"github.com/danabrams/gromit/internal/next/projectcell"
 )
 
 type Level int
@@ -17,6 +16,13 @@ const (
 	LevelSpec
 	LevelTask
 )
+
+// Cell is the local type used by the Compiler. This decouples contextpkt
+// from projectcell so callers can construct a Cell without importing that package.
+type Cell struct {
+	Name     string
+	CellPath string
+}
 
 type CompileOpts struct {
 	SpecPath    string
@@ -28,6 +34,13 @@ type Packet struct {
 	Level      Level     `json:"level"`
 	Sections   []Section `json:"sections"`
 	TokenCount int       `json:"token_count"`
+}
+
+// NormalizeNilFields maps nil slices to empty values.
+func (p *Packet) NormalizeNilFields() {
+	if p.Sections == nil {
+		p.Sections = []Section{}
+	}
 }
 
 type Section struct {
@@ -49,7 +62,7 @@ type ArtifactStore interface {
 }
 
 type Compiler interface {
-	Compile(ctx context.Context, cell projectcell.Cell, level Level, opts CompileOpts) (Packet, error)
+	Compile(ctx context.Context, cell Cell, level Level, opts CompileOpts) (Packet, error)
 }
 
 type DefaultCompiler struct {
@@ -60,7 +73,7 @@ func NewCompiler(store ArtifactStore) *DefaultCompiler {
 	return &DefaultCompiler{store: store}
 }
 
-func (c *DefaultCompiler) Compile(ctx context.Context, cell projectcell.Cell, level Level, opts CompileOpts) (Packet, error) {
+func (c *DefaultCompiler) Compile(ctx context.Context, cell Cell, level Level, opts CompileOpts) (Packet, error) {
 	switch level {
 	case LevelSpec:
 		if opts.SpecPath == "" {
@@ -77,48 +90,13 @@ func (c *DefaultCompiler) Compile(ctx context.Context, cell projectcell.Cell, le
 
 	var sections []Section
 
-	// Load architecture
-	var arch architecture.Architecture
-	if err := c.store.Read(cell.CellPath, "architecture", &arch); err == nil {
-		if len(arch.Modules) > 0 || len(arch.Components) > 0 {
-			content, _ := json.MarshalIndent(arch, "", "  ")
-			sections = append(sections, Section{
-				Name:          "architecture",
-				Content:       string(content),
-				TokenEstimate: estimateTokens(string(content)),
-			})
-		}
-	}
-
-	// Load doctrine
-	var doc doctrine.Doctrine
-	if err := c.store.Read(cell.CellPath, "doctrine", &doc); err == nil {
-		if len(doc.Rules) > 0 {
-			content, _ := json.MarshalIndent(doc, "", "  ")
-			sections = append(sections, Section{
-				Name:          "doctrine",
-				Content:       string(content),
-				TokenEstimate: estimateTokens(string(content)),
-			})
-		}
-	}
-
-	// Spec-level: add spec text section
-	if level == LevelSpec || level == LevelTask {
-		sections = append(sections, Section{
-			Name:          "spec-text",
-			Content:       fmt.Sprintf("Spec: %s", opts.SpecPath),
-			TokenEstimate: estimateTokens(opts.SpecPath),
-		})
-	}
-
-	// Task-level: add proof requirements section
-	if level == LevelTask {
-		sections = append(sections, Section{
-			Name:          "proof-requirements",
-			Content:       fmt.Sprintf("Task %s proof requirements: run tests, check invariants", opts.TaskID),
-			TokenEstimate: estimateTokens(opts.TaskID) + 10,
-		})
+	switch level {
+	case LevelProject:
+		sections = c.buildProjectSections(cell)
+	case LevelSpec:
+		sections = c.buildSpecSections(cell, opts)
+	case LevelTask:
+		sections = c.buildTaskSections(cell, opts)
 	}
 
 	// Calculate total tokens
@@ -141,6 +119,114 @@ func (c *DefaultCompiler) Compile(ctx context.Context, cell projectcell.Cell, le
 		Sections:   sections,
 		TokenCount: totalTokens,
 	}, nil
+}
+
+// buildProjectSections returns: architecture (full) + doctrine (full) + glossary + validation.
+func (c *DefaultCompiler) buildProjectSections(cell Cell) []Section {
+	var sections []Section
+
+	if s, ok := c.architectureSection(cell); ok {
+		sections = append(sections, s)
+	}
+	if s, ok := c.doctrineSection(cell); ok {
+		sections = append(sections, s)
+	}
+
+	sections = append(sections, Section{
+		Name:          "glossary",
+		Content:       "Project glossary placeholder",
+		TokenEstimate: estimateTokens("Project glossary placeholder"),
+	})
+	sections = append(sections, Section{
+		Name:          "validation",
+		Content:       "Project validation rules placeholder",
+		TokenEstimate: estimateTokens("Project validation rules placeholder"),
+	})
+
+	return sections
+}
+
+// buildSpecSections returns: architecture + doctrine + spec-text.
+func (c *DefaultCompiler) buildSpecSections(cell Cell, opts CompileOpts) []Section {
+	var sections []Section
+
+	if s, ok := c.architectureSection(cell); ok {
+		sections = append(sections, s)
+	}
+	if s, ok := c.doctrineSection(cell); ok {
+		sections = append(sections, s)
+	}
+
+	sections = append(sections, Section{
+		Name:          "spec-text",
+		Content:       fmt.Sprintf("Spec: %s", opts.SpecPath),
+		TokenEstimate: estimateTokens(opts.SpecPath),
+	})
+
+	return sections
+}
+
+// buildTaskSections returns: doctrine + spec-text + proof-requirements.
+func (c *DefaultCompiler) buildTaskSections(cell Cell, opts CompileOpts) []Section {
+	var sections []Section
+
+	if s, ok := c.doctrineSection(cell); ok {
+		sections = append(sections, s)
+	}
+
+	sections = append(sections, Section{
+		Name:          "spec-text",
+		Content:       fmt.Sprintf("Spec: %s", opts.SpecPath),
+		TokenEstimate: estimateTokens(opts.SpecPath),
+	})
+
+	sections = append(sections, Section{
+		Name:          "proof-requirements",
+		Content:       fmt.Sprintf("Task %s proof requirements: run tests, check invariants", opts.TaskID),
+		TokenEstimate: estimateTokens(opts.TaskID) + 10,
+	})
+
+	return sections
+}
+
+// architectureSection loads and marshals the architecture artifact.
+func (c *DefaultCompiler) architectureSection(cell Cell) (Section, bool) {
+	var arch architecture.Architecture
+	if err := c.store.Read(cell.CellPath, "architecture", &arch); err != nil {
+		return Section{}, false
+	}
+	if len(arch.Modules) == 0 && len(arch.Components) == 0 {
+		return Section{}, false
+	}
+	content, err := json.MarshalIndent(arch, "", "  ")
+	if err != nil {
+		return Section{}, false
+	}
+	return Section{
+		Name:          "architecture",
+		Content:       string(content),
+		TokenEstimate: estimateTokens(string(content)),
+	}, true
+}
+
+// doctrineSection loads and marshals the doctrine artifact.
+func (c *DefaultCompiler) doctrineSection(cell Cell) (Section, bool) {
+	var doc doctrine.Doctrine
+	if err := c.store.Read(cell.CellPath, "doctrine", &doc); err != nil {
+		return Section{}, false
+	}
+	if len(doc.Rules) == 0 {
+		return Section{}, false
+	}
+	content, err := json.MarshalIndent(doc, "", "  ")
+	if err != nil {
+		return Section{}, false
+	}
+	return Section{
+		Name:          "doctrine",
+		Content:       string(content),
+		TokenEstimate: estimateTokens(string(content)),
+	}, true
 }
 
 func estimateTokens(s string) int {
