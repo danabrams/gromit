@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io"
@@ -436,6 +437,66 @@ func TestRun2FromReviewUsesBeadLoop(t *testing.T) {
 	}
 	if len(got.BlockedBy) != 1 || got.BlockedBy[0].ID != "blocked" {
 		t.Fatalf("blocked_by = %v, want blocked", got.BlockedBy)
+	}
+}
+
+func TestRun2FromReviewLogsSummary(t *testing.T) {
+	_, cleanup := setupRun2TestEnv(t)
+	defer cleanup()
+
+	cfg, err := loadConfig()
+	if err != nil {
+		t.Fatalf("loadConfig: %v", err)
+	}
+
+	fakeTracker := &fakeTaskTracker{
+		response: []tasktracker.Bead{{ID: "summary-bead", Labels: []string{"from-review"}}},
+	}
+	origTrackerFn := newTaskTrackerAdapterFn
+	newTaskTrackerAdapterFn = func(_ *bead.Client) tasktracker.TaskTracker { return fakeTracker }
+	defer func() { newTaskTrackerAdapterFn = origTrackerFn }()
+
+	origComponentsFn := newRun2LoopComponentsFn
+	newRun2LoopComponentsFn = func(cfg *config.Config, adapters adapter.AdapterSet, legacyEmitter *events.Emitter, output io.Writer, router *routing.Router, phaseModels map[string]string) (*loop.Run2LoopComponents, error) {
+		emitter := events.NewEmitter()
+		return &loop.Run2LoopComponents{
+			BeadLoop:     &loop.BeadLoop{},
+			Emitter:      emitter,
+			TypedEmitter: event.NewEmitter(),
+		}, nil
+	}
+	defer func() { newRun2LoopComponentsFn = origComponentsFn }()
+
+	origRunFn := runBeadLoopFn
+	runBeadLoopFn = func(runLoop *loop.BeadLoop, ctx context.Context, beads []*bead.Bead, stopCh <-chan struct{}) (loop.BeadLoopResult, error) {
+		return loop.BeadLoopResult{}, nil
+	}
+	defer func() { runBeadLoopFn = origRunFn }()
+
+	origSubscribers := startRun2SubscribersFn
+	startRun2SubscribersFn = func(ctx context.Context, emitter *events.Emitter, output io.Writer, logsDir string) (*sync.WaitGroup, error) {
+		return &sync.WaitGroup{}, nil
+	}
+	defer func() { startRun2SubscribersFn = origSubscribers }()
+
+	var output bytes.Buffer
+	prevOut := run2Cmd.OutOrStdout()
+	run2Cmd.SetOut(&output)
+	t.Cleanup(func() { run2Cmd.SetOut(prevOut) })
+	prevErr := run2Cmd.ErrOrStderr()
+	run2Cmd.SetErr(io.Discard)
+	t.Cleanup(func() { run2Cmd.SetErr(prevErr) })
+
+	if err := run2FromReview(run2Cmd, cfg); err != nil {
+		t.Fatalf("run2FromReview = %v", err)
+	}
+
+	got := output.String()
+	if !strings.Contains(got, "Found 1 from-review bead(s).") {
+		t.Fatalf("output missing found summary: %q", got)
+	}
+	if !strings.Contains(got, "Executed 1 from-review bead(s) through the bead loop.") {
+		t.Fatalf("output missing executed summary: %q", got)
 	}
 }
 
