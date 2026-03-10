@@ -711,6 +711,33 @@ func TestConvertSpecFindingsPreservesTitle(t *testing.T) {
 	}
 }
 
+func TestConvertSpecFindingsCopiesAffectedFiles(t *testing.T) {
+	t.Parallel()
+
+	src := []stage.SpecFinding{{
+		Title:         "missing logs",
+		Description:   "audit trail gap",
+		Severity:      stage.SpecFindingSeverityWarning,
+		Category:      stage.SpecFindingCategoryQuality,
+		Scope:         stage.SpecFindingScopeSpec,
+		AffectedFiles: []string{"audit/log.md", "docs/process.md"},
+	}}
+
+	got := convertSpecFindings(src)
+	if len(got) != 1 {
+		t.Fatalf("convertSpecFindings returned %d entries, want 1", len(got))
+	}
+
+	if len(got[0].AffectedFiles) != len(src[0].AffectedFiles) {
+		t.Fatalf("converted affected files count = %d, want %d", len(got[0].AffectedFiles), len(src[0].AffectedFiles))
+	}
+	for i, want := range src[0].AffectedFiles {
+		if got[0].AffectedFiles[i] != want {
+			t.Fatalf("affected file[%d] = %q, want %q", i, got[0].AffectedFiles[i], want)
+		}
+	}
+}
+
 func TestRemediation_CreatesRemediationPlanNotOriginal(t *testing.T) {
 	t.Parallel()
 
