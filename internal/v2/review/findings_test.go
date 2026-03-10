@@ -14,3 +14,17 @@ func TestComputeVerdictCriticalFindings(t *testing.T) {
 		t.Fatalf("verdict = %q, want %q", verdict, VerdictFail)
 	}
 }
+
+func TestComputeVerdictPassesWhenNoCritical(t *testing.T) {
+	t.Parallel()
+
+	findings := []Finding{
+		{Severity: SeverityWarning},
+		{Severity: SeveritySuggestion},
+	}
+
+	verdict := ComputeVerdict(findings)
+	if verdict != VerdictPass {
+		t.Fatalf("verdict = %q, want %q", verdict, VerdictPass)
+	}
+}
