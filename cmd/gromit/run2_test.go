@@ -994,3 +994,87 @@ func TestRun2FromReviewLogsWhenNoBeads(t *testing.T) {
 		t.Fatalf("stderr = %q, want log about no beads", stderr.String())
 	}
 }
+
+func TestRunFromReviewRunsBeadLoopForQueriedBeads(t *testing.T) {
+	tracker := &fakeQueryTaskTracker{
+		resp: &trackertypes.TaskTrackerQueryBeadsResponse{
+			Beads: []trackertypes.Bead{
+				{ID: "bd-123", Title: "from-review bead"},
+			},
+		},
+	}
+
+	var buildRanFor []string
+	beadLoop, err := loop.NewBeadLoop(loop.BeadLoopConfig{
+		Gate:     &recordingStage{name: "gate"},
+		Build:    &recordingStage{name: "build", onRun: func(req *stagepkg.Request) { buildRanFor = append(buildRanFor, req.Bead.ID) }},
+		Validate: &recordingStage{name: "validate"},
+		Review:   &recordingStage{name: "review"},
+		Epilogue: &recordingStage{name: "epilogue"},
+	})
+	if err != nil {
+		t.Fatalf("creating bead loop: %v", err)
+	}
+
+	adapters := adapter.AdapterSet{TaskTracker: tracker}
+	components := &loop.Run2LoopComponents{BeadLoop: beadLoop}
+
+	if err := runFromReview(context.Background(), run2Cmd, &config.Config{}, adapters, components, nil, ""); err != nil {
+		t.Fatalf("unexpected runFromReview error: %v", err)
+	}
+	if len(buildRanFor) != 1 || buildRanFor[0] != "bd-123" {
+		t.Fatalf("build stage bead IDs = %v, want [bd-123]", buildRanFor)
+	}
+}
+
+type fakeQueryTaskTracker struct {
+	resp      *trackertypes.TaskTrackerQueryBeadsResponse
+	queryErr  error
+	lastQuery trackertypes.TaskTrackerQueryBeadsRequest
+}
+
+func (f *fakeQueryTaskTracker) NextBead(context.Context, trackertypes.TaskTrackerNextBeadRequest) (*trackertypes.TaskTrackerNextBeadResponse, error) {
+	return nil, nil
+}
+
+func (f *fakeQueryTaskTracker) ShowBead(context.Context, string) (*trackertypes.Bead, error) {
+	return nil, nil
+}
+
+func (f *fakeQueryTaskTracker) CreateBead(context.Context, trackertypes.TaskTrackerCreateBeadRequest) (*trackertypes.TaskTrackerCreateBeadResponse, error) {
+	return nil, nil
+}
+
+func (f *fakeQueryTaskTracker) CloseBead(context.Context, trackertypes.TaskTrackerCloseBeadRequest) (*trackertypes.TaskTrackerCloseBeadResponse, error) {
+	return &trackertypes.TaskTrackerCloseBeadResponse{}, nil
+}
+
+func (f *fakeQueryTaskTracker) QueryBeads(_ context.Context, req trackertypes.TaskTrackerQueryBeadsRequest) (*trackertypes.TaskTrackerQueryBeadsResponse, error) {
+	f.lastQuery = req
+	if f.queryErr != nil {
+		return nil, f.queryErr
+	}
+	if f.resp == nil {
+		return &trackertypes.TaskTrackerQueryBeadsResponse{}, nil
+	}
+	return f.resp, nil
+}
+
+type recordingStage struct {
+	name  string
+	onRun func(req *stagepkg.Request)
+}
+
+func (s *recordingStage) Name() string {
+	if s == nil {
+		return ""
+	}
+	return s.name
+}
+
+func (s *recordingStage) Run(_ context.Context, req *stagepkg.Request) (*stagepkg.Result, error) {
+	if s != nil && s.onRun != nil {
+		s.onRun(req)
+	}
+	return &stagepkg.Result{Decision: stagepkg.DecisionProceed}, nil
+}
