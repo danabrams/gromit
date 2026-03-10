@@ -503,6 +503,74 @@ func TestSpecLoopSpecReviewFailureTriggersRemediationWithFindings(t *testing.T) 
 	}
 }
 
+func TestSpecLoopSpecReviewWarningsCreateFromReviewBeads(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	specID := "spec-review-warnings"
+	cfg := &config.Config{}
+
+	planStage := newFakePlanStage(specID)
+	presentStage, summaryCtx := newPresentStageForTest(t, cfg, newFakePresenterAdapter(t))
+
+	taskTracker := newFakeTaskTrackerAdapter()
+	adapters := adapter.AdapterSet{
+		Git:         newFakeGitAdapter(t),
+		LLM:         newFakeLLMAdapter(),
+		TaskTracker: taskTracker,
+		Presenter:   newFakePresenterAdapter(t),
+	}
+
+	decompose := newFakeDecomposeStage(specID)
+	beadRunner := newFakeBeadRunner()
+	accept := newFakeAcceptStage()
+
+	warningFinding := stagepkg.Finding{
+		Severity:      stagepkg.SeverityWarning,
+		Category:      stagepkg.CategoryQuality,
+		Scope:         stagepkg.ScopeSpec,
+		Description:   "spec warning",
+		AffectedFiles: []string{"spec.md"},
+	}
+	specReview := newFakeSpecReviewStage(&stagepkg.Result{
+		Decision: stagepkg.DecisionProceed,
+		Artifacts: &specreview.SpecReviewArtifacts{
+			Verdict:  "passed with warnings",
+			Findings: []stagepkg.Finding{warningFinding},
+		},
+	})
+
+	loopInstance, err := NewSpecLoop(adapters, cfg, noopDependencyGate{},
+		WithPlanStage(planStage),
+		WithPresentStage(presentStage, summaryCtx),
+		WithDecomposeStage(decompose),
+		WithBeadLoop(beadRunner),
+		WithAcceptStage(accept),
+		WithSpecReviewStage(specReview),
+	)
+	if err != nil {
+		t.Fatalf("create spec loop: %v", err)
+	}
+
+	if err := loopInstance.Run(ctx, specID, nil); err != nil {
+		t.Fatalf("run spec loop: %v", err)
+	}
+
+	if len(taskTracker.createdBeads) != 1 {
+		t.Fatalf("created beads = %d, want 1", len(taskTracker.createdBeads))
+	}
+	created := taskTracker.createdBeads[0]
+	if !bead.HasLabel(created.Labels, "from-review") {
+		t.Fatalf("labels = %v, missing from-review", created.Labels)
+	}
+	if !bead.HasLabel(created.Labels, "scope:spec") {
+		t.Fatalf("labels = %v, missing scope:spec", created.Labels)
+	}
+	if !bead.HasLabel(created.Labels, tracker.SpecLabelFor(specID)) {
+		t.Fatalf("labels = %v, missing spec label", created.Labels)
+	}
+}
+
 type recordingSpecReviewRemediationRunner struct {
 	calls        int
 	lastFindings []stagepkg.Finding

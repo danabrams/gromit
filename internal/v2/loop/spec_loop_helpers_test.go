@@ -237,6 +237,7 @@ type fakeTaskTrackerAdapter struct {
 	queryBeadsResponse *tasktracker.TaskTrackerQueryBeadsResponse
 	queryBeadsErr      error // returned on every QueryBeads call when set
 	queryBeadsOpenErr  error // returned only when Status filter is non-empty
+	createdBeads       []tasktracker.TaskTrackerCreateBeadRequest
 }
 
 func newFakeTaskTrackerAdapter() *fakeTaskTrackerAdapter {
@@ -251,7 +252,8 @@ func (f *fakeTaskTrackerAdapter) ShowBead(_ context.Context, _ string) (*tasktra
 	return nil, fmt.Errorf("bead not found")
 }
 
-func (f *fakeTaskTrackerAdapter) CreateBead(_ context.Context, _ tasktracker.TaskTrackerCreateBeadRequest) (*tasktracker.TaskTrackerCreateBeadResponse, error) {
+func (f *fakeTaskTrackerAdapter) CreateBead(_ context.Context, req tasktracker.TaskTrackerCreateBeadRequest) (*tasktracker.TaskTrackerCreateBeadResponse, error) {
+	f.createdBeads = append(f.createdBeads, req)
 	return &tasktracker.TaskTrackerCreateBeadResponse{}, nil
 }
 
