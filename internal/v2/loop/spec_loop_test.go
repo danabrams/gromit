@@ -1633,6 +1633,32 @@ func (f *fakePresentStage) Run(ctx context.Context, req *stagepkg.Request) (*sta
 	return &stagepkg.Result{Decision: stagepkg.DecisionProceed}, nil
 }
 
+type fakeStage struct {
+	name        string
+	result      *stagepkg.Result
+	err         error
+	called      bool
+	lastRequest *stagepkg.Request
+}
+
+func newFakeStage(name string, result *stagepkg.Result, err error) *fakeStage {
+	if result == nil {
+		result = &stagepkg.Result{Decision: stagepkg.DecisionProceed}
+	}
+	return &fakeStage{name: name, result: result, err: err}
+}
+
+func (f *fakeStage) Name() string { return f.name }
+
+func (f *fakeStage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Result, error) {
+	f.called = true
+	f.lastRequest = req
+	if f.err != nil {
+		return nil, f.err
+	}
+	return f.result, nil
+}
+
 func TestWithTypedEmitterSetsField(t *testing.T) {
 	t.Parallel()
 	em := event.NewEmitter()
