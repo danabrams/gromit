@@ -446,13 +446,13 @@ func TestRunUsesFindingsPromptWhenFindingsProvided(t *testing.T) {
 		Bead: stagepkg.BeadInfo{ID: "spec", Labels: []string{"gen:0"}},
 		Config:      cfg,
 		Remediation: true,
-		Findings: []stagepkg.SpecFinding{
+		Findings: []finding.Finding{
 			{
-				Title:       "Missing bean tests",
-				Description: "Beans are not covered by automated tests",
-				Severity:    stagepkg.SpecFindingSeverityHigh,
-				Category:    stagepkg.SpecFindingCategoryQuality,
-				Scope:       stagepkg.SpecFindingScopeSpec,
+				Severity:      finding.SeverityCritical,
+				Category:      finding.CategoryQuality,
+				Scope:         "spec",
+				Description:   "Beans are not covered by automated tests",
+				AffectedFiles: []string{"docs/beans.md"},
 			},
 		},
 	}
@@ -473,6 +473,32 @@ func TestRunUsesFindingsPromptWhenFindingsProvided(t *testing.T) {
 	}
 	if !strings.Contains(prompt, "Missing bean tests") {
 		t.Fatal("prompt missing finding description")
+	}
+}
+
+func TestFormatFindingsIncludesSeverityCategoryScopeDescriptionAndAffectedFiles(t *testing.T) {
+	t.Parallel()
+	req := &stagepkg.Request{
+		Findings: []finding.Finding{
+			{
+				Severity:      finding.SeverityCritical,
+				Category:      finding.CategoryBug,
+				Scope:         "spec",
+				Description:   "Beans need tests",
+				AffectedFiles: []string{"beans.go", "beans_test.go"},
+			},
+		},
+	}
+
+	out := formatFindings(req)
+	if !strings.Contains(out, "### critical — bug (spec)") {
+		t.Fatalf("missing severity/category/scope header: %q", out)
+	}
+	if !strings.Contains(out, "Beans need tests") {
+		t.Fatalf("missing description: %q", out)
+	}
+	if !strings.Contains(out, "Affected files: beans.go, beans_test.go") {
+		t.Fatalf("missing affected files list: %q", out)
 	}
 }
 
