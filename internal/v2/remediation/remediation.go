@@ -359,21 +359,27 @@ func convertSpecFindings(src []stage.SpecFinding) []finding.Finding {
 	converted := make([]finding.Finding, 0, len(src))
 	for _, spec := range src {
 		converted = append(converted, finding.Finding{
-			Severity:    mapSpecSeverity(spec.Severity),
-			Category:    mapSpecCategory(spec.Category),
-			Scope:       strings.TrimSpace(string(spec.Scope)),
-			Description: strings.TrimSpace(spec.Description),
+			Title:         strings.TrimSpace(spec.Title),
+			Severity:      mapSpecSeverity(spec.Severity),
+			Category:      mapSpecCategory(spec.Category),
+			Scope:         strings.TrimSpace(string(spec.Scope)),
+			Description:   strings.TrimSpace(spec.Description),
+			AffectedFiles: append([]string(nil), spec.AffectedFiles...),
 		})
 	}
 	return converted
 }
 
 func mapSpecSeverity(severity stage.SpecFindingSeverity) finding.Severity {
-	switch severity {
-	case stage.SpecFindingSeverityCritical:
+	switch strings.ToLower(strings.TrimSpace(string(severity))) {
+	case string(stage.SpecFindingSeverityCritical):
 		return finding.SeverityCritical
-	case stage.SpecFindingSeverityHigh, stage.SpecFindingSeverityMedium:
+	case string(stage.SpecFindingSeverityHigh):
+		return finding.SeverityCritical
+	case string(stage.SpecFindingSeverityMedium):
 		return finding.SeverityWarning
+	case string(stage.SpecFindingSeverityLow):
+		return finding.SeveritySuggestion
 	default:
 		return finding.SeveritySuggestion
 	}
