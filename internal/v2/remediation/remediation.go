@@ -442,14 +442,24 @@ func (r *RemediationRunner) specReviewSpecFindings(res *stage.Result) []stage.Sp
 	result := make([]stage.SpecFinding, 0, len(artifacts.Findings))
 	for _, raw := range artifacts.Findings {
 		result = append(result, stage.SpecFinding{
-			Title:       strings.TrimSpace(raw.Title),
-			Description: strings.TrimSpace(raw.Description),
-			Severity:    raw.Severity,
-			Category:    raw.Category,
-			Scope:       raw.Scope,
+			Title:         strings.TrimSpace(raw.Title),
+			Description:   strings.TrimSpace(raw.Description),
+			Severity:      raw.Severity,
+			Category:      raw.Category,
+			Scope:         raw.Scope,
+			AffectedFiles: cloneStrings(raw.AffectedFiles),
 		})
 	}
 	return result
+}
+
+func cloneStrings(src []string) []string {
+	if len(src) == 0 {
+		return nil
+	}
+	dst := make([]string, len(src))
+	copy(dst, src)
+	return dst
 }
 
 func (r *RemediationRunner) runSpecReviewStage(ctx context.Context, req *stage.Request) (*stage.Result, error) {
