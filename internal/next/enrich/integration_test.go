@@ -3,6 +3,7 @@ package enrich
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -317,5 +318,203 @@ func TestIntegration_FullEnrichmentFlow(t *testing.T) {
 	}
 	if len(entries) != 0 {
 		t.Errorf("fixture directory should be empty after enrichment, found %d entries", len(entries))
+	}
+}
+
+func TestIntegration_MultiProjectIsolation(t *testing.T) {
+	// --- Setup: two independent projects with separate cell paths ---
+	cellPathA := t.TempDir()
+	cellPathB := t.TempDir()
+
+	os.MkdirAll(filepath.Join(cellPathA, "inferred", "runs"), 0o755)
+	os.MkdirAll(filepath.Join(cellPathB, "inferred", "runs"), 0o755)
+
+	factStore := NewFactStore()
+	runStore := NewRunStore()
+
+	// Project A: MVC architecture
+	factA := InferredFact{
+		Category:   CategoryEntrypoint,
+		Statement:  "project-a uses MVC architecture",
+		Rationale:  "observed controller/model/view directories",
+		Confidence: "high",
+		Scope:      "project",
+	}
+	mockA := &categoryMockEnricher{
+		factsByCategory: map[EnrichmentCategory][]InferredFact{
+			CategoryEntrypoint: {factA},
+		},
+	}
+
+	// Project B: event sourcing
+	factB := InferredFact{
+		Category:   CategoryEntrypoint,
+		Statement:  "project-b uses event sourcing",
+		Rationale:  "observed event store and projections",
+		Confidence: "high",
+		Scope:      "project",
+	}
+	mockB := &categoryMockEnricher{
+		factsByCategory: map[EnrichmentCategory][]InferredFact{
+			CategoryEntrypoint: {factB},
+		},
+	}
+
+	cfg := DefaultConfig()
+	observedA := []fact.Fact{fact.New("obs-a", fact.Observed, "controllers/ exists", "file-tree")}
+	observedB := []fact.Fact{fact.New("obs-b", fact.Observed, "events/ exists", "file-tree")}
+
+	inputA := EnrichInput{ProjectName: "project-a", FileTree: []string{"controllers/", "models/", "views/"}}
+	inputB := EnrichInput{ProjectName: "project-b", FileTree: []string{"events/", "projections/", "aggregates/"}}
+
+	// --- Run enrichment for project A ---
+	orchA := NewOrchestrator(mockA, factStore, runStore)
+	resultA, err := orchA.Run(context.Background(), cellPathA, observedA, inputA, cfg)
+	if err != nil {
+		t.Fatalf("Project A enrichment failed: %v", err)
+	}
+	if resultA.TotalFacts < 1 {
+		t.Errorf("Project A: expected at least 1 fact, got %d", resultA.TotalFacts)
+	}
+
+	// --- Run enrichment for project B ---
+	orchB := NewOrchestrator(mockB, factStore, runStore)
+	resultB, err := orchB.Run(context.Background(), cellPathB, observedB, inputB, cfg)
+	if err != nil {
+		t.Fatalf("Project B enrichment failed: %v", err)
+	}
+	if resultB.TotalFacts < 1 {
+		t.Errorf("Project B: expected at least 1 fact, got %d", resultB.TotalFacts)
+	}
+
+	// --- Verify fact isolation: A's facts don't contain B's content ---
+	factsA, err := factStore.LoadFacts(cellPathA)
+	if err != nil {
+		t.Fatalf("LoadFacts for project A: %v", err)
+	}
+	factsB, err := factStore.LoadFacts(cellPathB)
+	if err != nil {
+		t.Fatalf("LoadFacts for project B: %v", err)
+	}
+
+	for _, f := range factsA {
+		if strings.Contains(f.Statement, "project-b") {
+			t.Errorf("Project A facts should not contain project-b content, found: %s", f.Statement)
+		}
+	}
+	for _, f := range factsB {
+		if strings.Contains(f.Statement, "project-a") {
+			t.Errorf("Project B facts should not contain project-a content, found: %s", f.Statement)
+		}
+	}
+
+	// Verify expected content IS present in each project.
+	foundAFact := false
+	for _, f := range factsA {
+		if f.Statement == "project-a uses MVC architecture" {
+			foundAFact = true
+		}
+	}
+	if !foundAFact {
+		t.Error("Project A should contain its MVC architecture fact")
+	}
+
+	foundBFact := false
+	for _, f := range factsB {
+		if f.Statement == "project-b uses event sourcing" {
+			foundBFact = true
+		}
+	}
+	if !foundBFact {
+		t.Error("Project B should contain its event sourcing fact")
+	}
+
+	// --- Guide rendering isolation ---
+	renderer := guide.NewMarkdownRenderer()
+
+	var inferredObsA []guide.InferredObservation
+	for _, f := range factsA {
+		inferredObsA = append(inferredObsA, guide.InferredObservation{
+			Category:   string(f.Category),
+			Statement:  f.Statement,
+			Confidence: f.Confidence,
+		})
+	}
+	var inferredObsB []guide.InferredObservation
+	for _, f := range factsB {
+		inferredObsB = append(inferredObsB, guide.InferredObservation{
+			Category:   string(f.Category),
+			Statement:  f.Statement,
+			Confidence: f.Confidence,
+		})
+	}
+
+	guideA, err := renderer.Render(guide.RenderInput{
+		ProjectName:     "project-a",
+		InferredFacts:   inferredObsA,
+		IncludeInferred: true,
+	})
+	if err != nil {
+		t.Fatalf("Render guide A: %v", err)
+	}
+	guideB, err := renderer.Render(guide.RenderInput{
+		ProjectName:     "project-b",
+		InferredFacts:   inferredObsB,
+		IncludeInferred: true,
+	})
+	if err != nil {
+		t.Fatalf("Render guide B: %v", err)
+	}
+
+	if strings.Contains(string(guideA), "event sourcing") {
+		t.Error("Project A guide should not contain project B's event sourcing content")
+	}
+	if strings.Contains(string(guideB), "MVC architecture") {
+		t.Error("Project B guide should not contain project A's MVC architecture content")
+	}
+
+	// --- Context compiler isolation ---
+	artStoreA := newTestArtifactStore()
+	artStoreA.set("architecture", map[string]any{
+		"modules": []map[string]any{
+			{"name": "controllers", "description": "MVC controllers", "language": "go"},
+		},
+	})
+
+	artStoreB := newTestArtifactStore()
+	artStoreB.set("architecture", map[string]any{
+		"modules": []map[string]any{
+			{"name": "events", "description": "Event store", "language": "go"},
+		},
+	})
+
+	compilerA := contextpkt.NewCompiler(artStoreA)
+	compilerB := contextpkt.NewCompiler(artStoreB)
+
+	cellA := contextpkt.Cell{Name: "project-a", CellPath: cellPathA}
+	cellB := contextpkt.Cell{Name: "project-b", CellPath: cellPathB}
+
+	pktA, err := compilerA.Compile(context.Background(), cellA, contextpkt.LevelProject, contextpkt.CompileOpts{
+		IncludeInferred: true,
+	})
+	if err != nil {
+		t.Fatalf("Compile project A context: %v", err)
+	}
+	pktB, err := compilerB.Compile(context.Background(), cellB, contextpkt.LevelProject, contextpkt.CompileOpts{
+		IncludeInferred: true,
+	})
+	if err != nil {
+		t.Fatalf("Compile project B context: %v", err)
+	}
+
+	// Verify each packet's inferred section contains only its own facts.
+	pktAStr := fmt.Sprintf("%v", pktA)
+	pktBStr := fmt.Sprintf("%v", pktB)
+
+	if strings.Contains(pktAStr, "event sourcing") {
+		t.Error("Project A context packet should not contain project B's event sourcing content")
+	}
+	if strings.Contains(pktBStr, "MVC architecture") {
+		t.Error("Project B context packet should not contain project A's MVC architecture content")
 	}
 }
