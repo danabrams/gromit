@@ -1,12 +1,35 @@
 package main
 
 import (
+	"github.com/danabrams/gromit/internal/next/specloop"
 	"github.com/spf13/cobra"
 )
 
 var execCmd = &cobra.Command{
 	Use:   "exec",
 	Short: "Execution commands",
+}
+
+// dryRunStages is the set of stage names that run during a dry-run.
+var dryRunStages = map[string]bool{
+	"init":    true,
+	"compile": true,
+	"plan":    true,
+}
+
+// filterStagesForDryRun returns only the dry-run stages when dryRun is true,
+// or all stages when dryRun is false.
+func filterStagesForDryRun(stages []specloop.Stage, dryRun bool) []specloop.Stage {
+	if !dryRun {
+		return stages
+	}
+	var filtered []specloop.Stage
+	for _, s := range stages {
+		if dryRunStages[s.Name()] {
+			filtered = append(filtered, s)
+		}
+	}
+	return filtered
 }
 
 // newExecSpecCmd creates the `exec spec` command. Exported for testing.
