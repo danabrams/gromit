@@ -641,3 +641,117 @@ func TestIntegration_StalenessExpiry(t *testing.T) {
 		t.Errorf("expected at least 2 fresh facts after re-run, got %d", len(freshAfterRerun))
 	}
 }
+
+func TestIntegration_AcceptedFactSuperseded(t *testing.T) {
+	// --- Setup ---
+	cellPath := t.TempDir()
+	os.MkdirAll(filepath.Join(cellPath, "inferred", "runs"), 0o755)
+
+	factStore := NewFactStore()
+	runStore := NewRunStore()
+
+	// Mock 1: produces fact X ("payments-api uses hexagonal architecture").
+	factX := InferredFact{
+		Category:   CategoryEntrypoint,
+		Statement:  "payments-api uses hexagonal architecture",
+		Rationale:  "observed ports and adapters directories",
+		Confidence: "high",
+		Scope:      "project",
+	}
+	mock1 := &categoryMockEnricher{
+		factsByCategory: map[EnrichmentCategory][]InferredFact{
+			CategoryEntrypoint: {factX},
+		},
+	}
+
+	observed := []fact.Fact{
+		fact.New("obs-1", fact.Observed, "ports/ and adapters/ exist", "file-tree"),
+	}
+	input := EnrichInput{
+		ProjectName: "payments-api",
+		FileTree:    []string{"ports/", "adapters/", "domain/"},
+	}
+	cfg := DefaultConfig()
+
+	// --- Run 1: initial enrichment producing fact X ---
+	orch1 := NewOrchestrator(mock1, factStore, runStore)
+	result1, err := orch1.Run(context.Background(), cellPath, observed, input, cfg)
+	if err != nil {
+		t.Fatalf("Run 1 failed: %v", err)
+	}
+	if result1.TotalFacts < 1 {
+		t.Fatalf("Run 1: expected at least 1 fact, got %d", result1.TotalFacts)
+	}
+
+	// Find fact X's ID and accept it.
+	loadedFacts, err := factStore.LoadFacts(cellPath)
+	if err != nil {
+		t.Fatalf("LoadFacts after Run 1: %v", err)
+	}
+	var factXID string
+	for _, f := range loadedFacts {
+		if f.Statement == "payments-api uses hexagonal architecture" {
+			factXID = f.FactID
+			break
+		}
+	}
+	if factXID == "" {
+		t.Fatalf("could not find fact X in loaded facts; got %d facts", len(loadedFacts))
+	}
+
+	// Accept fact X.
+	if err := factStore.UpdateStatus(cellPath, factXID, StatusAccepted); err != nil {
+		t.Fatalf("UpdateStatus(accepted): %v", err)
+	}
+
+	// Sleep to ensure distinct timestamp-based run ID.
+	time.Sleep(1100 * time.Millisecond)
+
+	// --- Run 2: different mock that does NOT produce fact X ---
+	factY := InferredFact{
+		Category:   CategoryEntrypoint,
+		Statement:  "payments-api uses layered architecture",
+		Rationale:  "observed service/repository layers",
+		Confidence: "medium",
+		Scope:      "project",
+	}
+	mock2 := &categoryMockEnricher{
+		factsByCategory: map[EnrichmentCategory][]InferredFact{
+			CategoryEntrypoint: {factY},
+		},
+	}
+
+	orch2 := NewOrchestrator(mock2, factStore, runStore)
+	_, err = orch2.Run(context.Background(), cellPath, observed, input, cfg)
+	if err != nil {
+		t.Fatalf("Run 2 failed: %v", err)
+	}
+
+	// --- Verify: fact X should be superseded, new facts should be proposed ---
+	finalFacts, err := factStore.LoadFacts(cellPath)
+	if err != nil {
+		t.Fatalf("LoadFacts after Run 2: %v", err)
+	}
+
+	var foundFactX, foundFactY bool
+	for _, f := range finalFacts {
+		if f.FactID == factXID {
+			foundFactX = true
+			if f.Status != StatusSuperseded {
+				t.Errorf("accepted fact X should be superseded after re-run without it, got %v", f.Status)
+			}
+		}
+		if f.Statement == "payments-api uses layered architecture" {
+			foundFactY = true
+			if f.Status != StatusProposed {
+				t.Errorf("new fact Y should be proposed, got %v", f.Status)
+			}
+		}
+	}
+	if !foundFactX {
+		t.Error("fact X should still be present (as superseded) in the final facts")
+	}
+	if !foundFactY {
+		t.Error("fact Y should be present in the final facts")
+	}
+}
