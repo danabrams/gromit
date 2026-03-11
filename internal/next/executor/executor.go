@@ -37,6 +37,7 @@ type RunTaskInput struct {
 	WorkDir                string
 	ModelTier              string
 	MaxTaskDurationSeconds int
+	GitClient              GitClient // optional: if set, FilesChanged is populated after invocation
 }
 
 // RunTaskResult holds the outcome of a single task execution.
@@ -65,12 +66,18 @@ func (e *Executor) RunTask(ctx context.Context, input RunTaskInput) (RunTaskResu
 		return RunTaskResult{}, err
 	}
 
+	var filesChanged []string
+	if input.GitClient != nil {
+		filesChanged, _ = InspectChanges(input.GitClient, input.WorkDir)
+	}
+
 	return RunTaskResult{
-		AgentOutput: result.Output,
-		TokensUsed:  result.TokensIn + result.TokensOut,
-		Cost:        result.Cost,
-		DurationMs:  time.Since(start).Milliseconds(),
-		Model:       result.Model,
-		Tier:        input.ModelTier,
+		AgentOutput:  result.Output,
+		TokensUsed:   result.TokensIn + result.TokensOut,
+		Cost:         result.Cost,
+		DurationMs:   time.Since(start).Milliseconds(),
+		FilesChanged: filesChanged,
+		Model:        result.Model,
+		Tier:         input.ModelTier,
 	}, nil
 }
