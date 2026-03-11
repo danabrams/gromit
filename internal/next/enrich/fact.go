@@ -98,7 +98,8 @@ type InferredFact struct {
 	InferenceRunID string             `json:"inference_run_id"`
 }
 
-// NormalizeNilFields maps nil slices to empty values.
+// NormalizeNilFields maps nil slices/maps to empty values.
+// See CLAUDE.md nil-field normalization visibility convention.
 func (f *InferredFact) NormalizeNilFields() {
 	if f.EvidenceRefs == nil {
 		f.EvidenceRefs = []string{}

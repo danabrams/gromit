@@ -28,7 +28,8 @@ type SourceMap struct {
 	Entries []Entry `json:"entries"`
 }
 
-// NormalizeNilFields maps nil slices to empty values.
+// NormalizeNilFields maps nil slices/maps to empty values.
+// See CLAUDE.md nil-field normalization visibility convention.
 func (sm *SourceMap) NormalizeNilFields() {
 	if sm.Entries == nil {
 		sm.Entries = []Entry{}

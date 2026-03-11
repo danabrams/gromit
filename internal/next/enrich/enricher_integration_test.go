@@ -21,10 +21,10 @@ type FakeProvider struct {
 	OutTok     int
 }
 
-func (f *FakeProvider) Name() string                       { return "fake" }
-func (f *FakeProvider) ModelForTier(tier string) string     { return "fake-" + tier }
+func (f *FakeProvider) Name() string                                   { return "fake" }
+func (f *FakeProvider) ModelForTier(tier string) string                { return "fake-" + tier }
 func (f *FakeProvider) IsUsageLimitError(*provider.Result, error) bool { return false }
-func (f *FakeProvider) IsValidationPassed(*provider.Result) bool      { return true }
+func (f *FakeProvider) IsValidationPassed(*provider.Result) bool       { return true }
 func (f *FakeProvider) IsScopeTooLarge(*provider.Result) (bool, string) {
 	return false, ""
 }
@@ -228,10 +228,10 @@ type ErrorProvider struct {
 	Err error
 }
 
-func (e *ErrorProvider) Name() string                       { return "error" }
-func (e *ErrorProvider) ModelForTier(tier string) string     { return "error-" + tier }
+func (e *ErrorProvider) Name() string                                   { return "error" }
+func (e *ErrorProvider) ModelForTier(tier string) string                { return "error-" + tier }
 func (e *ErrorProvider) IsUsageLimitError(*provider.Result, error) bool { return false }
-func (e *ErrorProvider) IsValidationPassed(*provider.Result) bool      { return false }
+func (e *ErrorProvider) IsValidationPassed(*provider.Result) bool       { return false }
 func (e *ErrorProvider) IsScopeTooLarge(*provider.Result) (bool, string) {
 	return false, ""
 }

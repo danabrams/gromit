@@ -100,5 +100,3 @@ func TestFSStore_MissingSubdirectories(t *testing.T) {
 		t.Errorf("Name = %q, want %q", got.Name, "myapp")
 	}
 }
-
-

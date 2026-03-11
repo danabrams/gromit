@@ -11,10 +11,10 @@ func setupFixtureRepo(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
 	files := map[string]string{
-		"main.go":                  "package main",
-		"internal/auth/auth.go":    "package auth",
-		"go.mod":                   "module example.com/test",
-		"README.md":                "# Test",
+		"main.go":               "package main",
+		"internal/auth/auth.go": "package auth",
+		"go.mod":                "module example.com/test",
+		"README.md":             "# Test",
 	}
 	for path, content := range files {
 		full := filepath.Join(dir, path)

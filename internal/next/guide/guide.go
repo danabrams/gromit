@@ -80,7 +80,8 @@ type RenderInput struct {
 	IncludeInferred bool                  `json:"include_inferred"`
 }
 
-// NormalizeNilFields maps nil slices to empty values.
+// NormalizeNilFields maps nil slices/maps to empty values.
+// See CLAUDE.md nil-field normalization visibility convention.
 func (r *RenderInput) NormalizeNilFields() {
 	if r.Modules == nil {
 		r.Modules = []Module{}
@@ -200,12 +201,12 @@ func (r *MarkdownRenderer) Render(input RenderInput) ([]byte, error) {
 	if input.IncludeInferred && len(input.InferredFacts) > 0 {
 		// Category-to-section mapping
 		sectionMap := map[string]string{
-			"component_boundary":       "Inferred Component Structure",
-			"component_responsibility": "Inferred Component Structure",
-			"entrypoint":               "Inferred Likely Entrypoints",
-			"risky_area":               "Inferred Risky Areas",
-			"integration_point":        "Inferred Integration Points",
-			"glossary_term":            "Inferred Glossary",
+			"component_boundary":        "Inferred Component Structure",
+			"component_responsibility":  "Inferred Component Structure",
+			"entrypoint":                "Inferred Likely Entrypoints",
+			"risky_area":                "Inferred Risky Areas",
+			"integration_point":         "Inferred Integration Points",
+			"glossary_term":             "Inferred Glossary",
 			"likely_validation_surface": "Inferred Validation Surfaces",
 			"likely_ownership_boundary": "Inferred Ownership Boundaries",
 		}

@@ -72,3 +72,4 @@ cmd/gromit/.gromit/benchmarks/results/
 
 # Fixture repos (nested git repos for testing)
 test/fixture-repos/
+gromit-next

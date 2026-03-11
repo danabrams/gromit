@@ -19,7 +19,8 @@ type Result struct {
 	Inferred []fact.Fact
 }
 
-// NormalizeNilFields maps nil slices to empty values.
+// NormalizeNilFields maps nil slices/maps to empty values.
+// See CLAUDE.md nil-field normalization visibility convention.
 func (r *Result) NormalizeNilFields() {
 	if r.Observed == nil {
 		r.Observed = []fact.Fact{}

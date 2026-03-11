@@ -63,6 +63,7 @@ func (a *Architecture) AddComponent(c Component) {
 }
 
 // NormalizeNilFields maps nil slices to empty values.
+// See CLAUDE.md nil-field normalization visibility convention.
 func (a *Architecture) NormalizeNilFields() {
 	if a.Modules == nil {
 		a.Modules = []Module{}

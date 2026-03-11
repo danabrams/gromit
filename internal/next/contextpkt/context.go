@@ -72,10 +72,10 @@ type Cell struct {
 }
 
 type CompileOpts struct {
-	SpecPath           string
-	TaskID             string
-	TokenBudget        int
-	IncludeInferred    bool
+	SpecPath            string
+	TaskID              string
+	TokenBudget         int
+	IncludeInferred     bool
 	StalenessExpiryDays int
 }
 
@@ -85,7 +85,8 @@ type Packet struct {
 	TokenCount int       `json:"token_count"`
 }
 
-// NormalizeNilFields maps nil slices to empty values.
+// NormalizeNilFields maps nil slices/maps to empty values.
+// See CLAUDE.md nil-field normalization visibility convention.
 func (p *Packet) NormalizeNilFields() {
 	if p.Sections == nil {
 		p.Sections = []Section{}

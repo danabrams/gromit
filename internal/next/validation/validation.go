@@ -67,6 +67,8 @@ func (cs *CommandSet) Add(cmd Command) {
 	cs.Commands = append(cs.Commands, cmd)
 }
 
+// NormalizeNilFields maps nil slices/maps to empty values.
+// See CLAUDE.md nil-field normalization visibility convention.
 func (cs *CommandSet) NormalizeNilFields() {
 	if cs.Commands == nil {
 		cs.Commands = []Command{}

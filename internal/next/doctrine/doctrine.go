@@ -48,7 +48,8 @@ type Doctrine struct {
 	Rules []Rule `json:"rules"`
 }
 
-// NormalizeNilFields maps nil slices to empty values.
+// NormalizeNilFields maps nil slices/maps to empty values.
+// See CLAUDE.md nil-field normalization visibility convention.
 func (d *Doctrine) NormalizeNilFields() {
 	if d.Rules == nil {
 		d.Rules = []Rule{}

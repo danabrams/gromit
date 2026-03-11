@@ -509,9 +509,9 @@ func TestCompiler_InferredExcludesExpiredFacts(t *testing.T) {
 
 func TestTrimToBudget(t *testing.T) {
 	sections := []Section{
-		{Name: "a", Content: "aaaaaaaaaaaaaaaaaaaa", TokenEstimate: 5},  // 20 chars = 5 tokens
-		{Name: "b", Content: "bbbbbbbbbbbbbbbbbbbb", TokenEstimate: 5},  // 20 chars = 5 tokens
-		{Name: "c", Content: "cccccccccccccccccccc", TokenEstimate: 5},  // 20 chars = 5 tokens
+		{Name: "a", Content: "aaaaaaaaaaaaaaaaaaaa", TokenEstimate: 5}, // 20 chars = 5 tokens
+		{Name: "b", Content: "bbbbbbbbbbbbbbbbbbbb", TokenEstimate: 5}, // 20 chars = 5 tokens
+		{Name: "c", Content: "cccccccccccccccccccc", TokenEstimate: 5}, // 20 chars = 5 tokens
 	}
 	// Total is 15 tokens; set budget to 8 so at least one section is truncated.
 	budget := 8

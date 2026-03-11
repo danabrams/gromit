@@ -26,6 +26,7 @@ type EnrichmentRun struct {
 }
 
 // NormalizeNilFields maps nil slices/maps to empty values.
+// See CLAUDE.md nil-field normalization visibility convention.
 func (r *EnrichmentRun) NormalizeNilFields() {
 	if r.Results == nil {
 		r.Results = []CategoryResult{}
@@ -36,7 +37,8 @@ func (r *EnrichmentRun) NormalizeNilFields() {
 	r.Inputs.NormalizeNilFields()
 }
 
-// NormalizeNilFields maps nil slices to empty values.
+// NormalizeNilFields maps nil slices/maps to empty values.
+// See CLAUDE.md nil-field normalization visibility convention.
 func (e *EnrichInput) NormalizeNilFields() {
 	if e.FileTree == nil {
 		e.FileTree = []string{}
