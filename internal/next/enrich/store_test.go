@@ -57,17 +57,22 @@ func TestFactStore_MergeStatuses(t *testing.T) {
 	os.MkdirAll(filepath.Join(dir, "inferred"), 0o755)
 	store := NewFactStore()
 
-	// Save initial facts with accepted status
+	// Save initial facts with accepted and rejected statuses
 	existing := []InferredFact{
 		{FactID: "abc", Status: StatusAccepted, Category: CategoryEntrypoint, Statement: "main"},
 		{FactID: "def", Status: StatusRejected, Category: CategoryRiskyArea, Statement: "risky"},
+		{FactID: "jkl", Status: StatusRejected, Category: CategoryGlossaryTerm, Statement: "re-proposed term"},
 	}
 	store.SaveFacts(dir, existing)
 
-	// New enrichment produces overlapping facts
+	// New enrichment produces overlapping facts.
+	// abc re-appears (accepted, should stay accepted).
+	// def does NOT re-appear (rejected, should become superseded).
+	// jkl re-appears (rejected, should become proposed per design doc).
 	incoming := []InferredFact{
 		{FactID: "abc", Status: StatusProposed, Category: CategoryEntrypoint, Statement: "main"},
 		{FactID: "ghi", Status: StatusProposed, Category: CategoryGlossaryTerm, Statement: "term"},
+		{FactID: "jkl", Status: StatusProposed, Category: CategoryGlossaryTerm, Statement: "re-proposed term"},
 	}
 
 	merged := store.MergeWithExisting(existing, incoming)
@@ -84,6 +89,10 @@ func TestFactStore_MergeStatuses(t *testing.T) {
 		// ghi should be proposed
 		if f.FactID == "ghi" && f.Status != StatusProposed {
 			t.Errorf("ghi should be proposed, got %v", f.Status)
+		}
+		// jkl was rejected but re-appears in incoming — should be re-proposed
+		if f.FactID == "jkl" && f.Status != StatusProposed {
+			t.Errorf("jkl (rejected, re-appearing) should be proposed, got %v", f.Status)
 		}
 	}
 }

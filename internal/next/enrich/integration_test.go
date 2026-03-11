@@ -191,10 +191,10 @@ func TestIntegration_FullEnrichmentFlow(t *testing.T) {
 		if f.FactID == entrypointFactID && f.Status != StatusAccepted {
 			t.Errorf("accepted fact should retain accepted status, got %v", f.Status)
 		}
-		// Rejected facts that reappear in incoming preserve their rejected status
-		// per MergeWithExisting: both accepted and rejected are sticky.
-		if f.FactID == riskyAreaFactID && f.Status != StatusRejected {
-			t.Errorf("rejected fact should retain rejected status, got %v", f.Status)
+		// Rejected facts that reappear in incoming are re-proposed per design doc:
+		// only accepted is sticky, rejected facts get a second chance.
+		if f.FactID == riskyAreaFactID && f.Status != StatusProposed {
+			t.Errorf("rejected fact re-appearing should be proposed, got %v", f.Status)
 		}
 	}
 

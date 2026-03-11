@@ -65,8 +65,9 @@ func (s *FactStore) LoadFacts(cellPath string) ([]InferredFact, error) {
 
 // MergeWithExisting combines existing on-disk facts with newly inferred incoming
 // facts. The merge rules are:
-//   - If an existing fact's ID appears in incoming, its status is preserved
-//     (accepted/rejected statuses are sticky).
+//   - If an existing accepted fact's ID appears in incoming, its accepted status
+//     is preserved (only accepted is sticky).
+//   - If an existing rejected fact's ID re-appears in incoming, it is re-proposed.
 //   - If an existing fact's ID does NOT appear in incoming, it is marked superseded.
 //   - Incoming facts with no matching existing fact are kept as-is (proposed).
 func (s *FactStore) MergeWithExisting(existing, incoming []InferredFact) []InferredFact {
@@ -85,8 +86,8 @@ func (s *FactStore) MergeWithExisting(existing, incoming []InferredFact) []Infer
 	// Process incoming facts, preserving existing statuses where applicable.
 	for _, inc := range incoming {
 		if ex, ok := existingByID[inc.FactID]; ok {
-			// Preserve sticky statuses from the existing fact.
-			if ex.Status == StatusAccepted || ex.Status == StatusRejected {
+			// Only accepted is sticky; rejected facts that re-appear are re-proposed.
+			if ex.Status == StatusAccepted {
 				inc.Status = ex.Status
 			}
 		}
