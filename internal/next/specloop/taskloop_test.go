@@ -194,6 +194,68 @@ func (f *countingDecomposer) Decompose(_ context.Context, _ runstore.Task) ([]ru
 	return f.subTasks, nil
 }
 
+func TestTaskLoop_MaxRedecompositions_GlobalBudget(t *testing.T) {
+	// Two tasks both return needs_split, MaxRedecompositions=1.
+	// First task decomposes; second task should be marked failed.
+	runner := &fakeTaskRunner{fn: func(_ context.Context, task runstore.Task) (TaskResult, error) {
+		if task.TaskID == "t-001" || task.TaskID == "t-002" {
+			return TaskResult{Status: "needs_split"}, nil
+		}
+		return TaskResult{Status: "done"}, nil
+	}}
+	decomposer := &fakeDecomposer{subTasks: []runstore.Task{
+		{TaskID: "sub-1", Status: "pending"},
+	}}
+	inspector := &fakeInspector{pass: true}
+	tasks := []runstore.Task{
+		{TaskID: "t-001", Status: "pending"},
+		{TaskID: "t-002", Status: "pending"},
+	}
+
+	results, _ := RunTaskLoop(context.Background(), tasks, runner, TaskLoopConfig{
+		MaxRetries: 1, Inspector: inspector, Decomposer: decomposer,
+		MaxRedecompositions: 1,
+	})
+
+	// results: t-002 (failed, budget exhausted), sub-1 (done)
+	var failedCount, doneCount int
+	for _, r := range results {
+		switch r.Status {
+		case "failed":
+			failedCount++
+		case "done":
+			doneCount++
+		}
+	}
+	if doneCount != 1 {
+		t.Fatalf("expected 1 done (sub-task), got %d", doneCount)
+	}
+	if failedCount != 1 {
+		t.Fatalf("expected 1 failed (second task couldn't decompose), got %d", failedCount)
+	}
+}
+
+func TestTaskLoop_RetryExhaustion_SetsFailed(t *testing.T) {
+	// Runner returns "done" but inspector always fails.
+	// After MaxRetries, result.Status should be "failed".
+	runner := &fakeTaskRunner{fn: func(_ context.Context, task runstore.Task) (TaskResult, error) {
+		return TaskResult{Status: "done"}, nil
+	}}
+	inspector := &fakeInspector{pass: false} // always fails
+	tasks := []runstore.Task{{TaskID: "t-001", Status: "pending"}}
+
+	results, _ := RunTaskLoop(context.Background(), tasks, runner, TaskLoopConfig{
+		MaxRetries: 2, Inspector: inspector,
+	})
+
+	if results[0].Status != "failed" {
+		t.Fatalf("expected failed after retry exhaustion, got %s", results[0].Status)
+	}
+	if results[0].Attempts != 3 { // 1 initial + 2 retries
+		t.Fatalf("expected 3 attempts, got %d", results[0].Attempts)
+	}
+}
+
 func TestTaskLoop_BudgetBlocksRemainingTasks(t *testing.T) {
 	budget := NewBudget(execpolicy.Budgets{MaxRunCostUSD: 1.0, MaxSpecCycles: 99})
 

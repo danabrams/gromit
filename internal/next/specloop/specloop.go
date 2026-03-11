@@ -48,6 +48,7 @@ func (sl *SpecLoop) Run(ctx context.Context, rs *runstore.RunState) error {
 				rs.Status = runstore.StatusBlocked
 				rs.TerminalReason = "budget_exceeded"
 				rs.BlockerSummary = sl.config.Budget.Reason()
+				sl.runEvidence(ctx, rs)
 				return nil
 			}
 
@@ -93,6 +94,7 @@ func (sl *SpecLoop) Run(ctx context.Context, rs *runstore.RunState) error {
 	if sl.config.Budget != nil && sl.config.Budget.CyclesExhausted() && !rs.IsTerminal() {
 		rs.Status = runstore.StatusNeedsHuman
 		rs.TerminalReason = "cycles_exhausted"
+		sl.runEvidence(ctx, rs)
 	}
 	return nil
 }

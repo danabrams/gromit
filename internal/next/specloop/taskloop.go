@@ -60,6 +60,8 @@ type TaskLoopConfig struct {
 func RunTaskLoop(ctx context.Context, tasks []runstore.Task, runner TaskRunner, cfg TaskLoopConfig) ([]TaskResult, error) {
 	var results []TaskResult
 
+	decompositionsUsed := 0
+
 	queue := make([]taskEntry, len(tasks))
 	for i, t := range tasks {
 		queue[i] = taskEntry{task: t, canDecompose: true}
@@ -82,19 +84,22 @@ func RunTaskLoop(ctx context.Context, tasks []runstore.Task, runner TaskRunner, 
 		attempts := 1
 
 		// Handle needs_split
-		if result.Status == "needs_split" && entry.canDecompose && cfg.Decomposer != nil && cfg.MaxRedecompositions > 0 {
-			// Revert touched files
-			if cfg.GitOps != nil && len(result.FilesChanged) > 0 {
-				cfg.GitOps.CheckoutFiles(cfg.WorkDir, result.FilesChanged)
-			}
-			subTasks, dErr := cfg.Decomposer.Decompose(ctx, entry.task)
-			if dErr == nil {
-				for _, st := range subTasks {
-					queue = append(queue, taskEntry{task: st, canDecompose: false})
+		if result.Status == "needs_split" {
+			if entry.canDecompose && cfg.Decomposer != nil && decompositionsUsed < cfg.MaxRedecompositions {
+				// Revert touched files
+				if cfg.GitOps != nil && len(result.FilesChanged) > 0 {
+					cfg.GitOps.CheckoutFiles(cfg.WorkDir, result.FilesChanged)
 				}
-				continue // skip adding a result for the parent
+				subTasks, dErr := cfg.Decomposer.Decompose(ctx, entry.task)
+				if dErr == nil {
+					decompositionsUsed++
+					for _, st := range subTasks {
+						queue = append(queue, taskEntry{task: st, canDecompose: false})
+					}
+					continue // skip adding a result for the parent
+				}
 			}
-			// If decomposition fails, treat as failed
+			// Decomposition not possible or failed — treat as failed
 			result.Status = "failed"
 		}
 
@@ -115,6 +120,10 @@ func RunTaskLoop(ctx context.Context, tasks []runstore.Task, runner TaskRunner, 
 					if ir.Pass {
 						break
 					}
+				}
+				// If inspection still fails after all retries, mark as failed
+				if !ir.Pass {
+					result.Status = "failed"
 				}
 			}
 		}

@@ -182,3 +182,49 @@ func TestSpecLoop_CycleExhaustion_SetsNeedsHuman(t *testing.T) {
 		t.Fatalf("want cycles_exhausted, got %s", rs.TerminalReason)
 	}
 }
+
+func TestSpecLoop_BudgetExceeded_StillRunsEvidence(t *testing.T) {
+	budget := NewBudget(execpolicy.Budgets{MaxRunCostUSD: 1.0, MaxSpecCycles: 99})
+	budget.AddCost(2.0) // exceed cost budget before first stage
+
+	evidenceRan := false
+	stages := []Stage{
+		&recordStage{name: "init", order: new([]string)},
+		&callbackStage{name: "evidence", fn: func() { evidenceRan = true }},
+	}
+	loop := NewSpecLoop(stages, SpecLoopConfig{MaxCycles: 1, Budget: budget})
+	rs := runstore.NewRunState("s1", "p1")
+	loop.Run(context.Background(), rs)
+
+	if rs.Status != runstore.StatusBlocked {
+		t.Fatalf("want blocked, got %s", rs.Status)
+	}
+	if rs.TerminalReason != "budget_exceeded" {
+		t.Fatalf("want budget_exceeded, got %s", rs.TerminalReason)
+	}
+	if !evidenceRan {
+		t.Fatal("evidence stage should run even when budget is exceeded")
+	}
+}
+
+func TestSpecLoop_CycleExhaustion_RunsEvidence(t *testing.T) {
+	budget := NewBudget(execpolicy.Budgets{MaxSpecCycles: 1, MaxRunCostUSD: 99})
+
+	evidenceRan := false
+	stages := []Stage{
+		&actionStage{name: "validate", actionFn: func() NextAction {
+			return NextAction{Kind: ReplanFrom}
+		}},
+		&callbackStage{name: "evidence", fn: func() { evidenceRan = true }},
+	}
+	loop := NewSpecLoop(stages, SpecLoopConfig{MaxCycles: 1, Budget: budget, ReplanStage: "validate"})
+	rs := runstore.NewRunState("s1", "p1")
+	loop.Run(context.Background(), rs)
+
+	if rs.Status != runstore.StatusNeedsHuman {
+		t.Fatalf("want needs_human, got %s", rs.Status)
+	}
+	if !evidenceRan {
+		t.Fatal("evidence stage should run on cycle exhaustion")
+	}
+}
