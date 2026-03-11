@@ -4,6 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
 	"unicode/utf8"
 )
 
@@ -68,9 +71,10 @@ type Cell struct {
 }
 
 type CompileOpts struct {
-	SpecPath    string
-	TaskID      string
-	TokenBudget int
+	SpecPath        string
+	TaskID          string
+	TokenBudget     int
+	IncludeInferred bool
 }
 
 type Packet struct {
@@ -145,6 +149,13 @@ func (c *DefaultCompiler) Compile(ctx context.Context, cell Cell, level Level, o
 		sections = c.buildSpecSections(cell, opts)
 	case LevelTask:
 		sections = c.buildTaskSections(cell, opts)
+	}
+
+	// Append inferred observations if opted in.
+	if opts.IncludeInferred {
+		if s, ok := inferredSection(cell); ok {
+			sections = append(sections, s)
+		}
 	}
 
 	// Calculate total tokens
@@ -328,6 +339,53 @@ func (c *DefaultCompiler) validationSection(cell Cell) (Section, bool) {
 		Name:          "validation",
 		Content:       string(content),
 		TokenEstimate: estimateTokens(string(content)),
+	}, true
+}
+
+// inferredFact represents a single inferred fact from facts.json.
+type inferredFact struct {
+	FactID     string `json:"fact_id"`
+	Category   string `json:"category"`
+	Statement  string `json:"statement"`
+	Confidence string `json:"confidence"`
+	Status     string `json:"status"`
+}
+
+// inferredSection reads inferred/facts.json from the cell and builds a section.
+// Returns (section, true) if facts exist, or (Section{}, false) if the file
+// is missing or empty.
+func inferredSection(cell Cell) (Section, bool) {
+	path := filepath.Join(cell.CellPath, "inferred", "facts.json")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return Section{}, false
+	}
+
+	var facts []inferredFact
+	if err := json.Unmarshal(data, &facts); err != nil {
+		return Section{}, false
+	}
+	if len(facts) == 0 {
+		return Section{}, false
+	}
+
+	var sb strings.Builder
+	sb.WriteString("[INFERRED]\n")
+	for _, f := range facts {
+		fmt.Fprintf(&sb, "- %s (confidence: %s)\n", f.Statement, f.Confidence)
+	}
+	content := sb.String()
+
+	refs := make([]FactRef, len(facts))
+	for i, f := range facts {
+		refs[i] = FactRef{FactID: f.FactID, Category: "inferred"}
+	}
+
+	return Section{
+		Name:          "inferred-observations",
+		Content:       content,
+		TokenEstimate: estimateTokens(content),
+		Facts:         refs,
 	}, true
 }
 

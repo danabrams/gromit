@@ -4,6 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -238,6 +241,117 @@ func TestPacket_NormalizeNilFields(t *testing.T) {
 	}
 	if len(p.Sections) != 0 {
 		t.Error("NormalizeNilFields should set Sections to empty (not populated) slice")
+	}
+}
+
+func TestCompiler_ProjectLevelWithInferred(t *testing.T) {
+	store := newMockArtifactStore()
+
+	store.setArtifact("architecture", map[string]any{
+		"modules": []map[string]any{
+			{"name": "api", "description": "API layer", "language": "go"},
+		},
+	})
+	store.setArtifact("doctrine", map[string]any{
+		"rules": []map[string]any{
+			{"id": "r1", "summary": "simplicity", "scope": "all"},
+		},
+	})
+
+	cellPath := t.TempDir()
+	inferredDir := filepath.Join(cellPath, "inferred")
+	os.MkdirAll(inferredDir, 0o755)
+	factsJSON := `[{"fact_id":"f1","category":"entrypoint","statement":"main.go is the entrypoint","confidence":"high","status":"proposed"}]`
+	os.WriteFile(filepath.Join(inferredDir, "facts.json"), []byte(factsJSON), 0o644)
+
+	compiler := NewCompiler(store)
+	cell := Cell{Name: "test", CellPath: cellPath}
+	pkt, err := compiler.Compile(context.Background(), cell, LevelProject, CompileOpts{
+		IncludeInferred: true,
+	})
+	if err != nil {
+		t.Fatalf("Compile: %v", err)
+	}
+
+	hasInferred := false
+	for _, s := range pkt.Sections {
+		if strings.Contains(s.Name, "inferred") {
+			hasInferred = true
+		}
+	}
+	if !hasInferred {
+		t.Error("expected inferred section in packet when IncludeInferred is true")
+	}
+}
+
+func TestCompiler_ProjectLevelDefaultExcludesInferred(t *testing.T) {
+	store := newMockArtifactStore()
+
+	store.setArtifact("architecture", map[string]any{
+		"modules": []map[string]any{
+			{"name": "api", "description": "API layer", "language": "go"},
+		},
+	})
+	store.setArtifact("doctrine", map[string]any{
+		"rules": []map[string]any{
+			{"id": "r1", "summary": "simplicity", "scope": "all"},
+		},
+	})
+
+	cellPath := t.TempDir()
+	inferredDir := filepath.Join(cellPath, "inferred")
+	os.MkdirAll(inferredDir, 0o755)
+	factsJSON := `[{"fact_id":"f1","category":"entrypoint","statement":"main.go","confidence":"high","status":"proposed"}]`
+	os.WriteFile(filepath.Join(inferredDir, "facts.json"), []byte(factsJSON), 0o644)
+
+	compiler := NewCompiler(store)
+	cell := Cell{Name: "test", CellPath: cellPath}
+	pkt, err := compiler.Compile(context.Background(), cell, LevelProject, CompileOpts{})
+	if err != nil {
+		t.Fatalf("Compile: %v", err)
+	}
+
+	for _, s := range pkt.Sections {
+		if strings.Contains(s.Name, "inferred") {
+			t.Error("default CompileOpts should not include inferred sections")
+		}
+	}
+}
+
+func TestCompiler_TaskLevelInferredPresent(t *testing.T) {
+	store := newMockArtifactStore()
+
+	store.setArtifact("doctrine", map[string]any{
+		"rules": []map[string]any{
+			{"id": "r1", "summary": "TDD required", "scope": "testing"},
+		},
+	})
+
+	cellPath := t.TempDir()
+	inferredDir := filepath.Join(cellPath, "inferred")
+	os.MkdirAll(inferredDir, 0o755)
+	factsJSON := `[{"fact_id":"f1","category":"entrypoint","statement":"main.go","confidence":"high","status":"proposed"}]`
+	os.WriteFile(filepath.Join(inferredDir, "facts.json"), []byte(factsJSON), 0o644)
+
+	compiler := NewCompiler(store)
+	cell := Cell{Name: "test", CellPath: cellPath}
+	pkt, err := compiler.Compile(context.Background(), cell, LevelTask, CompileOpts{
+		SpecPath:        "specs/001-test.md",
+		TaskID:          "task-1",
+		IncludeInferred: true,
+	})
+	if err != nil {
+		t.Fatalf("Compile: %v", err)
+	}
+
+	hasInferred := false
+	for _, s := range pkt.Sections {
+		if strings.Contains(s.Name, "inferred") {
+			hasInferred = true
+		}
+	}
+	if !hasInferred {
+		t.Error("expected inferred section in task-level packet when IncludeInferred is true")
 	}
 }
 
