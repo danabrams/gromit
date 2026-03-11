@@ -2,6 +2,8 @@ package validator
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"os/exec"
 	"time"
 )
@@ -36,6 +38,13 @@ func (r *Runner) RunCheck(ctx context.Context, c Check, workDir string) (CheckRe
 	cmd := exec.CommandContext(ctx, "sh", "-c", c.Command)
 	cmd.Dir = workDir
 	out, err := cmd.CombinedOutput()
+	if err != nil {
+		var exitErr *exec.ExitError
+		if !errors.As(err, &exitErr) {
+			// Infrastructure failure (command not found, etc.) — propagate as error
+			return CheckResult{}, fmt.Errorf("exec check %s: %w", c.Name, err)
+		}
+	}
 	pass := err == nil
 	return CheckResult{
 		Name:     c.Name,

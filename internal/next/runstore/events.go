@@ -21,7 +21,7 @@ type BaseEvent struct {
 	Timestamp time.Time `json:"timestamp"`
 }
 
-func (b BaseEvent) EventType() string        { return b.Type }
+func (b BaseEvent) EventType() string         { return b.Type }
 func (b BaseEvent) EventTimestamp() time.Time { return b.Timestamp }
 
 // ValidationCheckResult holds the result of a single validation check.
@@ -62,8 +62,8 @@ type TaskCreatedEvent struct {
 
 type TaskStartedEvent struct {
 	BaseEvent
-	TaskID   string `json:"task_id"`
-	Cycle    int    `json:"cycle"`
+	TaskID    string `json:"task_id"`
+	Cycle     int    `json:"cycle"`
 	ModelTier string `json:"model_tier,omitempty"`
 }
 

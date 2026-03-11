@@ -49,6 +49,18 @@ func TestRunAlwaysRun_AllPass(t *testing.T) {
 	}
 }
 
+func TestRunCheck_CommandNotFound_ReturnsError(t *testing.T) {
+	r := NewRunner()
+	// Use a nonexistent working directory to trigger an exec infrastructure error
+	// (sh cannot chdir into a missing directory).
+	_, err := r.RunCheck(context.Background(), Check{
+		Name: "bad", Command: "echo hi", Type: "test",
+	}, "/nonexistent/workdir")
+	if err == nil {
+		t.Fatal("expected error for command that cannot start")
+	}
+}
+
 func TestRunAlwaysRun_SomeFail(t *testing.T) {
 	r := NewRunner()
 	checks := []Check{
