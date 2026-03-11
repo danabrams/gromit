@@ -116,6 +116,45 @@ func TestBundler_WriteSummary(t *testing.T) {
 	}
 }
 
+func TestBundler_WriteReview(t *testing.T) {
+	dir := t.TempDir()
+	b := NewBundler(dir)
+	b.Init()
+	err := b.WriteReview(ReviewInput{
+		TerminalState:     "ready_for_review",
+		WhatChanged:       "Implemented parser package with 3 files",
+		CycleHistory:      []CycleRecord{{Cycle: 1, TaskCount: 3, PassCount: 3}},
+		ValidationResults: "All 3 checks passed",
+		KnownRisks:        []string{"No error handling for malformed input"},
+		RecommendedAction: "Merge after manual review of edge cases",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, _ := os.ReadFile(filepath.Join(dir, "review.md"))
+	content := string(data)
+	if !strings.Contains(content, "ready_for_review") {
+		t.Fatal("review.md should contain terminal state")
+	}
+	if !strings.Contains(content, "Recommended Action") {
+		t.Fatal("review.md should contain recommended action section")
+	}
+	if !strings.Contains(content, "Known Risks") {
+		t.Fatal("review.md should contain known risks section")
+	}
+}
+
+func TestReviewInput_NormalizeNilFields(t *testing.T) {
+	r := ReviewInput{}
+	r.NormalizeNilFields()
+	if r.CycleHistory == nil {
+		t.Fatal("CycleHistory should not be nil after NormalizeNilFields")
+	}
+	if r.KnownRisks == nil {
+		t.Fatal("KnownRisks should not be nil after NormalizeNilFields")
+	}
+}
+
 func TestMetrics_NormalizeNilFields(t *testing.T) {
 	m := Metrics{}
 	m.NormalizeNilFields()

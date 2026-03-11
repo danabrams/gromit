@@ -100,6 +100,59 @@ func (b *Bundler) WriteSummary(s SummaryInput) error {
 	return os.WriteFile(filepath.Join(b.dir, "summary.md"), []byte(md), 0o644)
 }
 
+// CycleRecord captures per-cycle task statistics.
+type CycleRecord struct {
+	Cycle     int `json:"cycle"`
+	TaskCount int `json:"task_count"`
+	PassCount int `json:"pass_count"`
+}
+
+// ReviewInput provides data for generating the review decision sheet.
+type ReviewInput struct {
+	TerminalState     string        `json:"terminal_state"`
+	WhatChanged       string        `json:"what_changed"`
+	CycleHistory      []CycleRecord `json:"cycle_history"`
+	ValidationResults string        `json:"validation_results"`
+	KnownRisks        []string      `json:"known_risks"`
+	RecommendedAction string        `json:"recommended_action"`
+}
+
+// NormalizeNilFields maps nil slices to empty values for consistent JSON serialization.
+func (r *ReviewInput) NormalizeNilFields() {
+	if r.CycleHistory == nil {
+		r.CycleHistory = []CycleRecord{}
+	}
+	if r.KnownRisks == nil {
+		r.KnownRisks = []string{}
+	}
+}
+
+// WriteReview writes a review decision sheet to review.md.
+func (b *Bundler) WriteReview(r ReviewInput) error {
+	md := fmt.Sprintf("# Review Decision Sheet\n\n"+
+		"## Terminal State\n\n%s\n\n"+
+		"## What Changed\n\n%s\n\n"+
+		"## Cycle History\n\n"+
+		"| Cycle | Tasks | Passed |\n"+
+		"|-------|-------|--------|\n",
+		r.TerminalState, r.WhatChanged)
+
+	for _, c := range r.CycleHistory {
+		md += fmt.Sprintf("| %d | %d | %d |\n", c.Cycle, c.TaskCount, c.PassCount)
+	}
+
+	md += fmt.Sprintf("\n## Validation Results\n\n%s\n\n", r.ValidationResults)
+
+	md += "## Known Risks\n\n"
+	for _, risk := range r.KnownRisks {
+		md += fmt.Sprintf("- %s\n", risk)
+	}
+
+	md += fmt.Sprintf("\n## Recommended Action\n\n%s\n", r.RecommendedAction)
+
+	return os.WriteFile(filepath.Join(b.dir, "review.md"), []byte(md), 0o644)
+}
+
 func (b *Bundler) writeJSON(name string, v any) error {
 	data, err := json.MarshalIndent(v, "", "  ")
 	if err != nil {
