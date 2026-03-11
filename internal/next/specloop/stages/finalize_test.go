@@ -19,7 +19,7 @@ func TestFinalizeStage_SetsReadyForReview(t *testing.T) {
 	store := runstore.NewStore(tmp)
 	gitOps := &fakeGitOps{}
 
-	stage := NewFinalizeStage(gitOps, store)
+	stage := NewFinalizeStage(gitOps, store, nil)
 
 	rs := runstore.NewRunState("spec-001", "proj-001")
 	rs.FinalValidationPassed = true
@@ -46,7 +46,7 @@ func TestFinalizeStage_AllTasksDoneButValidationFailed_NeedsHuman(t *testing.T) 
 	store := runstore.NewStore(tmp)
 	gitOps := &fakeGitOps{}
 
-	stage := NewFinalizeStage(gitOps, store)
+	stage := NewFinalizeStage(gitOps, store, nil)
 
 	rs := runstore.NewRunState("spec-001", "proj-001")
 	rs.FinalValidationPassed = false
@@ -73,7 +73,7 @@ func TestFinalizeStage_SetsNeedsHumanWhenTasksFailed(t *testing.T) {
 	store := runstore.NewStore(tmp)
 	gitOps := &fakeGitOps{}
 
-	stage := NewFinalizeStage(gitOps, store)
+	stage := NewFinalizeStage(gitOps, store, nil)
 
 	rs := runstore.NewRunState("spec-001", "proj-001")
 	rs.FinalValidationPassed = true
@@ -100,7 +100,7 @@ func TestFinalizeStage_PreservesWorktreeForReadyForReview(t *testing.T) {
 	store := runstore.NewStore(tmp)
 	gitOps := &fakeGitOps{}
 
-	stage := NewFinalizeStage(gitOps, store)
+	stage := NewFinalizeStage(gitOps, store, nil)
 
 	rs := runstore.NewRunState("spec-001", "proj-001")
 	rs.FinalValidationPassed = true
@@ -121,7 +121,7 @@ func TestFinalizeStage_PreservesWorktreeForNeedsHuman(t *testing.T) {
 	store := runstore.NewStore(tmp)
 	gitOps := &fakeGitOps{}
 
-	stage := NewFinalizeStage(gitOps, store)
+	stage := NewFinalizeStage(gitOps, store, nil)
 
 	rs := runstore.NewRunState("spec-001", "proj-001")
 	rs.FinalValidationPassed = false
@@ -142,7 +142,7 @@ func TestFinalizeStage_CleansWorktreeForBlocked(t *testing.T) {
 	store := runstore.NewStore(tmp)
 	gitOps := &fakeGitOps{}
 
-	stage := NewFinalizeStage(gitOps, store)
+	stage := NewFinalizeStage(gitOps, store, nil)
 
 	rs := runstore.NewRunState("spec-001", "proj-001")
 	rs.Status = runstore.StatusBlocked
@@ -163,7 +163,7 @@ func TestFinalizeStage_RecordsWorktreePathInRunJSON(t *testing.T) {
 	store := runstore.NewStore(tmp)
 	gitOps := &fakeGitOps{}
 
-	stage := NewFinalizeStage(gitOps, store)
+	stage := NewFinalizeStage(gitOps, store, nil)
 
 	rs := runstore.NewRunState("spec-001", "proj-001")
 	rs.FinalValidationPassed = true

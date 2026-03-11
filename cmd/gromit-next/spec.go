@@ -64,6 +64,13 @@ func DeriveSpecStatus(specID string, runs []runstore.RunState) string {
 	if len(runs) == 0 {
 		return "ready"
 	}
+	// "completed" takes highest priority — human review accepted the work.
+	// NOTE: StatusCompleted will be actively set when Spec 0002b adds acceptance gates.
+	for _, r := range runs {
+		if r.Status == runstore.StatusCompleted {
+			return "completed"
+		}
+	}
 	for _, r := range runs {
 		if r.Status == runstore.StatusReadyForReview {
 			return "ready_for_review"

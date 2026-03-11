@@ -67,6 +67,28 @@ func TestSpecStatus_NeedsAttention(t *testing.T) {
 	}
 }
 
+func TestSpecStatus_Completed(t *testing.T) {
+	runs := []runstore.RunState{
+		{Status: runstore.StatusCompleted},
+	}
+	status := DeriveSpecStatus("spec-001", runs)
+	if status != "completed" {
+		t.Fatalf("expected completed, got %q", status)
+	}
+}
+
+func TestSpecStatus_Completed_TakesPriority(t *testing.T) {
+	runs := []runstore.RunState{
+		{Status: runstore.StatusRunning},
+		{Status: runstore.StatusCompleted},
+		{Status: runstore.StatusReadyForReview},
+	}
+	status := DeriveSpecStatus("spec-001", runs)
+	if status != "completed" {
+		t.Fatalf("expected completed to take priority, got %q", status)
+	}
+}
+
 func TestSpecStatus_Ready(t *testing.T) {
 	status := DeriveSpecStatus("spec-001", nil)
 	if status != "ready" {

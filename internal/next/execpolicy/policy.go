@@ -82,8 +82,22 @@ func LoadPolicy(path string) (Policy, error) {
 // MaxTaskRetries and MaxRedecompositionPasses may be zero.
 func (p *Policy) Validate() error {
 	var errs []error
+	if len(p.AlwaysRun) == 0 {
+		errs = append(errs, fmt.Errorf("at least one always_run check is required"))
+	}
+	for i, c := range p.AlwaysRun {
+		if c.Name == "" {
+			errs = append(errs, fmt.Errorf("AlwaysRun[%d].Name must be non-empty", i))
+		}
+		if c.Command == "" {
+			errs = append(errs, fmt.Errorf("AlwaysRun[%d].Command must be non-empty", i))
+		}
+	}
 	if p.Budgets.MaxSpecCycles <= 0 {
 		errs = append(errs, fmt.Errorf("MaxSpecCycles must be > 0, got %d", p.Budgets.MaxSpecCycles))
+	}
+	if p.Budgets.MaxTaskDurationSeconds <= 0 {
+		errs = append(errs, fmt.Errorf("MaxTaskDurationSeconds must be > 0, got %d", p.Budgets.MaxTaskDurationSeconds))
 	}
 	if p.Budgets.MaxRunDurationSeconds <= 0 {
 		errs = append(errs, fmt.Errorf("MaxRunDurationSeconds must be > 0, got %d", p.Budgets.MaxRunDurationSeconds))

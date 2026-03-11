@@ -2,7 +2,10 @@ package executor
 
 import (
 	"context"
+	"fmt"
 	"time"
+
+	"github.com/danabrams/gromit/internal/next/validator"
 )
 
 // Agent is the interface for invoking an AI agent. This mirrors the planner
@@ -38,17 +41,22 @@ type RunTaskInput struct {
 	ModelTier              string
 	MaxTaskDurationSeconds int
 	GitClient              GitClient // optional: if set, FilesChanged is populated after invocation
+	CheckRunner            CheckRunner
+	TargetedChecks         []string
+	AlwaysRun              []validator.Check
 }
 
 // RunTaskResult holds the outcome of a single task execution.
 type RunTaskResult struct {
-	AgentOutput  string
-	TokensUsed   int
-	Cost         float64
-	DurationMs   int64
-	FilesChanged []string
-	Model        string
-	Tier         string
+	AgentOutput    string
+	TokensUsed     int
+	Cost           float64
+	DurationMs     int64
+	FilesChanged   []string
+	InspectResult  *InspectResult
+	InspectWarning string
+	Model          string
+	Tier           string
 }
 
 // RunTask invokes the agent with the given task packet and returns the result.
@@ -66,18 +74,30 @@ func (e *Executor) RunTask(ctx context.Context, input RunTaskInput) (RunTaskResu
 		return RunTaskResult{}, err
 	}
 
-	var filesChanged []string
-	if input.GitClient != nil {
-		filesChanged, _ = InspectChanges(input.GitClient, input.WorkDir)
+	taskResult := RunTaskResult{
+		AgentOutput: result.Output,
+		TokensUsed:  result.TokensIn + result.TokensOut,
+		Cost:        result.Cost,
+		DurationMs:  time.Since(start).Milliseconds(),
+		Model:       result.Model,
+		Tier:        input.ModelTier,
 	}
 
-	return RunTaskResult{
-		AgentOutput:  result.Output,
-		TokensUsed:   result.TokensIn + result.TokensOut,
-		Cost:         result.Cost,
-		DurationMs:   time.Since(start).Milliseconds(),
-		FilesChanged: filesChanged,
-		Model:        result.Model,
-		Tier:         input.ModelTier,
-	}, nil
+	if input.GitClient != nil {
+		inspectResult, err := InspectChanges(ctx, InspectInput{
+			GitClient:      input.GitClient,
+			WorkDir:        input.WorkDir,
+			CheckRunner:    input.CheckRunner,
+			TargetedChecks: input.TargetedChecks,
+			AlwaysRun:      input.AlwaysRun,
+		})
+		if err != nil {
+			taskResult.InspectWarning = fmt.Sprintf("InspectChanges failed: %v", err)
+		} else {
+			taskResult.InspectResult = &inspectResult
+			taskResult.FilesChanged = inspectResult.FilesChanged
+		}
+	}
+
+	return taskResult, nil
 }

@@ -10,7 +10,7 @@ import (
 type ActionKind int
 
 const (
-	Continue   ActionKind = iota
+	Continue ActionKind = iota
 	ReplanFrom
 	NeedsHuman
 	Blocked

@@ -11,13 +11,14 @@ import (
 
 // FinalizeStage determines the terminal status and handles worktree cleanup.
 type FinalizeStage struct {
-	gitOps GitOps
-	store  *runstore.Store
+	gitOps   GitOps
+	store    *runstore.Store
+	eventLog *runstore.EventLog
 }
 
 // NewFinalizeStage creates a new FinalizeStage.
-func NewFinalizeStage(gitOps GitOps, store *runstore.Store) *FinalizeStage {
-	return &FinalizeStage{gitOps: gitOps, store: store}
+func NewFinalizeStage(gitOps GitOps, store *runstore.Store, eventLog *runstore.EventLog) *FinalizeStage {
+	return &FinalizeStage{gitOps: gitOps, store: store, eventLog: eventLog}
 }
 
 // Name returns the stage name.
@@ -31,6 +32,14 @@ func (s *FinalizeStage) Run(ctx context.Context, rs *runstore.RunState) (specloo
 			if err := s.gitOps.RemoveWorktree(rs.WorktreePath); err != nil {
 				return specloop.NextAction{}, fmt.Errorf("remove worktree: %w", err)
 			}
+		}
+		// Emit terminal_state event for blocked
+		if s.eventLog != nil {
+			s.eventLog.Append(runstore.TerminalStateEvent{
+				BaseEvent: runstore.BaseEvent{Type: "terminal_state", Timestamp: time.Now()},
+				Status:    rs.Status,
+				Reason:    rs.TerminalReason,
+			})
 		}
 		rs.EndedAt = time.Now()
 		if err := s.store.Save(rs); err != nil {
@@ -52,6 +61,15 @@ func (s *FinalizeStage) Run(ctx context.Context, rs *runstore.RunState) (specloo
 		rs.Status = runstore.StatusReadyForReview
 	} else {
 		rs.Status = runstore.StatusNeedsHuman
+	}
+
+	// Emit terminal_state event
+	if s.eventLog != nil {
+		s.eventLog.Append(runstore.TerminalStateEvent{
+			BaseEvent: runstore.BaseEvent{Type: "terminal_state", Timestamp: time.Now()},
+			Status:    rs.Status,
+			Reason:    rs.TerminalReason,
+		})
 	}
 
 	// Preserve worktree for ready_for_review and needs_human

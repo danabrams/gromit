@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -10,6 +11,17 @@ import (
 	"github.com/danabrams/gromit/internal/next/runstore"
 	"github.com/spf13/cobra"
 )
+
+// unwrapAll recursively unwraps an error chain to find the root cause.
+func unwrapAll(err error) error {
+	for {
+		unwrapped := errors.Unwrap(err)
+		if unwrapped == nil {
+			return err
+		}
+		err = unwrapped
+	}
+}
 
 // newExecShowCmd creates the `exec show` command.
 func newExecShowCmd() *cobra.Command {
@@ -71,6 +83,9 @@ func resolveRunID(id string, projectID string, store *runstore.Store) (string, e
 func execShow(runID string, store *runstore.Store, full bool) (string, error) {
 	rs, err := store.Get(runID)
 	if err != nil {
+		if os.IsNotExist(unwrapAll(err)) {
+			return "", fmt.Errorf("run %q not found", runID)
+		}
 		return "", err
 	}
 

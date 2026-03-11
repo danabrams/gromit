@@ -8,7 +8,6 @@ import (
 
 	"github.com/danabrams/gromit/internal/next/runstore"
 	"github.com/danabrams/gromit/internal/next/specloop"
-	"github.com/danabrams/gromit/internal/next/validator"
 )
 
 // Verify EvidenceStage satisfies the Stage interface.
@@ -26,12 +25,6 @@ func TestEvidenceStage_AssemblesBundle(t *testing.T) {
 	}
 
 	stage := NewEvidenceStage(store, EvidenceStageConfig{
-		ValidationResult: validator.FinalResult{
-			Pass: true,
-			AlwaysRun: validator.CheckResults{
-				Results: []validator.CheckResult{{Name: "test", Pass: true}},
-			},
-		},
 		DiffSummary: "added 2 files",
 	})
 

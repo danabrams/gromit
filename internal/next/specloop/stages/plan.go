@@ -18,17 +18,28 @@ type PlanCreator interface {
 	CreatePlan(ctx context.Context, req planner.PlanRequest) (planner.Plan, error)
 }
 
+// FixPlanCreator abstracts fix-plan generation for testability.
+type FixPlanCreator interface {
+	CreateFixPlan(ctx context.Context, req planner.FixPlanRequest) (planner.Plan, error)
+}
+
 // PlanStage reads the spec packet, invokes the planner, validates the plan,
 // and populates rs.Tasks on success.
 type PlanStage struct {
-	planner  PlanCreator
-	store    *runstore.Store
-	eventLog *runstore.EventLog
+	planner    PlanCreator
+	fixPlanner FixPlanCreator
+	store      *runstore.Store
+	eventLog   *runstore.EventLog
 }
 
 // NewPlanStage creates a new PlanStage.
 func NewPlanStage(p PlanCreator, store *runstore.Store, eventLog *runstore.EventLog) *PlanStage {
 	return &PlanStage{planner: p, store: store, eventLog: eventLog}
+}
+
+// SetFixPlanner sets the fix plan creator for fix cycles.
+func (s *PlanStage) SetFixPlanner(fp FixPlanCreator) {
+	s.fixPlanner = fp
 }
 
 // Name returns the stage name.
@@ -42,28 +53,57 @@ func (s *PlanStage) Run(ctx context.Context, rs *runstore.RunState) (specloop.Ne
 		return specloop.NextAction{}, fmt.Errorf("read spec packet: %w", err)
 	}
 
-	req := planner.PlanRequest{
-		SpecPacket: string(specPacket),
-		Cycle:      rs.Cycle,
-	}
+	isFixCycle := rs.Cycle > 1 && len(rs.ReplanContext) > 0
 
 	var plan planner.Plan
 	var validationErr error
 
-	// Try up to 2 times (initial + 1 retry)
-	for attempt := 0; attempt < 2; attempt++ {
-		plan, err = s.planner.CreatePlan(ctx, req)
-		if err != nil {
-			return specloop.NextAction{}, fmt.Errorf("create plan: %w", err)
+	if isFixCycle && s.fixPlanner != nil {
+		fixReq := planner.FixPlanRequest{
+			Failures: rs.ReplanContext,
+			Cycle:    rs.Cycle,
 		}
+		// Try up to 2 times (initial + 1 retry)
+		for attempt := 0; attempt < 2; attempt++ {
+			plan, err = s.fixPlanner.CreateFixPlan(ctx, fixReq)
+			if err != nil {
+				return specloop.NextAction{}, fmt.Errorf("create fix plan: %w", err)
+			}
 
-		validationErr = planner.ValidatePlan(plan)
-		if validationErr == nil {
-			break
+			validationErr = planner.ValidatePlan(plan)
+			if validationErr == nil {
+				break
+			}
+			fixReq.Failures = append(fixReq.Failures, validationErr.Error())
 		}
+	} else {
+		req := planner.PlanRequest{
+			SpecPacket: string(specPacket),
+			Cycle:      rs.Cycle,
+			Failures:   rs.ReplanContext,
+		}
+		// Try up to 2 times (initial + 1 retry)
+		for attempt := 0; attempt < 2; attempt++ {
+			plan, err = s.planner.CreatePlan(ctx, req)
+			if err != nil {
+				return specloop.NextAction{}, fmt.Errorf("create plan: %w", err)
+			}
 
-		// On first failure, add validation errors to request for retry
-		req.Failures = append(req.Failures, validationErr.Error())
+			validationErr = planner.ValidatePlan(plan)
+			if validationErr == nil {
+				break
+			}
+			// On first failure, add validation errors to request for retry
+			req.Failures = append(req.Failures, validationErr.Error())
+		}
+	}
+
+	// Emit plan_validation_result event
+	if s.eventLog != nil {
+		s.eventLog.Append(runstore.PlanValidationResultEvent{
+			BaseEvent: runstore.BaseEvent{Type: "plan_validation_result", Timestamp: time.Now()},
+			Passed:    validationErr == nil,
+		})
 	}
 
 	if validationErr != nil {
@@ -94,28 +134,45 @@ func (s *PlanStage) Run(ctx context.Context, rs *runstore.RunState) (specloop.Ne
 		return specloop.NextAction{}, fmt.Errorf("write tasks.json: %w", err)
 	}
 
-	// Populate rs.Tasks
-	rs.Tasks = make([]runstore.Task, len(plan.Tasks))
+	// Populate rs.Tasks: on cycle 1 replace, on fix cycles append to preserve history
+	newTasks := make([]runstore.Task, len(plan.Tasks))
 	for i, td := range plan.Tasks {
-		rs.Tasks[i] = runstore.Task{
+		kind := plan.Kind
+		if isFixCycle && kind == "" {
+			kind = "fix"
+		}
+		task := runstore.Task{
 			TaskID:              td.TaskID,
 			Objective:           td.Objective,
 			Status:              "pending",
 			ExpectedTouchedArea: td.ExpectedTouchedArea,
 			ProofChecks:         td.ProofChecks,
-			Kind:                plan.Kind,
+			Kind:                kind,
 			Cycle:               rs.Cycle,
 		}
-		rs.Tasks[i].NormalizeNilFields()
+		if isFixCycle {
+			task.ParentCycle = td.ParentCycle
+			task.FailuresAddressed = td.FailuresAddressed
+			if task.ParentCycle == 0 {
+				task.ParentCycle = rs.Cycle - 1
+			}
+		}
+		task.NormalizeNilFields()
+		newTasks[i] = task
+	}
+	if isFixCycle {
+		rs.Tasks = append(rs.Tasks, newTasks...)
+	} else {
+		rs.Tasks = newTasks
 	}
 
 	// Emit events
 	if s.eventLog != nil {
 		s.eventLog.Append(runstore.PlanCreatedEvent{
 			BaseEvent: runstore.BaseEvent{Type: "plan_created", Timestamp: time.Now()},
-			TaskCount: len(rs.Tasks),
+			TaskCount: len(newTasks),
 		})
-		for _, task := range rs.Tasks {
+		for _, task := range newTasks {
 			s.eventLog.Append(runstore.TaskCreatedEvent{
 				BaseEvent: runstore.BaseEvent{Type: "task_created", Timestamp: time.Now()},
 				TaskID:    task.TaskID,

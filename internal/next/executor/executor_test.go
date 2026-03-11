@@ -2,6 +2,8 @@ package executor
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"testing"
 )
 
@@ -78,5 +80,33 @@ func TestExecutor_RunTask_Success(t *testing.T) {
 	}
 	if result.Tier != "medium" {
 		t.Fatalf("want tier medium, got %s", result.Tier)
+	}
+}
+
+func TestExecutor_RunTask_InspectChangesError_SetsWarning(t *testing.T) {
+	agent := &fakeAgent{output: "done"}
+	git := &fakeGit{err: fmt.Errorf("git diff failed")}
+	exec := NewExecutor(agent)
+
+	result, err := exec.RunTask(context.Background(), RunTaskInput{
+		Packet:    "do stuff",
+		WorkDir:   t.TempDir(),
+		ModelTier: "medium",
+		GitClient: git,
+	})
+	if err != nil {
+		t.Fatalf("RunTask should not fail for InspectChanges error, got: %v", err)
+	}
+	if result.InspectWarning == "" {
+		t.Fatal("expected InspectWarning to be set")
+	}
+	if !strings.Contains(result.InspectWarning, "git diff failed") {
+		t.Fatalf("warning should contain error message, got: %s", result.InspectWarning)
+	}
+	if result.InspectResult != nil {
+		t.Fatal("expected nil InspectResult on error")
+	}
+	if result.FilesChanged != nil {
+		t.Fatal("expected nil FilesChanged on inspect error")
 	}
 }

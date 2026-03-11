@@ -2,15 +2,16 @@ package specloop
 
 import (
 	"context"
+	"time"
 
 	"github.com/danabrams/gromit/internal/next/runstore"
 )
 
 // SpecLoopConfig configures the SpecLoop runner.
 type SpecLoopConfig struct {
-	MaxCycles   int
 	Budget      *Budget
 	ReplanStage string
+	EventLog    *runstore.EventLog
 }
 
 // SpecLoop runs a pipeline of stages in order, supporting cycles and replanning.
@@ -25,11 +26,13 @@ func NewSpecLoop(stages []Stage, cfg SpecLoopConfig) *SpecLoop {
 }
 
 // Run executes the stage pipeline for up to MaxCycles iterations.
+// MaxCycles is derived from the Budget; if no Budget is set, defaults to 1.
 func (sl *SpecLoop) Run(ctx context.Context, rs *runstore.RunState) error {
-	for cycle := 0; cycle < sl.config.MaxCycles; cycle++ {
-		if sl.config.Budget != nil {
-			sl.config.Budget.IncrementCycle()
-		}
+	maxCycles := 1
+	if sl.config.Budget != nil {
+		maxCycles = sl.config.Budget.MaxCycles()
+	}
+	for cycle := 0; cycle < maxCycles; cycle++ {
 		rs.Cycle = cycle + 1
 
 		startIdx := 0
@@ -40,6 +43,7 @@ func (sl *SpecLoop) Run(ctx context.Context, rs *runstore.RunState) error {
 		}
 
 		replan := false
+		var replanContext *FailureContext
 		for i := startIdx; i < len(sl.stages); i++ {
 			stage := sl.stages[i]
 
@@ -48,6 +52,11 @@ func (sl *SpecLoop) Run(ctx context.Context, rs *runstore.RunState) error {
 				rs.Status = runstore.StatusBlocked
 				rs.TerminalReason = "budget_exceeded"
 				rs.BlockerSummary = sl.config.Budget.Reason()
+				sl.emitEvent(runstore.BudgetExceededEvent{
+					BaseEvent:       runstore.BaseEvent{Type: "budget_exceeded", Timestamp: time.Now()},
+					AccumulatedCost: rs.AccumulatedCost,
+				})
+				sl.emitTerminal(rs)
 				sl.runEvidence(ctx, rs)
 				return nil
 			}
@@ -56,6 +65,7 @@ func (sl *SpecLoop) Run(ctx context.Context, rs *runstore.RunState) error {
 			if err != nil {
 				rs.Status = runstore.StatusBlocked
 				rs.BlockerSummary = err.Error()
+				sl.emitTerminal(rs)
 				sl.runEvidence(ctx, rs)
 				return nil
 			}
@@ -65,12 +75,15 @@ func (sl *SpecLoop) Run(ctx context.Context, rs *runstore.RunState) error {
 				// proceed to next stage
 			case ReplanFrom:
 				replan = true
+				replanContext = action.Context
 			case NeedsHuman:
 				rs.Status = runstore.StatusNeedsHuman
+				sl.emitTerminal(rs)
 				sl.runEvidence(ctx, rs)
 				return nil
 			case Blocked:
 				rs.Status = runstore.StatusBlocked
+				sl.emitTerminal(rs)
 				sl.runEvidence(ctx, rs)
 				return nil
 			}
@@ -88,15 +101,52 @@ func (sl *SpecLoop) Run(ctx context.Context, rs *runstore.RunState) error {
 		if !replan {
 			return nil
 		}
+
+		// Thread failure context into RunState for PlanStage to read on replan
+		if replanContext != nil {
+			rs.ReplanContext = replanContext.Failures
+		}
+
+		// Emit replan_triggered event
+		reason := ""
+		if replanContext != nil && len(replanContext.Failures) > 0 {
+			reason = replanContext.Failures[0]
+		}
+		sl.emitEvent(runstore.ReplanTriggeredEvent{
+			BaseEvent: runstore.BaseEvent{Type: "replan_triggered", Timestamp: time.Now()},
+			Reason:    reason,
+		})
+
+		// Increment cycle in budget AFTER a completed cycle, before the next one
+		if sl.config.Budget != nil {
+			sl.config.Budget.IncrementCycle()
+		}
 	}
 
 	// Cycle exhaustion
 	if sl.config.Budget != nil && sl.config.Budget.CyclesExhausted() && !rs.IsTerminal() {
 		rs.Status = runstore.StatusNeedsHuman
 		rs.TerminalReason = "cycles_exhausted"
+		sl.emitTerminal(rs)
 		sl.runEvidence(ctx, rs)
 	}
 	return nil
+}
+
+// emitEvent appends an event to the log if configured.
+func (sl *SpecLoop) emitEvent(ev runstore.TypedEvent) {
+	if sl.config.EventLog != nil {
+		sl.config.EventLog.Append(ev)
+	}
+}
+
+// emitTerminal emits a terminal_state event based on the current RunState.
+func (sl *SpecLoop) emitTerminal(rs *runstore.RunState) {
+	sl.emitEvent(runstore.TerminalStateEvent{
+		BaseEvent: runstore.BaseEvent{Type: "terminal_state", Timestamp: time.Now()},
+		Status:    rs.Status,
+		Reason:    rs.TerminalReason,
+	})
 }
 
 // runEvidence finds and runs the "evidence" stage if present.

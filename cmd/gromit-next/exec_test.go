@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/danabrams/gromit/internal/next/execpolicy"
 	"github.com/danabrams/gromit/internal/next/runstore"
 	"github.com/danabrams/gromit/internal/next/specloop"
 )
@@ -31,12 +32,16 @@ func TestExecCmd_RequiresProjectFlag(t *testing.T) {
 	}
 }
 
-func TestExecCmd_AcceptsBothFlags(t *testing.T) {
+func TestExecCmd_AcceptsBothFlags_DefaultProviderErrors(t *testing.T) {
 	cmd := newExecSpecCmd()
 	cmd.SetArgs([]string{"--spec", "./specs/spec-0002.md", "--project", "my-project"})
 	err := cmd.Execute()
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	// With defaultStageProvider, it should error about agent provider not configured.
+	if err == nil {
+		t.Fatal("expected error from default stage provider")
+	}
+	if !strings.Contains(err.Error(), "agent provider not configured") {
+		t.Fatalf("expected 'agent provider not configured' error, got: %v", err)
 	}
 }
 
@@ -44,12 +49,189 @@ func TestExecCmd_DryRunFlag(t *testing.T) {
 	cmd := newExecSpecCmd()
 	cmd.SetArgs([]string{"--spec", "./specs/spec-0002.md", "--project", "my-project", "--dry-run"})
 	err := cmd.Execute()
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	// With defaultStageProvider, it should error about agent provider not configured.
+	if err == nil {
+		t.Fatal("expected error from default stage provider")
 	}
 	dryRun, _ := cmd.Flags().GetBool("dry-run")
 	if !dryRun {
 		t.Fatal("expected dry-run to be true")
+	}
+}
+
+// testStageProvider returns the given stages for BuildStages.
+type testStageProvider struct {
+	stages []specloop.Stage
+}
+
+func (p *testStageProvider) BuildStages(_ execpolicy.Policy, _ *runstore.RunState) ([]specloop.Stage, error) {
+	return p.stages, nil
+}
+
+func TestExecSpec_RunsStagesViaPipeline(t *testing.T) {
+	tmp := t.TempDir()
+
+	var order []string
+	provider := &testStageProvider{
+		stages: []specloop.Stage{
+			&stageRecorder{name: "init"},
+			&stageRecorder{name: "compile"},
+			&stageRecorder{name: "plan"},
+			&stageRecorder{name: "execute"},
+			&stageRecorder{name: "validate"},
+			&stageRecorder{name: "evidence"},
+			&stageRecorder{name: "finalize"},
+		},
+	}
+	// Wire recorders to track order
+	for _, s := range provider.stages {
+		r := s.(*stageRecorder)
+		r.orderPtr = &order
+	}
+
+	cmd := newExecSpecCmdWithProvider(provider)
+	var buf bytes.Buffer
+	cmd.SetOut(&buf)
+	cmd.SetArgs([]string{"--spec", "test-spec.md", "--project", "test-proj", "--store-dir", tmp})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, "Run ID:") {
+		t.Fatal("expected output to contain 'Run ID:'")
+	}
+	if !strings.Contains(output, "Status:") {
+		t.Fatal("expected output to contain 'Status:'")
+	}
+
+	// Verify all stages ran
+	want := []string{"init", "compile", "plan", "execute", "validate", "evidence", "finalize"}
+	if len(order) != len(want) {
+		t.Fatalf("expected %d stages to run, got %d: %v", len(want), len(order), order)
+	}
+	for i, name := range want {
+		if order[i] != name {
+			t.Errorf("stage %d: want %s, got %s", i, name, order[i])
+		}
+	}
+}
+
+func TestExecSpec_DryRunOnlyRunsEarlyStages(t *testing.T) {
+	tmp := t.TempDir()
+
+	var order []string
+	provider := &testStageProvider{
+		stages: []specloop.Stage{
+			&stageRecorder{name: "init"},
+			&stageRecorder{name: "compile"},
+			&stageRecorder{name: "plan"},
+			&stageRecorder{name: "execute"},
+			&stageRecorder{name: "validate"},
+			&stageRecorder{name: "evidence"},
+			&stageRecorder{name: "finalize"},
+		},
+	}
+	for _, s := range provider.stages {
+		r := s.(*stageRecorder)
+		r.orderPtr = &order
+	}
+
+	cmd := newExecSpecCmdWithProvider(provider)
+	var buf bytes.Buffer
+	cmd.SetOut(&buf)
+	cmd.SetArgs([]string{"--spec", "test-spec.md", "--project", "test-proj", "--store-dir", tmp, "--dry-run"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	want := []string{"init", "compile", "plan"}
+	if len(order) != len(want) {
+		t.Fatalf("expected %d stages in dry-run, got %d: %v", len(want), len(order), order)
+	}
+}
+
+func TestExecSpec_SavesRunState(t *testing.T) {
+	tmp := t.TempDir()
+
+	provider := &testStageProvider{
+		stages: []specloop.Stage{
+			&stageRecorder{name: "init"},
+		},
+	}
+
+	cmd := newExecSpecCmdWithProvider(provider)
+	var buf bytes.Buffer
+	cmd.SetOut(&buf)
+	cmd.SetArgs([]string{"--spec", "test-spec.md", "--project", "test-proj", "--store-dir", tmp})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Verify run was persisted
+	store := runstore.NewStore(tmp)
+	runs, err := store.List("test-proj")
+	if err != nil {
+		t.Fatalf("unexpected error listing runs: %v", err)
+	}
+	if len(runs) != 1 {
+		t.Fatalf("expected 1 run saved, got %d", len(runs))
+	}
+}
+
+// --- specIDFromPath tests ---
+
+func TestSpecIDFromPath(t *testing.T) {
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{"./specs/add-refund-endpoint.md", "add-refund-endpoint"},
+		{"specs/add-refund-endpoint.md", "add-refund-endpoint"},
+		{"/absolute/path/to/my-spec.md", "my-spec"},
+		{"add-refund-endpoint.md", "add-refund-endpoint"},
+		{"add-refund-endpoint", "add-refund-endpoint"},
+		{"my-spec.yaml", "my-spec"},
+		{"../parent/spec-0002.md", "spec-0002"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			got := specIDFromPath(tt.input)
+			if got != tt.want {
+				t.Errorf("specIDFromPath(%q) = %q, want %q", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestExecSpec_SpecIDIsNormalized(t *testing.T) {
+	tmp := t.TempDir()
+
+	provider := &testStageProvider{
+		stages: []specloop.Stage{
+			&stageRecorder{name: "init"},
+		},
+	}
+
+	cmd := newExecSpecCmdWithProvider(provider)
+	var buf bytes.Buffer
+	cmd.SetOut(&buf)
+	cmd.SetArgs([]string{"--spec", "./specs/add-refund-endpoint.md", "--project", "test-proj", "--store-dir", tmp})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Verify persisted run has normalized SpecID (stem only).
+	store := runstore.NewStore(tmp)
+	runs, err := store.List("test-proj")
+	if err != nil {
+		t.Fatalf("unexpected error listing runs: %v", err)
+	}
+	if len(runs) != 1 {
+		t.Fatalf("expected 1 run, got %d", len(runs))
+	}
+	if runs[0].SpecID != "add-refund-endpoint" {
+		t.Errorf("SpecID = %q, want %q", runs[0].SpecID, "add-refund-endpoint")
 	}
 }
 
@@ -181,13 +363,17 @@ func TestExecListCmd_PrintsTable(t *testing.T) {
 
 // stageRecorder implements specloop.Stage and records when it was run.
 type stageRecorder struct {
-	name string
-	ran  bool
+	name     string
+	ran      bool
+	orderPtr *[]string // optional: appends name when Run is called
 }
 
 func (s *stageRecorder) Name() string { return s.name }
 func (s *stageRecorder) Run(_ context.Context, _ *runstore.RunState) (specloop.NextAction, error) {
 	s.ran = true
+	if s.orderPtr != nil {
+		*s.orderPtr = append(*s.orderPtr, s.name)
+	}
 	return specloop.NextAction{Kind: specloop.Continue}, nil
 }
 
@@ -204,7 +390,8 @@ func TestExecSpec_DryRun_StopsAfterPlan(t *testing.T) {
 	filtered := filterStagesForDryRun(allStages, true)
 
 	// Run the filtered stages via SpecLoop.
-	loop := specloop.NewSpecLoop(filtered, specloop.SpecLoopConfig{MaxCycles: 1})
+	budget := specloop.NewBudget(execpolicy.Budgets{MaxSpecCycles: 1, MaxRunCostUSD: 99, MaxRunDurationSeconds: 3600, MaxTaskDurationSeconds: 300})
+	loop := specloop.NewSpecLoop(filtered, specloop.SpecLoopConfig{Budget: budget})
 	rs := runstore.NewRunState("spec-test", "proj-test")
 	if err := loop.Run(context.Background(), rs); err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -235,7 +422,8 @@ func TestExecSpec_NoDryRun_RunsAllStages(t *testing.T) {
 
 	filtered := filterStagesForDryRun(allStages, false)
 
-	loop := specloop.NewSpecLoop(filtered, specloop.SpecLoopConfig{MaxCycles: 1})
+	budget2 := specloop.NewBudget(execpolicy.Budgets{MaxSpecCycles: 1, MaxRunCostUSD: 99, MaxRunDurationSeconds: 3600, MaxTaskDurationSeconds: 300})
+	loop := specloop.NewSpecLoop(filtered, specloop.SpecLoopConfig{Budget: budget2})
 	rs := runstore.NewRunState("spec-test", "proj-test")
 	if err := loop.Run(context.Background(), rs); err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -245,6 +433,23 @@ func TestExecSpec_NoDryRun_RunsAllStages(t *testing.T) {
 		if !recorders[name].ran {
 			t.Errorf("expected %s stage to run when dry-run is false", name)
 		}
+	}
+}
+
+// Test that exec show returns a friendly error for an unknown run ID.
+func TestExecShowCmd_UnknownRunID_FriendlyError(t *testing.T) {
+	tmp := t.TempDir()
+	store := runstore.NewStore(tmp)
+
+	output, err := execShow("nonexistent-run-id", store, false)
+	if err == nil {
+		t.Fatal("expected error for nonexistent run ID")
+	}
+	if output != "" {
+		t.Fatalf("expected empty output, got %q", output)
+	}
+	if !strings.Contains(err.Error(), `run "nonexistent-run-id" not found`) {
+		t.Fatalf("expected friendly 'not found' error, got: %v", err)
 	}
 }
 

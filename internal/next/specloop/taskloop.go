@@ -2,6 +2,7 @@ package specloop
 
 import (
 	"context"
+	"time"
 
 	"github.com/danabrams/gromit/internal/next/runstore"
 )
@@ -41,6 +42,7 @@ type CheckSummary struct {
 
 // TaskResult is the outcome of running or repairing a task.
 type TaskResult struct {
+	TaskID          string // set by RunTaskLoop to the originating task's ID
 	Status          string // done, failed, needs_split
 	Attempts        int
 	TokensUsed      int
@@ -62,13 +64,16 @@ func (tr *TaskResult) NormalizeNilFields() {
 
 // TaskLoopConfig configures the task loop.
 type TaskLoopConfig struct {
-	MaxRetries          int
-	Inspector           TaskInspector
-	MaxRedecompositions int
-	Decomposer          TaskDecomposer
-	GitOps              GitOps
-	Budget              *Budget
-	WorkDir             string
+	MaxRetries             int
+	Inspector              TaskInspector
+	MaxRedecompositions    int
+	Decomposer             TaskDecomposer
+	GitOps                 GitOps
+	Budget                 *Budget
+	WorkDir                string
+	MaxTaskDurationSeconds int
+	EventLog               *runstore.EventLog
+	Cycle                  int
 }
 
 // RunTaskLoop executes all tasks, with inspection and retry support.
@@ -87,21 +92,56 @@ func RunTaskLoop(ctx context.Context, tasks []runstore.Task, runner TaskRunner, 
 
 		// Check budget before each task
 		if cfg.Budget != nil && cfg.Budget.HardBudgetExceeded() {
-			results = append(results, TaskResult{Status: "blocked", Attempts: 0})
+			results = append(results, TaskResult{TaskID: entry.task.TaskID, Status: "blocked", Attempts: 0})
 			continue
 		}
 
-		result, err := runner.RunTask(ctx, entry.task)
+		// Emit task_started
+		emitTaskEvent(cfg.EventLog, runstore.TaskStartedEvent{
+			BaseEvent: runstore.BaseEvent{Type: "task_started", Timestamp: time.Now()},
+			TaskID:    entry.task.TaskID,
+			Cycle:     cfg.Cycle,
+		})
+
+		// Create per-task context with timeout if configured
+		taskCtx := ctx
+		var taskCancel context.CancelFunc
+		if cfg.MaxTaskDurationSeconds > 0 {
+			taskCtx, taskCancel = context.WithTimeout(ctx, time.Duration(cfg.MaxTaskDurationSeconds)*time.Second)
+		}
+
+		result, err := runner.RunTask(taskCtx, entry.task)
+		if taskCancel != nil {
+			taskCancel()
+		}
+		// Track cumulative cost across all attempts for accurate reporting
+		cumulativeCost := result.Cost
+		// Update budget with cost from this invocation
+		if cfg.Budget != nil {
+			cfg.Budget.AddCost(result.Cost)
+		}
 		if err != nil {
+			result.TaskID = entry.task.TaskID
 			result.Status = "failed"
 			result.Attempts = 1
+			emitTaskEvent(cfg.EventLog, runstore.TaskFailedEvent{
+				BaseEvent: runstore.BaseEvent{Type: "task_failed", Timestamp: time.Now()},
+				TaskID:    entry.task.TaskID,
+				Reason:    err.Error(),
+			})
 			results = append(results, result)
 			continue
 		}
+		result.TaskID = entry.task.TaskID
 		attempts := 1
 
 		// Handle needs_split
 		if result.Status == "needs_split" {
+			emitTaskEvent(cfg.EventLog, runstore.TaskNeedsSplitEvent{
+				BaseEvent: runstore.BaseEvent{Type: "task_needs_split", Timestamp: time.Now()},
+				TaskID:    entry.task.TaskID,
+			})
+
 			if entry.canDecompose && cfg.Decomposer != nil && decompositionsUsed < cfg.MaxRedecompositions {
 				// Revert touched files
 				if cfg.GitOps != nil && len(result.FilesChanged) > 0 {
@@ -110,6 +150,10 @@ func RunTaskLoop(ctx context.Context, tasks []runstore.Task, runner TaskRunner, 
 				subTasks, dErr := cfg.Decomposer.Decompose(ctx, entry.task)
 				if dErr == nil {
 					decompositionsUsed++
+					emitTaskEvent(cfg.EventLog, runstore.RedecompositionTriggeredEvent{
+						BaseEvent: runstore.BaseEvent{Type: "redecomposition_triggered", Timestamp: time.Now()},
+						Reason:    "task " + entry.task.TaskID + " needs split",
+					})
 					for _, st := range subTasks {
 						queue = append(queue, taskEntry{task: st, canDecompose: false})
 					}
@@ -123,17 +167,41 @@ func RunTaskLoop(ctx context.Context, tasks []runstore.Task, runner TaskRunner, 
 		// Inspect
 		if cfg.Inspector != nil && result.Status == "done" {
 			ir := cfg.Inspector.Inspect(ctx, entry.task)
+			emitTaskEvent(cfg.EventLog, runstore.TaskValidationResultEvent{
+				BaseEvent: runstore.BaseEvent{Type: "task_validation_result", Timestamp: time.Now()},
+				TaskID:    entry.task.TaskID,
+				Passed:    ir.Pass,
+			})
 			if !ir.Pass {
 				// Retry loop
 				for retry := 0; retry < cfg.MaxRetries; retry++ {
-					repairResult, rErr := runner.RepairTask(ctx, entry.task, ir.Failures)
+					repairCtx := ctx
+					var repairCancel context.CancelFunc
+					if cfg.MaxTaskDurationSeconds > 0 {
+						repairCtx, repairCancel = context.WithTimeout(ctx, time.Duration(cfg.MaxTaskDurationSeconds)*time.Second)
+					}
+					repairResult, rErr := runner.RepairTask(repairCtx, entry.task, ir.Failures)
+					if repairCancel != nil {
+						repairCancel()
+					}
+					// Update budget and cumulative cost from repair invocation
+					cumulativeCost += repairResult.Cost
+					if cfg.Budget != nil {
+						cfg.Budget.AddCost(repairResult.Cost)
+					}
 					attempts++
 					if rErr != nil {
 						result.Status = "failed"
 						break
 					}
 					result = repairResult
+					result.TaskID = entry.task.TaskID
 					ir = cfg.Inspector.Inspect(ctx, entry.task)
+					emitTaskEvent(cfg.EventLog, runstore.TaskValidationResultEvent{
+						BaseEvent: runstore.BaseEvent{Type: "task_validation_result", Timestamp: time.Now()},
+						TaskID:    entry.task.TaskID,
+						Passed:    ir.Pass,
+					})
 					if ir.Pass {
 						break
 					}
@@ -146,10 +214,35 @@ func RunTaskLoop(ctx context.Context, tasks []runstore.Task, runner TaskRunner, 
 		}
 
 		result.Attempts = attempts
+		result.Cost = cumulativeCost
+
+		// Emit task_completed or task_failed
+		if result.Status == "done" {
+			emitTaskEvent(cfg.EventLog, runstore.TaskCompletedEvent{
+				BaseEvent:  runstore.BaseEvent{Type: "task_completed", Timestamp: time.Now()},
+				TaskID:     entry.task.TaskID,
+				TokensUsed: result.TokensUsed,
+				DurationMs: result.DurationMs,
+			})
+		} else if result.Status == "failed" {
+			emitTaskEvent(cfg.EventLog, runstore.TaskFailedEvent{
+				BaseEvent: runstore.BaseEvent{Type: "task_failed", Timestamp: time.Now()},
+				TaskID:    entry.task.TaskID,
+				Reason:    "task execution failed",
+			})
+		}
+
 		results = append(results, result)
 	}
 
 	return results, nil
+}
+
+// emitTaskEvent appends an event to the log if the log is non-nil.
+func emitTaskEvent(el *runstore.EventLog, ev runstore.TypedEvent) {
+	if el != nil {
+		el.Append(ev)
+	}
 }
 
 // taskEntry tracks a task in the queue with metadata about decomposition eligibility.

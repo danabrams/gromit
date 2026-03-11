@@ -12,6 +12,9 @@ const (
 	StatusReadyForReview = "ready_for_review"
 	StatusNeedsHuman     = "needs_human"
 	StatusBlocked        = "blocked"
+	// StatusCompleted indicates that human review has accepted the work.
+	// This status will be actively used when Spec 0002b adds acceptance gates.
+	StatusCompleted = "completed"
 )
 
 // RunState represents the full state of an execution run.
@@ -29,12 +32,17 @@ type RunState struct {
 	AccumulatedCost       float64   `json:"accumulated_cost"`
 	TerminalReason        string    `json:"terminal_reason,omitempty"`
 	FinalValidationPassed bool      `json:"final_validation_passed"`
+	ReplanContext         []string  `json:"replan_context,omitempty"`
+	LastValidationResult  *string   `json:"last_validation_result,omitempty"`
 }
 
 // NormalizeNilFields maps nil slices to empty values for consistent JSON serialization.
 func (rs *RunState) NormalizeNilFields() {
 	if rs.Tasks == nil {
 		rs.Tasks = []Task{}
+	}
+	if rs.ReplanContext == nil {
+		rs.ReplanContext = []string{}
 	}
 	for i := range rs.Tasks {
 		rs.Tasks[i].NormalizeNilFields()
@@ -44,7 +52,7 @@ func (rs *RunState) NormalizeNilFields() {
 // IsTerminal returns true if the run is in a terminal state.
 func (rs *RunState) IsTerminal() bool {
 	switch rs.Status {
-	case StatusReadyForReview, StatusNeedsHuman, StatusBlocked:
+	case StatusReadyForReview, StatusNeedsHuman, StatusBlocked, StatusCompleted:
 		return true
 	}
 	return false

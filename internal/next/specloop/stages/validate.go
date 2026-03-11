@@ -3,6 +3,7 @@ package stages
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/danabrams/gromit/internal/next/runstore"
 	"github.com/danabrams/gromit/internal/next/specloop"
@@ -25,11 +26,12 @@ type ValidateStageConfig struct {
 type ValidateStage struct {
 	validator FinalValidator
 	cfg       ValidateStageConfig
+	eventLog  *runstore.EventLog
 }
 
 // NewValidateStage creates a new ValidateStage.
-func NewValidateStage(v FinalValidator, cfg ValidateStageConfig) *ValidateStage {
-	return &ValidateStage{validator: v, cfg: cfg}
+func NewValidateStage(v FinalValidator, cfg ValidateStageConfig, eventLog *runstore.EventLog) *ValidateStage {
+	return &ValidateStage{validator: v, cfg: cfg, eventLog: eventLog}
 }
 
 // Name returns the stage name.
@@ -40,6 +42,18 @@ func (s *ValidateStage) Run(ctx context.Context, rs *runstore.RunState) (specloo
 	result, err := s.validator.RunFinal(ctx, s.cfg.AlwaysRun, s.cfg.ProjectChecks, s.cfg.WorkDir)
 	if err != nil {
 		return specloop.NextAction{}, fmt.Errorf("final validation: %w", err)
+	}
+
+	// Store validation result summary in RunState for EvidenceStage (L3)
+	validationSummary := fmt.Sprintf("pass=%v", result.Pass)
+	rs.LastValidationResult = &validationSummary
+
+	// Emit final_validation_result event
+	if s.eventLog != nil {
+		s.eventLog.Append(runstore.FinalValidationResultEvent{
+			BaseEvent: runstore.BaseEvent{Type: "final_validation_result", Timestamp: time.Now()},
+			Passed:    result.Pass,
+		})
 	}
 
 	if result.Pass {

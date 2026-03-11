@@ -72,6 +72,7 @@ func (m *Metrics) NormalizeNilFields() {
 
 // WriteMetrics writes aggregate metrics to metrics.json.
 func (b *Bundler) WriteMetrics(m Metrics) error {
+	m.NormalizeNilFields()
 	return b.writeJSON("metrics.json", m)
 }
 
@@ -110,6 +111,7 @@ type CycleRecord struct {
 // ReviewInput provides data for generating the review decision sheet.
 type ReviewInput struct {
 	TerminalState     string        `json:"terminal_state"`
+	BlockerSummary    string        `json:"blocker_summary,omitempty"`
 	WhatChanged       string        `json:"what_changed"`
 	CycleHistory      []CycleRecord `json:"cycle_history"`
 	ValidationResults string        `json:"validation_results"`
@@ -130,12 +132,18 @@ func (r *ReviewInput) NormalizeNilFields() {
 // WriteReview writes a review decision sheet to review.md.
 func (b *Bundler) WriteReview(r ReviewInput) error {
 	md := fmt.Sprintf("# Review Decision Sheet\n\n"+
-		"## Terminal State\n\n%s\n\n"+
-		"## What Changed\n\n%s\n\n"+
+		"## Terminal State\n\n%s\n\n",
+		r.TerminalState)
+
+	if r.BlockerSummary != "" {
+		md += fmt.Sprintf("## Blocker\n\n%s\n\n", r.BlockerSummary)
+	}
+
+	md += fmt.Sprintf("## What Changed\n\n%s\n\n"+
 		"## Cycle History\n\n"+
 		"| Cycle | Tasks | Passed |\n"+
 		"|-------|-------|--------|\n",
-		r.TerminalState, r.WhatChanged)
+		r.WhatChanged)
 
 	for _, c := range r.CycleHistory {
 		md += fmt.Sprintf("| %d | %d | %d |\n", c.Cycle, c.TaskCount, c.PassCount)

@@ -9,6 +9,10 @@ import (
 // ValidatePlan checks that a plan has non-empty tasks with unique IDs and
 // all required fields populated.
 func ValidatePlan(p Plan) error {
+	if p.Kind != "" && p.Kind != "original" && p.Kind != "fix" {
+		return fmt.Errorf("invalid plan kind %q: must be \"original\" or \"fix\"", p.Kind)
+	}
+
 	if len(p.Tasks) == 0 {
 		return fmt.Errorf("plan must have at least one task")
 	}

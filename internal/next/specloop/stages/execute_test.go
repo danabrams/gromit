@@ -85,6 +85,56 @@ func TestExecuteStage_AllTasksFailed_NeedsHuman(t *testing.T) {
 	}
 }
 
+func TestExecuteStage_SkipsCompletedTasks(t *testing.T) {
+	callCount := 0
+	runner := &fakeTaskRunner{
+		results: []specloop.TaskResult{
+			{Status: "done", FilesChanged: []string{"c.go"}},
+		},
+	}
+	// Override RunTask to count calls
+	countingRunner := &countingTaskRunner{inner: runner, count: &callCount}
+
+	stage := NewExecuteStage(countingRunner, ExecuteStageConfig{MaxRetries: 0})
+
+	rs := runstore.NewRunState("spec-001", "proj-001")
+	rs.Tasks = []runstore.Task{
+		{TaskID: "t-001", Status: "done", Objective: "already done from cycle 1"},
+		{TaskID: "t-002", Status: "failed", Objective: "failed in cycle 1"},
+		{TaskID: "t-003", Status: "pending", Objective: "new fix task"},
+	}
+
+	action, err := stage.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if action.Kind != specloop.Continue {
+		t.Fatalf("expected Continue, got %v", action.Kind)
+	}
+	// Only the pending task should have been executed
+	if callCount != 1 {
+		t.Fatalf("expected 1 RunTask call (only pending), got %d", callCount)
+	}
+	// Verify the completed task was not re-run
+	if rs.Tasks[0].Status != "done" {
+		t.Fatalf("cycle-1 done task should remain done, got %q", rs.Tasks[0].Status)
+	}
+}
+
+type countingTaskRunner struct {
+	inner *fakeTaskRunner
+	count *int
+}
+
+func (c *countingTaskRunner) RunTask(ctx context.Context, task runstore.Task) (specloop.TaskResult, error) {
+	*c.count++
+	return c.inner.RunTask(ctx, task)
+}
+
+func (c *countingTaskRunner) RepairTask(ctx context.Context, task runstore.Task, failures []string) (specloop.TaskResult, error) {
+	return c.inner.RepairTask(ctx, task, failures)
+}
+
 func TestExecuteStage_PartialFailure_Continue(t *testing.T) {
 	runner := &fakeTaskRunner{
 		results: []specloop.TaskResult{

@@ -11,11 +11,11 @@ import (
 )
 
 type fakeGitOps struct {
-	createdBranch   string
-	worktreePath    string
-	removedPath     string
-	createErr       error
-	removeErr       error
+	createdBranch string
+	worktreePath  string
+	removedPath   string
+	createErr     error
+	removeErr     error
 }
 
 func (f *fakeGitOps) CreateWorktree(repoDir, branch string) (string, error) {
@@ -47,7 +47,7 @@ func TestInitStage_CreatesRunDir(t *testing.T) {
 		PolicyPath: policyFile,
 		RepoDir:    tmp,
 		GitOps:     gitOps,
-	}, store)
+	}, store, nil)
 
 	rs := runstore.NewRunState("spec-001", "proj-001")
 	action, err := stage.Run(context.Background(), rs)
@@ -80,7 +80,7 @@ func TestInitStage_CreatesWorktreeWithCorrectBranch(t *testing.T) {
 		PolicyPath: policyFile,
 		RepoDir:    tmp,
 		GitOps:     gitOps,
-	}, store)
+	}, store, nil)
 
 	rs := runstore.NewRunState("spec-001", "proj-001")
 	_, err := stage.Run(context.Background(), rs)
@@ -111,7 +111,7 @@ func TestInitStage_CopiesSpecIntoRunDir(t *testing.T) {
 		PolicyPath: policyFile,
 		RepoDir:    tmp,
 		GitOps:     gitOps,
-	}, store)
+	}, store, nil)
 
 	rs := runstore.NewRunState("spec-001", "proj-001")
 	_, err := stage.Run(context.Background(), rs)
@@ -146,7 +146,7 @@ func TestInitStage_SnapshotsPolicyIntoRunDir(t *testing.T) {
 		PolicyPath: policyFile,
 		RepoDir:    tmp,
 		GitOps:     gitOps,
-	}, store)
+	}, store, nil)
 
 	rs := runstore.NewRunState("spec-001", "proj-001")
 	_, err := stage.Run(context.Background(), rs)

@@ -11,6 +11,7 @@ func TestRunState_IsTerminal(t *testing.T) {
 		{"ready_for_review", true},
 		{"needs_human", true},
 		{"blocked", true},
+		{"completed", true},
 	}
 	for _, tc := range cases {
 		rs := RunState{Status: tc.status}

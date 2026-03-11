@@ -41,6 +41,9 @@ func (b *Budget) IncrementCycle() { b.cycles++ }
 // AddCost records cost consumed.
 func (b *Budget) AddCost(usd float64) { b.cost += usd }
 
+// Cost returns the total cost accumulated so far.
+func (b *Budget) Cost() float64 { return b.cost }
+
 // CyclesExhausted returns true when all allowed cycles have been used.
 func (b *Budget) CyclesExhausted() bool {
 	return b.cycles >= b.limits.MaxSpecCycles
@@ -65,6 +68,9 @@ func (b *Budget) HardBudgetExceeded() bool {
 func (b *Budget) Exceeded() bool {
 	return b.CyclesExhausted() || b.HardBudgetExceeded()
 }
+
+// MaxCycles returns the configured maximum number of spec cycles.
+func (b *Budget) MaxCycles() int { return b.limits.MaxSpecCycles }
 
 // Reason returns a human-readable explanation of which budget was exceeded.
 func (b *Budget) Reason() string {

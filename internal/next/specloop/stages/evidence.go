@@ -13,9 +13,8 @@ import (
 
 // EvidenceStageConfig configures the EvidenceStage.
 type EvidenceStageConfig struct {
-	ValidationResult validator.FinalResult
-	DiffSummary      string
-	StartTime        time.Time
+	DiffSummary string
+	StartTime   time.Time
 }
 
 // EvidenceStage assembles the evidence bundle for a run.
@@ -43,7 +42,9 @@ func (s *EvidenceStage) Run(ctx context.Context, rs *runstore.RunState) (specloo
 		return specloop.NextAction{}, fmt.Errorf("write task results: %w", err)
 	}
 
-	if err := bundler.WriteValidation(s.cfg.ValidationResult); err != nil {
+	// Build validation result from RunState (read at execution time, not statically configured)
+	validationResult := validator.FinalResult{Pass: rs.FinalValidationPassed}
+	if err := bundler.WriteValidation(validationResult); err != nil {
 		return specloop.NextAction{}, fmt.Errorf("write validation: %w", err)
 	}
 
@@ -98,7 +99,7 @@ func (s *EvidenceStage) Run(ctx context.Context, rs *runstore.RunState) (specloo
 		TerminalState:     rs.Status,
 		WhatChanged:       s.cfg.DiffSummary,
 		CycleHistory:      []evidence.CycleRecord{{Cycle: rs.Cycle, TaskCount: len(rs.Tasks), PassCount: passCount}},
-		ValidationResults: fmt.Sprintf("pass=%v", s.cfg.ValidationResult.Pass),
+		ValidationResults: fmt.Sprintf("pass=%v", rs.FinalValidationPassed),
 		KnownRisks:        []string{},
 		RecommendedAction: "review",
 	}

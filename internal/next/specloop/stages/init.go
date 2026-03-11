@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/danabrams/gromit/internal/next/runstore"
 	"github.com/danabrams/gromit/internal/next/specloop"
@@ -26,13 +27,14 @@ type InitStageConfig struct {
 
 // InitStage initializes a run: creates run dir, git worktree, copies spec and policy.
 type InitStage struct {
-	cfg   InitStageConfig
-	store *runstore.Store
+	cfg      InitStageConfig
+	store    *runstore.Store
+	eventLog *runstore.EventLog
 }
 
 // NewInitStage creates a new InitStage.
-func NewInitStage(cfg InitStageConfig, store *runstore.Store) *InitStage {
-	return &InitStage{cfg: cfg, store: store}
+func NewInitStage(cfg InitStageConfig, store *runstore.Store, eventLog *runstore.EventLog) *InitStage {
+	return &InitStage{cfg: cfg, store: store, eventLog: eventLog}
 }
 
 // Name returns the stage name.
@@ -85,6 +87,15 @@ func (s *InitStage) Run(ctx context.Context, rs *runstore.RunState) (specloop.Ne
 	// Save initial run state
 	if err := s.store.Save(rs); err != nil {
 		return specloop.NextAction{}, fmt.Errorf("save run state: %w", err)
+	}
+
+	// Emit run_started event
+	if s.eventLog != nil {
+		s.eventLog.Append(runstore.RunStartedEvent{
+			BaseEvent: runstore.BaseEvent{Type: "run_started", Timestamp: time.Now()},
+			SpecID:    rs.SpecID,
+			ProjectID: rs.ProjectID,
+		})
 	}
 
 	return specloop.NextAction{Kind: specloop.Continue}, nil

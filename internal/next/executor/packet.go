@@ -13,6 +13,7 @@ type TaskPacketInput struct {
 	ProofChecks  []string
 	ExpectedArea []string
 	PriorContext string
+	Doctrine     string
 }
 
 // CompileTaskPacket renders a task prompt packet from the given input.
@@ -43,6 +44,12 @@ func CompileTaskPacket(input TaskPacketInput) (string, error) {
 			b.WriteString(fmt.Sprintf("- %s\n", area))
 		}
 		b.WriteString("\n")
+	}
+
+	if input.Doctrine != "" {
+		b.WriteString("## Doctrine\n\n")
+		b.WriteString(input.Doctrine)
+		b.WriteString("\n\n")
 	}
 
 	if input.PriorContext != "" {

@@ -18,7 +18,8 @@ func TestSpecLoop_RunsStagesInOrder(t *testing.T) {
 		&recordStage{name: "plan", order: &order},
 		&recordStage{name: "finalize", order: &order},
 	}
-	loop := NewSpecLoop(stages, SpecLoopConfig{MaxCycles: 1})
+	budget := NewBudget(execpolicy.Budgets{MaxSpecCycles: 1, MaxRunCostUSD: 99, MaxRunDurationSeconds: 3600, MaxTaskDurationSeconds: 300})
+	loop := NewSpecLoop(stages, SpecLoopConfig{Budget: budget})
 	rs := runstore.NewRunState("s1", "p1")
 
 	err := loop.Run(context.Background(), rs)
@@ -40,7 +41,8 @@ func TestSpecLoop_StageError_SetsBlockedAndRunsEvidence(t *testing.T) {
 		&callbackStage{name: "evidence", fn: func() { evidenceRan = true }},
 		&recordStage{name: "finalize", order: new([]string)},
 	}
-	loop := NewSpecLoop(stages, SpecLoopConfig{MaxCycles: 1})
+	budget := NewBudget(execpolicy.Budgets{MaxSpecCycles: 1, MaxRunCostUSD: 99, MaxRunDurationSeconds: 3600, MaxTaskDurationSeconds: 300})
+	loop := NewSpecLoop(stages, SpecLoopConfig{Budget: budget})
 	rs := runstore.NewRunState("s1", "p1")
 
 	err := loop.Run(context.Background(), rs)
@@ -124,7 +126,8 @@ func TestSpecLoop_ReplanFromLoopsBack(t *testing.T) {
 		validate,
 		&countStage{name: "finalize", counts: callCounts},
 	}
-	loop := NewSpecLoop(stages, SpecLoopConfig{MaxCycles: 3, ReplanStage: "plan"})
+	budget := NewBudget(execpolicy.Budgets{MaxSpecCycles: 3, MaxRunCostUSD: 99, MaxRunDurationSeconds: 3600, MaxTaskDurationSeconds: 300})
+	loop := NewSpecLoop(stages, SpecLoopConfig{Budget: budget, ReplanStage: "plan"})
 	rs := runstore.NewRunState("s1", "p1")
 	loop.Run(context.Background(), rs)
 
@@ -148,7 +151,7 @@ func TestSpecLoop_BudgetBlocksBetweenStages(t *testing.T) {
 		&recordStage{name: "init", order: &order},
 		&recordStage{name: "plan", order: &order},
 	}
-	loop := NewSpecLoop(stages, SpecLoopConfig{MaxCycles: 1, Budget: budget})
+	loop := NewSpecLoop(stages, SpecLoopConfig{Budget: budget})
 	rs := runstore.NewRunState("s1", "p1")
 	loop.Run(context.Background(), rs)
 
@@ -171,7 +174,7 @@ func TestSpecLoop_CycleExhaustion_SetsNeedsHuman(t *testing.T) {
 			return NextAction{Kind: ReplanFrom}
 		}},
 	}
-	loop := NewSpecLoop(stages, SpecLoopConfig{MaxCycles: 1, Budget: budget, ReplanStage: "validate"})
+	loop := NewSpecLoop(stages, SpecLoopConfig{Budget: budget, ReplanStage: "validate"})
 	rs := runstore.NewRunState("s1", "p1")
 	loop.Run(context.Background(), rs)
 
@@ -192,7 +195,7 @@ func TestSpecLoop_BudgetExceeded_StillRunsEvidence(t *testing.T) {
 		&recordStage{name: "init", order: new([]string)},
 		&callbackStage{name: "evidence", fn: func() { evidenceRan = true }},
 	}
-	loop := NewSpecLoop(stages, SpecLoopConfig{MaxCycles: 1, Budget: budget})
+	loop := NewSpecLoop(stages, SpecLoopConfig{Budget: budget})
 	rs := runstore.NewRunState("s1", "p1")
 	loop.Run(context.Background(), rs)
 
@@ -217,7 +220,7 @@ func TestSpecLoop_CycleExhaustion_RunsEvidence(t *testing.T) {
 		}},
 		&callbackStage{name: "evidence", fn: func() { evidenceRan = true }},
 	}
-	loop := NewSpecLoop(stages, SpecLoopConfig{MaxCycles: 1, Budget: budget, ReplanStage: "validate"})
+	loop := NewSpecLoop(stages, SpecLoopConfig{Budget: budget, ReplanStage: "validate"})
 	rs := runstore.NewRunState("s1", "p1")
 	loop.Run(context.Background(), rs)
 

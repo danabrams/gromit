@@ -32,7 +32,7 @@ func TestCompileStage_WritesSpecPacket(t *testing.T) {
 	os.MkdirAll(runDir, 0o755)
 
 	compiler := &fakeCompiler{content: "compiled content"}
-	stage := NewCompileStage(compiler, store)
+	stage := NewCompileStage(compiler, store, nil)
 
 	if stage.Name() != "compile" {
 		t.Fatalf("expected name 'compile', got %q", stage.Name())

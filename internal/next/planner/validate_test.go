@@ -50,6 +50,46 @@ func TestValidatePlan_CrossCycleSequentialIDs(t *testing.T) {
 	}
 }
 
+func TestValidatePlan_KindOriginal_Accepted(t *testing.T) {
+	p := Plan{Kind: "original", Tasks: []TaskDef{{
+		TaskID: "t-001", Objective: "do thing",
+		ExpectedTouchedArea: []string{"a/"}, ProofChecks: []string{"true"},
+	}}}
+	if err := ValidatePlan(p); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestValidatePlan_KindFix_Accepted(t *testing.T) {
+	p := Plan{Kind: "fix", Tasks: []TaskDef{{
+		TaskID: "t-001", Objective: "do thing",
+		ExpectedTouchedArea: []string{"a/"}, ProofChecks: []string{"true"},
+	}}}
+	if err := ValidatePlan(p); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestValidatePlan_KindEmpty_Accepted(t *testing.T) {
+	p := Plan{Kind: "", Tasks: []TaskDef{{
+		TaskID: "t-001", Objective: "do thing",
+		ExpectedTouchedArea: []string{"a/"}, ProofChecks: []string{"true"},
+	}}}
+	if err := ValidatePlan(p); err != nil {
+		t.Fatalf("unexpected error for empty kind: %v", err)
+	}
+}
+
+func TestValidatePlan_KindInvalid_Rejected(t *testing.T) {
+	p := Plan{Kind: "banana", Tasks: []TaskDef{{
+		TaskID: "t-001", Objective: "do thing",
+		ExpectedTouchedArea: []string{"a/"}, ProofChecks: []string{"true"},
+	}}}
+	if err := ValidatePlan(p); err == nil {
+		t.Fatal("expected error for invalid kind \"banana\"")
+	}
+}
+
 func TestValidatePlan_CrossCycleNonSequentialIDs_Rejected(t *testing.T) {
 	priorMaxID := "t-004"
 	p := Plan{

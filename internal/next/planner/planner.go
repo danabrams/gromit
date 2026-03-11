@@ -32,23 +32,39 @@ type PlanRequest struct {
 
 // Planner orchestrates agent-driven plan generation.
 type Planner struct {
-	agent       Agent
-	plannerTier string
+	agent          Agent
+	plannerTier    string
+	MaxPlanRetries int // Total attempts = MaxPlanRetries + 1. Default 1 (2 total attempts).
 }
 
 // NewPlanner creates a Planner that uses the given agent at the specified tier.
 func NewPlanner(agent Agent, plannerTier string) *Planner {
-	return &Planner{agent: agent, plannerTier: plannerTier}
+	return &Planner{agent: agent, plannerTier: plannerTier, MaxPlanRetries: 1}
 }
 
 // CreatePlan invokes the agent to produce a plan from the given request.
+// On parse/validation failure, it retries up to MaxPlanRetries additional times.
 func (p *Planner) CreatePlan(ctx context.Context, req PlanRequest) (Plan, error) {
-	prompt := buildPlanPrompt(req)
-	result, err := p.agent.Invoke(ctx, prompt, p.plannerTier)
-	if err != nil {
-		return Plan{}, fmt.Errorf("agent invocation failed: %w", err)
+	basePrompt := buildPlanPrompt(req)
+	attempts := p.MaxPlanRetries + 1
+	var lastErr error
+	for i := 0; i < attempts; i++ {
+		prompt := basePrompt
+		if i > 0 && lastErr != nil {
+			prompt = prompt + "\n\nYour previous output was invalid: " + lastErr.Error() + "\nPlease produce valid JSON output."
+		}
+		result, err := p.agent.Invoke(ctx, prompt, p.plannerTier)
+		if err != nil {
+			return Plan{}, fmt.Errorf("agent invocation failed: %w", err)
+		}
+		plan, err := ParsePlan(result.Output)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+		return plan, nil
 	}
-	return ParsePlan(result.Output)
+	return Plan{}, fmt.Errorf("plan generation failed after %d attempts: %w", attempts, lastErr)
 }
 
 // CompletedTask summarizes a task that was executed in a prior cycle.
@@ -66,16 +82,39 @@ type FixPlanRequest struct {
 	Failures       []string        `json:"failures"`
 	CurrentDiff    string          `json:"current_diff"`
 	Cycle          int             `json:"cycle"`
+	PriorMaxTaskID string          `json:"prior_max_task_id,omitempty"` // e.g. "t-004"; if set, fix plan task IDs must be greater
 }
 
 // CreateFixPlan invokes the agent to produce a fix plan addressing failures.
+// On parse/validation failure, it retries up to MaxPlanRetries additional times.
+// If PriorMaxTaskID is set, validates that all fix plan task IDs are greater.
 func (p *Planner) CreateFixPlan(ctx context.Context, req FixPlanRequest) (Plan, error) {
-	prompt := buildFixPlanPrompt(req)
-	result, err := p.agent.Invoke(ctx, prompt, p.plannerTier)
-	if err != nil {
-		return Plan{}, fmt.Errorf("agent invocation failed: %w", err)
+	basePrompt := buildFixPlanPrompt(req)
+	attempts := p.MaxPlanRetries + 1
+	var lastErr error
+	for i := 0; i < attempts; i++ {
+		prompt := basePrompt
+		if i > 0 && lastErr != nil {
+			prompt = prompt + "\n\nYour previous output was invalid: " + lastErr.Error() + "\nPlease produce valid JSON output."
+		}
+		result, err := p.agent.Invoke(ctx, prompt, p.plannerTier)
+		if err != nil {
+			return Plan{}, fmt.Errorf("agent invocation failed: %w", err)
+		}
+		plan, err := ParsePlan(result.Output)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+		if req.PriorMaxTaskID != "" {
+			if err := ValidatePlanWithPrior(plan, req.PriorMaxTaskID); err != nil {
+				lastErr = fmt.Errorf("prior-plan validation failed: %w", err)
+				continue
+			}
+		}
+		return plan, nil
 	}
-	return ParsePlan(result.Output)
+	return Plan{}, fmt.Errorf("fix plan generation failed after %d attempts: %w", attempts, lastErr)
 }
 
 // buildFixPlanPrompt constructs the prompt for fix-plan generation.
@@ -112,6 +151,7 @@ func buildFixPlanPrompt(req FixPlanRequest) string {
 		b.WriteString("\n```\n\n")
 	}
 
+	b.WriteString("Do NOT replan or re-include tasks that already completed successfully. Only create new tasks targeting the specific validation failures listed above.\n\n")
 	b.WriteString("Respond with a JSON object with kind=\"fix\", parent_cycle, failures_addressed, and tasks.\n")
 	b.WriteString("Each task needs: task_id, objective, expected_touched_area, proof_checks, parent_cycle, failures_addressed.\n")
 	return b.String()

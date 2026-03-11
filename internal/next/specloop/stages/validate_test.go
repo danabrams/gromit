@@ -34,7 +34,7 @@ func TestValidateStage_AllPass_Continue(t *testing.T) {
 		},
 	}
 
-	stage := NewValidateStage(v, ValidateStageConfig{WorkDir: "/tmp/work"})
+	stage := NewValidateStage(v, ValidateStageConfig{WorkDir: "/tmp/work"}, nil)
 
 	if stage.Name() != "validate" {
 		t.Fatalf("expected name 'validate', got %q", stage.Name())
@@ -66,7 +66,7 @@ func TestValidateStage_Failure_ReplanFrom(t *testing.T) {
 		},
 	}
 
-	stage := NewValidateStage(v, ValidateStageConfig{WorkDir: "/tmp/work"})
+	stage := NewValidateStage(v, ValidateStageConfig{WorkDir: "/tmp/work"}, nil)
 
 	rs := runstore.NewRunState("spec-001", "proj-001")
 	rs.Cycle = 1
