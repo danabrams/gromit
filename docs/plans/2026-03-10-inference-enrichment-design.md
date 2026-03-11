@@ -152,6 +152,21 @@ Default guide excludes inferred content. With `--include-inferred`, inferred fac
 - Inferred Risky Areas `[INFERRED]`
 - Inferred Integration Points `[INFERRED]`
 - Inferred Glossary `[INFERRED]`
+- Inferred Validation Surfaces `[INFERRED]`
+- Inferred Ownership Boundaries `[INFERRED]`
+
+Category-to-section mapping:
+
+| Category | Guide Section |
+|----------|--------------|
+| `component_boundary` | Inferred Component Structure |
+| `component_responsibility` | Inferred Component Structure |
+| `entrypoint` | Inferred Likely Entrypoints |
+| `risky_area` | Inferred Risky Areas |
+| `integration_point` | Inferred Integration Points |
+| `glossary_term` | Inferred Glossary |
+| `likely_validation_surface` | Inferred Validation Surfaces |
+| `likely_ownership_boundary` | Inferred Ownership Boundaries |
 
 Inferred sections include confidence markers where appropriate. Canonical sections are never modified or blurred.
 
@@ -203,13 +218,14 @@ Initial implementation includes all non-expired inferred facts at the project le
 6. Previously rejected facts may re-appear as `proposed`
 7. New run artifacts are written; old run artifacts remain for provenance
 
-**Scenario 3 — Scoped context packets with inference**
+**Scenario 3 — Context packets with inference**
 
 1. User runs `gromit context build payments-api --level task --include-inferred`
-2. System compiles task-level packet with scoped inferred facts
-3. Only inferred facts matching the task scope are included
+2. System compiles task-level packet with inferred facts
+3. All non-expired inferred facts are included at every packet level, regardless of scope
 4. Inferred facts carry provenance and `[INFERRED]` markers
-5. Unrelated project-level inferred facts are excluded
+
+(Scope-based filtering is deferred to a future spec.)
 
 ### Error and edge cases
 
@@ -274,7 +290,7 @@ Initial implementation includes all non-expired inferred facts at the project le
 3. **Provenance** — every inferred fact includes provenance, rationale, confidence, and run identity
 4. **Guide support** — guide optionally includes clearly marked inferred sections; default excludes them
 5. **Context compiler support** — packets optionally include scope-filtered inferred facts; default excludes them
-6. **Scope discipline** — inferred facts in spec/task packets are filtered to relevant scope
+6. **Scope discipline** — inferred facts are included at the requested packet level when opted in. Scope-based filtering to relevant spec/task scope is deferred to a future spec.
 7. **Multi-project isolation** — inferred facts from one project never appear in another's outputs
 8. **Reviewability** — human can inspect, accept, and reject inferred facts
 9. **Zero repo pollution** — enrichment writes nothing to the target repo

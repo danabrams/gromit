@@ -40,7 +40,8 @@ All new enrichment code goes in `internal/next/enrich/`. Guide and context compi
   - After Task 1: Tasks 3, 4, 5, 8, 9 can all run in parallel.
   - After Task 5: Task 6 can start.
   - After Tasks 3, 4, 6: Task 7 can start. After Tasks 3, 4: Task 10 can start.
-  - Tasks 12 and 13 only need Task 3 and can run in parallel with each other. Task 14 needs Tasks 8, 9. Task 11 needs Tasks 7, 10.
+  - Tasks 12 and 13 only need Task 3 and can run in parallel with each other. Task 14 needs Tasks 8, 9. Task 11 needs Tasks 2, 7, 10.
+  - Tasks 15, 16, 17 are sequential — each depends on Task 15 completing first.
   - Use `superpowers:dispatching-parallel-agents` for parallel task batches.
 - Use the verification plan to confirm each phase works before moving to the next.
 - Commit after each task per the plan.

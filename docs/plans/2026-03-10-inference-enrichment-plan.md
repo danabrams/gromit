@@ -229,6 +229,19 @@ func (f *InferredFact) ComputeID() string {
 	h.Write([]byte(f.Statement))
 	return fmt.Sprintf("%x", h.Sum(nil))[:12]
 }
+
+// EnrichInput holds the context provided to an enrichment pass.
+// Defined here (not in enricher.go) because it is a plain data type
+// used by both the run store (Task 4) and the enricher interface (Task 5).
+type EnrichInput struct {
+	ProjectName  string
+	FileTree     []string
+	Architecture string // JSON string of architecture artifact
+	Doctrine     string // JSON string of doctrine artifact
+	SourceMap    string // JSON string of sourcemap artifact
+	Validation   string // JSON string of validation artifact
+	Glossary     string // JSON string of glossary artifact
+}
 ```
 
 **Step 4: Run test to verify it passes**
@@ -240,7 +253,7 @@ Expected: PASS
 
 ```bash
 git add internal/next/enrich/
-git commit -m "feat(next): add inferred fact type with status, categories, and content hash"
+git commit -m "feat(next): add inferred fact type with status, categories, content hash, and EnrichInput"
 ```
 
 ---
@@ -734,19 +747,7 @@ import (
 	"context"
 
 	"github.com/danabrams/gromit/internal/next/fact"
-	"github.com/danabrams/gromit/internal/provider"
 )
-
-// EnrichInput holds the context provided to an enrichment pass.
-type EnrichInput struct {
-	ProjectName  string
-	FileTree     []string
-	Architecture string // JSON string of architecture artifact
-	Doctrine     string // JSON string of doctrine artifact
-	SourceMap    string // JSON string of sourcemap artifact
-	Validation   string // JSON string of validation artifact
-	Glossary     string // JSON string of glossary artifact
-}
 
 // EnrichResult holds the output of a single category enrichment pass.
 type EnrichResult struct {
@@ -763,17 +764,6 @@ type EnrichResult struct {
 // CategoryEnricher runs a single enrichment pass for a specific category.
 type CategoryEnricher interface {
 	Enrich(ctx context.Context, category EnrichmentCategory, observed []fact.Fact, input EnrichInput) (EnrichResult, error)
-}
-
-// LLMEnricher uses a provider.Provider to run enrichment.
-type LLMEnricher struct {
-	provider  provider.Provider
-	model     string
-	reasoning string
-}
-
-func NewLLMEnricher(p provider.Provider, model, reasoning string) *LLMEnricher {
-	return &LLMEnricher{provider: p, model: model, reasoning: reasoning}
 }
 
 // MockEnricher returns preconfigured results for testing.
@@ -821,6 +811,21 @@ Use a fake provider that validates the prompt and returns canned JSON.
 
 **Step 2: Write implementation**
 
+Add the `LLMEnricher` struct and constructor to `enricher.go`:
+
+```go
+// LLMEnricher uses a provider.Provider to run enrichment.
+type LLMEnricher struct {
+	provider  provider.Provider
+	model     string
+	reasoning string
+}
+
+func NewLLMEnricher(p provider.Provider, model, reasoning string) *LLMEnricher {
+	return &LLMEnricher{provider: p, model: model, reasoning: reasoning}
+}
+```
+
 - `prompts.go`: Per-category prompt templates. Each category has a function that builds a prompt from `EnrichInput` + observed facts. Prompts instruct the LLM to return structured JSON with `statement`, `rationale`, `evidence_refs`, `confidence`, `scope` fields.
 - `enricher.go`: `LLMEnricher.Enrich` builds the prompt, converts the model name to a provider tier via `provider.TierFromLegacyModel(model)` (e.g., "sonnet" becomes "medium"), and calls `provider.Run()` with that tier. Reasoning effort is NOT a parameter to `provider.Run()` -- it is passed to providers that support it (e.g., Codex) via provider-specific configuration, and stored in `EnrichmentRun` for provenance. The method parses the JSON response, assigns content-hash IDs, and populates `EnrichResult` with cost/token data from `provider.Result`.
 
@@ -848,12 +853,31 @@ package enrich
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/next/fact"
 )
+
+// CategorySelectiveMock fails for specific categories and returns default facts for the rest.
+type CategorySelectiveMock struct {
+	failCategories map[EnrichmentCategory]bool
+	defaultFacts   []InferredFact
+}
+
+func (m *CategorySelectiveMock) Enrich(ctx context.Context, category EnrichmentCategory, observed []fact.Fact, input EnrichInput) (EnrichResult, error) {
+	if m.failCategories[category] {
+		return EnrichResult{Category: category, Success: false, Error: "mock failure"}, fmt.Errorf("mock failure for %s", category)
+	}
+	return EnrichResult{
+		Category:  category,
+		Facts:     m.defaultFacts,
+		FactCount: len(m.defaultFacts),
+		Success:   true,
+	}, nil
+}
 
 func TestOrchestrator_RunAll(t *testing.T) {
 	dir := t.TempDir()
@@ -1103,23 +1127,33 @@ git commit -m "feat(next): add inferred sections to guide renderer with INFERRED
 
 **Step 1: Write the failing test**
 
+Add `"os"`, `"path/filepath"`, and `"strings"` to the existing import block in `context_test.go`, then add these test functions:
+
 ```go
 func TestCompiler_ProjectLevelWithInferred(t *testing.T) {
 	store := newMockArtifactStore()
 
-	// Set up a cell with architecture and doctrine artifacts
-	cellPath := t.TempDir()
-	store.WriteArtifact(cellPath, "architecture", []byte(`{"components":["api"]}`))
-	store.WriteArtifact(cellPath, "doctrine", []byte(`{"principles":["simplicity"]}`))
+	// Set up a cell with architecture and doctrine artifacts via the mock
+	store.setArtifact("architecture", map[string]any{
+		"modules": []map[string]any{
+			{"name": "api", "description": "API layer", "language": "go"},
+		},
+	})
+	store.setArtifact("doctrine", map[string]any{
+		"rules": []map[string]any{
+			{"id": "r1", "summary": "simplicity", "scope": "all"},
+		},
+	})
 
-	// Write inferred/facts.json
+	// Write inferred/facts.json directly to the filesystem
+	cellPath := t.TempDir()
 	inferredDir := filepath.Join(cellPath, "inferred")
 	os.MkdirAll(inferredDir, 0o755)
 	factsJSON := `[{"fact_id":"f1","category":"entrypoint","statement":"main.go is the entrypoint","confidence":"high","status":"proposed"}]`
 	os.WriteFile(filepath.Join(inferredDir, "facts.json"), []byte(factsJSON), 0o644)
 
 	compiler := NewCompiler(store)
-	cell := Cell{Path: cellPath}
+	cell := Cell{Name: "test", CellPath: cellPath}
 	pkt, err := compiler.Compile(context.Background(), cell, LevelProject, CompileOpts{
 		IncludeInferred: true,
 	})
@@ -1141,17 +1175,25 @@ func TestCompiler_ProjectLevelWithInferred(t *testing.T) {
 func TestCompiler_ProjectLevelDefaultExcludesInferred(t *testing.T) {
 	store := newMockArtifactStore()
 
-	cellPath := t.TempDir()
-	store.WriteArtifact(cellPath, "architecture", []byte(`{"components":["api"]}`))
-	store.WriteArtifact(cellPath, "doctrine", []byte(`{"principles":["simplicity"]}`))
+	store.setArtifact("architecture", map[string]any{
+		"modules": []map[string]any{
+			{"name": "api", "description": "API layer", "language": "go"},
+		},
+	})
+	store.setArtifact("doctrine", map[string]any{
+		"rules": []map[string]any{
+			{"id": "r1", "summary": "simplicity", "scope": "all"},
+		},
+	})
 
+	cellPath := t.TempDir()
 	inferredDir := filepath.Join(cellPath, "inferred")
 	os.MkdirAll(inferredDir, 0o755)
 	factsJSON := `[{"fact_id":"f1","category":"entrypoint","statement":"main.go","confidence":"high","status":"proposed"}]`
 	os.WriteFile(filepath.Join(inferredDir, "facts.json"), []byte(factsJSON), 0o644)
 
 	compiler := NewCompiler(store)
-	cell := Cell{Path: cellPath}
+	cell := Cell{Name: "test", CellPath: cellPath}
 	pkt, err := compiler.Compile(context.Background(), cell, LevelProject, CompileOpts{})
 	if err != nil {
 		t.Fatalf("Compile: %v", err)
@@ -1165,22 +1207,28 @@ func TestCompiler_ProjectLevelDefaultExcludesInferred(t *testing.T) {
 }
 
 func TestCompiler_TaskLevelInferredPresent(t *testing.T) {
-	// Initial implementation includes all inferred facts regardless of scope.
+	// Initial implementation includes all non-expired inferred facts regardless of scope.
 	// This test verifies that inferred sections are present at task level
 	// when IncludeInferred is true.
 	store := newMockArtifactStore()
 
-	cellPath := t.TempDir()
-	store.WriteArtifact(cellPath, "architecture", []byte(`{"components":["api"]}`))
+	store.setArtifact("doctrine", map[string]any{
+		"rules": []map[string]any{
+			{"id": "r1", "summary": "TDD required", "scope": "testing"},
+		},
+	})
 
+	cellPath := t.TempDir()
 	inferredDir := filepath.Join(cellPath, "inferred")
 	os.MkdirAll(inferredDir, 0o755)
 	factsJSON := `[{"fact_id":"f1","category":"entrypoint","statement":"main.go","confidence":"high","status":"proposed"}]`
 	os.WriteFile(filepath.Join(inferredDir, "facts.json"), []byte(factsJSON), 0o644)
 
 	compiler := NewCompiler(store)
-	cell := Cell{Path: cellPath}
+	cell := Cell{Name: "test", CellPath: cellPath}
 	pkt, err := compiler.Compile(context.Background(), cell, LevelTask, CompileOpts{
+		SpecPath:        "specs/001-test.md",
+		TaskID:          "task-1",
 		IncludeInferred: true,
 	})
 	if err != nil {
@@ -1201,7 +1249,7 @@ func TestCompiler_TaskLevelInferredPresent(t *testing.T) {
 
 **Step 2: Write implementation**
 
-Add `IncludeInferred bool` to `CompileOpts`. When true, load `inferred/facts.json` from the cell, filter by packet scope (project=all, spec=spec-relevant, task=task-relevant), and add an `inferred-observations` section with `[INFERRED]` content and `category: "inferred"` on all fact refs.
+Add `IncludeInferred bool` to `CompileOpts`. When true, load `inferred/facts.json` from the cell filesystem (via `os.ReadFile` on `filepath.Join(cell.CellPath, "inferred", "facts.json")`), and add an `inferred-observations` section with `[INFERRED]` content and `category: "inferred"` on all fact refs. Initial implementation includes all non-expired inferred facts; scope filtering is deferred.
 
 **Step 3: Commit**
 

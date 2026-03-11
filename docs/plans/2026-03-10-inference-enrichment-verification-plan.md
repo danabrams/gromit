@@ -165,7 +165,7 @@
 |------|---------|----------|
 | `TestCompiler_ProjectLevelWithInferred` | `contextpkt` | Inferred sections included when requested |
 | `TestCompiler_ProjectLevelDefaultExcludesInferred` | `contextpkt` | Default excludes inferred |
-| `TestCompiler_TaskLevelInferredScopedToTask` | `contextpkt` | Task packet only includes task-relevant inferred facts |
+| `TestCompiler_TaskLevelInferredPresent` | `contextpkt` | Inferred facts appear at task level when opted in |
 
 ---
 
@@ -193,8 +193,8 @@
 - Test: `TestCompiler_ProjectLevelWithInferred`, `TestCompiler_ProjectLevelDefaultExcludesInferred`
 
 ### AC6: Scope discipline
-- Task-level packets only include task-relevant inferred facts
-- Test: `TestCompiler_TaskLevelInferredScopedToTask`
+- Inferred facts appear at the requested packet level when opted in. Scope-based filtering to relevant spec/task scope is deferred to a future spec.
+- Test: `TestCompiler_TaskLevelInferredPresent`
 
 ### AC7: Multi-project isolation
 - Inferred facts from project A never appear in project B
