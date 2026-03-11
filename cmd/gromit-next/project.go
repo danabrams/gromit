@@ -11,6 +11,7 @@ import (
 	"github.com/danabrams/gromit/internal/next/architecture"
 	"github.com/danabrams/gromit/internal/next/artifact"
 	"github.com/danabrams/gromit/internal/next/doctrine"
+	"github.com/danabrams/gromit/internal/next/enrich"
 	"github.com/danabrams/gromit/internal/next/extract"
 	"github.com/danabrams/gromit/internal/next/fact"
 	"github.com/danabrams/gromit/internal/next/guide"
@@ -133,6 +134,8 @@ var guideCmd = &cobra.Command{
 	Short: "Render agent guide for a project",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
+		includeInferred, _ := cmd.Flags().GetBool("include-inferred")
+
 		store, err := resolveProjectStore()
 		if err != nil {
 			return err
@@ -173,6 +176,34 @@ var guideCmd = &cobra.Command{
 		}
 		for _, r := range doc.Rules {
 			input.Doctrine = append(input.Doctrine, guide.DoctrineRule{ID: r.ID, Summary: r.Summary, Scope: r.Scope})
+		}
+
+		// Load inferred facts when flag is set
+		if includeInferred {
+			cfg, err := enrich.LoadConfig(cell.CellPath)
+			if err != nil {
+				return fmt.Errorf("load enrichment config: %w", err)
+			}
+
+			facts, err := enrich.NewFactStore().LoadFacts(cell.CellPath)
+			if err != nil {
+				return fmt.Errorf("load inferred facts: %w", err)
+			}
+
+			facts = enrich.FilterExpired(facts, cfg.StalenessExpiryDays)
+
+			if len(facts) == 0 {
+				fmt.Fprintln(os.Stderr, "Warning: all inferred facts have expired; guide will omit inferred sections")
+			} else {
+				for _, f := range facts {
+					input.InferredFacts = append(input.InferredFacts, guide.InferredObservation{
+						Category:   string(f.Category),
+						Statement:  f.Statement,
+						Confidence: f.Confidence,
+					})
+				}
+				input.IncludeInferred = true
+			}
 		}
 
 		renderer := guide.NewMarkdownRenderer()
@@ -222,6 +253,7 @@ var listCmd = &cobra.Command{
 
 func init() {
 	attachCmd.Flags().String("name", "", "project name (defaults to directory name)")
+	guideCmd.Flags().Bool("include-inferred", false, "include inferred facts in the agent guide")
 	projectCmd.AddCommand(attachCmd)
 	projectCmd.AddCommand(inspectCmd)
 	projectCmd.AddCommand(guideCmd)

@@ -56,12 +56,15 @@ var contextBuildCmd = &cobra.Command{
 			store: artStore,
 		}
 
+		includeInferred, _ := cmd.Flags().GetBool("include-inferred")
+
 		compiler := contextpkt.NewCompiler(wrappedStore)
 		ctxCell := contextpkt.Cell{Name: cell.Name, CellPath: cell.CellPath}
 		packet, err := compiler.Compile(context.Background(), ctxCell, level, contextpkt.CompileOpts{
-			SpecPath:    specPath,
-			TaskID:      taskID,
-			TokenBudget: budgetTokens,
+			SpecPath:        specPath,
+			TaskID:          taskID,
+			TokenBudget:     budgetTokens,
+			IncludeInferred: includeInferred,
 		})
 		if err != nil {
 			return err
@@ -81,6 +84,7 @@ func init() {
 	contextBuildCmd.Flags().String("spec", "", "spec file path (required for spec and task levels)")
 	contextBuildCmd.Flags().String("task", "", "task ID (required for task level)")
 	contextBuildCmd.Flags().Int("budget", 0, "token budget (0 for unlimited)")
+	contextBuildCmd.Flags().Bool("include-inferred", false, "include inferred facts in the context packet")
 	contextCmd.AddCommand(contextBuildCmd)
 }
 
