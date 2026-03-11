@@ -91,6 +91,11 @@ func (s *Store) EvidenceDir(runID, taskID string) string {
 	return filepath.Join(s.TaskDir(runID, taskID), "evidence")
 }
 
+// RunEvidenceDir returns the directory path for run-level evidence.
+func (s *Store) RunEvidenceDir(runID string) string {
+	return filepath.Join(s.RunDir(runID), "evidence")
+}
+
 // WriteTaskArtifact marshals v to JSON and writes it to tasks/<taskID>/<filename>.
 func (s *Store) WriteTaskArtifact(runID, taskID, filename string, v any) error {
 	dir := s.TaskDir(runID, taskID)
