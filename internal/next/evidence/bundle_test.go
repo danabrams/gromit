@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/danabrams/gromit/internal/next/runstore"
+	"github.com/danabrams/gromit/internal/next/validator"
 )
 
 func TestAssembleBundle_CreatesEvidenceDir(t *testing.T) {
@@ -37,5 +38,20 @@ func TestBundler_WriteTaskResults(t *testing.T) {
 	data, _ := os.ReadFile(filepath.Join(dir, "task-results.json"))
 	if !strings.Contains(string(data), "t-001") {
 		t.Fatal("task-results.json should contain task IDs")
+	}
+}
+
+func TestBundler_WriteValidation(t *testing.T) {
+	dir := t.TempDir()
+	b := NewBundler(dir)
+	b.Init()
+	result := validator.FinalResult{Pass: true}
+	err := b.WriteValidation(result)
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, _ := os.ReadFile(filepath.Join(dir, "validation.json"))
+	if !strings.Contains(string(data), `"pass":`) {
+		t.Fatal("validation.json should contain pass status")
 	}
 }

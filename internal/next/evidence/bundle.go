@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 
 	"github.com/danabrams/gromit/internal/next/runstore"
+	"github.com/danabrams/gromit/internal/next/validator"
 )
 
 // Bundler assembles evidence files into a directory that documents
@@ -27,6 +28,11 @@ func (b *Bundler) Init() error {
 // WriteTaskResults writes task results to task-results.json.
 func (b *Bundler) WriteTaskResults(tasks []runstore.Task) error {
 	return b.writeJSON("task-results.json", tasks)
+}
+
+// WriteValidation writes final validation results to validation.json.
+func (b *Bundler) WriteValidation(result validator.FinalResult) error {
+	return b.writeJSON("validation.json", result)
 }
 
 func (b *Bundler) writeJSON(name string, v any) error {
