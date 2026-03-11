@@ -33,16 +33,24 @@ type InspectResult struct {
 	Failures []string
 }
 
+// CheckSummary tracks pass/fail counts for a set of checks.
+type CheckSummary struct {
+	Pass int
+	Fail int
+}
+
 // TaskResult is the outcome of running or repairing a task.
 type TaskResult struct {
-	Status       string // done, failed, needs_split
-	Attempts     int
-	TokensUsed   int
-	Cost         float64
-	DurationMs   int64
-	FilesChanged []string
-	Model        string
-	Tier         string
+	Status          string // done, failed, needs_split
+	Attempts        int
+	TokensUsed      int
+	Cost            float64
+	DurationMs      int64
+	FilesChanged    []string
+	Model           string
+	Tier            string
+	TargetedChecks  CheckSummary
+	AlwaysRunChecks CheckSummary
 }
 
 // TaskLoopConfig configures the task loop.
