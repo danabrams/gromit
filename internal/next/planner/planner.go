@@ -51,6 +51,72 @@ func (p *Planner) CreatePlan(ctx context.Context, req PlanRequest) (Plan, error)
 	return ParsePlan(result.Output)
 }
 
+// CompletedTask summarizes a task that was executed in a prior cycle.
+type CompletedTask struct {
+	TaskID            string   `json:"task_id"`
+	Attempts          int      `json:"attempts"`
+	FilesChanged      []string `json:"files_changed"`
+	ValidationOutcome string   `json:"validation_outcome"`
+}
+
+// FixPlanRequest contains everything needed to generate a fix plan.
+type FixPlanRequest struct {
+	OriginalPlan   Plan            `json:"original_plan"`
+	CompletedTasks []CompletedTask `json:"completed_tasks"`
+	Failures       []string        `json:"failures"`
+	CurrentDiff    string          `json:"current_diff"`
+	Cycle          int             `json:"cycle"`
+}
+
+// CreateFixPlan invokes the agent to produce a fix plan addressing failures.
+func (p *Planner) CreateFixPlan(ctx context.Context, req FixPlanRequest) (Plan, error) {
+	prompt := buildFixPlanPrompt(req)
+	result, err := p.agent.Invoke(ctx, prompt, p.plannerTier)
+	if err != nil {
+		return Plan{}, fmt.Errorf("agent invocation failed: %w", err)
+	}
+	return ParsePlan(result.Output)
+}
+
+// buildFixPlanPrompt constructs the prompt for fix-plan generation.
+func buildFixPlanPrompt(req FixPlanRequest) string {
+	var b strings.Builder
+	b.WriteString("You are a planning agent. Generate a FIX plan as JSON to address failures.\n\n")
+	b.WriteString(fmt.Sprintf("## Original Plan (Cycle %d, Spec %s)\n", req.OriginalPlan.Cycle, req.OriginalPlan.SpecID))
+	b.WriteString(fmt.Sprintf("Tasks in original plan: %d\n\n", len(req.OriginalPlan.Tasks)))
+
+	b.WriteString(fmt.Sprintf("## Fix Cycle: %d\n\n", req.Cycle))
+
+	if len(req.CompletedTasks) > 0 {
+		b.WriteString("## Completed Tasks\n")
+		for _, ct := range req.CompletedTasks {
+			b.WriteString(fmt.Sprintf("- %s: %d attempts, outcome=%s, files=%v\n",
+				ct.TaskID, ct.Attempts, ct.ValidationOutcome, ct.FilesChanged))
+		}
+		b.WriteString("\n")
+	}
+
+	if len(req.Failures) > 0 {
+		b.WriteString("## Failures to Address\n")
+		for _, f := range req.Failures {
+			b.WriteString("- ")
+			b.WriteString(f)
+			b.WriteString("\n")
+		}
+		b.WriteString("\n")
+	}
+
+	if req.CurrentDiff != "" {
+		b.WriteString("## Current Diff\n```\n")
+		b.WriteString(req.CurrentDiff)
+		b.WriteString("\n```\n\n")
+	}
+
+	b.WriteString("Respond with a JSON object with kind=\"fix\", parent_cycle, failures_addressed, and tasks.\n")
+	b.WriteString("Each task needs: task_id, objective, expected_touched_area, proof_checks, parent_cycle, failures_addressed.\n")
+	return b.String()
+}
+
 // buildPlanPrompt constructs the prompt for plan generation.
 func buildPlanPrompt(req PlanRequest) string {
 	var b strings.Builder
