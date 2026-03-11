@@ -96,6 +96,26 @@ func TestBundler_WriteDiffSummary(t *testing.T) {
 	}
 }
 
+func TestBundler_WriteSummary(t *testing.T) {
+	dir := t.TempDir()
+	b := NewBundler(dir)
+	b.Init()
+	err := b.WriteSummary(SummaryInput{
+		SpecID: "spec-001", Status: "ready_for_review", TaskCount: 3, PassCount: 3, Cycles: 1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, _ := os.ReadFile(filepath.Join(dir, "summary.md"))
+	content := string(data)
+	if !strings.Contains(content, "spec-001") {
+		t.Fatal("summary should contain spec ID")
+	}
+	if !strings.Contains(content, "ready_for_review") {
+		t.Fatal("summary should contain terminal status")
+	}
+}
+
 func TestMetrics_NormalizeNilFields(t *testing.T) {
 	m := Metrics{}
 	m.NormalizeNilFields()

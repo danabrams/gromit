@@ -2,6 +2,7 @@ package evidence
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -77,6 +78,26 @@ func (b *Bundler) WriteMetrics(m Metrics) error {
 // WriteDiffSummary writes the diff summary text to diff-summary.md.
 func (b *Bundler) WriteDiffSummary(summary string) error {
 	return os.WriteFile(filepath.Join(b.dir, "diff-summary.md"), []byte(summary), 0o644)
+}
+
+// SummaryInput provides data for generating the summary markdown.
+type SummaryInput struct {
+	SpecID    string `json:"spec_id"`
+	Status    string `json:"status"`
+	TaskCount int    `json:"task_count"`
+	PassCount int    `json:"pass_count"`
+	Cycles    int    `json:"cycles"`
+}
+
+// WriteSummary writes a summary markdown file.
+func (b *Bundler) WriteSummary(s SummaryInput) error {
+	md := fmt.Sprintf("# Execution Summary\n\n"+
+		"- **Spec ID:** %s\n"+
+		"- **Status:** %s\n"+
+		"- **Tasks:** %d/%d passed\n"+
+		"- **Cycles:** %d\n",
+		s.SpecID, s.Status, s.PassCount, s.TaskCount, s.Cycles)
+	return os.WriteFile(filepath.Join(b.dir, "summary.md"), []byte(md), 0o644)
 }
 
 func (b *Bundler) writeJSON(name string, v any) error {
