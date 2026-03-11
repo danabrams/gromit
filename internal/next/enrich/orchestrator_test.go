@@ -50,7 +50,7 @@ func TestOrchestrator_RunAll(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
-	if result.TotalFacts == 0 {
+	if result.NewFactCount == 0 {
 		t.Error("expected at least 1 fact")
 	}
 	if result.RunID == "" {
@@ -79,7 +79,7 @@ func TestOrchestrator_PartialFailure(t *testing.T) {
 	if len(result.FailedCategories) != 1 {
 		t.Errorf("expected 1 failed category, got %d", len(result.FailedCategories))
 	}
-	if result.TotalFacts == 0 {
+	if result.NewFactCount == 0 {
 		t.Error("successful categories should still produce facts")
 	}
 }
@@ -145,7 +145,7 @@ func TestOrchestrator_DryRun(t *testing.T) {
 	if err != nil {
 		t.Fatalf("DryRun: %v", err)
 	}
-	if result.TotalFacts == 0 {
+	if result.NewFactCount == 0 {
 		t.Error("DryRun should still produce facts")
 	}
 

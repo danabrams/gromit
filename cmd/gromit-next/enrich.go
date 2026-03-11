@@ -150,7 +150,7 @@ var enrichCmd = &cobra.Command{
 		}
 
 		fmt.Printf("Enrichment complete: %d facts produced, cost $%.4f, %d input tokens, %d output tokens\n",
-			result.TotalFacts, result.CostUSD, result.InputTokens, result.OutputTokens)
+			result.NewFactCount, result.CostUSD, result.InputTokens, result.OutputTokens)
 		if len(result.FailedCategories) > 0 {
 			fmt.Printf("Failed categories: %v\n", result.FailedCategories)
 		}

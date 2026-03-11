@@ -146,6 +146,11 @@ func writeJSON(path string, v any) error {
 	return os.WriteFile(path, data, 0o644)
 }
 
+// escapePipe escapes pipe characters so they don't break markdown table cells.
+func escapePipe(s string) string {
+	return strings.ReplaceAll(s, "|", `\|`)
+}
+
 func renderSummary(run EnrichmentRun) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "# Enrichment Run: %s\n\n", run.RunID)
@@ -165,7 +170,7 @@ func renderSummary(run EnrichmentRun) string {
 			if !r.Success {
 				status = fmt.Sprintf("FAIL: %s", r.Error)
 			}
-			fmt.Fprintf(&b, "| %s | %s | %d |\n", r.Category, status, r.FactCount)
+			fmt.Fprintf(&b, "| %s | %s | %d |\n", escapePipe(string(r.Category)), escapePipe(status), r.FactCount)
 		}
 	}
 

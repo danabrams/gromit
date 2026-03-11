@@ -5,14 +5,21 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/danabrams/gromit/internal/next/artifact"
 	"github.com/danabrams/gromit/internal/next/contextpkt"
+	"github.com/danabrams/gromit/internal/next/extract"
 	"github.com/danabrams/gromit/internal/next/fact"
 	"github.com/danabrams/gromit/internal/next/guide"
+	"github.com/danabrams/gromit/internal/next/infer"
+	"github.com/danabrams/gromit/internal/next/inspect"
+	"github.com/danabrams/gromit/internal/next/provenance"
+	"github.com/danabrams/gromit/internal/next/sourcemap"
 )
 
 // testArtifactStore is a minimal ArtifactStore for contextpkt integration testing.
@@ -117,8 +124,8 @@ func TestIntegration_FullEnrichmentFlow(t *testing.T) {
 	if result1.RunID == "" {
 		t.Error("Run 1: RunID should not be empty")
 	}
-	if result1.TotalFacts < 2 {
-		t.Errorf("Run 1: expected at least 2 facts, got %d", result1.TotalFacts)
+	if result1.NewFactCount < 2 {
+		t.Errorf("Run 1: expected at least 2 facts, got %d", result1.NewFactCount)
 	}
 
 	// Verify facts.json exists and contains expected facts.
@@ -377,8 +384,8 @@ func TestIntegration_MultiProjectIsolation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Project A enrichment failed: %v", err)
 	}
-	if resultA.TotalFacts < 1 {
-		t.Errorf("Project A: expected at least 1 fact, got %d", resultA.TotalFacts)
+	if resultA.NewFactCount < 1 {
+		t.Errorf("Project A: expected at least 1 fact, got %d", resultA.NewFactCount)
 	}
 
 	// --- Run enrichment for project B ---
@@ -387,8 +394,8 @@ func TestIntegration_MultiProjectIsolation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Project B enrichment failed: %v", err)
 	}
-	if resultB.TotalFacts < 1 {
-		t.Errorf("Project B: expected at least 1 fact, got %d", resultB.TotalFacts)
+	if resultB.NewFactCount < 1 {
+		t.Errorf("Project B: expected at least 1 fact, got %d", resultB.NewFactCount)
 	}
 
 	// --- Verify fact isolation: A's facts don't contain B's content ---
@@ -569,8 +576,8 @@ func TestIntegration_StalenessExpiry(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Run 1 failed: %v", err)
 	}
-	if result1.TotalFacts < 2 {
-		t.Fatalf("Run 1: expected at least 2 facts, got %d", result1.TotalFacts)
+	if result1.NewFactCount < 2 {
+		t.Fatalf("Run 1: expected at least 2 facts, got %d", result1.NewFactCount)
 	}
 
 	// --- Backdate all fact timestamps to 45 days ago ---
@@ -630,8 +637,8 @@ func TestIntegration_StalenessExpiry(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Run 2 failed: %v", err)
 	}
-	if result2.TotalFacts < 2 {
-		t.Errorf("Run 2: expected at least 2 facts, got %d", result2.TotalFacts)
+	if result2.NewFactCount < 2 {
+		t.Errorf("Run 2: expected at least 2 facts, got %d", result2.NewFactCount)
 	}
 
 	// --- Verify new facts are fresh and not expired ---
@@ -686,8 +693,8 @@ func TestIntegration_AcceptedFactSuperseded(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Run 1 failed: %v", err)
 	}
-	if result1.TotalFacts < 1 {
-		t.Fatalf("Run 1: expected at least 1 fact, got %d", result1.TotalFacts)
+	if result1.NewFactCount < 1 {
+		t.Fatalf("Run 1: expected at least 1 fact, got %d", result1.NewFactCount)
 	}
 
 	// Find fact X's ID and accept it.
@@ -758,4 +765,202 @@ func TestIntegration_AcceptedFactSuperseded(t *testing.T) {
 	if !foundFactY {
 		t.Error("fact Y should be present in the final facts")
 	}
+}
+
+// TestIntegration_RefreshBeforeEnrich exercises the same logical flow as the
+// --refresh flag on the enrich command: run the inspect pipeline to produce
+// artifacts from a real git repo, then run enrichment on those artifacts.
+func TestIntegration_RefreshBeforeEnrich(t *testing.T) {
+	// --- Setup: create a real git repo with Go files ---
+	repoPath := t.TempDir()
+
+	// Write a Go source file into the repo.
+	if err := os.WriteFile(filepath.Join(repoPath, "main.go"), []byte("package main\n\nfunc main() {}\n"), 0o644); err != nil {
+		t.Fatalf("write main.go: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(repoPath, "util.go"), []byte("package main\n\nfunc helper() string { return \"ok\" }\n"), 0o644); err != nil {
+		t.Fatalf("write util.go: %v", err)
+	}
+
+	// Initialize a git repo and commit the files so extractors work against
+	// a real repository (some extractors may depend on git metadata).
+	gitInit := exec.Command("git", "init")
+	gitInit.Dir = repoPath
+	if out, err := gitInit.CombinedOutput(); err != nil {
+		t.Fatalf("git init: %v\n%s", err, out)
+	}
+	gitAdd := exec.Command("git", "add", ".")
+	gitAdd.Dir = repoPath
+	if out, err := gitAdd.CombinedOutput(); err != nil {
+		t.Fatalf("git add: %v\n%s", err, out)
+	}
+	gitCommit := exec.Command("git", "-c", "user.email=test@test.com", "-c", "user.name=Test", "commit", "-m", "initial")
+	gitCommit.Dir = repoPath
+	if out, err := gitCommit.CombinedOutput(); err != nil {
+		t.Fatalf("git commit: %v\n%s", err, out)
+	}
+
+	// Create a cell directory with an EMPTY artifacts dir (no sourcemap yet).
+	cellPath := t.TempDir()
+	artifactsDir := filepath.Join(cellPath, "artifacts")
+	if err := os.MkdirAll(artifactsDir, 0o755); err != nil {
+		t.Fatalf("mkdir artifacts: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(cellPath, "inferred", "runs"), 0o755); err != nil {
+		t.Fatalf("mkdir inferred/runs: %v", err)
+	}
+
+	// Verify sourcemap does NOT exist yet.
+	artStore := artifact.NewJSONStore()
+	var smBefore sourcemap.SourceMap
+	if err := artStore.Read(artifactsDir, "sourcemap", &smBefore); err == nil {
+		t.Fatal("sourcemap should not exist before refresh")
+	}
+
+	// --- Phase 1: Run the inspect pipeline (same logic as runInspect) ---
+	extractors := []inspect.Extractor{
+		extract.NewFileTreeExtractor(),
+		extract.NewGoModExtractor(),
+		extract.NewValidationCommandsExtractor(),
+	}
+	inferrer := infer.NewStubInferrer()
+	inspector := inspect.NewInspector(extractors, inferrer)
+
+	inspCell := inspect.Cell{Name: "refresh-test", RepoPath: repoPath, CellPath: cellPath}
+	result, err := inspector.Inspect(context.Background(), inspCell)
+	if err != nil {
+		t.Fatalf("inspect: %v", err)
+	}
+	if len(result.Observed) == 0 {
+		t.Fatal("inspect should produce at least one observed fact")
+	}
+
+	// Build and write the sourcemap artifact.
+	sm := sourcemap.BuildFromFacts(result.Observed)
+	if err := artStore.Write(artifactsDir, "sourcemap", sm); err != nil {
+		t.Fatalf("write sourcemap: %v", err)
+	}
+
+	// Record provenance (mirrors runInspect behavior).
+	tracker := provenance.NewFSTracker(filepath.Join(cellPath, "provenance", "provenance.json"))
+	if err := tracker.Record(provenance.Record{
+		Artifact: "sourcemap",
+		GitSHA:   "abc123", // placeholder; real SHA not needed for this test
+	}); err != nil {
+		t.Fatalf("record provenance: %v", err)
+	}
+
+	// Verify sourcemap artifact was created with entries.
+	var smAfter sourcemap.SourceMap
+	if err := artStore.Read(artifactsDir, "sourcemap", &smAfter); err != nil {
+		t.Fatalf("read sourcemap after refresh: %v", err)
+	}
+	if len(smAfter.Entries) == 0 {
+		t.Fatal("sourcemap should have entries after inspect pipeline ran")
+	}
+
+	// Verify our Go files appear in the sourcemap.
+	fileNames := map[string]bool{}
+	for _, e := range smAfter.Entries {
+		fileNames[e.Path] = true
+	}
+	if !fileNames["main.go"] {
+		t.Error("sourcemap should contain main.go")
+	}
+	if !fileNames["util.go"] {
+		t.Error("sourcemap should contain util.go")
+	}
+
+	// --- Phase 2: Run enrichment on the refreshed artifacts ---
+	// Convert sourcemap entries to observed facts (same as sourcemapToFacts in enrich.go).
+	observed := make([]fact.Fact, 0, len(smAfter.Entries))
+	for _, e := range smAfter.Entries {
+		data, err := json.Marshal(e)
+		if err != nil {
+			continue
+		}
+		observed = append(observed, fact.Fact{
+			Category: fact.Observed,
+			Content:  string(data),
+			Source:   "file-tree",
+		})
+	}
+
+	// Build EnrichInput from the refreshed artifacts.
+	input := EnrichInput{
+		ProjectName: "refresh-test",
+	}
+	for _, e := range smAfter.Entries {
+		input.FileTree = append(input.FileTree, e.Path)
+	}
+	if input.FileTree == nil {
+		input.FileTree = []string{}
+	}
+
+	// Read sourcemap JSON for the input field.
+	if data, err := readArtifactJSONForTest(artStore, artifactsDir, "sourcemap"); err == nil {
+		input.SourceMap = string(data)
+	}
+
+	// Mock enricher that produces facts for the refreshed data.
+	entrypointFact := InferredFact{
+		Category:   CategoryEntrypoint,
+		Statement:  "main.go is the primary entrypoint for refresh-test",
+		Rationale:  "observed main package in file tree",
+		Confidence: "high",
+		Scope:      "project",
+	}
+	mock := &categoryMockEnricher{
+		factsByCategory: map[EnrichmentCategory][]InferredFact{
+			CategoryEntrypoint: {entrypointFact},
+		},
+	}
+
+	factStore := NewFactStore()
+	runStore := NewRunStore()
+	orch := NewOrchestrator(mock, factStore, runStore)
+	cfg := DefaultConfig()
+
+	enrichResult, err := orch.Run(context.Background(), cellPath, observed, input, cfg)
+	if err != nil {
+		t.Fatalf("enrichment after refresh failed: %v", err)
+	}
+	if enrichResult.NewFactCount == 0 {
+		t.Error("enrichment should produce at least one fact from refreshed artifacts")
+	}
+
+	// Verify the enrichment facts were persisted.
+	loadedFacts, err := factStore.LoadFacts(cellPath)
+	if err != nil {
+		t.Fatalf("LoadFacts: %v", err)
+	}
+	foundRefreshFact := false
+	for _, f := range loadedFacts {
+		if f.Statement == "main.go is the primary entrypoint for refresh-test" {
+			foundRefreshFact = true
+			break
+		}
+	}
+	if !foundRefreshFact {
+		t.Error("enrichment should contain the entrypoint fact derived from refreshed artifacts")
+	}
+
+	// Verify run artifacts were created.
+	runs, err := runStore.ListRuns(cellPath)
+	if err != nil {
+		t.Fatalf("ListRuns: %v", err)
+	}
+	if len(runs) != 1 {
+		t.Errorf("expected 1 run, got %d", len(runs))
+	}
+}
+
+// readArtifactJSONForTest reads an artifact file and returns its raw JSON bytes.
+// This mirrors the readArtifactJSON helper in cmd/gromit-next/enrich.go.
+func readArtifactJSONForTest(store *artifact.JSONStore, artifactsDir, name string) (json.RawMessage, error) {
+	var raw json.RawMessage
+	if err := store.Read(artifactsDir, name, &raw); err != nil {
+		return nil, err
+	}
+	return raw, nil
 }

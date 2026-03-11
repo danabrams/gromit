@@ -14,7 +14,7 @@ import (
 // OrchestratorResult holds the aggregate outcome of a full enrichment run.
 type OrchestratorResult struct {
 	RunID            string
-	TotalFacts       int
+	NewFactCount       int
 	FailedCategories []EnrichmentCategory
 	CostUSD          float64
 	InputTokens      int
@@ -82,7 +82,7 @@ func (o *Orchestrator) Run(ctx context.Context, cellPath string, observed []fact
 
 	return OrchestratorResult{
 		RunID:            runID,
-		TotalFacts:       len(allFacts),
+		NewFactCount:       len(allFacts),
 		FailedCategories: failed,
 		CostUSD:          totals.costUSD,
 		InputTokens:      totals.inputTokens,
@@ -103,7 +103,7 @@ func (o *Orchestrator) DryRun(ctx context.Context, cellPath string, observed []f
 
 	return OrchestratorResult{
 		RunID:            runID,
-		TotalFacts:       len(allFacts),
+		NewFactCount:       len(allFacts),
 		FailedCategories: failed,
 		CostUSD:          totals.costUSD,
 		InputTokens:      totals.inputTokens,

@@ -71,6 +71,46 @@ func TestRunStore_ListRuns(t *testing.T) {
 	}
 }
 
+func TestRenderSummary_EscapesPipeInErrorAndCategory(t *testing.T) {
+	run := EnrichmentRun{
+		RunID:     "run-pipe",
+		Timestamp: time.Now(),
+		Provider:  "claude",
+		Model:     "sonnet",
+		Results: []CategoryResult{
+			{
+				Category:  CategoryEntrypoint,
+				Success:   false,
+				Error:     "unexpected | in output | twice",
+				FactCount: 0,
+			},
+		},
+	}
+
+	summary := renderSummary(run)
+
+	// The error pipes must be escaped so the table row has exactly 4 pipe delimiters.
+	if strings.Contains(summary, "unexpected | in") {
+		t.Errorf("pipe characters in error were not escaped:\n%s", summary)
+	}
+	if !strings.Contains(summary, `unexpected \| in output \| twice`) {
+		t.Errorf("expected escaped pipes in summary, got:\n%s", summary)
+	}
+
+	// Verify the table row has the correct number of unescaped pipe delimiters.
+	for _, line := range strings.Split(summary, "\n") {
+		if strings.HasPrefix(line, "| ") && strings.Contains(line, "FAIL") {
+			// Count unescaped pipes by removing escaped ones first.
+			stripped := strings.ReplaceAll(line, `\|`, "")
+			count := strings.Count(stripped, "|")
+			// A well-formed 3-column row has 4 unescaped pipes: | a | b | c |
+			if count != 4 {
+				t.Errorf("malformed table row (expected 4 unescaped pipes, got %d): %s", count, line)
+			}
+		}
+	}
+}
+
 func TestRunStore_SavesSummary(t *testing.T) {
 	dir := t.TempDir()
 	os.MkdirAll(filepath.Join(dir, "inferred", "runs"), 0o755)
