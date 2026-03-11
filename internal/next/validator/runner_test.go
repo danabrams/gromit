@@ -30,3 +30,39 @@ func TestRunCheck_FailingCommand(t *testing.T) {
 		t.Fatal("expected fail")
 	}
 }
+
+func TestRunAlwaysRun_AllPass(t *testing.T) {
+	r := NewRunner()
+	checks := []Check{
+		{Name: "echo1", Command: "echo a", Type: "test"},
+		{Name: "echo2", Command: "echo b", Type: "lint"},
+	}
+	results, err := r.RunAlwaysRun(context.Background(), checks, t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !results.AllPass() {
+		t.Fatal("expected all pass")
+	}
+	if results.PassCount() != 2 {
+		t.Fatalf("want 2, got %d", results.PassCount())
+	}
+}
+
+func TestRunAlwaysRun_SomeFail(t *testing.T) {
+	r := NewRunner()
+	checks := []Check{
+		{Name: "pass", Command: "true", Type: "test"},
+		{Name: "fail", Command: "false", Type: "lint"},
+	}
+	results, err := r.RunAlwaysRun(context.Background(), checks, t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if results.AllPass() {
+		t.Fatal("expected some failures")
+	}
+	if results.FailCount() != 1 {
+		t.Fatalf("want 1 failure, got %d", results.FailCount())
+	}
+}
