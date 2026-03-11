@@ -233,18 +233,25 @@ func sourcemapToFacts(sm sourcemap.SourceMap) []fact.Fact {
 	return facts
 }
 
+// Default binary names and timeout for LLM providers.
+const (
+	defaultClaudeBinary  = "claude"
+	defaultCodexBinary   = "codex"
+	defaultClaudeTimeout = 300 // seconds
+)
+
 // buildEnrichProvider constructs a provider.Provider for the enrichment run
 // based on the enrichment config's Provider field.
 func buildEnrichProvider(cfg enrich.Config) (provider.Provider, error) {
 	switch cfg.Provider {
 	case "claude":
-		client, err := claude.NewClient("claude", nil, 300)
+		client, err := claude.NewClient(defaultClaudeBinary, nil, defaultClaudeTimeout)
 		if err != nil {
 			return nil, fmt.Errorf("create claude client: %w", err)
 		}
 		return provider.NewClaudeProvider(client, provider.DefaultTierToModelMap), nil
 	case "codex":
-		p := provider.NewCodexProvider("codex", nil, nil)
+		p := provider.NewCodexProvider(defaultCodexBinary, nil, provider.DefaultCodexTierToModelMap)
 		if cfg.Reasoning != "" {
 			p.SetReasoningEffort(map[string]string{
 				provider.TierHigh:   cfg.Reasoning,

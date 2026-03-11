@@ -134,6 +134,13 @@ func TestIntegration_FullEnrichmentFlow(t *testing.T) {
 		t.Errorf("expected at least 2 loaded facts, got %d", len(loadedFacts))
 	}
 
+	// Verify all initial facts have StatusProposed.
+	for _, f := range loadedFacts {
+		if f.Status != StatusProposed {
+			t.Errorf("expected initial fact %q status to be proposed, got %s", f.FactID, f.Status)
+		}
+	}
+
 	// Verify run artifacts exist.
 	runs1, err := runStore.ListRuns(cellPath)
 	if err != nil {

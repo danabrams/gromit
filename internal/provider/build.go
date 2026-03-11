@@ -15,7 +15,7 @@ var DefaultTierToModelMap = map[string]string{
 	TierLow:    "haiku",
 }
 
-var defaultCodexTierToModelMap = map[string]string{
+var DefaultCodexTierToModelMap = map[string]string{
 	TierHigh:   "gpt-5.3-codex",
 	TierMedium: "gpt-5.3-codex",
 	TierLow:    "gpt-5.1-codex-mini",
@@ -54,7 +54,7 @@ func BuildProvidersFromConfig(cfg *config.Config) (map[string]Provider, error) {
 		case name == "codex" || name == "openai" || def.Binary == "codex" || binaryName == "codex":
 			tierMap := def.Models
 			if len(tierMap) == 0 {
-				tierMap = defaultCodexTierToModelMap
+				tierMap = DefaultCodexTierToModelMap
 			}
 			codexProvider := NewCodexProvider(def.Binary, def.Flags, tierMap)
 			codexProvider.SetReasoningEffort(def.ReasoningEffort)

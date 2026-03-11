@@ -402,7 +402,7 @@ func inferredSection(cell Cell, expiryDays int) (Section, bool) {
 
 	refs := make([]FactRef, len(facts))
 	for i, f := range facts {
-		refs[i] = FactRef{FactID: f.FactID, Category: "inferred"}
+		refs[i] = FactRef{FactID: f.FactID, Category: f.Category}
 	}
 
 	return Section{
@@ -444,7 +444,7 @@ func trimToBudget(sections []Section, budget int) []Section {
 				Name:          s.Name,
 				Content:       content[:chars],
 				TokenEstimate: remaining,
-				Facts:         s.Facts,
+				Facts:         nil,
 			})
 			remaining = 0
 		}

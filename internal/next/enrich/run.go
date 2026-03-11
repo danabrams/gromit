@@ -129,7 +129,7 @@ func (s *RunStore) ListRuns(cellPath string) ([]string, error) {
 		}
 		return nil, fmt.Errorf("read runs dir: %w", err)
 	}
-	var ids []string
+	ids := []string{}
 	for _, e := range entries {
 		if e.IsDir() {
 			ids = append(ids, e.Name())
