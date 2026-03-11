@@ -512,6 +512,20 @@ func TestTierFromLegacyModelAllKnownModels(t *testing.T) {
 	}
 }
 
+func TestTierFromLegacyModel_XHigh(t *testing.T) {
+	// No model maps to xhigh yet, but xhigh should be a valid tier constant
+	if TierXHigh != "xhigh" {
+		t.Fatalf("want xhigh, got %s", TierXHigh)
+	}
+}
+
+func TestTierToLegacyModel_XHigh(t *testing.T) {
+	model := TierToLegacyModel(TierXHigh)
+	if model != "opus" {
+		t.Fatalf("xhigh should map to opus, got %s", model)
+	}
+}
+
 // TestTierFromLegacyModelIdempotent verifies that TierFromLegacyModel()
 // is idempotent - calling it multiple times with the same input produces
 // the same output, and tier constants remain unchanged when passed through.

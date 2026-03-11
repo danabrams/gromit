@@ -1,0 +1,181 @@
+package specloop
+
+import (
+	"context"
+	"time"
+
+	"github.com/danabrams/gromit/internal/next/runstore"
+)
+
+// SpecLoopConfig configures the SpecLoop runner.
+type SpecLoopConfig struct {
+	Budget      *Budget
+	ReplanStage string
+	EventLog    *runstore.EventLog
+}
+
+// SpecLoop runs a pipeline of stages in order, supporting cycles and replanning.
+type SpecLoop struct {
+	stages []Stage
+	config SpecLoopConfig
+}
+
+// NewSpecLoop creates a new SpecLoop with the given stages and config.
+func NewSpecLoop(stages []Stage, cfg SpecLoopConfig) *SpecLoop {
+	return &SpecLoop{stages: stages, config: cfg}
+}
+
+// Run executes the stage pipeline for up to MaxCycles iterations.
+// MaxCycles is derived from the Budget; if no Budget is set, defaults to 1.
+func (sl *SpecLoop) Run(ctx context.Context, rs *runstore.RunState) error {
+	maxCycles := 1
+	if sl.config.Budget != nil {
+		maxCycles = sl.config.Budget.MaxCycles()
+	}
+	for cycle := 0; cycle < maxCycles; cycle++ {
+		rs.Cycle = cycle + 1
+
+		startIdx := 0
+		if cycle > 0 && sl.config.ReplanStage != "" {
+			if idx := sl.findStageIndex(sl.config.ReplanStage); idx >= 0 {
+				startIdx = idx
+			}
+		}
+
+		replan := false
+		var replanContext *FailureContext
+		for i := startIdx; i < len(sl.stages); i++ {
+			stage := sl.stages[i]
+
+			// Check hard budget between stages
+			if sl.config.Budget != nil && sl.config.Budget.HardBudgetExceeded() {
+				rs.Status = runstore.StatusBlocked
+				rs.TerminalReason = "budget_exceeded"
+				rs.BlockerSummary = sl.config.Budget.Reason()
+				sl.emitEvent(runstore.BudgetExceededEvent{
+					BaseEvent:       runstore.BaseEvent{Type: "budget_exceeded", Timestamp: time.Now()},
+					AccumulatedCost: rs.AccumulatedCost,
+				})
+				sl.emitTerminal(rs)
+				sl.runEvidence(ctx, rs)
+				return nil
+			}
+
+			action, err := stage.Run(ctx, rs)
+			if err != nil {
+				rs.Status = runstore.StatusBlocked
+				rs.BlockerSummary = err.Error()
+				sl.emitTerminal(rs)
+				sl.runEvidence(ctx, rs)
+				return nil
+			}
+
+			switch action.Kind {
+			case Continue:
+				// proceed to next stage
+			case ReplanFrom:
+				replan = true
+				replanContext = action.Context
+			case NeedsHuman:
+				rs.Status = runstore.StatusNeedsHuman
+				sl.emitTerminal(rs)
+				sl.runEvidence(ctx, rs)
+				return nil
+			case Blocked:
+				rs.Status = runstore.StatusBlocked
+				sl.emitTerminal(rs)
+				sl.runEvidence(ctx, rs)
+				return nil
+			}
+
+			if replan {
+				break
+			}
+		}
+
+		if rs.IsTerminal() {
+			return nil
+		}
+
+		// If no replan was requested, the pipeline completed successfully.
+		if !replan {
+			return nil
+		}
+
+		// Thread failure context into RunState for PlanStage to read on replan
+		if replanContext != nil {
+			rs.ReplanContext = replanContext.Failures
+		}
+
+		// Emit replan_triggered event
+		reason := ""
+		if replanContext != nil && len(replanContext.Failures) > 0 {
+			reason = replanContext.Failures[0]
+		}
+		sl.emitEvent(runstore.ReplanTriggeredEvent{
+			BaseEvent: runstore.BaseEvent{Type: "replan_triggered", Timestamp: time.Now()},
+			Reason:    reason,
+		})
+
+		// Increment cycle in budget AFTER a completed cycle, before the next one
+		if sl.config.Budget != nil {
+			sl.config.Budget.IncrementCycle()
+		}
+	}
+
+	// Cycle exhaustion
+	if sl.config.Budget != nil && sl.config.Budget.CyclesExhausted() && !rs.IsTerminal() {
+		rs.Status = runstore.StatusNeedsHuman
+		rs.TerminalReason = "cycles_exhausted"
+		sl.emitTerminal(rs)
+		sl.runEvidence(ctx, rs)
+	}
+	return nil
+}
+
+// emitEvent appends an event to the log if configured.
+func (sl *SpecLoop) emitEvent(ev runstore.TypedEvent) {
+	if sl.config.EventLog != nil {
+		sl.config.EventLog.Append(ev)
+	}
+}
+
+// emitTerminal emits a terminal_state event based on the current RunState.
+func (sl *SpecLoop) emitTerminal(rs *runstore.RunState) {
+	sl.emitEvent(runstore.TerminalStateEvent{
+		BaseEvent: runstore.BaseEvent{Type: "terminal_state", Timestamp: time.Now()},
+		Status:    rs.Status,
+		Reason:    rs.TerminalReason,
+	})
+}
+
+// runEvidence finds and runs the "evidence" stage if present.
+// Errors are recorded on RunState rather than propagated, since evidence
+// collection is best-effort when the run is already in a terminal state.
+func (sl *SpecLoop) runEvidence(ctx context.Context, rs *runstore.RunState) {
+	if es := sl.findStage("evidence"); es != nil {
+		if _, err := es.Run(ctx, rs); err != nil {
+			rs.BlockerSummary += "; evidence collection failed: " + err.Error()
+		}
+	}
+}
+
+// findStage returns the stage with the given name, or nil.
+func (sl *SpecLoop) findStage(name string) Stage {
+	for _, s := range sl.stages {
+		if s.Name() == name {
+			return s
+		}
+	}
+	return nil
+}
+
+// findStageIndex returns the index of the stage with the given name, or -1.
+func (sl *SpecLoop) findStageIndex(name string) int {
+	for i, s := range sl.stages {
+		if s.Name() == name {
+			return i
+		}
+	}
+	return -1
+}

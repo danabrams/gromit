@@ -24,4 +24,10 @@ func main() {
 func init() {
 	rootCmd.AddCommand(projectCmd)
 	rootCmd.AddCommand(contextCmd)
+	rootCmd.AddCommand(execCmd)
+	rootCmd.AddCommand(specCmd)
+	execCmd.AddCommand(newExecSpecCmd())
+	execCmd.AddCommand(newExecShowCmd())
+	execCmd.AddCommand(newExecListCmd())
+	specCmd.AddCommand(newSpecListCmd())
 }
