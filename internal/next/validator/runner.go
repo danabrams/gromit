@@ -1,0 +1,47 @@
+package validator
+
+import (
+	"context"
+	"os/exec"
+	"time"
+)
+
+// Check represents a single validation check to execute.
+type Check struct {
+	Name    string `json:"name"`
+	Command string `json:"command"`
+	Type    string `json:"type"`
+}
+
+// CheckResult captures the outcome of running a single check.
+type CheckResult struct {
+	Name     string        `json:"name"`
+	Pass     bool          `json:"pass"`
+	Output   string        `json:"output"`
+	Duration time.Duration `json:"duration"`
+	Type     string        `json:"type"`
+}
+
+// Runner executes validation checks as shell commands.
+type Runner struct{}
+
+// NewRunner creates a new Runner.
+func NewRunner() *Runner { return &Runner{} }
+
+// RunCheck executes a single check command in the given working directory.
+// A non-zero exit code results in Pass=false but no error return;
+// errors are reserved for failures to start the command.
+func (r *Runner) RunCheck(ctx context.Context, c Check, workDir string) (CheckResult, error) {
+	start := time.Now()
+	cmd := exec.CommandContext(ctx, "sh", "-c", c.Command)
+	cmd.Dir = workDir
+	out, err := cmd.CombinedOutput()
+	pass := err == nil
+	return CheckResult{
+		Name:     c.Name,
+		Pass:     pass,
+		Output:   string(out),
+		Duration: time.Since(start),
+		Type:     c.Type,
+	}, nil
+}
