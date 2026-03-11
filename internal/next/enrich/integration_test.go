@@ -518,3 +518,132 @@ func TestIntegration_MultiProjectIsolation(t *testing.T) {
 		t.Error("Project B context packet should not contain project A's MVC architecture content")
 	}
 }
+
+func TestIntegration_StalenessExpiry(t *testing.T) {
+	// --- Setup ---
+	cellPath := t.TempDir()
+	os.MkdirAll(filepath.Join(cellPath, "inferred", "runs"), 0o755)
+
+	factStore := NewFactStore()
+	runStore := NewRunStore()
+
+	// Mock enricher returning two facts.
+	entrypointFact := InferredFact{
+		Category:   CategoryEntrypoint,
+		Statement:  "main.go is the primary entrypoint",
+		Rationale:  "observed in file tree",
+		Confidence: "high",
+		Scope:      "project",
+	}
+	riskyAreaFact := InferredFact{
+		Category:   CategoryRiskyArea,
+		Statement:  "internal/auth has complex token refresh logic",
+		Rationale:  "multiple error paths",
+		Confidence: "medium",
+		Scope:      "internal/auth",
+	}
+
+	mock := &categoryMockEnricher{
+		factsByCategory: map[EnrichmentCategory][]InferredFact{
+			CategoryEntrypoint: {entrypointFact},
+			CategoryRiskyArea:  {riskyAreaFact},
+		},
+	}
+
+	orch := NewOrchestrator(mock, factStore, runStore)
+	observed := []fact.Fact{
+		fact.New("obs-1", fact.Observed, "main.go exists", "file-tree"),
+	}
+	input := EnrichInput{
+		ProjectName: "test-project",
+		FileTree:    []string{"main.go", "internal/auth/auth.go"},
+	}
+	cfg := DefaultConfig()
+
+	// --- Run 1: initial enrichment to produce facts ---
+	result1, err := orch.Run(context.Background(), cellPath, observed, input, cfg)
+	if err != nil {
+		t.Fatalf("Run 1 failed: %v", err)
+	}
+	if result1.TotalFacts < 2 {
+		t.Fatalf("Run 1: expected at least 2 facts, got %d", result1.TotalFacts)
+	}
+
+	// --- Backdate all fact timestamps to 45 days ago ---
+	loadedFacts, err := factStore.LoadFacts(cellPath)
+	if err != nil {
+		t.Fatalf("LoadFacts: %v", err)
+	}
+	if len(loadedFacts) < 2 {
+		t.Fatalf("expected at least 2 facts, got %d", len(loadedFacts))
+	}
+
+	fortyFiveDaysAgo := time.Now().Add(-45 * 24 * time.Hour)
+	for i := range loadedFacts {
+		loadedFacts[i].CreatedAt = fortyFiveDaysAgo
+	}
+	if err := factStore.SaveFacts(cellPath, loadedFacts); err != nil {
+		t.Fatalf("SaveFacts (backdate): %v", err)
+	}
+
+	// --- Verify all facts are expired with a 30-day window ---
+	backdatedFacts, err := factStore.LoadFacts(cellPath)
+	if err != nil {
+		t.Fatalf("LoadFacts (backdated): %v", err)
+	}
+	fresh := FilterExpired(backdatedFacts, 30)
+	if len(fresh) != 0 {
+		t.Errorf("FilterExpired(30 days) should return empty for 45-day-old facts, got %d", len(fresh))
+	}
+
+	// --- Guide rendering: caller filters expired facts before rendering ---
+	// Since all facts are expired, the caller passes no inferred observations.
+	renderer := guide.NewMarkdownRenderer()
+	var inferredObs []guide.InferredObservation
+	for _, f := range fresh {
+		// fresh is empty, so this loop doesn't execute.
+		inferredObs = append(inferredObs, guide.InferredObservation{
+			Category:   string(f.Category),
+			Statement:  f.Statement,
+			Confidence: f.Confidence,
+		})
+	}
+
+	guideOutput, err := renderer.Render(guide.RenderInput{
+		ProjectName:     "test-project",
+		InferredFacts:   inferredObs,
+		IncludeInferred: true,
+	})
+	if err != nil {
+		t.Fatalf("Render with expired facts filtered: %v", err)
+	}
+	if strings.Contains(string(guideOutput), "[INFERRED]") {
+		t.Error("guide should not contain [INFERRED] markers when all facts are expired and filtered out")
+	}
+
+	// Sleep to ensure distinct timestamp-based run ID.
+	time.Sleep(1100 * time.Millisecond)
+
+	// --- Run 2: re-run enrichment to get fresh facts ---
+	result2, err := orch.Run(context.Background(), cellPath, observed, input, cfg)
+	if err != nil {
+		t.Fatalf("Run 2 failed: %v", err)
+	}
+	if result2.TotalFacts < 2 {
+		t.Errorf("Run 2: expected at least 2 facts, got %d", result2.TotalFacts)
+	}
+
+	// --- Verify new facts are fresh and not expired ---
+	newFacts, err := factStore.LoadFacts(cellPath)
+	if err != nil {
+		t.Fatalf("LoadFacts (after re-run): %v", err)
+	}
+
+	freshAfterRerun := FilterExpired(newFacts, 30)
+	if len(freshAfterRerun) == 0 {
+		t.Error("FilterExpired(30 days) should return all facts after fresh enrichment run")
+	}
+	if len(freshAfterRerun) < 2 {
+		t.Errorf("expected at least 2 fresh facts after re-run, got %d", len(freshAfterRerun))
+	}
+}
