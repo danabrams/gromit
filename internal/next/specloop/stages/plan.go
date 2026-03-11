@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/danabrams/gromit/internal/next/planner"
 	"github.com/danabrams/gromit/internal/next/runstore"
@@ -20,13 +21,14 @@ type PlanCreator interface {
 // PlanStage reads the spec packet, invokes the planner, validates the plan,
 // and populates rs.Tasks on success.
 type PlanStage struct {
-	planner PlanCreator
-	store   *runstore.Store
+	planner  PlanCreator
+	store    *runstore.Store
+	eventLog *runstore.EventLog
 }
 
 // NewPlanStage creates a new PlanStage.
-func NewPlanStage(p PlanCreator, store *runstore.Store) *PlanStage {
-	return &PlanStage{planner: p, store: store}
+func NewPlanStage(p PlanCreator, store *runstore.Store, eventLog *runstore.EventLog) *PlanStage {
+	return &PlanStage{planner: p, store: store, eventLog: eventLog}
 }
 
 // Name returns the stage name.
@@ -105,6 +107,21 @@ func (s *PlanStage) Run(ctx context.Context, rs *runstore.RunState) (specloop.Ne
 			Cycle:               rs.Cycle,
 		}
 		rs.Tasks[i].NormalizeNilFields()
+	}
+
+	// Emit events
+	if s.eventLog != nil {
+		s.eventLog.Append(runstore.PlanCreatedEvent{
+			BaseEvent: runstore.BaseEvent{Type: "plan_created", Timestamp: time.Now()},
+			TaskCount: len(rs.Tasks),
+		})
+		for _, task := range rs.Tasks {
+			s.eventLog.Append(runstore.TaskCreatedEvent{
+				BaseEvent: runstore.BaseEvent{Type: "task_created", Timestamp: time.Now()},
+				TaskID:    task.TaskID,
+				Objective: task.Objective,
+			})
+		}
 	}
 
 	return specloop.NextAction{Kind: specloop.Continue}, nil

@@ -47,7 +47,9 @@ func (s *ExecuteStage) Run(ctx context.Context, rs *runstore.RunState) (specloop
 		return specloop.NextAction{}, err
 	}
 
-	// Update task statuses from results
+	// Update task statuses from results.
+	// RunTaskLoop may return more results than input tasks due to decomposition
+	// producing sub-tasks. We update existing tasks in-place and append new ones.
 	allFailed := true
 	for i, r := range results {
 		if i < len(rs.Tasks) {
@@ -58,6 +60,20 @@ func (s *ExecuteStage) Run(ctx context.Context, rs *runstore.RunState) (specloop
 			rs.Tasks[i].FilesChanged = r.FilesChanged
 			rs.Tasks[i].ModelTier = r.Tier
 			rs.Tasks[i].NormalizeNilFields()
+		} else {
+			// Decomposed sub-task result — append as new task entry
+			newTask := runstore.Task{
+				Status:       r.Status,
+				Attempts:     r.Attempts,
+				TokensUsed:   r.TokensUsed,
+				DurationMs:   r.DurationMs,
+				FilesChanged: r.FilesChanged,
+				ModelTier:    r.Tier,
+				Cycle:        rs.Cycle,
+				Kind:         "decomposed",
+			}
+			newTask.NormalizeNilFields()
+			rs.Tasks = append(rs.Tasks, newTask)
 		}
 		if r.Status != "failed" {
 			allFailed = false

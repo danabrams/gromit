@@ -70,7 +70,7 @@ func TestPlanStage_CreatesPlanAndTasks(t *testing.T) {
 	os.WriteFile(filepath.Join(runDir, "spec-packet.md"), []byte("spec content"), 0o644)
 
 	fp := &fakePlanner{plans: []planner.Plan{validPlan()}}
-	stage := NewPlanStage(fp, store)
+	stage := NewPlanStage(fp, store, nil)
 
 	if stage.Name() != "plan" {
 		t.Fatalf("expected name 'plan', got %q", stage.Name())
@@ -110,7 +110,7 @@ func TestPlanStage_RetryOnPlanValidationFailure(t *testing.T) {
 
 	// First plan is invalid (empty tasks), second is valid
 	fp := &fakePlanner{plans: []planner.Plan{invalidPlan(), validPlan()}}
-	stage := NewPlanStage(fp, store)
+	stage := NewPlanStage(fp, store, nil)
 
 	action, err := stage.Run(context.Background(), rs)
 	if err != nil {
@@ -137,7 +137,7 @@ func TestPlanStage_BothRetriesFail_Blocked(t *testing.T) {
 
 	// Both plans are invalid
 	fp := &fakePlanner{plans: []planner.Plan{invalidPlan(), invalidPlan()}}
-	stage := NewPlanStage(fp, store)
+	stage := NewPlanStage(fp, store, nil)
 
 	action, err := stage.Run(context.Background(), rs)
 	if err != nil {

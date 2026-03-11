@@ -54,21 +54,31 @@ func (s *InitStage) Run(ctx context.Context, rs *runstore.RunState) (specloop.Ne
 	}
 	rs.WorktreePath = worktreePath
 
+	// Clean up worktree if any subsequent step fails
+	cleanup := func() {
+		s.cfg.GitOps.RemoveWorktree(worktreePath)
+		rs.WorktreePath = ""
+	}
+
 	// Copy spec file into run dir
 	specData, err := os.ReadFile(s.cfg.SpecPath)
 	if err != nil {
+		cleanup()
 		return specloop.NextAction{}, fmt.Errorf("read spec: %w", err)
 	}
 	if err := os.WriteFile(filepath.Join(runDir, "spec.md"), specData, 0o644); err != nil {
+		cleanup()
 		return specloop.NextAction{}, fmt.Errorf("write spec: %w", err)
 	}
 
 	// Snapshot execution policy into run dir
 	policyData, err := os.ReadFile(s.cfg.PolicyPath)
 	if err != nil {
+		cleanup()
 		return specloop.NextAction{}, fmt.Errorf("read policy: %w", err)
 	}
 	if err := os.WriteFile(filepath.Join(runDir, "execution-policy.json"), policyData, 0o644); err != nil {
+		cleanup()
 		return specloop.NextAction{}, fmt.Errorf("write policy: %w", err)
 	}
 
