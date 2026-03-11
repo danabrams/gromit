@@ -1,6 +1,11 @@
 package runstore
 
-import "testing"
+import (
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+)
 
 func TestStore_CreateAndGet(t *testing.T) {
 	dir := t.TempDir()
@@ -53,5 +58,27 @@ func TestStore_List_Empty(t *testing.T) {
 	}
 	if len(runs) != 0 {
 		t.Fatalf("want 0 runs, got %d", len(runs))
+	}
+}
+
+func TestStore_RunDir_Layout(t *testing.T) {
+	dir := t.TempDir()
+	s := NewStore(dir)
+	rs := NewRunState("spec-1", "proj-1")
+	s.Save(rs)
+
+	runDir := s.RunDir(rs.RunID)
+	if _, err := os.Stat(filepath.Join(runDir, "run.json")); err != nil {
+		t.Fatal("run.json must exist in run dir")
+	}
+
+	taskDir := s.TaskDir(rs.RunID, "t-001")
+	if !strings.Contains(taskDir, "tasks/t-001") {
+		t.Fatalf("unexpected task dir: %s", taskDir)
+	}
+
+	evidenceDir := s.EvidenceDir(rs.RunID, "t-001")
+	if !strings.Contains(evidenceDir, "tasks/t-001/evidence") {
+		t.Fatalf("unexpected evidence dir: %s", evidenceDir)
 	}
 }
