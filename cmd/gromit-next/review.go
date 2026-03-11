@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"sort"
 
 	"github.com/danabrams/gromit/internal/next/enrich"
 	"github.com/spf13/cobra"
@@ -50,7 +51,14 @@ var reviewInferredCmd = &cobra.Command{
 			grouped[cat] = append(grouped[cat], f)
 		}
 
-		for cat, catFacts := range grouped {
+		var cats []string
+		for cat := range grouped {
+			cats = append(cats, cat)
+		}
+		sort.Strings(cats)
+
+		for _, cat := range cats {
+			catFacts := grouped[cat]
 			fmt.Printf("## %s\n", cat)
 			for _, f := range catFacts {
 				displayID := f.FactID
