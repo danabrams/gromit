@@ -38,6 +38,13 @@ type FailureContext struct {
 	Diff     string   `json:"diff,omitempty"`
 }
 
+// NormalizeNilFields maps nil slices to empty values for JSON consistency.
+func (fc *FailureContext) NormalizeNilFields() {
+	if fc.Failures == nil {
+		fc.Failures = []string{}
+	}
+}
+
 // NextAction is returned by a Stage to tell the SpecLoop what to do next.
 type NextAction struct {
 	Kind    ActionKind

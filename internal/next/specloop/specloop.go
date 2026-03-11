@@ -100,9 +100,13 @@ func (sl *SpecLoop) Run(ctx context.Context, rs *runstore.RunState) error {
 }
 
 // runEvidence finds and runs the "evidence" stage if present.
+// Errors are recorded on RunState rather than propagated, since evidence
+// collection is best-effort when the run is already in a terminal state.
 func (sl *SpecLoop) runEvidence(ctx context.Context, rs *runstore.RunState) {
 	if es := sl.findStage("evidence"); es != nil {
-		es.Run(ctx, rs)
+		if _, err := es.Run(ctx, rs); err != nil {
+			rs.BlockerSummary += "; evidence collection failed: " + err.Error()
+		}
 	}
 }
 

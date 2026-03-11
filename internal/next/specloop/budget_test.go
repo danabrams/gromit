@@ -2,9 +2,16 @@ package specloop
 
 import (
 	"testing"
+	"time"
 
 	"github.com/danabrams/gromit/internal/next/execpolicy"
 )
+
+type fakeClock struct {
+	now time.Time
+}
+
+func (c *fakeClock) Now() time.Time { return c.now }
 
 func TestBudget_CyclesExhausted(t *testing.T) {
 	b := NewBudget(execpolicy.Budgets{MaxSpecCycles: 2})
@@ -59,6 +66,18 @@ func TestBudget_Reason_Cycles(t *testing.T) {
 	reason := b.Reason()
 	if reason == "" {
 		t.Fatal("reason should be non-empty when cycles exhausted")
+	}
+}
+
+func TestBudget_HardBudgetExceeded_TimeExceeded(t *testing.T) {
+	clock := &fakeClock{now: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}
+	b := NewBudgetWithClock(execpolicy.Budgets{MaxRunDurationSeconds: 60, MaxSpecCycles: 99}, clock)
+	if b.HardBudgetExceeded() {
+		t.Fatal("should not be exceeded at start")
+	}
+	clock.now = clock.now.Add(61 * time.Second)
+	if !b.HardBudgetExceeded() {
+		t.Fatal("should be exceeded after 61s with 60s limit")
 	}
 }
 

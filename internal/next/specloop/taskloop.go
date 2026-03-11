@@ -53,6 +53,13 @@ type TaskResult struct {
 	AlwaysRunChecks CheckSummary
 }
 
+// NormalizeNilFields maps nil slices to empty values for JSON consistency.
+func (tr *TaskResult) NormalizeNilFields() {
+	if tr.FilesChanged == nil {
+		tr.FilesChanged = []string{}
+	}
+}
+
 // TaskLoopConfig configures the task loop.
 type TaskLoopConfig struct {
 	MaxRetries          int
@@ -86,7 +93,9 @@ func RunTaskLoop(ctx context.Context, tasks []runstore.Task, runner TaskRunner, 
 
 		result, err := runner.RunTask(ctx, entry.task)
 		if err != nil {
-			results = append(results, TaskResult{Status: "failed", Attempts: 1})
+			result.Status = "failed"
+			result.Attempts = 1
+			results = append(results, result)
 			continue
 		}
 		attempts := 1
