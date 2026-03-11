@@ -2,6 +2,7 @@ package execpolicy
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 )
@@ -75,6 +76,28 @@ func LoadPolicy(path string) (Policy, error) {
 	// approach already handles partial configs correctly. Explicit zero-value
 	// checks would make it impossible to intentionally set a field to 0.
 	return p, nil
+}
+
+// Validate checks that required policy fields have valid values.
+// MaxTaskRetries and MaxRedecompositionPasses may be zero.
+func (p *Policy) Validate() error {
+	var errs []error
+	if p.Budgets.MaxSpecCycles <= 0 {
+		errs = append(errs, fmt.Errorf("MaxSpecCycles must be > 0, got %d", p.Budgets.MaxSpecCycles))
+	}
+	if p.Budgets.MaxRunDurationSeconds <= 0 {
+		errs = append(errs, fmt.Errorf("MaxRunDurationSeconds must be > 0, got %d", p.Budgets.MaxRunDurationSeconds))
+	}
+	if p.Budgets.MaxRunCostUSD <= 0 {
+		errs = append(errs, fmt.Errorf("MaxRunCostUSD must be > 0, got %v", p.Budgets.MaxRunCostUSD))
+	}
+	if p.Models.Planner == "" {
+		errs = append(errs, fmt.Errorf("Models.Planner must be non-empty"))
+	}
+	if p.Models.Executor == "" {
+		errs = append(errs, fmt.Errorf("Models.Executor must be non-empty"))
+	}
+	return errors.Join(errs...)
 }
 
 // NormalizeNilFields maps nil slices/maps to empty values.

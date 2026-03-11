@@ -55,3 +55,27 @@ func TestLoadPolicy_FileNotFound_ReturnsDefault(t *testing.T) {
 		t.Fatal("expected default when file missing")
 	}
 }
+
+func TestValidate_RejectsZeroRequiredBudgets(t *testing.T) {
+	p := Policy{} // all zeroes
+	err := p.Validate()
+	if err == nil {
+		t.Fatal("expected validation error for zero budgets")
+	}
+}
+
+func TestValidate_AcceptsDefaultPolicy(t *testing.T) {
+	p := DefaultPolicy()
+	if err := p.Validate(); err != nil {
+		t.Fatalf("default policy should be valid: %v", err)
+	}
+}
+
+func TestValidate_AcceptsZeroTaskRetriesAndRedecomposition(t *testing.T) {
+	p := DefaultPolicy()
+	p.Budgets.MaxTaskRetries = 0
+	p.Budgets.MaxRedecompositionPasses = 0
+	if err := p.Validate(); err != nil {
+		t.Fatalf("MaxTaskRetries=0 and MaxRedecompositionPasses=0 should be valid: %v", err)
+	}
+}
