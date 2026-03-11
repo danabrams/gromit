@@ -89,10 +89,10 @@ func TestOrchestrator_MergesStatusesOnRerun(t *testing.T) {
 	os.MkdirAll(filepath.Join(dir, "inferred", "runs"), 0o755)
 
 	factStore := NewFactStore()
-	// The content hash of {Category: "entrypoint", Statement: "main.go"} is "3edf5570ab22".
+	// The content hash of {Category: "entrypoint", Statement: "main.go"} is "0cb1b0f9c0b6".
 	// Use the same ID so the merge can match incoming facts to existing ones.
 	factStore.SaveFacts(dir, []InferredFact{
-		{FactID: "3edf5570ab22", Status: StatusAccepted, Category: CategoryEntrypoint, Statement: "main.go"},
+		{FactID: "0cb1b0f9c0b6", Status: StatusAccepted, Category: CategoryEntrypoint, Statement: "main.go"},
 	})
 
 	mock := &MockEnricher{
@@ -136,8 +136,12 @@ func TestOrchestrator_DryRun(t *testing.T) {
 		},
 	}
 
+	observed := []fact.Fact{
+		fact.New("f1", fact.Observed, "main.go exists", "file-tree"),
+	}
+
 	orch := NewOrchestrator(mock, NewFactStore(), NewRunStore())
-	result, err := orch.DryRun(context.Background(), dir, []fact.Fact{}, EnrichInput{}, DefaultConfig())
+	result, err := orch.DryRun(context.Background(), dir, observed, EnrichInput{}, DefaultConfig())
 	if err != nil {
 		t.Fatalf("DryRun: %v", err)
 	}
@@ -148,5 +152,71 @@ func TestOrchestrator_DryRun(t *testing.T) {
 	// Verify nothing was written
 	if _, err := os.Stat(filepath.Join(dir, "inferred", "facts.json")); err == nil {
 		t.Error("DryRun should not write facts.json")
+	}
+}
+
+func TestOrchestrator_DryRunReturnsFacts(t *testing.T) {
+	dir := t.TempDir()
+
+	mock := &MockEnricher{
+		Facts: []InferredFact{
+			{Category: CategoryEntrypoint, Statement: "main.go is the entrypoint"},
+			{Category: CategoryRiskyArea, Statement: "auth has complex refresh logic"},
+		},
+	}
+
+	observed := []fact.Fact{
+		fact.New("f1", fact.Observed, "main.go exists", "file-tree"),
+	}
+
+	orch := NewOrchestrator(mock, NewFactStore(), NewRunStore())
+	result, err := orch.DryRun(context.Background(), dir, observed, EnrichInput{ProjectName: "test"}, DefaultConfig())
+	if err != nil {
+		t.Fatalf("DryRun: %v", err)
+	}
+	if result.Facts == nil {
+		t.Fatal("DryRun result.Facts should not be nil")
+	}
+	if len(result.Facts) == 0 {
+		t.Fatal("DryRun result.Facts should contain facts")
+	}
+
+	// Verify that the expected statements appear in the returned facts.
+	foundEntrypoint := false
+	foundRisky := false
+	for _, f := range result.Facts {
+		if f.Statement == "main.go is the entrypoint" {
+			foundEntrypoint = true
+		}
+		if f.Statement == "auth has complex refresh logic" {
+			foundRisky = true
+		}
+	}
+	if !foundEntrypoint {
+		t.Error("DryRun facts should contain 'main.go is the entrypoint'")
+	}
+	if !foundRisky {
+		t.Error("DryRun facts should contain 'auth has complex refresh logic'")
+	}
+
+	// Verify nothing was written to disk.
+	if _, err := os.Stat(filepath.Join(dir, "inferred", "facts.json")); err == nil {
+		t.Error("DryRun should not write facts.json")
+	}
+}
+
+func TestOrchestrator_DryRunNoObservedFacts(t *testing.T) {
+	dir := t.TempDir()
+
+	mock := &MockEnricher{
+		Facts: []InferredFact{
+			{Category: CategoryEntrypoint, Statement: "main.go"},
+		},
+	}
+
+	orch := NewOrchestrator(mock, NewFactStore(), NewRunStore())
+	_, err := orch.DryRun(context.Background(), dir, []fact.Fact{}, EnrichInput{}, DefaultConfig())
+	if err == nil {
+		t.Error("expected error when observed facts are empty and no artifacts directory exists")
 	}
 }

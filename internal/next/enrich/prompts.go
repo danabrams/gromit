@@ -88,6 +88,16 @@ func buildPrompt(category EnrichmentCategory, observed []fact.Fact, input Enrich
 		fmt.Fprintf(&b, "## Source Map\n\n%s\n\n", input.SourceMap)
 	}
 
+	// Glossary context
+	if input.Glossary != "" {
+		fmt.Fprintf(&b, "## Glossary\n\n%s\n\n", input.Glossary)
+	}
+
+	// Validation context
+	if input.Validation != "" {
+		fmt.Fprintf(&b, "## Validation Commands\n\n%s\n\n", input.Validation)
+	}
+
 	// Observed facts
 	if len(observed) > 0 {
 		fmt.Fprintf(&b, "## Observed Facts\n\n")

@@ -2,6 +2,7 @@ package enrich
 
 import (
 	"context"
+	"crypto/rand"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -93,6 +94,10 @@ func (o *Orchestrator) Run(ctx context.Context, cellPath string, observed []fact
 // DryRun executes all category enrichment passes but does not persist any
 // artifacts. Useful for previewing what an enrichment run would produce.
 func (o *Orchestrator) DryRun(ctx context.Context, cellPath string, observed []fact.Fact, input EnrichInput, cfg Config) (OrchestratorResult, error) {
+	if err := o.guardPreconditions(cellPath, observed); err != nil {
+		return OrchestratorResult{}, err
+	}
+
 	runID := generateRunID()
 	allFacts, _, failed, totals := o.runCategories(ctx, runID, observed, input)
 
@@ -181,7 +186,10 @@ func (o *Orchestrator) runCategories(ctx context.Context, runID string, observed
 	return allFacts, results, failed, totals
 }
 
-// generateRunID produces a timestamp-based run identifier.
+// generateRunID produces a timestamp-based run identifier with a random
+// suffix to avoid collisions when multiple runs occur within the same second.
 func generateRunID() string {
-	return time.Now().Format("20060102-150405")
+	b := make([]byte, 2)
+	_, _ = rand.Read(b)
+	return fmt.Sprintf("%s-%x", time.Now().Format("20060102-150405"), b)
 }

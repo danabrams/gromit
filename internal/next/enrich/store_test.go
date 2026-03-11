@@ -97,6 +97,27 @@ func TestFactStore_MergeStatuses(t *testing.T) {
 	}
 }
 
+func TestFactStore_UpdateStatusNotFound(t *testing.T) {
+	dir := t.TempDir()
+	store := NewFactStore()
+
+	// Save facts that do NOT contain a fact with ID "nonexistent".
+	facts := []InferredFact{
+		{FactID: "abc", Status: StatusProposed, Category: CategoryEntrypoint, Statement: "main.go"},
+	}
+	if err := store.SaveFacts(dir, facts); err != nil {
+		t.Fatalf("SaveFacts: %v", err)
+	}
+
+	err := store.UpdateStatus(dir, "nonexistent", StatusAccepted)
+	if err == nil {
+		t.Fatal("expected error for non-existent fact ID, got nil")
+	}
+	if got := err.Error(); got != `fact "nonexistent" not found` {
+		t.Errorf("unexpected error message: %s", got)
+	}
+}
+
 func TestFactStore_UpdateStatus(t *testing.T) {
 	dir := t.TempDir()
 	os.MkdirAll(filepath.Join(dir, "inferred"), 0o755)

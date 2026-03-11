@@ -2,6 +2,7 @@ package enrich
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -121,6 +122,9 @@ func (s *RunStore) ListRuns(cellPath string) ([]string, error) {
 	runsDir := filepath.Join(cellPath, "inferred", "runs")
 	entries, err := os.ReadDir(runsDir)
 	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return []string{}, nil
+		}
 		return nil, fmt.Errorf("read runs dir: %w", err)
 	}
 	var ids []string

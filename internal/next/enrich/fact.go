@@ -109,6 +109,7 @@ func (f *InferredFact) NormalizeNilFields() {
 func (f *InferredFact) ComputeID() string {
 	h := sha256.New()
 	h.Write([]byte(string(f.Category)))
+	h.Write([]byte{0}) // separator
 	h.Write([]byte(f.Statement))
 	return fmt.Sprintf("%x", h.Sum(nil))[:12]
 }

@@ -170,9 +170,6 @@ func TestIntegration_FullEnrichmentFlow(t *testing.T) {
 		t.Fatalf("UpdateStatus(rejected): %v", err)
 	}
 
-	// Sleep to ensure the second run gets a distinct timestamp-based run ID.
-	time.Sleep(1100 * time.Millisecond)
-
 	// --- Run 2: re-run enrichment with same mock ---
 	result2, err := orch.Run(context.Background(), cellPath, observed, input, cfg)
 	if err != nil {
@@ -620,9 +617,6 @@ func TestIntegration_StalenessExpiry(t *testing.T) {
 	if strings.Contains(string(guideOutput), "[INFERRED]") {
 		t.Error("guide should not contain [INFERRED] markers when all facts are expired and filtered out")
 	}
-
-	// Sleep to ensure distinct timestamp-based run ID.
-	time.Sleep(1100 * time.Millisecond)
 
 	// --- Run 2: re-run enrichment to get fresh facts ---
 	result2, err := orch.Run(context.Background(), cellPath, observed, input, cfg)
