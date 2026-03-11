@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 	"unicode/utf8"
 )
 
@@ -71,10 +72,11 @@ type Cell struct {
 }
 
 type CompileOpts struct {
-	SpecPath        string
-	TaskID          string
-	TokenBudget     int
-	IncludeInferred bool
+	SpecPath           string
+	TaskID             string
+	TokenBudget        int
+	IncludeInferred    bool
+	StalenessExpiryDays int
 }
 
 type Packet struct {
@@ -153,7 +155,11 @@ func (c *DefaultCompiler) Compile(ctx context.Context, cell Cell, level Level, o
 
 	// Append inferred observations if opted in.
 	if opts.IncludeInferred {
-		if s, ok := inferredSection(cell); ok {
+		expiryDays := opts.StalenessExpiryDays
+		if expiryDays == 0 {
+			expiryDays = 30
+		}
+		if s, ok := inferredSection(cell, expiryDays); ok {
 			sections = append(sections, s)
 		}
 	}
@@ -344,27 +350,44 @@ func (c *DefaultCompiler) validationSection(cell Cell) (Section, bool) {
 
 // inferredFact represents a single inferred fact from facts.json.
 type inferredFact struct {
-	FactID     string `json:"fact_id"`
-	Category   string `json:"category"`
-	Statement  string `json:"statement"`
-	Confidence string `json:"confidence"`
-	Status     string `json:"status"`
+	FactID     string    `json:"fact_id"`
+	Category   string    `json:"category"`
+	Statement  string    `json:"statement"`
+	Confidence string    `json:"confidence"`
+	Status     string    `json:"status"`
+	CreatedAt  time.Time `json:"created_at"`
 }
 
 // inferredSection reads inferred/facts.json from the cell and builds a section.
-// Returns (section, true) if facts exist, or (Section{}, false) if the file
-// is missing or empty.
-func inferredSection(cell Cell) (Section, bool) {
+// It excludes facts with status "superseded" or "rejected", and facts older
+// than expiryDays. Returns (section, true) if active facts exist, or
+// (Section{}, false) if the file is missing, empty, or all facts are filtered out.
+func inferredSection(cell Cell, expiryDays int) (Section, bool) {
 	path := filepath.Join(cell.CellPath, "inferred", "facts.json")
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return Section{}, false
 	}
 
-	var facts []inferredFact
-	if err := json.Unmarshal(data, &facts); err != nil {
+	var allFacts []inferredFact
+	if err := json.Unmarshal(data, &allFacts); err != nil {
 		return Section{}, false
 	}
+
+	expiry := time.Duration(expiryDays) * 24 * time.Hour
+	now := time.Now()
+
+	var facts []inferredFact
+	for _, f := range allFacts {
+		if f.Status == "superseded" || f.Status == "rejected" {
+			continue
+		}
+		if !f.CreatedAt.IsZero() && now.Sub(f.CreatedAt) > expiry {
+			continue
+		}
+		facts = append(facts, f)
+	}
+
 	if len(facts) == 0 {
 		return Section{}, false
 	}

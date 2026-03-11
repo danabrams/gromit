@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 type mockArtifactStore struct {
@@ -261,7 +262,8 @@ func TestCompiler_ProjectLevelWithInferred(t *testing.T) {
 	cellPath := t.TempDir()
 	inferredDir := filepath.Join(cellPath, "inferred")
 	os.MkdirAll(inferredDir, 0o755)
-	factsJSON := `[{"fact_id":"f1","category":"entrypoint","statement":"main.go is the entrypoint","confidence":"high","status":"proposed"}]`
+	recent := time.Now().Add(-24 * time.Hour).Format(time.RFC3339)
+	factsJSON := fmt.Sprintf(`[{"fact_id":"f1","category":"entrypoint","statement":"main.go is the entrypoint","confidence":"high","status":"proposed","created_at":%q}]`, recent)
 	os.WriteFile(filepath.Join(inferredDir, "facts.json"), []byte(factsJSON), 0o644)
 
 	compiler := NewCompiler(store)
@@ -301,7 +303,8 @@ func TestCompiler_ProjectLevelDefaultExcludesInferred(t *testing.T) {
 	cellPath := t.TempDir()
 	inferredDir := filepath.Join(cellPath, "inferred")
 	os.MkdirAll(inferredDir, 0o755)
-	factsJSON := `[{"fact_id":"f1","category":"entrypoint","statement":"main.go","confidence":"high","status":"proposed"}]`
+	recent := time.Now().Add(-24 * time.Hour).Format(time.RFC3339)
+	factsJSON := fmt.Sprintf(`[{"fact_id":"f1","category":"entrypoint","statement":"main.go","confidence":"high","status":"proposed","created_at":%q}]`, recent)
 	os.WriteFile(filepath.Join(inferredDir, "facts.json"), []byte(factsJSON), 0o644)
 
 	compiler := NewCompiler(store)
@@ -330,7 +333,8 @@ func TestCompiler_TaskLevelInferredPresent(t *testing.T) {
 	cellPath := t.TempDir()
 	inferredDir := filepath.Join(cellPath, "inferred")
 	os.MkdirAll(inferredDir, 0o755)
-	factsJSON := `[{"fact_id":"f1","category":"entrypoint","statement":"main.go","confidence":"high","status":"proposed"}]`
+	recent := time.Now().Add(-24 * time.Hour).Format(time.RFC3339)
+	factsJSON := fmt.Sprintf(`[{"fact_id":"f1","category":"entrypoint","statement":"main.go","confidence":"high","status":"proposed","created_at":%q}]`, recent)
 	os.WriteFile(filepath.Join(inferredDir, "facts.json"), []byte(factsJSON), 0o644)
 
 	compiler := NewCompiler(store)
@@ -352,6 +356,154 @@ func TestCompiler_TaskLevelInferredPresent(t *testing.T) {
 	}
 	if !hasInferred {
 		t.Error("expected inferred section in task-level packet when IncludeInferred is true")
+	}
+}
+
+func TestCompiler_InferredExcludesRejectedFacts(t *testing.T) {
+	store := newMockArtifactStore()
+	store.setArtifact("architecture", map[string]any{
+		"modules": []map[string]any{
+			{"name": "api", "description": "API layer", "language": "go"},
+		},
+	})
+	store.setArtifact("doctrine", map[string]any{
+		"rules": []map[string]any{
+			{"id": "r1", "summary": "simplicity", "scope": "all"},
+		},
+	})
+
+	cellPath := t.TempDir()
+	inferredDir := filepath.Join(cellPath, "inferred")
+	os.MkdirAll(inferredDir, 0o755)
+	recent := time.Now().Add(-24 * time.Hour).Format(time.RFC3339)
+	// All facts are rejected — section should be absent.
+	factsJSON := fmt.Sprintf(`[
+		{"fact_id":"f1","category":"entrypoint","statement":"main.go is the entrypoint","confidence":"high","status":"rejected","created_at":%q},
+		{"fact_id":"f2","category":"pattern","statement":"uses MVC","confidence":"medium","status":"rejected","created_at":%q}
+	]`, recent, recent)
+	os.WriteFile(filepath.Join(inferredDir, "facts.json"), []byte(factsJSON), 0o644)
+
+	compiler := NewCompiler(store)
+	cell := Cell{Name: "test", CellPath: cellPath}
+	pkt, err := compiler.Compile(context.Background(), cell, LevelProject, CompileOpts{
+		IncludeInferred: true,
+	})
+	if err != nil {
+		t.Fatalf("Compile: %v", err)
+	}
+	for _, s := range pkt.Sections {
+		if strings.Contains(s.Name, "inferred") {
+			t.Error("rejected facts should be excluded; inferred section should not appear")
+		}
+	}
+}
+
+func TestCompiler_InferredExcludesSupersededFacts(t *testing.T) {
+	store := newMockArtifactStore()
+	store.setArtifact("architecture", map[string]any{
+		"modules": []map[string]any{
+			{"name": "api", "description": "API layer", "language": "go"},
+		},
+	})
+	store.setArtifact("doctrine", map[string]any{
+		"rules": []map[string]any{
+			{"id": "r1", "summary": "simplicity", "scope": "all"},
+		},
+	})
+
+	cellPath := t.TempDir()
+	inferredDir := filepath.Join(cellPath, "inferred")
+	os.MkdirAll(inferredDir, 0o755)
+	recent := time.Now().Add(-24 * time.Hour).Format(time.RFC3339)
+	// One superseded, one active — only the active fact should appear.
+	factsJSON := fmt.Sprintf(`[
+		{"fact_id":"f1","category":"entrypoint","statement":"old entrypoint","confidence":"high","status":"superseded","created_at":%q},
+		{"fact_id":"f2","category":"entrypoint","statement":"new entrypoint","confidence":"high","status":"confirmed","created_at":%q}
+	]`, recent, recent)
+	os.WriteFile(filepath.Join(inferredDir, "facts.json"), []byte(factsJSON), 0o644)
+
+	compiler := NewCompiler(store)
+	cell := Cell{Name: "test", CellPath: cellPath}
+	pkt, err := compiler.Compile(context.Background(), cell, LevelProject, CompileOpts{
+		IncludeInferred: true,
+	})
+	if err != nil {
+		t.Fatalf("Compile: %v", err)
+	}
+	var inferredSection Section
+	found := false
+	for _, s := range pkt.Sections {
+		if s.Name == "inferred-observations" {
+			inferredSection = s
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("expected inferred section with one active fact")
+	}
+	if strings.Contains(inferredSection.Content, "old entrypoint") {
+		t.Error("superseded fact should be excluded from content")
+	}
+	if !strings.Contains(inferredSection.Content, "new entrypoint") {
+		t.Error("confirmed fact should be included in content")
+	}
+	if len(inferredSection.Facts) != 1 {
+		t.Errorf("expected 1 fact ref, got %d", len(inferredSection.Facts))
+	}
+}
+
+func TestCompiler_InferredExcludesExpiredFacts(t *testing.T) {
+	store := newMockArtifactStore()
+	store.setArtifact("architecture", map[string]any{
+		"modules": []map[string]any{
+			{"name": "api", "description": "API layer", "language": "go"},
+		},
+	})
+	store.setArtifact("doctrine", map[string]any{
+		"rules": []map[string]any{
+			{"id": "r1", "summary": "simplicity", "scope": "all"},
+		},
+	})
+
+	cellPath := t.TempDir()
+	inferredDir := filepath.Join(cellPath, "inferred")
+	os.MkdirAll(inferredDir, 0o755)
+	expired := time.Now().Add(-45 * 24 * time.Hour).Format(time.RFC3339)
+	recent := time.Now().Add(-2 * 24 * time.Hour).Format(time.RFC3339)
+	// One expired (45 days old), one recent — only recent should appear.
+	factsJSON := fmt.Sprintf(`[
+		{"fact_id":"f1","category":"entrypoint","statement":"stale fact","confidence":"high","status":"proposed","created_at":%q},
+		{"fact_id":"f2","category":"pattern","statement":"fresh fact","confidence":"high","status":"proposed","created_at":%q}
+	]`, expired, recent)
+	os.WriteFile(filepath.Join(inferredDir, "facts.json"), []byte(factsJSON), 0o644)
+
+	compiler := NewCompiler(store)
+	cell := Cell{Name: "test", CellPath: cellPath}
+	pkt, err := compiler.Compile(context.Background(), cell, LevelProject, CompileOpts{
+		IncludeInferred: true,
+	})
+	if err != nil {
+		t.Fatalf("Compile: %v", err)
+	}
+	var inferredSection Section
+	found := false
+	for _, s := range pkt.Sections {
+		if s.Name == "inferred-observations" {
+			inferredSection = s
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("expected inferred section with one fresh fact")
+	}
+	if strings.Contains(inferredSection.Content, "stale fact") {
+		t.Error("expired fact (45 days old) should be excluded")
+	}
+	if !strings.Contains(inferredSection.Content, "fresh fact") {
+		t.Error("recent fact should be included")
+	}
+	if len(inferredSection.Facts) != 1 {
+		t.Errorf("expected 1 fact ref, got %d", len(inferredSection.Facts))
 	}
 }
 
