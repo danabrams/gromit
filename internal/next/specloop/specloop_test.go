@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/danabrams/gromit/internal/next/execpolicy"
 	"github.com/danabrams/gromit/internal/next/runstore"
 )
 
@@ -135,5 +136,49 @@ func TestSpecLoop_ReplanFromLoopsBack(t *testing.T) {
 	}
 	if callCounts["init"] != 1 {
 		t.Fatalf("init should run once (only on cycle 1), got %d", callCounts["init"])
+	}
+}
+
+func TestSpecLoop_BudgetBlocksBetweenStages(t *testing.T) {
+	budget := NewBudget(execpolicy.Budgets{MaxRunCostUSD: 1.0, MaxSpecCycles: 99})
+	budget.AddCost(2.0) // exceed cost budget
+
+	var order []string
+	stages := []Stage{
+		&recordStage{name: "init", order: &order},
+		&recordStage{name: "plan", order: &order},
+	}
+	loop := NewSpecLoop(stages, SpecLoopConfig{MaxCycles: 1, Budget: budget})
+	rs := runstore.NewRunState("s1", "p1")
+	loop.Run(context.Background(), rs)
+
+	if rs.Status != runstore.StatusBlocked {
+		t.Fatalf("want blocked, got %s", rs.Status)
+	}
+	if rs.TerminalReason != "budget_exceeded" {
+		t.Fatalf("want budget_exceeded, got %s", rs.TerminalReason)
+	}
+	if len(order) != 0 {
+		t.Fatalf("no stages should run when budget already exceeded, got %v", order)
+	}
+}
+
+func TestSpecLoop_CycleExhaustion_SetsNeedsHuman(t *testing.T) {
+	budget := NewBudget(execpolicy.Budgets{MaxSpecCycles: 1, MaxRunCostUSD: 99})
+
+	stages := []Stage{
+		&actionStage{name: "validate", actionFn: func() NextAction {
+			return NextAction{Kind: ReplanFrom}
+		}},
+	}
+	loop := NewSpecLoop(stages, SpecLoopConfig{MaxCycles: 1, Budget: budget, ReplanStage: "validate"})
+	rs := runstore.NewRunState("s1", "p1")
+	loop.Run(context.Background(), rs)
+
+	if rs.Status != runstore.StatusNeedsHuman {
+		t.Fatalf("want needs_human, got %s", rs.Status)
+	}
+	if rs.TerminalReason != "cycles_exhausted" {
+		t.Fatalf("want cycles_exhausted, got %s", rs.TerminalReason)
 	}
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/danabrams/gromit/internal/next/execpolicy"
 	"github.com/danabrams/gromit/internal/next/runstore"
 )
 
@@ -159,12 +160,6 @@ func TestTaskLoop_RevertBeforeRedecompose(t *testing.T) {
 
 func TestTaskLoop_SubTasksCannotFurtherDecompose(t *testing.T) {
 	decomposeCalls := 0
-	decomposer := &fakeDecomposer{subTasks: []runstore.Task{
-		{TaskID: "t-001a", Status: "pending"},
-	}}
-	// Wrap to count calls
-	origDecompose := decomposer.Decompose
-	_ = origDecompose
 
 	runner := &fakeTaskRunner{fn: func(_ context.Context, task runstore.Task) (TaskResult, error) {
 		// Both parent and sub-task return needs_split
@@ -197,4 +192,31 @@ type countingDecomposer struct {
 func (f *countingDecomposer) Decompose(_ context.Context, _ runstore.Task) ([]runstore.Task, error) {
 	*f.calls++
 	return f.subTasks, nil
+}
+
+func TestTaskLoop_BudgetBlocksRemainingTasks(t *testing.T) {
+	budget := NewBudget(execpolicy.Budgets{MaxRunCostUSD: 1.0, MaxSpecCycles: 99})
+
+	executed := []string{}
+	runner := &fakeTaskRunner{fn: func(_ context.Context, task runstore.Task) (TaskResult, error) {
+		executed = append(executed, task.TaskID)
+		budget.AddCost(2.0) // exceed budget after first task
+		return TaskResult{Status: "done"}, nil
+	}}
+	inspector := &fakeInspector{pass: true}
+	tasks := []runstore.Task{
+		{TaskID: "t-001", Status: "pending"},
+		{TaskID: "t-002", Status: "pending"},
+	}
+
+	results, _ := RunTaskLoop(context.Background(), tasks, runner, TaskLoopConfig{
+		MaxRetries: 1, Inspector: inspector, Budget: budget,
+	})
+
+	if len(executed) != 1 {
+		t.Fatalf("expected 1 task executed before budget exceeded, got %d", len(executed))
+	}
+	if results[1].Status != "blocked" {
+		t.Fatalf("expected second task blocked, got %s", results[1].Status)
+	}
 }
