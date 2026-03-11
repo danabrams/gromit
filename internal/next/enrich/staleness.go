@@ -6,7 +6,11 @@ import (
 )
 
 // IsExpired returns true if the fact is older than the given number of days.
+// If expiryDays is 0 or negative, it defaults to 30 days.
 func IsExpired(f InferredFact, expiryDays int) bool {
+	if expiryDays <= 0 {
+		expiryDays = 30
+	}
 	expiry := time.Duration(expiryDays) * 24 * time.Hour
 	return time.Since(f.CreatedAt) > expiry
 }

@@ -444,7 +444,7 @@ func trimToBudget(sections []Section, budget int) []Section {
 				Name:          s.Name,
 				Content:       content[:chars],
 				TokenEstimate: remaining,
-				Facts:         nil,
+				Facts:         []FactRef{},
 			})
 			remaining = 0
 		}

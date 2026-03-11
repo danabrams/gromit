@@ -33,6 +33,15 @@ func TestStaleness_FilterExpired(t *testing.T) {
 	}
 }
 
+func TestStaleness_ZeroExpiryDaysUsesDefault(t *testing.T) {
+	// A fact created 15 days ago should NOT be expired when expiryDays=0,
+	// because 0 defaults to 30 days.
+	f := InferredFact{CreatedAt: time.Now().Add(-15 * 24 * time.Hour)}
+	if IsExpired(f, 0) {
+		t.Error("fact created 15 days ago should not be expired when expiryDays=0 (defaults to 30)")
+	}
+}
+
 func TestStaleness_ObservedFactsFreshness(t *testing.T) {
 	warning := CheckObservedFreshness("abc123", "def456")
 	if warning == "" {

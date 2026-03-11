@@ -3,6 +3,7 @@ package enrich
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -99,5 +100,8 @@ func TestRunStore_SavesSummary(t *testing.T) {
 	summary := string(data)
 	if len(summary) == 0 {
 		t.Error("summary.md should not be empty")
+	}
+	if !strings.Contains(summary, "Cost") {
+		t.Errorf("summary.md should contain 'Cost', got: %s", summary)
 	}
 }
