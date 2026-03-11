@@ -85,3 +85,55 @@ func (s *callbackStage) Run(_ context.Context, _ *runstore.RunState) (NextAction
 	s.fn()
 	return NextAction{Kind: Continue}, nil
 }
+
+type countStage struct {
+	name   string
+	counts map[string]int
+}
+
+func (s *countStage) Name() string { return s.name }
+func (s *countStage) Run(_ context.Context, _ *runstore.RunState) (NextAction, error) {
+	s.counts[s.name]++
+	return NextAction{Kind: Continue}, nil
+}
+
+type actionStage struct {
+	name     string
+	actionFn func() NextAction
+}
+
+func (s *actionStage) Name() string { return s.name }
+func (s *actionStage) Run(_ context.Context, _ *runstore.RunState) (NextAction, error) {
+	return s.actionFn(), nil
+}
+
+func TestSpecLoop_ReplanFromLoopsBack(t *testing.T) {
+	callCounts := map[string]int{}
+	validate := &actionStage{name: "validate", actionFn: func() NextAction {
+		callCounts["validate"]++
+		if callCounts["validate"] == 1 {
+			return NextAction{Kind: ReplanFrom, Context: &FailureContext{Failures: []string{"lint fail"}}}
+		}
+		return NextAction{Kind: Continue}
+	}}
+	stages := []Stage{
+		&countStage{name: "init", counts: callCounts},
+		&countStage{name: "plan", counts: callCounts},
+		&countStage{name: "execute", counts: callCounts},
+		validate,
+		&countStage{name: "finalize", counts: callCounts},
+	}
+	loop := NewSpecLoop(stages, SpecLoopConfig{MaxCycles: 3, ReplanStage: "plan"})
+	rs := runstore.NewRunState("s1", "p1")
+	loop.Run(context.Background(), rs)
+
+	if callCounts["plan"] != 2 {
+		t.Fatalf("plan should run twice, got %d", callCounts["plan"])
+	}
+	if callCounts["finalize"] != 1 {
+		t.Fatal("finalize should run once after second pass succeeds")
+	}
+	if callCounts["init"] != 1 {
+		t.Fatalf("init should run once (only on cycle 1), got %d", callCounts["init"])
+	}
+}

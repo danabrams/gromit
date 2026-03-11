@@ -82,6 +82,11 @@ func (sl *SpecLoop) Run(ctx context.Context, rs *runstore.RunState) error {
 		if rs.IsTerminal() {
 			return nil
 		}
+
+		// If no replan was requested, the pipeline completed successfully.
+		if !replan {
+			return nil
+		}
 	}
 
 	// Cycle exhaustion
