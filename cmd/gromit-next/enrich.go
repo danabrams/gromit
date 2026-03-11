@@ -106,15 +106,18 @@ var enrichCmd = &cobra.Command{
 			input.FileTree = []string{}
 		}
 
-		// Create enricher and orchestrator.
-		enricher := enrich.NewLLMEnricher(nil, cfg.Model, cfg.Reasoning) // TODO: wire up real provider
-		factStore := enrich.NewFactStore()
-		runStore := enrich.NewRunStore()
-		orch := enrich.NewOrchestrator(enricher, factStore, runStore)
-
 		ctx := context.Background()
 
 		if dryRun {
+			// Dry run doesn't need a real provider — use mock enricher
+			// to show which categories would be processed without calling an LLM.
+			mockEnricher := &enrich.MockEnricher{
+				Facts: []enrich.InferredFact{},
+			}
+			factStore := enrich.NewFactStore()
+			runStore := enrich.NewRunStore()
+			orch := enrich.NewOrchestrator(mockEnricher, factStore, runStore)
+
 			result, err := orch.DryRun(ctx, cell.CellPath, observed, input, cfg)
 			if err != nil {
 				return fmt.Errorf("dry run: %w", err)
@@ -131,6 +134,12 @@ var enrichCmd = &cobra.Command{
 		if os.Getenv("ANTHROPIC_API_KEY") == "" {
 			return fmt.Errorf("provider not configured: set ANTHROPIC_API_KEY or use --dry-run")
 		}
+
+		// Create enricher and orchestrator.
+		enricher := enrich.NewLLMEnricher(nil, cfg.Model, cfg.Reasoning) // TODO: wire up real provider
+		factStore := enrich.NewFactStore()
+		runStore := enrich.NewRunStore()
+		orch := enrich.NewOrchestrator(enricher, factStore, runStore)
 
 		result, err := orch.Run(ctx, cell.CellPath, observed, input, cfg)
 		if err != nil {
