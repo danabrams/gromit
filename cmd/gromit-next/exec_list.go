@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 	"text/tabwriter"
 
@@ -42,6 +43,11 @@ func execList(projectID string, store *runstore.Store) (string, error) {
 	if err != nil {
 		return "", err
 	}
+
+	// Sort by StartedAt descending (most recent first).
+	sort.Slice(runs, func(i, j int) bool {
+		return runs[i].StartedAt.After(runs[j].StartedAt)
+	})
 
 	var b strings.Builder
 	tw := tabwriter.NewWriter(&b, 0, 4, 2, ' ', 0)

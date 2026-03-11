@@ -58,7 +58,8 @@ func DiscoverSpecs(specsDir string) ([]string, error) {
 	return specs, nil
 }
 
-// DeriveSpecStatus derives the status of a spec based on its runs.
+// DeriveSpecStatus derives the aggregate status of a spec from its run history.
+// specID is included for future per-spec filtering; currently unused.
 func DeriveSpecStatus(specID string, runs []runstore.RunState) string {
 	if len(runs) == 0 {
 		return "ready"
@@ -83,6 +84,7 @@ func DeriveSpecStatus(specID string, runs []runstore.RunState) string {
 
 // DeriveSpecStatusFromContent derives spec status considering both runs and content.
 // If content starts with "DRAFT", returns "draft" regardless of run status.
+// specID is included for future per-spec filtering; currently unused.
 func DeriveSpecStatusFromContent(specID string, runs []runstore.RunState, content string) string {
 	if strings.HasPrefix(content, "DRAFT") {
 		return "draft"
@@ -132,7 +134,7 @@ func newSpecListCmd() *cobra.Command {
 
 			var b strings.Builder
 			tw := tabwriter.NewWriter(&b, 0, 4, 2, ' ', 0)
-			fmt.Fprintln(tw, "SPEC\tSTATUS")
+			fmt.Fprintln(tw, "SPEC\tSTATUS\tLAST RUN")
 			for _, spec := range specs {
 				// Filter runs for this spec.
 				var specRuns []runstore.RunState
@@ -141,8 +143,20 @@ func newSpecListCmd() *cobra.Command {
 						specRuns = append(specRuns, r)
 					}
 				}
-				status := DeriveSpecStatus(spec, specRuns)
-				fmt.Fprintf(tw, "%s\t%s\n", spec, status)
+				content, _ := os.ReadFile(filepath.Join(specsDir, spec+".md"))
+				status := DeriveSpecStatusFromContent(spec, specRuns, string(content))
+				lastRun := "-"
+				if len(specRuns) > 0 {
+					// Find the most recent run.
+					latest := specRuns[0]
+					for _, r := range specRuns[1:] {
+						if r.StartedAt.After(latest.StartedAt) {
+							latest = r
+						}
+					}
+					lastRun = latest.RunID + " " + latest.StartedAt.Format("2006-01-02 15:04:05")
+				}
+				fmt.Fprintf(tw, "%s\t%s\t%s\n", spec, status, lastRun)
 			}
 			tw.Flush()
 			fmt.Fprint(cmd.OutOrStdout(), b.String())
