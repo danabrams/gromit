@@ -192,6 +192,16 @@ var guideCmd = &cobra.Command{
 
 			facts = enrich.FilterExpired(facts, cfg.StalenessExpiryDays)
 
+			// Remove rejected and superseded facts from the guide.
+			var activeFacts []enrich.InferredFact
+			for _, f := range facts {
+				if f.Status == enrich.StatusRejected || f.Status == enrich.StatusSuperseded {
+					continue
+				}
+				activeFacts = append(activeFacts, f)
+			}
+			facts = activeFacts
+
 			if len(facts) == 0 {
 				fmt.Fprintln(os.Stderr, "Warning: all inferred facts have expired; guide will omit inferred sections")
 			} else {

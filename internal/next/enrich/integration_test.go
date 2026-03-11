@@ -704,9 +704,6 @@ func TestIntegration_AcceptedFactSuperseded(t *testing.T) {
 		t.Fatalf("UpdateStatus(accepted): %v", err)
 	}
 
-	// Sleep to ensure distinct timestamp-based run ID.
-	time.Sleep(1100 * time.Millisecond)
-
 	// --- Run 2: different mock that does NOT produce fact X ---
 	factY := InferredFact{
 		Category:   CategoryEntrypoint,

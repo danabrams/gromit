@@ -418,7 +418,7 @@ func TestCompiler_InferredExcludesSupersededFacts(t *testing.T) {
 	// One superseded, one active — only the active fact should appear.
 	factsJSON := fmt.Sprintf(`[
 		{"fact_id":"f1","category":"entrypoint","statement":"old entrypoint","confidence":"high","status":"superseded","created_at":%q},
-		{"fact_id":"f2","category":"entrypoint","statement":"new entrypoint","confidence":"high","status":"confirmed","created_at":%q}
+		{"fact_id":"f2","category":"entrypoint","statement":"new entrypoint","confidence":"high","status":"accepted","created_at":%q}
 	]`, recent, recent)
 	os.WriteFile(filepath.Join(inferredDir, "facts.json"), []byte(factsJSON), 0o644)
 
