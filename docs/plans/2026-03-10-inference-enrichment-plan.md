@@ -545,6 +545,7 @@ func TestRunStore_SaveAndLoad(t *testing.T) {
 		Provider:  "claude",
 		Model:     "sonnet",
 		Reasoning: "medium",
+		Inputs:    EnrichInput{ProjectName: "test-project", FileTree: []string{"main.go", "go.mod"}},
 		Request:   RunRequest{Categories: AllCategories()},
 		Results:   []CategoryResult{},
 		CostUSD:   0.05,
@@ -565,6 +566,16 @@ func TestRunStore_SaveAndLoad(t *testing.T) {
 	}
 	if loaded.CostUSD != 0.05 {
 		t.Errorf("CostUSD = %f, want 0.05", loaded.CostUSD)
+	}
+
+	// Verify inputs.json was written
+	inputsPath := filepath.Join(dir, "inferred", "runs", "run-001", "inputs.json")
+	inputsData, err := os.ReadFile(inputsPath)
+	if err != nil {
+		t.Fatalf("inputs.json not written: %v", err)
+	}
+	if len(inputsData) == 0 {
+		t.Error("inputs.json should not be empty")
 	}
 }
 
@@ -622,6 +633,7 @@ func TestRunStore_SavesSummary(t *testing.T) {
 **Step 2: Write minimal implementation**
 
 The `RunStore` manages `inferred/runs/<run-id>/` directories. Each run directory contains:
+- `inputs.json` — what the LLM saw (the `EnrichInput` data)
 - `request.json` — what categories were requested
 - `output.json` — full run data including per-category results and cost
 - `summary.md` — human-readable summary with provider, model, cost, token counts, success/failure per category
@@ -635,6 +647,7 @@ type EnrichmentRun struct {
 	Provider     string           `json:"provider"`
 	Model        string           `json:"model"`
 	Reasoning    string           `json:"reasoning"`
+	Inputs       EnrichInput      `json:"inputs"`
 	Request      RunRequest       `json:"request"`
 	Results      []CategoryResult `json:"results"`
 	CostUSD      float64          `json:"cost_usd"`
@@ -809,7 +822,7 @@ Use a fake provider that validates the prompt and returns canned JSON.
 **Step 2: Write implementation**
 
 - `prompts.go`: Per-category prompt templates. Each category has a function that builds a prompt from `EnrichInput` + observed facts. Prompts instruct the LLM to return structured JSON with `statement`, `rationale`, `evidence_refs`, `confidence`, `scope` fields.
-- `enricher.go`: `LLMEnricher.Enrich` builds the prompt, calls `provider.Run()` with the configured model tier, parses the JSON response, assigns content-hash IDs, and populates `EnrichResult` with cost/token data from `provider.Result`.
+- `enricher.go`: `LLMEnricher.Enrich` builds the prompt, converts the model name to a provider tier via `provider.TierFromLegacyModel(model)` (e.g., "sonnet" becomes "medium"), and calls `provider.Run()` with that tier. Reasoning effort is NOT a parameter to `provider.Run()` -- it is passed to providers that support it (e.g., Codex) via provider-specific configuration, and stored in `EnrichmentRun` for provenance. The method parses the JSON response, assigns content-hash IDs, and populates `EnrichResult` with cost/token data from `provider.Result`.
 
 **Step 3: Commit**
 
@@ -822,7 +835,7 @@ git commit -m "feat(next): add LLM enricher with per-category prompts and cost t
 
 ### Task 7: Enrichment orchestrator
 
-**Depends on:** Tasks 3, 4, 6
+**Depends on:** Tasks 2, 3, 4, 6
 
 **Files:**
 - Create: `internal/next/enrich/orchestrator.go`
@@ -927,6 +940,22 @@ func TestOrchestrator_MergesStatusesOnRerun(t *testing.T) {
 	}
 }
 
+func TestOrchestrator_NoObservedFacts(t *testing.T) {
+	dir := t.TempDir()
+	// No artifacts directory, no observed facts
+	mock := &MockEnricher{
+		Facts: []InferredFact{
+			{Category: CategoryEntrypoint, Statement: "main.go"},
+		},
+	}
+
+	orch := NewOrchestrator(mock, NewFactStore(), NewRunStore())
+	_, err := orch.Run(context.Background(), dir, []fact.Fact{}, EnrichInput{}, DefaultConfig())
+	if err == nil {
+		t.Error("expected error when observed facts are empty and no artifacts directory exists")
+	}
+}
+
 func TestOrchestrator_DryRun(t *testing.T) {
 	dir := t.TempDir()
 
@@ -957,6 +986,7 @@ func TestOrchestrator_DryRun(t *testing.T) {
 The `Orchestrator` runs all category passes (via the `CategoryEnricher`), collects results, merges with existing statuses, saves facts and run artifacts. `DryRun` does the same but skips persistence.
 
 Key behavior:
+- Returns an error when observed facts are empty and no artifacts directory exists (no-observed-facts guard)
 - Runs all 8 categories (can be parallelized in future, sequential for now)
 - Aggregates cost/token counts across all passes
 - Calls `FactStore.MergeWithExisting` to preserve accepted statuses
@@ -1034,7 +1064,25 @@ func TestMarkdownRenderer_NoInferredByDefault(t *testing.T) {
 
 **Step 2: Write implementation**
 
-Add `InferredObservation` type, `InferredFacts []InferredObservation` and `IncludeInferred bool` fields to `RenderInput`. When `IncludeInferred` is true, render additional sections grouped by category with `[INFERRED]` markers and confidence levels. Sections appear after canonical sections.
+Add the `InferredObservation` type to the guide package:
+
+```go
+type InferredObservation struct {
+    Category   string `json:"category"`
+    Statement  string `json:"statement"`
+    Confidence string `json:"confidence"`
+}
+```
+
+Add `InferredFacts []InferredObservation` and `IncludeInferred bool` fields to `RenderInput`. When `IncludeInferred` is true, render additional sections grouped by category with `[INFERRED]` markers and confidence levels. Sections appear after canonical sections.
+
+Update the `NormalizeNilFields()` method on `RenderInput` to handle the new slice field:
+
+```go
+if r.InferredFacts == nil {
+    r.InferredFacts = []InferredObservation{}
+}
+```
 
 **Step 3: Commit**
 
@@ -1057,9 +1105,21 @@ git commit -m "feat(next): add inferred sections to guide renderer with INFERRED
 
 ```go
 func TestCompiler_ProjectLevelWithInferred(t *testing.T) {
-	store := newMockStore()
-	// ... populate with architecture, doctrine, and inferred facts
+	store := newMockArtifactStore()
+
+	// Set up a cell with architecture and doctrine artifacts
+	cellPath := t.TempDir()
+	store.WriteArtifact(cellPath, "architecture", []byte(`{"components":["api"]}`))
+	store.WriteArtifact(cellPath, "doctrine", []byte(`{"principles":["simplicity"]}`))
+
+	// Write inferred/facts.json
+	inferredDir := filepath.Join(cellPath, "inferred")
+	os.MkdirAll(inferredDir, 0o755)
+	factsJSON := `[{"fact_id":"f1","category":"entrypoint","statement":"main.go is the entrypoint","confidence":"high","status":"proposed"}]`
+	os.WriteFile(filepath.Join(inferredDir, "facts.json"), []byte(factsJSON), 0o644)
+
 	compiler := NewCompiler(store)
+	cell := Cell{Path: cellPath}
 	pkt, err := compiler.Compile(context.Background(), cell, LevelProject, CompileOpts{
 		IncludeInferred: true,
 	})
@@ -1071,33 +1131,71 @@ func TestCompiler_ProjectLevelWithInferred(t *testing.T) {
 	for _, s := range pkt.Sections {
 		if strings.Contains(s.Name, "inferred") {
 			hasInferred = true
-			// Verify facts carry category marker
-			for _, f := range s.Facts {
-				if f.Category != "inferred" {
-					t.Errorf("inferred section fact should have category=inferred, got %q", f.Category)
-				}
-			}
 		}
 	}
 	if !hasInferred {
-		t.Error("expected inferred section in packet")
+		t.Error("expected inferred section in packet when IncludeInferred is true")
 	}
 }
 
 func TestCompiler_ProjectLevelDefaultExcludesInferred(t *testing.T) {
-	store := newMockStore()
+	store := newMockArtifactStore()
+
+	cellPath := t.TempDir()
+	store.WriteArtifact(cellPath, "architecture", []byte(`{"components":["api"]}`))
+	store.WriteArtifact(cellPath, "doctrine", []byte(`{"principles":["simplicity"]}`))
+
+	inferredDir := filepath.Join(cellPath, "inferred")
+	os.MkdirAll(inferredDir, 0o755)
+	factsJSON := `[{"fact_id":"f1","category":"entrypoint","statement":"main.go","confidence":"high","status":"proposed"}]`
+	os.WriteFile(filepath.Join(inferredDir, "facts.json"), []byte(factsJSON), 0o644)
+
 	compiler := NewCompiler(store)
-	pkt, _ := compiler.Compile(context.Background(), cell, LevelProject, CompileOpts{})
+	cell := Cell{Path: cellPath}
+	pkt, err := compiler.Compile(context.Background(), cell, LevelProject, CompileOpts{})
+	if err != nil {
+		t.Fatalf("Compile: %v", err)
+	}
 
 	for _, s := range pkt.Sections {
 		if strings.Contains(s.Name, "inferred") {
-			t.Error("default packet should not include inferred sections")
+			t.Error("default CompileOpts should not include inferred sections")
 		}
 	}
 }
 
-func TestCompiler_TaskLevelInferredScopedToTask(t *testing.T) {
-	// Verify that only inferred facts with matching scope appear in task packet
+func TestCompiler_TaskLevelInferredPresent(t *testing.T) {
+	// Initial implementation includes all inferred facts regardless of scope.
+	// This test verifies that inferred sections are present at task level
+	// when IncludeInferred is true.
+	store := newMockArtifactStore()
+
+	cellPath := t.TempDir()
+	store.WriteArtifact(cellPath, "architecture", []byte(`{"components":["api"]}`))
+
+	inferredDir := filepath.Join(cellPath, "inferred")
+	os.MkdirAll(inferredDir, 0o755)
+	factsJSON := `[{"fact_id":"f1","category":"entrypoint","statement":"main.go","confidence":"high","status":"proposed"}]`
+	os.WriteFile(filepath.Join(inferredDir, "facts.json"), []byte(factsJSON), 0o644)
+
+	compiler := NewCompiler(store)
+	cell := Cell{Path: cellPath}
+	pkt, err := compiler.Compile(context.Background(), cell, LevelTask, CompileOpts{
+		IncludeInferred: true,
+	})
+	if err != nil {
+		t.Fatalf("Compile: %v", err)
+	}
+
+	hasInferred := false
+	for _, s := range pkt.Sections {
+		if strings.Contains(s.Name, "inferred") {
+			hasInferred = true
+		}
+	}
+	if !hasInferred {
+		t.Error("expected inferred section in task-level packet when IncludeInferred is true")
+	}
 }
 ```
 
@@ -1192,7 +1290,7 @@ git commit -m "feat(next): add staleness checking and expiry for inferred facts"
 
 ### Task 11: `gromit-next project enrich` command
 
-**Depends on:** Tasks 7, 10
+**Depends on:** Tasks 2, 7, 10
 
 **Files:**
 - Modify: `cmd/gromit-next/project.go` (or create `cmd/gromit-next/enrich.go`)
@@ -1307,7 +1405,7 @@ End-to-end test using mock enricher:
 2. Run deterministic inspect (reuse existing extractors)
 3. Run enrichment with mock enricher
 4. Verify `inferred/facts.json` contains expected facts
-5. Verify `inferred/runs/<run-id>/` exists with request.json, output.json, summary.md
+5. Verify `inferred/runs/<run-id>/` exists with inputs.json, request.json, output.json, summary.md
 6. Accept one fact, reject another
 7. Re-run enrichment
 8. Verify accepted fact retained status, rejected fact re-proposed
@@ -1386,11 +1484,11 @@ Task 1 (fact type)
 ├── Task 8 (guide inferred) [depends on 1]
 └── Task 9 (context inferred) [depends on 1]
 
-Task 7 (orchestrator) [depends on 3, 4, 6]
+Task 7 (orchestrator) [depends on 2, 3, 4, 6]
 
 Task 10 (staleness) [depends on 3, 4]
 
-Task 11 (enrich CLI) [depends on 7, 10]
+Task 11 (enrich CLI) [depends on 2, 7, 10]
 Task 12 (review CLI) [depends on 3]
 Task 13 (accept/reject CLI) [depends on 3]
 Task 14 (guide/context CLI flags) [depends on 8, 9]
@@ -1406,5 +1504,5 @@ Task 17 (staleness test) [depends on 15]
 - **Batch 2:** After Task 1: Tasks 3, 4, 5, 8, 9 can all run in parallel
 - **Batch 3:** After Task 5: Task 6
 - **Batch 4:** After Tasks 3, 4, 6: Task 7; After Tasks 3, 4: Task 10
-- **Batch 5:** Tasks 11, 12, 13, 14 can partially parallelize (12, 13 need only Task 3; 14 needs 8, 9)
+- **Batch 5:** Tasks 11, 12, 13, 14 can partially parallelize (12, 13 need only Task 3 and can run in parallel with each other; 14 needs 8, 9)
 - **Batch 6:** Tasks 15, 16, 17 are sequential

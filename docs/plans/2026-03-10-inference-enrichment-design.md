@@ -8,6 +8,14 @@ Add an optional inference enrichment phase to the Spec 0001 project-memory syste
 
 Inferred content is not automatically promoted to declared truth and is not included in default context packets unless explicitly requested.
 
+## Relationship to Inspect-Time Inference
+
+The existing `inspect.DefaultInspector` calls `infer.StubInferrer`, which returns empty results. The stub inferrer remains the production behavior for inspect — inspect stays deterministic and produces only observed facts.
+
+`enrich` is a separate, optional command that runs the real LLM-backed inference. It does not use the existing `infer.Inferrer` interface. Instead, enrichment introduces its own `CategoryEnricher` interface in `internal/next/enrich/`, purpose-built for category-scoped LLM passes.
+
+This preserves the design principle: deterministic inspect is the canonical baseline. Enrichment is always opt-in and never modifies the inspect pipeline.
+
 ## Design Decisions
 
 ### 1. Enrichment scope and strategy
@@ -27,6 +35,8 @@ The enrichment input for each pass may include: project metadata, doctrine, arch
 Each enrichment run replaces `facts.json` wholesale. Promoted facts live in `doctrine/` as declared truth — immune to re-enrichment.
 
 Previously accepted facts that re-appear (content hash match) retain their `accepted` status. Previously accepted facts that don't re-appear are marked `superseded`. Previously rejected facts are not carried forward — re-derive may re-propose them as `proposed`.
+
+The guide renderer and context compiler exclude `superseded` facts. The `review-inferred` command shows `superseded` facts with their status for transparency.
 
 Run history is preserved in `runs/` for provenance and auditability. The provenance tracker provides staleness warnings via git SHA comparison.
 
@@ -64,15 +74,15 @@ Each has a dedicated prompt and output schema. Adding a new category is a small,
 
 ### 6. Storage format
 
-**Decision: Single `facts.json` + `proposals.json` + durable run artifacts.**
+**Decision: Single `facts.json` + durable run artifacts.**
 
-All inferred facts live in one `facts.json` with category fields, rather than per-category files. This keeps accept/reject state in one place and simplifies the review workflow.
+All inferred facts live in one `facts.json` with category fields, rather than per-category files. This keeps accept/reject state in one place and simplifies the review workflow. Promotion mechanics (including a proposals file) are deferred to a future spec.
 
 ### 7. CLI flags
 
 **Decision: `--refresh` flag, no `--include existing-inspect`.**
 
-Default behavior: enrichment reads existing observed facts from the cell and warns if stale (provenance SHA doesn't match HEAD). `--refresh` re-runs inspect before enriching. Users can also run `inspect && enrich` separately.
+Default behavior: enrichment reads existing observed facts from the cell and warns if stale (provenance SHA doesn't match HEAD). `--refresh` re-runs inspect synchronously to completion before starting enrichment passes. Users can also run `inspect && enrich` separately.
 
 ### 8. Preventing de facto truth
 
@@ -81,6 +91,8 @@ Default behavior: enrichment reads existing observed facts from the cell and war
 All inferred content in guides and packets is marked with `[INFERRED]` labels. Inferred facts older than 30 days (configurable) are excluded even when `--include-inferred` is passed. Two independent guardrails against silent promotion through habit.
 
 ## Fact Model
+
+`InferredFact` is a new type in `internal/next/enrich/`, separate from the existing `fact.Fact` type in `internal/next/fact/`. The existing `fact.Category` (declared/observed/inferred) is the truth-tier; the enrichment `category` field uses `EnrichmentCategory` (component_boundary, entrypoint, etc.) to avoid collision.
 
 Every inferred fact includes:
 
@@ -91,8 +103,8 @@ Every inferred fact includes:
 | `category` | One of the fixed enrichment categories |
 | `statement` | The inferred fact as a clear statement |
 | `rationale` | Why the LLM inferred this |
-| `evidence_refs` | References to observed facts, files, or artifacts that support this |
-| `confidence` | Confidence level |
+| `evidence_refs` | `[]string` — references to fact IDs, file paths, or artifact names |
+| `confidence` | Enum string: `"high"`, `"medium"`, or `"low"` |
 | `scope` | What part of the project this applies to |
 | `status` | `proposed`, `accepted`, `rejected`, or `superseded` |
 | `created_at` | Timestamp of the enrichment run |
@@ -105,7 +117,6 @@ projects/<name>/
   artifacts/              # observed (unchanged)
   inferred/
     facts.json            # all inferred facts, normalized
-    proposals.json        # promotion-ready review items
     runs/
       <run-id>/
         request.json      # what was requested
@@ -157,6 +168,8 @@ Rules:
 2. Inferred facts carry provenance into the packet
 3. Inferred facts are excluded from default packets
 4. Unrelated inferred facts do not leak across scopes
+
+Initial implementation includes all non-expired inferred facts at the project level regardless of scope. Scope-based filtering for spec and task packets is deferred — the `scope` field is stored but not yet used for filtering.
 
 ## Staleness and Expiry
 
@@ -266,6 +279,8 @@ Rules:
 8. **Reviewability** — human can inspect, accept, and reject inferred facts
 9. **Zero repo pollution** — enrichment writes nothing to the target repo
 10. **Staleness expiry** — inferred facts older than 30 days excluded even with `--include-inferred`
+11. **Partial failure tolerance** — if one category enrichment pass fails, successful passes are still persisted and the failure is reported
+12. **Dry run** — `--dry-run` flag runs all passes but writes nothing to the cell
 
 ## Evidence Required
 

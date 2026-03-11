@@ -22,7 +22,13 @@ The following Spec 0001 packages are already built and should be reused:
 - `internal/next/guide/` — Agent guide markdown renderer
 - `internal/next/contextpkt/` — Context packet compiler
 - `internal/next/provenance/` — Provenance tracking
+- `internal/next/architecture/` — Architecture types (modules, dependencies, components)
+- `internal/next/doctrine/` — Doctrine rules storage
+- `internal/next/sourcemap/` — Source map types
+- `internal/next/validation/` — Validation command types
 - `internal/provider/` — Provider interface, Claude/Codex/Gemini implementations
+
+The enricher consumes these as pre-serialized JSON via EnrichInput, not by importing the packages directly.
 
 All new enrichment code goes in `internal/next/enrich/`. Guide and context compiler modifications go in their existing packages.
 
@@ -34,7 +40,7 @@ All new enrichment code goes in `internal/next/enrich/`. Guide and context compi
   - After Task 1: Tasks 3, 4, 5, 8, 9 can all run in parallel.
   - After Task 5: Task 6 can start.
   - After Tasks 3, 4, 6: Task 7 can start. After Tasks 3, 4: Task 10 can start.
-  - Tasks 12, 13 only need Task 3. Task 14 needs Tasks 8, 9.
+  - Tasks 12 and 13 only need Task 3 and can run in parallel with each other. Task 14 needs Tasks 8, 9. Task 11 needs Tasks 7, 10.
   - Use `superpowers:dispatching-parallel-agents` for parallel task batches.
 - Use the verification plan to confirm each phase works before moving to the next.
 - Commit after each task per the plan.
@@ -48,6 +54,7 @@ The LLM enricher must:
 - Accept configurable model name and reasoning level
 - Capture `CostUSD`, `InputTokens`, and `OutputTokens` from `provider.Result`
 - Store per-category and aggregate cost data in run artifacts
+- Use `provider.TierFromLegacyModel(model)` to convert config model names to tier strings before calling `Provider.Run()`. The `reasoning` field is stored for provenance but is not a parameter to `Provider.Run()`.
 
 ## Key Design Constraints
 
@@ -57,6 +64,7 @@ The LLM enricher must:
 - Content-hash fact IDs for deduplication
 - Full re-derive on each enrichment run; accepted statuses preserved by hash match
 - 30-day staleness expiry (configurable via per-project `enrichment.json`)
+- Partial failure tolerance — if one category pass fails, successful passes are persisted and the failure is reported
 - Zero writes to the target repo
 
 ## Final Verification

@@ -53,6 +53,23 @@
 | `TestStaleness_FilterExpired` | Expired facts are removed from list |
 | `TestStaleness_ObservedFactsFreshness` | SHA mismatch produces warning |
 
+### `enrich` package — Enricher
+
+| Test | Verifies |
+|------|----------|
+| `TestMockEnricher_ImplementsInterface` | Compile-time interface check |
+| `TestMockEnricher_ReturnsConfiguredFacts` | Mock returns configured facts |
+
+### `enrich` package — Orchestrator
+
+| Test | Verifies |
+|------|----------|
+| `TestOrchestrator_RunAll` | Full enrichment flow produces facts |
+| `TestOrchestrator_PartialFailure` | Failed categories don't block successful ones |
+| `TestOrchestrator_MergesStatusesOnRerun` | Accepted facts retain status across re-enrichment |
+| `TestOrchestrator_DryRun` | Dry run produces facts but writes nothing |
+| `TestOrchestrator_NoObservedFacts` | Error when no observed facts exist |
+
 ---
 
 ## Verification by User Story
@@ -90,8 +107,7 @@
 
 | Test | Package | Verifies |
 |------|---------|----------|
-| Integration test | `enrich` | Facts written to `inferred/`, artifacts unchanged |
-| `TestInferredFactStatus_JSONRoundTrip` | `enrich` | source_type field present |
+| `TestIntegration_FullEnrichmentFlow` | `enrich` | Facts written to `inferred/`, artifacts unchanged |
 
 **Manual check:** Run enrichment, then `ls $GROMIT_HOME/projects/<name>/artifacts/` — files should be unchanged. Compare timestamps before/after.
 
@@ -182,7 +198,7 @@
 
 ### AC7: Multi-project isolation
 - Inferred facts from project A never appear in project B
-- Test: multi-project isolation integration test
+- Test: `TestIntegration_MultiProjectIsolation`
 
 ### AC8: Reviewability
 - Facts can be inspected, accepted, rejected
@@ -190,11 +206,19 @@
 
 ### AC9: Zero repo pollution
 - Enrichment writes nothing to the target repo
-- Test: integration test verifies `git status --porcelain` is empty after enrichment
+- Test: `TestIntegration_FullEnrichmentFlow` step 11
 
 ### AC10: Staleness expiry
 - Facts older than 30 days excluded from guide/context even with `--include-inferred`
-- Test: `TestStaleness_FilterExpired`, staleness integration test
+- Test: `TestStaleness_FilterExpired`, `TestIntegration_StalenessExpiry`
+
+### AC11: Partial failure tolerance
+- Failed enrichment categories do not block successful ones
+- Test: `TestOrchestrator_PartialFailure`
+
+### AC12: Dry run
+- Dry run produces facts but writes nothing to disk
+- Test: `TestOrchestrator_DryRun`
 
 ---
 
@@ -210,6 +234,7 @@
 | Accept then supersede | Accept a fact, re-enrich without it | Fact marked superseded |
 | Dry run | `--dry-run` flag | Facts produced to stdout, nothing written |
 | Missing inferred directory | First enrichment run | Directory created automatically |
+| `--refresh` flag | Set up stale observed facts, run with --refresh | Inspect runs first, then enrichment uses fresh facts |
 
 ---
 
@@ -253,7 +278,7 @@
 
 ---
 
-## Design Principle Verification
+## Verification by Design Principle
 
 ### 1. Interfaces and contracts
 Every cross-package boundary uses an interface. `CategoryEnricher` is the key new interface.
@@ -273,6 +298,8 @@ Running inspect before and after enrichment produces identical observed artifact
 
 ### 5. Separation of slow and fast layers
 Inferred facts in `inferred/`, declared/observed facts in `artifacts/` and `doctrine/`.
+
+**Note:** `proposals.json` is deferred to a future spec covering promotion mechanics.
 
 ---
 
