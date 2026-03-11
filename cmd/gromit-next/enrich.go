@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/danabrams/gromit/internal/claude"
 	"github.com/danabrams/gromit/internal/next/artifact"
 	"github.com/danabrams/gromit/internal/next/enrich"
 	"github.com/danabrams/gromit/internal/next/extract"
@@ -15,6 +16,7 @@ import (
 	"github.com/danabrams/gromit/internal/next/inspect"
 	"github.com/danabrams/gromit/internal/next/provenance"
 	"github.com/danabrams/gromit/internal/next/sourcemap"
+	"github.com/danabrams/gromit/internal/provider"
 	"github.com/spf13/cobra"
 )
 
@@ -130,13 +132,14 @@ var enrichCmd = &cobra.Command{
 			return nil
 		}
 
-		// Guard: without a real provider, Run will fail.
-		if os.Getenv("ANTHROPIC_API_KEY") == "" {
-			return fmt.Errorf("provider not configured: set ANTHROPIC_API_KEY or use --dry-run")
+		// Build the real provider based on config.
+		p, err := buildEnrichProvider(cfg)
+		if err != nil {
+			return fmt.Errorf("build provider: %w", err)
 		}
 
 		// Create enricher and orchestrator.
-		enricher := enrich.NewLLMEnricher(nil, cfg.Model, cfg.Reasoning) // TODO: wire up real provider
+		enricher := enrich.NewLLMEnricher(p, cfg.Model, cfg.Reasoning)
 		factStore := enrich.NewFactStore()
 		runStore := enrich.NewRunStore()
 		orch := enrich.NewOrchestrator(enricher, factStore, runStore)
@@ -228,6 +231,31 @@ func sourcemapToFacts(sm sourcemap.SourceMap) []fact.Fact {
 		})
 	}
 	return facts
+}
+
+// buildEnrichProvider constructs a provider.Provider for the enrichment run
+// based on the enrichment config's Provider field.
+func buildEnrichProvider(cfg enrich.Config) (provider.Provider, error) {
+	switch cfg.Provider {
+	case "claude":
+		client, err := claude.NewClient("claude", nil, 300)
+		if err != nil {
+			return nil, fmt.Errorf("create claude client: %w", err)
+		}
+		return provider.NewClaudeProvider(client, provider.DefaultTierToModelMap), nil
+	case "codex":
+		p := provider.NewCodexProvider("codex", nil, nil)
+		if cfg.Reasoning != "" {
+			p.SetReasoningEffort(map[string]string{
+				provider.TierHigh:   cfg.Reasoning,
+				provider.TierMedium: cfg.Reasoning,
+				provider.TierLow:    cfg.Reasoning,
+			})
+		}
+		return p, nil
+	default:
+		return nil, fmt.Errorf("unsupported provider %q: use \"claude\" or \"codex\"", cfg.Provider)
+	}
 }
 
 // readArtifactJSON reads an artifact file and returns its raw JSON bytes.
