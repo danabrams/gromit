@@ -1,5 +1,11 @@
 package execpolicy
 
+import (
+	"encoding/json"
+	"fmt"
+	"os"
+)
+
 // Policy defines execution policy configuration: always-run checks, budgets,
 // and model tier config.
 type Policy struct {
@@ -49,6 +55,26 @@ func DefaultPolicy() Policy {
 		},
 		Models: Models{Planner: "high", Executor: "medium"},
 	}
+}
+
+// LoadPolicy reads a JSON policy file. If the file does not exist, it returns
+// DefaultPolicy. Partial JSON is unmarshalled on top of defaults.
+func LoadPolicy(path string) (Policy, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return DefaultPolicy(), nil
+		}
+		return Policy{}, fmt.Errorf("read policy: %w", err)
+	}
+	p := DefaultPolicy() // start from defaults
+	if err := json.Unmarshal(data, &p); err != nil {
+		return Policy{}, fmt.Errorf("parse policy: %w", err)
+	}
+	// NOTE: Do NOT add zero-value fallback lines here. The unmarshal-into-defaults
+	// approach already handles partial configs correctly. Explicit zero-value
+	// checks would make it impossible to intentionally set a field to 0.
+	return p, nil
 }
 
 // NormalizeNilFields maps nil slices/maps to empty values.
