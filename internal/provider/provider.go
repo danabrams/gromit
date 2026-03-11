@@ -10,6 +10,7 @@ import (
 
 // Tier constants for abstract model tiers
 const (
+	TierXHigh  = "xhigh"
 	TierHigh   = "high"
 	TierMedium = "medium"
 	TierLow    = "low"
@@ -43,6 +44,7 @@ var legacyModelToTier = map[string]string{
 }
 
 var tierToLegacyModel = map[string]string{
+	TierXHigh:  "opus",
 	TierHigh:   "opus",
 	TierMedium: "sonnet",
 	TierLow:    "haiku",
