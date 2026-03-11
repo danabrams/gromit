@@ -59,16 +59,25 @@ type Invariant struct {
 	Scope       string `json:"scope"`
 }
 
+// InferredObservation represents an inferred fact for guide rendering.
+type InferredObservation struct {
+	Category   string `json:"category"`
+	Statement  string `json:"statement"`
+	Confidence string `json:"confidence"`
+}
+
 // RenderInput holds everything needed to render an agent guide.
 type RenderInput struct {
-	ProjectName string
-	Modules     []Module
-	SourceMap   []SourceMapEntry
-	Validation  []ValidationCommand
-	Risks       []Risk
-	Invariants  []Invariant
-	Glossary    []GlossaryEntry
-	Doctrine    []DoctrineRule
+	ProjectName     string
+	Modules         []Module
+	SourceMap       []SourceMapEntry
+	Validation      []ValidationCommand
+	Risks           []Risk
+	Invariants      []Invariant
+	Glossary        []GlossaryEntry
+	Doctrine        []DoctrineRule
+	InferredFacts   []InferredObservation `json:"inferred_facts"`
+	IncludeInferred bool                  `json:"include_inferred"`
 }
 
 // NormalizeNilFields maps nil slices to empty values.
@@ -93,6 +102,9 @@ func (r *RenderInput) NormalizeNilFields() {
 	}
 	if r.Doctrine == nil {
 		r.Doctrine = []DoctrineRule{}
+	}
+	if r.InferredFacts == nil {
+		r.InferredFacts = []InferredObservation{}
 	}
 }
 
@@ -182,6 +194,64 @@ func (r *MarkdownRenderer) Render(input RenderInput) ([]byte, error) {
 			fmt.Fprintf(&buf, "- [%s] %s (scope: %s)\n", rule.ID, rule.Summary, rule.Scope)
 		}
 		buf.WriteString("\n")
+	}
+
+	// Inferred sections - only if IncludeInferred is true and facts exist
+	if input.IncludeInferred && len(input.InferredFacts) > 0 {
+		// Category-to-section mapping
+		sectionMap := map[string]string{
+			"component_boundary":       "Inferred Component Structure",
+			"component_responsibility": "Inferred Component Structure",
+			"entrypoint":               "Inferred Likely Entrypoints",
+			"risky_area":               "Inferred Risky Areas",
+			"integration_point":        "Inferred Integration Points",
+			"glossary_term":            "Inferred Glossary",
+			"likely_validation_surface": "Inferred Validation Surfaces",
+			"likely_ownership_boundary": "Inferred Ownership Boundaries",
+		}
+
+		// Ordered section names to ensure deterministic output
+		sectionOrder := []string{
+			"Inferred Component Structure",
+			"Inferred Likely Entrypoints",
+			"Inferred Risky Areas",
+			"Inferred Integration Points",
+			"Inferred Glossary",
+			"Inferred Validation Surfaces",
+			"Inferred Ownership Boundaries",
+		}
+
+		// Group facts by section
+		grouped := make(map[string][]InferredObservation)
+		for _, fact := range input.InferredFacts {
+			section, ok := sectionMap[fact.Category]
+			if !ok {
+				section = "Inferred Other"
+			}
+			grouped[section] = append(grouped[section], fact)
+		}
+
+		// Render each section in order
+		for _, section := range sectionOrder {
+			facts, ok := grouped[section]
+			if !ok {
+				continue
+			}
+			fmt.Fprintf(&buf, "## %s [INFERRED]\n\n", section)
+			for _, fact := range facts {
+				fmt.Fprintf(&buf, "- %s (confidence: %s)\n", fact.Statement, fact.Confidence)
+			}
+			buf.WriteString("\n")
+		}
+
+		// Render any uncategorized facts
+		if facts, ok := grouped["Inferred Other"]; ok {
+			fmt.Fprintf(&buf, "## Inferred Other [INFERRED]\n\n")
+			for _, fact := range facts {
+				fmt.Fprintf(&buf, "- %s (confidence: %s)\n", fact.Statement, fact.Confidence)
+			}
+			buf.WriteString("\n")
+		}
 	}
 
 	return buf.Bytes(), nil

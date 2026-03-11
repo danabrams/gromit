@@ -107,6 +107,51 @@ func TestMarkdownRenderer_AllSections(t *testing.T) {
 	}
 }
 
+func TestMarkdownRenderer_InferredSections(t *testing.T) {
+	r := NewMarkdownRenderer()
+	input := RenderInput{
+		ProjectName: "test-project",
+		InferredFacts: []InferredObservation{
+			{Category: "component_boundary", Statement: "API layer is separate from storage", Confidence: "high"},
+			{Category: "risky_area", Statement: "No error handling in webhook handler", Confidence: "medium"},
+			{Category: "glossary_term", Statement: "Bead: a unit of work in the pipeline", Confidence: "high"},
+		},
+		IncludeInferred: true,
+	}
+
+	out, err := r.Render(input)
+	if err != nil {
+		t.Fatalf("Render: %v", err)
+	}
+	s := string(out)
+
+	if !strings.Contains(s, "[INFERRED]") {
+		t.Error("inferred content should be marked with [INFERRED]")
+	}
+	if !strings.Contains(s, "Inferred Component Structure") {
+		t.Error("expected inferred component structure section")
+	}
+	if !strings.Contains(s, "Inferred Risky Areas") {
+		t.Error("expected inferred risky areas section")
+	}
+}
+
+func TestMarkdownRenderer_NoInferredByDefault(t *testing.T) {
+	r := NewMarkdownRenderer()
+	input := RenderInput{
+		ProjectName: "test-project",
+		InferredFacts: []InferredObservation{
+			{Category: "entrypoint", Statement: "main.go", Confidence: "high"},
+		},
+		IncludeInferred: false,
+	}
+
+	out, _ := r.Render(input)
+	if strings.Contains(string(out), "[INFERRED]") {
+		t.Error("inferred content should not appear when IncludeInferred is false")
+	}
+}
+
 func TestMarkdownRenderer_OmitsEmptySections(t *testing.T) {
 	r := NewMarkdownRenderer()
 	input := RenderInput{
