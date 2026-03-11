@@ -47,6 +47,35 @@ func (s *Store) Get(runID string) (*RunState, error) {
 	return &rs, nil
 }
 
+// List returns all runs matching the given project ID.
+func (s *Store) List(projectID string) ([]*RunState, error) {
+	runsDir := filepath.Join(s.rootDir, "runs")
+	entries, err := os.ReadDir(runsDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return []*RunState{}, nil
+		}
+		return nil, fmt.Errorf("list runs: %w", err)
+	}
+	var result []*RunState
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		rs, err := s.Get(e.Name())
+		if err != nil {
+			continue
+		}
+		if rs.ProjectID == projectID {
+			result = append(result, rs)
+		}
+	}
+	if result == nil {
+		result = []*RunState{}
+	}
+	return result, nil
+}
+
 // RunDir returns the directory path for a given run ID.
 func (s *Store) RunDir(runID string) string {
 	return filepath.Join(s.rootDir, "runs", runID)
