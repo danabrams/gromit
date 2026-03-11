@@ -82,3 +82,35 @@ func TestStore_RunDir_Layout(t *testing.T) {
 		t.Fatalf("unexpected evidence dir: %s", evidenceDir)
 	}
 }
+
+func TestStore_WriteAndReadTaskArtifact(t *testing.T) {
+	dir := t.TempDir()
+	s := NewStore(dir)
+	rs := NewRunState("spec-1", "proj-1")
+	s.Save(rs)
+
+	err := s.WriteTaskArtifact(rs.RunID, "t-001", "result.json", map[string]string{"status": "done"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var result map[string]string
+	err = s.ReadTaskArtifact(rs.RunID, "t-001", "result.json", &result)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result["status"] != "done" {
+		t.Fatalf("want done, got %s", result["status"])
+	}
+}
+
+func TestStore_ReadTaskArtifact_NotFound(t *testing.T) {
+	dir := t.TempDir()
+	s := NewStore(dir)
+
+	var result map[string]string
+	err := s.ReadTaskArtifact("run-xxx", "t-001", "missing.json", &result)
+	if err == nil {
+		t.Fatal("expected error for missing artifact")
+	}
+}

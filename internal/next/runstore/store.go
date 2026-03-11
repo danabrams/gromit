@@ -90,3 +90,26 @@ func (s *Store) TaskDir(runID, taskID string) string {
 func (s *Store) EvidenceDir(runID, taskID string) string {
 	return filepath.Join(s.TaskDir(runID, taskID), "evidence")
 }
+
+// WriteTaskArtifact marshals v to JSON and writes it to tasks/<taskID>/<filename>.
+func (s *Store) WriteTaskArtifact(runID, taskID, filename string, v any) error {
+	dir := s.TaskDir(runID, taskID)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return fmt.Errorf("create task dir: %w", err)
+	}
+	data, err := json.MarshalIndent(v, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshal artifact: %w", err)
+	}
+	return os.WriteFile(filepath.Join(dir, filename), data, 0o644)
+}
+
+// ReadTaskArtifact reads a JSON artifact from tasks/<taskID>/<filename> into v.
+func (s *Store) ReadTaskArtifact(runID, taskID, filename string, v any) error {
+	path := filepath.Join(s.TaskDir(runID, taskID), filename)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("read artifact %s: %w", filename, err)
+	}
+	return json.Unmarshal(data, v)
+}
