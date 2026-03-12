@@ -268,6 +268,8 @@ ReviewFindings        []string `json:"review_findings,omitempty"`
 AcceptanceResults     []string `json:"acceptance_results,omitempty"`
 ```
 
+**NormalizeNilFields:** Per codebase convention, `ReviewFindings` and `AcceptanceResults` slice fields must be included in `RunState.NormalizeNilFields()` to map nil slices to empty values.
+
 **Cycle reset:** The SpecLoop runner resets these fields at the start of each cycle iteration, before any stage's `Run()` method is called. Specifically, the three gate booleans (`FinalValidationPassed`, `FinalReviewPassed`, `FinalAcceptancePassed`) are reset to `false`. This prevents stale `true` values from carrying over if a stage is skipped or the pipeline ordering changes. The `[]string` fields (`ReviewFindings`, `AcceptanceResults`) are also cleared. Individual stages are not responsible for this reset.
 
 **Design note on RunState string fields vs. structured evidence:**
@@ -315,7 +317,7 @@ ReviewStage computes the diff at runtime by running `git diff` against the base 
 
 ### Built-in facet prompt templates
 
-All 5 built-in facets should have reference prompt templates provided. Each facet evaluates a distinct quality dimension:
+All 5 built-in facets should have reference prompt templates provided. Built-in facet prompts are embedded Go string constants co-located in each facet's `.go` file (e.g., `review/spec_alignment.go` contains the prompt for the spec_alignment facet). They are not external template files and not project cell config. Each facet evaluates a distinct quality dimension:
 
 | Facet | Evaluation focus |
 |-------|-----------------|
@@ -365,6 +367,8 @@ The default `"warning"` threshold prevents churn from subjective LLM style prefe
 
 If one facet hits a hard error (timeout, API failure), other facets continue. The failed facet is marked as errored in the findings/evidence — its entry in `review.json` contains an error marker rather than findings. The review proceeds with partial results from the successful facets. The human reviewer sees which facets completed and which errored. This prevents a single flaky API call from discarding results from all other facets.
 
+**Facet retry exhaustion:** If a facet's LLM call returns invalid output (unparseable JSON, missing required fields) and the retry also fails, the facet is marked as errored and processing continues with remaining facets. Combined with the all-facets-error rule below, this handles total failure gracefully.
+
 If ALL enabled facets error (zero successful facets), ReviewStage returns `Blocked` — this is an infrastructure failure (the review did not happen). The human needs to know review was skipped entirely.
 
 ### Fix-cycle review behavior
@@ -374,6 +378,8 @@ On fix cycles, the review stage distinguishes new findings from pre-existing one
 Findings from prior cycles are stored in the run's `review.json`. On fix cycles, the review agent receives prior findings and is prompted to label each current finding as **"new"** or **"pre-existing"** (matching by file + description similarity). Only new findings at or above the threshold trigger replanning. Prior findings for disposition matching are held in-memory by the ReviewStage instance (which persists across SpecLoop cycles), not read back from RunState. **Invariant:** SpecLoop must reuse the same stage instances across cycles. If SpecLoop were refactored to reconstruct stages per cycle, ReviewStage's disposition matching would silently break. This invariant should be documented in a code comment on the SpecLoop's stage slice.
 
 A finding that matches a prior finding by file path and similar description (even if the line number shifted) is considered pre-existing. Matching strategy (v1): same file path AND exact substring match on description text. A future version may use cosine similarity > 0.8 on description text for fuzzy matching.
+
+**Regression guard for stage-reuse invariant:** A test should verify that disposition matching works correctly across cycles (i.e., that the same ReviewStage instance is reused and its in-memory prior findings are preserved). This guards against future refactors that might reconstruct stages per cycle.
 
 A fix cycle that resolves targeted findings but surfaces new info-level notes does not trigger another replan.
 
@@ -386,6 +392,10 @@ Evaluates each acceptance criterion from the approved spec individually.
 ### Acceptance criteria extraction
 
 AcceptStage receives spec content via `AcceptStageConfig.SpecContent string`, injected at pipeline construction time. If `AcceptStageConfig.Criteria` is non-empty, those criteria are used directly (useful for testing and overrides). Otherwise, AcceptStage calls `ParseAcceptanceCriteria(config.SpecContent)` to extract criteria. AcceptStage does not access the filesystem. `ParseAcceptanceCriteria` is a helper function in the acceptor package that looks for a `## Acceptance Criteria` section and parses bullet points.
+
+**AcceptStage retry on infrastructure failure:** AcceptStage retries once on LLM API failure before returning error, matching PlanStage's retry pattern.
+
+**`ParseAcceptanceCriteria` parsing rules:** The parser matches the heading `## Acceptance Criteria` exactly (not partial matches like `## Acceptance Criteria (Draft)`). It accepts `-`, `*`, and numbered (`1.`) bullet formats. Nested bullets (indented sub-items) are treated as continuation of the parent criterion, not as separate criteria.
 
 If criteria resolution produces an error (section not found) or returns an empty slice, AcceptStage returns `NeedsHuman` with a clear message: "spec lacks acceptance criteria section — cannot evaluate acceptance. Revise the spec to include acceptance criteria." This is a spec quality issue, not an infrastructure failure, so it produces `NeedsHuman` rather than `Blocked` — the human must fix the spec before the system can evaluate acceptance.
 
@@ -548,7 +558,12 @@ The `cycle` field records which execution cycle produced the finding. The `dispo
 
 - **ReviewStage** writes `review.json` after each cycle as a side effect of its `Run()` method. It holds structured findings (`[]Finding`) in-memory and writes them directly using the domain types from `review/`. ReviewStage is the sole writer of `review.json`.
 - **AcceptStage** writes `acceptance.json` after evaluation as a side effect of its `Run()` method, using its structured `AcceptanceResult` directly. This mirrors ReviewStage's pattern. AcceptStage also populates RunState fields (`FinalAcceptancePassed`, `AcceptanceResults []string`) — the `[]string` fields feed the planner's FailureContext, not the evidence file.
-- **EvidenceStage** writes `review.md` (human-readable summary combining review findings and acceptance results). EvidenceStage reads `review.json` and `acceptance.json` from disk when generating `review.md`. EvidenceStage does NOT write `review.json` or `acceptance.json` — those are owned by ReviewStage and AcceptStage respectively. EvidenceStage handles missing evidence files gracefully. If `review.json` or `acceptance.json` does not exist on disk (e.g., because the pipeline terminated early), EvidenceStage generates `review.md` with 'No review results' or 'No acceptance results' sections as appropriate. This ensures the human reviewer always gets an informative summary regardless of where the pipeline stopped.
+- **EvidenceStage** writes `review.md` (human-readable summary combining review findings and acceptance results). EvidenceStage reads `review.json` and `acceptance.json` from disk (not from RunState fields) when generating `review.md`. RunState fields (`ReviewFindings`, `AcceptanceResults`) are for pipeline control flow (feeding the planner's FailureContext); evidence generation reads the structured output files directly. EvidenceStage does NOT write `review.json` or `acceptance.json` — those are owned by ReviewStage and AcceptStage respectively. EvidenceStage handles missing evidence files gracefully, interpreting them as three distinct states:
+  - **passed**: file exists and the gate boolean is true.
+  - **failed**: file exists and the gate boolean is false.
+  - **not-evaluated**: file is missing, meaning the stage never ran (e.g., pipeline terminated early).
+
+  EvidenceStage generates `review.md` with appropriate sections for each state — 'No review results' or 'No acceptance results' for not-evaluated, and full details for passed/failed. This ensures the human reviewer always gets an informative summary regardless of where the pipeline stopped.
 
 ### review.md (updated)
 

@@ -465,6 +465,12 @@ Terminal state: ready_for_review
    ```
    Should reference the review stage as the source of the replan.
 
+9. **Verify replan source is "review"**:
+   ```bash
+   grep 'replan_triggered' ~/.local/share/gromit/projects/fixture-calc/runs/$RUN_ID/events.jsonl | jq -e 'select(.source == "review")'
+   # Expected: exits 0 and prints the event with "source": "review"
+   ```
+
 **Determinism Fallback**: The LLM reviewer may not produce blocking findings on simple code. If cycle 1 review is clean and the run completes in a single cycle:
 1. Note the outcome as "reviewer found no issues on simple code" -- this is valid behavior.
 2. To force a review finding, use the fixture-multipackage project with a more complex spec, or temporarily lower the threshold and use a spec that produces slightly suboptimal code.
@@ -909,13 +915,35 @@ jq '.budgets.max_spec_cycles = 3' \
 cat > /tmp/gromit-fixtures/fixture-calc/specs/subjective-criteria.md << 'EOF'
 # Subjective Criteria Spec
 
-## Goal
-Refactor the calc package for maintainability.
+## spec_id
+subjective-criteria
+
+## Title
+Refactor the calc package for maintainability
+
+## Problem
+The calc package needs better error handling and code organization.
+
+## In-Scope
+- Add error returns to division-by-zero cases
+- Improve function documentation
+
+## Out-of-Scope
+- No new mathematical functions
+- No external dependencies
 
 ## Acceptance Criteria
 - Code is maintainable and follows best practices
 - Error messages are user-friendly and actionable
+
+## Validation
+- `go test ./calc/...`
+- `go vet ./...`
 EOF
+
+# Commit the spec to the fixture repo (worktree-based execution won't see uncommitted files)
+cd /tmp/gromit-fixtures/fixture-calc
+git add specs/subjective-criteria.md && git commit -m "Add subjective-criteria spec"
 
 # Use a policy with max_spec_cycles: 2 to keep the test short
 jq '.budgets.max_spec_cycles = 2' \
@@ -978,19 +1006,25 @@ Blocker: Acceptance criteria unclear after 2 cycles.
    # Expected: replan event with source "acceptance"
    ```
 
-5. **Budget exhaustion is correctly signaled**:
+5. **Verify replan source is "acceptance"**:
+   ```bash
+   grep 'replan_triggered' ~/.local/share/gromit/projects/fixture-calc/runs/$RUN_ID/events.jsonl | jq -e 'select(.source == "acceptance")'
+   # Expected: exits 0 and prints the event with "source": "acceptance"
+   ```
+
+6. **Budget exhaustion is correctly signaled**:
    ```bash
    grep 'terminal_state' ~/.local/share/gromit/projects/fixture-calc/runs/$RUN_ID/events.jsonl | jq '{status, reason}'
    ```
    Should show `"needs_human"` with a reason referencing cycle exhaustion.
 
-6. **Evidence bundle still emitted** (even on failure):
+7. **Evidence bundle still emitted** (even on failure):
    ```bash
    ls ~/.local/share/gromit/projects/fixture-calc/runs/$RUN_ID/evidence/
    # Should contain: review.json, acceptance.json, review.md, metrics.json, validation.json
    ```
 
-7. **cycles equals max_spec_cycles**:
+8. **cycles equals max_spec_cycles**:
    ```bash
    jq .cycles ~/.local/share/gromit/projects/fixture-calc/runs/$RUN_ID/evidence/metrics.json
    # Expected: 2 (equals max_spec_cycles)
@@ -1193,11 +1227,24 @@ mkdir -p /tmp/test-spec-no-ac
 cat > /tmp/test-spec-no-ac/spec.md << 'EOF'
 # Test Spec — No Acceptance Criteria
 
-## Summary
-Build a simple handler.
+## spec_id
+no-acceptance-criteria
 
-## Requirements
-- Handle GET /health
+## Title
+Build a simple health endpoint
+
+## Problem
+The service needs a health check endpoint.
+
+## In-Scope
+- Add GET /health handler
+
+## Out-of-Scope
+- No database checks
+
+## Validation
+- `go test ./...`
+- `go vet ./...`
 EOF
 ```
 
@@ -1218,7 +1265,7 @@ EOF
 2. Blocker summary mentions missing acceptance criteria:
    ```bash
    RUN_ID=<from output>
-   jq '.blocker_summary' .gromit-next/runs/$RUN_ID/run.json
+   jq '.blocker_summary' ~/.local/share/gromit/projects/fixture-calc/runs/$RUN_ID/run.json
    # Expected: contains "acceptance criteria"
    ```
 

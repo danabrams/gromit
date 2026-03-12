@@ -158,14 +158,6 @@ File: `internal/next/review/threshold_test.go`
 - Assert: `IsBlocking(threshold, finding) == want` for each row.
 - **Evidence**: AC 3.
 
-**`TestParseSeverity_ValidValues`**
-- Table-driven: `"error"`, `"warning"`, `"suggestion"`, `"info"`.
-- Assert: Each parses correctly to corresponding `Severity` constant. No error.
-
-**`TestParseSeverity_Unknown_Invalid`**
-- Input: `ParseSeverity("critical")`.
-- Assert: Returns error.
-
 **`TestPolicyThresholdValidation`**
 - Input: Policy with `replan_threshold: "info"`.
 - Assert: Policy validation rejects `"info"` as a threshold (info never blocks). This is a policy-level validation, not a parse-level restriction — `ParseSeverity("info")` succeeds, but the policy rejects it.
@@ -252,30 +244,24 @@ File: `internal/next/review/runner_test.go`
 - Input: FakeAgent returns unparseable JSON first, valid JSON second (for one facet).
 - Assert: Review completes successfully. Agent called twice for that facet.
 
+**`TestRunner_RetryExhaustion_MarksFacetErrored`**
+- Input: FakeAgent returns unparseable JSON on the first call AND unparseable JSON on the retry (for one facet). Other facets return valid output.
+- Assert: The exhausted facet is marked as errored in the review result (not silently dropped).
+- Assert: Processing continues with the remaining facets -- their findings are still collected and evaluated.
+- Assert: The errored facet appears in the result's error list with a description of the parse failure.
+- Purpose: Ensures retry exhaustion degrades gracefully per-facet rather than failing the entire review.
+
 **`TestRunner_CycleAndDispositionSet`**
 - Input: Cycle 1 review. No prior findings.
 - Assert: All findings have `Cycle == 1` and `Disposition == "new"`.
 
 ### acceptor/ tests
 
-File: `internal/next/acceptor/criterion_test.go`
-
-**`TestParseCriteria_FromSpecText`**
-- Input: Spec markdown with an "Acceptance Criteria" section containing 3 numbered items.
-- Assert: Returns 3 `Criterion` structs, each with the criterion text captured.
-
-**`TestParseCriteria_NoSection_ReturnsError`**
-- Input: Spec markdown without an "Acceptance Criteria" section.
-- Assert: Returns error mentioning "acceptance criteria".
-
-**`TestParseCriteria_EmptySection_ReturnsEmptySlice`**
-- Input: Spec markdown with "Acceptance Criteria" section but no items.
-- Assert: Returns empty slice. No error. (Aligns with `TestParseAcceptanceCriteria_EmptySection` and execution plan Task 16a.)
+File: `internal/next/acceptor/parse_test.go`
 
 **`TestParseAcceptanceCriteria_FromMarkdown`**
-- **Clarification**: `ParseCriteria` (tested above) is the primary API, returning `[]Criterion` structs. `ParseAcceptanceCriteria` is a convenience wrapper returning `[]string` (criterion text only). If both functions are not needed, consolidate into `ParseCriteria` alone and remove the `ParseAcceptanceCriteria` tests below. If both are kept, `ParseAcceptanceCriteria` should delegate to `ParseCriteria` internally.
-- Input: Markdown string with `## Acceptance Criteria` section containing bullet points (`- criterion text`).
-- Assert: Parses each bullet into a criterion string. Returns correct count.
+- Input: Markdown string with `## Acceptance Criteria` section containing 3 bullet points (`- criterion text`).
+- Assert: Returns 3 `[]string` entries. Each contains the criterion text. Returns correct count.
 
 **`TestParseAcceptanceCriteria_MissingSection`**
 - Input: Markdown string without `## Acceptance Criteria` heading.
@@ -283,13 +269,13 @@ File: `internal/next/acceptor/criterion_test.go`
 
 **`TestParseAcceptanceCriteria_EmptySection`**
 - Input: Markdown string with `## Acceptance Criteria` heading but no bullet points or items below it.
-- Assert: Returns empty slice. No error.
+- Assert: Returns empty slice. No error. (Aligns with execution plan Task 16a.)
 
-**`TestParseCriteria_NumberedList`**
+**`TestParseAcceptanceCriteria_NumberedList`**
 - Input: Criteria in `1. First criterion\n2. Second criterion` format.
 - Assert: Parses correctly. Criterion text does not include the number prefix.
 
-**`TestParseCriteria_BoldPrefix`**
+**`TestParseAcceptanceCriteria_BoldPrefix`**
 - Input: `1. **Review gate** -- ready_for_review impossible if...`
 - Assert: Criterion text is the full text including the bold label.
 
@@ -431,6 +417,16 @@ File: `internal/next/specloop/stages/review_test.go` (additional tests)
 - Assert: Returns `Blocked` with error context describing the diff failure
 - Purpose: Ensures diff computation failures are surfaced as infrastructure problems
 
+**`TestReviewStage_AllFacetsError_ReturnsBlocked`**
+
+**Covers:** ReviewStage error handling when all facets fail
+
+- Setup: ReviewStage configured with 2 facets (`spec_alignment`, `code_quality`). FakeReviewAgent returns errors for both facets (e.g., simulating LLM API failures).
+- Act: Run ReviewStage.
+- Assert: Returns `Blocked` with error context describing that all facets errored.
+- Assert: Zero successful facet results in the output.
+- Purpose: When every enabled facet errors, there are no results to evaluate -- ReviewStage must surface this as a blocking infrastructure problem rather than silently proceeding with empty findings.
+
 ### specloop/ tests (extensions) — SpecLoop pipeline
 
 File: `internal/next/specloop/specloop_test.go` (additional tests)
@@ -438,6 +434,12 @@ File: `internal/next/specloop/specloop_test.go` (additional tests)
 **`TestSpecLoop_ReviewStageInPipelineOrder`**
 - Input: Stages in order: init, compile, plan, execute, validate, review, accept, evidence, finalize.
 - Assert: Stages execute in that order. Review runs after validate. Accept runs after review.
+
+**`TestSpecLoop_ReusesStageInstances`**
+- Input: SpecLoop configured with ReviewStage that accumulates prior findings across cycles. Cycle 1 review produces 1 error finding (triggers replan). Cycle 2 review produces 1 new finding plus the prior finding from cycle 1.
+- Assert: ReviewStage in cycle 2 correctly labels the cycle 1 finding as `disposition: "pre-existing"` and the new finding as `disposition: "new"`.
+- Assert: The same ReviewStage instance is used across both cycles (verified by confirming prior findings from cycle 1 are visible in cycle 2 without external re-injection).
+- Purpose: Guards against a regression where SpecLoop reconstructs stage instances on each cycle, losing accumulated state (e.g., prior findings for preexisting-match logic). Stages must be constructed once and reused.
 
 **`TestSpecLoop_ReviewStage_ContinueOnCleanReview`**
 - Input: ReviewStage returns `Continue` (no blocking findings).
@@ -453,18 +455,24 @@ File: `internal/next/specloop/specloop_test.go` (additional tests)
 - Assert: `FailureContext.Failures` has 2 entries. Each entry describes the finding (facet, severity, file, description).
 - **Evidence**: AC 4.
 
+**Note:** `TestReviewFailuresToStrings` lives in `internal/next/review/failctx_test.go` (see review/ tests above for location). `TestAcceptanceFailuresToStrings_Fail` and `TestAcceptanceFailuresToStrings_Unclear` live in `internal/next/acceptor/failctx_test.go` (see acceptor/ tests above for location). They are listed here for pipeline coverage but the test files are in their respective domain packages.
+
+File: `internal/next/review/failctx_test.go`
+
 **`TestReviewFailuresToStrings`**
-- Input: FailureContext with review findings.
+- Input: Slice of review findings with different severities.
 - Assert: Each failure formats as `"review:<facet>:<severity>:<file>:<line> — <description>"`.
 - **Evidence**: AC 4.
 
+File: `internal/next/acceptor/failctx_test.go`
+
 **`TestAcceptanceFailuresToStrings_Fail`**
-- Input: FailureContext with acceptance result where status is `"fail"`.
+- Input: CriterionResult with status `"fail"`.
 - Assert: Each failure formats as `"acceptance:fail: <criterion> — implement missing behavior"`.
 - **Evidence**: AC 5.
 
 **`TestAcceptanceFailuresToStrings_Unclear`**
-- Input: FailureContext with acceptance result where status is `"unclear"`.
+- Input: CriterionResult with status `"unclear"`.
 - Assert: Each failure formats as `"acceptance:unclear: <criterion> — add tests or evidence to prove/disprove"`.
 - **Evidence**: AC 5.
 

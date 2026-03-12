@@ -469,7 +469,7 @@ Build the acceptance evaluation package:
 ### Phase 4: `ReviewStage` and `AcceptStage`
 
 Implement stage interface for both:
-- ReviewStage: invokes review package, checks threshold, returns Continue or ReplanFrom. Computes diff from worktree via GitOps at runtime. Writes `review.json` after each cycle. Handles parallel facet failure (continues with successful facets, marks failed ones as errored).
+- ReviewStage: invokes review package, checks threshold, returns Continue or ReplanFrom. Computes diff from worktree via `DiffProvider` at runtime (not `GitOps` — see "Diff computation via DiffProvider" section). Writes `review.json` after each cycle. Handles parallel facet failure (continues with successful facets, marks failed ones as errored).
 - AcceptStage: invokes acceptor package, returns Continue, ReplanFrom, or **NeedsHuman** (including when spec lacks acceptance criteria). Tier injected at construction time.
 - Pipeline insertion: stages registered between validate and evidence
 - FailureContext formatting for planner consumption
