@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"os"
 	"time"
 
 	"github.com/danabrams/gromit/internal/next/execpolicy"
@@ -34,9 +35,12 @@ func NewRealStageProvider(cfg RealStageProviderConfig) *RealStageProvider {
 func (p *RealStageProvider) BuildStages(policy execpolicy.Policy, rs *runstore.RunState) ([]specloop.Stage, error) {
 	store := runstore.NewStore(p.cfg.StoreDir)
 
+	gitOps := &noopGitOps{workDir: p.cfg.WorkDir}
+
 	initStage := stages.NewInitStage(stages.InitStageConfig{
 		SpecPath: p.cfg.SpecPath,
 		RepoDir:  p.cfg.WorkDir,
+		GitOps:   gitOps,
 	}, store, nil)
 
 	compileStage := stages.NewCompileStage(&noopCompiler{}, store, nil)
@@ -66,7 +70,7 @@ func (p *RealStageProvider) BuildStages(policy execpolicy.Policy, rs *runstore.R
 		StartTime: time.Now(),
 	})
 
-	finalizeStage := stages.NewFinalizeStage(nil, store, nil)
+	finalizeStage := stages.NewFinalizeStage(gitOps, store, nil)
 
 	return []specloop.Stage{
 		initStage,
@@ -102,6 +106,23 @@ func (n *noopTaskRunner) RunTask(_ context.Context, task runstore.Task) (specloo
 
 func (n *noopTaskRunner) RepairTask(_ context.Context, task runstore.Task, _ []string) (specloop.TaskResult, error) {
 	return specloop.TaskResult{Status: "done"}, nil
+}
+
+// noopGitOps satisfies GitOps with a no-op that uses a temp directory as worktree.
+type noopGitOps struct {
+	workDir string
+}
+
+func (n *noopGitOps) CreateWorktree(_, _ string) (string, error) {
+	dir, err := os.MkdirTemp("", "gromit-noop-worktree-*")
+	if err != nil {
+		return "", err
+	}
+	return dir, nil
+}
+
+func (n *noopGitOps) RemoveWorktree(path string) error {
+	return os.RemoveAll(path)
 }
 
 // noopValidator satisfies FinalValidator with a no-op.

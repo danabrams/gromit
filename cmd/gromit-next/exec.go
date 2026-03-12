@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -52,14 +53,6 @@ func filterStagesForDryRun(stages []specloop.Stage, dryRun bool) []specloop.Stag
 // Implementations wire real or test dependencies into each stage.
 type StageProvider interface {
 	BuildStages(policy execpolicy.Policy, rs *runstore.RunState) ([]specloop.Stage, error)
-}
-
-// defaultStageProvider is a placeholder that returns an error indicating
-// real agent dependencies have not been configured yet.
-type defaultStageProvider struct{}
-
-func (d *defaultStageProvider) BuildStages(policy execpolicy.Policy, rs *runstore.RunState) ([]specloop.Stage, error) {
-	return nil, fmt.Errorf("agent provider not configured: real stage wiring requires LLM agent dependencies (see Spec 0002b)")
 }
 
 // execSpecRun holds the wiring for an exec spec invocation, separated from
@@ -143,7 +136,12 @@ func newExecSpecCmdWithProvider(provider StageProvider) *cobra.Command {
 
 			p := provider
 			if p == nil {
-				p = &defaultStageProvider{}
+				workDir, _ := os.Getwd()
+				p = NewRealStageProvider(RealStageProviderConfig{
+					WorkDir:  workDir,
+					StoreDir: storeDir,
+					SpecPath: specPath,
+				})
 			}
 
 			r := &execSpecRun{

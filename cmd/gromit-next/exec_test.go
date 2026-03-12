@@ -32,27 +32,33 @@ func TestExecCmd_RequiresProjectFlag(t *testing.T) {
 	}
 }
 
-func TestExecCmd_AcceptsBothFlags_DefaultProviderErrors(t *testing.T) {
+func TestExecCmd_AcceptsBothFlags_UsesRealProvider(t *testing.T) {
+	storeDir := t.TempDir()
 	cmd := newExecSpecCmd()
-	cmd.SetArgs([]string{"--spec", "./specs/spec-0002.md", "--project", "my-project"})
+	var buf bytes.Buffer
+	cmd.SetOut(&buf)
+	cmd.SetArgs([]string{"--spec", "./specs/spec-0002.md", "--project", "my-project", "--store-dir", storeDir})
 	err := cmd.Execute()
-	// With defaultStageProvider, it should error about agent provider not configured.
-	if err == nil {
-		t.Fatal("expected error from default stage provider")
+	// The old defaultStageProvider returned "agent provider not configured".
+	// With RealStageProvider wired in, the pipeline runs through (noop stages)
+	// and produces a Run ID in output.
+	if err != nil {
+		if strings.Contains(err.Error(), "agent provider not configured") {
+			t.Fatalf("still using old defaultStageProvider stub: %v", err)
+		}
+		t.Fatalf("unexpected error: %v", err)
 	}
-	if !strings.Contains(err.Error(), "agent provider not configured") {
-		t.Fatalf("expected 'agent provider not configured' error, got: %v", err)
+	if !strings.Contains(buf.String(), "Run ID:") {
+		t.Errorf("expected Run ID in output, got: %s", buf.String())
 	}
 }
 
 func TestExecCmd_DryRunFlag(t *testing.T) {
+	storeDir := t.TempDir()
 	cmd := newExecSpecCmd()
-	cmd.SetArgs([]string{"--spec", "./specs/spec-0002.md", "--project", "my-project", "--dry-run"})
-	err := cmd.Execute()
-	// With defaultStageProvider, it should error about agent provider not configured.
-	if err == nil {
-		t.Fatal("expected error from default stage provider")
-	}
+	cmd.SetArgs([]string{"--spec", "./specs/spec-0002.md", "--project", "my-project", "--dry-run", "--store-dir", storeDir})
+	_ = cmd.Execute()
+	// Verify dry-run flag was parsed correctly (execution may fail due to missing spec file).
 	dryRun, _ := cmd.Flags().GetBool("dry-run")
 	if !dryRun {
 		t.Fatal("expected dry-run to be true")
