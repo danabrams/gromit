@@ -203,9 +203,11 @@ No code change needed — the built-in facet runs automatically once enabled in 
 
 ```
 internal/next/
-  review/         # Multi-facet LLM code review
-  acceptor/       # Evaluates acceptance criteria against evidence
+  review/         # Multi-facet LLM code review (domain: finding types, severity, registry, facet invocation)
+  acceptor/       # Evaluates acceptance criteria against evidence (domain: criterion evaluation, parsing)
 ```
+
+Stage wrappers live in `specloop/stages/review.go` and `specloop/stages/accept.go`. Domain logic (finding types, severity, registry, facet invocation, criterion evaluation) lives in `internal/next/review/` and `internal/next/acceptor/`. Stages import domain packages — same pattern as `stages/plan.go` imports `planner/`.
 
 ---
 
@@ -251,6 +253,23 @@ Init -> Compile -> Plan -> Execute -> Validate -> Review -> Accept -> Evidence -
 
 ReviewStage and AcceptStage are inserted between ValidateStage and EvidenceStage. Both use the `evaluator` model tier from the execution policy. Both can produce `ReplanFrom`, consuming `max_spec_cycles` budget.
 
+### RunState extensions
+
+The following fields are added to RunState for review and acceptance tracking:
+
+```go
+FinalReviewPassed     bool     `json:"final_review_passed"`
+FinalAcceptancePassed bool     `json:"final_acceptance_passed"`
+ReviewFindings        []string `json:"review_findings,omitempty"`
+AcceptanceResults     []string `json:"acceptance_results,omitempty"`
+```
+
+**Design note on RunState string fields vs. structured evidence:**
+
+- `ReviewFindings` and `AcceptanceResults` are `[]string` carrying human-readable summaries. These feed into the planner's `FailureContext` and into the `review.md` evidence summary.
+- The structured evidence files (`review.json`, `acceptance.json`) are written directly by `ReviewStage` and `AcceptStage` using their domain types (`[]Finding`, `AcceptanceResult`), not derived from these `[]string` fields.
+- `ReviewStage` maintains structured prior findings (`[]Finding`) in-memory for disposition matching across cycles. This structured state is stage-local and is not serialized into RunState.
+
 ### Stage-to-terminal-state mapping (additions)
 
 | Stage | Can produce `ReplanFrom`? |
@@ -278,10 +297,22 @@ Additional built-in facets available for enabling:
 | Facet | What it checks | Suggested tier |
 |-------|---------------|-------------|
 | logic_gaps | Off-by-one, nil handling, missing error paths | high |
-| test_coverage | Are new code paths tested? Missing edge cases? | medium |
+| test_coverage | Are there untested code paths, missing edge cases, or inadequate assertions? | medium |
 | architecture_drift | Does the change respect boundaries from the project cell? | medium |
 
 Each facet is a separate agent invocation, potentially parallel. Each receives the diff summary plus relevant slices from the project cell.
+
+### Built-in facet prompt templates
+
+All 5 built-in facets should have reference prompt templates provided. Each facet evaluates a distinct quality dimension:
+
+| Facet | Evaluation focus |
+|-------|-----------------|
+| spec_alignment | Does the implementation match the spec's requirements and acceptance criteria? |
+| code_quality | Are there code smells, dead code, overly complex functions, or naming issues? |
+| logic_gaps | Off-by-one, nil handling, missing error paths |
+| test_coverage | Are there untested code paths, missing edge cases, or inadequate assertions? |
+| architecture_drift | Does the change respect boundaries from the project cell? |
 
 ### Finding format
 
@@ -323,7 +354,7 @@ This prevents subjective findings from burning fix cycles when not desired.
 
 On fix cycles, the review stage distinguishes new findings from pre-existing ones.
 
-Findings from prior cycles are stored in the run's `review.json`. On fix cycles, the review agent receives prior findings and is prompted to label each current finding as **"new"** or **"pre-existing"** (matching by file + description similarity). Only new findings at or above the threshold trigger replanning.
+Findings from prior cycles are stored in the run's `review.json`. On fix cycles, the review agent receives prior findings and is prompted to label each current finding as **"new"** or **"pre-existing"** (matching by file + description similarity). Only new findings at or above the threshold trigger replanning. Prior findings for disposition matching are held in-memory by the ReviewStage instance (which persists across SpecLoop cycles), not read back from RunState.
 
 A finding that matches a prior finding by file path and similar description (even if the line number shifted) is considered pre-existing. Matching strategy (v1): same file path AND exact substring match on description text. A future version may use cosine similarity > 0.8 on description text for fuzzy matching.
 
@@ -334,6 +365,10 @@ A fix cycle that resolves targeted findings but surfaces new info-level notes do
 ## Acceptance Evaluation
 
 Evaluates each acceptance criterion from the approved spec individually.
+
+### Acceptance criteria extraction
+
+AcceptStage parses markdown from the spec packet. A helper function `ParseAcceptanceCriteria(specMarkdown string) ([]string, error)` looks for a `## Acceptance Criteria` section and parses bullet points. Lives in the acceptor package. AcceptStage calls this helper then passes criteria to the evaluator.
 
 ### Input
 
@@ -367,6 +402,13 @@ Evaluates each acceptance criterion from the approved spec individually.
 ## Failure Context Contracts
 
 When ReviewStage or AcceptStage triggers replanning, each provides a structured `FailureContext` so the planner can produce targeted fix tasks.
+
+`FailureContext.Failures` remains `[]string`. Structured review and acceptance data is serialized into formatted strings using helper functions:
+
+- `ReviewFailuresToStrings(findings []Finding) []string` — formats each finding as `"review:<facet>:<severity>:<file>:<line> — <description>"`
+- `AcceptanceFailuresToStrings(results []CriterionResult) []string` — formats differently based on status:
+  - fail: `"acceptance:fail: <criterion> — implement missing behavior"`
+  - unclear: `"acceptance:unclear: <criterion> — add tests or evidence to prove/disprove"`
 
 ### ReviewStage FailureContext
 
@@ -408,6 +450,22 @@ The planner uses these to produce tasks that either implement missing behavior (
 
 All deterministic validation passes. All review facets clear (no findings above threshold). All acceptance criteria `pass`. Evidence bundle complete. Human still decides whether to accept into the product.
 
+FinalizeStage sets `ready_for_review` when all three gates pass:
+
+```go
+if allDone && rs.FinalValidationPassed && rs.FinalReviewPassed && rs.FinalAcceptancePassed {
+    rs.Status = StatusReadyForReview
+}
+```
+
+Note: `ready_for_review` means ready for human review.
+
+### Blocked worktree cleanup
+
+FinalizeStage preserves worktrees for ALL terminal states (`blocked`, `needs_human`, `ready_for_review`). The existing `RemoveWorktree` call for `blocked` runs is removed — a blocked run's worktree is kept so a human can inspect it.
+
+InitStage handles cleanup of stale blocked worktrees: when creating a new run for a spec, it scans the store for prior runs with the same `spec_id`. For any prior run with `status: blocked` and a non-empty `worktree_path`, InitStage removes the worktree and clears the path in `run.json`. It emits a `blocked_worktree_cleaned` event with the old run ID.
+
 ### VISION Review Outcome Labels
 
 This spec does not record the VISION.md review outcome labels (`accepted`, `rework_implementation_gap`, `rework_vision_change`). The machine stops at `ready_for_review`. Spec 0003 formalizes capturing the human's review decision with these labels and feeding them into the vision metrics loop.
@@ -423,6 +481,16 @@ evidence/
   review.json           # Aggregated review findings (all facets)
   acceptance.json       # Per-criterion evaluation results
 ```
+
+### acceptance.json schema
+
+Uses a structured wrapper:
+
+```json
+{"results": [...], "all_pass": true, "has_fail_or_unclear": false}
+```
+
+The `AcceptanceResult` Go type has fields `Results []CriterionResult`, `AllPass bool`, `HasFailOrUnclear bool`.
 
 ### review.json schema
 
@@ -488,3 +556,31 @@ Adds sections for: review findings by facet, per-criterion acceptance table with
 - Example evidence bundle with per-criterion acceptance evaluation reviewed by a human.
 - Verification that adding a review facet via config (without code changes) works.
 - Verification that review findings from fix cycles distinguish new findings from pre-existing ones.
+
+---
+
+## Deferred Items
+
+### Integration tests
+
+Integration tests (full pipeline with real LLM calls) are deferred to 0002b's wiring phase, since 0002a's StageProvider is still a stub. Unit tests with mock agents cover the stage logic in the meantime.
+
+### Per-task artifact files
+
+Per-task artifact writing (`task-packet.md`, `agent-output.txt` per task) will be implemented as part of 0002b when the real executor integration lands. The current design writes only aggregate evidence files.
+
+---
+
+## Bugs Carried Forward from 0002a Manual Testing (2026-03-12)
+
+### 1. Agent Provider Wiring (blocking all manual scenarios)
+
+`cmd/gromit-next/exec.go:57-63` — `defaultStageProvider.BuildStages()` returns a stub error. 0002b must implement a real `StageProvider` that wires `Agent` implementations into stages. This blocks all manual test plan scenarios (including `--dry-run`, since `BuildStages` is called before the dry-run stage filter).
+
+### 2. `spec list` default path resolution bug
+
+`cmd/gromit-next/spec.go:119` — `LoadProjectConfig(".")` looks for `project.json` in the current working directory instead of resolving the project cell path from `--project` flag (should resolve to `~/.local/share/gromit/projects/<project>/project.json`). Additionally, the `ProjectConfig` struct only has `SpecsDir` but the actual `project.json` schema has `name`, `repo_path`, `created_at`. The command works with explicit `--specs-dir` as a workaround.
+
+### 3. `exec list` exit code on empty results
+
+`exec list --project fixture-calc` returns exit code 1 when no runs exist. Debatable whether empty results should be exit 0 (success, just nothing to show) or exit 1. Consider aligning with convention (e.g., `git log` on empty repo exits 0).

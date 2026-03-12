@@ -53,7 +53,7 @@ The next step is a small, explicit execution kernel that consumes project/spec/t
 - Indefinite retries
 - Resume/recovery beyond artifact preservation for inspection
 - Vision metrics reporting/analysis layer (raw signal is recorded, formalization is later)
-- Recording VISION.md review outcome labels (`accepted`, `rework_implementation_gap`, `rework_vision_change`) — deferred to Spec 0002b which includes acceptance evaluation, with full label capture formalized in Spec 0003
+- Recording VISION.md review outcome labels (`accepted`, `rework_implementation_gap`, `rework_vision_change`) — deferred to Spec 0003 which formalizes human review capture
 
 ---
 

@@ -45,13 +45,13 @@ All new fakes live in `internal/next/testutil/`.
 File: `internal/next/review/registry_test.go`
 
 **`TestRegistry_DefaultFacets`**
-- Input: Call `DefaultRegistry()`.
+- Input: Call `NewRegistry()` with default facet names.
 - Assert: Registry contains exactly `spec_alignment` and `code_quality`.
 - Assert: Both facets have non-empty prompt templates.
 - **Evidence**: AC 6.
 
 **`TestRegistry_AllBuiltInFacets`**
-- Input: Call `BuiltInRegistry()`.
+- Input: Call `NewRegistry()` with all built-in facet names.
 - Assert: Registry contains all 5 built-in facets: `spec_alignment`, `code_quality`, `logic_gaps`, `test_coverage`, `architecture_drift`.
 - Assert: Each facet has a non-empty `Name`, `Description`, and `PromptTemplate`.
 - **Evidence**: AC 6.
@@ -83,7 +83,7 @@ File: `internal/next/review/finding_test.go`
   - `SeverityError > SeverityWarning`
   - `SeverityWarning > SeveritySuggestion`
   - `SeveritySuggestion > SeverityInfo`
-- Assert: `severity.Level()` returns strictly decreasing integers as severity decreases.
+- Assert: `severity.Rank()` returns strictly decreasing integers as severity decreases.
 - **Evidence**: AC 7.
 
 **`TestSeverity_Parse_ValidValues`**
@@ -98,8 +98,8 @@ File: `internal/next/review/finding_test.go`
 - For each severity constant, `ParseSeverity(s.String())` returns the same constant.
 
 **`TestFinding_NormalizeNilFields`**
-- Input: `Finding{}` with nil `SuggestedFix`.
-- Assert: After `NormalizeNilFields()`, `SuggestedFix` is `""` (not nil pointer).
+- Input: `Finding{}` with zero-value fields.
+- Assert: After `NormalizeNilFields()`, the method exists and does not panic. (`SuggestedFix` is a `string`, not a pointer, so it is already `""` at zero value.)
 
 **`TestParseFindingsJSON_ValidOutput`**
 - Input: JSON string matching the finding format from the spec:
@@ -205,16 +205,16 @@ File: `internal/next/review/matching_test.go`
 - Input: Prior finding `{File: "handler.go", Line: 42, Description: "nil pointer"}`. Current finding `{File: "handler.go", Line: 58, Description: "nil pointer"}`.
 - Assert: `IsPreexisting == true`. Line number differences are ignored.
 
-**`TestLabelFindings_MixedNewAndPreexisting`**
+**`TestLabelDispositions_MixedNewAndPreexisting`**
 - Input: Prior findings from cycle 1: `[{File: "a.go", Desc: "dup logic"}]`. Current findings: `[{File: "a.go", Desc: "dup logic"}, {File: "b.go", Desc: "missing test"}]`.
 - Assert: First finding labeled `disposition: "pre-existing"`. Second labeled `disposition: "new"`.
 - Assert: Both findings have `cycle` set to current cycle number.
 
-**`TestLabelFindings_AllNew`**
+**`TestLabelDispositions_AllNew`**
 - Input: Empty prior findings. Current findings: 2 findings.
 - Assert: Both labeled `disposition: "new"`.
 
-**`TestLabelFindings_AllPreexisting`**
+**`TestLabelDispositions_AllPreexisting`**
 - Input: Prior findings match all current findings.
 - Assert: All labeled `disposition: "pre-existing"`.
 
@@ -263,9 +263,21 @@ File: `internal/next/acceptor/criterion_test.go`
 - Input: Spec markdown without an "Acceptance Criteria" section.
 - Assert: Returns error mentioning "acceptance criteria".
 
-**`TestParseCriteria_EmptySection_ReturnsError`**
+**`TestParseCriteria_EmptySection_ReturnsEmptySlice`**
 - Input: Spec markdown with "Acceptance Criteria" section but no items.
-- Assert: Returns error mentioning "no criteria found".
+- Assert: Returns empty slice. No error. (Aligns with `TestParseAcceptanceCriteria_EmptySection` and execution plan Task 16a.)
+
+**`TestParseAcceptanceCriteria_FromMarkdown`**
+- Input: Markdown string with `## Acceptance Criteria` section containing bullet points (`- criterion text`).
+- Assert: Parses each bullet into a criterion string. Returns correct count.
+
+**`TestParseAcceptanceCriteria_MissingSection`**
+- Input: Markdown string without `## Acceptance Criteria` heading.
+- Assert: Returns error indicating the section was not found.
+
+**`TestParseAcceptanceCriteria_EmptySection`**
+- Input: Markdown string with `## Acceptance Criteria` heading but no bullet points or items below it.
+- Assert: Returns empty slice. No error.
 
 **`TestParseCriteria_NumberedList`**
 - Input: Criteria in `1. First criterion\n2. Second criterion` format.
@@ -318,12 +330,11 @@ File: `internal/next/acceptor/evaluator_test.go`
 
 **`TestEvaluator_AggregatesResults`**
 - Input: 3 criteria. FakeAgent returns pass, fail, unclear.
-- Assert: Aggregated `AcceptanceResult` has 3 entries. `AllPassed() == false`.
-- Assert: `FailedOrUnclear()` returns 2 entries (the fail and unclear criteria).
+- Assert: Aggregated `AcceptanceResult.Results` has 3 entries. `AllPass == false`. `HasFailOrUnclear == true`.
 
 **`TestEvaluator_AllPass`**
 - Input: 3 criteria, all pass.
-- Assert: `AllPassed() == true`. `FailedOrUnclear()` returns empty slice.
+- Assert: `AcceptanceResult.Results` has 3 entries. `AllPass == true`. `HasFailOrUnclear == false`.
 
 **`TestEvaluator_RetryOnInvalidOutput`**
 - Input: FakeAgent returns invalid JSON first, valid result second (for one criterion).
@@ -396,6 +407,21 @@ File: `internal/next/specloop/specloop_test.go` (additional tests)
 - Assert: `FailureContext.Failures` has 2 entries. Each entry describes the finding (facet, severity, file, description).
 - **Evidence**: AC 4.
 
+**`TestReviewFailuresToStrings`**
+- Input: FailureContext with review findings.
+- Assert: Each failure formats as `"review:<facet>:<severity>:<file>:<line> — <description>"`.
+- **Evidence**: AC 4.
+
+**`TestAcceptanceFailuresToStrings_Fail`**
+- Input: FailureContext with acceptance result where status is `"fail"`.
+- Assert: Each failure formats as `"acceptance:fail: <criterion> — implement missing behavior"`.
+- **Evidence**: AC 5.
+
+**`TestAcceptanceFailuresToStrings_Unclear`**
+- Input: FailureContext with acceptance result where status is `"unclear"`.
+- Assert: Each failure formats as `"acceptance:unclear: <criterion> — add tests or evidence to prove/disprove"`.
+- **Evidence**: AC 5.
+
 **`TestSpecLoop_AcceptStage_ContinueOnAllPass`**
 - Input: AcceptStage returns `Continue` (all criteria pass).
 - Assert: EvidenceStage runs next. Terminal state is `ready_for_review`.
@@ -449,11 +475,41 @@ File: `internal/next/specloop/specloop_test.go` (additional tests)
 - Assert: Preexisting warning does not trigger another replan. Pipeline proceeds to acceptance.
 - **Evidence**: AC 4.
 
-**`TestSpecLoop_FinalizeStage_ReadyForReview_RequiresAllGates`**
-- Input: Validation passed, review clean, acceptance all-pass.
+**`TestFinalizeStage_ReadyForReview_RequiresAllThreeGates`**
+- Input: allDone && FinalValidationPassed && FinalReviewPassed && FinalAcceptancePassed.
 - Assert: Terminal state is `ready_for_review`.
-- Assert: If any of validation/review/acceptance did not pass, terminal state is NOT `ready_for_review`.
+- Assert: If any of the four conditions is false, terminal state is NOT `ready_for_review`.
 - **Evidence**: AC 1.
+
+**`TestFinalizeStage_NeedsHuman_WhenReviewFails`**
+- Input: allDone && FinalValidationPassed && FinalReviewPassed == false.
+- Assert: Terminal state is `needs_human`.
+- **Evidence**: AC 1.
+
+**`TestFinalizeStage_NeedsHuman_WhenAcceptanceFails`**
+- Input: allDone && FinalValidationPassed && FinalReviewPassed && FinalAcceptancePassed == false.
+- Assert: Terminal state is `needs_human`.
+- **Evidence**: AC 1.
+
+**`TestFinalizeStage_PreservesWorktreeForBlocked`**
+- Input: FinalizeStage reaches `blocked` terminal state.
+- Assert: Worktree directory is NOT cleaned up (preserved for human inspection).
+- Assert: RunState records the worktree path.
+
+**`TestInitStage_CleansBlockedWorktreesForSameSpec`**
+- Input: Store contains a prior run with terminal state `blocked` and spec_id matching the current spec.
+- Assert: InitStage scans the store, finds the prior blocked run.
+- Assert: Prior blocked run's worktree directory is removed.
+- Assert: Prior blocked run's worktree path is cleared in the store.
+
+**`TestInitStage_IgnoresNonBlockedPriorRuns`**
+- Input: Store contains prior runs with terminal states `ready_for_review` and `needs_human`, same spec_id.
+- Assert: InitStage does NOT clean those worktrees.
+- Assert: Their worktree paths remain intact in the store.
+
+**`TestRunState_NormalizeNilFields_IncludesNewFields`**
+- Input: `RunState{}` with nil `ReviewFindings` and nil `AcceptanceResults`.
+- Assert: After `NormalizeNilFields()`, `ReviewFindings` is empty slice (not nil) and `AcceptanceResults` is empty slice (not nil).
 
 **`TestSpecLoop_VisionLabelNotSet`**
 - Input: Run completes with `ready_for_review`.
@@ -465,21 +521,23 @@ File: `internal/next/specloop/event_contract_test.go` (additional tests)
 **`TestEventContract_ReviewAndAcceptanceEvents`**
 - Input: Full pipeline with review and acceptance stages emitting events.
 - Assert: `events.jsonl` contains new event types:
-  - `review_started`
-  - `review_completed`
-  - `review_finding` (one per finding)
-  - `acceptance_started`
-  - `acceptance_completed`
-  - `acceptance_criterion_result` (one per criterion)
-- Assert: Event ordering: `final_validation_result` before `review_started`, `review_completed` before `acceptance_started`, `acceptance_completed` before `terminal_state`.
+  - `review_result`
+  - `acceptance_result`
+  - (Optional, may also emit: `review_started`, `review_finding`, `acceptance_started`, `acceptance_criterion_result`)
+- Assert: Event ordering: `final_validation_result` before `review_result`, `review_result` before `acceptance_result`, `acceptance_result` before `terminal_state`.
 
 **`TestEventContract_ReviewReplanEvent`**
 - Input: ReviewStage triggers replan.
-- Assert: `events.jsonl` contains `replan_triggered` event with `source: "review"` and list of blocking findings in metadata.
+- Assert: `events.jsonl` contains `replan_triggered` event with `source: "review"` (new field to add to `replan_triggered`) and list of blocking findings in metadata.
 
 **`TestEventContract_AcceptanceReplanEvent`**
 - Input: AcceptStage triggers replan.
-- Assert: `events.jsonl` contains `replan_triggered` event with `source: "acceptance"` and list of failed/unclear criteria in metadata.
+- Assert: `events.jsonl` contains `replan_triggered` event with `source: "acceptance"` (new field to add to `replan_triggered`) and list of failed/unclear criteria in metadata.
+
+**`TestEventContract_BlockedWorktreeCleanedEvent`**
+- Input: InitStage finds and cleans a prior blocked worktree for the same spec_id.
+- Assert: `events.jsonl` contains a `blocked_worktree_cleaned` event.
+- Assert: Event metadata includes `prior_run_id`, `spec_id`, and `worktree_path` of the cleaned worktree.
 
 ### evidence/ tests (extensions)
 
@@ -499,16 +557,16 @@ File: `internal/next/evidence/bundle_test.go` (additional tests)
 
 **`TestBundler_WriteAcceptance`**
 - Input: Acceptance results with 3 criteria: pass, fail, unclear.
-- Assert: `acceptance.json` exists. Each entry has `criterion`, `status`, `rationale`, `evidence_refs`.
+- Assert: `acceptance.json` exists. Top-level is envelope object with `results` array, `all_pass` bool, `has_fail_or_unclear` bool. Each entry in `results` has `criterion`, `status`, `rationale`, `evidence_refs`. `all_pass == false` and `has_fail_or_unclear == true` (because of fail and unclear).
 - **Evidence**: AC 2.
 
 **`TestBundler_WriteAcceptance_AllPass`**
 - Input: 3 criteria all passing.
-- Assert: `acceptance.json` has 3 entries, all with `status: "pass"`.
+- Assert: `acceptance.json` envelope has `all_pass == true`, `has_fail_or_unclear == false`. `results` array has 3 entries, all with `status: "pass"`.
 
 **`TestBundler_WriteAcceptance_NilEvidenceRefs_SerializesAsEmptyArray`**
 - Input: `CriterionResult` with nil `EvidenceRefs`.
-- Assert: JSON serializes `evidence_refs` as `[]`, not `null`.
+- Assert: Inside the envelope's `results` array, JSON serializes `evidence_refs` as `[]`, not `null`.
 
 **`TestBundler_WriteReview_IncludesReviewFindingsSection`**
 - Input: `ReviewInput` with review findings populated.
@@ -543,10 +601,10 @@ Execution:
 Assertions:
 - Terminal state == `ready_for_review`.
 - `evidence/review.json` exists and contains empty findings arrays for both facets.
-- `evidence/acceptance.json` exists and contains 3 entries, all with `status: "pass"`.
+- `evidence/acceptance.json` exists and parses as envelope: `all_pass == true`, `has_fail_or_unclear == false`, `results` contains 3 entries all with `status: "pass"`.
 - `evidence/review.md` contains "Review Findings" section (empty/clean).
 - `evidence/review.md` contains "Acceptance Criteria" table with 3 pass entries.
-- `events.jsonl` contains `review_started`, `review_completed`, `acceptance_started`, `acceptance_completed`, `terminal_state`.
+- `events.jsonl` contains `review_result`, `acceptance_result`, `terminal_state`.
 - No VISION review outcome label recorded.
 
 **Evidence**: AC 1, 2, 8.
@@ -569,7 +627,7 @@ Execution:
 Assertions:
 - Terminal state == `ready_for_review`.
 - Exactly 2 planning cycles occurred.
-- `events.jsonl` contains `replan_triggered` with source `"review"` after cycle 1.
+- `events.jsonl` contains `replan_triggered` with source `"review"` (new field) after cycle 1.
 - `evidence/review.json` contains the cycle 1 finding with `cycle: 1, disposition: "new"`.
 - Fix plan prompt (captured from FakeAgent) includes the finding description.
 - Cycle 2 review shows clean findings.
@@ -593,7 +651,7 @@ Execution:
 Assertions:
 - Terminal state == `ready_for_review`.
 - 2 planning cycles occurred.
-- `events.jsonl` contains `replan_triggered` with source `"acceptance"` after cycle 1.
+- `events.jsonl` contains `replan_triggered` with source `"acceptance"` (new field) after cycle 1.
 - Fix plan prompt includes the failed criterion text and rationale.
 - `evidence/acceptance.json` reflects final all-pass results.
 
@@ -616,7 +674,7 @@ Execution:
 Assertions:
 - Terminal state == `ready_for_review`.
 - Fix plan prompt for cycle 2 includes guidance about adding evidence/tests (not re-implementing).
-- `events.jsonl` contains `replan_triggered` with source `"acceptance"`.
+- `events.jsonl` contains `replan_triggered` with source `"acceptance"` (new field).
 - `evidence/acceptance.json` reflects final all-pass.
 
 **Evidence**: AC 5.
@@ -730,11 +788,11 @@ Mapping each spec acceptance criterion to the test(s) that satisfy it.
 
 | # | Acceptance Criterion | Test(s) |
 |---|---------------------|---------|
-| 1 | Review gate -- `ready_for_review` impossible if review finds findings above threshold | `TestSpecLoop_ReviewStage_ReplanOnBlockingFindings`, `TestSpecLoop_FinalizeStage_ReadyForReview_RequiresAllGates`, `TestIntegration_ReviewAcceptance_HappyPath_ReadyForReview`, `TestIntegration_ReviewFinding_TriggersFixCycle` |
+| 1 | Review gate -- `ready_for_review` impossible if review finds findings above threshold | `TestSpecLoop_ReviewStage_ReplanOnBlockingFindings`, `TestFinalizeStage_ReadyForReview_RequiresAllThreeGates`, `TestFinalizeStage_NeedsHuman_WhenReviewFails`, `TestFinalizeStage_NeedsHuman_WhenAcceptanceFails`, `TestIntegration_ReviewAcceptance_HappyPath_ReadyForReview`, `TestIntegration_ReviewFinding_TriggersFixCycle` |
 | 2 | Acceptance evidence -- every criterion has explicit pass/fail/unclear with rationale and evidence refs | `TestEvaluateResult_ParsePass`, `TestEvaluateResult_ParseFail`, `TestEvaluateResult_ParseUnclear`, `TestEvaluator_InvokesAgentPerCriterion`, `TestBundler_WriteAcceptance`, `TestIntegration_ReviewAcceptance_HappyPath_ReadyForReview` |
 | 3 | Configurable threshold -- `review.replan_threshold` controls which severities trigger replanning | `TestThreshold_Blocks_ErrorThreshold`, `TestThreshold_Blocks_WarningThreshold`, `TestThreshold_Blocks_SuggestionThreshold`, `TestFilterBlockingFindings_MixedSeverities`, `TestIntegration_ThresholdError_WarningsNonBlocking` |
-| 4 | Fix-cycle from review -- findings above threshold trigger fix-plan targeting specific findings | `TestSpecLoop_ReviewStage_FailureContext_CarriesFindings`, `TestFilterNewBlockingFindings_OnlyNewAboveThreshold`, `TestSpecLoop_PreexistingFindings_DontBlock`, `TestIntegration_ReviewFinding_TriggersFixCycle`, `TestIntegration_FixCycle_NewVsPreexistingFindings` |
-| 5 | Fix-cycle from acceptance -- fail/unclear results trigger fix-plan targeting specific gaps | `TestSpecLoop_AcceptStage_ReplanOnFail`, `TestSpecLoop_AcceptStage_ReplanOnUnclear`, `TestSpecLoop_AcceptStage_FailureContext_CarriesCriteria`, `TestIntegration_AcceptanceFail_FixCycle_ThenPass`, `TestIntegration_AcceptanceUnclear_FixAddsEvidence_ThenPass` |
+| 4 | Fix-cycle from review -- findings above threshold trigger fix-plan targeting specific findings | `TestSpecLoop_ReviewStage_FailureContext_CarriesFindings`, `TestReviewFailuresToStrings`, `TestFilterNewBlockingFindings_OnlyNewAboveThreshold`, `TestSpecLoop_PreexistingFindings_DontBlock`, `TestIntegration_ReviewFinding_TriggersFixCycle`, `TestIntegration_FixCycle_NewVsPreexistingFindings` |
+| 5 | Fix-cycle from acceptance -- fail/unclear results trigger fix-plan targeting specific gaps | `TestSpecLoop_AcceptStage_ReplanOnFail`, `TestSpecLoop_AcceptStage_ReplanOnUnclear`, `TestSpecLoop_AcceptStage_FailureContext_CarriesCriteria`, `TestAcceptanceFailuresToStrings_Fail`, `TestAcceptanceFailuresToStrings_Unclear`, `TestIntegration_AcceptanceFail_FixCycle_ThenPass`, `TestIntegration_AcceptanceUnclear_FixAddsEvidence_ThenPass` |
 | 6 | Facet configurability -- facets selected from built-in registry, enabled/disabled via policy | `TestRegistry_DefaultFacets`, `TestRegistry_AllBuiltInFacets`, `TestRegistry_SelectFacets_AllValid`, `TestRegistry_SelectFacets_UnknownFacet_ReturnsError`, `TestReviewer_InvokesAllEnabledFacets`, `TestValidate_ReviewConfig_InvalidFacet`, `TestValidate_ReviewConfig_ValidCustomSelection`, `TestIntegration_FacetEnabledViaConfig` |
 | 7 | Severity levels -- error/warning/suggestion/info with distinct blocking behavior | `TestSeverity_Ordering`, `TestSeverity_Parse_ValidValues`, `TestFilterBlockingFindings_MixedSeverities`, `TestSpecLoop_NewOnlyFindings_DontRetrigger` |
 | 8 | VISION label deferral -- system does not auto-label as accepted | `TestSpecLoop_VisionLabelNotSet`, `TestIntegration_ReviewAcceptance_HappyPath_ReadyForReview` |
@@ -872,25 +930,39 @@ func AssertReviewJSON(t *testing.T, evidenceDir string) map[string][]review.Find
     return result
 }
 
-// AssertAcceptanceJSON reads acceptance.json and validates its structure.
-func AssertAcceptanceJSON(t *testing.T, evidenceDir string) []acceptor.CriterionResult {
+// AcceptanceEnvelope is the top-level schema for acceptance.json.
+type AcceptanceEnvelope struct {
+    Results          []acceptor.CriterionResult `json:"results"`
+    AllPass          bool                       `json:"all_pass"`
+    HasFailOrUnclear bool                       `json:"has_fail_or_unclear"`
+}
+
+// AssertAcceptanceJSON reads acceptance.json and validates its envelope structure.
+func AssertAcceptanceJSON(t *testing.T, evidenceDir string) AcceptanceEnvelope {
     t.Helper()
     data, err := os.ReadFile(filepath.Join(evidenceDir, "acceptance.json"))
     if err != nil {
         t.Fatalf("reading acceptance.json: %v", err)
     }
-    var result []acceptor.CriterionResult
-    if err := json.Unmarshal(data, &result); err != nil {
+    var envelope AcceptanceEnvelope
+    if err := json.Unmarshal(data, &envelope); err != nil {
         t.Fatalf("parsing acceptance.json: %v", err)
     }
-    return result
+    return envelope
 }
 
 // AssertAllCriteriaPass fails if any criterion in acceptance.json does not have status "pass".
+// Also validates the envelope summary fields (all_pass, has_fail_or_unclear).
 func AssertAllCriteriaPass(t *testing.T, evidenceDir string) {
     t.Helper()
-    results := AssertAcceptanceJSON(t, evidenceDir)
-    for _, r := range results {
+    envelope := AssertAcceptanceJSON(t, evidenceDir)
+    if !envelope.AllPass {
+        t.Fatalf("expected all_pass == true, got false")
+    }
+    if envelope.HasFailOrUnclear {
+        t.Fatalf("expected has_fail_or_unclear == false, got true")
+    }
+    for _, r := range envelope.Results {
         if r.Status != "pass" {
             t.Fatalf("criterion %q has status %q, want pass", r.Criterion, r.Status)
         }

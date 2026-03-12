@@ -8,7 +8,7 @@
 
 ## Project Context
 
-- **Language/runtime:** Go 1.26, CLI built with `github.com/spf13/cobra`
+- **Language/runtime:** Go 1.24, CLI built with `github.com/spf13/cobra`
 - **Project root:** `/Users/dabrams/gromit`
 - **Module path:** `github.com/danabrams/gromit`
 - **CLI entry point:** `cmd/gromit-next/main.go`
@@ -52,7 +52,8 @@ Two new packages plus extensions to existing packages:
 
 | Package | What changes |
 |---------|-------------|
-| `internal/next/specloop/stages/` | New `ReviewStage` and `AcceptStage` implementations |
+| `internal/next/specloop/stages/review.go` | ReviewStage wrapper (stage interface over review/ domain logic) |
+| `internal/next/specloop/stages/accept.go` | AcceptStage wrapper (stage interface over acceptor/ domain logic) |
 | `internal/next/specloop/` | FailureContext extensions for review/acceptance data |
 | `internal/next/execpolicy/` | Review config (facets, tiers, replan_threshold), evaluator model tier |
 | `internal/next/evidence/` | `WriteReviewFindings()`, `WriteAcceptance()`, review.md sections |
@@ -107,18 +108,31 @@ type FailureContext struct {
 }
 ```
 
+`FailureContext.Failures` remains `[]string`. Helper functions serialize structured data into formatted strings:
+- `ReviewFailuresToStrings(findings []Finding, threshold Severity) []string` — formats blocking findings as `review:<facet>:<severity>: <file>:<line> — <description> (suggested fix: <fix>)`
+- `AcceptanceFailuresToStrings(results []CriterionResult) []string` — formats failed/unclear criteria as `acceptance:<status>: "<criterion>" — <rationale> [<evidence_refs>]`. Differentiates `fail` (implement the missing behavior) from `unclear` (add tests or evidence) in the formatted string so the planner produces appropriately targeted fix tasks.
+
+```go
+// These helpers are NOT on FailureContext — they are free functions used by
+// ReviewStage and AcceptStage to build the Failures slice before constructing FailureContext.
+```
+
 ### Severity levels
 
 ```go
 // review/severity.go
-type Severity string
+type Severity int // JSON representation is a string (e.g., "error", "warning")
 
 const (
-    SeverityError      Severity = "error"
-    SeverityWarning    Severity = "warning"
-    SeveritySuggestion Severity = "suggestion"
-    SeverityInfo       Severity = "info"
+    SeverityError      Severity = ... // "error"
+    SeverityWarning    Severity = ... // "warning"
+    SeveritySuggestion Severity = ... // "suggestion"
+    SeverityInfo       Severity = ... // "info"
 )
+
+func (s Severity) Rank() int          // numeric rank for comparison
+func (s Severity) String() string     // string representation
+func ParseSeverity(s string) (Severity, error) // parse from string, returns error for unknown values
 ```
 
 Severity ordering for threshold comparison: `error > warning > suggestion > info`.
@@ -172,7 +186,7 @@ type Registry struct {
 
 func NewRegistry() *Registry { /* pre-populated with built-in facets */ }
 func (r *Registry) Get(name string) (FacetDef, bool)
-func (r *Registry) List() []string
+func (r *Registry) ListNames() []string
 ```
 
 Built-in facets (all pre-registered, first two enabled by default):
@@ -185,31 +199,35 @@ Built-in facets (all pre-registered, first two enabled by default):
 | `test_coverage` | Are new code paths tested? Missing edge cases? | medium |
 | `architecture_drift` | Does the change respect boundaries from the project cell? | medium |
 
+Each facet has a Go `text/template` prompt that receives `{{.Diff}}`, `{{.SpecPacket}}`, and other context variables. The 5 built-in facet prompts evaluate:
+- **spec_alignment**: Compares the diff against the spec's in-scope requirements, checking for missing, incomplete, or divergent implementations.
+- **code_quality**: Evaluates naming conventions, code structure, duplication, and readability against project conventions.
+- **logic_gaps**: Checks for off-by-one errors, nil handling issues, missing error paths, and incomplete logic branches.
+- **test_coverage**: Assesses whether new code paths have corresponding tests and flags missing edge-case coverage.
+- **architecture_drift**: Reviews whether the change respects package boundaries, dependency direction, and architectural constraints from the project cell.
+
 ### Configurable threshold
+
+There is no standalone `Threshold` type. Threshold comparison uses a free function:
 
 ```go
 // review/threshold.go
-type Threshold string
-
-const (
-    ThresholdError      Threshold = "error"
-    ThresholdWarning    Threshold = "warning"
-    ThresholdSuggestion Threshold = "suggestion"
-)
-
-// Blocks returns true if the given severity is at or above the threshold.
-func (t Threshold) Blocks(s Severity) bool
+// IsBlocking returns true if findingSeverity is at or above the threshold.
+// Both threshold and findingSeverity are Severity values.
+func IsBlocking(threshold, findingSeverity Severity) bool
 ```
 
 | Threshold value | Blocks on |
 |----------------|-----------|
-| `"error"` | error only |
-| `"warning"` | error + warning |
-| `"suggestion"` (default) | error + warning + suggestion |
+| `SeverityError` | error only |
+| `SeverityWarning` | error + warning |
+| `SeveritySuggestion` (default) | error + warning + suggestion |
 
 ### New-vs-preexisting matching
 
 On fix cycles, the review stage must distinguish new findings from pre-existing ones. Only **new** findings at or above threshold trigger replanning.
+
+The ReviewStage instance holds prior findings (`[]Finding`) in-memory for disposition matching across SpecLoop cycles. Because the stage object persists across cycles (it is constructed once and reused), no serialization to RunState is needed for matching purposes. The RunState `ReviewFindings []string` field serves a different purpose: planner consumption and evidence.
 
 Matching algorithm (v1): A finding is **pre-existing** if a prior finding exists with:
 1. Same file path, AND
@@ -233,7 +251,9 @@ type CriterionResult struct {
 }
 
 type AcceptanceResult struct {
-    Criteria []CriterionResult `json:"criteria"`
+    Results          []CriterionResult `json:"results"`
+    AllPass          bool              `json:"all_pass"`
+    HasFailOrUnclear bool              `json:"has_fail_or_unclear"`
 }
 ```
 
@@ -277,6 +297,60 @@ Each failure string is formatted as `acceptance:<status>: "<criterion>" — <rat
 ### Budget sharing
 
 Validation, review, and acceptance fix cycles all consume from the same `max_spec_cycles` budget. The SpecLoop already handles this — ReviewStage and AcceptStage return `ReplanFrom` just like ValidateStage does, and the SpecLoop's cycle counter applies uniformly.
+
+### FinalizeStage three-gate condition
+
+FinalizeStage determines `ready_for_review` only when ALL three gates pass:
+
+```
+allDone && FinalValidationPassed && FinalReviewPassed && FinalAcceptancePassed
+```
+
+If any gate fails and budget is exhausted, the terminal state is `needs_human`. FinalizeStage preserves worktrees for ALL terminal states (including `blocked`). InitStage auto-cleans blocked worktrees from prior runs of the same spec.
+
+### RunState extensions
+
+RunState gains four new fields to carry review and acceptance results across cycles:
+
+```go
+type RunState struct {
+    // ... existing fields ...
+    FinalReviewPassed     bool                `json:"final_review_passed"`
+    FinalAcceptancePassed bool                `json:"final_acceptance_passed"`
+    ReviewFindings        []string `json:"review_findings,omitempty"`
+    AcceptanceResults     []string `json:"acceptance_results,omitempty"`
+}
+```
+
+- `FinalReviewPassed` — set to true when the last review cycle produced no new blocking findings.
+- `FinalAcceptancePassed` — set to true when the last acceptance evaluation produced all-pass results.
+- `ReviewFindings` — human-readable review finding strings for planner consumption and evidence. ReviewStage holds structured `[]Finding` internally for disposition matching across cycles.
+- `AcceptanceResults` — human-readable acceptance result strings for planner consumption and evidence.
+
+### AcceptanceResult field naming
+
+`AcceptanceResult` uses `Results` (not `Criteria`) as the field name:
+
+```go
+type AcceptanceResult struct {
+    Results         []CriterionResult `json:"results"`
+    AllPass         bool              `json:"all_pass"`
+    HasFailOrUnclear bool            `json:"has_fail_or_unclear"`
+}
+```
+
+`AllPass` and `HasFailOrUnclear` are computed convenience fields set during evaluation.
+
+### ParseAcceptanceCriteria
+
+A helper in the `acceptor` package parses `## Acceptance Criteria` from spec markdown:
+
+```go
+// acceptor/parse.go
+func ParseAcceptanceCriteria(specMarkdown string) ([]string, error)
+```
+
+This extracts the numbered list items under the `## Acceptance Criteria` heading, returning them as individual criterion strings for per-criterion evaluation.
 
 ### Evaluator model tier
 
@@ -354,7 +428,7 @@ Fix three bugs discovered during manual testing:
 Build the multi-facet LLM review package:
 - Severity type and ordering
 - Finding type with NormalizeNilFields
-- Threshold type with Blocks() method
+- IsBlocking(threshold, findingSeverity) threshold comparison function
 - Facet registry with built-in facets and prompt templates
 - Facet reviewer (interface for LLM invocation per facet)
 - New-vs-preexisting finding matching (ClassifyFindings)
@@ -529,9 +603,9 @@ All run artifacts go under the external workspace. Never in the target repo.
       execution-policy.json   # Snapshot of policy used
       tasks/
         <task-id>/
-          task-packet.md      # Compiled task context
+          task-packet.md      # Compiled task context (0002b executor integration)
           result.json         # Task outcome + metrics
-          agent-output.txt    # Raw agent stdout
+          agent-output.txt    # Raw agent stdout (0002b executor integration)
       evidence/
         summary.md            # Human-facing run summary
         diff-summary.md       # What changed
@@ -542,6 +616,10 @@ All run artifacts go under the external workspace. Never in the target repo.
         review.md             # Decision sheet (updated with review + acceptance sections)
         metrics.json          # Raw signal: per-invocation records
 ```
+
+### Evidence file authorship
+
+ReviewStage and AcceptStage write structured JSON evidence files (`review.json`, `acceptance.json`) directly as side effects of their `Run()` method, using the structured types from `review/` and `acceptor/` packages respectively. The RunState `[]string` fields (`ReviewFindings`, `AcceptanceResults`) are NOT the source for evidence files — they carry human-readable summaries for planner consumption. The EvidenceStage does NOT re-derive evidence files from RunState string fields.
 
 ### review.json schema
 
@@ -568,14 +646,16 @@ Object keyed by facet name, each containing an array of findings:
 
 ```json
 {
-  "criteria": [
+  "results": [
     {
       "criterion": "Zero repo pollution",
       "status": "pass",
       "rationale": "No gromit files found in target repo tracked files.",
       "evidence_refs": ["evidence/diff-summary.md", "evidence/worktree-info.json"]
     }
-  ]
+  ],
+  "all_pass": true,
+  "has_fail_or_unclear": false
 }
 ```
 

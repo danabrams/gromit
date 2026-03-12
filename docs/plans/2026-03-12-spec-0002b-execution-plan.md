@@ -4,9 +4,9 @@
 
 **Goal:** Extend the Spec 0002a execution loop with LLM-driven multi-facet code review, per-criterion acceptance evaluation, fix-cycle replanning from review/acceptance failures, and configurable severity thresholds.
 
-**Architecture:** Two new packages (`internal/next/review/`, `internal/next/acceptor/`), two new stages (`ReviewStage`, `AcceptStage`), extensions to `execpolicy`, `evidence`, and CLI wiring.
+**Architecture:** Two new domain packages (`internal/next/review/`, `internal/next/acceptor/`), two new stage wrappers (`internal/next/specloop/stages/review.go`, `internal/next/specloop/stages/accept.go`), extensions to `execpolicy`, `evidence`, and CLI wiring. Stage wrappers are thin adapters; domain logic lives in the domain packages.
 
-**Tech Stack:** Go 1.26, cobra CLI, existing provider/specloop/evidence packages.
+**Tech Stack:** Go 1.24, cobra CLI, existing provider/specloop/evidence packages.
 
 **Module:** `github.com/danabrams/gromit`
 
@@ -859,7 +859,12 @@ func TestStatus_Constants(t *testing.T) {
 
 - **Step 2:** `go test ./internal/next/acceptor/ -run TestCriterionResult -v` — expect FAIL
 
-- **Step 3: Implement** — Define status constants `StatusPass = "pass"`, `StatusFail = "fail"`, `StatusUnclear = "unclear"`. Define `CriterionResult` struct with `Criterion string`, `Status string`, `Rationale string`, `EvidenceRefs []string`. Define `AcceptanceResult` struct with `Results []CriterionResult`, `AllPass bool`, `HasFailOrUnclear bool`. Add `NormalizeNilFields()` on both types.
+- **Step 3: Implement** — Define status constants `StatusPass = "pass"`, `StatusFail = "fail"`, `StatusUnclear = "unclear"`. Define `CriterionResult` struct with `Criterion string`, `Status string`, `Rationale string`, `EvidenceRefs []string`. Define `AcceptanceResult` struct with:
+  - `Results []CriterionResult` (field name `Results`, not `Criteria`)
+  - `AllPass bool`
+  - `HasFailOrUnclear bool`
+  - JSON serialization: `{"results": [...], "all_pass": true, "has_fail_or_unclear": false}`
+  Add `NormalizeNilFields()` on both types.
 
 - **Step 4:** `go test ./internal/next/acceptor/ -run TestCriterionResult -v` — expect PASS
 - **Step 5:** Commit `"feat(next): add acceptor types for criterion evaluation results"`
@@ -1087,23 +1092,34 @@ func TestBuildFailureContext_AllPass_Empty(t *testing.T) {
 	}
 }
 
-func TestAcceptanceFailure_ToStrings(t *testing.T) {
-	failures := []AcceptanceFailure{
-		{Criterion: "multi-currency", Status: StatusFail, Rationale: "only USD", EvidenceRefs: []string{"acceptance.json"}},
+func TestAcceptanceFailuresToStrings_FailAndUnclear(t *testing.T) {
+	results := []CriterionResult{
+		{Criterion: "multi-currency", Status: StatusFail, Rationale: "only USD"},
+		{Criterion: "audit log", Status: StatusUnclear, Rationale: "no test"},
+		{Criterion: "returns 200", Status: StatusPass, Rationale: "test proves it"},
 	}
-	strs := AcceptanceFailuresToStrings(failures)
-	if len(strs) != 1 {
-		t.Fatalf("expected 1 string, got %d", len(strs))
+	strs := AcceptanceFailuresToStrings(results)
+	if len(strs) != 2 {
+		t.Fatalf("expected 2 strings (skip pass), got %d", len(strs))
 	}
-	if !containsSubstring(strs[0], "multi-currency") {
-		t.Error("string should contain criterion name")
+	// fail format: "acceptance:fail: <criterion> — implement missing behavior"
+	if !containsSubstring(strs[0], "acceptance:fail:") || !containsSubstring(strs[0], "multi-currency") {
+		t.Errorf("fail string format wrong: %q", strs[0])
+	}
+	// unclear format: "acceptance:unclear: <criterion> — add tests or evidence to prove/disprove"
+	if !containsSubstring(strs[1], "acceptance:unclear:") || !containsSubstring(strs[1], "audit log") {
+		t.Errorf("unclear string format wrong: %q", strs[1])
 	}
 }
 ```
 
 - **Step 2:** `go test ./internal/next/acceptor/ -run TestBuildFailureContext -v` — expect FAIL
 
-- **Step 3: Implement** — Define `AcceptanceFailure` struct with `Criterion string`, `Status string`, `Rationale string`, `EvidenceRefs []string`. `BuildFailureContext(result AcceptanceResult, cycle int) []AcceptanceFailure` filters for non-pass results. `AcceptanceFailuresToStrings(failures []AcceptanceFailure) []string` converts each failure to a human-readable string suitable for `FailureContext.Failures`.
+- **Step 3: Implement** — Define `AcceptanceFailure` struct with `Criterion string`, `Status string`, `Rationale string`, `EvidenceRefs []string`. `BuildFailureContext(result AcceptanceResult, cycle int) []AcceptanceFailure` filters for non-pass results. `AcceptanceFailuresToStrings(results []CriterionResult) []string` converts each non-pass result to a human-readable string suitable for `FailureContext.Failures` with fail/unclear differentiation:
+  - fail: `"acceptance:fail: <criterion> — implement missing behavior"`
+  - unclear: `"acceptance:unclear: <criterion> — add tests or evidence to prove/disprove"`
+
+  Also add `ReviewFailuresToStrings(findings []Finding) []string` helper (in `review/failctx.go` — see Task 19) that converts review findings to `FailureContext.Failures` strings. Note: `FailureContext.Failures` remains `[]string` — these helpers produce the string representations that populate it.
 
 - **Step 4:** `go test ./internal/next/acceptor/ -run TestBuildFailureContext -v` — expect PASS
 - **Step 5:** Commit `"feat(next): add acceptance failure context for planner replanning"`
@@ -1111,6 +1127,8 @@ func TestAcceptanceFailure_ToStrings(t *testing.T) {
 ---
 
 ## Phase 4: ReviewStage and AcceptStage — Stage Implementations
+
+**Package layout:** Stage wrappers live in `internal/next/specloop/stages/review.go` and `internal/next/specloop/stages/accept.go`. These are thin adapters that call into the domain logic packages: `internal/next/review/` (facet registry, findings, matching, threshold, runner) and `internal/next/acceptor/` (criterion types, evaluator, prompt rendering). The stages handle RunState mutation and NextAction decisions; the domain packages handle the actual review/acceptance logic.
 
 ### Task 15: ReviewStage implementation
 
@@ -1228,7 +1246,7 @@ func TestReviewStage_InfoOnly_Continue(t *testing.T) {
 
 - **Step 2:** `go test ./internal/next/specloop/stages/ -run TestReviewStage -v` — expect FAIL
 
-- **Step 3: Implement** — Define `ReviewRunner` interface matching `review.Runner.Run` signature. Define `ReviewStageConfig` with `DiffSummary string`, `SpecContent string`. `ReviewStage` struct holds a `ReviewRunner`, config, and optional `*runstore.EventLog`. `Name()` returns `"review"`. `Run` calls the runner with `RunInput` assembled from config and run state. If `result.HasBlockingFindings`, return `ReplanFrom` with `FailureContext` containing descriptions of blocking findings. Otherwise return `Continue`. Store findings in RunState for downstream AcceptStage and EvidenceStage.
+- **Step 3: Implement** — Define `ReviewRunner` interface matching `review.Runner.Run` signature. Define `ReviewStageConfig` with `DiffSummary string`, `SpecContent string`, `EvidenceDir string`. `ReviewStage` struct holds a `ReviewRunner`, config, optional `*runstore.EventLog`, and a `priorFindings []review.Finding` field (stage-local state for disposition matching across cycles). `Name()` returns `"review"`. `Run` calls the runner with `RunInput` assembled from config and run state. If `result.HasBlockingFindings`, set `rs.FinalReviewPassed = false`, populate `rs.ReviewFindings` with `ReviewFailuresToStrings(result.BlockingFindings)` (for planner/FailureContext), and return `ReplanFrom` with `FailureContext` containing the same strings. If no blocking findings, set `rs.FinalReviewPassed = true` and return `Continue`. After each run, append `result.AllFindings` to the stage's internal `priorFindings` slice, and write structured `review.json` via `Bundler.WriteReviewFindings`.
 
 - **Step 4:** `go test ./internal/next/specloop/stages/ -run TestReviewStage -v` — expect PASS
 - **Step 5:** Commit `"feat(next): add ReviewStage with blocking/continue logic"`
@@ -1354,10 +1372,86 @@ func TestAcceptStage_Unclear_ReplanFrom(t *testing.T) {
 
 - **Step 2:** `go test ./internal/next/specloop/stages/ -run TestAcceptStage -v` — expect FAIL
 
-- **Step 3: Implement** — Define `AcceptEvaluator` interface matching `acceptor.Evaluator.Evaluate` signature. Define `AcceptStageConfig` with `Criteria []string`, `DiffSummary string`. `AcceptStage` struct holds an `AcceptEvaluator`, config, and optional `*runstore.EventLog`. `Name()` returns `"accept"`. `Run` calls the evaluator with `EvaluateInput` assembled from config and run state. If `result.HasFailOrUnclear`, return `ReplanFrom` with `FailureContext` built from `acceptor.BuildFailureContext`. Otherwise return `Continue`.
+- **Step 3: Implement** — Define `AcceptEvaluator` interface matching `acceptor.Evaluator.Evaluate` signature. Define `AcceptStageConfig` with `Criteria []string`, `DiffSummary string`, `EvidenceDir string`. `AcceptStage` struct holds an `AcceptEvaluator`, config, and optional `*runstore.EventLog`. `Name()` returns `"accept"`. `Run` calls the evaluator with `EvaluateInput` assembled from config and run state. If `result.HasFailOrUnclear`, return `ReplanFrom` with `FailureContext` built from `acceptor.BuildFailureContext` (using `AcceptanceFailuresToStrings` with fail/unclear differentiation). Otherwise return `Continue`. On success, set `rs.FinalAcceptancePassed = true`. On failure, set `rs.FinalAcceptancePassed = false` and populate `rs.AcceptanceResults` with the string representations (for planner/FailureContext). After each run, write structured `acceptance.json` via `Bundler.WriteAcceptanceResults(result)` as a side effect.
 
 - **Step 4:** `go test ./internal/next/specloop/stages/ -run TestAcceptStage -v` — expect PASS
 - **Step 5:** Commit `"feat(next): add AcceptStage with fail/unclear replanning"`
+
+---
+
+### Task 16a: ParseAcceptanceCriteria helper
+
+- **Files:**
+  - Create: `internal/next/acceptor/parse.go`
+  - Create: `internal/next/acceptor/parse_test.go`
+
+- **Step 1: Write failing test** in `parse_test.go`:
+```go
+package acceptor
+
+import "testing"
+
+func TestParseAcceptanceCriteria_BasicSection(t *testing.T) {
+	specMD := `# My Spec
+
+## Description
+Some description here.
+
+## Acceptance Criteria
+- Refund endpoint returns 200
+- Multi-currency support for USD and EUR
+- Audit log entry created on refund
+
+## Implementation Notes
+Some notes.
+`
+	criteria, err := ParseAcceptanceCriteria(specMD)
+	if err != nil {
+		t.Fatalf("ParseAcceptanceCriteria: %v", err)
+	}
+	if len(criteria) != 3 {
+		t.Fatalf("expected 3 criteria, got %d: %v", len(criteria), criteria)
+	}
+	if criteria[0] != "Refund endpoint returns 200" {
+		t.Errorf("criteria[0] = %q", criteria[0])
+	}
+}
+
+func TestParseAcceptanceCriteria_NoSection(t *testing.T) {
+	specMD := `# My Spec
+
+## Description
+No acceptance criteria section here.
+`
+	_, err := ParseAcceptanceCriteria(specMD)
+	if err == nil {
+		t.Error("expected error when no Acceptance Criteria section found")
+	}
+}
+
+func TestParseAcceptanceCriteria_EmptySection(t *testing.T) {
+	specMD := `# My Spec
+
+## Acceptance Criteria
+
+## Next Section
+`
+	criteria, err := ParseAcceptanceCriteria(specMD)
+	if err != nil {
+		t.Fatalf("ParseAcceptanceCriteria: %v", err)
+	}
+	if len(criteria) != 0 {
+		t.Errorf("expected 0 criteria for empty section, got %d", len(criteria))
+	}
+}
+```
+
+- **Step 2:** `go test ./internal/next/acceptor/ -run TestParseAcceptanceCriteria -v` — expect FAIL
+
+- **Step 3: Implement** — `ParseAcceptanceCriteria(specMarkdown string) ([]string, error)` parses the `## Acceptance Criteria` section from the spec markdown. Scans for the heading, collects bullet points (`- ` prefix) until the next `##` heading or EOF. Strips the `- ` prefix and trims whitespace. Returns error if the section is not found. Lives in `internal/next/acceptor/parse.go`.
+
+- **Step 4:** `go test ./internal/next/acceptor/ -run TestParseAcceptanceCriteria -v` — expect PASS
+- **Step 5:** Commit `"feat(next): add ParseAcceptanceCriteria markdown parser"`
 
 ---
 
@@ -1470,7 +1564,7 @@ func TestFilterStagesForDryRun_ExcludesReviewAndAccept(t *testing.T) {
 
 - **Step 2:** `go test ./cmd/gromit-next/ -run TestFilterStagesForDryRun_ExcludesReviewAndAccept -v` — expect PASS (already excluded since dryRunStages only allows init/compile/plan)
 
-- **Step 3: Implement** — Verify that the existing `dryRunStages` map (init, compile, plan) already excludes review and accept. No code change needed if the test passes. If the `namedStage` test helper does not exist, add it.
+- **Step 3: Implement** — Verify that the existing `dryRunStages` map (init, compile, plan) already excludes review and accept. No code change needed if the test passes. Add the `namedStage` test helper.
 
 - **Step 4:** `go test ./cmd/gromit-next/ -run TestFilterStagesForDryRun -v` — expect PASS
 - **Step 5:** Commit `"test(next): verify dry-run filter excludes review and accept stages"`
@@ -1512,6 +1606,9 @@ func TestBuildReviewFailureContext_BlockingOnly(t *testing.T) {
 	if !containsAny(strs[0], "handler.go") {
 		t.Errorf("failure string should contain file, got %q", strs[0])
 	}
+	if !strings.HasPrefix(strs[0], "review:") {
+		t.Errorf("failure string should have review: prefix, got %q", strs[0])
+	}
 }
 
 func TestBuildReviewFailureContext_Empty(t *testing.T) {
@@ -1545,7 +1642,7 @@ func TestBuildReviewFailureContext_IncludesSuggestedFix(t *testing.T) {
 
 - **Step 2:** `go test ./internal/next/review/ -run TestBuildReviewFailureContext -v` — expect FAIL
 
-- **Step 3: Implement** — `BuildFailureStrings(result RunResult) []string` iterates `result.BlockingFindings` and formats each as a human-readable string: `"[facet] severity: file:line — description (suggested fix: ...)"`. These strings become the `FailureContext.Failures` slice that the planner receives for targeted fix-task generation.
+- **Step 3: Implement** — `BuildFailureStrings(result RunResult) []string` iterates `result.BlockingFindings` and formats each as a human-readable string: `"review:<facet>:<severity>: <file>:<line> — <description> (suggested fix: <fix>)"`. These strings become the `FailureContext.Failures` slice that the planner receives for targeted fix-task generation. Also add `ReviewFailuresToStrings(findings []Finding) []string` helper that converts a slice of `Finding` to human-readable failure strings for `FailureContext.Failures`. This is the review-side counterpart to `AcceptanceFailuresToStrings` in the acceptor package.
 
 - **Step 4:** `go test ./internal/next/review/ -run TestBuildReviewFailureContext -v` — expect PASS
 - **Step 5:** Commit `"feat(next): add review failure context builder for planner replanning"`
@@ -1558,6 +1655,14 @@ func TestBuildReviewFailureContext_IncludesSuggestedFix(t *testing.T) {
   - Modify: `internal/next/runstore/types.go`
   - Modify or create: `internal/next/runstore/types_test.go`
 
+- **New fields to add to RunState:**
+```go
+FinalReviewPassed     bool     `json:"final_review_passed"`
+FinalAcceptancePassed bool     `json:"final_acceptance_passed"`
+ReviewFindings        []string `json:"review_findings,omitempty"`
+AcceptanceResults     []string `json:"acceptance_results,omitempty"`
+```
+
 - **Step 1: Write failing test** in `types_test.go`:
 ```go
 package runstore
@@ -1569,8 +1674,10 @@ import (
 
 func TestRunState_ReviewAndAcceptanceFields(t *testing.T) {
 	rs := NewRunState("test-spec", "test-project")
-	rs.ReviewFindings = json.RawMessage(`{"spec_alignment": []}`)
-	rs.AcceptanceResults = json.RawMessage(`[{"criterion": "x", "status": "pass"}]`)
+	rs.FinalReviewPassed = true
+	rs.FinalAcceptancePassed = false
+	rs.ReviewFindings = []string{"[spec_alignment] error: handler.go:42 — missing validation"}
+	rs.AcceptanceResults = []string{"acceptance:fail: multi-currency — implement missing behavior"}
 
 	data, err := json.Marshal(rs)
 	if err != nil {
@@ -1581,11 +1688,17 @@ func TestRunState_ReviewAndAcceptanceFields(t *testing.T) {
 	if err := json.Unmarshal(data, &got); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
-	if got.ReviewFindings == nil {
-		t.Error("ReviewFindings should round-trip")
+	if !got.FinalReviewPassed {
+		t.Error("FinalReviewPassed should round-trip")
 	}
-	if got.AcceptanceResults == nil {
-		t.Error("AcceptanceResults should round-trip")
+	if got.FinalAcceptancePassed {
+		t.Error("FinalAcceptancePassed should round-trip as false")
+	}
+	if len(got.ReviewFindings) != 1 {
+		t.Errorf("ReviewFindings should round-trip, got %d", len(got.ReviewFindings))
+	}
+	if len(got.AcceptanceResults) != 1 {
+		t.Errorf("AcceptanceResults should round-trip, got %d", len(got.AcceptanceResults))
 	}
 }
 
@@ -1599,15 +1712,21 @@ func TestRunState_NormalizeNilFields_IncludesNewFields(t *testing.T) {
 	if rs.ReplanContext == nil {
 		t.Error("ReplanContext should not be nil after NormalizeNilFields")
 	}
+	if rs.ReviewFindings == nil {
+		t.Error("ReviewFindings should not be nil after NormalizeNilFields")
+	}
+	if rs.AcceptanceResults == nil {
+		t.Error("AcceptanceResults should not be nil after NormalizeNilFields")
+	}
 }
 ```
 
 - **Step 2:** `go test ./internal/next/runstore/ -run TestRunState_ReviewAndAcceptance -v` — expect FAIL
 
-- **Step 3: Implement** — Add `ReviewFindings json.RawMessage` and `AcceptanceResults json.RawMessage` fields to `RunState`. These store the raw JSON from review and acceptance stages so they can be written to evidence artifacts. Use `json.RawMessage` to avoid circular imports between `runstore` and `review`/`acceptor` packages.
+- **Step 3: Implement** — Add four new fields to `RunState`: `FinalReviewPassed bool`, `FinalAcceptancePassed bool`, `ReviewFindings []string` (omitempty), `AcceptanceResults []string` (omitempty). `ReviewFindings` stores human-readable review finding strings (produced by `ReviewFailuresToStrings`). `AcceptanceResults` stores human-readable acceptance result strings (produced by `AcceptanceFailuresToStrings`). These `[]string` fields exist **solely for planner/FailureContext consumption** — they are NOT used for evidence files (which are written as structured JSON by ReviewStage/AcceptStage directly) and NOT used for disposition matching (which uses stage-local `[]review.Finding` state). The `bool` flags indicate terminal pass/fail state for FinalizeStage's `ready_for_review` determination. Update `NormalizeNilFields()` to map nil `ReviewFindings` and `AcceptanceResults` to empty slices.
 
 - **Step 4:** `go test ./internal/next/runstore/ -run TestRunState_ReviewAndAcceptance -v` — expect PASS
-- **Step 5:** Commit `"feat(next): add ReviewFindings and AcceptanceResults to RunState"`
+- **Step 5:** Commit `"feat(next): add review/acceptance fields to RunState"`
 
 ---
 
@@ -1642,24 +1761,18 @@ func TestReviewStage_StoresFindingsInRunState(t *testing.T) {
 		t.Fatalf("Run: %v", err)
 	}
 
-	if rs.ReviewFindings == nil {
-		t.Fatal("ReviewFindings should be set in RunState after review")
-	}
-
-	// Verify it's valid JSON
-	var parsed map[string]interface{}
-	if err := json.Unmarshal(rs.ReviewFindings, &parsed); err != nil {
-		t.Fatalf("ReviewFindings should be valid JSON: %v", err)
+	if len(rs.ReviewFindings) == 0 {
+		t.Fatal("ReviewFindings should be populated in RunState after review")
 	}
 }
 ```
 
 - **Step 2:** `go test ./internal/next/specloop/stages/ -run TestReviewStage_StoresFindings -v` — expect FAIL
 
-- **Step 3: Implement** — After running the review, marshal `result.FindingsByFacet` to JSON and store it in `rs.ReviewFindings`. This makes the review data available to AcceptStage and EvidenceStage downstream.
+- **Step 3: Implement** — After running the review, convert all findings to string representations using `ReviewFailuresToStrings` and store in `rs.ReviewFindings` (for planner/FailureContext consumption only). Also set `rs.FinalReviewPassed` based on `result.HasBlockingFindings`. Additionally, the stage appends all `result.AllFindings` to its internal `priorFindings []review.Finding` slice (stage-local state for disposition matching on fix cycles). The stage also writes the structured `review.json` evidence file as a side effect, using `Bundler.WriteReviewFindings(result.FindingsByFacet)` with the facet-keyed structured data. This ensures evidence files contain full structured Finding objects matching the spec schema.
 
 - **Step 4:** `go test ./internal/next/specloop/stages/ -run TestReviewStage_StoresFindings -v` — expect PASS
-- **Step 5:** Commit `"feat(next): ReviewStage stores findings as JSON in RunState"`
+- **Step 5:** Commit `"feat(next): ReviewStage stores findings as strings in RunState"`
 
 ---
 
@@ -1693,26 +1806,48 @@ func TestAcceptStage_StoresResultsInRunState(t *testing.T) {
 		t.Fatalf("Run: %v", err)
 	}
 
-	if rs.AcceptanceResults == nil {
-		t.Fatal("AcceptanceResults should be set in RunState after acceptance")
+	if !rs.FinalAcceptancePassed {
+		t.Error("FinalAcceptancePassed should be true when all pass")
+	}
+	// AcceptanceResults may be empty when all pass (no failures to report)
+}
+
+func TestAcceptStage_StoresFailuresInRunState(t *testing.T) {
+	eval := &mockAcceptEvaluator{
+		result: acceptor.AcceptanceResult{
+			Results: []acceptor.CriterionResult{
+				{Criterion: "multi-currency", Status: acceptor.StatusFail, Rationale: "only USD"},
+			},
+			HasFailOrUnclear: true,
+		},
 	}
 
-	var parsed []interface{}
-	if err := json.Unmarshal(rs.AcceptanceResults, &parsed); err != nil {
-		t.Fatalf("AcceptanceResults should be valid JSON array: %v", err)
+	stage := NewAcceptStage(eval, AcceptStageConfig{
+		Criteria: []string{"multi-currency"},
+	}, nil)
+	rs := runstore.NewRunState("test-spec", "test-project")
+	rs.Cycle = 1
+
+	_, err := stage.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
 	}
-	if len(parsed) != 1 {
-		t.Errorf("expected 1 acceptance result, got %d", len(parsed))
+
+	if rs.FinalAcceptancePassed {
+		t.Error("FinalAcceptancePassed should be false on failure")
+	}
+	if len(rs.AcceptanceResults) == 0 {
+		t.Error("AcceptanceResults should contain failure strings")
 	}
 }
 ```
 
-- **Step 2:** `go test ./internal/next/specloop/stages/ -run TestAcceptStage_StoresResults -v` — expect FAIL
+- **Step 2:** `go test ./internal/next/specloop/stages/ -run TestAcceptStage_Stores -v` — expect FAIL
 
-- **Step 3: Implement** — After running the evaluator, marshal `result.Results` to JSON and store it in `rs.AcceptanceResults`. This makes acceptance data available to EvidenceStage.
+- **Step 3: Implement** — After running the evaluator, set `rs.FinalAcceptancePassed = result.AllPass`. If `result.HasFailOrUnclear`, populate `rs.AcceptanceResults` with `AcceptanceFailuresToStrings(result.Results)` using the fail/unclear differentiation format (for planner/FailureContext consumption only). The stage also writes the structured `acceptance.json` evidence file as a side effect, using `Bundler.WriteAcceptanceResults(result)` with the full `AcceptanceResult` struct. This ensures the evidence file contains the spec-schema-compliant structure (`{results: [...], all_pass, has_fail_or_unclear}`).
 
-- **Step 4:** `go test ./internal/next/specloop/stages/ -run TestAcceptStage_StoresResults -v` — expect PASS
-- **Step 5:** Commit `"feat(next): AcceptStage stores results as JSON in RunState"`
+- **Step 4:** `go test ./internal/next/specloop/stages/ -run TestAcceptStage_Stores -v` — expect PASS
+- **Step 5:** Commit `"feat(next): AcceptStage stores results and flags in RunState"`
 
 ---
 
@@ -1722,15 +1857,32 @@ func TestAcceptStage_StoresResultsInRunState(t *testing.T) {
   - Modify: `internal/next/specloop/stages/review.go`
   - Modify: `internal/next/specloop/stages/review_test.go`
 
+- **Design note:** ReviewStage holds `[]review.Finding` as **stage-local state** (a field on the ReviewStage struct, not on RunState). On each cycle, after the review runner returns, the stage appends all findings from the current cycle to its internal `priorFindings` slice. On fix cycles (cycle > 1), the stage passes its internal prior findings to `RunInput.PriorFindings` for disposition matching (new vs. pre-existing). This avoids any need to parse `rs.ReviewFindings` strings back into structured `Finding` objects.
+
 - **Step 1: Write failing test** in `review_test.go`:
 ```go
 func TestReviewStage_FixCycle_PassesPriorFindings(t *testing.T) {
+	cycle1Findings := []review.Finding{
+		{Facet: "spec_alignment", Severity: "warning", File: "handler.go", Message: "missing check"},
+	}
+
 	var capturedInput review.RunInput
+	callCount := 0
 	runner := &capturingReviewRunner{
-		result: review.RunResult{
-			AllFindings:        []review.Finding{},
-			BlockingFindings:   []review.Finding{},
-			HasBlockingFindings: false,
+		resultFn: func() review.RunResult {
+			callCount++
+			if callCount == 1 {
+				return review.RunResult{
+					AllFindings:         cycle1Findings,
+					BlockingFindings:    []review.Finding{},
+					HasBlockingFindings: false,
+				}
+			}
+			return review.RunResult{
+				AllFindings:         []review.Finding{},
+				BlockingFindings:    []review.Finding{},
+				HasBlockingFindings: false,
+			}
 		},
 		capture: func(input review.RunInput) {
 			capturedInput = input
@@ -1738,41 +1890,44 @@ func TestReviewStage_FixCycle_PassesPriorFindings(t *testing.T) {
 	}
 
 	stage := NewReviewStage(runner, ReviewStageConfig{}, nil)
-	rs := runstore.NewRunState("test-spec", "test-project")
-	rs.Cycle = 2
 
-	// Simulate prior review findings from cycle 1
-	priorJSON, _ := json.Marshal(map[string][]review.Finding{
-		"spec_alignment": {{Severity: review.SeverityWarning, File: "handler.go", Description: "missing check"}},
-	})
-	rs.ReviewFindings = priorJSON
+	// Cycle 1: produces findings, stage stores them internally
+	rs1 := runstore.NewRunState("test-spec", "test-project")
+	rs1.Cycle = 1
+	stage.Run(context.Background(), rs1)
 
-	_, err := stage.Run(context.Background(), rs)
+	// Cycle 2: stage should pass prior findings from its internal state
+	rs2 := runstore.NewRunState("test-spec", "test-project")
+	rs2.Cycle = 2
+	_, err := stage.Run(context.Background(), rs2)
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
 
 	if len(capturedInput.PriorFindings) == 0 {
-		t.Error("on fix cycle, prior findings should be passed to runner")
+		t.Error("on fix cycle, prior findings should be passed to runner from stage-local state")
+	}
+	if capturedInput.PriorFindings[0].Facet != "spec_alignment" {
+		t.Errorf("expected spec_alignment facet, got %s", capturedInput.PriorFindings[0].Facet)
 	}
 }
 
 type capturingReviewRunner struct {
-	result  review.RunResult
-	capture func(review.RunInput)
+	resultFn func() review.RunResult
+	capture  func(review.RunInput)
 }
 
 func (c *capturingReviewRunner) Run(ctx context.Context, input review.RunInput) (review.RunResult, error) {
 	if c.capture != nil {
 		c.capture(input)
 	}
-	return c.result, nil
+	return c.resultFn(), nil
 }
 ```
 
 - **Step 2:** `go test ./internal/next/specloop/stages/ -run TestReviewStage_FixCycle -v` — expect FAIL
 
-- **Step 3: Implement** — In `ReviewStage.Run`, when `rs.Cycle > 1` and `rs.ReviewFindings` is non-nil, unmarshal the prior findings and pass them as `PriorFindings` in `RunInput`. This enables the runner to label dispositions (new vs. pre-existing) on fix cycles.
+- **Step 3: Implement** — Add a `priorFindings []review.Finding` field to the `ReviewStage` struct. In `ReviewStage.Run`: (1) on fix cycles (cycle > 1), populate `RunInput.PriorFindings` from the stage's internal `priorFindings` slice; (2) after the review runner returns, append all `RunResult.AllFindings` to the stage's `priorFindings` slice. The stage also writes `rs.ReviewFindings` (the `[]string` form) for planner/FailureContext consumption, but disposition matching uses only the structured stage-local state.
 
 - **Step 4:** `go test ./internal/next/specloop/stages/ -run TestReviewStage_FixCycle -v` — expect PASS
 - **Step 5:** Commit `"feat(next): ReviewStage passes prior findings to runner on fix cycles"`
@@ -1996,6 +2151,8 @@ func TestLoadPolicy_ReviewDefaultsPreservedOnPartialJSON(t *testing.T) {
   - Modify: `internal/next/evidence/bundle.go`
   - Modify or create: `internal/next/evidence/bundle_test.go`
 
+- **Design note:** `WriteReviewFindings` accepts structured `map[string][]review.Finding` (facet-keyed) and writes it as structured JSON matching the spec schema. ReviewStage calls this directly as a side effect of its `Run` method, passing the structured findings it already holds. The Bundler method does NOT accept `[]string` — the `[]string` form on RunState is only for planner/FailureContext.
+
 - **Step 1: Write failing test** in `bundle_test.go`:
 ```go
 package evidence
@@ -2005,6 +2162,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/danabrams/gromit/internal/next/review"
 )
 
 func TestBundler_WriteReviewFindings(t *testing.T) {
@@ -2014,12 +2173,14 @@ func TestBundler_WriteReviewFindings(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	findings := json.RawMessage(`{
-		"spec_alignment": [
-			{"severity": "error", "file": "handler.go", "line": 42, "description": "missing validation"}
-		],
-		"code_quality": []
-	}`)
+	findings := map[string][]review.Finding{
+		"spec_alignment": {
+			{Facet: "spec_alignment", Severity: "error", File: "handler.go", Line: 42, Message: "missing validation"},
+		},
+		"code_quality": {
+			{Facet: "code_quality", Severity: "warning", File: "router.go", Line: 10, Message: "long function"},
+		},
+	}
 
 	if err := b.WriteReviewFindings(findings); err != nil {
 		t.Fatalf("WriteReviewFindings: %v", err)
@@ -2030,19 +2191,22 @@ func TestBundler_WriteReviewFindings(t *testing.T) {
 		t.Fatalf("read review.json: %v", err)
 	}
 
-	var parsed map[string]interface{}
+	var parsed map[string][]json.RawMessage
 	if err := json.Unmarshal(data, &parsed); err != nil {
-		t.Fatalf("review.json should be valid JSON: %v", err)
+		t.Fatalf("review.json should be a facet-keyed JSON object: %v", err)
 	}
-	if _, ok := parsed["spec_alignment"]; !ok {
-		t.Error("review.json should contain spec_alignment key")
+	if len(parsed["spec_alignment"]) != 1 {
+		t.Errorf("expected 1 spec_alignment finding, got %d", len(parsed["spec_alignment"]))
+	}
+	if len(parsed["code_quality"]) != 1 {
+		t.Errorf("expected 1 code_quality finding, got %d", len(parsed["code_quality"]))
 	}
 }
 ```
 
 - **Step 2:** `go test ./internal/next/evidence/ -run TestBundler_WriteReviewFindings -v` — expect FAIL
 
-- **Step 3: Implement** — Add `WriteReviewFindings(findings json.RawMessage) error` to `Bundler`. Write the raw JSON to `review.json` in the evidence directory. Use `json.MarshalIndent` on the raw message for pretty formatting.
+- **Step 3: Implement** — Add `WriteReviewFindings(findings map[string][]review.Finding) error` to `Bundler`. Write the facet-keyed findings object as structured JSON to `review.json` in the evidence directory using `json.MarshalIndent`. This matches the spec schema where review.json is a facet-keyed object with Finding arrays as values.
 
 - **Step 4:** `go test ./internal/next/evidence/ -run TestBundler_WriteReviewFindings -v` — expect PASS
 - **Step 5:** Commit `"feat(next): add WriteReviewFindings to evidence Bundler"`
@@ -2055,6 +2219,8 @@ func TestBundler_WriteReviewFindings(t *testing.T) {
   - Modify: `internal/next/evidence/bundle.go`
   - Modify: `internal/next/evidence/bundle_test.go`
 
+- **Design note:** `WriteAcceptanceResults` accepts a structured `acceptor.AcceptanceResult` and writes it as structured JSON matching the spec schema (`{results: [...], all_pass: bool, has_fail_or_unclear: bool}`). AcceptStage calls this directly as a side effect of its `Run` method, passing the structured result it already holds. The `[]string` form on RunState is only for planner/FailureContext.
+
 - **Step 1: Write failing test** in `bundle_test.go`:
 ```go
 func TestBundler_WriteAcceptanceResults(t *testing.T) {
@@ -2064,12 +2230,16 @@ func TestBundler_WriteAcceptanceResults(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	results := json.RawMessage(`[
-		{"criterion": "returns 200", "status": "pass", "rationale": "test proves it", "evidence_refs": ["validation.json"]},
-		{"criterion": "audit log", "status": "unclear", "rationale": "no test", "evidence_refs": []}
-	]`)
+	result := acceptor.AcceptanceResult{
+		Results: []acceptor.CriterionResult{
+			{Criterion: "multi-currency", Status: "fail", Reason: "implement missing behavior"},
+			{Criterion: "audit log", Status: "unclear", Reason: "add tests or evidence to prove/disprove"},
+		},
+		AllPass:           false,
+		HasFailOrUnclear:  true,
+	}
 
-	if err := b.WriteAcceptanceResults(results); err != nil {
+	if err := b.WriteAcceptanceResults(result); err != nil {
 		t.Fatalf("WriteAcceptanceResults: %v", err)
 	}
 
@@ -2078,19 +2248,26 @@ func TestBundler_WriteAcceptanceResults(t *testing.T) {
 		t.Fatalf("read acceptance.json: %v", err)
 	}
 
-	var parsed []interface{}
+	var parsed map[string]interface{}
 	if err := json.Unmarshal(data, &parsed); err != nil {
-		t.Fatalf("acceptance.json should be valid JSON array: %v", err)
+		t.Fatalf("acceptance.json should be a valid JSON object: %v", err)
 	}
-	if len(parsed) != 2 {
-		t.Errorf("expected 2 results, got %d", len(parsed))
+	results, ok := parsed["results"].([]interface{})
+	if !ok || len(results) != 2 {
+		t.Errorf("expected 2 results in results array, got %v", parsed["results"])
+	}
+	if parsed["all_pass"] != false {
+		t.Error("all_pass should be false")
+	}
+	if parsed["has_fail_or_unclear"] != true {
+		t.Error("has_fail_or_unclear should be true")
 	}
 }
 ```
 
 - **Step 2:** `go test ./internal/next/evidence/ -run TestBundler_WriteAcceptanceResults -v` — expect FAIL
 
-- **Step 3: Implement** — Add `WriteAcceptanceResults(results json.RawMessage) error` to `Bundler`. Write the raw JSON to `acceptance.json` in the evidence directory with pretty formatting.
+- **Step 3: Implement** — Add `WriteAcceptanceResults(result acceptor.AcceptanceResult) error` to `Bundler`. Write the structured acceptance result as JSON to `acceptance.json` in the evidence directory using `json.MarshalIndent`. The output matches the spec schema: `{results: [{criterion, status, reason}, ...], all_pass: bool, has_fail_or_unclear: bool}`.
 
 - **Step 4:** `go test ./internal/next/evidence/ -run TestBundler_WriteAcceptanceResults -v` — expect PASS
 - **Step 5:** Commit `"feat(next): add WriteAcceptanceResults to evidence Bundler"`
@@ -2172,11 +2349,13 @@ func containsSubstring(s, sub string) bool {
 
 ---
 
-### Task 31: EvidenceStage writes review and acceptance artifacts
+### Task 31: EvidenceStage writes review.md summary from RunState strings
 
 - **Files:**
   - Modify: `internal/next/specloop/stages/evidence.go`
   - Modify or create: `internal/next/specloop/stages/evidence_test.go`
+
+- **Design note:** The structured evidence files (review.json, acceptance.json) are written directly by ReviewStage and AcceptStage as side effects of their `Run` methods, using the structured domain types they already hold. EvidenceStage does NOT write review.json or acceptance.json. Instead, EvidenceStage uses the `[]string` data from `rs.ReviewFindings` and `rs.AcceptanceResults` only for generating the human-readable `review.md` summary. This cleanly separates concerns: stages that have structured data write structured evidence; EvidenceStage assembles the human-readable summary.
 
 - **Step 1: Write failing test** in `evidence_test.go`:
 ```go
@@ -2184,15 +2363,15 @@ package stages
 
 import (
 	"context"
-	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/next/runstore"
 )
 
-func TestEvidenceStage_WritesReviewJSON(t *testing.T) {
+func TestEvidenceStage_WritesReviewMDFromRunState(t *testing.T) {
 	dir := t.TempDir()
 	evidenceDir := filepath.Join(dir, "evidence")
 
@@ -2201,26 +2380,29 @@ func TestEvidenceStage_WritesReviewJSON(t *testing.T) {
 	})
 
 	rs := runstore.NewRunState("test-spec", "test-project")
-	rs.ReviewFindings = json.RawMessage(`{"spec_alignment": []}`)
-	rs.AcceptanceResults = json.RawMessage(`[{"criterion": "x", "status": "pass"}]`)
+	rs.ReviewFindings = []string{"[spec_alignment] error: handler.go:42 — missing validation"}
+	rs.AcceptanceResults = []string{"acceptance:fail: multi-currency — implement missing behavior"}
 
 	_, err := stage.Run(context.Background(), rs)
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
 
-	// Check review.json exists
-	if _, err := os.Stat(filepath.Join(evidenceDir, "review.json")); err != nil {
-		t.Errorf("review.json should exist: %v", err)
+	// Check review.md exists and contains finding/acceptance summary
+	data, err := os.ReadFile(filepath.Join(evidenceDir, "review.md"))
+	if err != nil {
+		t.Fatalf("read review.md: %v", err)
 	}
-
-	// Check acceptance.json exists
-	if _, err := os.Stat(filepath.Join(evidenceDir, "acceptance.json")); err != nil {
-		t.Errorf("acceptance.json should exist: %v", err)
+	content := string(data)
+	if !strings.Contains(content, "spec_alignment") {
+		t.Error("review.md should contain review findings")
+	}
+	if !strings.Contains(content, "multi-currency") {
+		t.Error("review.md should contain acceptance results")
 	}
 }
 
-func TestEvidenceStage_NoReviewData_SkipsReviewJSON(t *testing.T) {
+func TestEvidenceStage_NoReviewData_SkipsReviewSections(t *testing.T) {
 	dir := t.TempDir()
 	evidenceDir := filepath.Join(dir, "evidence")
 
@@ -2236,16 +2418,18 @@ func TestEvidenceStage_NoReviewData_SkipsReviewJSON(t *testing.T) {
 		t.Fatalf("Run: %v", err)
 	}
 
-	// review.json should not exist when no review data
-	if _, err := os.Stat(filepath.Join(evidenceDir, "review.json")); !os.IsNotExist(err) {
-		t.Error("review.json should not exist when no review data")
+	// review.md may exist but should not contain review/acceptance sections
+	data, _ := os.ReadFile(filepath.Join(evidenceDir, "review.md"))
+	content := string(data)
+	if strings.Contains(content, "Review Findings") {
+		t.Error("review.md should not have review findings section when no data")
 	}
 }
 ```
 
-- **Step 2:** `go test ./internal/next/specloop/stages/ -run TestEvidenceStage_WritesReview -v` — expect FAIL
+- **Step 2:** `go test ./internal/next/specloop/stages/ -run TestEvidenceStage -v` — expect FAIL
 
-- **Step 3: Implement** — Update `EvidenceStage.Run` to check `rs.ReviewFindings` and `rs.AcceptanceResults`. If non-nil, use `Bundler.WriteReviewFindings` and `Bundler.WriteAcceptanceResults` to write the corresponding JSON artifacts. Skip writing if the data is nil (backward compatible with 0002a runs that have no review/acceptance data).
+- **Step 3: Implement** — Update `EvidenceStage.Run` to check `rs.ReviewFindings` and `rs.AcceptanceResults`. If non-empty, include them as sections in the `review.md` human-readable summary. EvidenceStage does NOT write review.json or acceptance.json — those are written by ReviewStage and AcceptStage directly using structured domain types. Skip review/acceptance sections in review.md if the slices are empty (backward compatible with 0002a runs that have no review/acceptance data).
 
 - **Step 4:** `go test ./internal/next/specloop/stages/ -run TestEvidenceStage -v` — expect PASS
 - **Step 5:** Commit `"feat(next): EvidenceStage writes review.json and acceptance.json artifacts"`
@@ -2304,45 +2488,85 @@ func TestRealStageProvider_ReviewStageUsesPolicy(t *testing.T) {
 
 ### Task 33: Wire acceptance criteria from spec into AcceptStage
 
+AcceptStage reads criteria at Run time from `<runDir>/spec.md` — the spec markdown that InitStage copies into the run directory (init.go line 71). At Run time, AcceptStage calls `acceptor.ParseAcceptanceCriteria(specMarkdown)` (from Task 16a) to extract criteria, then passes them to the evaluator. This avoids the problem of criteria not being available at construction time.
+
+AcceptStageConfig needs a `Store` reference (or the run dir path) so it can locate `spec.md`. If `ParseAcceptanceCriteria` returns an error (e.g., the spec has no acceptance criteria section), AcceptStage returns `Blocked` with a descriptive message.
+
 - **Files:**
-  - Modify: `cmd/gromit-next/stage_provider.go`
-  - Modify: `cmd/gromit-next/stage_provider_test.go`
+  - Modify: `internal/next/specloop/stages/accept.go`
+  - Modify or create: `internal/next/specloop/stages/accept_test.go`
 
-- **Step 1: Write failing test** in `stage_provider_test.go`:
+- **Step 1: Write failing test** in `accept_test.go`:
 ```go
-func TestRealStageProvider_AcceptStagePresent(t *testing.T) {
-	policy := execpolicy.DefaultPolicy()
-	rs := runstore.NewRunState("test-spec", "test-project")
+func TestAcceptStage_ReadsSpecFromRunDir(t *testing.T) {
+	storeDir := t.TempDir()
+	store := runstore.NewStore(storeDir)
 
-	provider := NewRealStageProvider(RealStageProviderConfig{
-		WorkDir:  t.TempDir(),
-		StoreDir: t.TempDir(),
-		SpecPath: "test-spec.md",
+	rs := runstore.NewRunState("test-spec", "test-project")
+	store.Save(rs)
+
+	// Write spec.md into the run directory with an acceptance criteria section
+	runDir := store.RunDir(rs.RunID)
+	specContent := "# Spec\n\n## Acceptance Criteria\n\n- Feature X works\n- Feature Y returns correct output\n"
+	os.MkdirAll(runDir, 0o755)
+	os.WriteFile(filepath.Join(runDir, "spec.md"), []byte(specContent), 0o644)
+
+	stage := NewAcceptStage(AcceptStageConfig{
+		Store: store,
+		// ... other config (evaluator can be a mock/stub)
 	})
 
-	stages, err := provider.BuildStages(policy, rs)
+	result, err := stage.Run(context.Background(), rs)
 	if err != nil {
-		t.Fatalf("BuildStages: %v", err)
+		t.Fatalf("Run: %v", err)
 	}
 
-	var foundAccept bool
-	for _, s := range stages {
-		if s.Name() == "accept" {
-			foundAccept = true
-		}
+	// AcceptStage should have parsed criteria from spec.md
+	// Verify criteria were extracted and passed to the evaluator
+	if result.Status == stages.StageBlocked {
+		t.Error("expected non-blocked result when spec.md has acceptance criteria")
 	}
-	if !foundAccept {
-		t.Error("expected accept stage to be present")
+}
+
+func TestAcceptStage_NoCriteriaSection_ReturnsBlocked(t *testing.T) {
+	storeDir := t.TempDir()
+	store := runstore.NewStore(storeDir)
+
+	rs := runstore.NewRunState("test-spec", "test-project")
+	store.Save(rs)
+
+	// Write spec.md WITHOUT an acceptance criteria section
+	runDir := store.RunDir(rs.RunID)
+	specContent := "# Spec\n\nThis spec has no acceptance criteria section.\n"
+	os.MkdirAll(runDir, 0o755)
+	os.WriteFile(filepath.Join(runDir, "spec.md"), []byte(specContent), 0o644)
+
+	stage := NewAcceptStage(AcceptStageConfig{
+		Store: store,
+	})
+
+	result, err := stage.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	if result.Status != stages.StageBlocked {
+		t.Errorf("Status = %v, want StageBlocked when spec has no acceptance criteria", result.Status)
 	}
 }
 ```
 
-- **Step 2:** `go test ./cmd/gromit-next/ -run TestRealStageProvider_AcceptStagePresent -v` — expect PASS (if Task 17 wired it)
+- **Step 2:** `go test ./internal/next/specloop/stages/ -run TestAcceptStage -v` — expect FAIL
 
-- **Step 3: Implement** — Verify that `AcceptStage` construction in `BuildStages` receives criteria extracted from the compiled spec. The acceptance criteria come from the spec packet (populated during CompileStage). Since criteria are runtime data (not available at BuildStages time), the `AcceptStageConfig` may need to read criteria from RunState at `Run` time rather than at construction time. Adjust the wiring if needed.
+- **Step 3: Implement** — Update `AcceptStageConfig` to include a `Store` field (type `*runstore.Store`). In `AcceptStage.Run`:
+  1. Compute `runDir := cfg.Store.RunDir(rs.RunID)`
+  2. Read `filepath.Join(runDir, "spec.md")`
+  3. Call `acceptor.ParseAcceptanceCriteria(specMarkdown)` to extract criteria
+  4. If `ParseAcceptanceCriteria` returns an error, return `StageBlocked` with the error message
+  5. Pass the extracted criteria to the evaluator for acceptance checking
 
-- **Step 4:** `go test ./cmd/gromit-next/ -run TestRealStageProvider_AcceptStagePresent -v` — expect PASS
-- **Step 5:** Commit `"feat(next): wire acceptance criteria into AcceptStage construction"`
+- **Step 4:** `go test ./internal/next/specloop/stages/ -run TestAcceptStage -v` — expect PASS
+- **Step 5:** Commit `"feat(next): AcceptStage reads spec.md from run dir and parses acceptance criteria at Run time"`
 
 ---
 
@@ -2410,7 +2634,7 @@ func TestAcceptanceResultEvent_JSON(t *testing.T) {
 
 - **Step 2:** `go test ./internal/next/runstore/ -run TestReviewResultEvent -v` — expect FAIL
 
-- **Step 3: Implement** — Define `ReviewResultEvent` struct with `BaseEvent`, `TotalFindings int`, `BlockingFindings int`, `FacetsReviewed []string`. Define `AcceptanceResultEvent` struct with `BaseEvent`, `TotalCriteria int`, `PassCount int`, `FailCount int`, `UnclearCount int`. These events are emitted by `ReviewStage` and `AcceptStage` respectively, following the existing event pattern used by `FinalValidationResultEvent`.
+- **Step 3: Implement** — Define `ReviewResultEvent` struct with `BaseEvent`, `TotalFindings int`, `BlockingFindings int`, `FacetsReviewed []string`. Define `AcceptanceResultEvent` struct with `BaseEvent`, `TotalCriteria int`, `PassCount int`, `FailCount int`, `UnclearCount int`. These events are emitted by `ReviewStage` and `AcceptStage` respectively, following the existing event pattern used by `FinalValidationResultEvent`. Note: the `unmarshalEvent` switch cases for `review_result` and `acceptance_result` (plus `blocked_worktree_cleaned`) are handled in Task 44.
 
 - **Step 4:** `go test ./internal/next/runstore/ -run TestReviewResultEvent -v` — expect PASS
 - **Step 5:** Commit `"feat(next): add review and acceptance event types for event log"`
@@ -2441,7 +2665,7 @@ func TestReviewStage_EmitsEvent(t *testing.T) {
 		},
 	}
 
-	eventLog := runstore.NewEventLog()
+	eventLog := runstore.NewEventLog(filepath.Join(t.TempDir(), "events.jsonl"))
 	stage := NewReviewStage(runner, ReviewStageConfig{}, eventLog)
 	rs := runstore.NewRunState("test-spec", "test-project")
 	rs.Cycle = 1
@@ -2451,7 +2675,7 @@ func TestReviewStage_EmitsEvent(t *testing.T) {
 		t.Fatalf("Run: %v", err)
 	}
 
-	events := eventLog.Events()
+	events := eventLog.ReadAll()
 	if len(events) == 0 {
 		t.Fatal("expected at least one event")
 	}
@@ -2470,7 +2694,7 @@ func TestAcceptStage_EmitsEvent(t *testing.T) {
 		},
 	}
 
-	eventLog := runstore.NewEventLog()
+	eventLog := runstore.NewEventLog(filepath.Join(t.TempDir(), "events.jsonl"))
 	stage := NewAcceptStage(eval, AcceptStageConfig{Criteria: []string{"x"}}, eventLog)
 	rs := runstore.NewRunState("test-spec", "test-project")
 	rs.Cycle = 1
@@ -2480,7 +2704,7 @@ func TestAcceptStage_EmitsEvent(t *testing.T) {
 		t.Fatalf("Run: %v", err)
 	}
 
-	events := eventLog.Events()
+	events := eventLog.ReadAll()
 	if len(events) == 0 {
 		t.Fatal("expected at least one event")
 	}
@@ -2537,7 +2761,7 @@ func TestIntegration_ReviewBlocksReadyForReview(t *testing.T) {
 
 	stages := []specloop.Stage{planStage, validateStage, reviewStage}
 
-	budget := specloop.NewBudgetFromValues(1, 0, 300, 3600, 50.0) // maxSpecCycles=1 so it exhausts
+	budget := specloop.NewBudget(execpolicy.Budgets{MaxSpecCycles: 1, MaxTaskDurationSeconds: 300, MaxRunDurationSeconds: 3600, MaxRunCostUSD: 50.0}) // maxSpecCycles=1 so it exhausts
 	loop := specloop.NewSpecLoop(stages, specloop.SpecLoopConfig{
 		Budget:      budget,
 		ReplanStage: "plan",
@@ -2627,7 +2851,7 @@ func TestIntegration_AcceptFailTriggersReplan(t *testing.T) {
 	acceptStage := NewAcceptStage(acceptEval, AcceptStageConfig{Criteria: []string{"x"}}, nil)
 
 	stages := []specloop.Stage{planStage, validateStage, reviewStage, acceptStage}
-	budget := specloop.NewBudgetFromValues(3, 0, 300, 3600, 50.0)
+	budget := specloop.NewBudget(execpolicy.Budgets{MaxSpecCycles: 3, MaxTaskDurationSeconds: 300, MaxRunDurationSeconds: 3600, MaxRunCostUSD: 50.0})
 	loop := specloop.NewSpecLoop(stages, specloop.SpecLoopConfig{
 		Budget:      budget,
 		ReplanStage: "plan",
@@ -2701,7 +2925,7 @@ func TestIntegration_AcceptUnclear_BudgetExhaustion_NeedsHuman(t *testing.T) {
 	acceptStage := NewAcceptStage(acceptEval, AcceptStageConfig{Criteria: []string{"audit log"}}, nil)
 
 	stages := []specloop.Stage{planStage, validateStage, reviewStage, acceptStage}
-	budget := specloop.NewBudgetFromValues(2, 0, 300, 3600, 50.0) // 2 cycles max
+	budget := specloop.NewBudget(execpolicy.Budgets{MaxSpecCycles: 2, MaxTaskDurationSeconds: 300, MaxRunDurationSeconds: 3600, MaxRunCostUSD: 50.0}) // 2 cycles max
 	loop := specloop.NewSpecLoop(stages, specloop.SpecLoopConfig{
 		Budget:      budget,
 		ReplanStage: "plan",
@@ -2972,3 +3196,203 @@ func TestIntegration_FixCycle_NewFindingStillBlocks(t *testing.T) {
 
 - **Step 4:** `go test ./internal/next/review/ -run TestIntegration_FixCycle -v` — expect PASS
 - **Step 5:** Commit `"test(next): integration test verifying new-vs-preexisting matching in fix cycles"`
+
+---
+
+## Phase 9: FinalizeStage Updates and Blocked Worktree Lifecycle
+
+### Task 42: FinalizeStage — updated ready_for_review condition
+
+- **Files:**
+  - Modify: `internal/next/specloop/stages/finalize.go`
+  - Modify or create: `internal/next/specloop/stages/finalize_test.go`
+
+- **Step 1: Write failing test** in `finalize_test.go`:
+```go
+func TestFinalizeStage_ReadyForReview_RequiresAllGates(t *testing.T) {
+	tests := []struct {
+		name       string
+		rs         *runstore.RunState
+		wantStatus string
+	}{
+		{
+			name: "all pass -> ready_for_review",
+			rs: &runstore.RunState{
+				// Set up RunState so FinalizeStage computes allDone=true
+				// (add completed tasks to rs.Tasks or set appropriate fields)
+				FinalValidationPassed: true,
+				FinalReviewPassed:     true,
+				FinalAcceptancePassed: true,
+			},
+			wantStatus: runstore.StatusReadyForReview,
+		},
+		{
+			name: "review failed -> needs_human",
+			rs: &runstore.RunState{
+				// Set up RunState so FinalizeStage computes allDone=true
+				// (add completed tasks to rs.Tasks or set appropriate fields)
+				FinalValidationPassed: true,
+				FinalReviewPassed:     false,
+				FinalAcceptancePassed: true,
+			},
+			wantStatus: runstore.StatusNeedsHuman,
+		},
+		{
+			name: "acceptance failed -> needs_human",
+			rs: &runstore.RunState{
+				// Set up RunState so FinalizeStage computes allDone=true
+				// (add completed tasks to rs.Tasks or set appropriate fields)
+				FinalValidationPassed: true,
+				FinalReviewPassed:     true,
+				FinalAcceptancePassed: false,
+			},
+			wantStatus: runstore.StatusNeedsHuman,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Constructor: NewFinalizeStage(gitOps GitOps, store *runstore.Store, eventLog *runstore.EventLog)
+			stage := NewFinalizeStage(nil, nil, nil) // nil deps acceptable for unit test
+			_, err := stage.Run(context.Background(), tt.rs)
+			if err != nil {
+				t.Fatalf("Run: %v", err)
+			}
+			if tt.rs.Status != tt.wantStatus {
+				t.Errorf("Status = %q, want %q", tt.rs.Status, tt.wantStatus)
+			}
+		})
+	}
+}
+```
+
+- **Step 2:** `go test ./internal/next/specloop/stages/ -run TestFinalizeStage_ReadyForReview_RequiresAllGates -v` — expect FAIL
+
+- **Step 3: Implement** — Update FinalizeStage to require all four conditions for `ready_for_review`: `allDone && rs.FinalValidationPassed && rs.FinalReviewPassed && rs.FinalAcceptancePassed`. When any gate fails, set status to `needs_human`. Preserve worktrees for ALL terminal states including `needs_human` — remove the `RemoveWorktree` call for needs_human runs. Only remove worktrees on `ready_for_review` (successful completion).
+
+- **Step 4:** `go test ./internal/next/specloop/stages/ -run TestFinalizeStage_ReadyForReview -v` — expect PASS
+- **Step 5:** Commit `"feat(next): FinalizeStage requires review+acceptance gates for ready_for_review"`
+
+---
+
+### Task 43: InitStage — clean up prior blocked worktrees
+
+- **Files:**
+  - Modify: `internal/next/specloop/stages/init.go`
+  - Modify or create: `internal/next/specloop/stages/init_test.go`
+
+- **Step 1: Write failing test** in `init_test.go`:
+```go
+func TestInitStage_CleansBlockedWorktrees(t *testing.T) {
+	storeDir := t.TempDir()
+	store := runstore.NewStore(storeDir)
+
+	// Create a prior run with the SAME project ID so store.List finds it
+	priorRS := runstore.NewRunState("test-spec", "test-project")
+	priorRS.Status = runstore.StatusBlocked
+	priorRS.WorktreePath = filepath.Join(t.TempDir(), "old-worktree")
+	os.MkdirAll(priorRS.WorktreePath, 0o755)
+	store.Save(priorRS)
+
+	stage := NewInitStage(InitStageConfig{
+		Store: store,
+	})
+	newRS := runstore.NewRunState("test-spec", "test-project")
+
+	_, err := stage.Run(context.Background(), newRS)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	// Prior blocked run's worktree should be removed
+	if _, err := os.Stat(priorRS.WorktreePath); !os.IsNotExist(err) {
+		t.Error("blocked worktree should have been removed")
+	}
+
+	// Prior run's worktree_path should be cleared in store
+	reloaded, _ := store.Load(priorRS.RunID)
+	if reloaded.WorktreePath != "" {
+		t.Error("worktree_path should be cleared in run.json")
+	}
+}
+```
+
+- **Step 2:** `go test ./internal/next/specloop/stages/ -run TestInitStage_CleansBlockedWorktrees -v` — expect FAIL
+
+- **Step 3: Implement** — In InitStage, when creating a new run, call `store.List(rs.ProjectID)` to get all runs for the project. Iterate the results and filter client-side for runs where `run.SpecID == rs.SpecID && run.Status == StatusBlocked && run.WorktreePath != ""`. No new Store method is needed — client-side filtering is sufficient since the number of runs per project is small. For each matching run: remove the worktree directory, clear `worktree_path` in the run state, save the updated run, and emit a `blocked_worktree_cleaned` event.
+
+- **Step 4:** `go test ./internal/next/specloop/stages/ -run TestInitStage_CleansBlockedWorktrees -v` — expect PASS
+- **Step 5:** Commit `"feat(next): InitStage cleans up prior blocked worktrees on new run"`
+
+---
+
+### Task 44: Event types — blocked_worktree_cleaned and unmarshalEvent switch cases
+
+- **Files:**
+  - Modify: `internal/next/runstore/events.go`
+  - Modify: `internal/next/runstore/events_test.go`
+
+- **Step 1: Write failing test** in `events_test.go`:
+```go
+func TestBlockedWorktreeCleanedEvent_JSON(t *testing.T) {
+	evt := BlockedWorktreeCleanedEvent{
+		BaseEvent:      BaseEvent{Type: "blocked_worktree_cleaned", Timestamp: time.Now()},
+		PriorRunID:     "run-abc-123",
+		WorktreePath:   "/path/to/old-worktree",
+	}
+
+	data, err := json.Marshal(evt)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+
+	var got map[string]interface{}
+	if err := json.Unmarshal(data, &got); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if got["type"] != "blocked_worktree_cleaned" {
+		t.Errorf("type = %v, want blocked_worktree_cleaned", got["type"])
+	}
+}
+
+func TestUnmarshalEvent_ReviewAndAcceptanceTypes(t *testing.T) {
+	reviewJSON := `{"type":"review_result","timestamp":"2026-03-12T00:00:00Z","total_findings":3,"blocking_findings":1}`
+	evt, err := unmarshalEvent([]byte(reviewJSON))
+	if err != nil {
+		t.Fatalf("unmarshalEvent review_result: %v", err)
+	}
+	if _, ok := evt.(*ReviewResultEvent); !ok {
+		t.Errorf("expected *ReviewResultEvent, got %T", evt)
+	}
+
+	acceptJSON := `{"type":"acceptance_result","timestamp":"2026-03-12T00:00:00Z","total_criteria":5,"pass_count":4}`
+	evt2, err := unmarshalEvent([]byte(acceptJSON))
+	if err != nil {
+		t.Fatalf("unmarshalEvent acceptance_result: %v", err)
+	}
+	if _, ok := evt2.(*AcceptanceResultEvent); !ok {
+		t.Errorf("expected *AcceptanceResultEvent, got %T", evt2)
+	}
+}
+```
+
+- **Step 2:** `go test ./internal/next/runstore/ -run "TestBlockedWorktreeCleanedEvent|TestUnmarshalEvent_ReviewAndAcceptance" -v` — expect FAIL
+
+- **Step 3: Implement** — Define `BlockedWorktreeCleanedEvent` struct with `BaseEvent`, `PriorRunID string`, `WorktreePath string`. Add `unmarshalEvent` switch cases for `"review_result"` (-> `*ReviewResultEvent`), `"acceptance_result"` (-> `*AcceptanceResultEvent`), and `"blocked_worktree_cleaned"` (-> `*BlockedWorktreeCleanedEvent`).
+
+- **Step 4:** `go test ./internal/next/runstore/ -run "TestBlockedWorktreeCleanedEvent|TestUnmarshalEvent" -v` — expect PASS
+- **Step 5:** Commit `"feat(next): add blocked_worktree_cleaned event and unmarshalEvent switch cases"`
+
+---
+
+### Task 45: Per-task artifact files
+
+- **Files:**
+  - Modify: `internal/next/specloop/stages/execute.go` (or relevant executor integration)
+  - Create or modify: `internal/next/specloop/stages/execute_test.go`
+
+- **Note:** As part of the executor integration, each task execution should write per-task artifacts to the run's evidence directory:
+  - `task-packet.md` — the rendered task prompt sent to the agent
+  - `agent-output.txt` — the raw agent response
+
+  These files live under `<evidence-dir>/tasks/<task-id>/` and provide debugging traceability. The `EvidenceStage` does not need to be modified — artifacts are written inline during execution. This is a wiring concern for the `ExecuteStage` or whichever stage invokes the agent per-task.

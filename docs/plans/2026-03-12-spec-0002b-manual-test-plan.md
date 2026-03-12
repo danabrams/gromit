@@ -228,7 +228,15 @@ Terminal state: ready_for_review
    jq .state ~/.local/share/gromit/projects/fixture-calc/runs/$RUN_ID/run.json
    # Expected: "ready_for_review"
    ```
-5. **review.json exists and is clean** (0002b artifact):
+5. **FinalizeStage three-gate condition verified** -- all three gates must be true for `ready_for_review`:
+   ```bash
+   jq '{final_validation_passed, final_review_passed, final_acceptance_passed}' \
+     ~/.local/share/gromit/projects/fixture-calc/runs/$RUN_ID/run.json
+   # Expected: {"final_validation_passed": true, "final_review_passed": true, "final_acceptance_passed": true}
+   ```
+   If any gate is false, the terminal state should NOT be `ready_for_review`.
+
+6. **review.json exists and is clean** (0002b artifact):
    ```bash
    cat ~/.local/share/gromit/projects/fixture-calc/runs/$RUN_ID/evidence/review.json | jq .
    ```
@@ -263,41 +271,51 @@ Terminal state: ready_for_review
    # Expected: 0
    ```
 
-6. **acceptance.json exists and all pass** (0002b artifact):
+7. **acceptance.json exists and all pass** (0002b artifact):
    ```bash
    cat ~/.local/share/gromit/projects/fixture-calc/runs/$RUN_ID/evidence/acceptance.json | jq .
    ```
-   Expected structure -- array of per-criterion evaluations:
+   Expected structure -- object with `.results` array, `.all_pass`, and `.has_fail_or_unclear`:
    ```json
-   [
-     {
-       "criterion": "calc.Subtract(5, 3) returns 2",
-       "status": "pass",
-       "rationale": "Test TestSubtract verifies Subtract(5, 3) == 2 and passes.",
-       "evidence_refs": ["evidence/validation.json", "evidence/diff-summary.md"]
-     },
-     {
-       "criterion": "All existing tests continue to pass",
-       "status": "pass",
-       "rationale": "go test ./calc/... exits 0 with all tests passing.",
-       "evidence_refs": ["evidence/validation.json"]
-     }
-   ]
+   {
+     "results": [
+       {
+         "criterion": "calc.Subtract(5, 3) returns 2",
+         "status": "pass",
+         "rationale": "Test TestSubtract verifies Subtract(5, 3) == 2 and passes.",
+         "evidence_refs": ["evidence/validation.json", "evidence/diff-summary.md"]
+       },
+       {
+         "criterion": "All existing tests continue to pass",
+         "status": "pass",
+         "rationale": "go test ./calc/... exits 0 with all tests passing.",
+         "evidence_refs": ["evidence/validation.json"]
+       }
+     ],
+     "all_pass": true,
+     "has_fail_or_unclear": false
+   }
    ```
    Verify: all criteria have `"status": "pass"`:
    ```bash
-   jq '[.[] | select(.status != "pass")] | length' \
+   jq '[.results[] | select(.status != "pass")] | length' \
      ~/.local/share/gromit/projects/fixture-calc/runs/$RUN_ID/evidence/acceptance.json
    # Expected: 0
    ```
+   Verify: convenience fields are consistent:
+   ```bash
+   jq '{all_pass, has_fail_or_unclear}' \
+     ~/.local/share/gromit/projects/fixture-calc/runs/$RUN_ID/evidence/acceptance.json
+   # Expected: {"all_pass": true, "has_fail_or_unclear": false}
+   ```
    Verify: each criterion has non-empty `rationale` and `evidence_refs`:
    ```bash
-   jq '[.[] | select(.rationale == "" or (.evidence_refs | length) == 0)] | length' \
+   jq '[.results[] | select(.rationale == "" or (.evidence_refs | length) == 0)] | length' \
      ~/.local/share/gromit/projects/fixture-calc/runs/$RUN_ID/evidence/acceptance.json
    # Expected: 0
    ```
 
-7. **review.md includes 0002b sections**:
+8. **review.md includes 0002b sections**:
    ```bash
    grep -c "Review Findings" ~/.local/share/gromit/projects/fixture-calc/runs/$RUN_ID/evidence/review.md
    # Expected: >= 1
@@ -308,14 +326,14 @@ Terminal state: ready_for_review
    - A section for review findings by facet (even if empty)
    - A per-criterion acceptance table with status/rationale/evidence
 
-8. **events.jsonl contains review and accept events**:
+9. **events.jsonl contains review and accept events**:
    ```bash
-   grep 'review_completed' ~/.local/share/gromit/projects/fixture-calc/runs/$RUN_ID/events.jsonl | jq .
-   grep 'acceptance_evaluated' ~/.local/share/gromit/projects/fixture-calc/runs/$RUN_ID/events.jsonl | jq .
+   grep 'review_result' ~/.local/share/gromit/projects/fixture-calc/runs/$RUN_ID/events.jsonl | jq .
+   grep 'acceptance_result' ~/.local/share/gromit/projects/fixture-calc/runs/$RUN_ID/events.jsonl | jq .
    ```
    Both event types should be present. The review event should reference the facets evaluated. The acceptance event should reference criteria count and pass count.
 
-9. **Execution policy snapshot includes review config**:
+10. **Execution policy snapshot includes review config**:
    ```bash
    jq '.review' ~/.local/share/gromit/projects/fixture-calc/runs/$RUN_ID/execution-policy.json
    # Expected: {"facets": ["spec_alignment", "code_quality"], "tiers": {...}, "replan_threshold": "suggestion"}
@@ -323,20 +341,21 @@ Terminal state: ready_for_review
    # Expected: "high"
    ```
 
-10. **Pipeline ordering**: Verify that in `events.jsonl`, the review event occurs after `final_validation_result` and before `acceptance_evaluated`:
+11. **Pipeline ordering**: Verify that in `events.jsonl`, the review event occurs after `final_validation_result` and before `acceptance_result`:
     ```bash
-    grep -n 'final_validation_result\|review_completed\|acceptance_evaluated' \
+    grep -n 'final_validation_result\|review_result\|acceptance_result' \
       ~/.local/share/gromit/projects/fixture-calc/runs/$RUN_ID/events.jsonl
     ```
-    Line numbers should be in order: final_validation_result < review_completed < acceptance_evaluated.
+    Line numbers should be in order: final_validation_result < review_result < acceptance_result.
 
-11. All 0002a artifacts still present: `summary.md`, `diff-summary.md`, `task-results.json`, `validation.json`, `metrics.json`, `review.md`.
+12. All 0002a artifacts still present: `summary.md`, `diff-summary.md`, `task-results.json`, `validation.json`, `metrics.json`, `review.md`.
 
 **Pass/Fail Criteria**:
 - [ ] Terminal state is `ready_for_review`
+- [ ] All three FinalizeStage gates are true: `final_validation_passed`, `final_review_passed`, `final_acceptance_passed`
 - [ ] `evidence/review.json` exists with per-facet structure
 - [ ] No blocking findings (severity != info) in review.json
-- [ ] `evidence/acceptance.json` exists with per-criterion evaluations
+- [ ] `evidence/acceptance.json` exists with `.results` array, `.all_pass` true, `.has_fail_or_unclear` false
 - [ ] All acceptance criteria have `"status": "pass"`
 - [ ] Each criterion has non-empty `rationale` and `evidence_refs`
 - [ ] `evidence/review.md` contains review findings and acceptance sections
@@ -418,14 +437,17 @@ Terminal state: ready_for_review
 
 6. **acceptance.json shows all pass**:
    ```bash
-   jq '[.[] | select(.status != "pass")] | length' \
+   jq '[.results[] | select(.status != "pass")] | length' \
      ~/.local/share/gromit/projects/fixture-calc/runs/$RUN_ID/evidence/acceptance.json
    # Expected: 0
+   jq '{all_pass, has_fail_or_unclear}' \
+     ~/.local/share/gromit/projects/fixture-calc/runs/$RUN_ID/evidence/acceptance.json
+   # Expected: {"all_pass": true, "has_fail_or_unclear": false}
    ```
 
-7. `metrics.json` shows `total_cycles >= 2`:
+7. `metrics.json` shows `cycles >= 2`:
    ```bash
-   jq .total_cycles ~/.local/share/gromit/projects/fixture-calc/runs/$RUN_ID/evidence/metrics.json
+   jq .cycles ~/.local/share/gromit/projects/fixture-calc/runs/$RUN_ID/evidence/metrics.json
    # Expected: >= 2
    ```
 
@@ -494,7 +516,7 @@ Terminal state: ready_for_review
 1. Terminal state: `ready_for_review` (not `needs_human`).
 2. Run completes in a **single cycle** (no fix-cycle triggered):
    ```bash
-   jq .total_cycles ~/.local/share/gromit/projects/fixture-calc/runs/$RUN_ID/evidence/metrics.json
+   jq .cycles ~/.local/share/gromit/projects/fixture-calc/runs/$RUN_ID/evidence/metrics.json
    # Expected: 1
    ```
 
@@ -520,9 +542,12 @@ Terminal state: ready_for_review
 
 6. **acceptance.json shows all pass**:
    ```bash
-   jq '[.[] | select(.status != "pass")] | length' \
+   jq '[.results[] | select(.status != "pass")] | length' \
      ~/.local/share/gromit/projects/fixture-calc/runs/$RUN_ID/evidence/acceptance.json
    # Expected: 0
+   jq '.all_pass' \
+     ~/.local/share/gromit/projects/fixture-calc/runs/$RUN_ID/evidence/acceptance.json
+   # Expected: true
    ```
 
 7. **review.md records the non-blocking findings** (if any exist):
@@ -593,12 +618,12 @@ Terminal state: ready_for_review
 1. Terminal state: `ready_for_review` (fix cycle resolved the acceptance failure).
 2. **acceptance.json contains a cycle-1 failure**:
    ```bash
-   jq '.[] | select(.status == "fail")' \
+   jq '.results[] | select(.status == "fail")' \
      ~/.local/share/gromit/projects/fixture-calc/runs/$RUN_ID/evidence/acceptance.json
    ```
    If the final acceptance.json only reflects the last cycle, check events instead:
    ```bash
-   grep 'acceptance_evaluated' ~/.local/share/gromit/projects/fixture-calc/runs/$RUN_ID/events.jsonl | jq .
+   grep 'acceptance_result' ~/.local/share/gromit/projects/fixture-calc/runs/$RUN_ID/events.jsonl | jq .
    ```
    There should be at least two acceptance evaluation events (one per cycle).
 
@@ -611,14 +636,17 @@ Terminal state: ready_for_review
 
 4. **Final acceptance is all pass**:
    ```bash
-   jq '[.[] | select(.status != "pass")] | length' \
+   jq '[.results[] | select(.status != "pass")] | length' \
      ~/.local/share/gromit/projects/fixture-calc/runs/$RUN_ID/evidence/acceptance.json
    # Expected: 0
+   jq '{all_pass, has_fail_or_unclear}' \
+     ~/.local/share/gromit/projects/fixture-calc/runs/$RUN_ID/evidence/acceptance.json
+   # Expected: {"all_pass": true, "has_fail_or_unclear": false}
    ```
 
-5. `metrics.json` shows `total_cycles >= 2`:
+5. `metrics.json` shows `cycles >= 2`:
    ```bash
-   jq .total_cycles ~/.local/share/gromit/projects/fixture-calc/runs/$RUN_ID/evidence/metrics.json
+   jq .cycles ~/.local/share/gromit/projects/fixture-calc/runs/$RUN_ID/evidence/metrics.json
    # Expected: >= 2
    ```
 
@@ -715,7 +743,7 @@ Terminal state: ready_for_review
 1. Terminal state: `ready_for_review`.
 2. **acceptance.json shows the unclear-to-pass transition**:
    ```bash
-   grep 'acceptance_evaluated' ~/.local/share/gromit/projects/fixture-calc/runs/$RUN_ID/events.jsonl | jq .
+   grep 'acceptance_result' ~/.local/share/gromit/projects/fixture-calc/runs/$RUN_ID/events.jsonl | jq .
    ```
    The first evaluation should contain a criterion with `"status": "unclear"`. The final evaluation should show all pass.
 
@@ -729,9 +757,12 @@ Terminal state: ready_for_review
 
 4. **Final acceptance.json all pass**:
    ```bash
-   jq '[.[] | select(.status != "pass")] | length' \
+   jq '[.results[] | select(.status != "pass")] | length' \
      ~/.local/share/gromit/projects/fixture-calc/runs/$RUN_ID/evidence/acceptance.json
    # Expected: 0
+   jq '.all_pass' \
+     ~/.local/share/gromit/projects/fixture-calc/runs/$RUN_ID/evidence/acceptance.json
+   # Expected: true
    ```
 
 **Determinism Fallback**: The LLM may produce a test for AuditLog on the first pass, making criterion 3 pass immediately. If this happens:
@@ -810,7 +841,7 @@ Blocker: Acceptance/review failures remain after 2 cycles.
 
 4. **Shared budget accounting**: Verify that validation, review, and acceptance fix cycles all consumed from the same budget:
    ```bash
-   jq .total_cycles ~/.local/share/gromit/projects/fixture-calc/runs/$RUN_ID/evidence/metrics.json
+   jq .cycles ~/.local/share/gromit/projects/fixture-calc/runs/$RUN_ID/evidence/metrics.json
    # Expected: 2 (equals max_spec_cycles)
    ```
 
@@ -822,9 +853,12 @@ Blocker: Acceptance/review failures remain after 2 cycles.
 
 6. **acceptance.json shows remaining failures**:
    ```bash
-   jq '[.[] | select(.status != "pass")] | length' \
+   jq '[.results[] | select(.status != "pass")] | length' \
      ~/.local/share/gromit/projects/fixture-calc/runs/$RUN_ID/evidence/acceptance.json
    # Expected: >= 1
+   jq '.has_fail_or_unclear' \
+     ~/.local/share/gromit/projects/fixture-calc/runs/$RUN_ID/evidence/acceptance.json
+   # Expected: true
    ```
 
 7. **review.json is present** (may be empty or have findings):
@@ -836,7 +870,7 @@ Blocker: Acceptance/review failures remain after 2 cycles.
 **Pass/Fail Criteria**:
 - [ ] Terminal state is `needs_human` (not `blocked` -- cycle exhaustion is task-progress failure)
 - [ ] Blocker summary describes what failed and recommends action
-- [ ] total_cycles equals max_spec_cycles (2)
+- [ ] cycles equals max_spec_cycles (2)
 - [ ] Evidence bundle is complete (review.json, acceptance.json, review.md, metrics.json)
 - [ ] acceptance.json shows at least one remaining failure
 
@@ -904,7 +938,7 @@ Terminal state: ready_for_review
 
 4. **events.jsonl shows logic_gaps was evaluated**:
    ```bash
-   grep 'review_completed' ~/.local/share/gromit/projects/fixture-calc/runs/$RUN_ID/events.jsonl | jq .
+   grep 'review_result' ~/.local/share/gromit/projects/fixture-calc/runs/$RUN_ID/events.jsonl | jq .
    ```
    Should reference all three facets.
 
@@ -1014,6 +1048,117 @@ Terminal state: ready_for_review
 
 ---
 
+### Scenario 9: Blocked Worktree Cleanup on Re-run
+
+**Purpose**: Verify that FinalizeStage preserves worktrees for terminal states, and that InitStage auto-cleans `blocked` worktrees from prior runs when re-running the same spec.
+
+**Important distinction**: Per the design spec, InitStage only cleans worktrees from prior runs with `status: blocked`. The `blocked` state is produced by infrastructure-level failures (planner failure, provider unavailability), NOT by budget exhaustion (which produces `needs_human`). This scenario must use a setup that produces `blocked` specifically.
+
+**Note on `needs_human` worktrees**: Worktrees from `needs_human` runs are preserved but NOT auto-cleaned by InitStage on re-run. A `needs_human` run contains partial work product that a human may want to inspect or continue from. Only `blocked` runs (which represent infrastructure failures with no useful work product) are auto-cleaned.
+
+**Setup**:
+
+Create a vague/invalid spec that will cause the planner to fail, producing a `blocked` terminal state:
+
+```bash
+cat > /tmp/gromit-fixtures/fixture-calc/specs/vague-blocked.md << 'SPEC'
+# Do Something
+
+## spec_id
+vague-blocked
+
+## Title
+Do something
+
+## Problem
+Things need to happen.
+
+## In-Scope
+- Stuff
+
+## Out-of-Scope
+- Everything else
+
+## Acceptance Criteria
+1. It works
+
+## Validation
+- go test ./...
+SPEC
+
+cd /tmp/gromit-fixtures/fixture-calc && git add specs/ && git commit -m "add vague spec for blocked scenario"
+```
+
+**Execute (first run -- expect `blocked` from planner failure)**:
+```bash
+./gromit-next exec spec --project fixture-calc \
+  --spec /tmp/gromit-fixtures/fixture-calc/specs/vague-blocked.md
+```
+
+**Verify worktree preserved**:
+1. Note the run-id from output.
+2. Terminal state must be `blocked` (not `needs_human`):
+   ```bash
+   RUN_ID_1=<from output>
+   jq .state ~/.local/share/gromit/projects/fixture-calc/runs/$RUN_ID_1/run.json
+   # Expected: "blocked"
+   ```
+   If the terminal state is `needs_human` instead of `blocked`, the planner succeeded on the vague spec. Use an even more degenerate spec or simulate a provider error (e.g., set `ANTHROPIC_API_KEY` to an invalid value temporarily).
+3. Confirm the worktree directory still exists after the run completes:
+   ```bash
+   jq '.worktree_path // .worktree' \
+     ~/.local/share/gromit/projects/fixture-calc/runs/$RUN_ID_1/run.json
+   # Verify the directory exists on disk
+   ls -la <worktree_path_from_above>
+   ```
+
+**Execute (second run -- same spec, verify cleanup of blocked worktree)**:
+```bash
+./gromit-next exec spec --project fixture-calc \
+  --spec /tmp/gromit-fixtures/fixture-calc/specs/vague-blocked.md
+```
+
+**Verify old worktree cleaned**:
+1. The first run's worktree should be removed:
+   ```bash
+   ls <worktree_path_from_run_1> 2>&1
+   # Expected: "No such file or directory"
+   ```
+2. The first run's `run.json` should have its worktree path cleared:
+   ```bash
+   jq '.worktree_path // .worktree' \
+     ~/.local/share/gromit/projects/fixture-calc/runs/$RUN_ID_1/run.json
+   # Expected: "" or null
+   ```
+3. **`blocked_worktree_cleaned` event emitted** by the second run:
+   ```bash
+   grep 'blocked_worktree_cleaned' \
+     ~/.local/share/gromit/projects/fixture-calc/runs/$RUN_ID_2/events.jsonl | jq .
+   # Expected: event referencing the first run's ID
+   ```
+4. The second run should have its own worktree:
+   ```bash
+   RUN_ID_2=<from output>
+   jq '.worktree_path // .worktree' \
+     ~/.local/share/gromit/projects/fixture-calc/runs/$RUN_ID_2/run.json
+   ls -la <worktree_path_from_run_2>
+   ```
+
+**Pass/Fail Criteria**:
+- [ ] First run terminal state is `blocked` (planner failure, not budget exhaustion)
+- [ ] First run's worktree is preserved after `blocked` terminal state
+- [ ] Second run of the same spec auto-cleans the first run's `blocked` worktree
+- [ ] Second run emits `blocked_worktree_cleaned` event referencing first run
+- [ ] Second run creates its own new worktree successfully
+
+**Cleanup**:
+```bash
+# Remove the vague spec
+cd /tmp/gromit-fixtures/fixture-calc && git rm specs/vague-blocked.md && git commit -m "remove vague spec"
+```
+
+---
+
 ## 3. Artifact Verification Checklist (0002b Extensions)
 
 Use this after any scenario to systematically verify the 0002b-specific artifacts.
@@ -1024,8 +1169,8 @@ For `RUN_DIR/evidence/`:
 
 | File | Must Exist | Check |
 |------|-----------|-------|
-| `review.json` | Always (0002b) | Valid JSON. Object keyed by facet name. Each value is an array of findings. Each finding has `severity`, `file`, `line`, `description`, `suggested_fix`, `cycle`, `disposition`. |
-| `acceptance.json` | Always (0002b) | Valid JSON array. Each element has `criterion`, `status` (pass/fail/unclear), `rationale`, `evidence_refs`. |
+| `review.json` | Always (0002b) | Valid JSON. Object keyed by facet name. Each value is an array of findings. Each finding has `severity`, `file`, `description`, `cycle`, `disposition` (required), and `line`, `suggested_fix` (optional, omitempty). |
+| `acceptance.json` | Always (0002b) | Valid JSON object with `.results` array (each element has `criterion`, `status`, `rationale`, `evidence_refs`), plus `.all_pass` bool and `.has_fail_or_unclear` bool. |
 | `review.md` | Always (updated) | Contains review findings by facet section. Contains per-criterion acceptance table with status/rationale/evidence. |
 | `summary.md` | Always (0002a) | Unchanged. |
 | `diff-summary.md` | If code changed (0002a) | Unchanged. |
@@ -1042,7 +1187,7 @@ jq 'keys' RUN_DIR/evidence/review.json
 
 # Verify finding schema (for each finding)
 jq '.. | objects | select(.severity != null) | keys' RUN_DIR/evidence/review.json | sort -u
-# Each finding should have: severity, file, line, description, suggested_fix, cycle, disposition
+# Each finding should have: severity, file, description, cycle, disposition (required); line, suggested_fix (optional, omitempty)
 
 # Verify severity values are valid
 jq '[.. | objects | select(.severity != null) | .severity] | unique' RUN_DIR/evidence/review.json
@@ -1056,36 +1201,48 @@ jq '[.. | objects | select(.disposition != null) | .disposition] | unique' RUN_D
 ### 3.3 acceptance.json Spot-Checks
 
 ```bash
-# Verify it's an array
-jq 'type' RUN_DIR/evidence/acceptance.json
+# Verify it's an object with .results array
+jq '.results | type' RUN_DIR/evidence/acceptance.json
 # Expected: "array"
 
+# Verify top-level convenience fields
+jq '{all_pass, has_fail_or_unclear}' RUN_DIR/evidence/acceptance.json
+# Expected: {"all_pass": true/false, "has_fail_or_unclear": true/false}
+
 # Verify each element has required fields
-jq '[.[] | select(.criterion == null or .status == null or .rationale == null or .evidence_refs == null)] | length' \
+jq '[.results[] | select(.criterion == null or .status == null or .rationale == null or .evidence_refs == null)] | length' \
   RUN_DIR/evidence/acceptance.json
 # Expected: 0
 
 # Verify status values
-jq '[.[] | .status] | unique' RUN_DIR/evidence/acceptance.json
+jq '[.results[] | .status] | unique' RUN_DIR/evidence/acceptance.json
 # Expected: subset of ["pass", "fail", "unclear"]
 
 # Verify evidence_refs are non-empty arrays
-jq '[.[] | select((.evidence_refs | length) == 0)] | length' RUN_DIR/evidence/acceptance.json
+jq '[.results[] | select((.evidence_refs | length) == 0)] | length' RUN_DIR/evidence/acceptance.json
 # Expected: 0
+
+# Verify all_pass consistency
+jq '(.all_pass == ([.results[] | .status] | all(. == "pass")))' RUN_DIR/evidence/acceptance.json
+# Expected: true
+
+# Verify has_fail_or_unclear consistency
+jq '(.has_fail_or_unclear == ([.results[] | .status] | any(. == "fail" or . == "unclear")))' RUN_DIR/evidence/acceptance.json
+# Expected: true
 ```
 
 ### 3.4 Extended Events Spot-Checks
 
 For a successful 0002b run, expect all 0002a events plus:
-- `review_completed` (>= 1, one per cycle that reaches review)
-- `acceptance_evaluated` (>= 1, one per cycle that reaches acceptance)
+- `review_result` (>= 1, one per cycle that reaches review)
+- `acceptance_result` (>= 1, one per cycle that reaches acceptance)
 
 Conditional events:
 - `replan_triggered` with review or acceptance source -- only when review/acceptance triggers fix cycle
 
 ```bash
 # Count 0002b event types
-grep -E 'review_completed|acceptance_evaluated' RUN_DIR/events.jsonl | \
+grep -E 'review_result|acceptance_result' RUN_DIR/events.jsonl | \
   jq -r .event_type | sort | uniq -c
 ```
 
@@ -1307,6 +1464,7 @@ go test ./internal/next/acceptor/...
 | `specloop` (replan wiring) | 2, 4, 5, 6 |
 | `evidence` (bundle generation) | 1, 6 (check review.json, acceptance.json, review.md) |
 | `execpolicy` (review config) | 3, 7 |
+| `specloop/stages` (init, finalize) | 1, 9 |
 | CLI wiring (exec.go) | All scenarios |
 
 ### 7.3 Pre-merge Checklist
@@ -1325,6 +1483,7 @@ Before merging Spec 0002b implementation:
 - [ ] Scenario 6 (Budget Exhaustion) -- `needs_human` with blocker summary
 - [ ] Scenario 7 (Enable Additional Facet) -- `logic_gaps` runs from config alone
 - [ ] Scenario 8 (New-vs-Preexisting) -- disposition labels present, info notes non-blocking
+- [ ] Scenario 9 (Blocked Worktree Cleanup) -- `blocked` worktree preserved, auto-cleaned on re-run with `blocked_worktree_cleaned` event
 - [ ] `go vet ./...` clean
 - [ ] `gofmt -l .` produces no output
 - [ ] No Gromit files committed to fixture repos' main branches
