@@ -11,7 +11,7 @@
 
 ### 1.1 System Requirements
 
-- Go 1.22+ installed (`go version`)
+- Go 1.26 installed (`go version`)
 - Git 2.30+ installed (`git --version` -- needs worktree support)
 - An LLM provider API key set in environment (e.g., `ANTHROPIC_API_KEY`)
 - `jq` installed for JSON inspection (`jq --version`)
@@ -225,7 +225,7 @@ Terminal state: ready_for_review
    ```
 4. `run.json` shows correct state:
    ```bash
-   jq .state ~/.local/share/gromit/projects/fixture-calc/runs/$RUN_ID/run.json
+   jq .status ~/.local/share/gromit/projects/fixture-calc/runs/$RUN_ID/run.json
    # Expected: "ready_for_review"
    ```
 5. **FinalizeStage three-gate condition verified** -- all three gates must be true for `ready_for_review`:
@@ -827,7 +827,7 @@ Blocker: Acceptance/review failures remain after 2 cycles.
 
 1. Terminal state: `needs_human`.
    ```bash
-   jq .state ~/.local/share/gromit/projects/fixture-calc/runs/$RUN_ID/run.json
+   jq .status ~/.local/share/gromit/projects/fixture-calc/runs/$RUN_ID/run.json
    # Expected: "needs_human"
    ```
 
@@ -878,6 +878,128 @@ Blocker: Acceptance/review failures remain after 2 cycles.
 - [ ] cycles equals max_spec_cycles (2)
 - [ ] Evidence bundle is complete (review.json, acceptance.json, review.md, metrics.json)
 - [ ] acceptance.json shows at least one remaining failure
+
+**Cleanup**:
+```bash
+# Restore max_spec_cycles
+jq '.budgets.max_spec_cycles = 3' \
+  ~/.local/share/gromit/projects/fixture-calc/policy/execution.json > /tmp/ep.json \
+  && mv /tmp/ep.json ~/.local/share/gromit/projects/fixture-calc/policy/execution.json
+```
+
+---
+
+### Scenario 6b: Acceptance Unclear Exhausts Budget → needs_human
+
+**Purpose**: Verify that repeated `unclear` acceptance criteria exhaust `max_spec_cycles` and reach `needs_human`, distinct from fail-based budget exhaustion (Scenario 6).
+
+**Key difference from Scenario 6**: Scenario 6 uses a spec whose criteria clearly fail (missing implementation). Scenario 6b uses a spec whose criteria are hard to evaluate -- the LLM cannot definitively determine pass or fail, producing `unclear` status.
+
+**Setup**:
+```bash
+# Create a spec with subjective/hard-to-evaluate acceptance criteria
+cat > /tmp/gromit-fixtures/fixture-calc/specs/subjective-criteria.md << 'EOF'
+# Subjective Criteria Spec
+
+## Goal
+Refactor the calc package for maintainability.
+
+## Acceptance Criteria
+- Code is maintainable and follows best practices
+- Error messages are user-friendly and actionable
+EOF
+
+# Use a policy with max_spec_cycles: 2 to keep the test short
+jq '.budgets.max_spec_cycles = 2' \
+  ~/.local/share/gromit/projects/fixture-calc/policy/execution.json > /tmp/ep.json \
+  && mv /tmp/ep.json ~/.local/share/gromit/projects/fixture-calc/policy/execution.json
+
+# Verify:
+jq '.budgets.max_spec_cycles' ~/.local/share/gromit/projects/fixture-calc/policy/execution.json
+# Expected: 2
+```
+
+**Execute**:
+```bash
+./gromit-next exec spec --project fixture-calc \
+  --spec /tmp/gromit-fixtures/fixture-calc/specs/subjective-criteria.md \
+  --policy /tmp/gromit-fixtures/policies/budget-2.json
+```
+
+**Expected CLI output** (approximate):
+```
+[init] Created run 20260312-XXXXXX-XXXXXX
+...
+[validate] ...
+[review] ...
+[accept] Criterion 1 "Code is maintainable...": unclear
+[accept] Criterion 2 "Error messages are user-friendly...": unclear
+[replan] Cycle 2 (fix): ...
+...
+[accept] ... still unclear ...
+[budget] max_spec_cycles (2) exhausted
+
+Terminal state: needs_human
+Blocker: Acceptance criteria unclear after 2 cycles.
+```
+
+**Verify**:
+
+1. Terminal state: `needs_human`.
+   ```bash
+   jq .status ~/.local/share/gromit/projects/fixture-calc/runs/$RUN_ID/run.json
+   # Expected: "needs_human"
+   ```
+
+2. **acceptance.json shows `unclear` status for criteria**:
+   ```bash
+   jq '.results[] | {criterion, status}' \
+     ~/.local/share/gromit/projects/fixture-calc/runs/$RUN_ID/evidence/acceptance.json
+   # Expected: at least one criterion with status "unclear"
+   ```
+
+3. **Blocker summary references unclear criteria**:
+   ```bash
+   jq .blocker_summary ~/.local/share/gromit/projects/fixture-calc/runs/$RUN_ID/run.json
+   # Expected: mentions "unclear" criteria and budget exhaustion
+   ```
+
+4. **Fix cycle was attempted** (planner guidance should say "add tests or evidence"):
+   ```bash
+   grep 'replan_triggered' \
+     ~/.local/share/gromit/projects/fixture-calc/runs/$RUN_ID/events.jsonl | jq .
+   # Expected: replan event with source "acceptance"
+   ```
+
+5. **Budget exhaustion is correctly signaled**:
+   ```bash
+   grep 'terminal_state' ~/.local/share/gromit/projects/fixture-calc/runs/$RUN_ID/events.jsonl | jq '{state, reason}'
+   ```
+   Should show `"needs_human"` with a reason referencing cycle exhaustion.
+
+6. **Evidence bundle still emitted** (even on failure):
+   ```bash
+   ls ~/.local/share/gromit/projects/fixture-calc/runs/$RUN_ID/evidence/
+   # Should contain: review.json, acceptance.json, review.md, metrics.json, validation.json
+   ```
+
+7. **cycles equals max_spec_cycles**:
+   ```bash
+   jq .cycles ~/.local/share/gromit/projects/fixture-calc/runs/$RUN_ID/evidence/metrics.json
+   # Expected: 2 (equals max_spec_cycles)
+   ```
+
+**Determinism Fallback**: The LLM may produce definitive pass/fail instead of `unclear`. If this happens, verify the acceptance evaluation machinery works correctly (all pass → ready_for_review, or fail → fix cycle). The `unclear` path is also verified via automated integration tests with deterministic FakeAgent responses.
+
+Note: Use `jq .status` (not `.state`) for run.json queries, consistent with the RunState struct.
+
+**Pass/Fail Criteria**:
+- [ ] Terminal state is `needs_human`
+- [ ] acceptance.json shows at least one criterion with `"status": "unclear"`
+- [ ] Blocker summary mentions unclear criteria
+- [ ] Fix cycle was attempted with replan event sourced from acceptance
+- [ ] cycles equals max_spec_cycles (2)
+- [ ] Evidence bundle is complete (review.json, acceptance.json, review.md, metrics.json)
 
 **Cleanup**:
 ```bash
@@ -1053,6 +1175,54 @@ Terminal state: ready_for_review
 
 ---
 
+### Scenario 8b: Blocked from Missing Acceptance Criteria
+
+**Purpose**: Verify that AcceptStage returns `blocked` immediately when the spec lacks an acceptance criteria section, rather than wasting cycles.
+
+**Setup**: Use the same project as other scenarios but with a spec that has no `## Acceptance Criteria` section:
+
+```bash
+cat > /tmp/test-spec-no-ac/spec.md << 'EOF'
+# Test Spec — No Acceptance Criteria
+
+## Summary
+Build a simple handler.
+
+## Requirements
+- Handle GET /health
+EOF
+```
+
+**Execute**:
+
+```bash
+gromit-next exec spec --project test-project --spec /tmp/test-spec-no-ac/spec.md
+```
+
+**Expected**:
+
+1. Run terminates quickly (no cycles consumed):
+   ```bash
+   gromit-next exec list --project test-project | tail -1
+   # Expected status: "blocked"
+   ```
+
+2. Blocker summary mentions missing acceptance criteria:
+   ```bash
+   cat ~/.local/share/gromit/runs/<run-id>/state.json | jq '.blocker_summary'
+   # Expected: contains "acceptance criteria"
+   ```
+
+**Checklist**:
+
+- [ ] Terminal state is `blocked` (not `needs_human`)
+- [ ] Blocker summary references missing acceptance criteria
+- [ ] No fix cycles consumed before termination
+
+**Cleanup**: Remove test spec directory.
+
+---
+
 ### Scenario 9: Blocked Worktree Cleanup on Re-run
 
 **Purpose**: Verify that FinalizeStage preserves worktrees for terminal states, and that InitStage auto-cleans `blocked` worktrees from prior runs when re-running the same spec.
@@ -1084,12 +1254,12 @@ export ANTHROPIC_API_KEY="sk-ant-invalid-key-for-blocked-test"
 2. Terminal state must be `blocked` (not `needs_human`):
    ```bash
    RUN_ID_1=<from output>
-   jq .state ~/.local/share/gromit/projects/fixture-calc/runs/$RUN_ID_1/run.json
+   jq .status ~/.local/share/gromit/projects/fixture-calc/runs/$RUN_ID_1/run.json
    # Expected: "blocked"
    ```
 3. Confirm the worktree directory still exists after the run completes:
    ```bash
-   jq '.worktree_path // .worktree' \
+   jq '.worktree_path' \
      ~/.local/share/gromit/projects/fixture-calc/runs/$RUN_ID_1/run.json
    # Verify the directory exists on disk
    ls -la <worktree_path_from_above>
@@ -1113,7 +1283,7 @@ export ANTHROPIC_API_KEY="$REAL_KEY"
    ```
 2. The first run's `run.json` should have its worktree path cleared:
    ```bash
-   jq '.worktree_path // .worktree' \
+   jq '.worktree_path' \
      ~/.local/share/gromit/projects/fixture-calc/runs/$RUN_ID_1/run.json
    # Expected: "" or null
    ```
@@ -1126,7 +1296,7 @@ export ANTHROPIC_API_KEY="$REAL_KEY"
 4. The second run should have its own worktree:
    ```bash
    RUN_ID_2=<from output>
-   jq '.worktree_path // .worktree' \
+   jq '.worktree_path' \
      ~/.local/share/gromit/projects/fixture-calc/runs/$RUN_ID_2/run.json
    ls -la <worktree_path_from_run_2>
    ```
@@ -1470,6 +1640,7 @@ Before merging Spec 0002b implementation:
 - [ ] Scenario 6 (Budget Exhaustion) -- `needs_human` with blocker summary
 - [ ] Scenario 7 (Enable Additional Facet) -- `logic_gaps` runs from config alone
 - [ ] Scenario 8 (New-vs-Preexisting) -- disposition labels present, info notes non-blocking
+- [ ] Scenario 8b (Blocked from Missing AC) -- `blocked` immediately, no cycles consumed, blocker summary references missing criteria
 - [ ] Scenario 9 (Blocked Worktree Cleanup) -- `blocked` worktree preserved, auto-cleaned on re-run with `blocked_worktree_cleaned` event
 - [ ] `go vet ./...` clean
 - [ ] `gofmt -l .` produces no output

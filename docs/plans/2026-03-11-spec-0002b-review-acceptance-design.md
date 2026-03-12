@@ -268,6 +268,8 @@ ReviewFindings        []string `json:"review_findings,omitempty"`
 AcceptanceResults     []string `json:"acceptance_results,omitempty"`
 ```
 
+**Cycle reset:** The SpecLoop runner resets these fields at the start of each cycle iteration, before any stage's `Run()` method is called. Specifically, the three gate booleans (`FinalValidationPassed`, `FinalReviewPassed`, `FinalAcceptancePassed`) are reset to `false`. This prevents stale `true` values from carrying over if a stage is skipped or the pipeline ordering changes. The `[]string` fields (`ReviewFindings`, `AcceptanceResults`) are also cleared. Individual stages are not responsible for this reset.
+
 **Design note on RunState string fields vs. structured evidence:**
 
 - `ReviewFindings` and `AcceptanceResults` are `[]string` carrying human-readable summaries. These feed into the planner's `FailureContext` and into the `review.md` evidence summary.
@@ -277,10 +279,10 @@ AcceptanceResults     []string `json:"acceptance_results,omitempty"`
 
 ### Stage-to-terminal-state mapping (additions)
 
-| Stage | Can produce `ReplanFrom`? |
-|-------|-------------------------|
-| ReviewStage | Yes (findings above threshold) |
-| AcceptStage | Yes (fail or unclear criteria) |
+| Stage | Can produce `ReplanFrom`? | Can produce `NeedsHuman`? |
+|-------|-------------------------|-------------------------|
+| ReviewStage | Yes (findings above threshold) | No |
+| AcceptStage | Yes (fail or unclear criteria) | Yes (spec lacks acceptance criteria) |
 
 ---
 
@@ -309,7 +311,7 @@ Each facet is a separate agent invocation, potentially parallel. Each receives t
 
 ### Diff computation
 
-ReviewStage has access to a GitOps interface and computes the diff at runtime by running `git diff` against the base branch in the worktree. No new types or data flow are needed — the ReviewStageConfig includes a GitOps field (or equivalent worktree access) so the diff can be computed fresh on each cycle. This ensures the diff reflects the latest state after any fix cycles.
+ReviewStage computes the diff at runtime by running `git diff` against the base branch in the worktree. A separate `DiffProvider` interface (not on `GitOps`, which handles worktree lifecycle) provides `Diff(baseBranch string) (string, error)`. ReviewStageConfig includes a `DiffProvider` field. This keeps interface segregation clean — only ReviewStage needs diff computation, and test fakes for other stages are not polluted. The diff is computed fresh on each cycle to reflect the latest state after any fix cycles.
 
 ### Built-in facet prompt templates
 
@@ -381,9 +383,9 @@ Evaluates each acceptance criterion from the approved spec individually.
 
 ### Acceptance criteria extraction
 
-AcceptStage parses markdown from the spec packet. A helper function `ParseAcceptanceCriteria(specMarkdown string) ([]string, error)` looks for a `## Acceptance Criteria` section and parses bullet points. Lives in the acceptor package. AcceptStage calls this helper then passes criteria to the evaluator.
+AcceptStage resolves criteria via a two-tier approach: if `AcceptStageConfig.Criteria` is non-empty, those criteria are used directly (useful for testing and overrides). Otherwise, AcceptStage reads `spec.md` from the run directory and calls `ParseAcceptanceCriteria(specMarkdown)` to extract criteria at runtime. `ParseAcceptanceCriteria` is a helper function in the acceptor package that looks for a `## Acceptance Criteria` section and parses bullet points.
 
-If `ParseAcceptanceCriteria` returns an error (section not found) or returns an empty slice, AcceptStage returns `Blocked` with a clear message: "spec lacks acceptance criteria section — cannot evaluate acceptance." This fails fast and avoids wasting cycles on a spec that cannot be evaluated.
+If criteria resolution produces an error (section not found) or returns an empty slice, AcceptStage returns `NeedsHuman` with a clear message: "spec lacks acceptance criteria section — cannot evaluate acceptance. Revise the spec to include acceptance criteria." This is a spec quality issue, not an infrastructure failure, so it produces `NeedsHuman` rather than `Blocked` — the human must fix the spec before the system can evaluate acceptance.
 
 ### Input
 
@@ -477,13 +479,21 @@ Note: `ready_for_review` means ready for human review.
 
 ### Blocked worktree cleanup
 
-FinalizeStage preserves worktrees for ALL terminal states (`blocked`, `needs_human`, `ready_for_review`). The existing `RemoveWorktree` call for `blocked` runs is removed — a blocked run's worktree is kept so a human can inspect it.
+**Behavioral change from 0002a:** Spec 0002a's FinalizeStage removes worktrees for `blocked` runs (only preserving `needs_human` and `ready_for_review`). This spec changes that behavior — FinalizeStage now preserves worktrees for ALL terminal states (`blocked`, `needs_human`, `ready_for_review`). The existing `RemoveWorktree` call for `blocked` runs is removed so a human can inspect blocked runs' state. This is intentional: blocked runs represent infrastructure failures whose worktrees may contain useful diagnostic information.
 
 InitStage handles cleanup of stale blocked worktrees: when creating a new run for a spec, it scans the store for prior runs with the same `spec_id`. For any prior run with `status: blocked` and a non-empty `worktree_path`, InitStage removes the worktree and clears the path in `run.json`. It emits a `blocked_worktree_cleaned` event with the old run ID.
 
 ### VISION Review Outcome Labels
 
 This spec does not record the VISION.md review outcome labels (`accepted`, `rework_implementation_gap`, `rework_vision_change`). The machine stops at `ready_for_review`. Spec 0003 formalizes capturing the human's review decision with these labels and feeding them into the vision metrics loop.
+
+### Extended Observability
+
+The event log (`events.jsonl`) gains the following event types:
+
+- `review_result` — emitted by ReviewStage after each cycle. Contains: facets reviewed, finding counts by severity, whether blocking findings were found, errored facets (if any).
+- `acceptance_result` — emitted by AcceptStage after each evaluation. Contains: criteria evaluated, per-criterion status (pass/fail/unclear), whether all passed.
+- `replan_triggered` gains a `source` field: `"validation"`, `"review"`, or `"acceptance"` to identify which stage triggered the replan.
 
 ---
 
@@ -533,8 +543,8 @@ The `cycle` field records which execution cycle produced the finding. The `dispo
 ### Evidence file authorship
 
 - **ReviewStage** writes `review.json` after each cycle as a side effect of its `Run()` method. It holds structured findings (`[]Finding`) in-memory and writes them directly using the domain types from `review/`. ReviewStage is the sole writer of `review.json`.
-- **EvidenceStage** writes `review.md` (human-readable summary) and `acceptance.json` (structured acceptance results). EvidenceStage does NOT write `review.json` — that is owned by ReviewStage.
-- **AcceptStage** does NOT write evidence files. It populates RunState fields (`FinalAcceptancePassed`, `AcceptanceResults`) for EvidenceStage to consume.
+- **AcceptStage** writes `acceptance.json` after evaluation as a side effect of its `Run()` method, using its structured `AcceptanceResult` directly. This mirrors ReviewStage's pattern. AcceptStage also populates RunState fields (`FinalAcceptancePassed`, `AcceptanceResults []string`) — the `[]string` fields feed the planner's FailureContext, not the evidence file.
+- **EvidenceStage** writes `review.md` (human-readable summary combining review findings and acceptance results). EvidenceStage reads `review.json` and `acceptance.json` from disk when generating `review.md`. EvidenceStage does NOT write `review.json` or `acceptance.json` — those are owned by ReviewStage and AcceptStage respectively.
 
 ### review.md (updated)
 

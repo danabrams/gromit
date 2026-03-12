@@ -111,8 +111,10 @@ type FailureContext struct {
 ```
 
 `FailureContext.Failures` remains `[]string`. Helper functions serialize structured data into formatted strings:
-- `ReviewFailuresToStrings(findings []Finding, threshold Severity) []string` — formats blocking findings as `review:<facet>:<severity>: <file>:<line> — <description> (suggested fix: <fix>)`
-- `AcceptanceFailuresToStrings(results []CriterionResult) []string` — formats failed/unclear criteria as `acceptance:<status>: "<criterion>" — <rationale> [<evidence_refs>]`. Differentiates `fail` (implement the missing behavior) from `unclear` (add tests or evidence) in the formatted string so the planner produces appropriately targeted fix tasks.
+- `ReviewFailuresToStrings(findings []Finding) []string` — formats blocking findings as `review:<facet>:<severity>:<file>:<line> — <description>`
+- `AcceptanceFailuresToStrings(results []CriterionResult) []string` — formats differently based on status:
+  - fail: `acceptance:fail: <criterion> — implement missing behavior`
+  - unclear: `acceptance:unclear: <criterion> — add tests or evidence to prove/disprove`
 
 ```go
 // These helpers are NOT on FailureContext — they are free functions used by
@@ -178,6 +180,7 @@ type Finding struct {
 // review/registry.go
 type FacetDef struct {
     Name           string
+    Description    string // human-readable description of what the facet checks
     PromptTemplate string // Go text/template with {{.Diff}}, {{.SpecPacket}}, etc.
     DefaultTier    string // provider tier (e.g., "high", "medium")
 }
@@ -241,7 +244,7 @@ Matching algorithm (v1): A finding is **pre-existing** if a prior finding exists
 
 ```go
 // review/matching.go
-func ClassifyFindings(current []Finding, prior []Finding) []Finding
+func LabelDispositions(current []Finding, prior []Finding) []Finding
 // Returns current findings with Disposition set to "new" or "pre-existing"
 ```
 
@@ -265,7 +268,7 @@ type AcceptanceResult struct {
 
 ### Acceptance rules
 
-- Missing acceptance criteria section -> `Blocked` with message "spec lacks acceptance criteria section — cannot evaluate acceptance." Fails fast, no wasted cycles.
+- Missing acceptance criteria section -> `NeedsHuman` with message "spec lacks acceptance criteria section — cannot evaluate acceptance. Revise the spec to include acceptance criteria." Fails fast, no wasted cycles.
 - Any `fail` triggers replan (within budget). Planner gets: "This criterion failed. Implement the missing behavior."
 - Any `unclear` triggers replan (within budget). Planner gets: "This criterion could not be evaluated. Add tests or observable evidence that proves or disproves it."
 - Budget exhausted with remaining failures/unclear -> `needs_human`.
@@ -334,6 +337,8 @@ type RunState struct {
 - `ReviewFindings` — human-readable review finding strings for planner consumption and evidence. ReviewStage holds structured `[]Finding` internally for disposition matching across cycles.
 - `AcceptanceResults` — human-readable acceptance result strings for planner consumption and evidence.
 
+The SpecLoop runner resets `FinalValidationPassed`, `FinalReviewPassed`, `FinalAcceptancePassed` to `false` and clears `ReviewFindings`, `AcceptanceResults` to empty slices at the start of each cycle iteration, before any stage's `Run()` method is called.
+
 ### AcceptanceResult field naming
 
 `AcceptanceResult` uses `Results` (not `Criteria`) as the field name:
@@ -359,7 +364,7 @@ func ParseAcceptanceCriteria(specMarkdown string) ([]string, error)
 
 This extracts the numbered list items under the `## Acceptance Criteria` heading, returning them as individual criterion strings for per-criterion evaluation.
 
-If `ParseAcceptanceCriteria` returns an error (section not found) or an empty slice, AcceptStage returns `Blocked` with message: "spec lacks acceptance criteria section — cannot evaluate acceptance." This fails fast, no wasted cycles.
+If `ParseAcceptanceCriteria` returns an error (section not found) or an empty slice, AcceptStage returns `NeedsHuman` with message: "spec lacks acceptance criteria section — cannot evaluate acceptance. Revise the spec to include acceptance criteria." This fails fast, no wasted cycles.
 
 ### Evaluator model tier
 
@@ -440,7 +445,7 @@ Build the multi-facet LLM review package:
 - IsBlocking(threshold, findingSeverity) threshold comparison function
 - Facet registry with built-in facets and prompt templates
 - Facet reviewer (interface for LLM invocation per facet)
-- New-vs-preexisting finding matching (ClassifyFindings)
+- New-vs-preexisting finding matching (LabelDispositions)
 - Aggregation: run all enabled facets, collect findings, apply threshold
 
 ### Phase 3: `acceptor/` package
@@ -456,7 +461,7 @@ Build the acceptance evaluation package:
 
 Implement stage interface for both:
 - ReviewStage: invokes review package, checks threshold, returns Continue or ReplanFrom. Computes diff from worktree via GitOps at runtime. Writes `review.json` after each cycle. Handles parallel facet failure (continues with successful facets, marks failed ones as errored).
-- AcceptStage: invokes acceptor package, returns Continue, ReplanFrom, NeedsHuman, or **Blocked** (when spec lacks acceptance criteria). Tier injected at construction time.
+- AcceptStage: invokes acceptor package, returns Continue, ReplanFrom, or **NeedsHuman** (including when spec lacks acceptance criteria). Tier injected at construction time.
 - Pipeline insertion: stages registered between validate and evidence
 - FailureContext formatting for planner consumption
 
@@ -467,6 +472,7 @@ Extend the fix-cycle replan loop:
 - AcceptStage FailureContext contract (failed/unclear criteria as structured failure strings)
 - New-vs-preexisting in fix cycles: review stage tracks prior findings in stage-local state across cycles, classifies current findings
 - Replan triggers: only new findings above threshold or failed/unclear criteria
+- `ReplanTriggeredEvent.Source` field: `"validation"`, `"review"`, or `"acceptance"` to identify replan origin
 - RunState extensions: fields to carry review findings and acceptance results across cycles
 
 ### Phase 6: Execution policy extensions
@@ -482,9 +488,9 @@ Extend the execution policy:
 
 Extend the evidence bundle:
 - `WriteReviewFindings()` — writes `review.json` (aggregated findings by facet) — called by **ReviewStage** (which owns review.json), not EvidenceStage
-- `WriteAcceptance()` — writes `acceptance.json` (per-criterion evaluation) — called by **EvidenceStage**
+- `WriteAcceptance()` — writes `acceptance.json` (per-criterion evaluation) — called by **AcceptStage** (which owns acceptance.json), not EvidenceStage
 - `WriteReview()` update — add review findings by facet section and per-criterion acceptance table to `review.md` — called by **EvidenceStage**
-- EvidenceStage update: reads review findings and acceptance results from RunState, writes `review.md` and `acceptance.json`. EvidenceStage does NOT write `review.json`.
+- EvidenceStage update: reads `review.json` and `acceptance.json` from disk, writes `review.md`. EvidenceStage does NOT write `review.json` or `acceptance.json`.
 
 ### Phase 8: Integration wiring + CLI updates
 
@@ -498,7 +504,7 @@ Extend the evidence bundle:
 - FinalizeStage three-gate update: `ready_for_review` requires all three gates (FinalValidationPassed, FinalReviewPassed, FinalAcceptancePassed); any gate failure with exhausted budget yields `needs_human`
 - InitStage blocked-worktree cleanup: auto-clean worktrees from prior blocked runs of the same spec
 - New event types: `blocked_worktree_cleaned` and corresponding `unmarshalEvent` switch cases
-- Per-task artifact files: write `task-packet.md`, `result.json`, and `agent-output.txt` under `tasks/<task-id>/`
+- Note: Per-task artifact files are deferred per the design spec.
 
 ---
 
@@ -636,15 +642,25 @@ All run artifacts go under the external workspace. Never in the target repo.
 
 ### Evidence file authorship
 
-**ReviewStage owns review.json writes.** ReviewStage writes `review.json` after each cycle as a side effect of its `Run()` method. It holds structured findings (`[]Finding`) in-memory and writes them directly using the domain types from `review/`. EvidenceStage writes `review.md` (human-readable summary) and `acceptance.json` (structured acceptance results). EvidenceStage must NOT write `review.json`.
+**ReviewStage owns `review.json`.** ReviewStage writes `review.json` after each cycle as a side effect of its `Run()` method. It holds structured findings (`[]Finding`) in-memory and writes them directly using the domain types from `review/`.
 
-AcceptStage does NOT write evidence files directly. It populates RunState fields for EvidenceStage to consume when writing `acceptance.json`.
+**AcceptStage owns `acceptance.json`.** AcceptStage writes `acceptance.json` after evaluation as a side effect of its `Run()` method, using its structured `AcceptanceResult` directly. This mirrors ReviewStage's pattern. AcceptStage also populates RunState `[]string` fields for the planner's FailureContext.
 
-The RunState `[]string` fields (`ReviewFindings`, `AcceptanceResults`) are NOT the source for evidence files — they carry human-readable summaries for planner consumption.
+**EvidenceStage owns `review.md`.** EvidenceStage reads `review.json` and `acceptance.json` from disk when generating the human-readable `review.md` summary. EvidenceStage must NOT write `review.json` or `acceptance.json`.
 
-### Diff computation via GitOps
+The RunState `[]string` fields (`ReviewFindings`, `AcceptanceResults`) are NOT the source for evidence files — they carry human-readable summaries for planner consumption only.
 
-ReviewStage has access to a GitOps interface and computes the diff at runtime by running `git diff` against the base branch in the worktree. ReviewStageConfig includes a GitOps field so the diff can be computed fresh on each cycle. No new types or data flow are needed — this is the same GitOps interface used by other stages.
+### Diff computation via DiffProvider
+
+ReviewStage computes the diff at runtime via a separate `DiffProvider` interface (not on `GitOps`, which handles worktree lifecycle only):
+
+```go
+type DiffProvider interface {
+    Diff(baseBranch string) (string, error)
+}
+```
+
+ReviewStageConfig includes a `DiffProvider` field. The diff is computed fresh on each cycle to reflect the latest state after fix cycles. The production implementation runs `git diff` in the worktree. Test fakes return canned diffs.
 
 ### review.json schema
 
@@ -699,6 +715,7 @@ All of these must be satisfied before the implementation is complete:
 7. **Severity levels** — Findings are categorized as error/warning/suggestion/info with distinct blocking behavior.
 8. **VISION label deferral** — The system does not auto-label work as `accepted`. VISION review outcome labels are explicitly deferred to Spec 0003.
 9. **Budget sharing** — Validation, review, and acceptance fix cycles all consume from the same `max_spec_cycles` budget. A run using cycle 1 for initial execution, cycle 2 for validation fix, and cycle 3 for review fix correctly exhausts the budget.
+10. **Blocked worktree preservation** — FinalizeStage preserves worktrees for `blocked` runs instead of removing them, so a human can inspect the state. InitStage cleans up stale blocked worktrees when starting a new run for the same spec.
 
 ---
 

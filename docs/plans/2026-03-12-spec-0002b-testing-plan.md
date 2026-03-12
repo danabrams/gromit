@@ -33,8 +33,8 @@ Inherits all fakes from Spec 0002a (FakeAgent, FakeGit, FakeClock, FakeCmdRunner
 
 | Boundary | Interface | Fake |
 |----------|-----------|------|
-| Review facet invocation | `FacetInvoker` | `FakeFacetInvoker` -- returns canned findings per facet |
-| Acceptance evaluation | `AcceptanceEvaluator` | `FakeAcceptanceEvaluator` -- returns canned per-criterion results |
+| Review facet invocation | `ReviewAgent` | `FakeReviewAgent` -- returns canned findings per facet |
+| Acceptance evaluation | `AcceptanceEvaluator` | `FakeAcceptanceEvaluator` -- returns canned batch `AcceptanceResult` |
 
 All new fakes live in `internal/next/testutil/`.
 
@@ -42,7 +42,7 @@ All new fakes live in `internal/next/testutil/`.
 
 Before any tests in this plan will compile, the following struct/field additions are required in existing code:
 
-- **`RunState`** (`internal/next/specloop/`): Add `FinalReviewPassed bool`, `FinalAcceptancePassed bool`, `ReviewFindings []review.Finding`, and `AcceptanceResults []acceptor.CriterionResult`. These fields are referenced by finalize-stage tests and `NormalizeNilFields` tests.
+- **`RunState`** (`internal/next/runstore/`): Add `FinalReviewPassed bool`, `FinalAcceptancePassed bool`, `ReviewFindings []string`, and `AcceptanceResults []string`. These are `[]string` carrying human-readable summaries (per the design spec), not structured types. They are referenced by finalize-stage tests and `NormalizeNilFields` tests.
 - **`Policy`** (`internal/next/execpolicy/`): Add `Review` sub-struct (with `Facets []string`, `Tiers map[string]string`, `ReplanThreshold string`) and `Models.Evaluator string`. These fields are referenced by policy-loading tests and reviewer/evaluator configuration.
 - **`ReplanTriggeredEvent`** (`internal/next/specloop/`): Add `Source string` field (currently only has `Reason`). Tests assert `source: "review"` or `source: "acceptance"` on replan events; they will not compile without this field.
 
@@ -143,40 +143,32 @@ File: `internal/next/review/finding_test.go`
 
 File: `internal/next/review/threshold_test.go`
 
-**`TestThreshold_Parse_ValidValues`**
-- Table-driven: `"error"`, `"warning"`, `"suggestion"`.
-- Assert: Each parses correctly. No error.
+**`TestThreshold_IsBlocking`**
+- Table-driven with `(threshold Severity, finding Severity, want bool)` triples:
+  - `(SeverityError, SeverityError, true)` — error blocks at error threshold
+  - `(SeverityError, SeverityWarning, false)` — warning does not block at error threshold
+  - `(SeverityError, SeveritySuggestion, false)` — suggestion does not block at error threshold
+  - `(SeverityError, SeverityInfo, false)` — info never blocks
+  - `(SeverityWarning, SeverityWarning, true)` — warning blocks at warning threshold
+  - `(SeverityWarning, SeverityError, true)` — error blocks at warning threshold
+  - `(SeverityWarning, SeveritySuggestion, false)` — suggestion does not block at warning threshold
+  - `(SeveritySuggestion, SeveritySuggestion, true)` — suggestion blocks at suggestion threshold
+  - `(SeveritySuggestion, SeverityError, true)` — error blocks at suggestion threshold
+  - `(SeveritySuggestion, SeverityInfo, false)` — info never blocks at any threshold
+- Assert: `IsBlocking(threshold, finding) == want` for each row.
+- **Evidence**: AC 3.
 
-**`TestThreshold_Parse_Info_Invalid`**
-- Input: `ParseThreshold("info")`.
-- Assert: Returns error. Info cannot be a threshold (info never blocks).
+**`TestParseSeverity_ValidValues`**
+- Table-driven: `"error"`, `"warning"`, `"suggestion"`, `"info"`.
+- Assert: Each parses correctly to corresponding `Severity` constant. No error.
 
-**`TestThreshold_Parse_Unknown_Invalid`**
-- Input: `ParseThreshold("critical")`.
+**`TestParseSeverity_Unknown_Invalid`**
+- Input: `ParseSeverity("critical")`.
 - Assert: Returns error.
 
-**`TestThreshold_Blocks_ErrorThreshold`**
-- Input: Threshold `"error"`.
-- Table-driven assertions:
-  - `threshold.Blocks(SeverityError) == true`
-  - `threshold.Blocks(SeverityWarning) == false`
-  - `threshold.Blocks(SeveritySuggestion) == false`
-  - `threshold.Blocks(SeverityInfo) == false`
-- **Evidence**: AC 3.
-
-**`TestThreshold_Blocks_WarningThreshold`**
-- Input: Threshold `"warning"`.
-- Assert: Blocks error and warning. Does not block suggestion or info.
-- **Evidence**: AC 3.
-
-**`TestThreshold_Blocks_SuggestionThreshold`**
-- Input: Threshold `"suggestion"`.
-- Assert: Blocks error, warning, and suggestion. Does not block info.
-- **Evidence**: AC 3.
-
-**`TestThreshold_Blocks_WarningThreshold_IsDefault`**
-- Input: Threshold `"warning"` (default).
-- Assert: Blocks error and warning. Does not block suggestion or info. This is the default behavior — suggestions appear in evidence but do not consume fix-cycle budget.
+**`TestPolicyThresholdValidation`**
+- Input: Policy with `replan_threshold: "info"`.
+- Assert: Policy validation rejects `"info"` as a threshold (info never blocks). This is a policy-level validation, not a parse-level restriction — `ParseSeverity("info")` succeeds, but the policy rejects it.
 - **Evidence**: AC 3.
 
 **`TestFilterBlockingFindings_MixedSeverities`**
@@ -236,31 +228,31 @@ File: `internal/next/review/matching_test.go`
 - Assert: Returns only the new-error finding. Preexisting findings excluded even if above threshold. New-info excluded because info never blocks.
 - **Evidence**: AC 4.
 
-File: `internal/next/review/reviewer_test.go`
+File: `internal/next/review/runner_test.go`
 
-**`TestReviewer_InvokesAllEnabledFacets`**
+**`TestRunner_InvokesAllEnabledFacets`**
 - Input: Reviewer configured with 2 facets (`spec_alignment`, `code_quality`). FakeAgent returns clean findings for both.
 - Assert: FakeAgent called exactly twice. Each call's prompt contains the corresponding facet's template.
 - **Evidence**: AC 6.
 
-**`TestReviewer_ParallelInvocation`**
+**`TestRunner_ParallelInvocation`**
 - Input: Reviewer configured with 3 facets. FakeAgent has artificial latency (tracked via timestamps).
 - Assert: All 3 calls recorded. Total wall-clock time is closer to 1x latency than 3x (indicates parallel execution).
 - Note: This test is inherently timing-sensitive. Use generous tolerance (e.g., < 2x single-call duration).
 
-**`TestReviewer_AggregatesFindings`**
+**`TestRunner_AggregatesFindings`**
 - Input: FakeAgent returns 1 finding for `spec_alignment` and 2 findings for `code_quality`.
 - Assert: Aggregated result contains 3 total findings across both facets.
 
-**`TestReviewer_SetsModelTierFromPolicy`**
-- Input: Policy has `tiers.spec_alignment: "high"`, `tiers.code_quality: "medium"`.
-- Assert: FakeAgent calls use the correct model tier for each facet.
+**`TestRunner_SetsModelTierFromPolicy`**
+- Input: Policy has `tiers.spec_alignment: "high"`, `tiers.code_quality: "medium"`. Runner constructed with these tiers.
+- Assert: Runner internally selects the correct model tier for each facet at construction time. Verified by inspecting the runner's per-facet configuration (tiers are injected at construction, not passed per-call).
 
-**`TestReviewer_RetryOnInvalidOutput`**
+**`TestRunner_RetryOnInvalidOutput`**
 - Input: FakeAgent returns unparseable JSON first, valid JSON second (for one facet).
 - Assert: Review completes successfully. Agent called twice for that facet.
 
-**`TestReviewer_CycleAndDispositionSet`**
+**`TestRunner_CycleAndDispositionSet`**
 - Input: Cycle 1 review. No prior findings.
 - Assert: All findings have `Cycle == 1` and `Disposition == "new"`.
 
@@ -367,7 +359,7 @@ File: `internal/next/execpolicy/policy_test.go` (additional tests)
   ```json
   {"review": {"facets": ["spec_alignment", "code_quality"], "tiers": {"spec_alignment": "high", "code_quality": "medium"}, "replan_threshold": "warning"}}
   ```
-- Assert: `Policy.Review.Facets` has 2 entries. `Policy.Review.Tiers["spec_alignment"] == "high"`. `Policy.Review.ReplanThreshold == "suggestion"`.
+- Assert: `Policy.Review.Facets` has 2 entries. `Policy.Review.Tiers["spec_alignment"] == "high"`. `Policy.Review.ReplanThreshold == "warning"`.
 
 **`TestLoadFromFile_ReviewConfig_Defaults`**
 - Input: JSON with no `review` section.
@@ -399,18 +391,18 @@ File: `internal/next/execpolicy/policy_test.go` (additional tests)
 - Assert: No validation error. All are valid built-in facets.
 - **Evidence**: AC 6.
 
-### specloop/ tests (extensions) — AcceptStage Blocked behavior
+### specloop/ tests (extensions) — AcceptStage NeedsHuman behavior
 
 File: `internal/next/specloop/stages/accept_test.go` (additional tests)
 
-**`TestAcceptStage_MissingCriteriaSection_ReturnsBlocked`**
+**`TestAcceptStage_MissingCriteriaSection_ReturnsNeedsHuman`**
 - Input: Spec markdown without `## Acceptance Criteria` heading. `ParseAcceptanceCriteria` returns error.
-- Assert: AcceptStage returns `Blocked` with message containing "acceptance criteria".
+- Assert: AcceptStage returns `NeedsHuman` with message containing "acceptance criteria".
 - **Evidence**: Fails fast, no wasted cycles.
 
-**`TestAcceptStage_EmptyCriteriaSection_ReturnsBlocked`**
+**`TestAcceptStage_EmptyCriteriaSection_ReturnsNeedsHuman`**
 - Input: Spec markdown with `## Acceptance Criteria` heading but no items. `ParseAcceptanceCriteria` returns empty slice.
-- Assert: AcceptStage returns `Blocked` with message "spec lacks acceptance criteria section — cannot evaluate acceptance."
+- Assert: AcceptStage returns `NeedsHuman` with message "spec lacks acceptance criteria section — cannot evaluate acceptance."
 
 ### specloop/ tests (extensions) — ReviewStage GitOps and parallel failure
 
@@ -572,13 +564,45 @@ File: `internal/next/specloop/event_contract_test.go` (additional tests)
   - (Optional, may also emit: `review_started`, `review_finding`, `acceptance_started`, `acceptance_criterion_result`)
 - Assert: Event ordering: `final_validation_result` before `review_result`, `review_result` before `acceptance_result`, `acceptance_result` before `terminal_state`.
 
+**`TestEventContract_ReviewResultEvent`**
+- Input: ReviewStage completes with 2 facets reviewed: `spec_alignment` (0 findings), `code_quality` (1 warning, 1 error).
+- Assert: `events.jsonl` contains a `review_result` event emitted by ReviewStage.
+- Assert: Event payload includes:
+  - `facets_reviewed`: list of facet names that were evaluated (e.g., `["spec_alignment", "code_quality"]`).
+  - `finding_counts_by_severity`: map of severity to count (e.g., `{"error": 1, "warning": 1, "suggestion": 0, "info": 0}`).
+  - `has_blocking_findings`: boolean indicating whether any findings exceed the replan threshold.
+  - `errored_facets`: list of facet names that returned errors (empty list when all succeed).
+- **Evidence**: AC 1, 7.
+
+**`TestEventContract_AcceptanceResultEvent`**
+- Input: AcceptStage completes with 3 criteria: 2 pass, 1 fail.
+- Assert: `events.jsonl` contains an `acceptance_result` event emitted by AcceptStage.
+- Assert: Event payload includes:
+  - `criteria_evaluated`: integer count of criteria evaluated (e.g., `3`).
+  - `per_criterion_status`: list of objects with `criterion` (text) and `status` (`"pass"`, `"fail"`, or `"unclear"`) for each criterion.
+  - `all_pass`: boolean (`false` in this case because one criterion failed).
+- **Evidence**: AC 2, 5.
+
+**`TestEventContract_ReplanTriggeredEvent_HasSource`**
+- Input: Three scenarios exercised across sub-tests:
+  - (a) ValidationStage triggers replan.
+  - (b) ReviewStage triggers replan due to blocking findings.
+  - (c) AcceptStage triggers replan due to failed criterion.
+- Assert: In each case, `events.jsonl` contains a `replan_triggered` event.
+- Assert: Each `replan_triggered` event includes a `source` field with value:
+  - `"validation"` for scenario (a).
+  - `"review"` for scenario (b).
+  - `"acceptance"` for scenario (c).
+- Assert: The `source` field is always present and is one of the three allowed values.
+- **Evidence**: AC 4, 5.
+
 **`TestEventContract_ReviewReplanEvent`**
 - Input: ReviewStage triggers replan.
-- Assert: `events.jsonl` contains `replan_triggered` event with `source: "review"` (new field to add to `replan_triggered`) and list of blocking findings in metadata.
+- Assert: `events.jsonl` contains `replan_triggered` event with `source: "review"` and list of blocking findings in metadata.
 
 **`TestEventContract_AcceptanceReplanEvent`**
 - Input: AcceptStage triggers replan.
-- Assert: `events.jsonl` contains `replan_triggered` event with `source: "acceptance"` (new field to add to `replan_triggered`) and list of failed/unclear criteria in metadata.
+- Assert: `events.jsonl` contains `replan_triggered` event with `source: "acceptance"` and list of failed/unclear criteria in metadata.
 
 **`TestEventContract_BlockedWorktreeCleanedEvent`**
 - Input: InitStage finds and cleans a prior blocked worktree for the same spec_id.
@@ -793,9 +817,9 @@ Assertions:
 
 **Evidence**: AC 3. Validates the default threshold prevents churn from subjective LLM style preferences.
 
-### Scenario 13b: Missing acceptance criteria section -- Blocked
+### Scenario 13b: Missing acceptance criteria section -- NeedsHuman
 
-**`TestIntegration_MissingAcceptanceCriteria_Blocked`**
+**`TestIntegration_MissingAcceptanceCriteria_NeedsHuman`**
 
 Setup:
 - Spec file with NO `## Acceptance Criteria` section.
@@ -805,10 +829,10 @@ Execution:
 - Run `specloop.Run(ctx, specPath, cell, policy)`.
 
 Assertions:
-- Terminal state == `blocked`.
-- AcceptStage returned `Blocked` with message containing "acceptance criteria".
+- Terminal state == `needs_human`.
+- AcceptStage returned `NeedsHuman` with message containing "acceptance criteria".
 - No acceptance evaluation was attempted (no LLM calls for acceptance).
-- `events.jsonl` contains the blocked event with descriptive message.
+- `events.jsonl` contains the needs_human event with descriptive message.
 
 **Evidence**: Fails fast, no wasted cycles on specs that cannot be evaluated.
 
@@ -897,13 +921,14 @@ Mapping each spec acceptance criterion to the test(s) that satisfy it.
 |---|---------------------|---------|
 | 1 | Review gate -- `ready_for_review` impossible if review finds findings above threshold | `TestSpecLoop_ReviewStage_ReplanOnBlockingFindings`, `TestFinalizeStage_ReadyForReview_RequiresAllThreeGates`, `TestFinalizeStage_NeedsHuman_WhenReviewFails`, `TestFinalizeStage_NeedsHuman_WhenAcceptanceFails`, `TestIntegration_ReviewAcceptance_HappyPath_ReadyForReview`, `TestIntegration_ReviewFinding_TriggersFixCycle` |
 | 2 | Acceptance evidence -- every criterion has explicit pass/fail/unclear with rationale and evidence refs | `TestEvaluateResult_ParsePass`, `TestEvaluateResult_ParseFail`, `TestEvaluateResult_ParseUnclear`, `TestEvaluator_InvokesAgentPerCriterion`, `TestBundler_WriteAcceptance`, `TestIntegration_ReviewAcceptance_HappyPath_ReadyForReview` |
-| 3 | Configurable threshold -- `review.replan_threshold` controls which severities trigger replanning | `TestThreshold_Blocks_ErrorThreshold`, `TestThreshold_Blocks_WarningThreshold`, `TestThreshold_Blocks_SuggestionThreshold`, `TestFilterBlockingFindings_MixedSeverities`, `TestIntegration_ThresholdError_WarningsNonBlocking` |
+| 3 | Configurable threshold -- `review.replan_threshold` controls which severities trigger replanning | `TestThreshold_IsBlocking` (table-driven, all severity combos), `TestPolicyThresholdValidation`, `TestFilterBlockingFindings_MixedSeverities`, `TestIntegration_ThresholdError_WarningsNonBlocking` |
 | 4 | Fix-cycle from review -- findings above threshold trigger fix-plan targeting specific findings | `TestSpecLoop_ReviewStage_FailureContext_CarriesFindings`, `TestReviewFailuresToStrings`, `TestFilterNewBlockingFindings_OnlyNewAboveThreshold`, `TestSpecLoop_PreexistingFindings_DontBlock`, `TestIntegration_ReviewFinding_TriggersFixCycle`, `TestIntegration_FixCycle_NewVsPreexistingFindings` |
 | 5 | Fix-cycle from acceptance -- fail/unclear results trigger fix-plan targeting specific gaps | `TestSpecLoop_AcceptStage_ReplanOnFail`, `TestSpecLoop_AcceptStage_ReplanOnUnclear`, `TestSpecLoop_AcceptStage_FailureContext_CarriesCriteria`, `TestAcceptanceFailuresToStrings_Fail`, `TestAcceptanceFailuresToStrings_Unclear`, `TestIntegration_AcceptanceFail_FixCycle_ThenPass`, `TestIntegration_AcceptanceUnclear_FixAddsEvidence_ThenPass` |
-| 6 | Facet configurability -- facets selected from built-in registry, enabled/disabled via policy | `TestRegistry_DefaultFacets`, `TestRegistry_AllBuiltInFacets`, `TestRegistry_SelectFacets_AllValid`, `TestRegistry_SelectFacets_UnknownFacet_ReturnsError`, `TestReviewer_InvokesAllEnabledFacets`, `TestValidate_ReviewConfig_InvalidFacet`, `TestValidate_ReviewConfig_ValidCustomSelection`, `TestIntegration_FacetEnabledViaConfig` |
+| 6 | Facet configurability -- facets selected from built-in registry, enabled/disabled via policy | `TestRegistry_DefaultFacets`, `TestRegistry_AllBuiltInFacets`, `TestRegistry_SelectFacets_AllValid`, `TestRegistry_SelectFacets_UnknownFacet_ReturnsError`, `TestRunner_InvokesAllEnabledFacets`, `TestValidate_ReviewConfig_InvalidFacet`, `TestValidate_ReviewConfig_ValidCustomSelection`, `TestIntegration_FacetEnabledViaConfig` |
 | 7 | Severity levels -- error/warning/suggestion/info with distinct blocking behavior | `TestSeverity_Ordering`, `TestSeverity_Parse_ValidValues`, `TestFilterBlockingFindings_MixedSeverities`, `TestSpecLoop_NewOnlyFindings_DontRetrigger` |
 | 8 | VISION label deferral -- system does not auto-label as accepted | `TestSpecLoop_VisionLabelNotSet`, `TestIntegration_ReviewAcceptance_HappyPath_ReadyForReview` |
 | 9 | Budget sharing -- validation/review/acceptance cycles consume from same `max_spec_cycles` | `TestSpecLoop_BudgetSharing_ValidationThenReview`, `TestSpecLoop_BudgetSharing_ValidationThenAcceptance`, `TestSpecLoop_BudgetSharing_ReviewThenAcceptance`, `TestSpecLoop_BudgetExhausted_ReviewCycles_NeedsHuman`, `TestIntegration_BudgetExhausted_ReviewAcceptance_NeedsHuman` |
+| 10 | Blocked worktree preservation -- FinalizeStage preserves worktrees for `blocked` runs; InitStage cleans stale blocked worktrees on re-run | `TestFinalizeStage_PreservesWorktreeForBlocked`, `TestInitStage_CleansBlockedWorktreesForSameSpec`, `TestInitStage_IgnoresNonBlockedPriorRuns`, `TestEventContract_BlockedWorktreeCleanedEvent` |
 
 ## Test Fixtures
 
@@ -935,7 +960,6 @@ testutil/responses/
 ```
 testutil/policies/
   review_threshold_error.json           # review.replan_threshold: "error"
-  review_threshold_warning.json         # review.replan_threshold: "warning"
   review_threshold_warning.json         # review.replan_threshold: "warning" (default)
   review_threshold_suggestion.json      # review.replan_threshold: "suggestion"
   review_3facets.json                   # facets: ["spec_alignment", "code_quality", "logic_gaps"]
@@ -954,14 +978,14 @@ testutil/fixtures/
 
 ## Test Utilities
 
-### `internal/next/testutil/fake_facet_invoker.go`
+### `internal/next/testutil/fake_review_agent.go`
 
 ```go
-// FakeFacetInvoker returns canned review findings per facet.
-type FakeFacetInvoker struct {
+// FakeReviewAgent returns canned review findings per facet.
+type FakeReviewAgent struct {
     mu        sync.Mutex
     Results   map[string]FacetResult // keyed by facet name
-    Calls     []FacetInvokeCall
+    Calls     []ReviewFacetCall
     CallOrder []string
 }
 
@@ -970,20 +994,19 @@ type FacetResult struct {
     Err      error
 }
 
-type FacetInvokeCall struct {
+type ReviewFacetCall struct {
     FacetName string
-    ModelTier string
     Prompt    string
 }
 
-func (f *FakeFacetInvoker) InvokeFacet(ctx context.Context, facetName, modelTier, prompt string) ([]review.Finding, error) {
+func (f *FakeReviewAgent) ReviewFacet(ctx context.Context, facetName string, prompt string) ([]review.Finding, error) {
     f.mu.Lock()
     defer f.mu.Unlock()
-    f.Calls = append(f.Calls, FacetInvokeCall{FacetName: facetName, ModelTier: modelTier, Prompt: prompt})
+    f.Calls = append(f.Calls, ReviewFacetCall{FacetName: facetName, Prompt: prompt})
     f.CallOrder = append(f.CallOrder, facetName)
     result, ok := f.Results[facetName]
     if !ok {
-        return nil, fmt.Errorf("FakeFacetInvoker: no result for facet %q", facetName)
+        return nil, fmt.Errorf("FakeReviewAgent: no result for facet %q", facetName)
     }
     if result.Err != nil {
         return nil, result.Err
@@ -995,29 +1018,20 @@ func (f *FakeFacetInvoker) InvokeFacet(ctx context.Context, facetName, modelTier
 ### `internal/next/testutil/fake_acceptance_evaluator.go`
 
 ```go
-// FakeAcceptanceEvaluator returns canned acceptance results per criterion.
+// FakeAcceptanceEvaluator returns a canned batch AcceptanceResult.
+// Matches the batch API: Evaluate(ctx, EvaluateInput) -> (AcceptanceResult, error).
 type FakeAcceptanceEvaluator struct {
-    mu      sync.Mutex
-    Results []acceptor.CriterionResult // returned in order
-    callIdx int
-    Calls   []AcceptanceEvalCall
+    mu     sync.Mutex
+    Result acceptor.AcceptanceResult
+    Err    error
+    Calls  []acceptor.EvaluateInput
 }
 
-type AcceptanceEvalCall struct {
-    Criterion string
-    Prompt    string
-}
-
-func (f *FakeAcceptanceEvaluator) Evaluate(ctx context.Context, criterion, prompt string) (acceptor.CriterionResult, error) {
+func (f *FakeAcceptanceEvaluator) Evaluate(ctx context.Context, input acceptor.EvaluateInput) (acceptor.AcceptanceResult, error) {
     f.mu.Lock()
     defer f.mu.Unlock()
-    f.Calls = append(f.Calls, AcceptanceEvalCall{Criterion: criterion, Prompt: prompt})
-    if f.callIdx >= len(f.Results) {
-        return acceptor.CriterionResult{}, fmt.Errorf("FakeAcceptanceEvaluator: no more results (call %d)", f.callIdx)
-    }
-    result := f.Results[f.callIdx]
-    f.callIdx++
-    return result, nil
+    f.Calls = append(f.Calls, input)
+    return f.Result, f.Err
 }
 ```
 
