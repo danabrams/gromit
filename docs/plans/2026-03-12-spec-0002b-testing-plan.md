@@ -29,7 +29,7 @@ Spec 0002b builds on top of the fully-implemented Spec 0002a execution loop. Tes
 
 ### Fixture/fake strategy
 
-Inherits all fakes from Spec 0002a (FakeAgent, FakeGit, FakeClock, FakeCmdRunner). Adds:
+Spec 0002b creates `internal/next/testutil/` with shared fakes (`FakeAgent`, `FakeGit`, `FakeClock`, `FakeCmdRunner`) as part of its own work. Adds:
 
 | Boundary | Interface | Fake |
 |----------|-----------|------|
@@ -43,8 +43,8 @@ All new fakes live in `internal/next/testutil/`.
 Before any tests in this plan will compile, the following struct/field additions are required in existing code:
 
 - **`RunState`** (`internal/next/runstore/`): Add `FinalReviewPassed bool`, `FinalAcceptancePassed bool`, `ReviewFindings []string`, and `AcceptanceResults []string`. These are `[]string` carrying human-readable summaries (per the design spec), not structured types. They are referenced by finalize-stage tests and `NormalizeNilFields` tests.
-- **`Policy`** (`internal/next/execpolicy/`): Add `Review` sub-struct (with `Facets []string`, `Tiers map[string]string`, `ReplanThreshold string`) and `Models.Evaluator string`. These fields are referenced by policy-loading tests and reviewer/evaluator configuration.
-- **`ReplanTriggeredEvent`** (`internal/next/specloop/`): Add `Source string` field (currently only has `Reason`). Tests assert `source: "review"` or `source: "acceptance"` on replan events; they will not compile without this field.
+- **`Policy`** (`internal/next/execpolicy/`): Add `Review` sub-struct (with `Facets []string`, `Tiers map[string]string`, `ReplanThreshold string`, `FacetRetries int`) and `Models.Evaluator string`. These fields are referenced by policy-loading tests and reviewer/evaluator configuration.
+- **`ReplanTriggeredEvent`** (`internal/next/runstore/events.go`): Add `Source string` field (currently only has `Reason`). Tests assert `source: "review"` or `source: "acceptance"` on replan events; they will not compile without this field.
 
 ## Package-by-Package Test Coverage
 
@@ -84,7 +84,7 @@ File: `internal/next/review/registry_test.go`
 - Input: `registry.Select([]string{})`.
 - Assert: Returns error mentioning "at least one facet".
 
-File: `internal/next/review/finding_test.go`
+File: `internal/next/review/severity_test.go`
 
 **`TestSeverity_Ordering`**
 - Table-driven with all pairs:
@@ -104,6 +104,8 @@ File: `internal/next/review/finding_test.go`
 
 **`TestSeverity_String_RoundTrips`**
 - For each severity constant, `ParseSeverity(s.String())` returns the same constant.
+
+File: `internal/next/review/finding_test.go`
 
 **`TestFinding_NormalizeNilFields`**
 - Input: `Finding{}` with zero-value fields.
@@ -251,6 +253,19 @@ File: `internal/next/review/runner_test.go`
 - Assert: The errored facet appears in the result's error list with a description of the parse failure.
 - Purpose: Ensures retry exhaustion degrades gracefully per-facet rather than failing the entire review.
 
+**`TestRunner_AllFacetsError_ReturnsBlocked`**
+- Input: Runner configured with 2 facets (`spec_alignment`, `code_quality`). FakeAgent returns errors for both facets (e.g., simulating LLM API failures). Zero facets succeed.
+- Assert: ReviewStage returns `Blocked` with message `"all review facets failed: [error1, error2]"`.
+- Assert: Zero successful facet results in the output.
+- Purpose: When ALL enabled facets error, there are no results to evaluate. The runner must surface this as a blocking problem rather than silently proceeding with empty findings.
+
+**`TestRunner_ConfigurableRetryExhaustion`**
+- Input: Runner configured with a configurable retry count (e.g., `FacetRetries: 2`). FakeAgent returns unparseable JSON on every attempt for one facet.
+- Assert: Agent called exactly `FacetRetries + 1` times for the failing facet (initial attempt + retries).
+- Assert: After retry exhaustion, the facet is marked as errored in the review result with a description of the parse failure.
+- Assert: Other facets that succeed are unaffected -- their findings are still collected.
+- Purpose: Validates that the retry count for facet LLM calls is configurable and that exhaustion is handled gracefully per-facet.
+
 **`TestRunner_CycleAndDispositionSet`**
 - Input: Cycle 1 review. No prior findings.
 - Assert: All findings have `Cycle == 1` and `Disposition == "new"`.
@@ -274,6 +289,18 @@ File: `internal/next/acceptor/parse_test.go`
 **`TestParseAcceptanceCriteria_NumberedList`**
 - Input: Criteria in `1. First criterion\n2. Second criterion` format.
 - Assert: Parses correctly. Criterion text does not include the number prefix.
+
+**`TestParseAcceptanceCriteria_AsteriskBullets`**
+- Input: Markdown string with `## Acceptance Criteria` section containing criteria as `* criterion text` bullets (asterisk prefix instead of dash).
+- Assert: All `*`-prefixed bullets are parsed correctly as acceptance criteria. Returns correct count and text.
+
+**`TestParseAcceptanceCriteria_NestedBullets`**
+- Input: Markdown string with `## Acceptance Criteria` section where top-level bullets have indented/nested sub-bullets (e.g., `- Parent criterion\n  - Detail about parent`).
+- Assert: Nested bullets are treated as continuation of the parent criterion, not as separate criteria. Returns only the top-level criterion count.
+
+**`TestParseAcceptanceCriteria_RejectsPartialHeadingMatch`**
+- Input: Markdown string with `## Acceptance Criteria (Draft)` heading (partial match) but no exact `## Acceptance Criteria` heading.
+- Assert: Returns error indicating the section was not found. Partial heading matches are rejected.
 
 **`TestParseAcceptanceCriteria_BoldPrefix`**
 - Input: `1. **Review gate** -- ready_for_review impossible if...`
@@ -332,6 +359,10 @@ File: `internal/next/acceptor/evaluator_test.go`
 - Input: FakeAgent returns invalid JSON first, valid result second (for one criterion).
 - Assert: Evaluation completes successfully.
 
+**`TestAcceptStage_RetriesOnAPIFailure`**
+- Input: FakeAcceptanceEvaluator's underlying LLM call fails on the first attempt (simulating transient API error), succeeds on the second attempt.
+- Assert: AcceptStage retries once before returning an error. On successful retry, evaluation completes normally. Matches PlanStage's single-retry-on-API-failure pattern.
+
 **`TestCriterionResult_NormalizeNilFields`**
 - Input: `CriterionResult{}` with nil `EvidenceRefs`.
 - Assert: After `NormalizeNilFields()`, `EvidenceRefs` is `[]string{}`.
@@ -343,13 +374,13 @@ File: `internal/next/execpolicy/policy_test.go` (additional tests)
 **`TestLoadFromFile_ReviewConfig_AllFields`**
 - Input: JSON with full review config:
   ```json
-  {"review": {"facets": ["spec_alignment", "code_quality"], "tiers": {"spec_alignment": "high", "code_quality": "medium"}, "replan_threshold": "warning"}}
+  {"review": {"facets": ["spec_alignment", "code_quality"], "tiers": {"spec_alignment": "high", "code_quality": "medium"}, "replan_threshold": "warning", "facet_retries": 3}}
   ```
-- Assert: `Policy.Review.Facets` has 2 entries. `Policy.Review.Tiers["spec_alignment"] == "high"`. `Policy.Review.ReplanThreshold == "warning"`.
+- Assert: `Policy.Review.Facets` has 2 entries. `Policy.Review.Tiers["spec_alignment"] == "high"`. `Policy.Review.ReplanThreshold == "warning"`. `Policy.Review.FacetRetries == 3`.
 
 **`TestLoadFromFile_ReviewConfig_Defaults`**
 - Input: JSON with no `review` section.
-- Assert: `Policy.Review.Facets` defaults to `["spec_alignment", "code_quality"]`. `Policy.Review.ReplanThreshold` defaults to `"warning"`. `Policy.Review.Tiers` defaults with `spec_alignment: "high"`, `code_quality: "medium"`.
+- Assert: `Policy.Review.Facets` defaults to `["spec_alignment", "code_quality"]`. `Policy.Review.ReplanThreshold` defaults to `"warning"`. `Policy.Review.Tiers` defaults with `spec_alignment: "high"`, `code_quality: "medium"`. `Policy.Review.FacetRetries` defaults to `2`.
 
 **`TestLoadFromFile_EvaluatorTier`**
 - Input: JSON with `"models": {"evaluator": "high"}`.

@@ -34,7 +34,7 @@
 ### Conventions
 
 - **Nil-field normalization:** Use exported `NormalizeNilFields()` for cross-package types; use unexported `normalizeNilFields()` for internal-only types. Both map nil slices/maps to empty values.
-- **Tests:** Co-located (`foo_test.go` next to `foo.go`), table-driven, fakes over mocks.
+- **Tests:** Co-located (`foo_test.go` next to `foo.go`), table-driven, fakes over mocks. Spec 0002b creates `internal/next/testutil/` with shared fakes (`FakeAgent`, `FakeGit`, `FakeClock`, `FakeCmdRunner`) for reuse across test files.
 - **TDD:** Write a failing test FIRST, then implement to make it pass, then commit.
 
 ---
@@ -231,7 +231,7 @@ func IsBlocking(threshold, findingSeverity Severity) bool
 
 ### Parallel facet failure handling
 
-If one facet hits a hard error (timeout, API failure), other facets continue. The failed facet is marked as errored in the findings/evidence — its entry in `review.json` contains an error marker rather than findings. The review proceeds with partial results from the successful facets. The human reviewer sees which facets completed and which errored.
+If one facet hits a hard error (timeout, API failure), other facets continue. The failed facet is marked as errored in the findings/evidence — its entry in `review.json` contains an error marker rather than findings. The review proceeds with partial results from the successful facets. The human reviewer sees which facets completed and which errored. The facet retry count on invalid LLM output (malformed JSON, schema violations) is configurable via `ReviewConfig.FacetRetries` in execution policy (default: 2), not hardcoded.
 
 If ALL enabled facets error (zero successful facets), ReviewStage returns `Blocked` — this is an infrastructure failure. The review did not happen and the human needs to know.
 
@@ -273,13 +273,14 @@ type AcceptanceResult struct {
 
 ### Acceptance rules
 
-AcceptStage receives spec content via `AcceptStageConfig.SpecContent string`, injected at pipeline construction time. AcceptStage does not access the filesystem to read the spec — it uses the in-memory spec content for parsing acceptance criteria.
+AcceptStage receives spec content via `AcceptStageConfig.SpecContent string`, injected at pipeline construction time. `AcceptStageConfig` also includes `EvidenceDir string`, matching the same pattern as `ReviewStageConfig` — both stages use config injection to know where to write their JSON output files (`acceptance.json` and `review.json` respectively). AcceptStage does not access the filesystem to read the spec — it uses the in-memory spec content for parsing acceptance criteria.
 
 - Missing acceptance criteria section -> `NeedsHuman` with message "spec lacks acceptance criteria section — cannot evaluate acceptance. Revise the spec to include acceptance criteria." Fails fast, no wasted cycles.
 - Any `fail` triggers replan (within budget). Planner gets: "This criterion failed. Implement the missing behavior."
 - Any `unclear` triggers replan (within budget). Planner gets: "This criterion could not be evaluated. Add tests or observable evidence that proves or disproves it."
 - Budget exhausted with remaining failures/unclear -> `needs_human`.
 - All `pass` -> continue to evidence stage.
+- **AcceptStage retry on infrastructure failure:** AcceptStage retries once on LLM API failure before returning error, matching PlanStage's retry pattern.
 
 ### ReviewStage FailureContext
 
@@ -371,7 +372,7 @@ A helper in the `acceptor` package parses `## Acceptance Criteria` from spec mar
 func ParseAcceptanceCriteria(specMarkdown string) ([]string, error)
 ```
 
-The `specMarkdown` argument is the spec content string from `config.SpecContent`, not read from the filesystem. This extracts the numbered list items under the `## Acceptance Criteria` heading, returning them as individual criterion strings for per-criterion evaluation.
+The `specMarkdown` argument is the spec content string from `config.SpecContent`, not read from the filesystem. This extracts list items (accepting `-`, `*`, and numbered `1.` bullet formats) under the `## Acceptance Criteria` heading, returning them as individual criterion strings for per-criterion evaluation. Nested bullets (indented sub-items) are treated as continuation of the parent criterion, not as separate criteria.
 
 If `ParseAcceptanceCriteria` returns an error (section not found) or an empty slice, AcceptStage returns `NeedsHuman` with message: "spec lacks acceptance criteria section — cannot evaluate acceptance. Revise the spec to include acceptance criteria." This fails fast, no wasted cycles.
 
@@ -397,6 +398,7 @@ type ReviewConfig struct {
     Facets           []string          `json:"facets"`
     Tiers            map[string]string `json:"tiers"`
     ReplanThreshold  string            `json:"replan_threshold"`
+    FacetRetries     int               `json:"facet_retries"`
 }
 ```
 
@@ -409,7 +411,8 @@ Default:
       "spec_alignment": "high",
       "code_quality": "medium"
     },
-    "replan_threshold": "warning"
+    "replan_threshold": "warning",
+    "facet_retries": 2
   }
 }
 ```
@@ -511,7 +514,7 @@ Extend the evidence bundle:
 ### Phase 9: FinalizeStage updates and blocked worktree lifecycle
 
 - FinalizeStage three-gate update: `ready_for_review` requires all three gates (FinalValidationPassed, FinalReviewPassed, FinalAcceptancePassed); any gate failure with exhausted budget yields `needs_human`
-- InitStage blocked-worktree cleanup: auto-clean worktrees from prior blocked runs of the same spec
+- InitStage blocked-worktree cleanup: auto-clean worktrees from prior blocked runs of the same spec. Uses the existing `Store.List()` method with client-side filtering (filter for matching SpecID and Status=="blocked"), not a new Store method
 - New event types: `blocked_worktree_cleaned` and corresponding `unmarshalEvent` switch cases
 - Note: Per-task artifact files are deferred per the design spec.
 
@@ -674,7 +677,7 @@ type DiffProvider interface {
 
 ### review.json schema
 
-Object keyed by facet name, each containing an array of findings:
+Object keyed by facet name, each containing an array of findings. The Go type for each facet's entry is `FindingSet` (struct with `Facet string` and `Findings []Finding`), which is the type used to structure per-facet findings in the review output:
 
 ```json
 {

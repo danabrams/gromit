@@ -264,9 +264,9 @@ Terminal state: ready_for_review
      ]
    }
    ```
-   Verify: no findings with severity `error`, `warning`, or `suggestion`.
+   Verify: no findings with severity `error` or `warning` (suggestions and info are non-blocking at the default `"warning"` threshold).
    ```bash
-   jq '[.[] | .[] | select(.severity != "info")] | length' \
+   jq '[.[] | .[] | select(.severity == "error" or .severity == "warning")] | length' \
      ~/.local/share/gromit/projects/fixture-calc/runs/$RUN_ID/evidence/review.json
    # Expected: 0
    ```
@@ -361,7 +361,7 @@ Terminal state: ready_for_review
 - [ ] Terminal state is `ready_for_review`
 - [ ] All three FinalizeStage gates are true: `final_validation_passed`, `final_review_passed`, `final_acceptance_passed`
 - [ ] `evidence/review.json` exists with per-facet structure
-- [ ] No blocking findings (severity != info) in review.json
+- [ ] No blocking findings (severity `error` or `warning`) in review.json
 - [ ] `evidence/acceptance.json` exists with `.results` array, `.all_pass` true, `.has_fail_or_unclear` false
 - [ ] All acceptance criteria have `"status": "pass"`
 - [ ] Each criterion has non-empty `rationale` and `evidence_refs`
@@ -490,7 +490,7 @@ Terminal state: ready_for_review
 
 ### Scenario 3: Configurable Threshold -- Suggestions Non-Blocking at Default
 
-**Purpose**: Verify that the default `"warning"` threshold causes suggestion findings to be recorded but not trigger fix cycles, while warnings still trigger replanning. Also verify that overriding to `"error"` causes both warnings and suggestions to be non-blocking.
+**Purpose**: Verify that the default `"warning"` threshold causes suggestion findings to be recorded but not trigger fix cycles. Also verify that overriding to `"error"` causes both warnings and suggestions to be non-blocking.
 
 **Setup (Part A -- default "warning" threshold, suggestions non-blocking)**:
 ```bash
@@ -499,7 +499,42 @@ jq '.review.replan_threshold' ~/.local/share/gromit/projects/fixture-calc/policy
 # Expected: "warning"
 ```
 
-Run the spec. If the reviewer produces only suggestion-level findings, verify they are recorded but do not trigger a fix cycle. Then proceed to Part B:
+**Execute (Part A)**:
+```bash
+./gromit-next exec spec --project fixture-calc \
+  --spec /tmp/gromit-fixtures/fixture-calc/specs/add-subtract.md
+```
+
+**Verify (Part A)**:
+
+1. Terminal state: `ready_for_review` (not `needs_human`).
+2. Run completes in a **single cycle** (no fix-cycle triggered by suggestions):
+   ```bash
+   RUN_ID=<from output>
+   jq .cycles ~/.local/share/gromit/projects/fixture-calc/runs/$RUN_ID/evidence/metrics.json
+   # Expected: 1
+   ```
+
+3. **Suggestion-level findings are recorded in review.json but did NOT trigger a replan**:
+   ```bash
+   jq '[.. | objects | select(.severity == "suggestion")] | length' \
+     ~/.local/share/gromit/projects/fixture-calc/runs/$RUN_ID/evidence/review.json
+   ```
+   This may be 0 if the reviewer found no suggestions. The key verification is that NO replan was triggered.
+
+4. **No replan_triggered event in events.jsonl**:
+   ```bash
+   grep -c 'replan_triggered' ~/.local/share/gromit/projects/fixture-calc/runs/$RUN_ID/events.jsonl
+   # Expected: 0
+   ```
+
+**Pass/Fail Criteria (Part A)**:
+- [ ] Terminal state is `ready_for_review`
+- [ ] Run completes in 1 cycle (no replan triggered by suggestion findings)
+- [ ] Any suggestion findings are recorded in review.json but did not trigger a fix cycle
+- [ ] acceptance.json shows all criteria pass
+
+Then proceed to Part B:
 
 **Setup (Part B -- "error" threshold, warnings also non-blocking)**:
 ```bash
@@ -1246,12 +1281,18 @@ The service needs a health check endpoint.
 - `go test ./...`
 - `go vet ./...`
 EOF
+
+# Commit the spec so it is visible inside the worktree
+cd /tmp/gromit-fixtures/fixture-calc
+cp /tmp/test-spec-no-ac/spec.md specs/no-acceptance-criteria.md
+git add specs/no-acceptance-criteria.md
+git commit -m "add spec with no acceptance criteria (test fixture)"
 ```
 
 **Execute**:
 
 ```bash
-./gromit-next exec spec --project fixture-calc --spec /tmp/test-spec-no-ac/spec.md
+./gromit-next exec spec --project fixture-calc --spec specs/no-acceptance-criteria.md
 ```
 
 **Expected**:

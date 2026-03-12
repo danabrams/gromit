@@ -186,6 +186,133 @@ func TestRealStageProvider_BuildStages_NoStubError(t *testing.T) {
 
 ---
 
+### Task 3a: Shared test fakes in `internal/next/testutil/`
+
+> **Rationale:** Multiple test files across `review/`, `acceptor/`, `specloop/stages/`, and `cmd/gromit-next/` define similar inline fakes (mock agents, fake git runners, fake clocks, fake command runners). Extracting these into a shared `testutil` package reduces duplication and ensures consistent fake behavior across the test suite. This task is placed early because subsequent tasks in Phases 2-8 will import these fakes.
+
+- **Files:**
+  - Create: `internal/next/testutil/fake_agent.go`
+  - Create: `internal/next/testutil/fake_git.go`
+  - Create: `internal/next/testutil/fake_clock.go`
+  - Create: `internal/next/testutil/fake_cmdrunner.go`
+  - Create: `internal/next/testutil/testutil_test.go`
+
+- **Step 1: Write failing test** in `testutil_test.go`:
+```go
+package testutil
+
+import (
+	"context"
+	"testing"
+	"time"
+)
+
+func TestFakeAgent_RecordsCallsAndReturnsConfiguredResponse(t *testing.T) {
+	agent := &FakeAgent{
+		Response: "mock response",
+	}
+
+	resp, err := agent.Run(context.Background(), "test prompt")
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if resp != "mock response" {
+		t.Errorf("response = %q, want %q", resp, "mock response")
+	}
+	if len(agent.Calls) != 1 {
+		t.Fatalf("expected 1 call, got %d", len(agent.Calls))
+	}
+	if agent.Calls[0] != "test prompt" {
+		t.Errorf("call[0] = %q, want %q", agent.Calls[0], "test prompt")
+	}
+}
+
+func TestFakeAgent_ReturnsConfiguredError(t *testing.T) {
+	agent := &FakeAgent{
+		Err: fmt.Errorf("agent failure"),
+	}
+
+	_, err := agent.Run(context.Background(), "test prompt")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestFakeGit_DiffReturnsConfiguredOutput(t *testing.T) {
+	g := &FakeGit{
+		DiffOutput: "diff --git a/file.go b/file.go",
+	}
+
+	diff, err := g.Diff("main")
+	if err != nil {
+		t.Fatalf("Diff: %v", err)
+	}
+	if diff != g.DiffOutput {
+		t.Errorf("diff = %q, want %q", diff, g.DiffOutput)
+	}
+}
+
+func TestFakeClock_ReturnsConfiguredTime(t *testing.T) {
+	now := time.Date(2026, 3, 12, 10, 0, 0, 0, time.UTC)
+	c := &FakeClock{NowTime: now}
+
+	if got := c.Now(); got != now {
+		t.Errorf("Now() = %v, want %v", got, now)
+	}
+}
+
+func TestFakeClock_Advance(t *testing.T) {
+	now := time.Date(2026, 3, 12, 10, 0, 0, 0, time.UTC)
+	c := &FakeClock{NowTime: now}
+	c.Advance(5 * time.Minute)
+
+	want := now.Add(5 * time.Minute)
+	if got := c.Now(); got != want {
+		t.Errorf("Now() after Advance = %v, want %v", got, want)
+	}
+}
+
+func TestFakeCmdRunner_ReturnsConfiguredOutput(t *testing.T) {
+	r := &FakeCmdRunner{
+		Outputs: map[string]CmdResult{
+			"go test ./...": {Stdout: "PASS", ExitCode: 0},
+		},
+	}
+
+	result := r.Run("go test ./...")
+	if result.Stdout != "PASS" {
+		t.Errorf("Stdout = %q, want %q", result.Stdout, "PASS")
+	}
+	if result.ExitCode != 0 {
+		t.Errorf("ExitCode = %d, want 0", result.ExitCode)
+	}
+}
+
+func TestFakeCmdRunner_UnknownCommandReturnsError(t *testing.T) {
+	r := &FakeCmdRunner{
+		Outputs: map[string]CmdResult{},
+	}
+
+	result := r.Run("unknown command")
+	if result.ExitCode == 0 {
+		t.Error("unknown command should return non-zero exit code")
+	}
+}
+```
+
+- **Step 2:** `go test ./internal/next/testutil/ -v` — expect FAIL
+
+- **Step 3: Implement** — Create the `testutil` package with four fake types:
+  - `FakeAgent` — struct with `Response string`, `Err error`, `Calls []string`. Method `Run(ctx context.Context, prompt string) (string, error)` appends prompt to `Calls` and returns `Response`/`Err`.
+  - `FakeGit` — struct with `DiffOutput string`, `DiffErr error`. Method `Diff(baseBranch string) (string, error)` satisfies the `review.DiffProvider` interface.
+  - `FakeClock` — struct with `NowTime time.Time`. Methods `Now() time.Time` and `Advance(d time.Duration)`.
+  - `FakeCmdRunner` — struct with `Outputs map[string]CmdResult`. `CmdResult` has `Stdout string`, `Stderr string`, `ExitCode int`. Method `Run(cmd string) CmdResult` returns the configured output or a default error result for unknown commands.
+
+- **Step 4:** `go test ./internal/next/testutil/ -v` — expect PASS
+- **Step 5:** Commit `"test(next): add shared test fakes in internal/next/testutil/"`
+
+---
+
 ## Phase 2: `review/` Package — Facet Registry, Finding Types, Severity, Threshold
 
 ### Task 4: Severity type and ordering
@@ -855,6 +982,156 @@ func TestRunner_FixCycle_LabelsDispositions(t *testing.T) {
 
 - **Step 4:** `go test ./internal/next/review/ -run TestRunner -v` — expect PASS
 - **Step 5:** Commit `"feat(next): add review runner with per-facet orchestration and fix-cycle support"`
+
+---
+
+### Task 10a: Configurable facet retry on invalid LLM output
+
+> **Rationale:** LLM responses may contain unparseable JSON or missing required fields. A single bad response should not fail the entire facet. The retry count must be configurable via policy, not hardcoded.
+
+- **Files:**
+  - Modify: `internal/next/review/runner.go`
+  - Modify: `internal/next/review/runner_test.go`
+  - Modify: `internal/next/execpolicy/policy.go`
+  - Modify: `internal/next/execpolicy/policy_test.go`
+
+- **Step 1: Write failing test** in `policy_test.go` and `runner_test.go`:
+```go
+// policy_test.go (add)
+func TestDefaultPolicy_HasFacetRetryCount(t *testing.T) {
+	p := DefaultPolicy()
+	if p.Review.FacetRetries != 2 {
+		t.Errorf("default FacetRetries = %d, want 2", p.Review.FacetRetries)
+	}
+}
+
+// runner_test.go (add)
+func TestRunner_FacetRetry_OnUnparseableJSON(t *testing.T) {
+	callCount := 0
+	agent := &programmableReviewAgent{
+		reviewFn: func(ctx context.Context, facetName string, prompt string) ([]Finding, error) {
+			callCount++
+			if callCount == 1 {
+				// First call returns unparseable output
+				return nil, &ParseError{Msg: "invalid JSON in LLM response"}
+			}
+			// Second call succeeds
+			return []Finding{{Severity: SeverityWarning, File: "handler.go", Description: "missing check"}}, nil
+		},
+	}
+
+	runner := NewRunner(agent, RunnerConfig{
+		Facets:       []string{"code_quality"},
+		Threshold:    SeverityWarning,
+		FacetRetries: 2,
+	})
+
+	result, err := runner.Run(context.Background(), RunInput{
+		DiffSummary: "Modified handler",
+		SpecContent: "# Spec",
+		Cycle:       1,
+	})
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	if callCount != 2 {
+		t.Errorf("expected 2 calls (1 retry), got %d", callCount)
+	}
+	if len(result.AllFindings) != 1 {
+		t.Errorf("expected 1 finding after successful retry, got %d", len(result.AllFindings))
+	}
+	if result.ErroredFacets["code_quality"] != "" {
+		t.Error("facet should not be errored after successful retry")
+	}
+}
+
+func TestRunner_FacetRetry_ExhaustionMarksErrored(t *testing.T) {
+	agent := &programmableReviewAgent{
+		reviewFn: func(ctx context.Context, facetName string, prompt string) ([]Finding, error) {
+			return nil, &ParseError{Msg: "invalid JSON in LLM response"}
+		},
+	}
+
+	runner := NewRunner(agent, RunnerConfig{
+		Facets:       []string{"code_quality"},
+		Threshold:    SeverityWarning,
+		FacetRetries: 2,
+	})
+
+	result, err := runner.Run(context.Background(), RunInput{
+		DiffSummary: "Modified handler",
+		SpecContent: "# Spec",
+		Cycle:       1,
+	})
+	if err != nil {
+		t.Fatalf("Run should not return top-level error: %v", err)
+	}
+
+	if result.ErroredFacets["code_quality"] == "" {
+		t.Error("facet should be marked errored after retry exhaustion")
+	}
+}
+
+func TestRunner_FacetRetry_MissingFields(t *testing.T) {
+	callCount := 0
+	agent := &programmableReviewAgent{
+		reviewFn: func(ctx context.Context, facetName string, prompt string) ([]Finding, error) {
+			callCount++
+			if callCount == 1 {
+				return nil, &ParseError{Msg: "missing required field: severity"}
+			}
+			return []Finding{{Severity: SeverityInfo, File: "main.go", Description: "ok"}}, nil
+		},
+	}
+
+	runner := NewRunner(agent, RunnerConfig{
+		Facets:       []string{"spec_alignment"},
+		Threshold:    SeverityWarning,
+		FacetRetries: 3,
+	})
+
+	result, err := runner.Run(context.Background(), RunInput{
+		DiffSummary: "Changed main",
+		SpecContent: "# Spec",
+		Cycle:       1,
+	})
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	if callCount != 2 {
+		t.Errorf("expected 2 calls, got %d", callCount)
+	}
+	if len(result.AllFindings) != 1 {
+		t.Errorf("expected 1 finding after retry, got %d", len(result.AllFindings))
+	}
+}
+
+// programmableReviewAgent allows per-call control of ReviewFacet behavior.
+type programmableReviewAgent struct {
+	reviewFn func(ctx context.Context, facetName string, prompt string) ([]Finding, error)
+}
+
+func (a *programmableReviewAgent) ReviewFacet(ctx context.Context, facetName string, prompt string) ([]Finding, error) {
+	return a.reviewFn(ctx, facetName, prompt)
+}
+
+// ParseError represents an error parsing LLM output (unparseable JSON, missing fields).
+// The runner retries on ParseError; other errors fail the facet immediately.
+type ParseError struct {
+	Msg string
+}
+
+func (e *ParseError) Error() string { return e.Msg }
+```
+
+- **Step 2:** `go test ./internal/next/execpolicy/ -run TestDefaultPolicy_HasFacetRetryCount -v && go test ./internal/next/review/ -run "TestRunner_FacetRetry" -v` — expect FAIL
+
+- **Step 3: Implement** — Add `FacetRetries int` to `ReviewConfig` in `execpolicy/policy.go`, defaulting to `2` in `DefaultPolicy()`. Add `FacetRetries int` to `RunnerConfig`. In `Runner.Run`, when invoking a facet, wrap the call in a retry loop: if the agent returns a `*ParseError`, retry up to `FacetRetries` times. Non-`ParseError` errors fail the facet immediately (no retry). After retry exhaustion, mark the facet in `ErroredFacets`. Define `ParseError` in `internal/next/review/errors.go` with `Msg string` field and `Error() string` method. The runner checks `errors.As(err, &ParseError{})` to decide whether to retry.
+
+- **Step 4:** `go test ./internal/next/execpolicy/ -run TestDefaultPolicy_HasFacetRetryCount -v && go test ./internal/next/review/ -run "TestRunner_FacetRetry" -v` — expect PASS
+- **Step 5:** Commit `"feat(next): configurable facet retry on invalid LLM output with ParseError detection"`
 
 ---
 
@@ -1579,7 +1856,7 @@ func TestAcceptStage_Unclear_ReplanFrom(t *testing.T) {
 
 - **Step 2:** `go test ./internal/next/specloop/stages/ -run TestAcceptStage -v` — expect FAIL
 
-- **Step 3: Implement** — Define `AcceptEvaluator` interface matching `acceptor.Evaluator.Evaluate` signature. Define `AcceptStageConfig` with `Criteria []string`, `SpecContent string`, `DiffSummary string`, `Tier string` (injected at construction time from `policy.Models.Evaluator`). `AcceptStage` struct holds an `AcceptEvaluator`, config, and optional `*runstore.EventLog`. `Name()` returns `"accept"`. `Run` checks `cfg.Criteria` first; if empty, calls `ParseAcceptanceCriteria(config.SpecContent)` to extract criteria from the spec markdown — if the section is missing or empty, return `NeedsHuman` with message "spec lacks acceptance criteria section — cannot evaluate acceptance. Revise the spec to include acceptance criteria." Otherwise, call the evaluator with `EvaluateInput` assembled from config and run state. If the evaluator returns an error (LLM API failure), retry once before returning the error — matching PlanStage's retry-on-API-failure pattern. If `result.HasFailOrUnclear`, return `ReplanFrom` with `FailureContext` built from `acceptor.BuildFailureContext` (using `AcceptanceFailuresToStrings` with fail/unclear differentiation). Otherwise return `Continue`. On success, set `rs.FinalAcceptancePassed = true`. On failure, set `rs.FinalAcceptancePassed = false` and populate `rs.AcceptanceResults` with the string representations (for planner/FailureContext). AcceptStage writes `acceptance.json` directly using the structured `AcceptanceResult` as a side effect of its `Run()` method (same pattern as ReviewStage writes `review.json`). EvidenceStage does NOT write `acceptance.json`.
+- **Step 3: Implement** — Define `AcceptEvaluator` interface matching `acceptor.Evaluator.Evaluate` signature. Define `AcceptStageConfig` with `Criteria []string`, `SpecContent string`, `EvidenceDir string`, `DiffSummary string`, `Tier string` (injected at construction time from `policy.Models.Evaluator`; `EvidenceDir` resolved from `store.RunEvidenceDir(runID)` at pipeline construction time). `AcceptStage` struct holds an `AcceptEvaluator`, config, and optional `*runstore.EventLog`. `Name()` returns `"accept"`. `Run` checks `cfg.Criteria` first; if empty, calls `ParseAcceptanceCriteria(config.SpecContent)` to extract criteria from the spec markdown — if the section is missing or empty, return `NeedsHuman` with message "spec lacks acceptance criteria section — cannot evaluate acceptance. Revise the spec to include acceptance criteria." Otherwise, call the evaluator with `EvaluateInput` assembled from config and run state. If the evaluator returns an error (LLM API failure), retry once before returning the error — matching PlanStage's retry-on-API-failure pattern. If `result.HasFailOrUnclear`, return `ReplanFrom` with `FailureContext` built from `acceptor.BuildFailureContext` (using `AcceptanceFailuresToStrings` with fail/unclear differentiation). Otherwise return `Continue`. On success, set `rs.FinalAcceptancePassed = true`. On failure, set `rs.FinalAcceptancePassed = false` and populate `rs.AcceptanceResults` with the string representations (for planner/FailureContext). AcceptStage writes `acceptance.json` directly using the structured `AcceptanceResult` as a side effect of its `Run()` method (same pattern as ReviewStage writes `review.json`). EvidenceStage does NOT write `acceptance.json`.
 
   > **Retry behavior:** On LLM API failure (evaluator returns error), AcceptStage retries the evaluator call once before propagating the error. This matches PlanStage's retry pattern. Add a test `TestAcceptStage_RetriesOnAPIFailure` that verifies: first call returns error, second call succeeds, stage returns the successful result.
 
@@ -1657,7 +1934,7 @@ func TestParseAcceptanceCriteria_EmptySection(t *testing.T) {
 
 - **Step 2:** `go test ./internal/next/acceptor/ -run TestParseAcceptanceCriteria -v` — expect FAIL
 
-- **Step 3: Implement** — `ParseAcceptanceCriteria(specMarkdown string) ([]string, error)` parses the `## Acceptance Criteria` section from the spec markdown. Scans for the heading, collects bullet points (`- ` prefix) until the next `##` heading or EOF. Strips the `- ` prefix and trims whitespace. Returns error if the section is not found. Lives in `internal/next/acceptor/parse.go`.
+- **Step 3: Implement** — `ParseAcceptanceCriteria(specMarkdown string) ([]string, error)` parses the `## Acceptance Criteria` section from the spec markdown. Scans for the heading, collects bullet points (`- `, `* `, and numbered `1.` formats) until the next `##` heading or EOF. Strips the bullet prefix and trims whitespace. Nested bullets (indented sub-items) are treated as continuation of the parent criterion, not as separate criteria. Returns error if the section is not found. Lives in `internal/next/acceptor/parse.go`.
 
 - **Step 4:** `go test ./internal/next/acceptor/ -run TestParseAcceptanceCriteria -v` — expect PASS
 - **Step 5:** Commit `"feat(next): add ParseAcceptanceCriteria markdown parser"`
@@ -2318,24 +2595,27 @@ func TestSpecLoop_ReusesStageInstances(t *testing.T) {
 	// Verify that the same stage instance is used across multiple cycles.
 	// This is critical because ReviewStage accumulates priorFindings across
 	// cycles for disposition matching.
-	var runCount int
-	var instanceAddr uintptr
-	trackingStage := &mockStage{
-		name: "tracker",
-		runFn: func(ctx context.Context, rs *runstore.RunState) (specloop.NextAction, error) {
-			runCount++
-			thisAddr := reflect.ValueOf(&runCount).Pointer() // use closure identity as proxy
-			if runCount == 1 {
-				instanceAddr = thisAddr
-			} else if thisAddr != instanceAddr {
-				t.Error("stage instance changed between cycles — must reuse same instance")
-			}
-			if runCount < 2 {
-				// Trigger a second cycle via ReplanFrom
-				return specloop.NextAction{Kind: specloop.ReplanFrom}, nil
-			}
-			return specloop.NextAction{Kind: specloop.Continue}, nil
-		},
+	trackingStage := &callCountStage{name: "tracker"}
+	trackingStage.runFn = func(ctx context.Context, rs *runstore.RunState) (specloop.NextAction, error) {
+		trackingStage.callCount++
+		if trackingStage.callCount < 2 {
+			// Trigger a second cycle via ReplanFrom
+			return specloop.NextAction{Kind: specloop.ReplanFrom}, nil
+		}
+		return specloop.NextAction{Kind: specloop.Continue}, nil
+	}
+
+	var capturedAddr uintptr
+	// Capture pointer to the stage in cycle 1 and compare in cycle 2
+	origRunFn := trackingStage.runFn
+	trackingStage.runFn = func(ctx context.Context, rs *runstore.RunState) (specloop.NextAction, error) {
+		thisAddr := reflect.ValueOf(trackingStage).Pointer()
+		if trackingStage.callCount == 0 {
+			capturedAddr = thisAddr
+		} else if thisAddr != capturedAddr {
+			t.Error("stage instance changed between cycles — must reuse same instance")
+		}
+		return origRunFn(ctx, rs)
 	}
 
 	budget := specloop.NewBudget(execpolicy.Budgets{MaxSpecCycles: 3, MaxTaskDurationSeconds: 300, MaxRunDurationSeconds: 3600, MaxRunCostUSD: 50.0})
@@ -2346,9 +2626,22 @@ func TestSpecLoop_ReusesStageInstances(t *testing.T) {
 	rs := runstore.NewRunState("test-spec", "test-project")
 	loop.Run(context.Background(), rs)
 
-	if runCount < 2 {
-		t.Fatalf("expected at least 2 runs, got %d", runCount)
+	if trackingStage.callCount < 2 {
+		t.Fatalf("expected at least 2 calls on same instance, got %d", trackingStage.callCount)
 	}
+}
+
+// callCountStage is a mock stage that tracks invocation count on the struct,
+// providing a reliable way to verify the same instance is reused across cycles.
+type callCountStage struct {
+	name      string
+	callCount int
+	runFn     func(ctx context.Context, rs *runstore.RunState) (specloop.NextAction, error)
+}
+
+func (s *callCountStage) Name() string { return s.name }
+func (s *callCountStage) Run(ctx context.Context, rs *runstore.RunState) (specloop.NextAction, error) {
+	return s.runFn(ctx, rs)
 }
 ```
 
@@ -3030,6 +3323,96 @@ func TestReviewStage_ComputesDiffFromDiffProvider(t *testing.T) {
 
 - **Step 4:** `go test ./internal/next/specloop/stages/ -run "TestDiffProvider|TestReviewStage_ComputesDiff" -v` — expect PASS
 - **Step 5:** Commit `"feat(next): DiffProvider interface for ReviewStage diff computation"`
+
+---
+
+### Task 33c: All-facets-error returns Blocked
+
+- **Files:**
+  - Modify: `internal/next/review/runner.go`
+  - Modify: `internal/next/review/runner_test.go`
+  - Modify: `internal/next/specloop/stages/review.go`
+  - Modify: `internal/next/specloop/stages/review_test.go`
+
+- **Step 1: Write failing test** in `runner_test.go` and `review_test.go`:
+```go
+// runner_test.go (add)
+func TestRunner_AllFacetsError_ReturnsAllErrored(t *testing.T) {
+	agent := &mockReviewAgent{
+		errors: map[string]error{
+			"spec_alignment": fmt.Errorf("API timeout"),
+			"code_quality":   fmt.Errorf("rate limited"),
+		},
+	}
+
+	runner := NewRunner(agent, RunnerConfig{
+		Facets:    []string{"spec_alignment", "code_quality"},
+		Threshold: SeverityWarning,
+	})
+
+	result, err := runner.Run(context.Background(), RunInput{
+		DiffSummary: "Added handler",
+		SpecContent: "# Spec",
+		Cycle:       1,
+	})
+	if err != nil {
+		t.Fatalf("Run should not return error even when all facets fail: %v", err)
+	}
+
+	if len(result.ErroredFacets) != 2 {
+		t.Errorf("expected 2 errored facets, got %d", len(result.ErroredFacets))
+	}
+	if len(result.AllFindings) != 0 {
+		t.Errorf("expected 0 findings when all facets errored, got %d", len(result.AllFindings))
+	}
+	if !result.AllFacetsErrored {
+		t.Error("AllFacetsErrored should be true when every facet errors")
+	}
+}
+
+// review_test.go (add)
+func TestReviewStage_AllFacetsError_ReturnsBlocked(t *testing.T) {
+	runner := &mockReviewRunner{
+		result: review.RunResult{
+			AllFacetsErrored: true,
+			ErroredFacets: map[string]string{
+				"spec_alignment": "API timeout",
+				"code_quality":   "rate limited",
+			},
+		},
+	}
+
+	stage := NewReviewStage(runner, ReviewStageConfig{
+		DiffProvider: &fakeDiffProvider{diff: "some diff"},
+	}, nil)
+	rs := runstore.NewRunState("test-spec", "test-project")
+	rs.Cycle = 1
+
+	action, err := stage.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	if action.Kind != specloop.Blocked {
+		t.Errorf("expected Blocked action, got %v", action.Kind)
+	}
+	wantMsg := "all review facets failed: [API timeout, rate limited]"
+	if action.Context == nil {
+		t.Fatal("expected FailureContext to be non-nil")
+	}
+	if len(action.Context.Failures) != 1 || action.Context.Failures[0] != wantMsg {
+		t.Errorf("FailureContext.Failures = %v, want [%q]",
+			action.Context.Failures, wantMsg)
+	}
+}
+```
+
+- **Step 2:** `go test ./internal/next/review/ -run TestRunner_AllFacetsError -v && go test ./internal/next/specloop/stages/ -run TestReviewStage_AllFacetsError -v` — expect FAIL
+
+- **Step 3: Implement** — Add `AllFacetsErrored bool` field to `RunResult`. In `Runner.Run`, after processing all facets, set `AllFacetsErrored = true` when `len(ErroredFacets) > 0 && len(AllFindings) == 0` (i.e., every enabled facet errored with zero successful facets). In `ReviewStage.Run`, check `result.AllFacetsErrored` and return `specloop.NextAction{Kind: specloop.Blocked, Context: &specloop.FailureContext{Failures: []string{"all review facets failed: [error1, error2]"}}}` where the errors are joined from the `ErroredFacets` map values.
+
+- **Step 4:** `go test ./internal/next/review/ -run TestRunner_AllFacetsError -v && go test ./internal/next/specloop/stages/ -run TestReviewStage_AllFacetsError -v` — expect PASS
+- **Step 5:** Commit `"feat(next): all-facets-error returns Blocked from ReviewStage"`
 
 ---
 

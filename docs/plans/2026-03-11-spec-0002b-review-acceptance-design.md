@@ -255,6 +255,8 @@ Note: Only the first stage returning ReplanFrom in a given cycle triggers the re
 
 ReviewStage and AcceptStage are inserted between ValidateStage and EvidenceStage. Both can produce `ReplanFrom`, consuming `max_spec_cycles` budget.
 
+**Evidence dir config injection:** Both ReviewStage and AcceptStage receive `EvidenceDir string` via their config structs (`ReviewStageConfig`, `AcceptStageConfig`). The pipeline construction code resolves the path from `store.RunEvidenceDir(runID)` and passes it at stage creation time. Stages use this path to write their evidence files (`review.json`, `acceptance.json`) — they do not resolve evidence paths themselves.
+
 **Evaluator tier injection:** Tiers are injected via stage config at pipeline construction time (same pattern as ExecuteStage). ReviewStage gets `policy.Models.Evaluator` as its default tier, with per-facet overrides from `policy.Review.Tiers`. AcceptStage gets `policy.Models.Evaluator`. Stages do not read the policy at runtime — they receive their tier configuration at construction.
 
 ### RunState extensions
@@ -367,7 +369,7 @@ The default `"warning"` threshold prevents churn from subjective LLM style prefe
 
 If one facet hits a hard error (timeout, API failure), other facets continue. The failed facet is marked as errored in the findings/evidence — its entry in `review.json` contains an error marker rather than findings. The review proceeds with partial results from the successful facets. The human reviewer sees which facets completed and which errored. This prevents a single flaky API call from discarding results from all other facets.
 
-**Facet retry exhaustion:** If a facet's LLM call returns invalid output (unparseable JSON, missing required fields) and the retry also fails, the facet is marked as errored and processing continues with remaining facets. Combined with the all-facets-error rule below, this handles total failure gracefully.
+**Facet retry exhaustion:** If a facet's LLM call returns invalid output (unparseable JSON, missing required fields) and retries are exhausted, the facet is marked as errored and processing continues with remaining facets. The retry count is configurable via the review config in execution policy (not hardcoded), allowing operators to tune retry behavior for their LLM provider's reliability characteristics. Combined with the all-facets-error rule below, this handles total failure gracefully.
 
 If ALL enabled facets error (zero successful facets), ReviewStage returns `Blocked` — this is an infrastructure failure (the review did not happen). The human needs to know review was skipped entirely.
 
@@ -493,7 +495,7 @@ Note: `ready_for_review` means ready for human review.
 
 **Behavioral change from 0002a:** Spec 0002a's FinalizeStage removes worktrees for `blocked` runs (only preserving `needs_human` and `ready_for_review`). This spec changes that behavior — FinalizeStage now preserves worktrees for ALL terminal states (`blocked`, `needs_human`, `ready_for_review`). The existing `RemoveWorktree` call for `blocked` runs is removed so a human can inspect blocked runs' state. This is intentional: blocked runs represent infrastructure failures whose worktrees may contain useful diagnostic information.
 
-InitStage handles cleanup of stale blocked worktrees: when creating a new run for a spec, it scans the store for prior runs with the same `spec_id`. For any prior run with `status: blocked` and a non-empty `worktree_path`, InitStage removes the worktree and clears the path in `run.json`. It emits a `blocked_worktree_cleaned` event with the old run ID.
+InitStage handles cleanup of stale blocked worktrees: when creating a new run for a spec, it uses the existing `Store.List()` method and filters client-side for runs matching the current SpecID with `Status == "blocked"`. No new Store method is needed. For any matching prior run with a non-empty `worktree_path`, InitStage removes the worktree and clears the path in `run.json`. It emits a `blocked_worktree_cleaned` event with the old run ID.
 
 ### VISION Review Outcome Labels
 
@@ -615,6 +617,10 @@ Adds sections for: review findings by facet, per-criterion acceptance table with
 ### Integration tests
 
 Integration tests (full pipeline with real LLM calls) are deferred to 0002b's wiring phase, since 0002a's StageProvider is still a stub. Unit tests with mock agents cover the stage logic in the meantime.
+
+### Shared test fakes
+
+Spec 0002b creates `internal/next/testutil/` with shared test fakes (`FakeAgent`, `FakeGit`, `FakeClock`, `FakeCmdRunner`) used across stage and domain package tests. These fakes provide consistent test infrastructure and reduce duplication of mock implementations across packages.
 
 ### Per-task artifact files
 
