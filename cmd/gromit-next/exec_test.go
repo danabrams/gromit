@@ -320,6 +320,20 @@ func TestExecShowCmd_FullFlag_ShowsEvidenceBundle(t *testing.T) {
 	}
 }
 
+func TestExecList_EmptyResults_ExitCodeZero(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := runstore.NewStore(tmpDir)
+
+	output, err := execList("nonexistent-project", store)
+	if err != nil {
+		t.Fatalf("execList returned error for empty results: %v", err)
+	}
+	// Should contain header but no data rows
+	if !strings.Contains(output, "RUN ID") {
+		t.Errorf("expected header row, got: %s", output)
+	}
+}
+
 // --- Task 45: exec list tests ---
 
 func TestExecListCmd_RequiresProjectFlag(t *testing.T) {
