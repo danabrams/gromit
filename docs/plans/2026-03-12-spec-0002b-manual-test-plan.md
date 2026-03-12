@@ -348,7 +348,14 @@ Terminal state: ready_for_review
     ```
     Line numbers should be in order: final_validation_result < review_result < acceptance_result.
 
-12. All 0002a artifacts still present: `summary.md`, `diff-summary.md`, `task-results.json`, `validation.json`, `metrics.json`, `review.md`.
+12. **VISION review outcome labels are absent** (deferred to Spec 0003):
+    ```bash
+    # Verify no VISION review outcome labels (deferred to Spec 0003)
+    jq 'has("review_outcome") or has("accepted") or has("rework_implementation_gap") or has("rework_vision_change")' ~/.local/share/gromit/projects/fixture-calc/runs/$RUN_ID/run.json
+    # Expected: false
+    ```
+
+13. All 0002a artifacts still present: `summary.md`, `diff-summary.md`, `task-results.json`, `validation.json`, `metrics.json`, `review.md`.
 
 **Pass/Fail Criteria**:
 - [ ] Terminal state is `ready_for_review`
@@ -361,6 +368,7 @@ Terminal state: ready_for_review
 - [ ] `evidence/review.md` contains review findings and acceptance sections
 - [ ] events.jsonl shows review and accept stages in correct order
 - [ ] Execution policy snapshot includes `review` and `models.evaluator`
+- [ ] `run.json` does not contain VISION review outcome labels (`accepted`, `rework_implementation_gap`, `rework_vision_change`) -- deferred to Spec 0003
 
 **Cleanup**: Leave artifacts for later inspection.
 
@@ -833,7 +841,7 @@ Blocker: Acceptance/review failures remain after 2 cycles.
 
 2. **Budget exhaustion is correctly signaled**:
    ```bash
-   grep 'terminal_state' ~/.local/share/gromit/projects/fixture-calc/runs/$RUN_ID/events.jsonl | jq '{state, reason}'
+   grep 'terminal_state' ~/.local/share/gromit/projects/fixture-calc/runs/$RUN_ID/events.jsonl | jq '{status, reason}'
    ```
    Should show `"needs_human"` with a reason referencing cycle exhaustion.
 
@@ -922,8 +930,7 @@ jq '.budgets.max_spec_cycles' ~/.local/share/gromit/projects/fixture-calc/policy
 **Execute**:
 ```bash
 ./gromit-next exec spec --project fixture-calc \
-  --spec /tmp/gromit-fixtures/fixture-calc/specs/subjective-criteria.md \
-  --policy /tmp/gromit-fixtures/policies/budget-2.json
+  --spec /tmp/gromit-fixtures/fixture-calc/specs/subjective-criteria.md
 ```
 
 **Expected CLI output** (approximate):
@@ -973,7 +980,7 @@ Blocker: Acceptance criteria unclear after 2 cycles.
 
 5. **Budget exhaustion is correctly signaled**:
    ```bash
-   grep 'terminal_state' ~/.local/share/gromit/projects/fixture-calc/runs/$RUN_ID/events.jsonl | jq '{state, reason}'
+   grep 'terminal_state' ~/.local/share/gromit/projects/fixture-calc/runs/$RUN_ID/events.jsonl | jq '{status, reason}'
    ```
    Should show `"needs_human"` with a reason referencing cycle exhaustion.
 
@@ -1175,13 +1182,14 @@ Terminal state: ready_for_review
 
 ---
 
-### Scenario 8b: Blocked from Missing Acceptance Criteria
+### Scenario 8b: Missing Acceptance Criteria -- needs_human
 
-**Purpose**: Verify that AcceptStage returns `blocked` immediately when the spec lacks an acceptance criteria section, rather than wasting cycles.
+**Purpose**: Verify that AcceptStage returns `needs_human` immediately when the spec lacks an acceptance criteria section, rather than wasting cycles. Per the design spec, this is a spec quality issue (not an infrastructure failure), so it produces `needs_human` rather than `blocked`.
 
 **Setup**: Use the same project as other scenarios but with a spec that has no `## Acceptance Criteria` section:
 
 ```bash
+mkdir -p /tmp/test-spec-no-ac
 cat > /tmp/test-spec-no-ac/spec.md << 'EOF'
 # Test Spec — No Acceptance Criteria
 
@@ -1196,26 +1204,27 @@ EOF
 **Execute**:
 
 ```bash
-gromit-next exec spec --project test-project --spec /tmp/test-spec-no-ac/spec.md
+./gromit-next exec spec --project fixture-calc --spec /tmp/test-spec-no-ac/spec.md
 ```
 
 **Expected**:
 
 1. Run terminates quickly (no cycles consumed):
    ```bash
-   gromit-next exec list --project test-project | tail -1
-   # Expected status: "blocked"
+   ./gromit-next exec list --project fixture-calc | tail -1
+   # Expected status: "needs_human"
    ```
 
 2. Blocker summary mentions missing acceptance criteria:
    ```bash
-   cat ~/.local/share/gromit/runs/<run-id>/state.json | jq '.blocker_summary'
+   RUN_ID=<from output>
+   jq '.blocker_summary' .gromit-next/runs/$RUN_ID/run.json
    # Expected: contains "acceptance criteria"
    ```
 
 **Checklist**:
 
-- [ ] Terminal state is `blocked` (not `needs_human`)
+- [ ] Terminal state is `needs_human` (not `blocked` -- missing acceptance criteria is a spec quality issue, not infrastructure failure)
 - [ ] Blocker summary references missing acceptance criteria
 - [ ] No fix cycles consumed before termination
 
@@ -1400,7 +1409,7 @@ Conditional events:
 ```bash
 # Count 0002b event types
 grep -E 'review_result|acceptance_result' RUN_DIR/events.jsonl | \
-  jq -r .event_type | sort | uniq -c
+  jq -r .type | sort | uniq -c
 ```
 
 ### 3.5 Extended Pipeline Ordering
@@ -1640,7 +1649,7 @@ Before merging Spec 0002b implementation:
 - [ ] Scenario 6 (Budget Exhaustion) -- `needs_human` with blocker summary
 - [ ] Scenario 7 (Enable Additional Facet) -- `logic_gaps` runs from config alone
 - [ ] Scenario 8 (New-vs-Preexisting) -- disposition labels present, info notes non-blocking
-- [ ] Scenario 8b (Blocked from Missing AC) -- `blocked` immediately, no cycles consumed, blocker summary references missing criteria
+- [ ] Scenario 8b (Missing AC) -- `needs_human` immediately, no cycles consumed, blocker summary references missing criteria
 - [ ] Scenario 9 (Blocked Worktree Cleanup) -- `blocked` worktree preserved, auto-cleaned on re-run with `blocked_worktree_cleaned` event
 - [ ] `go vet ./...` clean
 - [ ] `gofmt -l .` produces no output
@@ -1648,3 +1657,5 @@ Before merging Spec 0002b implementation:
 - [ ] evidence/review.json follows the documented schema (Section 3.2)
 - [ ] evidence/acceptance.json follows the documented schema (Section 3.3)
 - [ ] Pipeline ordering is correct: Validate -> Review -> Accept -> Evidence (Section 3.5)
+
+**Note:** Parallel facet failure handling (one facet errors while others succeed) is difficult to trigger reliably in manual testing because it requires a provider API failure during one facet's invocation but not others. This behavior is covered by unit tests (`TestRunner_FacetError_ContinuesWithOthers` and `TestReviewStage_AllFacetsError_ReturnsBlocked`). Manual verification is not required.

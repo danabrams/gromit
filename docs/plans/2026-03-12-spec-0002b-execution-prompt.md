@@ -192,6 +192,7 @@ type Registry struct {
 func NewRegistry() *Registry { /* pre-populated with built-in facets */ }
 func (r *Registry) Get(name string) (FacetDef, bool)
 func (r *Registry) ListNames() []string
+func (r *Registry) Select(names []string) ([]FacetDef, error) // validates all names exist, rejects empty input
 ```
 
 Built-in facets (all pre-registered, first two enabled by default):
@@ -232,11 +233,15 @@ func IsBlocking(threshold, findingSeverity Severity) bool
 
 If one facet hits a hard error (timeout, API failure), other facets continue. The failed facet is marked as errored in the findings/evidence — its entry in `review.json` contains an error marker rather than findings. The review proceeds with partial results from the successful facets. The human reviewer sees which facets completed and which errored.
 
+If ALL enabled facets error (zero successful facets), ReviewStage returns `Blocked` — this is an infrastructure failure. The review did not happen and the human needs to know.
+
 ### New-vs-preexisting matching
 
 On fix cycles, the review stage must distinguish new findings from pre-existing ones. Only **new** findings at or above threshold trigger replanning.
 
 The ReviewStage instance holds prior findings (`[]Finding`) in-memory for disposition matching across SpecLoop cycles. Because the stage object persists across cycles (it is constructed once and reused), no serialization to RunState is needed for matching purposes. The RunState `ReviewFindings []string` field serves a different purpose: planner consumption and evidence.
+
+**Invariant:** SpecLoop must reuse the same stage instances across cycles. Document this invariant in a code comment on the SpecLoop's stage slice.
 
 Matching algorithm (v1): A finding is **pre-existing** if a prior finding exists with:
 1. Same file path, AND
@@ -268,6 +273,8 @@ type AcceptanceResult struct {
 
 ### Acceptance rules
 
+AcceptStage receives spec content via `AcceptStageConfig.SpecContent string`, injected at pipeline construction time. AcceptStage does not access the filesystem to read the spec — it uses the in-memory spec content for parsing acceptance criteria.
+
 - Missing acceptance criteria section -> `NeedsHuman` with message "spec lacks acceptance criteria section — cannot evaluate acceptance. Revise the spec to include acceptance criteria." Fails fast, no wasted cycles.
 - Any `fail` triggers replan (within budget). Planner gets: "This criterion failed. Implement the missing behavior."
 - Any `unclear` triggers replan (within budget). Planner gets: "This criterion could not be evaluated. Add tests or observable evidence that proves or disproves it."
@@ -281,13 +288,13 @@ When ReviewStage triggers replanning, it provides blocking findings as structure
 ```json
 {
   "failures": [
-    "review:spec_alignment:error: internal/next/validator/runner.go:42 — nil pointer if commands list is empty (suggested fix: add empty check before iteration)"
+    "review:spec_alignment:error:internal/next/validator/runner.go:42 — nil pointer if commands list is empty (suggested fix: add empty check before iteration)"
   ],
   "cycle": 2
 }
 ```
 
-Each failure string is formatted as `review:<facet>:<severity>: <file>:<line> — <description> (suggested fix: <fix>)` so the planner can produce targeted fix tasks.
+Each failure string is formatted as `review:<facet>:<severity>:<file>:<line> — <description> (suggested fix: <fix>)` so the planner can produce targeted fix tasks.
 
 ### AcceptStage FailureContext
 
@@ -296,13 +303,15 @@ When AcceptStage triggers replanning, it provides failed/unclear criteria:
 ```json
 {
   "failures": [
-    "acceptance:fail: \"audit log entry created\" — Implementation calls audit service but no test verifies the call succeeds. [evidence/acceptance.json, evidence/test-results.json]"
+    "acceptance:fail: audit log entry created — implement missing behavior"
   ],
   "cycle": 2
 }
 ```
 
-Each failure string is formatted as `acceptance:<status>: "<criterion>" — <rationale> [<evidence_refs>]`.
+Each failure string is formatted based on status:
+- fail: `acceptance:fail: <criterion> — implement missing behavior`
+- unclear: `acceptance:unclear: <criterion> — add tests or evidence to prove/disprove`
 
 ### Budget sharing
 
@@ -362,7 +371,7 @@ A helper in the `acceptor` package parses `## Acceptance Criteria` from spec mar
 func ParseAcceptanceCriteria(specMarkdown string) ([]string, error)
 ```
 
-This extracts the numbered list items under the `## Acceptance Criteria` heading, returning them as individual criterion strings for per-criterion evaluation.
+The `specMarkdown` argument is the spec content string from `config.SpecContent`, not read from the filesystem. This extracts the numbered list items under the `## Acceptance Criteria` heading, returning them as individual criterion strings for per-criterion evaluation.
 
 If `ParseAcceptanceCriteria` returns an error (section not found) or an empty slice, AcceptStage returns `NeedsHuman` with message: "spec lacks acceptance criteria section — cannot evaluate acceptance. Revise the spec to include acceptance criteria." This fails fast, no wasted cycles.
 
@@ -646,21 +655,22 @@ All run artifacts go under the external workspace. Never in the target repo.
 
 **AcceptStage owns `acceptance.json`.** AcceptStage writes `acceptance.json` after evaluation as a side effect of its `Run()` method, using its structured `AcceptanceResult` directly. This mirrors ReviewStage's pattern. AcceptStage also populates RunState `[]string` fields for the planner's FailureContext.
 
-**EvidenceStage owns `review.md`.** EvidenceStage reads `review.json` and `acceptance.json` from disk when generating the human-readable `review.md` summary. EvidenceStage must NOT write `review.json` or `acceptance.json`.
+**EvidenceStage owns `review.md`.** EvidenceStage reads `review.json` and `acceptance.json` from disk when generating the human-readable `review.md` summary. EvidenceStage must NOT write `review.json` or `acceptance.json`. EvidenceStage handles missing files gracefully — if `review.json` or `acceptance.json` does not exist, it generates `review.md` with "No review results" or "No acceptance results" sections.
 
 The RunState `[]string` fields (`ReviewFindings`, `AcceptanceResults`) are NOT the source for evidence files — they carry human-readable summaries for planner consumption only.
 
 ### Diff computation via DiffProvider
 
-ReviewStage computes the diff at runtime via a separate `DiffProvider` interface (not on `GitOps`, which handles worktree lifecycle only):
+ReviewStage computes the diff at runtime via a separate `DiffProvider` interface defined in `internal/next/review/` (not on `GitOps`, which handles worktree lifecycle only):
 
 ```go
+// review/diff.go
 type DiffProvider interface {
     Diff(baseBranch string) (string, error)
 }
 ```
 
-ReviewStageConfig includes a `DiffProvider` field. The diff is computed fresh on each cycle to reflect the latest state after fix cycles. The production implementation runs `git diff` in the worktree. Test fakes return canned diffs.
+`ReviewStageConfig` includes a `DiffProvider` field and a `BaseBranch string` field. The base branch is injected at pipeline construction time. The diff is computed fresh on each cycle to reflect the latest state after fix cycles. The production implementation runs `git diff` in the worktree. Test fakes return canned diffs.
 
 ### review.json schema
 

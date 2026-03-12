@@ -275,7 +275,7 @@ AcceptanceResults     []string `json:"acceptance_results,omitempty"`
 - `ReviewFindings` and `AcceptanceResults` are `[]string` carrying human-readable summaries. These feed into the planner's `FailureContext` and into the `review.md` evidence summary.
 - The structured evidence files (`review.json`, `acceptance.json`) are written directly by `ReviewStage` and `AcceptStage` using their domain types (`[]Finding`, `AcceptanceResult`), not derived from these `[]string` fields.
 - `ReviewStage` maintains structured prior findings (`[]Finding`) in-memory for disposition matching across cycles. This structured state is stage-local and is not serialized into RunState.
-- `ReviewStage` writes `review.json` after each cycle (it holds the structured findings in-memory). `EvidenceStage` writes `review.md` and `acceptance.json` only. `EvidenceStage` must NOT write `review.json`.
+- `ReviewStage` writes `review.json` after each cycle (it holds the structured findings in-memory). `AcceptStage` writes `acceptance.json` after evaluation. `EvidenceStage` writes `review.md` only. `EvidenceStage` must NOT write `review.json` or `acceptance.json`.
 
 ### Stage-to-terminal-state mapping (additions)
 
@@ -311,7 +311,7 @@ Each facet is a separate agent invocation, potentially parallel. Each receives t
 
 ### Diff computation
 
-ReviewStage computes the diff at runtime by running `git diff` against the base branch in the worktree. A separate `DiffProvider` interface (not on `GitOps`, which handles worktree lifecycle) provides `Diff(baseBranch string) (string, error)`. ReviewStageConfig includes a `DiffProvider` field. This keeps interface segregation clean — only ReviewStage needs diff computation, and test fakes for other stages are not polluted. The diff is computed fresh on each cycle to reflect the latest state after any fix cycles.
+ReviewStage computes the diff at runtime by running `git diff` against the base branch in the worktree. A separate `DiffProvider` interface lives in `internal/next/review/` (colocated with the domain logic that consumes it), not on `GitOps` (which handles worktree lifecycle). It provides `Diff(baseBranch string) (string, error)`. ReviewStageConfig includes a `DiffProvider` field and a `BaseBranch string` field — `baseBranch` is provided via `ReviewStageConfig.BaseBranch`, injected at pipeline construction time (same pattern as tier injection). This keeps interface segregation clean — only ReviewStage needs diff computation, and test fakes for other stages are not polluted. The diff is computed fresh on each cycle to reflect the latest state after any fix cycles.
 
 ### Built-in facet prompt templates
 
@@ -365,11 +365,13 @@ The default `"warning"` threshold prevents churn from subjective LLM style prefe
 
 If one facet hits a hard error (timeout, API failure), other facets continue. The failed facet is marked as errored in the findings/evidence — its entry in `review.json` contains an error marker rather than findings. The review proceeds with partial results from the successful facets. The human reviewer sees which facets completed and which errored. This prevents a single flaky API call from discarding results from all other facets.
 
+If ALL enabled facets error (zero successful facets), ReviewStage returns `Blocked` — this is an infrastructure failure (the review did not happen). The human needs to know review was skipped entirely.
+
 ### Fix-cycle review behavior
 
 On fix cycles, the review stage distinguishes new findings from pre-existing ones.
 
-Findings from prior cycles are stored in the run's `review.json`. On fix cycles, the review agent receives prior findings and is prompted to label each current finding as **"new"** or **"pre-existing"** (matching by file + description similarity). Only new findings at or above the threshold trigger replanning. Prior findings for disposition matching are held in-memory by the ReviewStage instance (which persists across SpecLoop cycles), not read back from RunState.
+Findings from prior cycles are stored in the run's `review.json`. On fix cycles, the review agent receives prior findings and is prompted to label each current finding as **"new"** or **"pre-existing"** (matching by file + description similarity). Only new findings at or above the threshold trigger replanning. Prior findings for disposition matching are held in-memory by the ReviewStage instance (which persists across SpecLoop cycles), not read back from RunState. **Invariant:** SpecLoop must reuse the same stage instances across cycles. If SpecLoop were refactored to reconstruct stages per cycle, ReviewStage's disposition matching would silently break. This invariant should be documented in a code comment on the SpecLoop's stage slice.
 
 A finding that matches a prior finding by file path and similar description (even if the line number shifted) is considered pre-existing. Matching strategy (v1): same file path AND exact substring match on description text. A future version may use cosine similarity > 0.8 on description text for fuzzy matching.
 
@@ -383,7 +385,7 @@ Evaluates each acceptance criterion from the approved spec individually.
 
 ### Acceptance criteria extraction
 
-AcceptStage resolves criteria via a two-tier approach: if `AcceptStageConfig.Criteria` is non-empty, those criteria are used directly (useful for testing and overrides). Otherwise, AcceptStage reads `spec.md` from the run directory and calls `ParseAcceptanceCriteria(specMarkdown)` to extract criteria at runtime. `ParseAcceptanceCriteria` is a helper function in the acceptor package that looks for a `## Acceptance Criteria` section and parses bullet points.
+AcceptStage receives spec content via `AcceptStageConfig.SpecContent string`, injected at pipeline construction time. If `AcceptStageConfig.Criteria` is non-empty, those criteria are used directly (useful for testing and overrides). Otherwise, AcceptStage calls `ParseAcceptanceCriteria(config.SpecContent)` to extract criteria. AcceptStage does not access the filesystem. `ParseAcceptanceCriteria` is a helper function in the acceptor package that looks for a `## Acceptance Criteria` section and parses bullet points.
 
 If criteria resolution produces an error (section not found) or returns an empty slice, AcceptStage returns `NeedsHuman` with a clear message: "spec lacks acceptance criteria section — cannot evaluate acceptance. Revise the spec to include acceptance criteria." This is a spec quality issue, not an infrastructure failure, so it produces `NeedsHuman` rather than `Blocked` — the human must fix the spec before the system can evaluate acceptance.
 
@@ -493,7 +495,9 @@ The event log (`events.jsonl`) gains the following event types:
 
 - `review_result` — emitted by ReviewStage after each cycle. Contains: facets reviewed, finding counts by severity, whether blocking findings were found, errored facets (if any).
 - `acceptance_result` — emitted by AcceptStage after each evaluation. Contains: criteria evaluated, per-criterion status (pass/fail/unclear), whether all passed.
-- `replan_triggered` gains a `source` field: `"validation"`, `"review"`, or `"acceptance"` to identify which stage triggered the replan.
+- `replan_triggered` gains a `source` field: `"validation"`, `"review"`, or `"acceptance"` to identify which stage triggered the replan. The SpecLoop derives the `source` value from `stage.Name()` when a stage returns `ReplanFrom`. No changes to `NextAction` or `FailureContext` are needed.
+
+No backward-compatibility migration is needed for the new `source` field. Go's JSON unmarshaling produces an empty string for missing fields, which correctly represents legacy events from Spec 0002a.
 
 ---
 
@@ -544,7 +548,7 @@ The `cycle` field records which execution cycle produced the finding. The `dispo
 
 - **ReviewStage** writes `review.json` after each cycle as a side effect of its `Run()` method. It holds structured findings (`[]Finding`) in-memory and writes them directly using the domain types from `review/`. ReviewStage is the sole writer of `review.json`.
 - **AcceptStage** writes `acceptance.json` after evaluation as a side effect of its `Run()` method, using its structured `AcceptanceResult` directly. This mirrors ReviewStage's pattern. AcceptStage also populates RunState fields (`FinalAcceptancePassed`, `AcceptanceResults []string`) — the `[]string` fields feed the planner's FailureContext, not the evidence file.
-- **EvidenceStage** writes `review.md` (human-readable summary combining review findings and acceptance results). EvidenceStage reads `review.json` and `acceptance.json` from disk when generating `review.md`. EvidenceStage does NOT write `review.json` or `acceptance.json` — those are owned by ReviewStage and AcceptStage respectively.
+- **EvidenceStage** writes `review.md` (human-readable summary combining review findings and acceptance results). EvidenceStage reads `review.json` and `acceptance.json` from disk when generating `review.md`. EvidenceStage does NOT write `review.json` or `acceptance.json` — those are owned by ReviewStage and AcceptStage respectively. EvidenceStage handles missing evidence files gracefully. If `review.json` or `acceptance.json` does not exist on disk (e.g., because the pipeline terminated early), EvidenceStage generates `review.md` with 'No review results' or 'No acceptance results' sections as appropriate. This ensures the human reviewer always gets an informative summary regardless of where the pipeline stopped.
 
 ### review.md (updated)
 

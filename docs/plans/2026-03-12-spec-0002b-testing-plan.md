@@ -402,14 +402,14 @@ File: `internal/next/specloop/stages/accept_test.go` (additional tests)
 
 **`TestAcceptStage_EmptyCriteriaSection_ReturnsNeedsHuman`**
 - Input: Spec markdown with `## Acceptance Criteria` heading but no items. `ParseAcceptanceCriteria` returns empty slice.
-- Assert: AcceptStage returns `NeedsHuman` with message "spec lacks acceptance criteria section — cannot evaluate acceptance."
+- Assert: AcceptStage returns `NeedsHuman` with message containing "acceptance criteria" (e.g., "spec has no acceptance criteria — cannot evaluate acceptance"). The message may differ from the missing-section case since the section exists but is empty.
 
-### specloop/ tests (extensions) — ReviewStage GitOps and parallel failure
+### specloop/ tests (extensions) — ReviewStage DiffProvider and parallel failure
 
 File: `internal/next/specloop/stages/review_test.go` (additional tests)
 
-**`TestReviewStage_ComputesDiffFromGitOps`**
-- Input: ReviewStageConfig with a FakeGitOps that returns a known diff string.
+**`TestReviewStage_ComputesDiffFromDiffProvider`**
+- Input: ReviewStageConfig with a FakeDiffProvider that returns a known diff string. (DiffProvider is a separate interface from GitOps per the design spec — GitOps handles worktree lifecycle only, DiffProvider provides `Diff(baseBranch string) (string, error)`.)
 - Assert: The diff is passed to the review runner's RunInput.DiffSummary.
 - **Evidence**: ReviewStage computes diff at runtime, not from static config.
 
@@ -421,6 +421,15 @@ File: `internal/next/specloop/stages/review_test.go` (additional tests)
 **`TestReviewStage_FacetError_ErroredFacetInEvidence`**
 - Input: One facet times out.
 - Assert: `review.json` contains an error marker for the failed facet. The human reviewer can see which facets completed and which errored.
+
+**`TestReviewStage_DiffProviderError_ReturnsBlocked`**
+
+**Covers:** ReviewStage error handling
+
+- Setup: FakeDiffProvider that returns an error, ReviewStage with valid config
+- Act: Run ReviewStage
+- Assert: Returns `Blocked` with error context describing the diff failure
+- Purpose: Ensures diff computation failures are surfaced as infrastructure problems
 
 ### specloop/ tests (extensions) — SpecLoop pipeline
 
@@ -512,6 +521,16 @@ File: `internal/next/specloop/specloop_test.go` (additional tests)
 - Assert: Preexisting warning does not trigger another replan. Pipeline proceeds to acceptance.
 - **Evidence**: AC 4.
 
+**`TestSpecLoop_CycleReset_ValidateStageResetsGateAfterReset`**
+
+**Covers:** RunState cycle reset behavior
+
+- Setup: SpecLoop with a gate-setting stub stage (sets `FinalValidationPassed = true`)
+- Pre-condition: `rs.FinalValidationPassed = true` (simulating prior cycle)
+- Act: Run SpecLoop
+- Assert: After cycle-start reset AND stage execution, `FinalValidationPassed` is `true` (stage re-set it)
+- Purpose: Verifies that the new cycle-start reset doesn't break ValidateStage's ability to set the gate
+
 **`TestFinalizeStage_ReadyForReview_RequiresAllThreeGates`**
 - Input: allDone && FinalValidationPassed && FinalReviewPassed && FinalAcceptancePassed.
 - Assert: Terminal state is `ready_for_review`.
@@ -529,10 +548,13 @@ File: `internal/next/specloop/specloop_test.go` (additional tests)
 - **Evidence**: AC 1.
 
 **`TestFinalizeStage_PreservesWorktreeForBlocked`**
-- **Prerequisite**: The current `FinalizeStage` actively removes worktrees for blocked runs (`finalize.go` lines 31-33). The `RemoveWorktree` call must be removed before this test can pass.
-- Input: FinalizeStage reaches `blocked` terminal state.
-- Assert: Worktree directory is NOT cleaned up (preserved for human inspection).
-- Assert: RunState records the worktree path.
+
+**Covers:** AC 10 (blocked worktree preservation)
+
+- Setup: RunState with `Status: blocked`, `WorktreePath: "/tmp/test-worktree"`, FakeGitOps
+- Act: Run FinalizeStage
+- Assert: `FakeGitOps.RemoveWorktree` was NOT called
+- Assert: `rs.WorktreePath` unchanged
 
 **`TestInitStage_CleansBlockedWorktreesForSameSpec`**
 - Input: Store contains a prior run with terminal state `blocked` and spec_id matching the current spec.
@@ -645,6 +667,16 @@ File: `internal/next/evidence/bundle_test.go` (additional tests)
 **`TestBundler_WriteReview_IncludesAcceptanceTable`**
 - Input: `ReviewInput` with acceptance results populated.
 - Assert: `review.md` contains a "## Acceptance Criteria" section with a table showing criterion, status, rationale, evidence refs.
+
+**`TestEvidenceStage_MissingReviewJSON_GeneratesPlaceholderSection`**
+
+**Covers:** EvidenceStage graceful degradation
+
+- Setup: Evidence directory with NO `review.json` or `acceptance.json`
+- Act: Run EvidenceStage (generates review.md)
+- Assert: `review.md` contains "No review results" section
+- Assert: `review.md` contains "No acceptance results" section
+- Purpose: Ensures early termination paths produce informative evidence
 
 ## Integration Test Scenarios
 
@@ -921,7 +953,7 @@ Mapping each spec acceptance criterion to the test(s) that satisfy it.
 |---|---------------------|---------|
 | 1 | Review gate -- `ready_for_review` impossible if review finds findings above threshold | `TestSpecLoop_ReviewStage_ReplanOnBlockingFindings`, `TestFinalizeStage_ReadyForReview_RequiresAllThreeGates`, `TestFinalizeStage_NeedsHuman_WhenReviewFails`, `TestFinalizeStage_NeedsHuman_WhenAcceptanceFails`, `TestIntegration_ReviewAcceptance_HappyPath_ReadyForReview`, `TestIntegration_ReviewFinding_TriggersFixCycle` |
 | 2 | Acceptance evidence -- every criterion has explicit pass/fail/unclear with rationale and evidence refs | `TestEvaluateResult_ParsePass`, `TestEvaluateResult_ParseFail`, `TestEvaluateResult_ParseUnclear`, `TestEvaluator_InvokesAgentPerCriterion`, `TestBundler_WriteAcceptance`, `TestIntegration_ReviewAcceptance_HappyPath_ReadyForReview` |
-| 3 | Configurable threshold -- `review.replan_threshold` controls which severities trigger replanning | `TestThreshold_IsBlocking` (table-driven, all severity combos), `TestPolicyThresholdValidation`, `TestFilterBlockingFindings_MixedSeverities`, `TestIntegration_ThresholdError_WarningsNonBlocking` |
+| 3 | Configurable threshold -- `review.replan_threshold` controls which severities trigger replanning | `TestThreshold_IsBlocking` (table-driven, all severity combos), `TestPolicyThresholdValidation`, `TestFilterBlockingFindings_MixedSeverities`, `TestIntegration_ThresholdError_WarningsNonBlocking`, `TestIntegration_DefaultThresholdWarning_SuggestionsNonBlocking` |
 | 4 | Fix-cycle from review -- findings above threshold trigger fix-plan targeting specific findings | `TestSpecLoop_ReviewStage_FailureContext_CarriesFindings`, `TestReviewFailuresToStrings`, `TestFilterNewBlockingFindings_OnlyNewAboveThreshold`, `TestSpecLoop_PreexistingFindings_DontBlock`, `TestIntegration_ReviewFinding_TriggersFixCycle`, `TestIntegration_FixCycle_NewVsPreexistingFindings` |
 | 5 | Fix-cycle from acceptance -- fail/unclear results trigger fix-plan targeting specific gaps | `TestSpecLoop_AcceptStage_ReplanOnFail`, `TestSpecLoop_AcceptStage_ReplanOnUnclear`, `TestSpecLoop_AcceptStage_FailureContext_CarriesCriteria`, `TestAcceptanceFailuresToStrings_Fail`, `TestAcceptanceFailuresToStrings_Unclear`, `TestIntegration_AcceptanceFail_FixCycle_ThenPass`, `TestIntegration_AcceptanceUnclear_FixAddsEvidence_ThenPass` |
 | 6 | Facet configurability -- facets selected from built-in registry, enabled/disabled via policy | `TestRegistry_DefaultFacets`, `TestRegistry_AllBuiltInFacets`, `TestRegistry_SelectFacets_AllValid`, `TestRegistry_SelectFacets_UnknownFacet_ReturnsError`, `TestRunner_InvokesAllEnabledFacets`, `TestValidate_ReviewConfig_InvalidFacet`, `TestValidate_ReviewConfig_ValidCustomSelection`, `TestIntegration_FacetEnabledViaConfig` |
