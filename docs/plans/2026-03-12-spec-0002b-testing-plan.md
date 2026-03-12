@@ -38,6 +38,14 @@ Inherits all fakes from Spec 0002a (FakeAgent, FakeGit, FakeClock, FakeCmdRunner
 
 All new fakes live in `internal/next/testutil/`.
 
+## Structural Prerequisites
+
+Before any tests in this plan will compile, the following struct/field additions are required in existing code:
+
+- **`RunState`** (`internal/next/specloop/`): Add `FinalReviewPassed bool`, `FinalAcceptancePassed bool`, `ReviewFindings []review.Finding`, and `AcceptanceResults []acceptor.CriterionResult`. These fields are referenced by finalize-stage tests and `NormalizeNilFields` tests.
+- **`Policy`** (`internal/next/execpolicy/`): Add `Review` sub-struct (with `Facets []string`, `Tiers map[string]string`, `ReplanThreshold string`) and `Models.Evaluator string`. These fields are referenced by policy-loading tests and reviewer/evaluator configuration.
+- **`ReplanTriggeredEvent`** (`internal/next/specloop/`): Add `Source string` field (currently only has `Reason`). Tests assert `source: "review"` or `source: "acceptance"` on replan events; they will not compile without this field.
+
 ## Package-by-Package Test Coverage
 
 ### review/ tests
@@ -162,8 +170,13 @@ File: `internal/next/review/threshold_test.go`
 - **Evidence**: AC 3.
 
 **`TestThreshold_Blocks_SuggestionThreshold`**
-- Input: Threshold `"suggestion"` (default).
+- Input: Threshold `"suggestion"`.
 - Assert: Blocks error, warning, and suggestion. Does not block info.
+- **Evidence**: AC 3.
+
+**`TestThreshold_Blocks_WarningThreshold_IsDefault`**
+- Input: Threshold `"warning"` (default).
+- Assert: Blocks error and warning. Does not block suggestion or info. This is the default behavior — suggestions appear in evidence but do not consume fix-cycle budget.
 - **Evidence**: AC 3.
 
 **`TestFilterBlockingFindings_MixedSeverities`**
@@ -268,6 +281,7 @@ File: `internal/next/acceptor/criterion_test.go`
 - Assert: Returns empty slice. No error. (Aligns with `TestParseAcceptanceCriteria_EmptySection` and execution plan Task 16a.)
 
 **`TestParseAcceptanceCriteria_FromMarkdown`**
+- **Clarification**: `ParseCriteria` (tested above) is the primary API, returning `[]Criterion` structs. `ParseAcceptanceCriteria` is a convenience wrapper returning `[]string` (criterion text only). If both functions are not needed, consolidate into `ParseCriteria` alone and remove the `ParseAcceptanceCriteria` tests below. If both are kept, `ParseAcceptanceCriteria` should delegate to `ParseCriteria` internally.
 - Input: Markdown string with `## Acceptance Criteria` section containing bullet points (`- criterion text`).
 - Assert: Parses each bullet into a criterion string. Returns correct count.
 
@@ -351,13 +365,13 @@ File: `internal/next/execpolicy/policy_test.go` (additional tests)
 **`TestLoadFromFile_ReviewConfig_AllFields`**
 - Input: JSON with full review config:
   ```json
-  {"review": {"facets": ["spec_alignment", "code_quality"], "tiers": {"spec_alignment": "high", "code_quality": "medium"}, "replan_threshold": "suggestion"}}
+  {"review": {"facets": ["spec_alignment", "code_quality"], "tiers": {"spec_alignment": "high", "code_quality": "medium"}, "replan_threshold": "warning"}}
   ```
 - Assert: `Policy.Review.Facets` has 2 entries. `Policy.Review.Tiers["spec_alignment"] == "high"`. `Policy.Review.ReplanThreshold == "suggestion"`.
 
 **`TestLoadFromFile_ReviewConfig_Defaults`**
 - Input: JSON with no `review` section.
-- Assert: `Policy.Review.Facets` defaults to `["spec_alignment", "code_quality"]`. `Policy.Review.ReplanThreshold` defaults to `"suggestion"`. `Policy.Review.Tiers` defaults with `spec_alignment: "high"`, `code_quality: "medium"`.
+- Assert: `Policy.Review.Facets` defaults to `["spec_alignment", "code_quality"]`. `Policy.Review.ReplanThreshold` defaults to `"warning"`. `Policy.Review.Tiers` defaults with `spec_alignment: "high"`, `code_quality: "medium"`.
 
 **`TestLoadFromFile_EvaluatorTier`**
 - Input: JSON with `"models": {"evaluator": "high"}`.
@@ -385,7 +399,38 @@ File: `internal/next/execpolicy/policy_test.go` (additional tests)
 - Assert: No validation error. All are valid built-in facets.
 - **Evidence**: AC 6.
 
-### specloop/ tests (extensions)
+### specloop/ tests (extensions) — AcceptStage Blocked behavior
+
+File: `internal/next/specloop/stages/accept_test.go` (additional tests)
+
+**`TestAcceptStage_MissingCriteriaSection_ReturnsBlocked`**
+- Input: Spec markdown without `## Acceptance Criteria` heading. `ParseAcceptanceCriteria` returns error.
+- Assert: AcceptStage returns `Blocked` with message containing "acceptance criteria".
+- **Evidence**: Fails fast, no wasted cycles.
+
+**`TestAcceptStage_EmptyCriteriaSection_ReturnsBlocked`**
+- Input: Spec markdown with `## Acceptance Criteria` heading but no items. `ParseAcceptanceCriteria` returns empty slice.
+- Assert: AcceptStage returns `Blocked` with message "spec lacks acceptance criteria section — cannot evaluate acceptance."
+
+### specloop/ tests (extensions) — ReviewStage GitOps and parallel failure
+
+File: `internal/next/specloop/stages/review_test.go` (additional tests)
+
+**`TestReviewStage_ComputesDiffFromGitOps`**
+- Input: ReviewStageConfig with a FakeGitOps that returns a known diff string.
+- Assert: The diff is passed to the review runner's RunInput.DiffSummary.
+- **Evidence**: ReviewStage computes diff at runtime, not from static config.
+
+**`TestReviewStage_FacetError_ContinuesWithSuccessfulFacets`**
+- Input: Review runner returns one successful facet and one errored facet.
+- Assert: ReviewStage continues with partial results. Errored facet is recorded in evidence. Successful facet findings are evaluated for blocking.
+- **Evidence**: Parallel facet failure handling.
+
+**`TestReviewStage_FacetError_ErroredFacetInEvidence`**
+- Input: One facet times out.
+- Assert: `review.json` contains an error marker for the failed facet. The human reviewer can see which facets completed and which errored.
+
+### specloop/ tests (extensions) — SpecLoop pipeline
 
 File: `internal/next/specloop/specloop_test.go` (additional tests)
 
@@ -492,6 +537,7 @@ File: `internal/next/specloop/specloop_test.go` (additional tests)
 - **Evidence**: AC 1.
 
 **`TestFinalizeStage_PreservesWorktreeForBlocked`**
+- **Prerequisite**: The current `FinalizeStage` actively removes worktrees for blocked runs (`finalize.go` lines 31-33). The `RemoveWorktree` call must be removed before this test can pass.
 - Input: FinalizeStage reaches `blocked` terminal state.
 - Assert: Worktree directory is NOT cleaned up (preserved for human inspection).
 - Assert: RunState records the worktree path.
@@ -614,7 +660,7 @@ Assertions:
 **`TestIntegration_ReviewFinding_TriggersFixCycle`**
 
 Setup:
-- Policy: `review.replan_threshold: "suggestion"`, `max_spec_cycles: 3`.
+- Policy: `review.replan_threshold: "warning"` (default), `max_spec_cycles: 3`.
 - Cycle 1: FakeAgent returns valid plan, tasks complete, validation passes.
 - Cycle 1 review: FakeAgent returns 1 `error`-severity finding for `spec_alignment` (`"Spec requires idempotency, handler does not check"`).
 - Cycle 2 (fix): FakeAgent returns fix plan targeting the finding. Fix task completes. Validation passes.
@@ -726,6 +772,67 @@ Assertions:
 
 **Evidence**: AC 3.
 
+### Scenario 13a: Default warning threshold -- suggestions non-blocking
+
+**`TestIntegration_DefaultThresholdWarning_SuggestionsNonBlocking`**
+
+Setup:
+- Policy: `review.replan_threshold: "warning"` (default), `max_spec_cycles: 2`.
+- Cycle 1: Plan, execute, validate pass.
+- Cycle 1 review: FakeAgent returns 2 `suggestion`-severity findings and 0 `warning`/`error` findings.
+- Acceptance: All criteria pass.
+
+Execution:
+- Run `specloop.Run(ctx, specPath, cell, policy)`.
+
+Assertions:
+- Terminal state == `ready_for_review`. Suggestions did not trigger a fix cycle.
+- Only 1 planning cycle occurred (no replan).
+- `evidence/review.json` contains the 2 suggestion findings (recorded but not blocking).
+- `events.jsonl` does NOT contain `replan_triggered`.
+
+**Evidence**: AC 3. Validates the default threshold prevents churn from subjective LLM style preferences.
+
+### Scenario 13b: Missing acceptance criteria section -- Blocked
+
+**`TestIntegration_MissingAcceptanceCriteria_Blocked`**
+
+Setup:
+- Spec file with NO `## Acceptance Criteria` section.
+- All other stages (plan, execute, validate, review) pass clean.
+
+Execution:
+- Run `specloop.Run(ctx, specPath, cell, policy)`.
+
+Assertions:
+- Terminal state == `blocked`.
+- AcceptStage returned `Blocked` with message containing "acceptance criteria".
+- No acceptance evaluation was attempted (no LLM calls for acceptance).
+- `events.jsonl` contains the blocked event with descriptive message.
+
+**Evidence**: Fails fast, no wasted cycles on specs that cannot be evaluated.
+
+### Scenario 13c: Parallel facet failure -- partial results
+
+**`TestIntegration_FacetFailure_PartialResults`**
+
+Setup:
+- Policy: `review.facets: ["spec_alignment", "code_quality"]`, `max_spec_cycles: 2`.
+- Cycle 1: Plan, execute, validate pass.
+- Review: FakeAgent returns clean findings for `spec_alignment` but returns an error for `code_quality` (simulating API timeout).
+- Acceptance: All criteria pass.
+
+Execution:
+- Run `specloop.Run(ctx, specPath, cell, policy)`.
+
+Assertions:
+- Terminal state == `ready_for_review` (partial review results do not block if no blocking findings from successful facets).
+- `evidence/review.json` contains `spec_alignment` findings (empty/clean) and `code_quality` entry with error marker.
+- `events.jsonl` review event references the partial failure.
+- Human reviewer can see which facets completed and which errored.
+
+**Evidence**: Parallel facet failure handling -- partial results preserved.
+
 ### Scenario 14: Facet enabled via config, no code change
 
 **`TestIntegration_FacetEnabledViaConfig`**
@@ -754,7 +861,7 @@ Assertions:
 **`TestIntegration_FixCycle_NewVsPreexistingFindings`**
 
 Setup:
-- Policy: `review.replan_threshold: "suggestion"`, `max_spec_cycles: 3`.
+- Policy: `review.replan_threshold: "warning"` (default), `max_spec_cycles: 3`.
 - Cycle 1: Plan, execute, validate pass.
 - Cycle 1 review: FakeAgent returns 1 error finding (`{file: "handler.go", desc: "missing idempotency check"}`).
 - Cycle 2 (fix): Fix task completes. Validation passes.
@@ -829,7 +936,8 @@ testutil/responses/
 testutil/policies/
   review_threshold_error.json           # review.replan_threshold: "error"
   review_threshold_warning.json         # review.replan_threshold: "warning"
-  review_threshold_suggestion.json      # review.replan_threshold: "suggestion" (default)
+  review_threshold_warning.json         # review.replan_threshold: "warning" (default)
+  review_threshold_suggestion.json      # review.replan_threshold: "suggestion"
   review_3facets.json                   # facets: ["spec_alignment", "code_quality", "logic_gaps"]
   tight_cycles_3.json                   # max_spec_cycles: 3
 ```

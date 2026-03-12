@@ -74,7 +74,7 @@ $ gromit-next exec spec --project payments-api --spec ./specs/add-refund-endpoin
 
 ...
 [validate] Final validation: 6/6 passed
-[review] spec_alignment: 1 suggestion finding
+[review] spec_alignment: 1 warning finding
   "Spec requires idempotency key validation, but handler does not check for duplicate keys"
 [replan] Cycle 2 (fix): 1 task targeting review finding
 [execute] Task t-005: add idempotency key validation ... done
@@ -163,20 +163,20 @@ Blocker: Review finding "extracted middleware missing unit test" remains after 3
 
 Each review fix cycle consumed one cycle from the shared `max_spec_cycles` budget.
 
-### Configurable threshold: warnings non-blocking
+### Configurable threshold: suggestions non-blocking (default behavior)
 
 ```
-# execution policy has: "review": {"replan_threshold": "error"}
+# execution policy has default: "review": {"replan_threshold": "warning"}
 
 ...
-[review] code_quality: 2 warning findings (recorded, not blocking per threshold)
+[review] code_quality: 2 suggestion findings (recorded, not blocking per default threshold)
 [review] spec_alignment: 0 findings
 [accept] 5/5 pass
 
 Terminal state: ready_for_review
 ```
 
-Warnings appear in the evidence bundle but do not trigger fix cycles.
+Suggestions appear in the evidence bundle but do not trigger fix cycles at the default `"warning"` threshold. Only warnings and errors consume fix-cycle budget.
 
 ### Adding a review facet via config
 
@@ -223,7 +223,7 @@ The execution policy gains review configuration:
       "spec_alignment": "high",
       "code_quality": "medium"
     },
-    "replan_threshold": "suggestion"
+    "replan_threshold": "warning"
   }
 }
 ```
@@ -251,7 +251,11 @@ Init -> Compile -> Plan -> Execute -> Validate -> Review -> Accept -> Evidence -
                      failures loop back to Plan
 ```
 
-ReviewStage and AcceptStage are inserted between ValidateStage and EvidenceStage. Both use the `evaluator` model tier from the execution policy. Both can produce `ReplanFrom`, consuming `max_spec_cycles` budget.
+Note: Only the first stage returning ReplanFrom in a given cycle triggers the replan. If ValidateStage replans, ReviewStage and AcceptStage do not run for that cycle.
+
+ReviewStage and AcceptStage are inserted between ValidateStage and EvidenceStage. Both can produce `ReplanFrom`, consuming `max_spec_cycles` budget.
+
+**Evaluator tier injection:** Tiers are injected via stage config at pipeline construction time (same pattern as ExecuteStage). ReviewStage gets `policy.Models.Evaluator` as its default tier, with per-facet overrides from `policy.Review.Tiers`. AcceptStage gets `policy.Models.Evaluator`. Stages do not read the policy at runtime — they receive their tier configuration at construction.
 
 ### RunState extensions
 
@@ -269,6 +273,7 @@ AcceptanceResults     []string `json:"acceptance_results,omitempty"`
 - `ReviewFindings` and `AcceptanceResults` are `[]string` carrying human-readable summaries. These feed into the planner's `FailureContext` and into the `review.md` evidence summary.
 - The structured evidence files (`review.json`, `acceptance.json`) are written directly by `ReviewStage` and `AcceptStage` using their domain types (`[]Finding`, `AcceptanceResult`), not derived from these `[]string` fields.
 - `ReviewStage` maintains structured prior findings (`[]Finding`) in-memory for disposition matching across cycles. This structured state is stage-local and is not serialized into RunState.
+- `ReviewStage` writes `review.json` after each cycle (it holds the structured findings in-memory). `EvidenceStage` writes `review.md` and `acceptance.json` only. `EvidenceStage` must NOT write `review.json`.
 
 ### Stage-to-terminal-state mapping (additions)
 
@@ -302,6 +307,10 @@ Additional built-in facets available for enabling:
 
 Each facet is a separate agent invocation, potentially parallel. Each receives the diff summary plus relevant slices from the project cell.
 
+### Diff computation
+
+ReviewStage has access to a GitOps interface and computes the diff at runtime by running `git diff` against the base branch in the worktree. No new types or data flow are needed — the ReviewStageConfig includes a GitOps field (or equivalent worktree access) so the diff can be computed fresh on each cycle. This ensures the diff reflects the latest state after any fix cycles.
+
 ### Built-in facet prompt templates
 
 All 5 built-in facets should have reference prompt templates provided. Each facet evaluates a distinct quality dimension:
@@ -334,8 +343,8 @@ All 5 built-in facets should have reference prompt templates provided. Each face
 ### Severity levels
 
 - **error** — must fix. Always triggers re-plan.
-- **warning** — should fix. Triggers re-plan by default.
-- **suggestion** — can be improved. Triggers re-plan by default.
+- **warning** — should fix. Triggers re-plan by default (at the default `"warning"` threshold).
+- **suggestion** — can be improved. Recorded in evidence but does NOT trigger re-plan at the default threshold. Only triggers re-plan when threshold is explicitly set to `"suggestion"`.
 - **info** — informational. Never triggers re-plan. Recorded in evidence.
 
 ### Configurable threshold
@@ -345,10 +354,14 @@ All 5 built-in facets should have reference prompt templates provided. Each face
 | Threshold value | Blocks on |
 |----------------|-----------|
 | `"error"` | error only |
-| `"warning"` | error + warning |
-| `"suggestion"` (default) | error + warning + suggestion |
+| `"warning"` (default) | error + warning |
+| `"suggestion"` | error + warning + suggestion |
 
-This prevents subjective findings from burning fix cycles when not desired.
+The default `"warning"` threshold prevents churn from subjective LLM style preferences (suggestions) while still catching real bugs (errors and warnings). Suggestions appear in evidence but do not consume fix-cycle budget.
+
+### Parallel facet failure handling
+
+If one facet hits a hard error (timeout, API failure), other facets continue. The failed facet is marked as errored in the findings/evidence — its entry in `review.json` contains an error marker rather than findings. The review proceeds with partial results from the successful facets. The human reviewer sees which facets completed and which errored. This prevents a single flaky API call from discarding results from all other facets.
 
 ### Fix-cycle review behavior
 
@@ -369,6 +382,8 @@ Evaluates each acceptance criterion from the approved spec individually.
 ### Acceptance criteria extraction
 
 AcceptStage parses markdown from the spec packet. A helper function `ParseAcceptanceCriteria(specMarkdown string) ([]string, error)` looks for a `## Acceptance Criteria` section and parses bullet points. Lives in the acceptor package. AcceptStage calls this helper then passes criteria to the evaluator.
+
+If `ParseAcceptanceCriteria` returns an error (section not found) or returns an empty slice, AcceptStage returns `Blocked` with a clear message: "spec lacks acceptance criteria section — cannot evaluate acceptance." This fails fast and avoids wasting cycles on a spec that cannot be evaluated.
 
 ### Input
 
@@ -515,6 +530,12 @@ Object keyed by facet name, each containing an array of findings:
 
 The `cycle` field records which execution cycle produced the finding. The `disposition` field is `"new"` or `"pre-existing"` (set during fix-cycle review).
 
+### Evidence file authorship
+
+- **ReviewStage** writes `review.json` after each cycle as a side effect of its `Run()` method. It holds structured findings (`[]Finding`) in-memory and writes them directly using the domain types from `review/`. ReviewStage is the sole writer of `review.json`.
+- **EvidenceStage** writes `review.md` (human-readable summary) and `acceptance.json` (structured acceptance results). EvidenceStage does NOT write `review.json` — that is owned by ReviewStage.
+- **AcceptStage** does NOT write evidence files. It populates RunState fields (`FinalAcceptancePassed`, `AcceptanceResults`) for EvidenceStage to consume.
+
 ### review.md (updated)
 
 Adds sections for: review findings by facet, per-criterion acceptance table with status/rationale/evidence.
@@ -544,6 +565,7 @@ Adds sections for: review findings by facet, per-criterion acceptance table with
 7. **Severity levels** — Findings are categorized as error/warning/suggestion/info with distinct blocking behavior.
 8. **VISION label deferral** — The system does not auto-label work as `accepted`. VISION review outcome labels are explicitly deferred to Spec 0003.
 9. **Budget sharing** — Validation, review, and acceptance fix cycles all consume from the same `max_spec_cycles` budget. A run that uses cycle 1 for initial execution, cycle 2 for a validation fix, and cycle 3 for a review fix correctly exhausts the budget.
+10. **Blocked worktree preservation** — FinalizeStage preserves worktrees for `blocked` runs instead of removing them, so a human can inspect the state. InitStage cleans up stale blocked worktrees when starting a new run for the same spec.
 
 ---
 

@@ -83,7 +83,7 @@ cat > ~/.local/share/gromit/projects/fixture-calc/policy/execution.json << 'POLI
       "spec_alignment": "high",
       "code_quality": "medium"
     },
-    "replan_threshold": "suggestion"
+    "replan_threshold": "warning"
   }
 }
 POLICY
@@ -114,7 +114,7 @@ cat > ~/.local/share/gromit/projects/fixture-greeter/policy/execution.json << 'P
       "spec_alignment": "high",
       "code_quality": "medium"
     },
-    "replan_threshold": "suggestion"
+    "replan_threshold": "warning"
   }
 }
 POLICY
@@ -145,7 +145,7 @@ cat > ~/.local/share/gromit/projects/fixture-multipackage/policy/execution.json 
       "spec_alignment": "high",
       "code_quality": "medium"
     },
-    "replan_threshold": "suggestion"
+    "replan_threshold": "warning"
   }
 }
 POLICY
@@ -336,7 +336,7 @@ Terminal state: ready_for_review
 10. **Execution policy snapshot includes review config**:
    ```bash
    jq '.review' ~/.local/share/gromit/projects/fixture-calc/runs/$RUN_ID/execution-policy.json
-   # Expected: {"facets": ["spec_alignment", "code_quality"], "tiers": {...}, "replan_threshold": "suggestion"}
+   # Expected: {"facets": ["spec_alignment", "code_quality"], "tiers": {...}, "replan_threshold": "warning"}
    jq '.models.evaluator' ~/.local/share/gromit/projects/fixture-calc/runs/$RUN_ID/execution-policy.json
    # Expected: "high"
    ```
@@ -375,9 +375,9 @@ Terminal state: ready_for_review
 This scenario needs a spec that will produce working code that passes deterministic validation but has a reviewable gap. Use the add-subtract spec on fixture-calc (simple enough that the code works, but the reviewer may find suggestions). If the reviewer produces no findings, use fixture-multipackage with add-refund-endpoint.md as a fallback (more code surface for review).
 
 ```bash
-# Ensure replan_threshold is "suggestion" (default) so even minor findings trigger a fix cycle
+# Ensure replan_threshold is "warning" (default) so warnings and errors trigger a fix cycle
 jq '.review.replan_threshold' ~/.local/share/gromit/projects/fixture-calc/policy/execution.json
-# Expected: "suggestion"
+# Expected: "warning"
 
 # Ensure max_spec_cycles allows at least 2 cycles
 jq '.budgets.max_spec_cycles' ~/.local/share/gromit/projects/fixture-calc/policy/execution.json
@@ -398,7 +398,7 @@ jq '.budgets.max_spec_cycles' ~/.local/share/gromit/projects/fixture-calc/policy
 [execute] All N tasks completed
 [validate] Final validation: N/N passed
 [review] spec_alignment: 0 findings
-[review] code_quality: 1 suggestion finding
+[review] code_quality: 1 warning finding
   "Missing edge case test for negative overflow"
 [replan] Cycle 2 (fix): 1 task targeting review finding
 [execute] Task t-00N: add edge case test ... done
@@ -419,7 +419,7 @@ Terminal state: ready_for_review
    jq '.. | objects | select(.cycle == 1)' \
      ~/.local/share/gromit/projects/fixture-calc/runs/$RUN_ID/evidence/review.json
    ```
-   At least one finding should have `"cycle": 1` and severity at or above `"suggestion"`.
+   At least one finding should have `"cycle": 1` and severity at or above `"warning"` (the default threshold).
 
 4. **Fix-cycle plan references review finding**:
    ```bash
@@ -474,11 +474,20 @@ Terminal state: ready_for_review
 
 ---
 
-### Scenario 3: Configurable Threshold -- Warnings Non-Blocking
+### Scenario 3: Configurable Threshold -- Suggestions Non-Blocking at Default
 
-**Purpose**: Verify that setting `review.replan_threshold` to `"error"` causes warning and suggestion findings to be recorded but not trigger fix cycles.
+**Purpose**: Verify that the default `"warning"` threshold causes suggestion findings to be recorded but not trigger fix cycles, while warnings still trigger replanning. Also verify that overriding to `"error"` causes both warnings and suggestions to be non-blocking.
 
-**Setup**:
+**Setup (Part A -- default "warning" threshold, suggestions non-blocking)**:
+```bash
+# Verify default threshold is "warning" -- suggestions should NOT trigger replanning
+jq '.review.replan_threshold' ~/.local/share/gromit/projects/fixture-calc/policy/execution.json
+# Expected: "warning"
+```
+
+Run the spec. If the reviewer produces only suggestion-level findings, verify they are recorded but do not trigger a fix cycle. Then proceed to Part B:
+
+**Setup (Part B -- "error" threshold, warnings also non-blocking)**:
 ```bash
 # Set replan_threshold to "error" -- only error-severity findings trigger replanning
 jq '.review.replan_threshold = "error"' \
@@ -566,7 +575,7 @@ Terminal state: ready_for_review
 **Cleanup**:
 ```bash
 # Restore replan_threshold to default
-jq '.review.replan_threshold = "suggestion"' \
+jq '.review.replan_threshold = "warning"' \
   ~/.local/share/gromit/projects/fixture-calc/policy/execution.json > /tmp/ep.json \
   && mv /tmp/ep.json ~/.local/share/gromit/projects/fixture-calc/policy/execution.json
 ```
@@ -616,16 +625,12 @@ Terminal state: ready_for_review
 **Verify**:
 
 1. Terminal state: `ready_for_review` (fix cycle resolved the acceptance failure).
-2. **acceptance.json contains a cycle-1 failure**:
-   ```bash
-   jq '.results[] | select(.status == "fail")' \
-     ~/.local/share/gromit/projects/fixture-calc/runs/$RUN_ID/evidence/acceptance.json
-   ```
-   If the final acceptance.json only reflects the last cycle, check events instead:
+2. **Cycle-1 acceptance failure existed** (use events.jsonl as primary verification):
+   acceptance.json contains only the final evaluation (all-pass after the fix cycle). To confirm that cycle-1 failures existed, check events.jsonl:
    ```bash
    grep 'acceptance_result' ~/.local/share/gromit/projects/fixture-calc/runs/$RUN_ID/events.jsonl | jq .
    ```
-   There should be at least two acceptance evaluation events (one per cycle).
+   There should be at least two acceptance evaluation events (one per cycle). The cycle-1 event should contain a `fail` status for at least one criterion.
 
 3. **Fix-cycle plan references acceptance failure**:
    ```bash
@@ -977,9 +982,9 @@ This scenario requires a spec that will produce review findings in cycle 1, then
 Use the fixture-multipackage project with the add-refund-endpoint spec (more code surface for review):
 
 ```bash
-# Ensure replan_threshold is "suggestion" (default)
+# Ensure replan_threshold is "warning" (default)
 jq '.review.replan_threshold' ~/.local/share/gromit/projects/fixture-multipackage/policy/execution.json
-# Expected: "suggestion"
+# Expected: "warning"
 
 # Ensure max_spec_cycles is 3
 jq '.budgets.max_spec_cycles' ~/.local/share/gromit/projects/fixture-multipackage/policy/execution.json
@@ -995,7 +1000,7 @@ jq '.budgets.max_spec_cycles' ~/.local/share/gromit/projects/fixture-multipackag
 **Expected CLI output** (approximate):
 ```
 ...
-[review] spec_alignment: 1 suggestion finding
+[review] spec_alignment: 1 warning finding
 [review] code_quality: 1 info finding
 [replan] Cycle 2 (fix): 1 task targeting review finding
 [execute] ...
@@ -1058,41 +1063,20 @@ Terminal state: ready_for_review
 
 **Setup**:
 
-Create a vague/invalid spec that will cause the planner to fail, producing a `blocked` terminal state:
+Trigger a `blocked` state by making the LLM provider unavailable. Set `ANTHROPIC_API_KEY` to an invalid value so the planner call fails as an infrastructure error:
 
 ```bash
-cat > /tmp/gromit-fixtures/fixture-calc/specs/vague-blocked.md << 'SPEC'
-# Do Something
+# Use any existing spec -- the spec content does not matter since the provider call will fail
+# Save the real key for restoration later
+REAL_KEY="$ANTHROPIC_API_KEY"
 
-## spec_id
-vague-blocked
-
-## Title
-Do something
-
-## Problem
-Things need to happen.
-
-## In-Scope
-- Stuff
-
-## Out-of-Scope
-- Everything else
-
-## Acceptance Criteria
-1. It works
-
-## Validation
-- go test ./...
-SPEC
-
-cd /tmp/gromit-fixtures/fixture-calc && git add specs/ && git commit -m "add vague spec for blocked scenario"
+export ANTHROPIC_API_KEY="sk-ant-invalid-key-for-blocked-test"
 ```
 
-**Execute (first run -- expect `blocked` from planner failure)**:
+**Execute (first run -- expect `blocked` from provider failure)**:
 ```bash
 ./gromit-next exec spec --project fixture-calc \
-  --spec /tmp/gromit-fixtures/fixture-calc/specs/vague-blocked.md
+  --spec /tmp/gromit-fixtures/fixture-calc/specs/divide-float64.md
 ```
 
 **Verify worktree preserved**:
@@ -1103,7 +1087,6 @@ cd /tmp/gromit-fixtures/fixture-calc && git add specs/ && git commit -m "add vag
    jq .state ~/.local/share/gromit/projects/fixture-calc/runs/$RUN_ID_1/run.json
    # Expected: "blocked"
    ```
-   If the terminal state is `needs_human` instead of `blocked`, the planner succeeded on the vague spec. Use an even more degenerate spec or simulate a provider error (e.g., set `ANTHROPIC_API_KEY` to an invalid value temporarily).
 3. Confirm the worktree directory still exists after the run completes:
    ```bash
    jq '.worktree_path // .worktree' \
@@ -1114,8 +1097,12 @@ cd /tmp/gromit-fixtures/fixture-calc && git add specs/ && git commit -m "add vag
 
 **Execute (second run -- same spec, verify cleanup of blocked worktree)**:
 ```bash
+# Restore or keep the invalid key depending on whether you want this run to also block
+# To test cleanup only, restore the real key so the second run proceeds normally:
+export ANTHROPIC_API_KEY="$REAL_KEY"
+
 ./gromit-next exec spec --project fixture-calc \
-  --spec /tmp/gromit-fixtures/fixture-calc/specs/vague-blocked.md
+  --spec /tmp/gromit-fixtures/fixture-calc/specs/divide-float64.md
 ```
 
 **Verify old worktree cleaned**:
@@ -1145,7 +1132,7 @@ cd /tmp/gromit-fixtures/fixture-calc && git add specs/ && git commit -m "add vag
    ```
 
 **Pass/Fail Criteria**:
-- [ ] First run terminal state is `blocked` (planner failure, not budget exhaustion)
+- [ ] First run terminal state is `blocked` (provider failure, not budget exhaustion)
 - [ ] First run's worktree is preserved after `blocked` terminal state
 - [ ] Second run of the same spec auto-cleans the first run's `blocked` worktree
 - [ ] Second run emits `blocked_worktree_cleaned` event referencing first run
@@ -1153,8 +1140,8 @@ cd /tmp/gromit-fixtures/fixture-calc && git add specs/ && git commit -m "add vag
 
 **Cleanup**:
 ```bash
-# Remove the vague spec
-cd /tmp/gromit-fixtures/fixture-calc && git rm specs/vague-blocked.md && git commit -m "remove vague spec"
+# Ensure the real API key is restored
+export ANTHROPIC_API_KEY="$REAL_KEY"
 ```
 
 ---
@@ -1280,7 +1267,7 @@ The 0002b execution policy extends the 0002a schema with:
       "spec_alignment": "high",
       "code_quality": "medium"
     },
-    "replan_threshold": "suggestion"
+    "replan_threshold": "warning"
   }
 }
 ```
@@ -1292,7 +1279,7 @@ The 0002b execution policy extends the 0002a schema with:
 | `models.evaluator` | string | `"high"` | Model tier for review and acceptance stages |
 | `review.facets` | string[] | `["spec_alignment", "code_quality"]` | Which built-in facets to run |
 | `review.tiers` | object | per-facet defaults | Model tier override per facet |
-| `review.replan_threshold` | string | `"suggestion"` | Minimum severity to trigger replanning |
+| `review.replan_threshold` | string | `"warning"` | Minimum severity to trigger replanning. Default `"warning"` prevents churn from subjective suggestions while catching real bugs. |
 
 ### Available built-in facets
 

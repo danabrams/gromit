@@ -8,7 +8,7 @@
 
 ## Project Context
 
-- **Language/runtime:** Go 1.24, CLI built with `github.com/spf13/cobra`
+- **Language/runtime:** Go 1.26, CLI built with `github.com/spf13/cobra`
 - **Project root:** `/Users/dabrams/gromit`
 - **Module path:** `github.com/danabrams/gromit`
 - **CLI entry point:** `cmd/gromit-next/main.go`
@@ -79,7 +79,9 @@ Init -> Compile -> Plan -> Execute -> Validate -> Review -> Accept -> Evidence -
                      failures loop back to Plan
 ```
 
-ReviewStage and AcceptStage are inserted between ValidateStage and EvidenceStage. Both use the `evaluator` model tier from the execution policy. Both can produce `ReplanFrom`, consuming `max_spec_cycles` budget.
+ReviewStage and AcceptStage are inserted between ValidateStage and EvidenceStage. Both can produce `ReplanFrom`, consuming `max_spec_cycles` budget.
+
+**Evaluator tier injection:** Tiers are injected via stage config at pipeline construction time (same pattern as ExecuteStage). ReviewStage gets `policy.Models.Evaluator` as default tier, with per-facet overrides from `policy.Review.Tiers`. AcceptStage gets `policy.Models.Evaluator`. Stages do not read the policy at runtime.
 
 ---
 
@@ -220,8 +222,12 @@ func IsBlocking(threshold, findingSeverity Severity) bool
 | Threshold value | Blocks on |
 |----------------|-----------|
 | `SeverityError` | error only |
-| `SeverityWarning` | error + warning |
-| `SeveritySuggestion` (default) | error + warning + suggestion |
+| `SeverityWarning` (default) | error + warning |
+| `SeveritySuggestion` | error + warning + suggestion |
+
+### Parallel facet failure handling
+
+If one facet hits a hard error (timeout, API failure), other facets continue. The failed facet is marked as errored in the findings/evidence — its entry in `review.json` contains an error marker rather than findings. The review proceeds with partial results from the successful facets. The human reviewer sees which facets completed and which errored.
 
 ### New-vs-preexisting matching
 
@@ -259,6 +265,7 @@ type AcceptanceResult struct {
 
 ### Acceptance rules
 
+- Missing acceptance criteria section -> `Blocked` with message "spec lacks acceptance criteria section — cannot evaluate acceptance." Fails fast, no wasted cycles.
 - Any `fail` triggers replan (within budget). Planner gets: "This criterion failed. Implement the missing behavior."
 - Any `unclear` triggers replan (within budget). Planner gets: "This criterion could not be evaluated. Add tests or observable evidence that proves or disproves it."
 - Budget exhausted with remaining failures/unclear -> `needs_human`.
@@ -352,6 +359,8 @@ func ParseAcceptanceCriteria(specMarkdown string) ([]string, error)
 
 This extracts the numbered list items under the `## Acceptance Criteria` heading, returning them as individual criterion strings for per-criterion evaluation.
 
+If `ParseAcceptanceCriteria` returns an error (section not found) or an empty slice, AcceptStage returns `Blocked` with message: "spec lacks acceptance criteria section — cannot evaluate acceptance." This fails fast, no wasted cycles.
+
 ### Evaluator model tier
 
 The execution policy gains an `evaluator` field in `Models`:
@@ -386,7 +395,7 @@ Default:
       "spec_alignment": "high",
       "code_quality": "medium"
     },
-    "replan_threshold": "suggestion"
+    "replan_threshold": "warning"
   }
 }
 ```
@@ -446,8 +455,8 @@ Build the acceptance evaluation package:
 ### Phase 4: `ReviewStage` and `AcceptStage`
 
 Implement stage interface for both:
-- ReviewStage: invokes review package, checks threshold, returns Continue or ReplanFrom
-- AcceptStage: invokes acceptor package, returns Continue, ReplanFrom, or NeedsHuman
+- ReviewStage: invokes review package, checks threshold, returns Continue or ReplanFrom. Computes diff from worktree via GitOps at runtime. Writes `review.json` after each cycle. Handles parallel facet failure (continues with successful facets, marks failed ones as errored).
+- AcceptStage: invokes acceptor package, returns Continue, ReplanFrom, NeedsHuman, or **Blocked** (when spec lacks acceptance criteria). Tier injected at construction time.
 - Pipeline insertion: stages registered between validate and evidence
 - FailureContext formatting for planner consumption
 
@@ -456,7 +465,7 @@ Implement stage interface for both:
 Extend the fix-cycle replan loop:
 - ReviewStage FailureContext contract (blocking findings as structured failure strings)
 - AcceptStage FailureContext contract (failed/unclear criteria as structured failure strings)
-- New-vs-preexisting in fix cycles: review stage reads prior findings from run state, classifies current findings
+- New-vs-preexisting in fix cycles: review stage tracks prior findings in stage-local state across cycles, classifies current findings
 - Replan triggers: only new findings above threshold or failed/unclear criteria
 - RunState extensions: fields to carry review findings and acceptance results across cycles
 
@@ -472,10 +481,10 @@ Extend the execution policy:
 ### Phase 7: Evidence bundle extensions
 
 Extend the evidence bundle:
-- `WriteReviewFindings()` — writes `review.json` (aggregated findings by facet)
-- `WriteAcceptance()` — writes `acceptance.json` (per-criterion evaluation)
-- `WriteReview()` update — add review findings by facet section and per-criterion acceptance table to `review.md`
-- EvidenceStage update: reads review findings and acceptance results from RunState, writes new artifacts
+- `WriteReviewFindings()` — writes `review.json` (aggregated findings by facet) — called by **ReviewStage** (which owns review.json), not EvidenceStage
+- `WriteAcceptance()` — writes `acceptance.json` (per-criterion evaluation) — called by **EvidenceStage**
+- `WriteReview()` update — add review findings by facet section and per-criterion acceptance table to `review.md` — called by **EvidenceStage**
+- EvidenceStage update: reads review findings and acceptance results from RunState, writes `review.md` and `acceptance.json`. EvidenceStage does NOT write `review.json`.
 
 ### Phase 8: Integration wiring + CLI updates
 
@@ -483,6 +492,13 @@ Extend the evidence bundle:
 - Ensure SpecLoop handles the extended pipeline (review and accept between validate and evidence)
 - CLI updates if needed for new config options
 - End-to-end integration tests
+
+### Phase 9: FinalizeStage updates and blocked worktree lifecycle
+
+- FinalizeStage three-gate update: `ready_for_review` requires all three gates (FinalValidationPassed, FinalReviewPassed, FinalAcceptancePassed); any gate failure with exhausted budget yields `needs_human`
+- InitStage blocked-worktree cleanup: auto-clean worktrees from prior blocked runs of the same spec
+- New event types: `blocked_worktree_cleaned` and corresponding `unmarshalEvent` switch cases
+- Per-task artifact files: write `task-packet.md`, `result.json`, and `agent-output.txt` under `tasks/<task-id>/`
 
 ---
 
@@ -523,6 +539,7 @@ Phase 5 (fix-cycle)           — depends on Phase 4
 Phase 6 (exec policy)         — depends on Phase 2 (for facet registry validation)
 Phase 7 (evidence)            — depends on Phase 2 + 3 (for types)
 Phase 8 (integration)         — depends on all previous phases
+Phase 9 (finalize/worktree)   — depends on Phase 4 + 7
 ```
 
 ---
@@ -566,7 +583,7 @@ The `review/` and `acceptor/` packages have no dependencies on each other. Two s
 8. **No global state.** All state flows through RunState or function parameters.
 9. **NormalizeNilFields convention.** Per project convention, add `NormalizeNilFields()` to types with slice/map fields. Exported for cross-package types, unexported for internal.
 10. **Budget sharing is automatic.** ReviewStage and AcceptStage return `ReplanFrom` just like ValidateStage. The SpecLoop's existing cycle counter handles budget consumption. Do not add separate budget tracking.
-11. **Evaluator tier.** Both ReviewStage and AcceptStage read `policy.Models.Evaluator` for the provider tier. Do not hardcode model names.
+11. **Evaluator tier.** Both ReviewStage and AcceptStage receive their tier at construction time from `policy.Models.Evaluator` (same pattern as ExecuteStage). ReviewStage gets per-facet overrides from `policy.Review.Tiers`. Do not hardcode model names. Do not read the policy at runtime — inject tiers via stage config.
 12. **FailureContext formatting.** Format failure strings so the planner can parse them into targeted fix tasks. Use the prefix conventions defined in this document (`review:<facet>:<severity>:` and `acceptance:<status>:`).
 
 ---
@@ -619,7 +636,15 @@ All run artifacts go under the external workspace. Never in the target repo.
 
 ### Evidence file authorship
 
-ReviewStage and AcceptStage write structured JSON evidence files (`review.json`, `acceptance.json`) directly as side effects of their `Run()` method, using the structured types from `review/` and `acceptor/` packages respectively. The RunState `[]string` fields (`ReviewFindings`, `AcceptanceResults`) are NOT the source for evidence files — they carry human-readable summaries for planner consumption. The EvidenceStage does NOT re-derive evidence files from RunState string fields.
+**ReviewStage owns review.json writes.** ReviewStage writes `review.json` after each cycle as a side effect of its `Run()` method. It holds structured findings (`[]Finding`) in-memory and writes them directly using the domain types from `review/`. EvidenceStage writes `review.md` (human-readable summary) and `acceptance.json` (structured acceptance results). EvidenceStage must NOT write `review.json`.
+
+AcceptStage does NOT write evidence files directly. It populates RunState fields for EvidenceStage to consume when writing `acceptance.json`.
+
+The RunState `[]string` fields (`ReviewFindings`, `AcceptanceResults`) are NOT the source for evidence files — they carry human-readable summaries for planner consumption.
+
+### Diff computation via GitOps
+
+ReviewStage has access to a GitOps interface and computes the diff at runtime by running `git diff` against the base branch in the worktree. ReviewStageConfig includes a GitOps field so the diff can be computed fresh on each cycle. No new types or data flow are needed — this is the same GitOps interface used by other stages.
 
 ### review.json schema
 
