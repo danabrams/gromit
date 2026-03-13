@@ -178,6 +178,23 @@ Use `superpowers:finishing-a-development-branch` to integrate the work.
 - Noop fakes for LLM deps live in `cmd/gromit-next/stage_provider.go`
 - Shared test fakes live in `internal/next/testutil/`
 
+## Deferred Acceptance Criteria
+
+Acceptance criteria 6-13 from the spec (`spec-level-review-and-targeted-remediation.md`) are intentionally deferred to the next phase (agent wiring / bead integration). This branch built the review, acceptance, and pipeline foundations; the deferred criteria require bead creation, CLI flag wiring, and agent-level orchestration that belong in a separate branch.
+
+- **AC 6:** When accept or review fails, their findings become the input to remediation decompose — requires agent wiring to pass FailureContext into remediation runner
+- **AC 7:** Remediation decompose creates targeted fix beads from findings, not from the original plan — requires bead creation integration and findings-based decompose prompt
+- **AC 8:** The gate satisfaction check closes open beads whose acceptance criteria are already satisfied — requires bead store integration with gate logic
+- **AC 9:** When review passes with findings, spec-scoped findings become from-review beads labeled with the spec — requires bead creation from Finding type (TODO added for Scope field extensibility)
+- **AC 10:** When review passes with findings, general findings become from-review beads without a spec label — requires bead creation from Finding type (TODO added for Scope field extensibility)
+- **AC 11:** `run2 --from-review` runs only beads with the from-review label through the bead loop — requires CLI flag addition and bead query logic
+- **AC 12:** `run2 --from-review --spec <id>` scopes to from-review beads for a specific spec — requires CLI flag addition and filtered bead query
+- **AC 13:** From-review beads do not trigger spec-level accept/review cycles — requires bead loop mode selection in agent orchestration
+
+**Foundations in place:**
+- FailureContext threading (criteria 6-7): `ReviewFailureContext` and `AcceptanceFailure` types are built and tested; planner replanning receives structured failure context
+- Finding type extensibility (criteria 9-10): `Finding` struct supports severity, category, description, and affected files; TODO added for `Scope` field to distinguish spec-scoped vs general findings
+
 ## Deferred items for later phases
 
 - Real GitDiffProvider implementation wired into stage_provider.go (Task 33b added the type, but stage_provider still uses noopDiffProvider)

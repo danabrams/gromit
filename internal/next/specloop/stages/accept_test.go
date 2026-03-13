@@ -351,3 +351,69 @@ func TestAcceptStage_DiffProviderError(t *testing.T) {
 		t.Errorf("unexpected error: %v", err)
 	}
 }
+
+func TestAcceptStage_EmptyCriteriaSection_ReturnsNeedsHuman(t *testing.T) {
+	// Spec has an ## Acceptance Criteria header but no list items under it.
+	// Parser returns an empty slice (no error) because the section exists.
+	// The stage should detect zero parsed criteria and return NeedsHuman.
+	stage := NewAcceptStage(&mockAcceptEvaluator{
+		results: []acceptor.AcceptanceResult{{}},
+	}, AcceptStageConfig{
+		SpecContent: "# Spec\n\n## Acceptance Criteria\n\nNo bullet points here, just prose.\n\n## Notes\n",
+	}, nil)
+	rs := runstore.NewRunState("test-spec", "test-project")
+	rs.Cycle = 1
+
+	action, err := stage.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if action.Kind != specloop.NeedsHuman {
+		t.Errorf("expected NeedsHuman when criteria section is empty, got %v", action.Kind)
+	}
+	if action.Context == nil {
+		t.Fatal("expected FailureContext")
+	}
+	if len(action.Context.Failures) == 0 {
+		t.Error("expected at least one failure message")
+	}
+}
+
+func TestAcceptStage_RetryOnTransientError_DocumentedBehavior(t *testing.T) {
+	// Verify that transient errors (non-permanent) get one retry.
+	// Currently all evaluator errors are treated as transient since
+	// the acceptor package has no ParseError type yet.
+	eval := &mockAcceptEvaluator{
+		results: []acceptor.AcceptanceResult{
+			{}, // placeholder for first call (error)
+			{
+				Results: []acceptor.CriterionResult{
+					{Criterion: "works", Status: acceptor.StatusPass},
+				},
+				AllPass:          true,
+				HasFailOrUnclear: false,
+			},
+		},
+		errs: []error{
+			errors.New("connection reset"),
+			nil,
+		},
+	}
+
+	stage := NewAcceptStage(eval, AcceptStageConfig{
+		Criteria: []string{"works"},
+	}, nil)
+	rs := runstore.NewRunState("test-spec", "test-project")
+	rs.Cycle = 1
+
+	action, err := stage.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("transient error should be retried: %v", err)
+	}
+	if action.Kind != specloop.Continue {
+		t.Errorf("expected Continue after successful retry, got %v", action.Kind)
+	}
+	if eval.calls != 2 {
+		t.Errorf("expected exactly 2 evaluator calls (initial + retry), got %d", eval.calls)
+	}
+}

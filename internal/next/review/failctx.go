@@ -12,7 +12,7 @@ func BuildFailureStrings(result RunResult) []string {
 // failure strings for FailureContext.Failures. This is the review-side
 // counterpart to AcceptanceFailuresToStrings in the acceptor package.
 func ReviewFailuresToStrings(findings []Finding) []string {
-	var strs []string
+	strs := []string{}
 	for _, f := range findings {
 		s := fmt.Sprintf("review:%s:%s:%s:%d — %s",
 			f.Facet, f.Severity, f.File, f.Line, f.Description)

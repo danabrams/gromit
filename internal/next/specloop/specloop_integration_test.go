@@ -4,6 +4,7 @@ package specloop
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/next/execpolicy"
@@ -39,9 +40,9 @@ func passThrough(name string) *scenarioStage {
 // stdBudget returns a budget suitable for most integration tests.
 func stdBudget(maxCycles int) *Budget {
 	return NewBudget(execpolicy.Budgets{
-		MaxSpecCycles:         maxCycles,
-		MaxRunCostUSD:         99,
-		MaxRunDurationSeconds: 3600,
+		MaxSpecCycles:          maxCycles,
+		MaxRunCostUSD:          99,
+		MaxRunDurationSeconds:  3600,
 		MaxTaskDurationSeconds: 300,
 	})
 }
@@ -623,5 +624,233 @@ func TestIntegration_FixCycle_NewVsPreexistingFindings(t *testing.T) {
 	// Accept should only run once — on cycle 2 after review passes
 	if acceptStage.callCount != 1 {
 		t.Errorf("accept should run once (only on successful cycle), got %d", acceptStage.callCount)
+	}
+}
+
+// --- Scenario 16: Acceptance unclear triggers fix, then passes ---
+
+func TestIntegration_AcceptanceUnclear_FixAddsEvidence_ThenPass(t *testing.T) {
+	planStage := passThrough("plan")
+	executeStage := passThrough("execute")
+
+	validateStage := &scenarioStage{
+		name: "validate",
+		fn: func(_ context.Context, rs *runstore.RunState, _ int) (NextAction, error) {
+			rs.FinalValidationPassed = true
+			return NextAction{Kind: Continue}, nil
+		},
+	}
+	reviewStage := &scenarioStage{
+		name: "review",
+		fn: func(_ context.Context, rs *runstore.RunState, _ int) (NextAction, error) {
+			rs.FinalReviewPassed = true
+			return NextAction{Kind: Continue}, nil
+		},
+	}
+
+	// Accept: cycle 1 returns unclear; cycle 2 returns pass
+	acceptStage := &scenarioStage{
+		name: "accept",
+		fn: func(_ context.Context, rs *runstore.RunState, call int) (NextAction, error) {
+			if call == 1 {
+				rs.FinalAcceptancePassed = false
+				rs.AcceptanceResults = []string{"acceptance:unclear:criterion y — insufficient evidence"}
+				return NextAction{
+					Kind: ReplanFrom,
+					Context: &FailureContext{
+						Failures: []string{"acceptance:unclear:criterion y — insufficient evidence"},
+						Cycle:    rs.Cycle,
+					},
+				}, nil
+			}
+			rs.FinalAcceptancePassed = true
+			return NextAction{Kind: Continue}, nil
+		},
+	}
+
+	finalizeStage := &scenarioStage{
+		name: "finalize",
+		fn: func(_ context.Context, rs *runstore.RunState, _ int) (NextAction, error) {
+			if rs.FinalValidationPassed && rs.FinalReviewPassed && rs.FinalAcceptancePassed {
+				rs.Status = runstore.StatusReadyForReview
+			} else {
+				rs.Status = runstore.StatusNeedsHuman
+			}
+			return NextAction{Kind: Continue}, nil
+		},
+	}
+
+	stages := []Stage{planStage, executeStage, validateStage, reviewStage, acceptStage, finalizeStage}
+	loop := NewSpecLoop(stages, SpecLoopConfig{
+		Budget:      stdBudget(3),
+		ReplanStage: "plan",
+	})
+
+	rs := runstore.NewRunState("test-spec", "test-project")
+	if err := loop.Run(context.Background(), rs); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	if rs.Status != runstore.StatusReadyForReview {
+		t.Errorf("want status %q after unclear->fix->pass, got %q", runstore.StatusReadyForReview, rs.Status)
+	}
+	if rs.Cycle != 2 {
+		t.Errorf("want cycle 2 after one replan, got %d", rs.Cycle)
+	}
+	if !rs.FinalAcceptancePassed {
+		t.Error("FinalAcceptancePassed should be true after second cycle")
+	}
+	if acceptStage.callCount != 2 {
+		t.Errorf("accept should run twice, got %d", acceptStage.callCount)
+	}
+}
+
+// --- Scenario 5: Review fix cycle with evolving findings exhausting budget -> needs_human ---
+
+func TestIntegration_ReviewFixCycle_EvolvingFindings_BudgetExhausted_NeedsHuman(t *testing.T) {
+	// Each cycle, review finds NEW (different) blocking findings.
+	// The fix cycle runs but introduces a different issue each time.
+	// Eventually the budget is exhausted, producing needs_human.
+
+	planStage := passThrough("plan")
+	executeStage := passThrough("execute")
+
+	validateStage := &scenarioStage{
+		name: "validate",
+		fn: func(_ context.Context, rs *runstore.RunState, _ int) (NextAction, error) {
+			rs.FinalValidationPassed = true
+			return NextAction{Kind: Continue}, nil
+		},
+	}
+
+	// Review returns a different blocking finding on each cycle
+	reviewStage := &scenarioStage{
+		name: "review",
+		fn: func(_ context.Context, rs *runstore.RunState, call int) (NextAction, error) {
+			// Each call produces a unique NEW finding (not pre-existing)
+			finding := fmt.Sprintf("review:spec_alignment:error:handler.go:%d — issue %d introduced by fix", call*10, call)
+			rs.FinalReviewPassed = false
+			rs.ReviewFindings = []string{finding}
+			return NextAction{
+				Kind: ReplanFrom,
+				Context: &FailureContext{
+					Failures: []string{finding},
+					Cycle:    rs.Cycle,
+				},
+			}, nil
+		},
+	}
+
+	acceptStage := passThrough("accept")
+
+	finalizeStage := &scenarioStage{
+		name: "finalize",
+		fn: func(_ context.Context, rs *runstore.RunState, _ int) (NextAction, error) {
+			if rs.FinalValidationPassed && rs.FinalReviewPassed && rs.FinalAcceptancePassed {
+				rs.Status = runstore.StatusReadyForReview
+			} else {
+				rs.Status = runstore.StatusNeedsHuman
+			}
+			return NextAction{Kind: Continue}, nil
+		},
+	}
+
+	stages := []Stage{planStage, executeStage, validateStage, reviewStage, acceptStage, finalizeStage}
+	loop := NewSpecLoop(stages, SpecLoopConfig{
+		Budget:      stdBudget(3), // Allow 3 cycles, all will be consumed
+		ReplanStage: "plan",
+	})
+
+	rs := runstore.NewRunState("test-spec", "test-project")
+	if err := loop.Run(context.Background(), rs); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	// Budget should be exhausted -> needs_human
+	if rs.Status != runstore.StatusNeedsHuman {
+		t.Errorf("want status %q after budget exhaustion with evolving findings, got %q",
+			runstore.StatusNeedsHuman, rs.Status)
+	}
+	if rs.TerminalReason != "cycles_exhausted" {
+		t.Errorf("want terminal_reason %q, got %q", "cycles_exhausted", rs.TerminalReason)
+	}
+
+	// Review should have been called once per cycle (3 times)
+	if reviewStage.callCount != 3 {
+		t.Errorf("review should run 3 times (once per cycle), got %d", reviewStage.callCount)
+	}
+
+	// Accept should never have run — review always returned ReplanFrom
+	if acceptStage.callCount != 0 {
+		t.Errorf("accept should never run when review always replans, got %d calls", acceptStage.callCount)
+	}
+
+	// BlockerSummary should contain the last finding from the final cycle's replan context
+	if rs.BlockerSummary == "" {
+		t.Error("BlockerSummary should be set from final replan context")
+	}
+}
+
+// --- Scenario 17: Acceptance fail persists until budget exhaustion ---
+
+func TestIntegration_AcceptanceFail_BudgetExhausted_NeedsHuman(t *testing.T) {
+	planStage := passThrough("plan")
+	executeStage := passThrough("execute")
+
+	validateStage := &scenarioStage{
+		name: "validate",
+		fn: func(_ context.Context, rs *runstore.RunState, _ int) (NextAction, error) {
+			rs.FinalValidationPassed = true
+			return NextAction{Kind: Continue}, nil
+		},
+	}
+	reviewStage := &scenarioStage{
+		name: "review",
+		fn: func(_ context.Context, rs *runstore.RunState, _ int) (NextAction, error) {
+			rs.FinalReviewPassed = true
+			return NextAction{Kind: Continue}, nil
+		},
+	}
+
+	// Accept always returns fail
+	acceptStage := &scenarioStage{
+		name: "accept",
+		fn: func(_ context.Context, rs *runstore.RunState, _ int) (NextAction, error) {
+			rs.FinalAcceptancePassed = false
+			rs.AcceptanceResults = []string{"acceptance:fail:criterion z — not implemented"}
+			return NextAction{
+				Kind: ReplanFrom,
+				Context: &FailureContext{
+					Failures: []string{"acceptance:fail:criterion z — not implemented"},
+					Cycle:    rs.Cycle,
+				},
+			}, nil
+		},
+	}
+
+	finalizeStage := passThrough("finalize")
+
+	stages := []Stage{planStage, executeStage, validateStage, reviewStage, acceptStage, finalizeStage}
+	loop := NewSpecLoop(stages, SpecLoopConfig{
+		Budget:      stdBudget(2), // Only 2 cycles allowed
+		ReplanStage: "plan",
+	})
+
+	rs := runstore.NewRunState("test-spec", "test-project")
+	if err := loop.Run(context.Background(), rs); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	if rs.Status != runstore.StatusNeedsHuman {
+		t.Errorf("want status %q after cycle exhaustion, got %q", runstore.StatusNeedsHuman, rs.Status)
+	}
+	if rs.TerminalReason != "cycles_exhausted" {
+		t.Errorf("want terminal_reason %q, got %q", "cycles_exhausted", rs.TerminalReason)
+	}
+	if acceptStage.callCount != 2 {
+		t.Errorf("accept should run twice (once per cycle), got %d", acceptStage.callCount)
+	}
+	if rs.FinalAcceptancePassed {
+		t.Error("FinalAcceptancePassed should be false when acceptance always fails")
 	}
 }

@@ -2,6 +2,7 @@ package review
 
 import (
 	"context"
+	"sync"
 	"testing"
 )
 
@@ -32,10 +33,13 @@ func TestIntegration_EnableFacetViaConfig(t *testing.T) {
 }
 
 type facetCapturingAgent struct {
+	mu             sync.Mutex
 	reviewedFacets map[string]bool
 }
 
 func (a *facetCapturingAgent) ReviewFacet(ctx context.Context, facetName string, prompt string) ([]Finding, error) {
+	a.mu.Lock()
 	a.reviewedFacets[facetName] = true
+	a.mu.Unlock()
 	return nil, nil
 }

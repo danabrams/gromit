@@ -18,8 +18,9 @@ import (
 
 // EvidenceStageConfig configures the EvidenceStage.
 type EvidenceStageConfig struct {
-	DiffSummary string
-	StartTime   time.Time
+	DiffProvider review.DiffProvider
+	BaseBranch   string
+	StartTime    time.Time
 }
 
 // EvidenceStage assembles the evidence bundle for a run.
@@ -38,6 +39,18 @@ func (s *EvidenceStage) Name() string { return "evidence" }
 
 // Run assembles the evidence bundle.
 func (s *EvidenceStage) Run(ctx context.Context, rs *runstore.RunState) (specloop.NextAction, error) {
+	// Compute diff at runtime via DiffProvider (same pattern as ReviewStage).
+	var diffSummary string
+	if s.cfg.DiffProvider != nil {
+		d, err := s.cfg.DiffProvider.Diff(s.cfg.BaseBranch)
+		if err != nil {
+			// Graceful fallback: log-worthy but not fatal for evidence assembly.
+			diffSummary = fmt.Sprintf("[diff unavailable: %v]", err)
+		} else {
+			diffSummary = d
+		}
+	}
+
 	bundler := evidence.NewBundler(s.store.RunEvidenceDir(rs.RunID))
 	if err := bundler.Init(); err != nil {
 		return specloop.NextAction{}, fmt.Errorf("init evidence bundler: %w", err)
@@ -85,7 +98,7 @@ func (s *EvidenceStage) Run(ctx context.Context, rs *runstore.RunState) (specloo
 		return specloop.NextAction{}, fmt.Errorf("write metrics: %w", err)
 	}
 
-	if err := bundler.WriteDiffSummary(s.cfg.DiffSummary); err != nil {
+	if err := bundler.WriteDiffSummary(diffSummary); err != nil {
 		return specloop.NextAction{}, fmt.Errorf("write diff summary: %w", err)
 	}
 
@@ -105,7 +118,7 @@ func (s *EvidenceStage) Run(ctx context.Context, rs *runstore.RunState) (specloo
 
 	reviewInput := evidence.ReviewInput{
 		TerminalState:      rs.Status,
-		WhatChanged:        s.cfg.DiffSummary,
+		WhatChanged:        diffSummary,
 		CycleHistory:       []evidence.CycleRecord{{Cycle: rs.Cycle, TaskCount: len(rs.Tasks), PassCount: passCount}},
 		ValidationResults:  fmt.Sprintf("pass=%v", rs.FinalValidationPassed),
 		KnownRisks:         []string{},

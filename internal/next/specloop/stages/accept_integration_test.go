@@ -126,6 +126,61 @@ func TestIntegration_AcceptUnclear_BudgetExhaustion_NeedsHuman(t *testing.T) {
 	if rs.FinalAcceptancePassed {
 		t.Error("expected FinalAcceptancePassed == false when acceptance remains unclear")
 	}
+	if rs.Status != runstore.StatusNeedsHuman {
+		t.Errorf("expected needs_human after budget exhaustion with unclear criteria, got %q", rs.Status)
+	}
+}
+
+func TestIntegration_AcceptStage_EmptyCriteriaSection_NeedsHuman(t *testing.T) {
+	planStage := &callbackStageInteg{
+		name: "plan",
+		fn: func(_ context.Context, rs *runstore.RunState) (specloop.NextAction, error) {
+			return specloop.NextAction{Kind: specloop.Continue}, nil
+		},
+	}
+	validateStage := &callbackStageInteg{
+		name: "validate",
+		fn: func(_ context.Context, rs *runstore.RunState) (specloop.NextAction, error) {
+			rs.FinalValidationPassed = true
+			return specloop.NextAction{Kind: specloop.Continue}, nil
+		},
+	}
+	reviewStage := &callbackStageInteg{
+		name: "review",
+		fn: func(_ context.Context, rs *runstore.RunState) (specloop.NextAction, error) {
+			rs.FinalReviewPassed = true
+			return specloop.NextAction{Kind: specloop.Continue}, nil
+		},
+	}
+
+	// AcceptStage with spec content that has heading but no bullet points
+	acceptEval := &callbackAcceptEvaluator{
+		fn: func(ctx context.Context, input acceptor.EvaluateInput) (acceptor.AcceptanceResult, error) {
+			// Should not be called — empty criteria triggers NeedsHuman before evaluation
+			t.Error("evaluator should not be called when criteria section is empty")
+			return acceptor.AcceptanceResult{}, nil
+		},
+	}
+
+	acceptStage := NewAcceptStage(acceptEval, AcceptStageConfig{
+		SpecContent: "# Spec\n\n## Acceptance Criteria\n\n## Notes\nSome notes here.\n",
+	}, nil)
+
+	stages := []specloop.Stage{planStage, validateStage, reviewStage, acceptStage}
+	budget := specloop.NewBudget(execpolicy.Budgets{MaxSpecCycles: 2, MaxTaskDurationSeconds: 300, MaxRunDurationSeconds: 3600, MaxRunCostUSD: 50.0})
+	loop := specloop.NewSpecLoop(stages, specloop.SpecLoopConfig{
+		Budget:      budget,
+		ReplanStage: "plan",
+	})
+
+	rs := runstore.NewRunState("test-spec", "test-project")
+	if err := loop.Run(context.Background(), rs); err != nil {
+		t.Fatalf("loop.Run: %v", err)
+	}
+
+	if rs.Status != runstore.StatusNeedsHuman {
+		t.Errorf("expected needs_human when acceptance criteria section is empty, got %q", rs.Status)
+	}
 }
 
 type callbackStageInteg struct {

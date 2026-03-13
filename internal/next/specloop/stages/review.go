@@ -120,10 +120,16 @@ func (s *ReviewStage) Run(ctx context.Context, rs *runstore.RunState) (specloop.
 		}, nil
 	}
 
-	// Accumulate prior findings for disposition matching across cycles
-	s.priorFindings = append(s.priorFindings, result.AllFindings...)
+	// Accumulate prior findings for disposition matching across cycles,
+	// deduplicating by file+description to prevent prompt bloat.
+	for _, f := range result.AllFindings {
+		if !findingExists(s.priorFindings, f) {
+			s.priorFindings = append(s.priorFindings, f)
+		}
+	}
 
-	// Store all findings as strings in RunState for planner/FailureContext consumption
+	// Store findings in RunState: all findings for evidence (Continue path),
+	// but only blocking findings for the planner (ReplanFrom path, set below).
 	rs.ReviewFindings = review.ReviewFailuresToStrings(result.AllFindings)
 
 	// Write structured review.json via Bundler
@@ -137,6 +143,10 @@ func (s *ReviewStage) Run(ctx context.Context, rs *runstore.RunState) (specloop.
 		rs.FinalReviewPassed = false
 		failures := review.BuildFailureStrings(*result)
 
+		// On the ReplanFrom path, restrict ReviewFindings to blocking findings only.
+		// These feed the planner's FailureContext; info/pre-existing findings are noise.
+		rs.ReviewFindings = review.ReviewFailuresToStrings(result.BlockingFindings)
+
 		return specloop.NextAction{
 			Kind: specloop.ReplanFrom,
 			Context: &specloop.FailureContext{
@@ -148,4 +158,15 @@ func (s *ReviewStage) Run(ctx context.Context, rs *runstore.RunState) (specloop.
 
 	rs.FinalReviewPassed = true
 	return specloop.NextAction{Kind: specloop.Continue}, nil
+}
+
+// findingExists returns true if a finding with the same file and description
+// already exists in the slice. Used to deduplicate priorFindings across cycles.
+func findingExists(findings []review.Finding, f review.Finding) bool {
+	for _, existing := range findings {
+		if existing.File == f.File && existing.Description == f.Description {
+			return true
+		}
+	}
+	return false
 }

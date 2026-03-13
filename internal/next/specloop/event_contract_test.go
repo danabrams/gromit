@@ -279,7 +279,7 @@ type eventAcceptanceStage struct {
 	replan        bool
 }
 
-func (s *eventAcceptanceStage) Name() string { return "acceptance" }
+func (s *eventAcceptanceStage) Name() string { return "accept" }
 func (s *eventAcceptanceStage) Run(_ context.Context, rs *runstore.RunState) (NextAction, error) {
 	if s.eventLog != nil {
 		s.eventLog.Append(runstore.AcceptanceResultEvent{
@@ -1059,5 +1059,38 @@ func TestEventContract_EventOrder_ReviewAfterValidation_AcceptanceAfterReview(t 
 	if order["terminal_state"] <= order["acceptance_result"] {
 		t.Fatalf("expected terminal_state (at %d) after acceptance_result (at %d)\n  full: %v",
 			order["terminal_state"], order["acceptance_result"], types)
+	}
+}
+
+func TestEventContract_BlockedWorktreeCleanedEvent(t *testing.T) {
+	el, _ := newTestEventLog(t)
+
+	evt := runstore.BlockedWorktreeCleanedEvent{
+		BaseEvent:    runstore.BaseEvent{Type: "blocked_worktree_cleaned"},
+		PriorRunID:   "run-abc123",
+		WorktreePath: "/tmp/worktrees/spec-001",
+	}
+	el.Append(evt)
+
+	events, err := el.ReadAll()
+	if err != nil {
+		t.Fatalf("ReadAll: %v", err)
+	}
+	if len(events) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(events))
+	}
+
+	got, ok := events[0].(*runstore.BlockedWorktreeCleanedEvent)
+	if !ok {
+		t.Fatalf("expected *BlockedWorktreeCleanedEvent, got %T", events[0])
+	}
+	if got.EventType() != "blocked_worktree_cleaned" {
+		t.Errorf("EventType() = %q, want %q", got.EventType(), "blocked_worktree_cleaned")
+	}
+	if got.PriorRunID != "run-abc123" {
+		t.Errorf("PriorRunID = %q, want %q", got.PriorRunID, "run-abc123")
+	}
+	if got.WorktreePath != "/tmp/worktrees/spec-001" {
+		t.Errorf("WorktreePath = %q, want %q", got.WorktreePath, "/tmp/worktrees/spec-001")
 	}
 }

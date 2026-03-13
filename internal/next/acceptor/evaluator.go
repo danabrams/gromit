@@ -51,6 +51,20 @@ func (e *Evaluator) Evaluate(ctx context.Context, input EvaluateInput) (Acceptan
 			return AcceptanceResult{}, fmt.Errorf("evaluating criterion %q: %w", criterion, err)
 		}
 		cr.Criterion = criterion
+
+		// Validate status is one of the known values; invalid status triggers retry.
+		switch cr.Status {
+		case StatusPass, StatusFail, StatusUnclear:
+			// valid
+		default:
+			return AcceptanceResult{}, fmt.Errorf("evaluating criterion %q: invalid status %q (expected pass/fail/unclear)", criterion, cr.Status)
+		}
+
+		// Validate that fail/unclear results include a rationale for downstream consumers.
+		if cr.Status != StatusPass && cr.Rationale == "" {
+			return AcceptanceResult{}, fmt.Errorf("evaluating criterion %q: missing rationale for status %q", criterion, cr.Status)
+		}
+
 		cr.NormalizeNilFields()
 		results = append(results, cr)
 

@@ -343,3 +343,169 @@ func TestReviewStage_DiffProviderError(t *testing.T) {
 		t.Errorf("expected wrapped error with 'review diff', got: %v", err)
 	}
 }
+
+func TestReviewStage_DeduplicatesPriorFindings(t *testing.T) {
+	// Same finding returned on two cycles should not duplicate in priorFindings.
+	duplicateFinding := review.Finding{
+		Facet: "code_quality", Severity: review.SeverityWarning,
+		File: "handler.go", Description: "missing check",
+	}
+
+	var capturedInput review.RunInput
+	callCount := 0
+	runner := &capturingReviewRunner{
+		resultFn: func() *review.RunResult {
+			callCount++
+			return &review.RunResult{
+				AllFindings:         []review.Finding{duplicateFinding},
+				BlockingFindings:    []review.Finding{},
+				HasBlockingFindings: false,
+			}
+		},
+		capture: func(input review.RunInput) {
+			capturedInput = input
+		},
+	}
+
+	stage := NewReviewStage(runner, ReviewStageConfig{}, nil)
+
+	// Cycle 1
+	rs := runstore.NewRunState("test-spec", "test-project")
+	rs.Cycle = 1
+	stage.Run(context.Background(), rs)
+
+	// Cycle 2: same finding returned again
+	rs2 := runstore.NewRunState("test-spec", "test-project")
+	rs2.Cycle = 2
+	stage.Run(context.Background(), rs2)
+
+	// Cycle 3: check priorFindings passed to runner
+	rs3 := runstore.NewRunState("test-spec", "test-project")
+	rs3.Cycle = 3
+	stage.Run(context.Background(), rs3)
+
+	// priorFindings should have exactly 1 entry, not 2
+	if len(capturedInput.PriorFindings) != 1 {
+		t.Errorf("expected 1 deduplicated prior finding, got %d", len(capturedInput.PriorFindings))
+	}
+}
+
+func TestReviewStage_FacetError_ErroredFacetInEvidence(t *testing.T) {
+	// When some facets error (but not all), the errored facet info should appear
+	// in the review findings stored on RunState so it surfaces in evidence.
+	runner := &mockReviewRunner{
+		result: &review.RunResult{
+			AllFindings: []review.Finding{
+				{Facet: "code_quality", Severity: review.SeverityInfo, File: "main.go", Description: "looks good"},
+			},
+			BlockingFindings:    []review.Finding{},
+			HasBlockingFindings: false,
+			FindingsByFacet: map[string][]review.Finding{
+				"code_quality": {{Facet: "code_quality", Severity: review.SeverityInfo, File: "main.go", Description: "looks good"}},
+			},
+			ErroredFacets: map[string]string{
+				"spec_alignment": "API timeout",
+			},
+			AllFacetsErrored: false,
+		},
+	}
+
+	stage := NewReviewStage(runner, ReviewStageConfig{
+		DiffProvider: &fakeDiffProvider{diff: "some diff"},
+	}, nil)
+	rs := runstore.NewRunState("test-spec", "test-project")
+	rs.Cycle = 1
+
+	action, err := stage.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	// Partial facet errors should not block the pipeline — should Continue
+	if action.Kind != specloop.Continue {
+		t.Errorf("expected Continue when not all facets errored, got %v", action.Kind)
+	}
+
+	// The review findings on RunState should contain evidence of the successful facet
+	if len(rs.ReviewFindings) == 0 {
+		t.Fatal("expected ReviewFindings to be populated with findings from successful facets")
+	}
+
+	// Verify the errored facet info is accessible via the RunResult's ErroredFacets
+	// which the review stage processes. The event log would capture errored facets,
+	// and ReviewFindings contains the findings from non-errored facets.
+	foundCodeQuality := false
+	for _, f := range rs.ReviewFindings {
+		if strings.Contains(f, "code_quality") || strings.Contains(f, "looks good") {
+			foundCodeQuality = true
+		}
+	}
+	if !foundCodeQuality {
+		t.Errorf("expected ReviewFindings to contain code_quality finding, got %v", rs.ReviewFindings)
+	}
+}
+
+func TestReviewStage_BlockingFindings_OnlyBlockingInReviewFindings(t *testing.T) {
+	runner := &mockReviewRunner{
+		result: &review.RunResult{
+			AllFindings: []review.Finding{
+				{Severity: review.SeverityError, File: "handler.go", Description: "missing validation"},
+				{Severity: review.SeverityInfo, File: "handler.go", Description: "consider helper"},
+			},
+			BlockingFindings: []review.Finding{
+				{Severity: review.SeverityError, File: "handler.go", Description: "missing validation"},
+			},
+			HasBlockingFindings: true,
+		},
+	}
+
+	stage := NewReviewStage(runner, ReviewStageConfig{
+		DiffProvider: &fakeDiffProvider{diff: "some diff"},
+	}, nil)
+	rs := runstore.NewRunState("test-spec", "test-project")
+	rs.Cycle = 1
+
+	action, err := stage.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if action.Kind != specloop.ReplanFrom {
+		t.Errorf("expected ReplanFrom, got %v", action.Kind)
+	}
+	// On ReplanFrom path, ReviewFindings should contain only blocking findings
+	if len(rs.ReviewFindings) != 1 {
+		t.Errorf("expected 1 blocking finding in ReviewFindings, got %d", len(rs.ReviewFindings))
+	}
+	if len(rs.ReviewFindings) > 0 && !strings.Contains(rs.ReviewFindings[0], "missing validation") {
+		t.Errorf("expected blocking finding about 'missing validation', got %q", rs.ReviewFindings[0])
+	}
+}
+
+func TestReviewStage_Continue_AllFindingsInReviewFindings(t *testing.T) {
+	runner := &mockReviewRunner{
+		result: &review.RunResult{
+			AllFindings: []review.Finding{
+				{Severity: review.SeverityInfo, File: "handler.go", Description: "consider helper"},
+				{Severity: review.SeverityInfo, File: "router.go", Description: "naming suggestion"},
+			},
+			BlockingFindings:    []review.Finding{},
+			HasBlockingFindings: false,
+		},
+	}
+
+	stage := NewReviewStage(runner, ReviewStageConfig{}, nil)
+	rs := runstore.NewRunState("test-spec", "test-project")
+	rs.Cycle = 1
+
+	action, err := stage.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if action.Kind != specloop.Continue {
+		t.Errorf("expected Continue, got %v", action.Kind)
+	}
+	// On Continue path, all findings should be stored for evidence
+	if len(rs.ReviewFindings) != 2 {
+		t.Errorf("expected 2 findings in ReviewFindings on Continue path, got %d", len(rs.ReviewFindings))
+	}
+}

@@ -122,9 +122,13 @@ func (s *InitStage) cleanBlockedWorktrees(rs *runstore.RunState) error {
 		}
 		// Capture path before clearing
 		cleanedPath := prior.WorktreePath
-		// Remove the worktree directory (os.RemoveAll is sufficient for stale
-		// blocked worktrees; git worktree prune handles metadata cleanup)
-		if err := os.RemoveAll(cleanedPath); err != nil {
+		// Use GitOps.RemoveWorktree for consistency with the rest of the codebase.
+		// Falls back to os.RemoveAll if GitOps is not configured.
+		if s.cfg.GitOps != nil {
+			if err := s.cfg.GitOps.RemoveWorktree(cleanedPath); err != nil {
+				return fmt.Errorf("remove worktree %s: %w", cleanedPath, err)
+			}
+		} else if err := os.RemoveAll(cleanedPath); err != nil {
 			return fmt.Errorf("remove worktree %s: %w", cleanedPath, err)
 		}
 		// Clear worktree path and save

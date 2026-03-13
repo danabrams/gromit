@@ -47,9 +47,9 @@ func AcceptanceFailuresToStrings(results []CriterionResult) []string {
 	for _, cr := range results {
 		switch cr.Status {
 		case StatusFail:
-			strs = append(strs, fmt.Sprintf("acceptance:fail: %s — implement missing behavior", cr.Criterion))
+			strs = append(strs, fmt.Sprintf("acceptance:fail: %s — %s (implement missing behavior)", cr.Criterion, cr.Rationale))
 		case StatusUnclear:
-			strs = append(strs, fmt.Sprintf("acceptance:unclear: %s — add tests or evidence to prove/disprove", cr.Criterion))
+			strs = append(strs, fmt.Sprintf("acceptance:unclear: %s — %s (add tests or evidence to prove/disprove)", cr.Criterion, cr.Rationale))
 		}
 	}
 	return strs

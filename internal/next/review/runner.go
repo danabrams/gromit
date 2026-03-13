@@ -3,6 +3,7 @@ package review
 import (
 	"context"
 	"errors"
+	"sync"
 )
 
 // ReviewAgent is the interface for invoking LLM review on a facet.
@@ -77,10 +78,25 @@ func (r *Runner) Run(ctx context.Context, input RunInput) (*RunResult, error) {
 		ErroredFacets:   make(map[string]string),
 	}
 
+	// facetResult holds the output of a single facet invocation.
+	type facetResult struct {
+		facetName string
+		findings  []Finding
+		errMsg    string
+	}
+
+	var (
+		mu      sync.Mutex
+		wg      sync.WaitGroup
+		results []facetResult
+	)
+
 	for _, facetName := range r.config.Facets {
 		facetDef, ok := r.reg.Get(facetName)
 		if !ok {
+			mu.Lock()
 			result.ErroredFacets[facetName] = "unknown facet"
+			mu.Unlock()
 			continue
 		}
 
@@ -91,33 +107,53 @@ func (r *Runner) Run(ctx context.Context, input RunInput) (*RunResult, error) {
 			PriorFindings: input.PriorFindings,
 		})
 		if err != nil {
+			mu.Lock()
 			result.ErroredFacets[facetName] = err.Error()
+			mu.Unlock()
 			continue
 		}
 
-		findings, err := r.invokeFacet(ctx, facetName, prompt)
-		if err != nil {
-			result.ErroredFacets[facetName] = err.Error()
+		wg.Add(1)
+		go func(name, p string) {
+			defer wg.Done()
+			findings, err := r.invokeFacet(ctx, name, p)
+			fr := facetResult{facetName: name}
+			if err != nil {
+				fr.errMsg = err.Error()
+			} else {
+				fr.findings = findings
+			}
+			mu.Lock()
+			results = append(results, fr)
+			mu.Unlock()
+		}(facetName, prompt)
+	}
+
+	wg.Wait()
+
+	for _, fr := range results {
+		if fr.errMsg != "" {
+			result.ErroredFacets[fr.facetName] = fr.errMsg
 			continue
 		}
 
 		// Set cycle and facet on all findings
-		for i := range findings {
-			findings[i].Cycle = input.Cycle
-			findings[i].Facet = facetName
+		for i := range fr.findings {
+			fr.findings[i].Cycle = input.Cycle
+			fr.findings[i].Facet = fr.facetName
 		}
 
 		// Label dispositions on fix cycles
 		if input.Cycle > 1 {
-			findings = LabelDispositions(findings, input.PriorFindings)
+			fr.findings = LabelDispositions(fr.findings, input.PriorFindings)
 		} else {
-			for i := range findings {
-				findings[i].Disposition = DispositionNew
+			for i := range fr.findings {
+				fr.findings[i].Disposition = DispositionNew
 			}
 		}
 
-		result.FindingsByFacet[facetName] = findings
-		result.AllFindings = append(result.AllFindings, findings...)
+		result.FindingsByFacet[fr.facetName] = fr.findings
+		result.AllFindings = append(result.AllFindings, fr.findings...)
 	}
 
 	// Filter blocking findings: only new findings above threshold block
@@ -130,7 +166,7 @@ func (r *Runner) Run(ctx context.Context, input RunInput) (*RunResult, error) {
 		}
 	}
 	result.HasBlockingFindings = len(result.BlockingFindings) > 0
-	result.AllFacetsErrored = len(result.ErroredFacets) == len(r.config.Facets)
+	result.AllFacetsErrored = len(r.config.Facets) > 0 && len(result.ErroredFacets) == len(r.config.Facets)
 	result.NormalizeNilFields()
 
 	return result, nil

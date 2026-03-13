@@ -2,6 +2,7 @@ package review
 
 import (
 	"encoding/json"
+	"errors"
 	"testing"
 )
 
@@ -49,14 +50,6 @@ func TestFinding_NormalizeNilFields(t *testing.T) {
 	// No slices to normalize in Finding, but method should exist for convention
 }
 
-func TestFindingSet_NormalizeNilFields(t *testing.T) {
-	fs := FindingSet{}
-	fs.NormalizeNilFields()
-	if fs.Findings == nil {
-		t.Error("NormalizeNilFields should set nil Findings to empty slice")
-	}
-}
-
 // --- Parsing boundary tests ---
 
 func TestFinding_JSONRoundTrip_AllSeverities(t *testing.T) {
@@ -95,56 +88,24 @@ func TestFinding_JSONRoundTrip_AllSeverities(t *testing.T) {
 	}
 }
 
-func TestFinding_EmptyFindingsList_MarshalNotNull(t *testing.T) {
-	fs := FindingSet{
-		Facet:    "code_quality",
-		Findings: []Finding{},
-	}
-	data, err := json.Marshal(fs)
+func TestFinding_UnmarshalCriticalSeverity(t *testing.T) {
+	raw := `{"facet":"f","severity":"critical","file":"x.go","line":1,"description":"d","cycle":1}`
+	var f Finding
+	err := json.Unmarshal([]byte(raw), &f)
 	if err != nil {
-		t.Fatalf("marshal: %v", err)
+		t.Fatalf("unexpected error for severity 'critical': %v", err)
 	}
-	s := string(data)
-	if s == "" {
-		t.Fatal("expected non-empty JSON")
-	}
-	// Ensure findings is [] not null
-	var got FindingSet
-	if err := json.Unmarshal(data, &got); err != nil {
-		t.Fatalf("unmarshal: %v", err)
-	}
-	if got.Findings == nil {
-		t.Error("empty findings should unmarshal as empty slice, not nil")
-	}
-	if len(got.Findings) != 0 {
-		t.Errorf("expected 0 findings, got %d", len(got.Findings))
-	}
-}
-
-func TestFinding_NilFindingsList_MarshalNull(t *testing.T) {
-	// When Findings is nil (not normalized), JSON produces null.
-	// After NormalizeNilFields it should produce [].
-	fs := FindingSet{Facet: "test"}
-	fs.NormalizeNilFields()
-	data, err := json.Marshal(fs)
-	if err != nil {
-		t.Fatalf("marshal: %v", err)
-	}
-	var got FindingSet
-	if err := json.Unmarshal(data, &got); err != nil {
-		t.Fatalf("unmarshal: %v", err)
-	}
-	if got.Findings == nil {
-		t.Error("normalized nil findings should marshal as [] and unmarshal as empty slice")
+	if f.Severity != SeverityError {
+		t.Errorf("Severity = %v, want SeverityError", f.Severity)
 	}
 }
 
 func TestFinding_UnmarshalInvalidSeverity(t *testing.T) {
-	raw := `{"facet":"f","severity":"critical","file":"x.go","line":1,"description":"d","cycle":1}`
+	raw := `{"facet":"f","severity":"bogus","file":"x.go","line":1,"description":"d","cycle":1}`
 	var f Finding
 	err := json.Unmarshal([]byte(raw), &f)
 	if err == nil {
-		t.Fatal("expected error for invalid severity 'critical'")
+		t.Fatal("expected error for invalid severity 'bogus'")
 	}
 }
 
@@ -167,30 +128,28 @@ func TestFinding_UnmarshalMissingSeverity(t *testing.T) {
 }
 
 func TestFinding_UnmarshalMissingFile(t *testing.T) {
-	// File is a string field with no custom validation, so missing file
-	// results in zero value (empty string). This test documents the behavior.
 	raw := `{"facet":"f","severity":"error","line":1,"description":"d","cycle":1}`
 	var f Finding
 	err := json.Unmarshal([]byte(raw), &f)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if err == nil {
+		t.Fatal("expected error for missing file field")
 	}
-	if f.File != "" {
-		t.Errorf("expected empty File, got %q", f.File)
+	var pe *ParseError
+	if !errors.As(err, &pe) {
+		t.Errorf("expected ParseError, got %T: %v", err, err)
 	}
 }
 
 func TestFinding_UnmarshalMissingDescription(t *testing.T) {
-	// Description is a string field with no custom validation, so missing
-	// description results in zero value (empty string).
 	raw := `{"facet":"f","severity":"warning","file":"x.go","line":1,"cycle":1}`
 	var f Finding
 	err := json.Unmarshal([]byte(raw), &f)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if err == nil {
+		t.Fatal("expected error for missing description field")
 	}
-	if f.Description != "" {
-		t.Errorf("expected empty Description, got %q", f.Description)
+	var pe *ParseError
+	if !errors.As(err, &pe) {
+		t.Errorf("expected ParseError, got %T: %v", err, err)
 	}
 }
 

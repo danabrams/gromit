@@ -119,14 +119,15 @@ func (s *AcceptStage) Run(ctx context.Context, rs *runstore.RunState) (specloop.
 		ReviewFindings:    reviewFindings,
 	}
 
-	// Call evaluator with one retry on API failure
+	// Call evaluator with one retry on transient failure.
+	// Context cancellation is permanent — skip retry.
+	// All other errors (API timeouts, rate limits, network) get one retry.
 	result, err := s.evaluator.Evaluate(ctx, input)
 	if err != nil {
-		// Don't retry if context is canceled/expired
 		if ctx.Err() != nil {
 			return specloop.NextAction{}, fmt.Errorf("acceptance evaluation: %w", err)
 		}
-		// Retry once
+		// Retry once for transient errors
 		result, err = s.evaluator.Evaluate(ctx, input)
 		if err != nil {
 			return specloop.NextAction{}, fmt.Errorf("acceptance evaluation: %w", err)

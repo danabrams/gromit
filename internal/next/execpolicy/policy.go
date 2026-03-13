@@ -68,7 +68,7 @@ func DefaultPolicy() Policy {
 		Review: ReviewConfig{
 			Facets:          []string{"spec_alignment", "code_quality"},
 			Tiers:           map[string]string{"spec_alignment": "high", "code_quality": "medium"},
-			ReplanThreshold: "warning",
+			ReplanThreshold: "error",
 			FacetRetries:    2,
 		},
 	}
@@ -158,10 +158,10 @@ func (p *Policy) ValidateReviewFacets(knownFacets []string) error {
 // ValidateReviewConfig checks that ReplanThreshold is a valid severity level.
 func (p *Policy) ValidateReviewConfig() error {
 	switch p.Review.ReplanThreshold {
-	case "error", "warning", "suggestion":
+	case "error", "critical", "warning", "suggestion": // "critical" is the spec-defined alias for "error"
 		return nil
 	default:
-		return fmt.Errorf("invalid ReplanThreshold %q, must be one of: error, warning, suggestion", p.Review.ReplanThreshold)
+		return fmt.Errorf("invalid ReplanThreshold %q, must be one of: error, critical, warning, suggestion", p.Review.ReplanThreshold)
 	}
 }
 

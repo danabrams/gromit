@@ -403,6 +403,31 @@ func TestTaskLoop_RepairCostAddedToBudget(t *testing.T) {
 	}
 }
 
+func TestTaskResult_NormalizeNilFields(t *testing.T) {
+	tr := TaskResult{TaskID: "t-001", Status: "done"}
+	if tr.FilesChanged != nil {
+		t.Fatal("precondition: FilesChanged should be nil before normalization")
+	}
+	tr.NormalizeNilFields()
+	if tr.FilesChanged == nil {
+		t.Fatal("FilesChanged should be non-nil after normalization")
+	}
+	if len(tr.FilesChanged) != 0 {
+		t.Fatalf("FilesChanged should be empty, got %d elements", len(tr.FilesChanged))
+	}
+}
+
+func TestTaskResult_NormalizeNilFields_PreservesExisting(t *testing.T) {
+	tr := TaskResult{FilesChanged: []string{"main.go", "util.go"}}
+	tr.NormalizeNilFields()
+	if len(tr.FilesChanged) != 2 {
+		t.Fatalf("expected 2 files preserved, got %d", len(tr.FilesChanged))
+	}
+	if tr.FilesChanged[0] != "main.go" {
+		t.Fatalf("expected main.go, got %q", tr.FilesChanged[0])
+	}
+}
+
 func TestTaskLoop_RunTaskGetsTimeoutContext(t *testing.T) {
 	var runDeadlineSet bool
 

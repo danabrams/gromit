@@ -103,6 +103,59 @@ func TestReviewResultEvent_JSON(t *testing.T) {
 	}
 }
 
+func TestReviewResultEvent_FindingsBySeverity_JSON(t *testing.T) {
+	evt := ReviewResultEvent{
+		BaseEvent:        BaseEvent{Type: "review_result", Timestamp: time.Now()},
+		TotalFindings:    5,
+		BlockingFindings: 2,
+		FindingsBySeverity: map[string]int{
+			"critical": 2,
+			"warning":  3,
+		},
+		FacetsReviewed: []string{"spec_alignment"},
+	}
+
+	data, err := json.Marshal(evt)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+
+	var roundTripped ReviewResultEvent
+	if err := json.Unmarshal(data, &roundTripped); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if roundTripped.FindingsBySeverity == nil {
+		t.Fatal("FindingsBySeverity should not be nil after round-trip")
+	}
+	if roundTripped.FindingsBySeverity["critical"] != 2 {
+		t.Errorf("critical = %d, want 2", roundTripped.FindingsBySeverity["critical"])
+	}
+	if roundTripped.FindingsBySeverity["warning"] != 3 {
+		t.Errorf("warning = %d, want 3", roundTripped.FindingsBySeverity["warning"])
+	}
+}
+
+func TestReviewResultEvent_FindingsBySeverity_OmittedWhenNil(t *testing.T) {
+	evt := ReviewResultEvent{
+		BaseEvent:      BaseEvent{Type: "review_result", Timestamp: time.Now()},
+		TotalFindings:  0,
+		FacetsReviewed: []string{},
+	}
+
+	data, err := json.Marshal(evt)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+
+	var got map[string]interface{}
+	if err := json.Unmarshal(data, &got); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if _, exists := got["findings_by_severity"]; exists {
+		t.Error("findings_by_severity should be omitted when nil")
+	}
+}
+
 func TestAcceptanceResultEvent_JSON(t *testing.T) {
 	evt := AcceptanceResultEvent{
 		BaseEvent:     BaseEvent{Type: "acceptance_result", Timestamp: time.Now()},

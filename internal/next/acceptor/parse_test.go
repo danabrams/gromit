@@ -129,6 +129,22 @@ func TestParseAcceptanceCriteria_NestedBullets(t *testing.T) {
 	}
 }
 
+func TestParseAcceptanceCriteria_RejectsPartialHeadingMatch(t *testing.T) {
+	specMD := `# My Spec
+
+## Acceptance Criteria (Draft)
+- Should not be extracted
+- Also should not be extracted
+
+## Notes
+Some notes.
+`
+	criteria, err := ParseAcceptanceCriteria(specMD)
+	if err == nil {
+		t.Fatalf("expected error for partial heading match, got criteria: %v", criteria)
+	}
+}
+
 func TestParseAcceptanceCriteria_BoldPrefix(t *testing.T) {
 	specMD := `# My Spec
 

@@ -45,6 +45,7 @@ func (sl *SpecLoop) Run(ctx context.Context, rs *runstore.RunState) error {
 		rs.FinalAcceptancePassed = false
 		rs.ReviewFindings = []string{}
 		rs.AcceptanceResults = []string{}
+		rs.ReplanContext = []string{}
 
 		startIdx := 0
 		if cycle > 0 && sl.config.ReplanStage != "" {
@@ -91,6 +92,10 @@ func (sl *SpecLoop) Run(ctx context.Context, rs *runstore.RunState) error {
 				replanSource = stage.Name()
 			case NeedsHuman:
 				rs.Status = runstore.StatusNeedsHuman
+				if action.Context != nil && len(action.Context.Failures) > 0 {
+					rs.TerminalReason = "stage_needs_human"
+					rs.BlockerSummary = action.Context.Failures[0]
+				}
 				sl.emitTerminal(rs)
 				sl.runEvidence(ctx, rs)
 				return nil
@@ -141,6 +146,9 @@ func (sl *SpecLoop) Run(ctx context.Context, rs *runstore.RunState) error {
 	if sl.config.Budget != nil && sl.config.Budget.CyclesExhausted() && !rs.IsTerminal() {
 		rs.Status = runstore.StatusNeedsHuman
 		rs.TerminalReason = "cycles_exhausted"
+		if len(rs.ReplanContext) > 0 {
+			rs.BlockerSummary = rs.ReplanContext[len(rs.ReplanContext)-1]
+		}
 		sl.emitTerminal(rs)
 		sl.runEvidence(ctx, rs)
 	}

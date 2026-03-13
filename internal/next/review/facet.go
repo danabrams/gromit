@@ -13,6 +13,28 @@ type FacetDef struct {
 	PromptTemplate string
 }
 
+// basePromptBody is the shared template body used by all facets.
+// Each facet prepends its own role preamble to this body.
+const basePromptBody = `
+
+## Facet: {{.FacetDef.Name}}
+
+## Spec Content
+{{.SpecContent}}
+
+## Code Diff
+{{.DiffSummary}}
+
+{{if .PriorFindings}}
+## Prior Findings (from previous cycles)
+Label each current finding as "new" or "pre-existing" by comparing against these:
+{{range .PriorFindings}}- [{{.Severity}}] {{.File}}: {{.Description}}
+{{end}}
+{{end}}
+
+Respond with a JSON array of findings. Each finding must have: severity (error/warning/suggestion/info), file, line, description, suggested_fix{{if .PriorFindings}}, disposition (new/pre-existing){{end}}.
+If no issues found, respond with an empty array: []`
+
 // Registry holds the set of built-in review facets.
 type Registry struct {
 	facets map[string]FacetDef
@@ -22,124 +44,34 @@ type Registry struct {
 func NewRegistry() *Registry {
 	r := &Registry{facets: map[string]FacetDef{
 		"spec_alignment": {
-			Name:        "spec_alignment",
-			Description: "Does the diff implement what the spec asked for?",
-			DefaultTier: "high",
-			PromptTemplate: `You are a spec-alignment reviewer. Your task is to compare the code diff against the spec and identify any gaps, missing requirements, or deviations.
-
-## Facet: {{.FacetDef.Name}}
-
-## Spec Content
-{{.SpecContent}}
-
-## Code Diff
-{{.DiffSummary}}
-
-{{if .PriorFindings}}
-## Prior Findings (from previous cycles)
-Label each current finding as "new" or "pre-existing" by comparing against these:
-{{range .PriorFindings}}- [{{.Severity}}] {{.File}}: {{.Description}}
-{{end}}
-{{end}}
-
-Respond with a JSON array of findings. Each finding must have: severity (error/warning/suggestion/info), file, line, description, suggested_fix{{if .PriorFindings}}, disposition (new/pre-existing){{end}}.
-If no issues found, respond with an empty array: []`,
+			Name:           "spec_alignment",
+			Description:    "Does the diff implement what the spec asked for?",
+			DefaultTier:    "high",
+			PromptTemplate: `You are a spec-alignment reviewer. Your task is to compare the code diff against the spec and identify any gaps, missing requirements, or deviations.` + basePromptBody,
 		},
 		"code_quality": {
-			Name:        "code_quality",
-			Description: "Naming, structure, duplication, readability",
-			DefaultTier: "medium",
-			PromptTemplate: `You are a code quality reviewer. Your task is to identify code smells, dead code, overly complex functions, naming issues, and duplication.
-
-## Facet: {{.FacetDef.Name}}
-
-## Spec Content
-{{.SpecContent}}
-
-## Code Diff
-{{.DiffSummary}}
-
-{{if .PriorFindings}}
-## Prior Findings (from previous cycles)
-Label each current finding as "new" or "pre-existing" by comparing against these:
-{{range .PriorFindings}}- [{{.Severity}}] {{.File}}: {{.Description}}
-{{end}}
-{{end}}
-
-Respond with a JSON array of findings. Each finding must have: severity (error/warning/suggestion/info), file, line, description, suggested_fix{{if .PriorFindings}}, disposition (new/pre-existing){{end}}.
-If no issues found, respond with an empty array: []`,
+			Name:           "code_quality",
+			Description:    "Naming, structure, duplication, readability",
+			DefaultTier:    "medium",
+			PromptTemplate: `You are a code quality reviewer. Your task is to identify code smells, dead code, overly complex functions, naming issues, and duplication.` + basePromptBody,
 		},
 		"logic_gaps": {
-			Name:        "logic_gaps",
-			Description: "Off-by-one, nil handling, missing error paths",
-			DefaultTier: "high",
-			PromptTemplate: `You are a logic reviewer. Your task is to identify off-by-one errors, nil pointer risks, missing error handling, race conditions, and other logical issues.
-
-## Facet: {{.FacetDef.Name}}
-
-## Spec Content
-{{.SpecContent}}
-
-## Code Diff
-{{.DiffSummary}}
-
-{{if .PriorFindings}}
-## Prior Findings (from previous cycles)
-Label each current finding as "new" or "pre-existing" by comparing against these:
-{{range .PriorFindings}}- [{{.Severity}}] {{.File}}: {{.Description}}
-{{end}}
-{{end}}
-
-Respond with a JSON array of findings. Each finding must have: severity (error/warning/suggestion/info), file, line, description, suggested_fix{{if .PriorFindings}}, disposition (new/pre-existing){{end}}.
-If no issues found, respond with an empty array: []`,
+			Name:           "logic_gaps",
+			Description:    "Off-by-one, nil handling, missing error paths",
+			DefaultTier:    "high",
+			PromptTemplate: `You are a logic reviewer. Your task is to identify off-by-one errors, nil pointer risks, missing error handling, race conditions, and other logical issues.` + basePromptBody,
 		},
 		"test_coverage": {
-			Name:        "test_coverage",
-			Description: "Are there untested code paths, missing edge cases, or inadequate assertions?",
-			DefaultTier: "medium",
-			PromptTemplate: `You are a test coverage reviewer. Your task is to identify untested code paths, missing edge case tests, and inadequate assertions.
-
-## Facet: {{.FacetDef.Name}}
-
-## Spec Content
-{{.SpecContent}}
-
-## Code Diff
-{{.DiffSummary}}
-
-{{if .PriorFindings}}
-## Prior Findings (from previous cycles)
-Label each current finding as "new" or "pre-existing" by comparing against these:
-{{range .PriorFindings}}- [{{.Severity}}] {{.File}}: {{.Description}}
-{{end}}
-{{end}}
-
-Respond with a JSON array of findings. Each finding must have: severity (error/warning/suggestion/info), file, line, description, suggested_fix{{if .PriorFindings}}, disposition (new/pre-existing){{end}}.
-If no issues found, respond with an empty array: []`,
+			Name:           "test_coverage",
+			Description:    "Are there untested code paths, missing edge cases, or inadequate assertions?",
+			DefaultTier:    "medium",
+			PromptTemplate: `You are a test coverage reviewer. Your task is to identify untested code paths, missing edge case tests, and inadequate assertions.` + basePromptBody,
 		},
 		"architecture_drift": {
-			Name:        "architecture_drift",
-			Description: "Does the change respect boundaries from the project cell?",
-			DefaultTier: "medium",
-			PromptTemplate: `You are an architecture reviewer. Your task is to identify violations of architectural boundaries, improper dependencies, and structural drift from the intended design.
-
-## Facet: {{.FacetDef.Name}}
-
-## Spec Content
-{{.SpecContent}}
-
-## Code Diff
-{{.DiffSummary}}
-
-{{if .PriorFindings}}
-## Prior Findings (from previous cycles)
-Label each current finding as "new" or "pre-existing" by comparing against these:
-{{range .PriorFindings}}- [{{.Severity}}] {{.File}}: {{.Description}}
-{{end}}
-{{end}}
-
-Respond with a JSON array of findings. Each finding must have: severity (error/warning/suggestion/info), file, line, description, suggested_fix{{if .PriorFindings}}, disposition (new/pre-existing){{end}}.
-If no issues found, respond with an empty array: []`,
+			Name:           "architecture_drift",
+			Description:    "Does the change respect boundaries from the project cell?",
+			DefaultTier:    "medium",
+			PromptTemplate: `You are an architecture reviewer. Your task is to identify violations of architectural boundaries, improper dependencies, and structural drift from the intended design.` + basePromptBody,
 		},
 	}}
 	return r

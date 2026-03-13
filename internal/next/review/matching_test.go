@@ -122,15 +122,117 @@ func TestLabelDispositions_AllPreexisting(t *testing.T) {
 	}
 }
 
+func TestMatchFindings_ShortDescription_NoFalsePositive(t *testing.T) {
+	// Short descriptions like "nil" or "error" should NOT match longer unrelated descriptions
+	prior := []Finding{
+		{File: "handler.go", Description: "nil"},
+	}
+	current := []Finding{
+		{File: "handler.go", Description: "nil pointer dereference in handler loop"},
+	}
+
+	labeled := LabelDispositions(current, prior)
+	if labeled[0].Disposition != DispositionNew {
+		t.Errorf("short prior description should not substring-match longer description, got %q", labeled[0].Disposition)
+	}
+}
+
+func TestMatchFindings_ShortDescription_ExactMatchStillWorks(t *testing.T) {
+	// Short descriptions that are exactly equal should still match
+	prior := []Finding{
+		{File: "handler.go", Description: "nil"},
+	}
+	current := []Finding{
+		{File: "handler.go", Description: "nil"},
+	}
+
+	labeled := LabelDispositions(current, prior)
+	if labeled[0].Disposition != DispositionPreExisting {
+		t.Errorf("exact match on short description should be pre-existing, got %q", labeled[0].Disposition)
+	}
+}
+
+func TestMatchFindings_ShortDescription_BothShortNoMatch(t *testing.T) {
+	// Two different short descriptions should not match
+	prior := []Finding{
+		{File: "handler.go", Description: "error"},
+	}
+	current := []Finding{
+		{File: "handler.go", Description: "nil"},
+	}
+
+	labeled := LabelDispositions(current, prior)
+	if labeled[0].Disposition != DispositionNew {
+		t.Errorf("different short descriptions should be new, got %q", labeled[0].Disposition)
+	}
+}
+
+func TestMatchFindings_ShortCurrentDescription_NoFalsePositive(t *testing.T) {
+	// Short current description should not substring-match longer prior description
+	prior := []Finding{
+		{File: "handler.go", Description: "nil pointer dereference in handler loop"},
+	}
+	current := []Finding{
+		{File: "handler.go", Description: "nil"},
+	}
+
+	labeled := LabelDispositions(current, prior)
+	if labeled[0].Disposition != DispositionNew {
+		t.Errorf("short current description should not substring-match longer prior, got %q", labeled[0].Disposition)
+	}
+}
+
+func TestMatchFindings_CaseInsensitive_ExactMatch(t *testing.T) {
+	prior := []Finding{
+		{File: "handler.go", Description: "Missing Validation"},
+	}
+	current := []Finding{
+		{File: "handler.go", Description: "missing validation"},
+	}
+
+	labeled := LabelDispositions(current, prior)
+	if labeled[0].Disposition != DispositionPreExisting {
+		t.Errorf("case-insensitive exact match should be pre-existing, got %q", labeled[0].Disposition)
+	}
+}
+
+func TestMatchFindings_CaseInsensitive_SubstringMatch(t *testing.T) {
+	prior := []Finding{
+		{File: "handler.go", Description: "Missing Validation in request handler"},
+	}
+	current := []Finding{
+		{File: "handler.go", Description: "missing validation in request handler; now on line 55"},
+	}
+
+	labeled := LabelDispositions(current, prior)
+	if labeled[0].Disposition != DispositionPreExisting {
+		t.Errorf("case-insensitive substring match should be pre-existing, got %q", labeled[0].Disposition)
+	}
+}
+
+func TestMatchFindings_CaseInsensitive_ReverseSubstringMatch(t *testing.T) {
+	prior := []Finding{
+		{File: "handler.go", Description: "Nil Pointer Dereference"},
+	}
+	current := []Finding{
+		{File: "handler.go", Description: "nil pointer dereference if commands list is empty"},
+	}
+
+	labeled := LabelDispositions(current, prior)
+	if labeled[0].Disposition != DispositionPreExisting {
+		t.Errorf("case-insensitive reverse substring match should be pre-existing, got %q", labeled[0].Disposition)
+	}
+}
+
 func TestFilterNewBlockingFindings_OnlyNewAboveThreshold(t *testing.T) {
 	// Compose LabelDispositions + FilterBlockingFindings to get only new+blocking
 	prior := []Finding{
 		{File: "handler.go", Description: "nil pointer if commands list is empty"},
 	}
 	current := []Finding{
-		{File: "handler.go", Severity: SeverityError, Description: "nil pointer if commands list is empty"},     // pre-existing
-		{File: "router.go", Severity: SeverityError, Description: "missing authorization check"},                // new + blocking
-		{File: "router.go", Severity: SeverityInfo, Description: "consider renaming variable"},                  // new but info (never blocks)
+		{File: "handler.go", Severity: SeverityError, Description: "nil pointer if commands list is empty"},    // pre-existing
+		{File: "router.go", Severity: SeverityError, Description: "missing authorization check"},               // new + blocking
+		{File: "router.go", Severity: SeverityInfo, Description: "consider renaming variable"},                 // new but info (never blocks)
 		{File: "service.go", Severity: SeveritySuggestion, Description: "could use early return pattern here"}, // new but below threshold
 	}
 

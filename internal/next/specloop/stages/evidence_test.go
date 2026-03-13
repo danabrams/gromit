@@ -12,6 +12,8 @@ import (
 	"github.com/danabrams/gromit/internal/next/runstore"
 )
 
+// fakeDiffProvider is declared in review_test.go (same package).
+
 func TestEvidenceStage_ReadsReviewJSONFromDisk(t *testing.T) {
 	tmpDir := t.TempDir()
 	store := runstore.NewStore(tmpDir)
@@ -30,8 +32,8 @@ func TestEvidenceStage_ReadsReviewJSONFromDisk(t *testing.T) {
 	os.WriteFile(filepath.Join(evidenceDir, "review.json"), data, 0o644)
 
 	stage := NewEvidenceStage(store, EvidenceStageConfig{
-		DiffSummary: "test diff",
-		StartTime:   time.Now(),
+		DiffProvider: &fakeDiffProvider{diff: "test diff"},
+		StartTime:    time.Now(),
 	})
 
 	_, err := stage.Run(context.Background(), rs)
@@ -73,8 +75,8 @@ func TestEvidenceStage_ReadsAcceptanceJSONFromDisk(t *testing.T) {
 	os.WriteFile(filepath.Join(evidenceDir, "acceptance.json"), data, 0o644)
 
 	stage := NewEvidenceStage(store, EvidenceStageConfig{
-		DiffSummary: "test diff",
-		StartTime:   time.Now(),
+		DiffProvider: &fakeDiffProvider{diff: "test diff"},
+		StartTime:    time.Now(),
 	})
 
 	_, err := stage.Run(context.Background(), rs)
@@ -104,8 +106,8 @@ func TestEvidenceStage_MalformedJSON_NotEvaluatedFallback(t *testing.T) {
 	os.WriteFile(filepath.Join(evidenceDir, "acceptance.json"), []byte("{invalid json"), 0o644)
 
 	stage := NewEvidenceStage(store, EvidenceStageConfig{
-		DiffSummary: "test diff",
-		StartTime:   time.Now(),
+		DiffProvider: &fakeDiffProvider{diff: "test diff"},
+		StartTime:    time.Now(),
 	})
 
 	_, err := stage.Run(context.Background(), rs)
@@ -129,8 +131,8 @@ func TestEvidenceStage_MissingFiles_NotEvaluatedSections(t *testing.T) {
 	// No review.json or acceptance.json on disk
 
 	stage := NewEvidenceStage(store, EvidenceStageConfig{
-		DiffSummary: "test diff",
-		StartTime:   time.Now(),
+		DiffProvider: &fakeDiffProvider{diff: "test diff"},
+		StartTime:    time.Now(),
 	})
 
 	_, err := stage.Run(context.Background(), rs)

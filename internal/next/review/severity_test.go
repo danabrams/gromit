@@ -43,9 +43,50 @@ func TestParseSeverity_Valid(t *testing.T) {
 	}
 }
 
+func TestParseSeverity_CaseInsensitive(t *testing.T) {
+	cases := []struct {
+		input string
+		want  Severity
+	}{
+		{"Error", SeverityError},
+		{"ERROR", SeverityError},
+		{"Warning", SeverityWarning},
+		{"WARNING", SeverityWarning},
+		{"Suggestion", SeveritySuggestion},
+		{"SUGGESTION", SeveritySuggestion},
+		{"Info", SeverityInfo},
+		{"INFO", SeverityInfo},
+		{"eRrOr", SeverityError},
+	}
+	for _, tc := range cases {
+		sev, err := ParseSeverity(tc.input)
+		if err != nil {
+			t.Errorf("ParseSeverity(%q) error: %v", tc.input, err)
+			continue
+		}
+		if sev != tc.want {
+			t.Errorf("ParseSeverity(%q) = %v, want %v", tc.input, sev, tc.want)
+		}
+	}
+}
+
+func TestParseSeverity_CriticalAlias(t *testing.T) {
+	// "critical" is the spec-defined alias for SeverityError
+	for _, input := range []string{"critical", "Critical", "CRITICAL"} {
+		sev, err := ParseSeverity(input)
+		if err != nil {
+			t.Errorf("ParseSeverity(%q) error: %v", input, err)
+			continue
+		}
+		if sev != SeverityError {
+			t.Errorf("ParseSeverity(%q) = %v, want SeverityError", input, sev)
+		}
+	}
+}
+
 func TestParseSeverity_Invalid(t *testing.T) {
-	_, err := ParseSeverity("critical")
+	_, err := ParseSeverity("bogus")
 	if err == nil {
-		t.Error("ParseSeverity(\"critical\") should return error")
+		t.Error("ParseSeverity(\"bogus\") should return error")
 	}
 }

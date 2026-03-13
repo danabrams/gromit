@@ -138,9 +138,10 @@ func newExecSpecCmdWithProvider(provider StageProvider) *cobra.Command {
 			if p == nil {
 				workDir, _ := os.Getwd()
 				p = NewRealStageProvider(RealStageProviderConfig{
-					WorkDir:  workDir,
-					StoreDir: storeDir,
-					SpecPath: specPath,
+					WorkDir:    workDir,
+					StoreDir:   storeDir,
+					SpecPath:   specPath,
+					PolicyPath: policyPath,
 				})
 			}
 

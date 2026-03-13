@@ -213,8 +213,8 @@ func TestDefaultPolicy_HasReviewConfig(t *testing.T) {
 	if p.Review.Facets[1] != "code_quality" {
 		t.Errorf("second facet = %q, want code_quality", p.Review.Facets[1])
 	}
-	if p.Review.ReplanThreshold != "warning" {
-		t.Errorf("ReplanThreshold = %q, want warning", p.Review.ReplanThreshold)
+	if p.Review.ReplanThreshold != "error" {
+		t.Errorf("ReplanThreshold = %q, want error", p.Review.ReplanThreshold)
 	}
 }
 
@@ -263,7 +263,7 @@ func TestPolicy_ValidateReviewFacets_UnknownFacet(t *testing.T) {
 
 func TestPolicy_ValidateReviewThreshold_Valid(t *testing.T) {
 	p := DefaultPolicy()
-	for _, threshold := range []string{"error", "warning", "suggestion"} {
+	for _, threshold := range []string{"error", "critical", "warning", "suggestion"} {
 		p.Review.ReplanThreshold = threshold
 		if err := p.ValidateReviewConfig(); err != nil {
 			t.Errorf("threshold %q should be valid: %v", threshold, err)
@@ -273,18 +273,18 @@ func TestPolicy_ValidateReviewThreshold_Valid(t *testing.T) {
 
 func TestPolicy_ValidateReviewThreshold_Invalid(t *testing.T) {
 	p := DefaultPolicy()
-	p.Review.ReplanThreshold = "critical"
+	p.Review.ReplanThreshold = "bogus"
 	if err := p.ValidateReviewConfig(); err == nil {
 		t.Error("invalid threshold should produce error")
 	}
 }
 
-func TestPolicy_Validate_CatchesInvalidThreshold(t *testing.T) {
+func TestPolicy_Validate_AcceptsCriticalThreshold(t *testing.T) {
 	p := DefaultPolicy()
 	p.Review.ReplanThreshold = "critical"
 	err := p.Validate()
-	if err == nil {
-		t.Error("Validate should catch invalid ReplanThreshold")
+	if err != nil {
+		t.Errorf("Validate should accept 'critical' as ReplanThreshold: %v", err)
 	}
 }
 
@@ -306,6 +306,55 @@ func TestPolicy_Validate_RejectsInfoThreshold(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "invalid ReplanThreshold") {
 		t.Errorf("unexpected error message: %v", err)
+	}
+}
+
+func TestPolicy_NormalizeNilFields(t *testing.T) {
+	p := Policy{}
+	if p.AlwaysRun != nil {
+		t.Fatal("precondition: AlwaysRun should be nil")
+	}
+	if p.Review.Facets != nil {
+		t.Fatal("precondition: Review.Facets should be nil")
+	}
+	if p.Review.Tiers != nil {
+		t.Fatal("precondition: Review.Tiers should be nil")
+	}
+	p.NormalizeNilFields()
+	if p.AlwaysRun == nil {
+		t.Fatal("AlwaysRun should be non-nil after normalization")
+	}
+	if len(p.AlwaysRun) != 0 {
+		t.Fatalf("AlwaysRun should be empty, got %d", len(p.AlwaysRun))
+	}
+	if p.Review.Facets == nil {
+		t.Fatal("Review.Facets should be non-nil after normalization")
+	}
+	if len(p.Review.Facets) != 0 {
+		t.Fatalf("Review.Facets should be empty, got %d", len(p.Review.Facets))
+	}
+	if p.Review.Tiers == nil {
+		t.Fatal("Review.Tiers should be non-nil after normalization")
+	}
+	if len(p.Review.Tiers) != 0 {
+		t.Fatalf("Review.Tiers should be empty, got %d", len(p.Review.Tiers))
+	}
+}
+
+func TestPolicy_NormalizeNilFields_PreservesExisting(t *testing.T) {
+	p := DefaultPolicy()
+	origAlwaysRunLen := len(p.AlwaysRun)
+	origFacetsLen := len(p.Review.Facets)
+	origTiersLen := len(p.Review.Tiers)
+	p.NormalizeNilFields()
+	if len(p.AlwaysRun) != origAlwaysRunLen {
+		t.Fatalf("AlwaysRun length changed: want %d, got %d", origAlwaysRunLen, len(p.AlwaysRun))
+	}
+	if len(p.Review.Facets) != origFacetsLen {
+		t.Fatalf("Review.Facets length changed: want %d, got %d", origFacetsLen, len(p.Review.Facets))
+	}
+	if len(p.Review.Tiers) != origTiersLen {
+		t.Fatalf("Review.Tiers length changed: want %d, got %d", origTiersLen, len(p.Review.Tiers))
 	}
 }
 

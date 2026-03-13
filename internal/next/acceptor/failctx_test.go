@@ -46,12 +46,18 @@ func TestAcceptanceFailuresToStrings_FailAndUnclear(t *testing.T) {
 	if len(strs) != 2 {
 		t.Fatalf("expected 2 strings (skip pass), got %d", len(strs))
 	}
-	// fail format: "acceptance:fail: <criterion> — implement missing behavior"
-	if !containsSubstring(strs[0], "acceptance:fail:") || !containsSubstring(strs[0], "multi-currency") {
-		t.Errorf("fail string format wrong: %q", strs[0])
+	// fail format: "acceptance:fail: <criterion> — <rationale> (implement missing behavior)"
+	if !containsSubstring(strs[0], "acceptance:fail:") || !containsSubstring(strs[0], "multi-currency") || !containsSubstring(strs[0], "only USD") {
+		t.Errorf("fail string should contain criterion and rationale: %q", strs[0])
 	}
-	// unclear format: "acceptance:unclear: <criterion> — add tests or evidence to prove/disprove"
-	if !containsSubstring(strs[1], "acceptance:unclear:") || !containsSubstring(strs[1], "audit log") {
-		t.Errorf("unclear string format wrong: %q", strs[1])
+	if !containsSubstring(strs[0], "(implement missing behavior)") {
+		t.Errorf("fail string should contain action hint: %q", strs[0])
+	}
+	// unclear format: "acceptance:unclear: <criterion> — <rationale> (add tests or evidence to prove/disprove)"
+	if !containsSubstring(strs[1], "acceptance:unclear:") || !containsSubstring(strs[1], "audit log") || !containsSubstring(strs[1], "no test") {
+		t.Errorf("unclear string should contain criterion and rationale: %q", strs[1])
+	}
+	if !containsSubstring(strs[1], "(add tests or evidence to prove/disprove)") {
+		t.Errorf("unclear string should contain action hint: %q", strs[1])
 	}
 }

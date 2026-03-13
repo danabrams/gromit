@@ -574,3 +574,117 @@ func TestSpecLoop_VisionLabelNotSet(t *testing.T) {
 		t.Fatal("RunState.BlockerSummary should not be set to VISION")
 	}
 }
+
+func TestSpecLoop_NeedsHuman_SetsTerminalReasonFromContext(t *testing.T) {
+	stages := []Stage{
+		&mockStage{name: "accept", runFn: func(_ context.Context, _ *runstore.RunState) (NextAction, error) {
+			return NextAction{
+				Kind: NeedsHuman,
+				Context: &FailureContext{
+					Failures: []string{"spec lacks acceptance criteria section"},
+				},
+			}, nil
+		}},
+	}
+
+	budget := NewBudget(execpolicy.Budgets{MaxSpecCycles: 1, MaxRunCostUSD: 99})
+	loop := NewSpecLoop(stages, SpecLoopConfig{Budget: budget})
+	rs := runstore.NewRunState("s1", "p1")
+
+	loop.Run(context.Background(), rs)
+
+	if rs.Status != runstore.StatusNeedsHuman {
+		t.Fatalf("want needs_human, got %s", rs.Status)
+	}
+	if rs.TerminalReason != "stage_needs_human" {
+		t.Fatalf("want stage_needs_human, got %q", rs.TerminalReason)
+	}
+	if rs.BlockerSummary != "spec lacks acceptance criteria section" {
+		t.Fatalf("want blocker summary from context, got %q", rs.BlockerSummary)
+	}
+}
+
+func TestSpecLoop_CycleReset_ClearsReplanContext(t *testing.T) {
+	rs := runstore.NewRunState("test-spec", "test-project")
+	rs.ReplanContext = []string{"stale replan from prior cycle"}
+
+	var snapReplanContext []string
+
+	captureStage := &mockStage{
+		name: "capture",
+		runFn: func(_ context.Context, rs *runstore.RunState) (NextAction, error) {
+			snapReplanContext = append([]string{}, rs.ReplanContext...)
+			return NextAction{Kind: Continue}, nil
+		},
+	}
+
+	budget := NewBudget(execpolicy.Budgets{MaxSpecCycles: 1, MaxTaskDurationSeconds: 300, MaxRunDurationSeconds: 3600, MaxRunCostUSD: 50.0})
+	loop := NewSpecLoop([]Stage{captureStage}, SpecLoopConfig{Budget: budget})
+
+	loop.Run(context.Background(), rs)
+
+	if len(snapReplanContext) != 0 {
+		t.Errorf("ReplanContext should be cleared at cycle start, got %v", snapReplanContext)
+	}
+}
+
+func TestSpecLoop_ReviewReplan_SkipsAcceptStage(t *testing.T) {
+	acceptRan := false
+
+	stages := []Stage{
+		&countStage{name: "plan", counts: map[string]int{}},
+		&countStage{name: "execute", counts: map[string]int{}},
+		&mockStage{name: "validate", runFn: func(_ context.Context, rs *runstore.RunState) (NextAction, error) {
+			rs.FinalValidationPassed = true
+			return NextAction{Kind: Continue}, nil
+		}},
+		&mockStage{name: "review", runFn: func(_ context.Context, rs *runstore.RunState) (NextAction, error) {
+			// Always return ReplanFrom so accept should never run
+			return NextAction{
+				Kind:    ReplanFrom,
+				Context: &FailureContext{Failures: []string{"blocking finding"}},
+			}, nil
+		}},
+		&mockStage{name: "accept", runFn: func(_ context.Context, rs *runstore.RunState) (NextAction, error) {
+			acceptRan = true
+			rs.FinalAcceptancePassed = true
+			return NextAction{Kind: Continue}, nil
+		}},
+		&countStage{name: "finalize", counts: map[string]int{}},
+	}
+
+	budget := NewBudget(execpolicy.Budgets{MaxSpecCycles: 2, MaxRunCostUSD: 99})
+	loop := NewSpecLoop(stages, SpecLoopConfig{Budget: budget, ReplanStage: "plan"})
+	rs := runstore.NewRunState("s1", "p1")
+	loop.Run(context.Background(), rs)
+
+	if acceptRan {
+		t.Fatal("accept stage should NOT run when review returns ReplanFrom")
+	}
+}
+
+func TestSpecLoop_CycleExhaustion_SetsBlockerSummaryFromReplanContext(t *testing.T) {
+	budget := NewBudget(execpolicy.Budgets{MaxSpecCycles: 1, MaxRunCostUSD: 99})
+
+	stages := []Stage{
+		&actionStage{name: "validate", actionFn: func() NextAction {
+			return NextAction{
+				Kind:    ReplanFrom,
+				Context: &FailureContext{Failures: []string{"lint errors in handler.go"}},
+			}
+		}},
+	}
+	loop := NewSpecLoop(stages, SpecLoopConfig{Budget: budget, ReplanStage: "validate"})
+	rs := runstore.NewRunState("s1", "p1")
+	loop.Run(context.Background(), rs)
+
+	if rs.Status != runstore.StatusNeedsHuman {
+		t.Fatalf("want needs_human, got %s", rs.Status)
+	}
+	if rs.TerminalReason != "cycles_exhausted" {
+		t.Fatalf("want cycles_exhausted, got %s", rs.TerminalReason)
+	}
+	if rs.BlockerSummary != "lint errors in handler.go" {
+		t.Fatalf("want blocker summary from replan context, got %q", rs.BlockerSummary)
+	}
+}

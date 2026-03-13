@@ -11,6 +11,9 @@ const (
 )
 
 // Finding represents a single review finding from a facet.
+// TODO(next-phase): Add Scope field ("spec" | "general") before implementing
+// from-review bead creation. Needed to partition findings into spec-scoped vs
+// general beads per spec acceptance criteria 9-10.
 type Finding struct {
 	Facet        string   `json:"facet"`
 	Severity     Severity `json:"severity"`
@@ -61,6 +64,12 @@ func (f *Finding) UnmarshalJSON(data []byte) error {
 	if err != nil {
 		return fmt.Errorf("parsing finding severity: %w", err)
 	}
+	if raw.File == "" {
+		return &ParseError{Msg: "missing required field: file"}
+	}
+	if raw.Description == "" {
+		return &ParseError{Msg: "missing required field: description"}
+	}
 	f.Facet = raw.Facet
 	f.Severity = sev
 	f.File = raw.File
@@ -70,19 +79,4 @@ func (f *Finding) UnmarshalJSON(data []byte) error {
 	f.Cycle = raw.Cycle
 	f.Disposition = raw.Disposition
 	return nil
-}
-
-// FindingSet groups findings by facet.
-type FindingSet struct {
-	Facet    string    `json:"facet"`
-	Findings []Finding `json:"findings"`
-}
-
-// See CLAUDE.md nil-field normalization visibility convention:
-// exported — cross-package boundary type
-// NormalizeNilFields maps nil Findings slice to empty.
-func (fs *FindingSet) NormalizeNilFields() {
-	if fs.Findings == nil {
-		fs.Findings = []Finding{}
-	}
 }

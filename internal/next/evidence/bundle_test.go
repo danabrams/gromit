@@ -366,3 +366,79 @@ func TestBundler_WriteReview_IncludesReviewFindings(t *testing.T) {
 		t.Error("review.md should list acceptance criteria")
 	}
 }
+
+func TestBundler_WriteAcceptanceResults_AllPass(t *testing.T) {
+	dir := t.TempDir()
+	b := NewBundler(dir)
+	if err := b.Init(); err != nil {
+		t.Fatal(err)
+	}
+
+	result := acceptor.AcceptanceResult{
+		Results: []acceptor.CriterionResult{
+			{Criterion: "returns 200", Status: "pass", Rationale: "integration test proves it"},
+			{Criterion: "handles errors", Status: "pass", Rationale: "error handling tests exist"},
+			{Criterion: "audit log", Status: "pass", Rationale: "log output verified"},
+		},
+		AllPass:          true,
+		HasFailOrUnclear: false,
+	}
+
+	if err := b.WriteAcceptanceResults(result); err != nil {
+		t.Fatalf("WriteAcceptanceResults: %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(dir, "acceptance.json"))
+	if err != nil {
+		t.Fatalf("read acceptance.json: %v", err)
+	}
+
+	var parsed map[string]interface{}
+	if err := json.Unmarshal(data, &parsed); err != nil {
+		t.Fatalf("acceptance.json should be valid JSON: %v", err)
+	}
+	results, ok := parsed["results"].([]interface{})
+	if !ok || len(results) != 3 {
+		t.Errorf("expected 3 results in results array, got %v", parsed["results"])
+	}
+	if parsed["all_pass"] != true {
+		t.Error("all_pass should be true")
+	}
+	if parsed["has_fail_or_unclear"] != false {
+		t.Error("has_fail_or_unclear should be false")
+	}
+}
+
+func TestBundler_WriteReviewFindings_EmptyFindings(t *testing.T) {
+	dir := t.TempDir()
+	b := NewBundler(dir)
+	if err := b.Init(); err != nil {
+		t.Fatal(err)
+	}
+
+	// Pass an empty (non-nil) findings map
+	findings := map[string][]review.Finding{}
+
+	if err := b.WriteReviewFindings(findings); err != nil {
+		t.Fatalf("WriteReviewFindings: %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(dir, "review.json"))
+	if err != nil {
+		t.Fatalf("read review.json: %v", err)
+	}
+
+	// Should be valid JSON, not nil/null
+	content := strings.TrimSpace(string(data))
+	if content == "null" {
+		t.Fatal("empty findings should serialize as valid JSON object, not null")
+	}
+
+	var parsed map[string][]json.RawMessage
+	if err := json.Unmarshal(data, &parsed); err != nil {
+		t.Fatalf("review.json should be valid JSON: %v", err)
+	}
+	if len(parsed) != 0 {
+		t.Errorf("expected empty map, got %d entries", len(parsed))
+	}
+}

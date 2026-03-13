@@ -1,6 +1,9 @@
 package review
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 // Severity represents the severity level of a review finding.
 type Severity int
@@ -35,8 +38,9 @@ func (s Severity) String() string {
 
 // ParseSeverity converts a string to a Severity value.
 func ParseSeverity(s string) (Severity, error) {
+	s = strings.ToLower(s)
 	switch s {
-	case "error":
+	case "error", "critical": // "critical" is the spec-defined alias for "error"
 		return SeverityError, nil
 	case "warning":
 		return SeverityWarning, nil

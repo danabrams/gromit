@@ -223,6 +223,191 @@ func TestAcceptanceResult_UnmarshalEmptyResults_NotNull(t *testing.T) {
 	}
 }
 
+func TestEvaluator_InvalidStatus_ReturnsError(t *testing.T) {
+	agent := &mockAcceptAgent{
+		results: map[string]CriterionResult{
+			"some criterion": {Status: "bogus", Rationale: "has rationale"},
+		},
+	}
+
+	eval := NewEvaluator(agent)
+	_, err := eval.Evaluate(context.Background(), EvaluateInput{
+		Criteria:    []string{"some criterion"},
+		DiffSummary: "diff",
+	})
+	if err == nil {
+		t.Fatal("expected error for invalid status")
+	}
+	if !containsSubstring(err.Error(), "invalid status") {
+		t.Errorf("error should mention invalid status: %v", err)
+	}
+}
+
+func TestEvaluator_MissingRationaleOnFail_ReturnsError(t *testing.T) {
+	agent := &mockAcceptAgent{
+		results: map[string]CriterionResult{
+			"needs rationale": {Status: StatusFail, Rationale: ""},
+		},
+	}
+
+	eval := NewEvaluator(agent)
+	_, err := eval.Evaluate(context.Background(), EvaluateInput{
+		Criteria:    []string{"needs rationale"},
+		DiffSummary: "diff",
+	})
+	if err == nil {
+		t.Fatal("expected error for missing rationale on fail")
+	}
+	if !containsSubstring(err.Error(), "missing rationale") {
+		t.Errorf("error should mention missing rationale: %v", err)
+	}
+}
+
+func TestEvaluator_MissingRationaleOnUnclear_ReturnsError(t *testing.T) {
+	agent := &mockAcceptAgent{
+		results: map[string]CriterionResult{
+			"unclear thing": {Status: StatusUnclear, Rationale: ""},
+		},
+	}
+
+	eval := NewEvaluator(agent)
+	_, err := eval.Evaluate(context.Background(), EvaluateInput{
+		Criteria:    []string{"unclear thing"},
+		DiffSummary: "diff",
+	})
+	if err == nil {
+		t.Fatal("expected error for missing rationale on unclear")
+	}
+	if !containsSubstring(err.Error(), "missing rationale") {
+		t.Errorf("error should mention missing rationale: %v", err)
+	}
+}
+
+func TestEvaluator_EmptyRationaleOnPass_OK(t *testing.T) {
+	agent := &mockAcceptAgent{
+		results: map[string]CriterionResult{
+			"passing": {Status: StatusPass, Rationale: ""},
+		},
+	}
+
+	eval := NewEvaluator(agent)
+	result, err := eval.Evaluate(context.Background(), EvaluateInput{
+		Criteria:    []string{"passing"},
+		DiffSummary: "diff",
+	})
+	if err != nil {
+		t.Fatalf("pass with empty rationale should not error: %v", err)
+	}
+	if !result.AllPass {
+		t.Error("expected AllPass=true")
+	}
+}
+
+// sequencingAcceptAgent returns different results on successive calls for the
+// same criterion, enabling retry-at-caller-level testing.
+type sequencingAcceptAgent struct {
+	calls   int
+	results []CriterionResult
+	errs    []error
+}
+
+func (s *sequencingAcceptAgent) EvaluateCriterion(ctx context.Context, prompt string) (CriterionResult, error) {
+	idx := s.calls
+	s.calls++
+	if idx < len(s.errs) && s.errs[idx] != nil {
+		return CriterionResult{}, s.errs[idx]
+	}
+	if idx < len(s.results) {
+		return s.results[idx], nil
+	}
+	return CriterionResult{Status: StatusPass, Rationale: "default"}, nil
+}
+
+func TestEvaluator_RetryOnInvalidOutput(t *testing.T) {
+	// First call: agent returns an invalid status (simulating unparseable/garbage output).
+	// The evaluator should return an error because the status is not pass/fail/unclear.
+	// Second call (retry at caller level): agent returns valid JSON with StatusPass.
+	agent := &sequencingAcceptAgent{
+		results: []CriterionResult{
+			{Status: "GARBAGE_NOT_VALID", Rationale: "bad"},
+			{Status: StatusPass, Rationale: "looks good"},
+		},
+	}
+
+	eval := NewEvaluator(agent)
+	input := EvaluateInput{
+		Criteria:    []string{"endpoint works"},
+		DiffSummary: "added endpoint",
+	}
+
+	// First attempt: should fail due to invalid status
+	_, err := eval.Evaluate(context.Background(), input)
+	if err == nil {
+		t.Fatal("expected error on first call with invalid status")
+	}
+	if !containsSubstring(err.Error(), "invalid status") {
+		t.Errorf("error should mention invalid status: %v", err)
+	}
+
+	// Second attempt (caller retries): should succeed
+	result, err := eval.Evaluate(context.Background(), input)
+	if err != nil {
+		t.Fatalf("expected success on retry, got: %v", err)
+	}
+	if !result.AllPass {
+		t.Error("expected AllPass=true on retry")
+	}
+	if agent.calls != 2 {
+		t.Errorf("expected 2 agent calls total, got %d", agent.calls)
+	}
+}
+
+func TestEvaluator_AggregatesResults(t *testing.T) {
+	// Three criteria: one pass, one fail, one unclear.
+	agent := &mockAcceptAgent{
+		results: map[string]CriterionResult{
+			"returns 200":  {Status: StatusPass, Rationale: "test proves it"},
+			"handles auth": {Status: StatusFail, Rationale: "no auth middleware found"},
+			"logs events":  {Status: StatusUnclear, Rationale: "logging exists but unclear if events covered"},
+		},
+	}
+
+	eval := NewEvaluator(agent)
+	result, err := eval.Evaluate(context.Background(), EvaluateInput{
+		Criteria:    []string{"returns 200", "handles auth", "logs events"},
+		DiffSummary: "added handler with partial auth",
+		TaskResults: "some tests pass",
+	})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+
+	if result.AllPass {
+		t.Error("expected AllPass=false with mixed results")
+	}
+	if !result.HasFailOrUnclear {
+		t.Error("expected HasFailOrUnclear=true with fail and unclear results")
+	}
+	if len(result.Results) != 3 {
+		t.Fatalf("expected 3 results, got %d", len(result.Results))
+	}
+
+	// Verify each criterion is present with correct status
+	statusMap := make(map[string]string)
+	for _, r := range result.Results {
+		statusMap[r.Criterion] = r.Status
+	}
+	if statusMap["returns 200"] != StatusPass {
+		t.Errorf("returns 200: got status %q, want %q", statusMap["returns 200"], StatusPass)
+	}
+	if statusMap["handles auth"] != StatusFail {
+		t.Errorf("handles auth: got status %q, want %q", statusMap["handles auth"], StatusFail)
+	}
+	if statusMap["logs events"] != StatusUnclear {
+		t.Errorf("logs events: got status %q, want %q", statusMap["logs events"], StatusUnclear)
+	}
+}
+
 func TestAcceptanceResult_UnmarshalNullResults_NormalizeFixesIt(t *testing.T) {
 	raw := `{"results":null,"all_pass":false,"has_fail_or_unclear":false}`
 	var ar AcceptanceResult
