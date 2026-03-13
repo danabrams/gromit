@@ -37,15 +37,13 @@ func (a *LLMAdapter) Invoke(ctx context.Context, prompt string) (*provider.Resul
 	}
 
 	result, err := a.provider.Run(ctx, prompt, a.cfg.Tier)
-	if err != nil {
-		return result, err
-	}
 
-	if a.cfg.OnCost != nil && result.CostUSD > 0 {
+	// Track cost even on error — partial results may still incur charges.
+	if a.cfg.OnCost != nil && result != nil && result.CostUSD > 0 {
 		a.cfg.OnCost(result.CostUSD)
 	}
 
-	return result, nil
+	return result, err
 }
 
 // InvokeStream calls provider.StreamRun with the configured tier.
@@ -57,15 +55,13 @@ func (a *LLMAdapter) InvokeStream(ctx context.Context, prompt string, w io.Write
 	}
 
 	result, err := a.provider.StreamRun(ctx, prompt, a.cfg.Tier, w, handler, onToolCall)
-	if err != nil {
-		return result, err
-	}
 
-	if a.cfg.OnCost != nil && result.CostUSD > 0 {
+	// Track cost even on error — partial results may still incur charges.
+	if a.cfg.OnCost != nil && result != nil && result.CostUSD > 0 {
 		a.cfg.OnCost(result.CostUSD)
 	}
 
-	return result, nil
+	return result, err
 }
 
 // ProviderName returns the name of the underlying provider.

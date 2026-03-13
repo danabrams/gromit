@@ -127,8 +127,28 @@ func TestInvoke_RespectsTimeout(t *testing.T) {
 		Timeout: 50 * time.Millisecond,
 	})
 	_, err := adapter.Invoke(context.Background(), "prompt")
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("expected DeadlineExceeded, got %v", err)
+	}
+}
+
+func TestInvoke_OnCostCalledOnErrorWithCost(t *testing.T) {
+	var captured float64
+	mp := &mockProvider{
+		name:      "test",
+		runResult: &provider.Result{Output: "partial", CostUSD: 0.03},
+		runErr:    errors.New("partial failure"),
+	}
+	adapter := New(mp, Config{
+		Tier:   "low",
+		OnCost: func(c float64) { captured = c },
+	})
+	_, err := adapter.Invoke(context.Background(), "prompt")
 	if err == nil {
-		t.Fatal("expected timeout error, got nil")
+		t.Fatal("expected error")
+	}
+	if captured != 0.03 {
+		t.Errorf("expected cost 0.03 even on error, got %f", captured)
 	}
 }
 
@@ -188,6 +208,28 @@ func TestInvokeStream_CallsOnCost(t *testing.T) {
 	}
 }
 
+func TestInvokeStream_PropagatesError(t *testing.T) {
+	mp := &mockProvider{
+		name:      "test",
+		runResult: &provider.Result{Output: "partial"},
+		runErr:    errors.New("stream failure"),
+	}
+	adapter := New(mp, Config{Tier: "high"})
+	result, err := adapter.InvokeStream(context.Background(), "prompt", io.Discard, nil, nil)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if err.Error() != "stream failure" {
+		t.Errorf("expected 'stream failure', got %q", err.Error())
+	}
+	if result == nil {
+		t.Fatal("expected non-nil result even on error")
+	}
+	if result.Output != "partial" {
+		t.Errorf("expected result output 'partial', got %q", result.Output)
+	}
+}
+
 func TestInvokeStream_RespectsTimeout(t *testing.T) {
 	slowProvider := &slowMockProvider{delay: 5 * time.Second, result: &provider.Result{}}
 	adapter := New(slowProvider, Config{
@@ -195,8 +237,8 @@ func TestInvokeStream_RespectsTimeout(t *testing.T) {
 		Timeout: 50 * time.Millisecond,
 	})
 	_, err := adapter.InvokeStream(context.Background(), "prompt", io.Discard, nil, nil)
-	if err == nil {
-		t.Fatal("expected timeout error, got nil")
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("expected DeadlineExceeded, got %v", err)
 	}
 }
 
