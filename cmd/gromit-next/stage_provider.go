@@ -43,8 +43,9 @@ func NewRealStageProvider(cfg RealStageProviderConfig) *RealStageProvider {
 // it is passed to ExecuteStage so that cost accumulated during task execution
 // is visible to the SpecLoop's between-stage hard budget check.
 func (p *RealStageProvider) BuildStages(policy execpolicy.Policy, rs *runstore.RunState, budget *specloop.Budget) ([]specloop.Stage, error) {
-	// Validate replan threshold early (fail fast on invalid config).
-	if _, err := review.ParseSeverity(policy.Review.ReplanThreshold); err != nil {
+	// Validate and parse replan threshold early (fail fast on invalid config).
+	threshold, err := review.ParseSeverity(policy.Review.ReplanThreshold)
+	if err != nil {
 		return nil, fmt.Errorf("invalid replan threshold: %w", err)
 	}
 
@@ -105,7 +106,6 @@ func (p *RealStageProvider) BuildStages(policy execpolicy.Policy, rs *runstore.R
 			OnCost: func(cost float64) { budget.AddCost(cost) },
 		})
 		reviewAgent := review.NewProviderReviewAgent(reviewAdapter)
-		threshold, _ := review.ParseSeverity(policy.Review.ReplanThreshold)
 		reviewRunner = review.NewRunner(reviewAgent, review.RunnerConfig{
 			Facets:     policy.Review.Facets,
 			Threshold:  threshold,
@@ -169,7 +169,7 @@ func (p *RealStageProvider) BuildStages(policy execpolicy.Policy, rs *runstore.R
 	}, nil)
 
 	evidenceStage := stages.NewEvidenceStage(store, stages.EvidenceStageConfig{
-		DiffProvider: &noopDiffProvider{},
+		DiffProvider: diffProv,
 		BaseBranch:   "main",
 		StartTime:    time.Now(),
 	})
