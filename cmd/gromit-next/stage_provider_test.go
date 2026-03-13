@@ -25,7 +25,7 @@ func TestRealStageProvider_BuildStages_ReturnsStages(t *testing.T) {
 		t.Fatal("expected at least one stage, got 0")
 	}
 
-	expectedNames := []string{"init", "compile", "plan", "execute", "validate", "evidence", "finalize"}
+	expectedNames := []string{"init", "compile", "plan", "execute", "validate", "review", "accept", "evidence", "finalize"}
 	if len(stages) != len(expectedNames) {
 		t.Fatalf("expected %d stages, got %d", len(expectedNames), len(stages))
 	}
@@ -49,5 +49,60 @@ func TestRealStageProvider_BuildStages_NoStubError(t *testing.T) {
 	_, err := provider.BuildStages(policy, rs)
 	if err != nil {
 		t.Fatalf("BuildStages should not return stub error, got: %v", err)
+	}
+}
+
+func TestRealStageProvider_BuildStages_IncludesReviewAndAccept(t *testing.T) {
+	policy := execpolicy.DefaultPolicy()
+	rs := runstore.NewRunState("test-spec", "test-project")
+
+	provider := NewRealStageProvider(RealStageProviderConfig{
+		WorkDir:  t.TempDir(),
+		StoreDir: t.TempDir(),
+		SpecPath: "test-spec.md",
+	})
+
+	stages, err := provider.BuildStages(policy, rs)
+	if err != nil {
+		t.Fatalf("BuildStages: %v", err)
+	}
+
+	expectedOrder := []string{"init", "compile", "plan", "execute", "validate", "review", "accept", "evidence", "finalize"}
+	if len(stages) != len(expectedOrder) {
+		t.Fatalf("expected %d stages, got %d", len(expectedOrder), len(stages))
+	}
+	for i, name := range expectedOrder {
+		if stages[i].Name() != name {
+			t.Errorf("stage[%d].Name() = %q, want %q", i, stages[i].Name(), name)
+		}
+	}
+}
+
+func TestRealStageProvider_ReviewBeforeAccept(t *testing.T) {
+	policy := execpolicy.DefaultPolicy()
+	rs := runstore.NewRunState("test-spec", "test-project")
+
+	provider := NewRealStageProvider(RealStageProviderConfig{
+		WorkDir:  t.TempDir(),
+		StoreDir: t.TempDir(),
+		SpecPath: "test-spec.md",
+	})
+
+	stages, err := provider.BuildStages(policy, rs)
+	if err != nil {
+		t.Fatalf("BuildStages: %v", err)
+	}
+
+	var reviewIdx, acceptIdx int
+	for i, s := range stages {
+		if s.Name() == "review" {
+			reviewIdx = i
+		}
+		if s.Name() == "accept" {
+			acceptIdx = i
+		}
+	}
+	if reviewIdx >= acceptIdx {
+		t.Errorf("review (idx %d) must come before accept (idx %d)", reviewIdx, acceptIdx)
 	}
 }

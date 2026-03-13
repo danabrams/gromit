@@ -5,8 +5,10 @@ import (
 	"os"
 	"time"
 
+	"github.com/danabrams/gromit/internal/next/acceptor"
 	"github.com/danabrams/gromit/internal/next/execpolicy"
 	"github.com/danabrams/gromit/internal/next/planner"
+	"github.com/danabrams/gromit/internal/next/review"
 	"github.com/danabrams/gromit/internal/next/runstore"
 	"github.com/danabrams/gromit/internal/next/specloop"
 	"github.com/danabrams/gromit/internal/next/specloop/stages"
@@ -66,6 +68,17 @@ func (p *RealStageProvider) BuildStages(policy execpolicy.Policy, rs *runstore.R
 		WorkDir:   p.cfg.WorkDir,
 	}, nil)
 
+	reviewStage := stages.NewReviewStage(&noopReviewRunner{}, stages.ReviewStageConfig{
+		DiffProvider: &noopDiffProvider{},
+		BaseBranch:   "main",
+		DefaultTier:  policy.Review.ReplanThreshold,
+		FacetTiers:   policy.Review.Tiers,
+	}, nil)
+
+	acceptStage := stages.NewAcceptStage(&noopAcceptEvaluator{}, stages.AcceptStageConfig{
+		Tier: policy.Models.Evaluator,
+	}, nil)
+
 	evidenceStage := stages.NewEvidenceStage(store, stages.EvidenceStageConfig{
 		StartTime: time.Now(),
 	})
@@ -78,6 +91,8 @@ func (p *RealStageProvider) BuildStages(policy execpolicy.Policy, rs *runstore.R
 		planStage,
 		executeStage,
 		validateStage,
+		reviewStage,
+		acceptStage,
 		evidenceStage,
 		finalizeStage,
 	}, nil
@@ -130,4 +145,29 @@ type noopValidator struct{}
 
 func (n *noopValidator) RunFinal(_ context.Context, _ []validator.Check, _ []validator.Check, _ string) (validator.FinalResult, error) {
 	return validator.FinalResult{Pass: true}, nil
+}
+
+// noopReviewRunner satisfies ReviewRunner with a no-op.
+type noopReviewRunner struct{}
+
+func (n *noopReviewRunner) Run(_ context.Context, _ review.RunInput) (*review.RunResult, error) {
+	r := &review.RunResult{}
+	r.NormalizeNilFields()
+	return r, nil
+}
+
+// noopDiffProvider satisfies review.DiffProvider with a no-op.
+type noopDiffProvider struct{}
+
+func (n *noopDiffProvider) Diff(_ string) (string, error) {
+	return "", nil
+}
+
+// noopAcceptEvaluator satisfies AcceptEvaluator with a no-op.
+type noopAcceptEvaluator struct{}
+
+func (n *noopAcceptEvaluator) Evaluate(_ context.Context, _ acceptor.EvaluateInput) (acceptor.AcceptanceResult, error) {
+	r := acceptor.AcceptanceResult{AllPass: true}
+	r.NormalizeNilFields()
+	return r, nil
 }
