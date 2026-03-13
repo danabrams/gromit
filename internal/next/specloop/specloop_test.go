@@ -285,6 +285,54 @@ func TestSpecLoop_CycleReset_ValidateStageResetsGateAfterReset(t *testing.T) {
 	}
 }
 
+// callCountStage is a mock stage that tracks invocation count on the struct,
+// providing a reliable way to verify the same instance is reused across cycles.
+type callCountStage struct {
+	name      string
+	callCount int
+	runFn     func(ctx context.Context, rs *runstore.RunState) (NextAction, error)
+}
+
+func (s *callCountStage) Name() string { return s.name }
+func (s *callCountStage) Run(ctx context.Context, rs *runstore.RunState) (NextAction, error) {
+	return s.runFn(ctx, rs)
+}
+
+func TestSpecLoop_ReusesStageInstances(t *testing.T) {
+	trackingStage := &callCountStage{name: "tracker"}
+	trackingStage.runFn = func(ctx context.Context, rs *runstore.RunState) (NextAction, error) {
+		trackingStage.callCount++
+		if trackingStage.callCount < 2 {
+			return NextAction{Kind: ReplanFrom}, nil
+		}
+		return NextAction{Kind: Continue}, nil
+	}
+
+	var capturedAddr uintptr
+	origRunFn := trackingStage.runFn
+	trackingStage.runFn = func(ctx context.Context, rs *runstore.RunState) (NextAction, error) {
+		thisAddr := reflect.ValueOf(trackingStage).Pointer()
+		if trackingStage.callCount == 0 {
+			capturedAddr = thisAddr
+		} else if thisAddr != capturedAddr {
+			t.Error("stage instance changed between cycles — must reuse same instance")
+		}
+		return origRunFn(ctx, rs)
+	}
+
+	budget := NewBudget(execpolicy.Budgets{MaxSpecCycles: 3, MaxTaskDurationSeconds: 300, MaxRunDurationSeconds: 3600, MaxRunCostUSD: 50.0})
+	loop := NewSpecLoop([]Stage{trackingStage}, SpecLoopConfig{
+		Budget: budget,
+	})
+
+	rs := runstore.NewRunState("test-spec", "test-project")
+	loop.Run(context.Background(), rs)
+
+	if trackingStage.callCount < 2 {
+		t.Fatalf("expected at least 2 calls on same instance, got %d", trackingStage.callCount)
+	}
+}
+
 func TestSpecLoop_CycleExhaustion_RunsEvidence(t *testing.T) {
 	budget := NewBudget(execpolicy.Budgets{MaxSpecCycles: 1, MaxRunCostUSD: 99})
 

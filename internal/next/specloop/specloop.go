@@ -16,6 +16,10 @@ type SpecLoopConfig struct {
 
 // SpecLoop runs a pipeline of stages in order, supporting cycles and replanning.
 type SpecLoop struct {
+	// stages holds the stage instances for the pipeline. Stage instances persist
+	// across cycles — they are NOT re-created per cycle. This is load-bearing:
+	// ReviewStage accumulates priorFindings across cycles for disposition matching
+	// (new vs pre-existing). Do not replace stages between cycles.
 	stages []Stage
 	config SpecLoopConfig
 }
