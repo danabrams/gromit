@@ -229,7 +229,7 @@ type mockTestProvider struct {
 	name string
 }
 
-func (m *mockTestProvider) Name() string                  { return m.name }
+func (m *mockTestProvider) Name() string                    { return m.name }
 func (m *mockTestProvider) ModelForTier(tier string) string { return "mock-" + tier }
 func (m *mockTestProvider) Run(_ context.Context, _ string, _ string) (*provider.Result, error) {
 	return &provider.Result{Output: "ok", Success: true}, nil

@@ -72,13 +72,13 @@ func (p *RealStageProvider) BuildStages(policy execpolicy.Policy, rs *runstore.R
 	}
 
 	var (
-		compiler      stages.SpecCompiler
-		planCreator   stages.PlanCreator
-		taskRunner    specloop.TaskRunner
-		finalVal      stages.FinalValidator
-		reviewRunner  stages.ReviewRunner
-		acceptEval    stages.AcceptEvaluator
-		diffProv      review.DiffProvider = &noopDiffProvider{}
+		compiler     stages.SpecCompiler
+		planCreator  stages.PlanCreator
+		taskRunner   specloop.TaskRunner
+		finalVal     stages.FinalValidator
+		reviewRunner stages.ReviewRunner
+		acceptEval   stages.AcceptEvaluator
+		diffProv     review.DiffProvider = &noopDiffProvider{}
 	)
 
 	if p.cfg.Provider != nil {
@@ -107,8 +107,8 @@ func (p *RealStageProvider) BuildStages(policy execpolicy.Policy, rs *runstore.R
 		reviewAgent := review.NewProviderReviewAgent(reviewAdapter)
 		threshold, _ := review.ParseSeverity(policy.Review.ReplanThreshold)
 		reviewRunner = review.NewRunner(reviewAgent, review.RunnerConfig{
-			Facets:    policy.Review.Facets,
-			Threshold: threshold,
+			Facets:     policy.Review.Facets,
+			Threshold:  threshold,
 			FacetTiers: policy.Review.Tiers,
 		})
 
