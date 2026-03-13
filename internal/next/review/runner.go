@@ -16,7 +16,7 @@ type RunnerConfig struct {
 	Facets       []string
 	Threshold    Severity
 	FacetTiers   map[string]string
-	FacetRetries int
+	FacetMaxAttempts int
 }
 
 // RunInput provides data for a single review run.
@@ -174,7 +174,7 @@ func (r *Runner) Run(ctx context.Context, input RunInput) (*RunResult, error) {
 
 // invokeFacet calls the agent with retry logic for ParseErrors.
 func (r *Runner) invokeFacet(ctx context.Context, facetName, prompt string) ([]Finding, error) {
-	maxAttempts := r.config.FacetRetries
+	maxAttempts := r.config.FacetMaxAttempts
 	if maxAttempts <= 0 {
 		maxAttempts = 1
 	}

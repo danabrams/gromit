@@ -164,7 +164,7 @@ func TestLoadPolicy_ReviewConfigFromJSON(t *testing.T) {
 		t.Errorf("expected 3 facets, got %d", len(p.Review.Facets))
 	}
 	if p.Review.ReplanThreshold != "error" {
-		t.Errorf("threshold = %q, want error", p.Review.ReplanThreshold)
+		t.Errorf("threshold = %q, want error", p.Review.ReplanThreshold) // JSON explicitly sets "error"
 	}
 	if p.Review.Tiers["logic_gaps"] != "high" {
 		t.Errorf("logic_gaps tier = %q, want high", p.Review.Tiers["logic_gaps"])
@@ -195,10 +195,10 @@ func TestLoadPolicy_ReviewDefaultsPreservedOnPartialJSON(t *testing.T) {
 	}
 }
 
-func TestDefaultPolicy_HasFacetRetryCount(t *testing.T) {
+func TestDefaultPolicy_HasFacetMaxAttempts(t *testing.T) {
 	p := DefaultPolicy()
-	if p.Review.FacetRetries != 2 {
-		t.Errorf("default FacetRetries = %d, want 2", p.Review.FacetRetries)
+	if p.Review.FacetMaxAttempts != 2 {
+		t.Errorf("default FacetMaxAttempts = %d, want 2", p.Review.FacetMaxAttempts)
 	}
 }
 
@@ -213,8 +213,8 @@ func TestDefaultPolicy_HasReviewConfig(t *testing.T) {
 	if p.Review.Facets[1] != "code_quality" {
 		t.Errorf("second facet = %q, want code_quality", p.Review.Facets[1])
 	}
-	if p.Review.ReplanThreshold != "error" {
-		t.Errorf("ReplanThreshold = %q, want error", p.Review.ReplanThreshold)
+	if p.Review.ReplanThreshold != "warning" {
+		t.Errorf("ReplanThreshold = %q, want warning", p.Review.ReplanThreshold)
 	}
 }
 

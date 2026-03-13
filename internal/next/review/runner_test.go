@@ -142,7 +142,7 @@ func TestRunner_FacetRetry_OnUnparseableJSON(t *testing.T) {
 	runner := NewRunner(agent, RunnerConfig{
 		Facets:       []string{"code_quality"},
 		Threshold:    SeverityWarning,
-		FacetRetries: 2,
+		FacetMaxAttempts: 2,
 	})
 
 	result, err := runner.Run(context.Background(), RunInput{
@@ -175,7 +175,7 @@ func TestRunner_FacetRetry_ExhaustionMarksErrored(t *testing.T) {
 	runner := NewRunner(agent, RunnerConfig{
 		Facets:       []string{"code_quality"},
 		Threshold:    SeverityWarning,
-		FacetRetries: 2,
+		FacetMaxAttempts: 2,
 	})
 
 	result, err := runner.Run(context.Background(), RunInput{
@@ -207,7 +207,7 @@ func TestRunner_FacetRetry_MissingFields(t *testing.T) {
 	runner := NewRunner(agent, RunnerConfig{
 		Facets:       []string{"spec_alignment"},
 		Threshold:    SeverityWarning,
-		FacetRetries: 3,
+		FacetMaxAttempts: 3,
 	})
 
 	result, err := runner.Run(context.Background(), RunInput{
@@ -237,7 +237,7 @@ func TestRunner_AllFacetsErrored(t *testing.T) {
 	runner := NewRunner(agent, RunnerConfig{
 		Facets:       []string{"spec_alignment", "code_quality"},
 		Threshold:    SeverityWarning,
-		FacetRetries: 1,
+		FacetMaxAttempts: 1,
 	})
 
 	result, err := runner.Run(context.Background(), RunInput{

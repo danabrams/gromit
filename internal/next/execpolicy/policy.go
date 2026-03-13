@@ -21,7 +21,7 @@ type ReviewConfig struct {
 	Facets          []string          `json:"facets"`
 	Tiers           map[string]string `json:"tiers"`
 	ReplanThreshold string            `json:"replan_threshold"`
-	FacetRetries    int               `json:"facet_retries"`
+	FacetMaxAttempts int              `json:"facet_max_attempts"`
 }
 
 // Check is a validation check that always runs after task execution.
@@ -68,8 +68,8 @@ func DefaultPolicy() Policy {
 		Review: ReviewConfig{
 			Facets:          []string{"spec_alignment", "code_quality"},
 			Tiers:           map[string]string{"spec_alignment": "high", "code_quality": "medium"},
-			ReplanThreshold: "error",
-			FacetRetries:    2,
+			ReplanThreshold: "warning",
+			FacetMaxAttempts: 2,
 		},
 	}
 }

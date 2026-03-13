@@ -9,6 +9,7 @@ import (
 
 	"github.com/danabrams/gromit/internal/next/execpolicy"
 	"github.com/danabrams/gromit/internal/next/runstore"
+	"github.com/danabrams/gromit/internal/next/specloop"
 )
 
 func TestRealStageProvider_BuildStages_ReturnsStages(t *testing.T) {
@@ -21,7 +22,7 @@ func TestRealStageProvider_BuildStages_ReturnsStages(t *testing.T) {
 		SpecPath: "test-spec.md",
 	})
 
-	stages, err := provider.BuildStages(policy, rs)
+	stages, err := provider.BuildStages(policy, rs, specloop.NewBudget(policy.Budgets))
 	if err != nil {
 		t.Fatalf("BuildStages returned error: %v", err)
 	}
@@ -50,7 +51,7 @@ func TestRealStageProvider_BuildStages_NoStubError(t *testing.T) {
 		SpecPath: "test-spec.md",
 	})
 
-	_, err := provider.BuildStages(policy, rs)
+	_, err := provider.BuildStages(policy, rs, specloop.NewBudget(policy.Budgets))
 	if err != nil {
 		t.Fatalf("BuildStages should not return stub error, got: %v", err)
 	}
@@ -66,7 +67,7 @@ func TestRealStageProvider_BuildStages_IncludesReviewAndAccept(t *testing.T) {
 		SpecPath: "test-spec.md",
 	})
 
-	stages, err := provider.BuildStages(policy, rs)
+	stages, err := provider.BuildStages(policy, rs, specloop.NewBudget(policy.Budgets))
 	if err != nil {
 		t.Fatalf("BuildStages: %v", err)
 	}
@@ -92,7 +93,7 @@ func TestRealStageProvider_ReviewBeforeAccept(t *testing.T) {
 		SpecPath: "test-spec.md",
 	})
 
-	stages, err := provider.BuildStages(policy, rs)
+	stages, err := provider.BuildStages(policy, rs, specloop.NewBudget(policy.Budgets))
 	if err != nil {
 		t.Fatalf("BuildStages: %v", err)
 	}
@@ -122,7 +123,7 @@ func TestRealStageProvider_BuildStages_InvalidThresholdReturnsError(t *testing.T
 		SpecPath: "test-spec.md",
 	})
 
-	_, err := provider.BuildStages(policy, rs)
+	_, err := provider.BuildStages(policy, rs, specloop.NewBudget(policy.Budgets))
 	if err == nil {
 		t.Fatal("expected error for invalid replan threshold, got nil")
 	}
@@ -144,7 +145,7 @@ func TestRealStageProvider_BuildStages_ValidThresholdSucceeds(t *testing.T) {
 				SpecPath: "nonexistent-spec.md",
 			})
 
-			_, err := provider.BuildStages(policy, rs)
+			_, err := provider.BuildStages(policy, rs, specloop.NewBudget(policy.Budgets))
 			if err != nil {
 				t.Fatalf("BuildStages returned error for valid threshold %q: %v", threshold, err)
 			}
@@ -169,7 +170,7 @@ func TestRealStageProvider_BuildStages_DefaultTierUsesModelsEvaluator(t *testing
 		SpecPath: "nonexistent-spec.md",
 	})
 
-	stages, err := provider.BuildStages(policy, rs)
+	stages, err := provider.BuildStages(policy, rs, specloop.NewBudget(policy.Budgets))
 	if err != nil {
 		t.Fatalf("BuildStages: %v", err)
 	}
@@ -197,7 +198,7 @@ func TestRealStageProvider_BuildStages_SpecContentWiredIntoReviewAndAccept(t *te
 		SpecPath: specPath,
 	})
 
-	stages, err := provider.BuildStages(policy, rs)
+	stages, err := provider.BuildStages(policy, rs, specloop.NewBudget(policy.Budgets))
 	if err != nil {
 		t.Fatalf("BuildStages: %v", err)
 	}
@@ -231,7 +232,7 @@ func TestRealStageProvider_BuildStages_MissingSpecFileIsNotError(t *testing.T) {
 		SpecPath: filepath.Join(t.TempDir(), "does-not-exist.md"),
 	})
 
-	_, err := provider.BuildStages(policy, rs)
+	_, err := provider.BuildStages(policy, rs, specloop.NewBudget(policy.Budgets))
 	if err != nil {
 		t.Fatalf("BuildStages should not fail for missing spec file, got: %v", err)
 	}

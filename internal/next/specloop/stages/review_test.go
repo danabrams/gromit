@@ -322,6 +322,16 @@ func TestReviewStage_EmitsEvent(t *testing.T) {
 	if events[0].EventType() != "review_result" {
 		t.Errorf("event type = %q, want review_result", events[0].EventType())
 	}
+	rev, ok := events[0].(*runstore.ReviewResultEvent)
+	if !ok {
+		t.Fatal("expected *runstore.ReviewResultEvent")
+	}
+	if len(rev.FindingsBySeverity) == 0 {
+		t.Fatal("expected FindingsBySeverity to be populated")
+	}
+	if rev.FindingsBySeverity["info"] != 1 {
+		t.Errorf("FindingsBySeverity[\"info\"] = %d, want 1", rev.FindingsBySeverity["info"])
+	}
 }
 
 func TestReviewStage_DiffProviderError(t *testing.T) {
