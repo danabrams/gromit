@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -10,6 +11,7 @@ import (
 	"github.com/danabrams/gromit/internal/next/execpolicy"
 	"github.com/danabrams/gromit/internal/next/runstore"
 	"github.com/danabrams/gromit/internal/next/specloop"
+	"github.com/danabrams/gromit/internal/provider"
 )
 
 func TestRealStageProvider_BuildStages_ReturnsStages(t *testing.T) {
@@ -219,6 +221,73 @@ func TestRealStageProvider_BuildStages_SpecContentWiredIntoReviewAndAccept(t *te
 				t.Errorf("accept stage returned kind=%d, want Continue (0); SpecContent likely not wired", action.Kind)
 			}
 		}
+	}
+}
+
+// mockTestProvider satisfies provider.Provider for wiring tests.
+type mockTestProvider struct {
+	name string
+}
+
+func (m *mockTestProvider) Name() string                  { return m.name }
+func (m *mockTestProvider) ModelForTier(tier string) string { return "mock-" + tier }
+func (m *mockTestProvider) Run(_ context.Context, _ string, _ string) (*provider.Result, error) {
+	return &provider.Result{Output: "ok", Success: true}, nil
+}
+func (m *mockTestProvider) StreamRun(_ context.Context, _ string, _ string, _ io.Writer, _ provider.EventHandler, _ provider.ToolCallHandler) (*provider.Result, error) {
+	return &provider.Result{Output: "ok", Success: true}, nil
+}
+func (m *mockTestProvider) RunValidation(_ context.Context, _ []string, _ string, _ string) (*provider.Result, error) {
+	return &provider.Result{Output: "ok", Success: true}, nil
+}
+func (m *mockTestProvider) IsUsageLimitError(_ *provider.Result, _ error) bool { return false }
+func (m *mockTestProvider) IsValidationPassed(_ *provider.Result) bool         { return true }
+func (m *mockTestProvider) IsScopeTooLarge(_ *provider.Result) (bool, string)  { return false, "" }
+
+func TestRealStageProvider_BuildStages_WithProvider_ReturnsRealAdapters(t *testing.T) {
+	policy := execpolicy.DefaultPolicy()
+	rs := runstore.NewRunState("test-spec", "test-project")
+
+	sp := NewRealStageProvider(RealStageProviderConfig{
+		WorkDir:  t.TempDir(),
+		StoreDir: t.TempDir(),
+		SpecPath: "test-spec.md",
+		Provider: &mockTestProvider{name: "test-provider"},
+	})
+
+	stages, err := sp.BuildStages(policy, rs, specloop.NewBudget(policy.Budgets))
+	if err != nil {
+		t.Fatalf("BuildStages returned error: %v", err)
+	}
+
+	expectedNames := []string{"init", "compile", "plan", "execute", "validate", "review", "accept", "evidence", "finalize"}
+	if len(stages) != len(expectedNames) {
+		t.Fatalf("expected %d stages, got %d", len(expectedNames), len(stages))
+	}
+	for i, name := range expectedNames {
+		if stages[i].Name() != name {
+			t.Errorf("stage[%d].Name() = %q, want %q", i, stages[i].Name(), name)
+		}
+	}
+}
+
+func TestRealStageProvider_BuildStages_WithProvider_NilProviderFallsBackToNoops(t *testing.T) {
+	// When Provider is nil, BuildStages should still work (backward compat with noops).
+	policy := execpolicy.DefaultPolicy()
+	rs := runstore.NewRunState("test-spec", "test-project")
+
+	sp := NewRealStageProvider(RealStageProviderConfig{
+		WorkDir:  t.TempDir(),
+		StoreDir: t.TempDir(),
+		SpecPath: "test-spec.md",
+	})
+
+	stages, err := sp.BuildStages(policy, rs, specloop.NewBudget(policy.Budgets))
+	if err != nil {
+		t.Fatalf("BuildStages returned error: %v", err)
+	}
+	if len(stages) != 9 {
+		t.Fatalf("expected 9 stages, got %d", len(stages))
 	}
 }
 
