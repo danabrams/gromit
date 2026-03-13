@@ -26,13 +26,8 @@ func (s *FinalizeStage) Name() string { return "finalize" }
 
 // Run determines the terminal status and saves the final run state.
 func (s *FinalizeStage) Run(ctx context.Context, rs *runstore.RunState) (specloop.NextAction, error) {
-	// If already in a terminal state (e.g., blocked), handle worktree cleanup
+	// If already in a terminal state (e.g., blocked), preserve worktree and finalize
 	if rs.Status == runstore.StatusBlocked {
-		if rs.WorktreePath != "" {
-			if err := s.gitOps.RemoveWorktree(rs.WorktreePath); err != nil {
-				return specloop.NextAction{}, fmt.Errorf("remove worktree: %w", err)
-			}
-		}
 		// Emit terminal_state event for blocked
 		if s.eventLog != nil {
 			s.eventLog.Append(runstore.TerminalStateEvent{
@@ -57,7 +52,7 @@ func (s *FinalizeStage) Run(ctx context.Context, rs *runstore.RunState) (specloo
 		}
 	}
 
-	if allDone && rs.FinalValidationPassed {
+	if allDone && rs.FinalValidationPassed && rs.FinalReviewPassed && rs.FinalAcceptancePassed {
 		rs.Status = runstore.StatusReadyForReview
 	} else {
 		rs.Status = runstore.StatusNeedsHuman

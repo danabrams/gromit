@@ -23,6 +23,8 @@ func TestFinalizeStage_SetsReadyForReview(t *testing.T) {
 
 	rs := runstore.NewRunState("spec-001", "proj-001")
 	rs.FinalValidationPassed = true
+	rs.FinalReviewPassed = true
+	rs.FinalAcceptancePassed = true
 	rs.Tasks = []runstore.Task{
 		{TaskID: "t-001", Status: "done"},
 		{TaskID: "t-002", Status: "done"},
@@ -104,6 +106,8 @@ func TestFinalizeStage_PreservesWorktreeForReadyForReview(t *testing.T) {
 
 	rs := runstore.NewRunState("spec-001", "proj-001")
 	rs.FinalValidationPassed = true
+	rs.FinalReviewPassed = true
+	rs.FinalAcceptancePassed = true
 	rs.Tasks = []runstore.Task{{TaskID: "t-001", Status: "done"}}
 	rs.WorktreePath = "/tmp/worktree"
 
@@ -137,7 +141,7 @@ func TestFinalizeStage_PreservesWorktreeForNeedsHuman(t *testing.T) {
 	}
 }
 
-func TestFinalizeStage_CleansWorktreeForBlocked(t *testing.T) {
+func TestFinalizeStage_PreservesWorktreeForBlockedRuns(t *testing.T) {
 	tmp := t.TempDir()
 	store := runstore.NewStore(tmp)
 	gitOps := &fakeGitOps{}
@@ -153,8 +157,86 @@ func TestFinalizeStage_CleansWorktreeForBlocked(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if gitOps.removedPath != "/tmp/worktree" {
-		t.Fatalf("expected worktree to be removed, got removedPath=%q", gitOps.removedPath)
+	if gitOps.removedPath != "" {
+		t.Fatal("worktree should be preserved for blocked runs (cleanup happens in InitStage)")
+	}
+	if rs.WorktreePath != "/tmp/worktree" {
+		t.Fatalf("worktree_path should be preserved, got %q", rs.WorktreePath)
+	}
+}
+
+func TestFinalizeStage_ReadyForReview_RequiresAllGates(t *testing.T) {
+	tests := []struct {
+		name       string
+		rs         *runstore.RunState
+		wantStatus string
+	}{
+		{
+			name: "all pass -> ready_for_review",
+			rs: &runstore.RunState{
+				Tasks:                 []runstore.Task{{TaskID: "t1", Status: "done"}},
+				FinalValidationPassed: true,
+				FinalReviewPassed:     true,
+				FinalAcceptancePassed: true,
+			},
+			wantStatus: runstore.StatusReadyForReview,
+		},
+		{
+			name: "review failed -> needs_human",
+			rs: &runstore.RunState{
+				Tasks:                 []runstore.Task{{TaskID: "t1", Status: "done"}},
+				FinalValidationPassed: true,
+				FinalReviewPassed:     false,
+				FinalAcceptancePassed: true,
+			},
+			wantStatus: runstore.StatusNeedsHuman,
+		},
+		{
+			name: "acceptance failed -> needs_human",
+			rs: &runstore.RunState{
+				Tasks:                 []runstore.Task{{TaskID: "t1", Status: "done"}},
+				FinalValidationPassed: true,
+				FinalReviewPassed:     true,
+				FinalAcceptancePassed: false,
+			},
+			wantStatus: runstore.StatusNeedsHuman,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fakeStore := runstore.NewStore(t.TempDir())
+			stage := NewFinalizeStage(nil, fakeStore, nil)
+			_, err := stage.Run(context.Background(), tt.rs)
+			if err != nil {
+				t.Fatalf("Run: %v", err)
+			}
+			if tt.rs.Status != tt.wantStatus {
+				t.Errorf("Status = %q, want %q", tt.rs.Status, tt.wantStatus)
+			}
+		})
+	}
+}
+
+func TestFinalizeStage_PreservesWorktreeForBlocked(t *testing.T) {
+	fakeStore := runstore.NewStore(t.TempDir())
+	removeCalled := false
+	fakeGit := &fakeGitOps{
+		removeErr: nil,
+	}
+	// Override to track calls
+	origRemove := fakeGit.removedPath
+	stage := NewFinalizeStage(fakeGit, fakeStore, nil)
+	rs := &runstore.RunState{Status: runstore.StatusBlocked, WorktreePath: "/tmp/test-worktree"}
+
+	_, err := stage.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	_ = origRemove
+	removeCalled = fakeGit.removedPath != ""
+	if removeCalled {
+		t.Error("FinalizeStage should NOT remove worktree for blocked runs")
 	}
 }
 
@@ -167,6 +249,8 @@ func TestFinalizeStage_RecordsWorktreePathInRunJSON(t *testing.T) {
 
 	rs := runstore.NewRunState("spec-001", "proj-001")
 	rs.FinalValidationPassed = true
+	rs.FinalReviewPassed = true
+	rs.FinalAcceptancePassed = true
 	rs.Tasks = []runstore.Task{{TaskID: "t-001", Status: "done"}}
 	rs.WorktreePath = "/tmp/my-worktree"
 
