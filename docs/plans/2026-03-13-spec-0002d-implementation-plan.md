@@ -31,6 +31,7 @@ package llmadapter
 import (
 	"context"
 	"errors"
+	"io"
 	"strings"
 	"testing"
 
@@ -145,10 +146,20 @@ type mockProvider struct {
 }
 
 func (m *mockProvider) Name() string                                              { return m.name }
-func (m *mockProvider) Run(ctx context.Context, opts provider.RunOpts) (*provider.Result, error) {
+func (m *mockProvider) ModelForTier(tier string) string                           { return tier }
+func (m *mockProvider) Run(ctx context.Context, prompt string, tier string) (*provider.Result, error) {
+	return m.runResult, m.runErr
+}
+func (m *mockProvider) StreamRun(ctx context.Context, prompt string, tier string, output io.Writer,
+	handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
+	return m.runResult, m.runErr
+}
+func (m *mockProvider) RunValidation(ctx context.Context, commands []string, tier string, workDir string) (*provider.Result, error) {
 	return m.runResult, m.runErr
 }
 func (m *mockProvider) IsUsageLimitError(r *provider.Result, err error) bool      { return false }
+func (m *mockProvider) IsValidationPassed(r *provider.Result) bool                { return true }
+func (m *mockProvider) IsScopeTooLarge(r *provider.Result) (bool, string)         { return false, "" }
 
 // mockProviderWithUsageLimit is like mockProvider but with configurable IsUsageLimitError.
 type mockProviderWithUsageLimit struct {
@@ -159,10 +170,20 @@ type mockProviderWithUsageLimit struct {
 }
 
 func (m *mockProviderWithUsageLimit) Name() string                                              { return m.name }
-func (m *mockProviderWithUsageLimit) Run(ctx context.Context, opts provider.RunOpts) (*provider.Result, error) {
+func (m *mockProviderWithUsageLimit) ModelForTier(tier string) string                           { return tier }
+func (m *mockProviderWithUsageLimit) Run(ctx context.Context, prompt string, tier string) (*provider.Result, error) {
+	return m.runResult, m.runErr
+}
+func (m *mockProviderWithUsageLimit) StreamRun(ctx context.Context, prompt string, tier string, output io.Writer,
+	handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
+	return m.runResult, m.runErr
+}
+func (m *mockProviderWithUsageLimit) RunValidation(ctx context.Context, commands []string, tier string, workDir string) (*provider.Result, error) {
 	return m.runResult, m.runErr
 }
 func (m *mockProviderWithUsageLimit) IsUsageLimitError(r *provider.Result, err error) bool      { return m.isUsageLimit }
+func (m *mockProviderWithUsageLimit) IsValidationPassed(r *provider.Result) bool                { return true }
+func (m *mockProviderWithUsageLimit) IsScopeTooLarge(r *provider.Result) (bool, string)         { return false, "" }
 
 // mockSelectResult holds a provider/model pair for sequence-based mock router.
 type mockSelectResult struct {
@@ -262,15 +283,9 @@ type FallbackAdapter struct {
 	tier    string
 	cfg     Config
 
-	once    sync.Once
-	primary ProviderAwareInvoker  // resolved lazily on first Invoke
+	mu      sync.Mutex
+	primary ProviderAwareInvoker  // resolved lazily on first Invoke; re-checked if nil
 }
-
-// NOTE on sync.Once: if resolvePrimary fails on the first call, it will
-// never retry. This is intentional — the provider must be available at
-// first invocation time. If recovery from transient init failures is
-// needed, a future enhancement could replace sync.Once with a
-// mutex-guarded lazy init that retries on nil.
 
 // NewFallbackAdapter creates a FallbackAdapter that lazily resolves the primary
 // provider via Router.Select on first Invoke call.
@@ -295,19 +310,31 @@ func (f *FallbackAdapter) resolvePrimary() ProviderAwareInvoker {
 }
 
 // Provider returns the primary adapter's provider (satisfies ProviderAwareInvoker).
-// Note: triggers lazy initialization if not yet invoked.
+// Note: triggers lazy initialization if not yet resolved. Re-resolves if primary
+// was previously nil (recovery-after-cooldown semantics).
 func (f *FallbackAdapter) Provider() provider.Provider {
-	f.once.Do(func() { f.primary = f.resolvePrimary() })
+	f.mu.Lock()
 	if f.primary == nil {
+		f.primary = f.resolvePrimary()
+	}
+	p := f.primary
+	f.mu.Unlock()
+	if p == nil {
 		return nil
 	}
-	return f.primary.Provider()
+	return p.Provider()
 }
 
 // Invoke delegates to the primary invoker, resolved lazily on first call.
 // On usage-limit error, logs the primary error and falls back via router.
+// Each call re-checks if primary is nil under the mutex, allowing
+// recovery after a provider's cooldown expires.
 func (f *FallbackAdapter) Invoke(ctx context.Context, prompt string) (*provider.Result, error) {
-	f.once.Do(func() { f.primary = f.resolvePrimary() })
+	f.mu.Lock()
+	if f.primary == nil {
+		f.primary = f.resolvePrimary()
+	}
+	f.mu.Unlock()
 	if f.primary == nil {
 		return nil, fmt.Errorf("no providers available for phase %q tier %q", f.phase, f.tier)
 	}
@@ -494,6 +521,47 @@ func TestPolicy_Validate_RoutingRatioValid(t *testing.T) {
 }
 ```
 
+**Step 0c: Update `exec.go` to construct providers and pass them to `RealStageProviderConfig`**
+
+In `cmd/gromit-next/exec.go`, inside the `RunE` closure where `NewRealStageProvider` is called,
+add provider construction before the `RealStageProviderConfig`:
+
+```go
+// Construct the Claude provider (always required).
+claudeClient := claude.NewClient() // or however the claude client is created
+claudeTierMap := map[string]string{
+    provider.TierXHigh:  "opus",
+    provider.TierHigh:   "opus",
+    provider.TierMedium: "sonnet",
+    provider.TierLow:    "haiku",
+}
+claudeProv := provider.NewClaudeProvider(claudeClient, claudeTierMap)
+
+// Optionally construct the Codex provider (only if codex binary is available).
+var codexProv provider.Provider
+codexBinary, err := exec.LookPath("codex")
+if err == nil {
+    codexTierMap := map[string]string{
+        provider.TierMedium: "gpt-5.3-codex",
+        provider.TierLow:    "gpt-5.1-codex-mini",
+    }
+    codexProv = provider.NewCodexProvider(codexBinary, nil, codexTierMap)
+}
+
+p = NewRealStageProvider(RealStageProviderConfig{
+    WorkDir:        workDir,
+    StoreDir:       storeDir,
+    SpecPath:       specPath,
+    PolicyPath:     policyPath,
+    ClaudeProvider: claudeProv,
+    CodexProvider:  codexProv,
+})
+```
+
+Note: The exact `claude.NewClient()` constructor depends on 0002c's adapter wiring.
+The key point is that `exec.go` constructs both providers and passes them into
+`RealStageProviderConfig`, which then forwards them to `buildRouter`.
+
 **Step 1: Update BuildStages to use Router with lazy selection**
 
 Replace the hardcoded Claude provider (from 0002c) with FallbackAdapter wrapping the Router.
@@ -519,8 +587,12 @@ func (p *RealStageProvider) BuildStages(policy execpolicy.Policy, rs *runstore.R
     reviewAdapter := llmadapter.NewFallbackAdapter(
         router, "review", reviewCfg, policy.Models.Evaluator)
 
+    acceptCfg := llmadapter.Config{Tier: policy.Models.Evaluator, OnCost: costCallback}
+    acceptAdapter := llmadapter.NewFallbackAdapter(
+        router, "accept", acceptCfg, policy.Models.Evaluator)
+
     // ShellValidator does not use LLM — no adapter needed for validate phase.
-    // ... wire adapters into stages
+    // ... wire adapters into stages (planAdapter, execAdapter, reviewAdapter, acceptAdapter)
 }
 ```
 
@@ -673,15 +745,14 @@ git commit -m "feat: Codex contract tests — validate provider compatibility"
 ### Task 5: Integration scenarios for multi-provider routing
 
 **Files:**
-- Modify: `internal/next/specloop/integration_test.go`
+- Modify: `cmd/gromit-next/stage_provider_test.go` (for BuildStages wiring test — must be in package main)
+- Modify: `internal/next/specloop/integration_test.go` (for FallbackAdapter-through-Router test — uses only importable packages)
 
-**Step 1: Add an end-to-end integration test for BuildStages -> FallbackAdapter -> Router wiring**
+**Step 1a: Add BuildStages wiring test to `cmd/gromit-next/stage_provider_test.go`**
 
-This test exercises the full wiring path that Task 1 unit tests cannot cover: it calls
-`BuildStages` with a real `RealStageProvider` configured with mock providers, and verifies
-that the returned stages contain `FallbackAdapter` instances that correctly route through
-the `Router`. This validates cross-package integration (specloop -> llmadapter -> provider)
-and catches wiring bugs that same-package unit tests would miss.
+This test must live in `cmd/gromit-next/` (package main) because it references
+`NewRealStageProvider` and `RealStageProviderConfig`, which are unexportable from
+package main. Placing it in `internal/next/specloop/` would fail to compile.
 
 ```go
 func TestIntegration_BuildStages_FallbackAdapter_RouterWiring(t *testing.T) {
@@ -720,7 +791,14 @@ func TestIntegration_BuildStages_FallbackAdapter_RouterWiring(t *testing.T) {
     }
     t.Skip("TODO: verify wiring through stage invocation — Stage interface does not expose Invoker() directly; invoke stages and check which mock provider was called")
 }
+```
 
+**Step 1b: Add FallbackAdapter-through-Router test to `internal/next/specloop/integration_test.go`**
+
+This test uses only importable packages (`provider`, `llmadapter`) and validates the
+fallback path through a real Router without depending on package main types.
+
+```go
 func TestIntegration_FallbackAdapter_UsageLimitFallback_ThroughRouter(t *testing.T) {
     // End-to-end: primary hits usage limit, Router routes to fallback
     claudeProv := &mockProviderWithUsageLimit{
@@ -769,7 +847,7 @@ func TestIntegration_RouterPhasePreferences(t *testing.T) {
 **Step 3: Commit**
 
 ```bash
-git add internal/next/specloop/integration_test.go
+git add cmd/gromit-next/stage_provider_test.go internal/next/specloop/integration_test.go
 git commit -m "feat: integration test scaffolds for multi-provider routing scenarios"
 ```
 

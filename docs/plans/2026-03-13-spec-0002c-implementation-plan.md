@@ -81,16 +81,25 @@ func TestInvoke_DelegatesToProviderRun(t *testing.T) {
 
 func TestInvoke_PropagatesError(t *testing.T) {
 	mp := &mockProvider{
-		name:   "test",
-		runErr: errors.New("api failure"),
+		name:      "test",
+		runResult: &provider.Result{Output: "partial"},
+		runErr:    errors.New("api failure"),
 	}
 	adapter := New(mp, Config{Tier: "high"})
-	_, err := adapter.Invoke(context.Background(), "prompt")
+	result, err := adapter.Invoke(context.Background(), "prompt")
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
 	if err.Error() != "api failure" {
 		t.Errorf("expected 'api failure', got %q", err.Error())
+	}
+	// Result must be returned even on error — 0002d's FallbackAdapter
+	// needs it for IsUsageLimitError(result, err) checks.
+	if result == nil {
+		t.Fatal("expected non-nil result even on error")
+	}
+	if result.Output != "partial" {
+		t.Errorf("expected result output 'partial', got %q", result.Output)
 	}
 }
 
@@ -179,6 +188,39 @@ func TestInvokeStream_DelegatesToProvider(t *testing.T) {
 	}
 }
 
+func TestInvokeStream_CallsOnCost(t *testing.T) {
+	var captured float64
+	mp := &mockProvider{
+		name:      "test",
+		runResult: &provider.Result{CostUSD: 0.15},
+	}
+	adapter := New(mp, Config{
+		Tier:   "low",
+		OnCost: func(c float64) { captured = c },
+	})
+	_, err := adapter.InvokeStream(context.Background(), "prompt", io.Discard, nil, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if captured != 0.15 {
+		t.Errorf("expected cost 0.15, got %f", captured)
+	}
+}
+
+func TestInvokeStream_RespectsTimeout(t *testing.T) {
+	// Use slowMockProvider which blocks until context is done.
+	// slowMockProvider.StreamRun inherits the blocking behavior.
+	slowProvider := &slowMockProvider{delay: 5 * time.Second, result: &provider.Result{}}
+	adapter := New(slowProvider, Config{
+		Tier:    "low",
+		Timeout: 50 * time.Millisecond,
+	})
+	_, err := adapter.InvokeStream(context.Background(), "prompt", io.Discard, nil, nil)
+	if err == nil {
+		t.Fatal("expected timeout error, got nil")
+	}
+}
+
 // slowMockProvider blocks for a configurable delay.
 // Defined here (Task 1) because TestInvoke_RespectsTimeout uses it above.
 type slowMockProvider struct {
@@ -188,6 +230,15 @@ type slowMockProvider struct {
 }
 
 func (m *slowMockProvider) Run(ctx context.Context, prompt string, tier string) (*provider.Result, error) {
+	select {
+	case <-time.After(m.delay):
+		return m.result, nil
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+}
+
+func (m *slowMockProvider) StreamRun(ctx context.Context, prompt string, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
 	select {
 	case <-time.After(m.delay):
 		return m.result, nil
@@ -260,7 +311,9 @@ func (a *LLMAdapter) Invoke(ctx context.Context, prompt string) (*provider.Resul
 
 	result, err := a.provider.Run(ctx, prompt, a.cfg.Tier)
 	if err != nil {
-		return nil, err
+		// Return result even on error: 0002d's FallbackAdapter needs the result
+		// to call IsUsageLimitError(result, err) for provider-aware routing.
+		return result, err
 	}
 
 	if a.cfg.OnCost != nil && result.CostUSD > 0 {
@@ -280,7 +333,9 @@ func (a *LLMAdapter) InvokeStream(ctx context.Context, prompt string, w io.Write
 
 	result, err := a.provider.StreamRun(ctx, prompt, a.cfg.Tier, w, handler, onToolCall)
 	if err != nil {
-		return nil, err
+		// Return result even on error: 0002d's FallbackAdapter needs the result
+		// to call IsUsageLimitError(result, err) for provider-aware routing.
+		return result, err
 	}
 
 	if a.cfg.OnCost != nil && result.CostUSD > 0 {
@@ -682,14 +737,16 @@ package planner
 import (
 	"context"
 	"log"
+	"sync"
 
 	"github.com/danabrams/gromit/internal/next/llmadapter"
 )
 
 // ProviderPlanAgent adapts an LLM invoker to satisfy the planner.Agent interface.
 type ProviderPlanAgent struct {
-	llm     llmadapter.Invoker
-	adpTier string // tier configured on the underlying LLMAdapter
+	llm      llmadapter.Invoker
+	adpTier  string // tier configured on the underlying LLMAdapter
+	warnOnce sync.Once
 }
 
 // NewProviderPlanAgent creates a ProviderPlanAgent.
@@ -701,10 +758,12 @@ func NewProviderPlanAgent(llm llmadapter.Invoker, adapterTier string) *ProviderP
 // Invoke delegates to the LLM adapter and maps the result to AgentResult.
 // The tier parameter is accepted for interface compatibility but is not used
 // for routing — tier is configured on the LLMAdapter. A mismatch is logged
-// as a warning.
+// once (via sync.Once) to avoid log noise in retry loops.
 func (a *ProviderPlanAgent) Invoke(ctx context.Context, prompt string, tier string) (AgentResult, error) {
 	if tier != "" && tier != a.adpTier {
-		log.Printf("warning: tier parameter %q ignored, using adapter tier %q", tier, a.adpTier)
+		a.warnOnce.Do(func() {
+			log.Printf("debug: tier parameter %q ignored, using adapter tier %q", tier, a.adpTier)
+		})
 	}
 	result, err := a.llm.Invoke(ctx, prompt)
 	if err != nil {
@@ -1068,6 +1127,20 @@ func NewProviderAcceptAgent(llm llmadapter.Invoker) *ProviderAcceptAgent {
 	return &ProviderAcceptAgent{llm: llm}
 }
 
+// ParseCriterionResult extracts JSON from raw LLM output and unmarshals it
+// into a CriterionResult. This wraps ExtractJSON + json.Unmarshal to keep
+// parsing logic consistent with the design doc's ParseCriterionResult(result.Output)
+// pattern.
+func ParseCriterionResult(output string) (CriterionResult, error) {
+	jsonStr := llmadapter.ExtractJSON(output)
+	var cr CriterionResult
+	if err := json.Unmarshal([]byte(jsonStr), &cr); err != nil {
+		return CriterionResult{}, fmt.Errorf("failed to parse criterion result: %w", err)
+	}
+	cr.NormalizeNilFields()
+	return cr, nil
+}
+
 // EvaluateCriterion invokes the LLM and parses the JSON result into CriterionResult.
 func (a *ProviderAcceptAgent) EvaluateCriterion(ctx context.Context, prompt string) (CriterionResult, error) {
 	result, err := a.llm.Invoke(ctx, prompt)
@@ -1075,13 +1148,7 @@ func (a *ProviderAcceptAgent) EvaluateCriterion(ctx context.Context, prompt stri
 		return CriterionResult{}, err
 	}
 
-	jsonStr := llmadapter.ExtractJSON(result.Output)
-	var cr CriterionResult
-	if err := json.Unmarshal([]byte(jsonStr), &cr); err != nil {
-		return CriterionResult{}, fmt.Errorf("failed to parse criterion result: %w", err)
-	}
-	cr.NormalizeNilFields()
-	return cr, nil
+	return ParseCriterionResult(result.Output)
 }
 
 var _ AcceptAgent = (*ProviderAcceptAgent)(nil)
@@ -1618,6 +1685,8 @@ type SpecCompilerAdapterConfig struct {
 }
 
 // SpecCompilerAdapter wraps DefaultCompiler to satisfy the stages.SpecCompiler interface.
+// Note: The design doc calls this ContextPktCompiler. This plan uses the more descriptive
+// name SpecCompilerAdapter; the design doc will be updated separately to match.
 type SpecCompilerAdapter struct {
 	compiler *DefaultCompiler
 	cfg      SpecCompilerAdapterConfig
@@ -1699,9 +1768,29 @@ Add to `cmd/gromit-next/exec_test.go` or create a new test file:
 
 ```go
 func TestRealStageProvider_BuildStages_ReturnsRealAdapters(t *testing.T) {
-	// Verify that BuildStages no longer returns noop implementations.
-	// Use a mock provider to avoid real LLM calls.
-	// This test verifies wiring, not LLM behavior.
+	// Verify that BuildStages wires real adapters (no noop implementations).
+	// Uses a mock provider to avoid real LLM calls — tests wiring, not LLM behavior.
+	mp := &mockProvider{
+		name:      "test",
+		runResult: &provider.Result{Output: "ok", Success: true},
+	}
+	sp := NewRealStageProvider(mp)
+
+	policy := DefaultPolicy()
+	state := runstore.NewRunState("test-spec", 1)
+	budget := NewBudget(10.0, 100000)
+
+	stages, err := sp.BuildStages(policy, state, budget)
+	if err != nil {
+		t.Fatalf("BuildStages returned error: %v", err)
+	}
+	if stages == nil {
+		t.Fatal("expected non-nil stages slice")
+	}
+	// Expect 6 stages: Compile, Plan, Execute, Validate, Review, Accept
+	if len(stages) != 6 {
+		t.Errorf("expected 6 stages, got %d", len(stages))
+	}
 }
 ```
 
