@@ -220,6 +220,40 @@ func TestReviewStage_FixCycle_PassesPriorFindings(t *testing.T) {
 	}
 }
 
+func TestReviewStage_ComputesDiffFromDiffProvider(t *testing.T) {
+	var capturedInput review.RunInput
+	runner := &capturingReviewRunner{
+		resultFn: func() *review.RunResult {
+			return &review.RunResult{}
+		},
+		capture: func(input review.RunInput) {
+			capturedInput = input
+		},
+	}
+
+	fakeDiff := &fakeDiffProvider{
+		diff: "diff --git a/handler.go b/handler.go\n+new line",
+	}
+
+	stage := NewReviewStage(runner, ReviewStageConfig{
+		DiffProvider: fakeDiff,
+	}, nil)
+	rs := runstore.NewRunState("test-spec", "test-project")
+	rs.Cycle = 1
+
+	_, err := stage.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	if capturedInput.DiffSummary == "" {
+		t.Error("expected DiffSummary to be populated from DiffProvider")
+	}
+	if !strings.Contains(capturedInput.DiffSummary, "handler.go") {
+		t.Error("DiffSummary should contain diff output from DiffProvider")
+	}
+}
+
 func TestReviewStage_DiffProviderError(t *testing.T) {
 	runner := &mockReviewRunner{
 		result: &review.RunResult{},
