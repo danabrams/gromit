@@ -130,6 +130,12 @@ func (p *Policy) Validate() error {
 	if p.Models.Evaluator == "" {
 		errs = append(errs, fmt.Errorf("Models.Evaluator must be non-empty"))
 	}
+	// Validate review config (threshold enum). Facet validation requires a
+	// known-facets list from the registry, so it must be called separately
+	// via ValidateReviewFacets().
+	if err := p.ValidateReviewConfig(); err != nil {
+		errs = append(errs, err)
+	}
 	return errors.Join(errs...)
 }
 

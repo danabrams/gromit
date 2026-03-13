@@ -279,6 +279,24 @@ func TestPolicy_ValidateReviewThreshold_Invalid(t *testing.T) {
 	}
 }
 
+func TestPolicy_Validate_CatchesInvalidThreshold(t *testing.T) {
+	p := DefaultPolicy()
+	p.Review.ReplanThreshold = "critical"
+	err := p.Validate()
+	if err == nil {
+		t.Error("Validate should catch invalid ReplanThreshold")
+	}
+}
+
+func TestPolicy_Validate_CatchesEmptyThreshold(t *testing.T) {
+	p := DefaultPolicy()
+	p.Review.ReplanThreshold = ""
+	err := p.Validate()
+	if err == nil {
+		t.Error("Validate should catch empty ReplanThreshold")
+	}
+}
+
 func TestValidate_RejectsEmptyCheckNameAndCommand(t *testing.T) {
 	p := DefaultPolicy()
 	p.AlwaysRun = []Check{
