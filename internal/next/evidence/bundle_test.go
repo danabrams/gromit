@@ -1,11 +1,14 @@
 package evidence
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/danabrams/gromit/internal/next/acceptor"
+	"github.com/danabrams/gromit/internal/next/review"
 	"github.com/danabrams/gromit/internal/next/runstore"
 	"github.com/danabrams/gromit/internal/next/validator"
 )
@@ -235,5 +238,207 @@ func TestMetrics_NormalizeNilFields(t *testing.T) {
 	m.NormalizeNilFields()
 	if m.Invocations == nil {
 		t.Fatal("Invocations should not be nil after NormalizeNilFields")
+	}
+}
+
+func TestBundler_WriteReviewFindings(t *testing.T) {
+	dir := t.TempDir()
+	b := NewBundler(dir)
+	if err := b.Init(); err != nil {
+		t.Fatal(err)
+	}
+
+	findings := map[string][]review.Finding{
+		"spec_alignment": {
+			{Facet: "spec_alignment", Severity: review.SeverityError, File: "handler.go", Line: 42, Description: "missing validation"},
+		},
+		"code_quality": {
+			{Facet: "code_quality", Severity: review.SeverityWarning, File: "router.go", Line: 10, Description: "long function"},
+		},
+	}
+
+	if err := b.WriteReviewFindings(findings); err != nil {
+		t.Fatalf("WriteReviewFindings: %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(dir, "review.json"))
+	if err != nil {
+		t.Fatalf("read review.json: %v", err)
+	}
+
+	var parsed map[string][]json.RawMessage
+	if err := json.Unmarshal(data, &parsed); err != nil {
+		t.Fatalf("review.json should be a facet-keyed JSON object: %v", err)
+	}
+	if len(parsed["spec_alignment"]) != 1 {
+		t.Errorf("expected 1 spec_alignment finding, got %d", len(parsed["spec_alignment"]))
+	}
+	if len(parsed["code_quality"]) != 1 {
+		t.Errorf("expected 1 code_quality finding, got %d", len(parsed["code_quality"]))
+	}
+}
+
+func TestBundler_WriteAcceptanceResults(t *testing.T) {
+	dir := t.TempDir()
+	b := NewBundler(dir)
+	if err := b.Init(); err != nil {
+		t.Fatal(err)
+	}
+
+	result := acceptor.AcceptanceResult{
+		Results: []acceptor.CriterionResult{
+			{Criterion: "multi-currency", Status: "fail", Rationale: "implement missing behavior"},
+			{Criterion: "audit log", Status: "unclear", Rationale: "add tests or evidence to prove/disprove"},
+		},
+		AllPass:          false,
+		HasFailOrUnclear: true,
+	}
+
+	if err := b.WriteAcceptanceResults(result); err != nil {
+		t.Fatalf("WriteAcceptanceResults: %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(dir, "acceptance.json"))
+	if err != nil {
+		t.Fatalf("read acceptance.json: %v", err)
+	}
+
+	var parsed map[string]interface{}
+	if err := json.Unmarshal(data, &parsed); err != nil {
+		t.Fatalf("acceptance.json should be a valid JSON object: %v", err)
+	}
+	results, ok := parsed["results"].([]interface{})
+	if !ok || len(results) != 2 {
+		t.Errorf("expected 2 results in results array, got %v", parsed["results"])
+	}
+	if parsed["all_pass"] != false {
+		t.Error("all_pass should be false")
+	}
+	if parsed["has_fail_or_unclear"] != true {
+		t.Error("has_fail_or_unclear should be true")
+	}
+}
+
+func TestBundler_WriteReview_IncludesReviewFindings(t *testing.T) {
+	dir := t.TempDir()
+	b := NewBundler(dir)
+	if err := b.Init(); err != nil {
+		t.Fatal(err)
+	}
+
+	input := ReviewInput{
+		TerminalState:     "ready_for_review",
+		WhatChanged:       "Added refund handler",
+		CycleHistory:      []CycleRecord{{Cycle: 1, TaskCount: 4, PassCount: 4}},
+		ValidationResults: "6/6 passed",
+		KnownRisks:        []string{},
+		RecommendedAction: "approve",
+		ReviewFindings: []ReviewFindingSummary{
+			{Facet: "spec_alignment", Count: 0, Severities: "none"},
+			{Facet: "code_quality", Count: 1, Severities: "1 info"},
+		},
+		AcceptanceCriteria: []AcceptanceCriterionSummary{
+			{Criterion: "returns 200", Status: "pass", Rationale: "test proves it"},
+			{Criterion: "handles errors", Status: "pass", Rationale: "error tests exist"},
+		},
+	}
+
+	if err := b.WriteReview(input); err != nil {
+		t.Fatalf("WriteReview: %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(dir, "review.md"))
+	if err != nil {
+		t.Fatalf("read review.md: %v", err)
+	}
+
+	content := string(data)
+	if !strings.Contains(content, "Review Findings") {
+		t.Error("review.md should contain Review Findings section")
+	}
+	if !strings.Contains(content, "spec_alignment") {
+		t.Error("review.md should list spec_alignment facet")
+	}
+	if !strings.Contains(content, "Acceptance Criteria") {
+		t.Error("review.md should contain Acceptance Criteria section")
+	}
+	if !strings.Contains(content, "returns 200") {
+		t.Error("review.md should list acceptance criteria")
+	}
+}
+
+func TestBundler_WriteAcceptanceResults_AllPass(t *testing.T) {
+	dir := t.TempDir()
+	b := NewBundler(dir)
+	if err := b.Init(); err != nil {
+		t.Fatal(err)
+	}
+
+	result := acceptor.AcceptanceResult{
+		Results: []acceptor.CriterionResult{
+			{Criterion: "returns 200", Status: "pass", Rationale: "integration test proves it"},
+			{Criterion: "handles errors", Status: "pass", Rationale: "error handling tests exist"},
+			{Criterion: "audit log", Status: "pass", Rationale: "log output verified"},
+		},
+		AllPass:          true,
+		HasFailOrUnclear: false,
+	}
+
+	if err := b.WriteAcceptanceResults(result); err != nil {
+		t.Fatalf("WriteAcceptanceResults: %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(dir, "acceptance.json"))
+	if err != nil {
+		t.Fatalf("read acceptance.json: %v", err)
+	}
+
+	var parsed map[string]interface{}
+	if err := json.Unmarshal(data, &parsed); err != nil {
+		t.Fatalf("acceptance.json should be valid JSON: %v", err)
+	}
+	results, ok := parsed["results"].([]interface{})
+	if !ok || len(results) != 3 {
+		t.Errorf("expected 3 results in results array, got %v", parsed["results"])
+	}
+	if parsed["all_pass"] != true {
+		t.Error("all_pass should be true")
+	}
+	if parsed["has_fail_or_unclear"] != false {
+		t.Error("has_fail_or_unclear should be false")
+	}
+}
+
+func TestBundler_WriteReviewFindings_EmptyFindings(t *testing.T) {
+	dir := t.TempDir()
+	b := NewBundler(dir)
+	if err := b.Init(); err != nil {
+		t.Fatal(err)
+	}
+
+	// Pass an empty (non-nil) findings map
+	findings := map[string][]review.Finding{}
+
+	if err := b.WriteReviewFindings(findings); err != nil {
+		t.Fatalf("WriteReviewFindings: %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(dir, "review.json"))
+	if err != nil {
+		t.Fatalf("read review.json: %v", err)
+	}
+
+	// Should be valid JSON, not nil/null
+	content := strings.TrimSpace(string(data))
+	if content == "null" {
+		t.Fatal("empty findings should serialize as valid JSON object, not null")
+	}
+
+	var parsed map[string][]json.RawMessage
+	if err := json.Unmarshal(data, &parsed); err != nil {
+		t.Fatalf("review.json should be valid JSON: %v", err)
+	}
+	if len(parsed) != 0 {
+		t.Errorf("expected empty map, got %d entries", len(parsed))
 	}
 }

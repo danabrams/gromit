@@ -42,6 +42,11 @@ func (s *InitStage) Name() string { return "init" }
 
 // Run executes the init stage.
 func (s *InitStage) Run(ctx context.Context, rs *runstore.RunState) (specloop.NextAction, error) {
+	// Clean up prior blocked worktrees for the same spec
+	if err := s.cleanBlockedWorktrees(rs); err != nil {
+		return specloop.NextAction{}, fmt.Errorf("clean blocked worktrees: %w", err)
+	}
+
 	// Create run directory
 	runDir := s.store.RunDir(rs.RunID)
 	if err := os.MkdirAll(runDir, 0o755); err != nil {
@@ -99,4 +104,46 @@ func (s *InitStage) Run(ctx context.Context, rs *runstore.RunState) (specloop.Ne
 	}
 
 	return specloop.NextAction{Kind: specloop.Continue}, nil
+}
+
+// cleanBlockedWorktrees removes worktree directories for prior blocked runs
+// with the same spec and project, clearing the path in the store and emitting events.
+func (s *InitStage) cleanBlockedWorktrees(rs *runstore.RunState) error {
+	runs, err := s.store.List(rs.ProjectID)
+	if err != nil {
+		return err
+	}
+	for _, prior := range runs {
+		if prior.RunID == rs.RunID {
+			continue
+		}
+		if prior.SpecID != rs.SpecID || prior.Status != runstore.StatusBlocked || prior.WorktreePath == "" {
+			continue
+		}
+		// Capture path before clearing
+		cleanedPath := prior.WorktreePath
+		// Use GitOps.RemoveWorktree for consistency with the rest of the codebase.
+		// Falls back to os.RemoveAll if GitOps is not configured.
+		if s.cfg.GitOps != nil {
+			if err := s.cfg.GitOps.RemoveWorktree(cleanedPath); err != nil {
+				return fmt.Errorf("remove worktree %s: %w", cleanedPath, err)
+			}
+		} else if err := os.RemoveAll(cleanedPath); err != nil {
+			return fmt.Errorf("remove worktree %s: %w", cleanedPath, err)
+		}
+		// Clear worktree path and save
+		prior.WorktreePath = ""
+		if err := s.store.Save(prior); err != nil {
+			return fmt.Errorf("save run %s: %w", prior.RunID, err)
+		}
+		// Emit event
+		if s.eventLog != nil {
+			s.eventLog.Append(runstore.BlockedWorktreeCleanedEvent{
+				BaseEvent:    runstore.BaseEvent{Type: "blocked_worktree_cleaned", Timestamp: time.Now()},
+				PriorRunID:   prior.RunID,
+				WorktreePath: cleanedPath,
+			})
+		}
+	}
+	return nil
 }

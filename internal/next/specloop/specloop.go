@@ -16,6 +16,10 @@ type SpecLoopConfig struct {
 
 // SpecLoop runs a pipeline of stages in order, supporting cycles and replanning.
 type SpecLoop struct {
+	// stages holds the stage instances for the pipeline. Stage instances persist
+	// across cycles — they are NOT re-created per cycle. This is load-bearing:
+	// ReviewStage accumulates priorFindings across cycles for disposition matching
+	// (new vs pre-existing). Do not replace stages between cycles.
 	stages []Stage
 	config SpecLoopConfig
 }
@@ -35,6 +39,14 @@ func (sl *SpecLoop) Run(ctx context.Context, rs *runstore.RunState) error {
 	for cycle := 0; cycle < maxCycles; cycle++ {
 		rs.Cycle = cycle + 1
 
+		// Reset gate booleans and review/acceptance fields at cycle start
+		rs.FinalValidationPassed = false
+		rs.FinalReviewPassed = false
+		rs.FinalAcceptancePassed = false
+		rs.ReviewFindings = []string{}
+		rs.AcceptanceResults = []string{}
+		rs.ReplanContext = []string{}
+
 		startIdx := 0
 		if cycle > 0 && sl.config.ReplanStage != "" {
 			if idx := sl.findStageIndex(sl.config.ReplanStage); idx >= 0 {
@@ -44,6 +56,7 @@ func (sl *SpecLoop) Run(ctx context.Context, rs *runstore.RunState) error {
 
 		replan := false
 		var replanContext *FailureContext
+		var replanSource string
 		for i := startIdx; i < len(sl.stages); i++ {
 			stage := sl.stages[i]
 
@@ -76,8 +89,13 @@ func (sl *SpecLoop) Run(ctx context.Context, rs *runstore.RunState) error {
 			case ReplanFrom:
 				replan = true
 				replanContext = action.Context
+				replanSource = stage.Name()
 			case NeedsHuman:
 				rs.Status = runstore.StatusNeedsHuman
+				if action.Context != nil && len(action.Context.Failures) > 0 {
+					rs.TerminalReason = "stage_needs_human"
+					rs.BlockerSummary = action.Context.Failures[0]
+				}
 				sl.emitTerminal(rs)
 				sl.runEvidence(ctx, rs)
 				return nil
@@ -115,6 +133,7 @@ func (sl *SpecLoop) Run(ctx context.Context, rs *runstore.RunState) error {
 		sl.emitEvent(runstore.ReplanTriggeredEvent{
 			BaseEvent: runstore.BaseEvent{Type: "replan_triggered", Timestamp: time.Now()},
 			Reason:    reason,
+			Source:    replanSource,
 		})
 
 		// Increment cycle in budget AFTER a completed cycle, before the next one
@@ -127,6 +146,9 @@ func (sl *SpecLoop) Run(ctx context.Context, rs *runstore.RunState) error {
 	if sl.config.Budget != nil && sl.config.Budget.CyclesExhausted() && !rs.IsTerminal() {
 		rs.Status = runstore.StatusNeedsHuman
 		rs.TerminalReason = "cycles_exhausted"
+		if len(rs.ReplanContext) > 0 {
+			rs.BlockerSummary = rs.ReplanContext[len(rs.ReplanContext)-1]
+		}
 		sl.emitTerminal(rs)
 		sl.runEvidence(ctx, rs)
 	}

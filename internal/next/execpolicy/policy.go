@@ -8,11 +8,20 @@ import (
 )
 
 // Policy defines execution policy configuration: always-run checks, budgets,
-// and model tier config.
+// model tier config, and review settings.
 type Policy struct {
-	AlwaysRun []Check `json:"always_run"`
-	Budgets   Budgets `json:"budgets"`
-	Models    Models  `json:"models"`
+	AlwaysRun []Check      `json:"always_run"`
+	Budgets   Budgets      `json:"budgets"`
+	Models    Models       `json:"models"`
+	Review    ReviewConfig `json:"review"`
+}
+
+// ReviewConfig defines review stage configuration.
+type ReviewConfig struct {
+	Facets           []string          `json:"facets"`
+	Tiers            map[string]string `json:"tiers"`
+	ReplanThreshold  string            `json:"replan_threshold"`
+	FacetMaxAttempts int               `json:"facet_max_attempts"`
 }
 
 // Check is a validation check that always runs after task execution.
@@ -34,8 +43,9 @@ type Budgets struct {
 
 // Models defines which model tier to use for each role.
 type Models struct {
-	Planner  string `json:"planner"`
-	Executor string `json:"executor"`
+	Planner   string `json:"planner"`
+	Executor  string `json:"executor"`
+	Evaluator string `json:"evaluator"`
 }
 
 // DefaultPolicy returns a Policy with sensible production defaults.
@@ -54,7 +64,13 @@ func DefaultPolicy() Policy {
 			MaxRunDurationSeconds:    3600,
 			MaxRunCostUSD:            50.0,
 		},
-		Models: Models{Planner: "high", Executor: "medium"},
+		Models: Models{Planner: "high", Executor: "medium", Evaluator: "high"},
+		Review: ReviewConfig{
+			Facets:           []string{"spec_alignment", "code_quality"},
+			Tiers:            map[string]string{"spec_alignment": "high", "code_quality": "medium"},
+			ReplanThreshold:  "warning",
+			FacetMaxAttempts: 2,
+		},
 	}
 }
 
@@ -111,13 +127,58 @@ func (p *Policy) Validate() error {
 	if p.Models.Executor == "" {
 		errs = append(errs, fmt.Errorf("Models.Executor must be non-empty"))
 	}
+	if p.Models.Evaluator == "" {
+		errs = append(errs, fmt.Errorf("Models.Evaluator must be non-empty"))
+	}
+	if len(p.Review.Facets) == 0 {
+		errs = append(errs, fmt.Errorf("at least one review facet is required"))
+	}
+	// Validate review config (threshold enum). Facet validation requires a
+	// known-facets list from the registry, so it must be called separately
+	// via ValidateReviewFacets().
+	if err := p.ValidateReviewConfig(); err != nil {
+		errs = append(errs, err)
+	}
 	return errors.Join(errs...)
 }
 
+// ValidateReviewFacets checks that each facet in p.Review.Facets is in the
+// known facets list.
+func (p *Policy) ValidateReviewFacets(knownFacets []string) error {
+	known := make(map[string]bool, len(knownFacets))
+	for _, f := range knownFacets {
+		known[f] = true
+	}
+	var errs []error
+	for _, f := range p.Review.Facets {
+		if !known[f] {
+			errs = append(errs, fmt.Errorf("unknown review facet %q", f))
+		}
+	}
+	return errors.Join(errs...)
+}
+
+// ValidateReviewConfig checks that ReplanThreshold is a valid severity level.
+func (p *Policy) ValidateReviewConfig() error {
+	switch p.Review.ReplanThreshold {
+	case "error", "critical", "warning", "suggestion": // "critical" is the spec-defined alias for "error"
+		return nil
+	default:
+		return fmt.Errorf("invalid ReplanThreshold %q, must be one of: error, critical, warning, suggestion", p.Review.ReplanThreshold)
+	}
+}
+
+// See CLAUDE.md nil-field normalization visibility convention:
+// exported — cross-package boundary type
 // NormalizeNilFields maps nil slices/maps to empty values.
-// Exported since Policy is a cross-package type.
 func (p *Policy) NormalizeNilFields() {
 	if p.AlwaysRun == nil {
 		p.AlwaysRun = []Check{}
+	}
+	if p.Review.Facets == nil {
+		p.Review.Facets = []string{}
+	}
+	if p.Review.Tiers == nil {
+		p.Review.Tiers = map[string]string{}
 	}
 }

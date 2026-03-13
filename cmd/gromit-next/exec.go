@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -50,16 +51,11 @@ func filterStagesForDryRun(stages []specloop.Stage, dryRun bool) []specloop.Stag
 
 // StageProvider builds the ordered set of stages for an exec spec run.
 // Implementations wire real or test dependencies into each stage.
+// The Budget parameter is the single shared instance that tracks cost and time
+// across both the SpecLoop (cycle counting, hard budget checks between stages)
+// and the task loop inside ExecuteStage (per-task cost accumulation).
 type StageProvider interface {
-	BuildStages(policy execpolicy.Policy, rs *runstore.RunState) ([]specloop.Stage, error)
-}
-
-// defaultStageProvider is a placeholder that returns an error indicating
-// real agent dependencies have not been configured yet.
-type defaultStageProvider struct{}
-
-func (d *defaultStageProvider) BuildStages(policy execpolicy.Policy, rs *runstore.RunState) ([]specloop.Stage, error) {
-	return nil, fmt.Errorf("agent provider not configured: real stage wiring requires LLM agent dependencies (see Spec 0002b)")
+	BuildStages(policy execpolicy.Policy, rs *runstore.RunState, budget *specloop.Budget) ([]specloop.Stage, error)
 }
 
 // execSpecRun holds the wiring for an exec spec invocation, separated from
@@ -91,17 +87,21 @@ func (e *execSpecRun) run(ctx context.Context) (string, error) {
 	store := runstore.NewStore(e.storeDir)
 	rs := runstore.NewRunState(specIDFromPath(e.specPath), e.projectID)
 
-	// 3. Build stages via provider
-	stages, err := e.stageProvider.BuildStages(policy, rs)
+	// 3. Create a single shared Budget instance. This same instance is passed
+	// to both the SpecLoop (for cycle counting and hard budget checks between
+	// stages) and to ExecuteStage (for per-task cost accumulation). Using one
+	// instance ensures cost tracked during task execution is visible to the
+	// SpecLoop's budget gate.
+	budget := specloop.NewBudget(policy.Budgets)
+
+	// 4. Build stages via provider, passing the shared budget
+	stages, err := e.stageProvider.BuildStages(policy, rs, budget)
 	if err != nil {
 		return "", err
 	}
 
-	// 4. Filter for dry-run
+	// 5. Filter for dry-run
 	stages = filterStagesForDryRun(stages, e.dryRun)
-
-	// 5. Configure and run the SpecLoop
-	budget := specloop.NewBudget(policy.Budgets)
 	loop := specloop.NewSpecLoop(stages, specloop.SpecLoopConfig{
 		Budget:      budget,
 		ReplanStage: "plan",
@@ -143,7 +143,13 @@ func newExecSpecCmdWithProvider(provider StageProvider) *cobra.Command {
 
 			p := provider
 			if p == nil {
-				p = &defaultStageProvider{}
+				workDir, _ := os.Getwd()
+				p = NewRealStageProvider(RealStageProviderConfig{
+					WorkDir:    workDir,
+					StoreDir:   storeDir,
+					SpecPath:   specPath,
+					PolicyPath: policyPath,
+				})
 			}
 
 			r := &execSpecRun{

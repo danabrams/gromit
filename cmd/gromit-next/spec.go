@@ -9,6 +9,7 @@ import (
 	"text/tabwriter"
 
 	"github.com/danabrams/gromit/internal/next/runstore"
+	"github.com/danabrams/gromit/internal/next/workspace"
 	"github.com/spf13/cobra"
 )
 
@@ -34,6 +35,15 @@ func LoadProjectConfig(dir string) (*ProjectConfig, error) {
 		return nil, fmt.Errorf("parse project config: %w", err)
 	}
 	return &cfg, nil
+}
+
+// ResolveProjectConfigPath resolves the project cell directory from the workspace root and project name.
+func ResolveProjectConfigPath(root workspace.Root, projectName string) (string, error) {
+	dir := root.ProjectCell(projectName)
+	if _, err := os.Stat(filepath.Join(dir, "project.json")); err != nil {
+		return "", fmt.Errorf("project %q not found at %s: %w", projectName, dir, err)
+	}
+	return dir, nil
 }
 
 // DiscoverSpecs scans a directory for .md spec files and returns their base names (without extension).
@@ -116,7 +126,16 @@ func newSpecListCmd() *cobra.Command {
 			store := runstore.NewStore(storeDir)
 
 			if specsDir == "" {
-				cfg, err := LoadProjectConfig(".")
+				resolver := workspace.NewEnvResolver()
+				root, err := resolver.Resolve()
+				if err != nil {
+					return fmt.Errorf("resolve workspace root: %w", err)
+				}
+				projectDir, err := ResolveProjectConfigPath(root, project)
+				if err != nil {
+					return fmt.Errorf("resolve project config: %w", err)
+				}
+				cfg, err := LoadProjectConfig(projectDir)
 				if err != nil {
 					return fmt.Errorf("load project config: %w", err)
 				}

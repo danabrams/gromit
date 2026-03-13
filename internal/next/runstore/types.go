@@ -32,10 +32,16 @@ type RunState struct {
 	AccumulatedCost       float64   `json:"accumulated_cost"`
 	TerminalReason        string    `json:"terminal_reason,omitempty"`
 	FinalValidationPassed bool      `json:"final_validation_passed"`
+	FinalReviewPassed     bool      `json:"final_review_passed"`
+	FinalAcceptancePassed bool      `json:"final_acceptance_passed"`
 	ReplanContext         []string  `json:"replan_context,omitempty"`
 	LastValidationResult  *string   `json:"last_validation_result,omitempty"`
+	ReviewFindings        []string  `json:"review_findings,omitempty"`
+	AcceptanceResults     []string  `json:"acceptance_results,omitempty"`
 }
 
+// See CLAUDE.md nil-field normalization visibility convention:
+// exported — cross-package boundary type
 // NormalizeNilFields maps nil slices to empty values for consistent JSON serialization.
 func (rs *RunState) NormalizeNilFields() {
 	if rs.Tasks == nil {
@@ -43,6 +49,12 @@ func (rs *RunState) NormalizeNilFields() {
 	}
 	if rs.ReplanContext == nil {
 		rs.ReplanContext = []string{}
+	}
+	if rs.ReviewFindings == nil {
+		rs.ReviewFindings = []string{}
+	}
+	if rs.AcceptanceResults == nil {
+		rs.AcceptanceResults = []string{}
 	}
 	for i := range rs.Tasks {
 		rs.Tasks[i].NormalizeNilFields()
@@ -76,6 +88,8 @@ type Task struct {
 	FailuresAddressed   []string `json:"failures_addressed,omitempty"`
 }
 
+// See CLAUDE.md nil-field normalization visibility convention:
+// exported — cross-package boundary type
 // NormalizeNilFields maps nil slices to empty values for consistent JSON serialization.
 func (tk *Task) NormalizeNilFields() {
 	if tk.ExpectedTouchedArea == nil {

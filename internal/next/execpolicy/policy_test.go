@@ -138,6 +138,238 @@ func TestValidate_RejectsEmptyCheckCommand(t *testing.T) {
 	}
 }
 
+func TestLoadPolicy_ReviewConfigFromJSON(t *testing.T) {
+	tmpDir := t.TempDir()
+	policyJSON := `{
+		"review": {
+			"facets": ["spec_alignment", "code_quality", "logic_gaps"],
+			"tiers": {
+				"spec_alignment": "high",
+				"code_quality": "medium",
+				"logic_gaps": "high"
+			},
+			"replan_threshold": "error"
+		}
+	}`
+	path := filepath.Join(tmpDir, "policy.json")
+	if err := os.WriteFile(path, []byte(policyJSON), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	p, err := LoadPolicy(path)
+	if err != nil {
+		t.Fatalf("LoadPolicy: %v", err)
+	}
+	if len(p.Review.Facets) != 3 {
+		t.Errorf("expected 3 facets, got %d", len(p.Review.Facets))
+	}
+	if p.Review.ReplanThreshold != "error" {
+		t.Errorf("threshold = %q, want error", p.Review.ReplanThreshold) // JSON explicitly sets "error"
+	}
+	if p.Review.Tiers["logic_gaps"] != "high" {
+		t.Errorf("logic_gaps tier = %q, want high", p.Review.Tiers["logic_gaps"])
+	}
+}
+
+func TestLoadPolicy_ReviewDefaultsPreservedOnPartialJSON(t *testing.T) {
+	tmpDir := t.TempDir()
+	policyJSON := `{
+		"review": {
+			"replan_threshold": "warning"
+		}
+	}`
+	path := filepath.Join(tmpDir, "policy.json")
+	if err := os.WriteFile(path, []byte(policyJSON), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	p, err := LoadPolicy(path)
+	if err != nil {
+		t.Fatalf("LoadPolicy: %v", err)
+	}
+	if p.Review.ReplanThreshold != "warning" {
+		t.Errorf("threshold should be overridden to warning, got %q", p.Review.ReplanThreshold)
+	}
+	if len(p.Review.Facets) != 2 {
+		t.Errorf("facets should be default (2), got %d", len(p.Review.Facets))
+	}
+}
+
+func TestDefaultPolicy_HasFacetMaxAttempts(t *testing.T) {
+	p := DefaultPolicy()
+	if p.Review.FacetMaxAttempts != 2 {
+		t.Errorf("default FacetMaxAttempts = %d, want 2", p.Review.FacetMaxAttempts)
+	}
+}
+
+func TestDefaultPolicy_HasReviewConfig(t *testing.T) {
+	p := DefaultPolicy()
+	if len(p.Review.Facets) != 2 {
+		t.Fatalf("default review should have 2 facets, got %d", len(p.Review.Facets))
+	}
+	if p.Review.Facets[0] != "spec_alignment" {
+		t.Errorf("first facet = %q, want spec_alignment", p.Review.Facets[0])
+	}
+	if p.Review.Facets[1] != "code_quality" {
+		t.Errorf("second facet = %q, want code_quality", p.Review.Facets[1])
+	}
+	if p.Review.ReplanThreshold != "warning" {
+		t.Errorf("ReplanThreshold = %q, want warning", p.Review.ReplanThreshold)
+	}
+}
+
+func TestDefaultPolicy_ReviewTiers(t *testing.T) {
+	p := DefaultPolicy()
+	if p.Review.Tiers["spec_alignment"] != "high" {
+		t.Errorf("spec_alignment tier = %q, want high", p.Review.Tiers["spec_alignment"])
+	}
+	if p.Review.Tiers["code_quality"] != "medium" {
+		t.Errorf("code_quality tier = %q, want medium", p.Review.Tiers["code_quality"])
+	}
+}
+
+func TestDefaultPolicy_HasEvaluatorTier(t *testing.T) {
+	p := DefaultPolicy()
+	if p.Models.Evaluator != "high" {
+		t.Errorf("Evaluator tier = %q, want high", p.Models.Evaluator)
+	}
+}
+
+func TestPolicy_Validate_EvaluatorRequired(t *testing.T) {
+	p := DefaultPolicy()
+	p.Models.Evaluator = ""
+	err := p.Validate()
+	if err == nil {
+		t.Error("Validate should fail when Evaluator is empty")
+	}
+}
+
+func TestPolicy_ValidateReviewFacets_ValidFacets(t *testing.T) {
+	p := DefaultPolicy()
+	err := p.ValidateReviewFacets([]string{"spec_alignment", "code_quality", "logic_gaps", "test_coverage", "architecture_drift"})
+	if err != nil {
+		t.Errorf("valid facets should not error: %v", err)
+	}
+}
+
+func TestPolicy_ValidateReviewFacets_UnknownFacet(t *testing.T) {
+	p := DefaultPolicy()
+	p.Review.Facets = []string{"spec_alignment", "nonexistent_facet"}
+	err := p.ValidateReviewFacets([]string{"spec_alignment", "code_quality"})
+	if err == nil {
+		t.Error("unknown facet should produce validation error")
+	}
+}
+
+func TestPolicy_ValidateReviewThreshold_Valid(t *testing.T) {
+	p := DefaultPolicy()
+	for _, threshold := range []string{"error", "critical", "warning", "suggestion"} {
+		p.Review.ReplanThreshold = threshold
+		if err := p.ValidateReviewConfig(); err != nil {
+			t.Errorf("threshold %q should be valid: %v", threshold, err)
+		}
+	}
+}
+
+func TestPolicy_ValidateReviewThreshold_Invalid(t *testing.T) {
+	p := DefaultPolicy()
+	p.Review.ReplanThreshold = "bogus"
+	if err := p.ValidateReviewConfig(); err == nil {
+		t.Error("invalid threshold should produce error")
+	}
+}
+
+func TestPolicy_Validate_AcceptsCriticalThreshold(t *testing.T) {
+	p := DefaultPolicy()
+	p.Review.ReplanThreshold = "critical"
+	err := p.Validate()
+	if err != nil {
+		t.Errorf("Validate should accept 'critical' as ReplanThreshold: %v", err)
+	}
+}
+
+func TestPolicy_Validate_CatchesEmptyThreshold(t *testing.T) {
+	p := DefaultPolicy()
+	p.Review.ReplanThreshold = ""
+	err := p.Validate()
+	if err == nil {
+		t.Error("Validate should catch empty ReplanThreshold")
+	}
+}
+
+func TestPolicy_Validate_RejectsInfoThreshold(t *testing.T) {
+	p := DefaultPolicy()
+	p.Review.ReplanThreshold = "info"
+	err := p.Validate()
+	if err == nil {
+		t.Error("Validate should reject 'info' as replan_threshold since info never blocks")
+	}
+	if !strings.Contains(err.Error(), "invalid ReplanThreshold") {
+		t.Errorf("unexpected error message: %v", err)
+	}
+}
+
+func TestPolicy_NormalizeNilFields(t *testing.T) {
+	p := Policy{}
+	if p.AlwaysRun != nil {
+		t.Fatal("precondition: AlwaysRun should be nil")
+	}
+	if p.Review.Facets != nil {
+		t.Fatal("precondition: Review.Facets should be nil")
+	}
+	if p.Review.Tiers != nil {
+		t.Fatal("precondition: Review.Tiers should be nil")
+	}
+	p.NormalizeNilFields()
+	if p.AlwaysRun == nil {
+		t.Fatal("AlwaysRun should be non-nil after normalization")
+	}
+	if len(p.AlwaysRun) != 0 {
+		t.Fatalf("AlwaysRun should be empty, got %d", len(p.AlwaysRun))
+	}
+	if p.Review.Facets == nil {
+		t.Fatal("Review.Facets should be non-nil after normalization")
+	}
+	if len(p.Review.Facets) != 0 {
+		t.Fatalf("Review.Facets should be empty, got %d", len(p.Review.Facets))
+	}
+	if p.Review.Tiers == nil {
+		t.Fatal("Review.Tiers should be non-nil after normalization")
+	}
+	if len(p.Review.Tiers) != 0 {
+		t.Fatalf("Review.Tiers should be empty, got %d", len(p.Review.Tiers))
+	}
+}
+
+func TestPolicy_NormalizeNilFields_PreservesExisting(t *testing.T) {
+	p := DefaultPolicy()
+	origAlwaysRunLen := len(p.AlwaysRun)
+	origFacetsLen := len(p.Review.Facets)
+	origTiersLen := len(p.Review.Tiers)
+	p.NormalizeNilFields()
+	if len(p.AlwaysRun) != origAlwaysRunLen {
+		t.Fatalf("AlwaysRun length changed: want %d, got %d", origAlwaysRunLen, len(p.AlwaysRun))
+	}
+	if len(p.Review.Facets) != origFacetsLen {
+		t.Fatalf("Review.Facets length changed: want %d, got %d", origFacetsLen, len(p.Review.Facets))
+	}
+	if len(p.Review.Tiers) != origTiersLen {
+		t.Fatalf("Review.Tiers length changed: want %d, got %d", origTiersLen, len(p.Review.Tiers))
+	}
+}
+
+func TestValidate_RejectsEmptyReviewFacets(t *testing.T) {
+	p := DefaultPolicy()
+	p.Review.Facets = []string{}
+	err := p.Validate()
+	if err == nil {
+		t.Fatal("expected validation error for empty Review.Facets")
+	}
+	if !strings.Contains(err.Error(), "at least one review facet is required") {
+		t.Fatalf("unexpected error message: %v", err)
+	}
+}
+
 func TestValidate_RejectsEmptyCheckNameAndCommand(t *testing.T) {
 	p := DefaultPolicy()
 	p.AlwaysRun = []Check{

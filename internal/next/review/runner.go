@@ -1,0 +1,204 @@
+package review
+
+import (
+	"context"
+	"errors"
+	"sync"
+)
+
+// ReviewAgent is the interface for invoking LLM review on a facet.
+type ReviewAgent interface {
+	ReviewFacet(ctx context.Context, facetName string, prompt string) ([]Finding, error)
+}
+
+// RunnerConfig configures the review runner.
+type RunnerConfig struct {
+	Facets           []string
+	Threshold        Severity
+	FacetTiers       map[string]string
+	FacetMaxAttempts int
+}
+
+// RunInput provides data for a single review run.
+type RunInput struct {
+	DiffSummary   string
+	SpecContent   string
+	Cycle         int
+	PriorFindings []Finding
+}
+
+// RunResult holds the outcome of a review run.
+type RunResult struct {
+	AllFindings         []Finding            `json:"all_findings"`
+	BlockingFindings    []Finding            `json:"blocking_findings"`
+	HasBlockingFindings bool                 `json:"has_blocking_findings"`
+	FindingsByFacet     map[string][]Finding `json:"findings_by_facet"`
+	ErroredFacets       map[string]string    `json:"errored_facets"`
+	AllFacetsErrored    bool                 `json:"all_facets_errored"`
+}
+
+// See CLAUDE.md nil-field normalization visibility convention:
+// exported — cross-package boundary type
+// NormalizeNilFields maps nil slices/maps to empty values.
+func (r *RunResult) NormalizeNilFields() {
+	if r.AllFindings == nil {
+		r.AllFindings = []Finding{}
+	}
+	if r.BlockingFindings == nil {
+		r.BlockingFindings = []Finding{}
+	}
+	if r.FindingsByFacet == nil {
+		r.FindingsByFacet = map[string][]Finding{}
+	}
+	if r.ErroredFacets == nil {
+		r.ErroredFacets = map[string]string{}
+	}
+}
+
+// Runner orchestrates per-facet review.
+type Runner struct {
+	agent  ReviewAgent
+	config RunnerConfig
+	reg    *Registry
+}
+
+// NewRunner creates a review runner.
+func NewRunner(agent ReviewAgent, config RunnerConfig) *Runner {
+	return &Runner{
+		agent:  agent,
+		config: config,
+		reg:    NewRegistry(),
+	}
+}
+
+// Run executes all configured facets and assembles findings.
+func (r *Runner) Run(ctx context.Context, input RunInput) (*RunResult, error) {
+	result := &RunResult{
+		FindingsByFacet: make(map[string][]Finding),
+		ErroredFacets:   make(map[string]string),
+	}
+
+	// facetResult holds the output of a single facet invocation.
+	type facetResult struct {
+		facetName string
+		findings  []Finding
+		errMsg    string
+	}
+
+	var (
+		mu      sync.Mutex
+		wg      sync.WaitGroup
+		results []facetResult
+	)
+
+	for _, facetName := range r.config.Facets {
+		facetDef, ok := r.reg.Get(facetName)
+		if !ok {
+			mu.Lock()
+			result.ErroredFacets[facetName] = "unknown facet"
+			mu.Unlock()
+			continue
+		}
+
+		prompt, err := RenderReviewPrompt(ReviewPromptInput{
+			FacetDef:      facetDef,
+			DiffSummary:   input.DiffSummary,
+			SpecContent:   input.SpecContent,
+			PriorFindings: input.PriorFindings,
+		})
+		if err != nil {
+			mu.Lock()
+			result.ErroredFacets[facetName] = err.Error()
+			mu.Unlock()
+			continue
+		}
+
+		wg.Add(1)
+		go func(name, p string) {
+			defer wg.Done()
+			findings, err := r.invokeFacet(ctx, name, p)
+			fr := facetResult{facetName: name}
+			if err != nil {
+				fr.errMsg = err.Error()
+			} else {
+				fr.findings = findings
+			}
+			mu.Lock()
+			results = append(results, fr)
+			mu.Unlock()
+		}(facetName, prompt)
+	}
+
+	wg.Wait()
+
+	for _, fr := range results {
+		if fr.errMsg != "" {
+			result.ErroredFacets[fr.facetName] = fr.errMsg
+			continue
+		}
+
+		// Set cycle and facet on all findings
+		for i := range fr.findings {
+			fr.findings[i].Cycle = input.Cycle
+			fr.findings[i].Facet = fr.facetName
+		}
+
+		// Label dispositions on fix cycles
+		if input.Cycle > 1 {
+			fr.findings = LabelDispositions(fr.findings, input.PriorFindings)
+		} else {
+			for i := range fr.findings {
+				fr.findings[i].Disposition = DispositionNew
+			}
+		}
+
+		result.FindingsByFacet[fr.facetName] = fr.findings
+		result.AllFindings = append(result.AllFindings, fr.findings...)
+	}
+
+	// Filter blocking findings: only new findings above threshold block
+	for _, f := range result.AllFindings {
+		if f.Disposition == DispositionPreExisting {
+			continue
+		}
+		if IsBlocking(r.config.Threshold, f.Severity) {
+			result.BlockingFindings = append(result.BlockingFindings, f)
+		}
+	}
+	result.HasBlockingFindings = len(result.BlockingFindings) > 0
+	result.AllFacetsErrored = len(r.config.Facets) > 0 && len(result.ErroredFacets) == len(r.config.Facets)
+	result.NormalizeNilFields()
+
+	return result, nil
+}
+
+// invokeFacet calls the agent with retry logic for ParseErrors.
+func (r *Runner) invokeFacet(ctx context.Context, facetName, prompt string) ([]Finding, error) {
+	maxAttempts := r.config.FacetMaxAttempts
+	if maxAttempts <= 0 {
+		maxAttempts = 1
+	}
+
+	var lastErr error
+	for attempt := 0; attempt < maxAttempts; attempt++ {
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+		findings, err := r.agent.ReviewFacet(ctx, facetName, prompt)
+		if err == nil {
+			return findings, nil
+		}
+		if !isParseError(err) {
+			return nil, err
+		}
+		lastErr = err
+	}
+	return nil, lastErr
+}
+
+// isParseError checks if an error is a ParseError (retryable).
+// Uses errors.As to handle wrapped errors.
+func isParseError(err error) bool {
+	var pe *ParseError
+	return errors.As(err, &pe)
+}

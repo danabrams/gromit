@@ -32,27 +32,33 @@ func TestExecCmd_RequiresProjectFlag(t *testing.T) {
 	}
 }
 
-func TestExecCmd_AcceptsBothFlags_DefaultProviderErrors(t *testing.T) {
+func TestExecCmd_AcceptsBothFlags_UsesRealProvider(t *testing.T) {
+	storeDir := t.TempDir()
 	cmd := newExecSpecCmd()
-	cmd.SetArgs([]string{"--spec", "./specs/spec-0002.md", "--project", "my-project"})
+	var buf bytes.Buffer
+	cmd.SetOut(&buf)
+	cmd.SetArgs([]string{"--spec", "./specs/spec-0002.md", "--project", "my-project", "--store-dir", storeDir})
 	err := cmd.Execute()
-	// With defaultStageProvider, it should error about agent provider not configured.
-	if err == nil {
-		t.Fatal("expected error from default stage provider")
+	// The old defaultStageProvider returned "agent provider not configured".
+	// With RealStageProvider wired in, the pipeline runs through (noop stages)
+	// and produces a Run ID in output.
+	if err != nil {
+		if strings.Contains(err.Error(), "agent provider not configured") {
+			t.Fatalf("still using old defaultStageProvider stub: %v", err)
+		}
+		t.Fatalf("unexpected error: %v", err)
 	}
-	if !strings.Contains(err.Error(), "agent provider not configured") {
-		t.Fatalf("expected 'agent provider not configured' error, got: %v", err)
+	if !strings.Contains(buf.String(), "Run ID:") {
+		t.Errorf("expected Run ID in output, got: %s", buf.String())
 	}
 }
 
 func TestExecCmd_DryRunFlag(t *testing.T) {
+	storeDir := t.TempDir()
 	cmd := newExecSpecCmd()
-	cmd.SetArgs([]string{"--spec", "./specs/spec-0002.md", "--project", "my-project", "--dry-run"})
-	err := cmd.Execute()
-	// With defaultStageProvider, it should error about agent provider not configured.
-	if err == nil {
-		t.Fatal("expected error from default stage provider")
-	}
+	cmd.SetArgs([]string{"--spec", "./specs/spec-0002.md", "--project", "my-project", "--dry-run", "--store-dir", storeDir})
+	_ = cmd.Execute()
+	// Verify dry-run flag was parsed correctly (execution may fail due to missing spec file).
 	dryRun, _ := cmd.Flags().GetBool("dry-run")
 	if !dryRun {
 		t.Fatal("expected dry-run to be true")
@@ -64,7 +70,7 @@ type testStageProvider struct {
 	stages []specloop.Stage
 }
 
-func (p *testStageProvider) BuildStages(_ execpolicy.Policy, _ *runstore.RunState) ([]specloop.Stage, error) {
+func (p *testStageProvider) BuildStages(_ execpolicy.Policy, _ *runstore.RunState, _ *specloop.Budget) ([]specloop.Stage, error) {
 	return p.stages, nil
 }
 
@@ -320,6 +326,20 @@ func TestExecShowCmd_FullFlag_ShowsEvidenceBundle(t *testing.T) {
 	}
 }
 
+func TestExecList_EmptyResults_ExitCodeZero(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := runstore.NewStore(tmpDir)
+
+	output, err := execList("nonexistent-project", store)
+	if err != nil {
+		t.Fatalf("execList returned error for empty results: %v", err)
+	}
+	// Should contain header but no data rows
+	if !strings.Contains(output, "RUN ID") {
+		t.Errorf("expected header row, got: %s", output)
+	}
+}
+
 // --- Task 45: exec list tests ---
 
 func TestExecListCmd_RequiresProjectFlag(t *testing.T) {
@@ -433,6 +453,24 @@ func TestExecSpec_NoDryRun_RunsAllStages(t *testing.T) {
 		if !recorders[name].ran {
 			t.Errorf("expected %s stage to run when dry-run is false", name)
 		}
+	}
+}
+
+func TestFilterStagesForDryRun_ExcludesReviewAndAccept(t *testing.T) {
+	allNames := []string{"init", "compile", "plan", "execute", "validate", "review", "accept", "evidence", "finalize"}
+	var allStages []specloop.Stage
+	for _, name := range allNames {
+		allStages = append(allStages, &stageRecorder{name: name})
+	}
+
+	filtered := filterStagesForDryRun(allStages, true)
+	for _, s := range filtered {
+		if s.Name() == "review" || s.Name() == "accept" {
+			t.Errorf("dry-run should not include %q stage", s.Name())
+		}
+	}
+	if len(filtered) != 3 {
+		t.Errorf("expected 3 dry-run stages, got %d", len(filtered))
 	}
 }
 

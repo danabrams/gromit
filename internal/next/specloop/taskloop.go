@@ -55,6 +55,8 @@ type TaskResult struct {
 	AlwaysRunChecks CheckSummary
 }
 
+// See CLAUDE.md nil-field normalization visibility convention:
+// exported — cross-package boundary type
 // NormalizeNilFields maps nil slices to empty values for JSON consistency.
 func (tr *TaskResult) NormalizeNilFields() {
 	if tr.FilesChanged == nil {

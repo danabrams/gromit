@@ -106,12 +106,36 @@ type FinalValidationResultEvent struct {
 type ReplanTriggeredEvent struct {
 	BaseEvent
 	Reason string `json:"reason,omitempty"`
+	Source string `json:"source,omitempty"`
 }
 
 type BudgetExceededEvent struct {
 	BaseEvent
 	AccumulatedCost float64 `json:"accumulated_cost"`
 	Budget          float64 `json:"budget,omitempty"`
+}
+
+type ReviewResultEvent struct {
+	BaseEvent
+	TotalFindings      int            `json:"total_findings"`
+	BlockingFindings   int            `json:"blocking_findings"`
+	FindingsBySeverity map[string]int `json:"findings_by_severity,omitempty"`
+	FacetsReviewed     []string       `json:"facets_reviewed"`
+	ErroredFacets      []string       `json:"errored_facets,omitempty"`
+}
+
+type AcceptanceResultEvent struct {
+	BaseEvent
+	TotalCriteria int `json:"total_criteria"`
+	PassCount     int `json:"pass_count"`
+	FailCount     int `json:"fail_count"`
+	UnclearCount  int `json:"unclear_count"`
+}
+
+type BlockedWorktreeCleanedEvent struct {
+	BaseEvent
+	PriorRunID   string `json:"prior_run_id"`
+	WorktreePath string `json:"worktree_path"`
 }
 
 type TerminalStateEvent struct {
@@ -133,18 +157,26 @@ func NewEventLog(path string) *EventLog {
 }
 
 // Append marshals an event to JSON and appends it as a line to the log file.
+// Callers intentionally ignore the returned error (fire-and-forget) consistent
+// with the SpecLoop pattern — event logging must not block the pipeline. If an
+// error occurs, a warning is printed to stderr for observability.
 func (el *EventLog) Append(ev TypedEvent) error {
 	data, err := json.Marshal(ev)
 	if err != nil {
+		fmt.Fprintf(os.Stderr, "gromit: event log: marshal %s: %v\n", ev.EventType(), err)
 		return fmt.Errorf("marshal event: %w", err)
 	}
 	f, err := os.OpenFile(el.path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
 	if err != nil {
+		fmt.Fprintf(os.Stderr, "gromit: event log: open %s: %v\n", el.path, err)
 		return fmt.Errorf("open event log: %w", err)
 	}
 	defer f.Close()
-	_, err = f.Write(append(data, '\n'))
-	return err
+	if _, err = f.Write(append(data, '\n')); err != nil {
+		fmt.Fprintf(os.Stderr, "gromit: event log: write %s: %v\n", el.path, err)
+		return err
+	}
+	return nil
 }
 
 // ReadAll reads all events from the log file.
@@ -232,6 +264,15 @@ func unmarshalEvent(data []byte) (TypedEvent, error) {
 		ev = &e
 	case "budget_exceeded":
 		var e BudgetExceededEvent
+		ev = &e
+	case "review_result":
+		var e ReviewResultEvent
+		ev = &e
+	case "acceptance_result":
+		var e AcceptanceResultEvent
+		ev = &e
+	case "blocked_worktree_cleaned":
+		var e BlockedWorktreeCleanedEvent
 		ev = &e
 	case "terminal_state":
 		var e TerminalStateEvent

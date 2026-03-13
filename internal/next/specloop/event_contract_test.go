@@ -241,6 +241,62 @@ func assertContainsEvent(t *testing.T, types []string, want string) {
 	t.Fatalf("expected event %q not found in %v", want, types)
 }
 
+// eventReviewStage emits review_result on success.
+type eventReviewStage struct {
+	eventLog         *runstore.EventLog
+	totalFindings    int
+	blockingFindings int
+	facetsReviewed   []string
+	erroredFacets    []string
+	replan           bool
+}
+
+func (s *eventReviewStage) Name() string { return "review" }
+func (s *eventReviewStage) Run(_ context.Context, rs *runstore.RunState) (NextAction, error) {
+	if s.eventLog != nil {
+		s.eventLog.Append(runstore.ReviewResultEvent{
+			BaseEvent:        runstore.BaseEvent{Type: "review_result"},
+			TotalFindings:    s.totalFindings,
+			BlockingFindings: s.blockingFindings,
+			FacetsReviewed:   s.facetsReviewed,
+			ErroredFacets:    s.erroredFacets,
+		})
+	}
+	if s.replan {
+		return NextAction{Kind: ReplanFrom, Context: &FailureContext{Failures: []string{"review findings"}}}, nil
+	}
+	rs.FinalReviewPassed = true
+	return NextAction{Kind: Continue}, nil
+}
+
+// eventAcceptanceStage emits acceptance_result on success.
+type eventAcceptanceStage struct {
+	eventLog      *runstore.EventLog
+	totalCriteria int
+	passCount     int
+	failCount     int
+	unclearCount  int
+	replan        bool
+}
+
+func (s *eventAcceptanceStage) Name() string { return "accept" }
+func (s *eventAcceptanceStage) Run(_ context.Context, rs *runstore.RunState) (NextAction, error) {
+	if s.eventLog != nil {
+		s.eventLog.Append(runstore.AcceptanceResultEvent{
+			BaseEvent:     runstore.BaseEvent{Type: "acceptance_result"},
+			TotalCriteria: s.totalCriteria,
+			PassCount:     s.passCount,
+			FailCount:     s.failCount,
+			UnclearCount:  s.unclearCount,
+		})
+	}
+	if s.replan {
+		return NextAction{Kind: ReplanFrom, Context: &FailureContext{Failures: []string{"acceptance failed"}}}, nil
+	}
+	rs.FinalAcceptancePassed = true
+	return NextAction{Kind: Continue}, nil
+}
+
 // --- contract tests ---
 
 func TestEventContract_HappyPath_All15EventTypes(t *testing.T) {
@@ -704,5 +760,337 @@ func TestEventContract_EventOrderIsPreserved(t *testing.T) {
 			t.Fatalf("expected %q (at %d) before %q (at %d)\n  full: %v",
 				a, order[a], b, order[b], types)
 		}
+	}
+}
+
+func TestEventContract_ReviewResultEventType(t *testing.T) {
+	el, _ := newTestEventLog(t)
+
+	tasks := []runstore.Task{
+		{TaskID: "t-001", Status: "pending", Objective: "do thing 1"},
+	}
+
+	stages := []Stage{
+		&eventInitStage{eventLog: el},
+		&eventCompileStage{eventLog: el},
+		&eventPlanStage{eventLog: el, tasks: tasks},
+		&eventExecuteStage{eventLog: el, allPass: true},
+		&eventValidateStage{eventLog: el, passFn: func() bool { return true }},
+		&eventReviewStage{
+			eventLog:         el,
+			totalFindings:    3,
+			blockingFindings: 1,
+			facetsReviewed:   []string{"correctness", "style"},
+			erroredFacets:    []string{"perf"},
+		},
+		&eventFinalizeStage{eventLog: el},
+		&eventEvidenceStage{},
+	}
+
+	budget := NewBudget(execpolicy.Budgets{MaxSpecCycles: 1, MaxRunCostUSD: 99, MaxRunDurationSeconds: 3600, MaxTaskDurationSeconds: 300})
+	loop := NewSpecLoop(stages, SpecLoopConfig{Budget: budget, EventLog: el})
+	rs := runstore.NewRunState("s1", "p1")
+
+	err := loop.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	types := readEventTypes(t, el)
+	assertContainsEvent(t, types, "review_result")
+
+	// Verify review_result payload via ReadAll
+	events, err := el.ReadAll()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var found bool
+	for _, ev := range events {
+		if ev.EventType() == "review_result" {
+			rr, ok := ev.(*runstore.ReviewResultEvent)
+			if !ok {
+				t.Fatal("review_result event is wrong type")
+			}
+			if rr.TotalFindings != 3 {
+				t.Fatalf("want TotalFindings=3, got %d", rr.TotalFindings)
+			}
+			if rr.BlockingFindings != 1 {
+				t.Fatalf("want BlockingFindings=1, got %d", rr.BlockingFindings)
+			}
+			if len(rr.FacetsReviewed) != 2 {
+				t.Fatalf("want 2 facets reviewed, got %d", len(rr.FacetsReviewed))
+			}
+			if len(rr.ErroredFacets) != 1 {
+				t.Fatalf("want 1 errored facet, got %d", len(rr.ErroredFacets))
+			}
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("review_result event not found in log")
+	}
+}
+
+func TestEventContract_AcceptanceResultEventType(t *testing.T) {
+	el, _ := newTestEventLog(t)
+
+	tasks := []runstore.Task{
+		{TaskID: "t-001", Status: "pending", Objective: "do thing 1"},
+	}
+
+	stages := []Stage{
+		&eventInitStage{eventLog: el},
+		&eventCompileStage{eventLog: el},
+		&eventPlanStage{eventLog: el, tasks: tasks},
+		&eventExecuteStage{eventLog: el, allPass: true},
+		&eventValidateStage{eventLog: el, passFn: func() bool { return true }},
+		&eventReviewStage{eventLog: el, totalFindings: 0, facetsReviewed: []string{"correctness"}},
+		&eventAcceptanceStage{
+			eventLog:      el,
+			totalCriteria: 5,
+			passCount:     4,
+			failCount:     1,
+			unclearCount:  0,
+		},
+		&eventFinalizeStage{eventLog: el},
+		&eventEvidenceStage{},
+	}
+
+	budget := NewBudget(execpolicy.Budgets{MaxSpecCycles: 1, MaxRunCostUSD: 99, MaxRunDurationSeconds: 3600, MaxTaskDurationSeconds: 300})
+	loop := NewSpecLoop(stages, SpecLoopConfig{Budget: budget, EventLog: el})
+	rs := runstore.NewRunState("s1", "p1")
+
+	err := loop.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	types := readEventTypes(t, el)
+	assertContainsEvent(t, types, "acceptance_result")
+
+	// Verify acceptance_result payload via ReadAll
+	events, err := el.ReadAll()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var found bool
+	for _, ev := range events {
+		if ev.EventType() == "acceptance_result" {
+			ar, ok := ev.(*runstore.AcceptanceResultEvent)
+			if !ok {
+				t.Fatal("acceptance_result event is wrong type")
+			}
+			if ar.TotalCriteria != 5 {
+				t.Fatalf("want TotalCriteria=5, got %d", ar.TotalCriteria)
+			}
+			if ar.PassCount != 4 {
+				t.Fatalf("want PassCount=4, got %d", ar.PassCount)
+			}
+			if ar.FailCount != 1 {
+				t.Fatalf("want FailCount=1, got %d", ar.FailCount)
+			}
+			if ar.UnclearCount != 0 {
+				t.Fatalf("want UnclearCount=0, got %d", ar.UnclearCount)
+			}
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("acceptance_result event not found in log")
+	}
+}
+
+func TestEventContract_ReplanTriggeredEvent_SourceCovers_Validation_Review_Acceptance(t *testing.T) {
+	sources := map[string]bool{}
+
+	// Scenario 1: validation replan
+	{
+		el := runstore.NewEventLog(fmt.Sprintf("%s/val.jsonl", t.TempDir()))
+		tasks := []runstore.Task{{TaskID: "t-001", Status: "pending", Objective: "do thing"}}
+		stages := []Stage{
+			&eventInitStage{eventLog: el},
+			&eventCompileStage{eventLog: el},
+			&eventPlanStage{eventLog: el, tasks: tasks},
+			&eventExecuteStage{eventLog: el, allPass: true},
+			&eventValidateStage{eventLog: el, passFn: func() bool { return false }},
+			&eventFinalizeStage{eventLog: el},
+			&eventEvidenceStage{},
+		}
+		budget := NewBudget(execpolicy.Budgets{MaxSpecCycles: 2, MaxRunCostUSD: 99})
+		loop := NewSpecLoop(stages, SpecLoopConfig{Budget: budget, ReplanStage: "plan", EventLog: el})
+		rs := runstore.NewRunState("s1", "p1")
+		loop.Run(context.Background(), rs)
+
+		events, _ := el.ReadAll()
+		for _, ev := range events {
+			if ev.EventType() == "replan_triggered" {
+				rp := ev.(*runstore.ReplanTriggeredEvent)
+				sources[rp.Source] = true
+			}
+		}
+	}
+
+	// Scenario 2: review replan
+	{
+		el := runstore.NewEventLog(fmt.Sprintf("%s/rev.jsonl", t.TempDir()))
+		tasks := []runstore.Task{{TaskID: "t-001", Status: "pending", Objective: "do thing"}}
+		reviewCalls := 0
+		stages := []Stage{
+			&eventInitStage{eventLog: el},
+			&eventCompileStage{eventLog: el},
+			&eventPlanStage{eventLog: el, tasks: tasks},
+			&eventExecuteStage{eventLog: el, allPass: true},
+			&eventValidateStage{eventLog: el, passFn: func() bool { return true }},
+			&mockStage{name: "review", runFn: func(_ context.Context, rs *runstore.RunState) (NextAction, error) {
+				reviewCalls++
+				if reviewCalls == 1 {
+					return NextAction{Kind: ReplanFrom, Context: &FailureContext{Failures: []string{"review findings"}}}, nil
+				}
+				return NextAction{Kind: Continue}, nil
+			}},
+			&eventFinalizeStage{eventLog: el},
+			&eventEvidenceStage{},
+		}
+		budget := NewBudget(execpolicy.Budgets{MaxSpecCycles: 3, MaxRunCostUSD: 99})
+		loop := NewSpecLoop(stages, SpecLoopConfig{Budget: budget, ReplanStage: "plan", EventLog: el})
+		rs := runstore.NewRunState("s1", "p1")
+		loop.Run(context.Background(), rs)
+
+		events, _ := el.ReadAll()
+		for _, ev := range events {
+			if ev.EventType() == "replan_triggered" {
+				rp := ev.(*runstore.ReplanTriggeredEvent)
+				sources[rp.Source] = true
+			}
+		}
+	}
+
+	// Scenario 3: acceptance replan
+	{
+		el := runstore.NewEventLog(fmt.Sprintf("%s/acc.jsonl", t.TempDir()))
+		tasks := []runstore.Task{{TaskID: "t-001", Status: "pending", Objective: "do thing"}}
+		acceptCalls := 0
+		stages := []Stage{
+			&eventInitStage{eventLog: el},
+			&eventCompileStage{eventLog: el},
+			&eventPlanStage{eventLog: el, tasks: tasks},
+			&eventExecuteStage{eventLog: el, allPass: true},
+			&eventValidateStage{eventLog: el, passFn: func() bool { return true }},
+			&eventReviewStage{eventLog: el, totalFindings: 0, facetsReviewed: []string{"correctness"}},
+			&mockStage{name: "acceptance", runFn: func(_ context.Context, rs *runstore.RunState) (NextAction, error) {
+				acceptCalls++
+				if acceptCalls == 1 {
+					return NextAction{Kind: ReplanFrom, Context: &FailureContext{Failures: []string{"acceptance failed"}}}, nil
+				}
+				return NextAction{Kind: Continue}, nil
+			}},
+			&eventFinalizeStage{eventLog: el},
+			&eventEvidenceStage{},
+		}
+		budget := NewBudget(execpolicy.Budgets{MaxSpecCycles: 3, MaxRunCostUSD: 99})
+		loop := NewSpecLoop(stages, SpecLoopConfig{Budget: budget, ReplanStage: "plan", EventLog: el})
+		rs := runstore.NewRunState("s1", "p1")
+		loop.Run(context.Background(), rs)
+
+		events, _ := el.ReadAll()
+		for _, ev := range events {
+			if ev.EventType() == "replan_triggered" {
+				rp := ev.(*runstore.ReplanTriggeredEvent)
+				sources[rp.Source] = true
+			}
+		}
+	}
+
+	// Verify all three sources
+	for _, src := range []string{"validate", "review", "acceptance"} {
+		if !sources[src] {
+			t.Fatalf("replan_triggered source %q not found; got sources: %v", src, sources)
+		}
+	}
+}
+
+func TestEventContract_EventOrder_ReviewAfterValidation_AcceptanceAfterReview(t *testing.T) {
+	el, _ := newTestEventLog(t)
+
+	tasks := []runstore.Task{
+		{TaskID: "t-001", Status: "pending", Objective: "do thing 1"},
+	}
+
+	stages := []Stage{
+		&eventInitStage{eventLog: el},
+		&eventCompileStage{eventLog: el},
+		&eventPlanStage{eventLog: el, tasks: tasks},
+		&eventExecuteStage{eventLog: el, allPass: true},
+		&eventValidateStage{eventLog: el, passFn: func() bool { return true }},
+		&eventReviewStage{eventLog: el, totalFindings: 0, facetsReviewed: []string{"correctness"}},
+		&eventAcceptanceStage{eventLog: el, totalCriteria: 3, passCount: 3},
+		&eventFinalizeStage{eventLog: el},
+		&eventEvidenceStage{},
+	}
+
+	budget := NewBudget(execpolicy.Budgets{MaxSpecCycles: 1, MaxRunCostUSD: 99, MaxRunDurationSeconds: 3600, MaxTaskDurationSeconds: 300})
+	loop := NewSpecLoop(stages, SpecLoopConfig{Budget: budget, EventLog: el})
+	rs := runstore.NewRunState("s1", "p1")
+	loop.Run(context.Background(), rs)
+
+	types := readEventTypes(t, el)
+
+	// Build first-occurrence index
+	order := map[string]int{}
+	for i, et := range types {
+		if _, exists := order[et]; !exists {
+			order[et] = i
+		}
+	}
+
+	// review_result must come after final_validation_result
+	if order["review_result"] <= order["final_validation_result"] {
+		t.Fatalf("expected review_result (at %d) after final_validation_result (at %d)\n  full: %v",
+			order["review_result"], order["final_validation_result"], types)
+	}
+
+	// acceptance_result must come after review_result
+	if order["acceptance_result"] <= order["review_result"] {
+		t.Fatalf("expected acceptance_result (at %d) after review_result (at %d)\n  full: %v",
+			order["acceptance_result"], order["review_result"], types)
+	}
+
+	// terminal_state must come after acceptance_result
+	if order["terminal_state"] <= order["acceptance_result"] {
+		t.Fatalf("expected terminal_state (at %d) after acceptance_result (at %d)\n  full: %v",
+			order["terminal_state"], order["acceptance_result"], types)
+	}
+}
+
+func TestEventContract_BlockedWorktreeCleanedEvent(t *testing.T) {
+	el, _ := newTestEventLog(t)
+
+	evt := runstore.BlockedWorktreeCleanedEvent{
+		BaseEvent:    runstore.BaseEvent{Type: "blocked_worktree_cleaned"},
+		PriorRunID:   "run-abc123",
+		WorktreePath: "/tmp/worktrees/spec-001",
+	}
+	el.Append(evt)
+
+	events, err := el.ReadAll()
+	if err != nil {
+		t.Fatalf("ReadAll: %v", err)
+	}
+	if len(events) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(events))
+	}
+
+	got, ok := events[0].(*runstore.BlockedWorktreeCleanedEvent)
+	if !ok {
+		t.Fatalf("expected *BlockedWorktreeCleanedEvent, got %T", events[0])
+	}
+	if got.EventType() != "blocked_worktree_cleaned" {
+		t.Errorf("EventType() = %q, want %q", got.EventType(), "blocked_worktree_cleaned")
+	}
+	if got.PriorRunID != "run-abc123" {
+		t.Errorf("PriorRunID = %q, want %q", got.PriorRunID, "run-abc123")
+	}
+	if got.WorktreePath != "/tmp/worktrees/spec-001" {
+		t.Errorf("WorktreePath = %q, want %q", got.WorktreePath, "/tmp/worktrees/spec-001")
 	}
 }

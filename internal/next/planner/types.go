@@ -30,6 +30,8 @@ func (p Plan) TaskByID(id string) (TaskDef, bool) {
 	return TaskDef{}, false
 }
 
+// See CLAUDE.md nil-field normalization visibility convention:
+// exported — cross-package boundary type
 // NormalizeNilFields maps nil slices to empty values for Plan.
 func (p *Plan) NormalizeNilFields() {
 	if p.Tasks == nil {
@@ -43,6 +45,8 @@ func (p *Plan) NormalizeNilFields() {
 	}
 }
 
+// See CLAUDE.md nil-field normalization visibility convention:
+// exported — cross-package boundary type
 // NormalizeNilFields maps nil slices to empty values for TaskDef.
 func (td *TaskDef) NormalizeNilFields() {
 	if td.ExpectedTouchedArea == nil {
