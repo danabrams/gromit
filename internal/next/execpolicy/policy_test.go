@@ -358,6 +358,18 @@ func TestPolicy_NormalizeNilFields_PreservesExisting(t *testing.T) {
 	}
 }
 
+func TestValidate_RejectsEmptyReviewFacets(t *testing.T) {
+	p := DefaultPolicy()
+	p.Review.Facets = []string{}
+	err := p.Validate()
+	if err == nil {
+		t.Fatal("expected validation error for empty Review.Facets")
+	}
+	if !strings.Contains(err.Error(), "at least one review facet is required") {
+		t.Fatalf("unexpected error message: %v", err)
+	}
+}
+
 func TestValidate_RejectsEmptyCheckNameAndCommand(t *testing.T) {
 	p := DefaultPolicy()
 	p.AlwaysRun = []Check{

@@ -18,10 +18,10 @@ type Policy struct {
 
 // ReviewConfig defines review stage configuration.
 type ReviewConfig struct {
-	Facets          []string          `json:"facets"`
-	Tiers           map[string]string `json:"tiers"`
-	ReplanThreshold string            `json:"replan_threshold"`
-	FacetMaxAttempts int              `json:"facet_max_attempts"`
+	Facets           []string          `json:"facets"`
+	Tiers            map[string]string `json:"tiers"`
+	ReplanThreshold  string            `json:"replan_threshold"`
+	FacetMaxAttempts int               `json:"facet_max_attempts"`
 }
 
 // Check is a validation check that always runs after task execution.
@@ -66,9 +66,9 @@ func DefaultPolicy() Policy {
 		},
 		Models: Models{Planner: "high", Executor: "medium", Evaluator: "high"},
 		Review: ReviewConfig{
-			Facets:          []string{"spec_alignment", "code_quality"},
-			Tiers:           map[string]string{"spec_alignment": "high", "code_quality": "medium"},
-			ReplanThreshold: "warning",
+			Facets:           []string{"spec_alignment", "code_quality"},
+			Tiers:            map[string]string{"spec_alignment": "high", "code_quality": "medium"},
+			ReplanThreshold:  "warning",
 			FacetMaxAttempts: 2,
 		},
 	}
@@ -129,6 +129,9 @@ func (p *Policy) Validate() error {
 	}
 	if p.Models.Evaluator == "" {
 		errs = append(errs, fmt.Errorf("Models.Evaluator must be non-empty"))
+	}
+	if len(p.Review.Facets) == 0 {
+		errs = append(errs, fmt.Errorf("at least one review facet is required"))
 	}
 	// Validate review config (threshold enum). Facet validation requires a
 	// known-facets list from the registry, so it must be called separately

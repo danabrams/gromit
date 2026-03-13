@@ -13,9 +13,9 @@ type ReviewAgent interface {
 
 // RunnerConfig configures the review runner.
 type RunnerConfig struct {
-	Facets       []string
-	Threshold    Severity
-	FacetTiers   map[string]string
+	Facets           []string
+	Threshold        Severity
+	FacetTiers       map[string]string
 	FacetMaxAttempts int
 }
 
