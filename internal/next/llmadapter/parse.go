@@ -6,6 +6,8 @@ import "strings"
 // raw LLM output. It first strips markdown code fences if present, then scans
 // for the first '{' or '[' and finds the matching closing bracket using a
 // bracket-counting approach that handles nested structures.
+// If no JSON is found, returns the trimmed input — callers must attempt
+// json.Unmarshal to detect parse failures.
 func ExtractJSON(output string) string {
 	// Step 1: Strip markdown fences if present.
 	stripped := output

@@ -254,6 +254,26 @@ func TestProviderAware_SatisfiesProviderAwareInvoker(t *testing.T) {
 	var _ ProviderAwareInvoker = (*ProviderAware)(nil)
 }
 
+func TestProviderAware_DelegatesInvokeAndReturnsProvider(t *testing.T) {
+	mp := &mockProvider{
+		name:      "test",
+		runResult: &provider.Result{Output: "hello"},
+	}
+	adapter := New(mp, Config{Tier: "low"})
+	pa := NewProviderAware(adapter, mp)
+
+	result, err := pa.Invoke(context.Background(), "prompt")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Output != "hello" {
+		t.Errorf("expected output 'hello', got %q", result.Output)
+	}
+	if pa.Provider() != mp {
+		t.Error("Provider() should return the underlying provider")
+	}
+}
+
 func TestLLMAdapter_ProviderReturnsUnderlying(t *testing.T) {
 	mp := &mockProvider{name: "claude"}
 	adapter := New(mp, Config{Tier: "high"})

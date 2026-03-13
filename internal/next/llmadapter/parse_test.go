@@ -72,3 +72,27 @@ func TestExtractJSON_ProsePrefixedJSON(t *testing.T) {
 		t.Errorf("expected %q, got %q", want, got)
 	}
 }
+
+func TestExtractJSON_EscapedQuotesInStrings(t *testing.T) {
+	input := `{"key": "value with \" escaped"}`
+	got := ExtractJSON(input)
+	if got != input {
+		t.Errorf("expected %q, got %q", input, got)
+	}
+}
+
+func TestExtractJSON_DeeplyNestedStructures(t *testing.T) {
+	input := `{"a":{"b":{"c":[1,2,3]}}}`
+	got := ExtractJSON(input)
+	if got != input {
+		t.Errorf("expected %q, got %q", input, got)
+	}
+}
+
+func TestExtractJSON_ArrayWithNestedObjects(t *testing.T) {
+	input := `[{"a":1},{"b":2}]`
+	got := ExtractJSON(input)
+	if got != input {
+		t.Errorf("expected %q, got %q", input, got)
+	}
+}
