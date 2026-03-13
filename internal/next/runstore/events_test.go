@@ -57,6 +57,7 @@ func TestEvents_AllEventTypes(t *testing.T) {
 		FinalValidationResultEvent{BaseEvent: BaseEvent{Type: "final_validation_result", Timestamp: now}, Passed: false},
 		ReplanTriggeredEvent{BaseEvent: BaseEvent{Type: "replan_triggered", Timestamp: now}},
 		BudgetExceededEvent{BaseEvent: BaseEvent{Type: "budget_exceeded", Timestamp: now}, AccumulatedCost: 5.50},
+		BlockedWorktreeCleanedEvent{BaseEvent: BaseEvent{Type: "blocked_worktree_cleaned", Timestamp: now}, PriorRunID: "run-old", WorktreePath: "/old"},
 		TerminalStateEvent{BaseEvent: BaseEvent{Type: "terminal_state", Timestamp: now}, Status: "ready_for_review"},
 	}
 
@@ -70,8 +71,8 @@ func TestEvents_AllEventTypes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(events) != 15 {
-		t.Fatalf("want 15 events, got %d", len(events))
+	if len(events) != 16 {
+		t.Fatalf("want 16 events, got %d", len(events))
 	}
 	for i, ev := range events {
 		if ev.EventType() != allEvents[i].EventType() {
@@ -143,6 +144,45 @@ func TestReplanTriggeredEvent_Source_JSON(t *testing.T) {
 	}
 	if got["source"] != "review" {
 		t.Errorf("source = %v, want review", got["source"])
+	}
+}
+
+func TestBlockedWorktreeCleanedEvent_JSON(t *testing.T) {
+	evt := BlockedWorktreeCleanedEvent{
+		BaseEvent:    BaseEvent{Type: "blocked_worktree_cleaned", Timestamp: time.Now()},
+		PriorRunID:   "run-abc-123",
+		WorktreePath: "/path/to/old-worktree",
+	}
+
+	data, err := json.Marshal(evt)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+
+	var got map[string]interface{}
+	if err := json.Unmarshal(data, &got); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if got["type"] != "blocked_worktree_cleaned" {
+		t.Errorf("type = %v, want blocked_worktree_cleaned", got["type"])
+	}
+	if got["prior_run_id"] != "run-abc-123" {
+		t.Errorf("prior_run_id = %v, want run-abc-123", got["prior_run_id"])
+	}
+}
+
+func TestUnmarshalEvent_BlockedWorktreeCleaned(t *testing.T) {
+	jsonStr := `{"type":"blocked_worktree_cleaned","timestamp":"2026-03-12T00:00:00Z","prior_run_id":"run-xyz","worktree_path":"/old"}`
+	evt, err := unmarshalEvent([]byte(jsonStr))
+	if err != nil {
+		t.Fatalf("unmarshalEvent: %v", err)
+	}
+	bwc, ok := evt.(*BlockedWorktreeCleanedEvent)
+	if !ok {
+		t.Fatalf("expected *BlockedWorktreeCleanedEvent, got %T", evt)
+	}
+	if bwc.PriorRunID != "run-xyz" {
+		t.Errorf("PriorRunID = %q, want run-xyz", bwc.PriorRunID)
 	}
 }
 

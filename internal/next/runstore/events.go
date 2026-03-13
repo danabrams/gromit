@@ -130,6 +130,12 @@ type AcceptanceResultEvent struct {
 	UnclearCount  int `json:"unclear_count"`
 }
 
+type BlockedWorktreeCleanedEvent struct {
+	BaseEvent
+	PriorRunID   string `json:"prior_run_id"`
+	WorktreePath string `json:"worktree_path"`
+}
+
 type TerminalStateEvent struct {
 	BaseEvent
 	Status string `json:"status"`
@@ -254,6 +260,9 @@ func unmarshalEvent(data []byte) (TypedEvent, error) {
 		ev = &e
 	case "acceptance_result":
 		var e AcceptanceResultEvent
+		ev = &e
+	case "blocked_worktree_cleaned":
+		var e BlockedWorktreeCleanedEvent
 		ev = &e
 	case "terminal_state":
 		var e TerminalStateEvent
