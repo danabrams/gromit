@@ -8,11 +8,20 @@ import (
 )
 
 // Policy defines execution policy configuration: always-run checks, budgets,
-// and model tier config.
+// model tier config, and review settings.
 type Policy struct {
-	AlwaysRun []Check `json:"always_run"`
-	Budgets   Budgets `json:"budgets"`
-	Models    Models  `json:"models"`
+	AlwaysRun []Check      `json:"always_run"`
+	Budgets   Budgets      `json:"budgets"`
+	Models    Models       `json:"models"`
+	Review    ReviewConfig `json:"review"`
+}
+
+// ReviewConfig defines review stage configuration.
+type ReviewConfig struct {
+	Facets          []string          `json:"facets"`
+	Tiers           map[string]string `json:"tiers"`
+	ReplanThreshold string            `json:"replan_threshold"`
+	FacetRetries    int               `json:"facet_retries"`
 }
 
 // Check is a validation check that always runs after task execution.
@@ -34,8 +43,9 @@ type Budgets struct {
 
 // Models defines which model tier to use for each role.
 type Models struct {
-	Planner  string `json:"planner"`
-	Executor string `json:"executor"`
+	Planner   string `json:"planner"`
+	Executor  string `json:"executor"`
+	Evaluator string `json:"evaluator"`
 }
 
 // DefaultPolicy returns a Policy with sensible production defaults.
@@ -54,7 +64,13 @@ func DefaultPolicy() Policy {
 			MaxRunDurationSeconds:    3600,
 			MaxRunCostUSD:            50.0,
 		},
-		Models: Models{Planner: "high", Executor: "medium"},
+		Models: Models{Planner: "high", Executor: "medium", Evaluator: "high"},
+		Review: ReviewConfig{
+			Facets:          []string{"spec_alignment", "code_quality"},
+			Tiers:           map[string]string{"spec_alignment": "high", "code_quality": "medium"},
+			ReplanThreshold: "warning",
+			FacetRetries:    2,
+		},
 	}
 }
 
@@ -119,5 +135,11 @@ func (p *Policy) Validate() error {
 func (p *Policy) NormalizeNilFields() {
 	if p.AlwaysRun == nil {
 		p.AlwaysRun = []Check{}
+	}
+	if p.Review.Facets == nil {
+		p.Review.Facets = []string{}
+	}
+	if p.Review.Tiers == nil {
+		p.Review.Tiers = map[string]string{}
 	}
 }

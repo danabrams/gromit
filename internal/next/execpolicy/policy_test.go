@@ -138,6 +138,23 @@ func TestValidate_RejectsEmptyCheckCommand(t *testing.T) {
 	}
 }
 
+func TestDefaultPolicy_HasFacetRetryCount(t *testing.T) {
+	p := DefaultPolicy()
+	if p.Review.FacetRetries != 2 {
+		t.Errorf("default FacetRetries = %d, want 2", p.Review.FacetRetries)
+	}
+}
+
+func TestDefaultPolicy_HasReviewConfig(t *testing.T) {
+	p := DefaultPolicy()
+	if p.Review.ReplanThreshold != "warning" {
+		t.Errorf("default ReplanThreshold = %q, want %q", p.Review.ReplanThreshold, "warning")
+	}
+	if len(p.Review.Facets) != 2 {
+		t.Errorf("default Facets count = %d, want 2", len(p.Review.Facets))
+	}
+}
+
 func TestValidate_RejectsEmptyCheckNameAndCommand(t *testing.T) {
 	p := DefaultPolicy()
 	p.AlwaysRun = []Check{
