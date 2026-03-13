@@ -110,15 +110,31 @@ type CycleRecord struct {
 	PassCount int `json:"pass_count"`
 }
 
+// ReviewFindingSummary captures a per-facet summary for the review decision sheet.
+type ReviewFindingSummary struct {
+	Facet      string `json:"facet"`
+	Count      int    `json:"count"`
+	Severities string `json:"severities"`
+}
+
+// AcceptanceCriterionSummary captures a per-criterion acceptance result for the review decision sheet.
+type AcceptanceCriterionSummary struct {
+	Criterion string `json:"criterion"`
+	Status    string `json:"status"`
+	Rationale string `json:"rationale"`
+}
+
 // ReviewInput provides data for generating the review decision sheet.
 type ReviewInput struct {
-	TerminalState     string        `json:"terminal_state"`
-	BlockerSummary    string        `json:"blocker_summary,omitempty"`
-	WhatChanged       string        `json:"what_changed"`
-	CycleHistory      []CycleRecord `json:"cycle_history"`
-	ValidationResults string        `json:"validation_results"`
-	KnownRisks        []string      `json:"known_risks"`
-	RecommendedAction string        `json:"recommended_action"`
+	TerminalState      string                       `json:"terminal_state"`
+	BlockerSummary     string                       `json:"blocker_summary,omitempty"`
+	WhatChanged        string                       `json:"what_changed"`
+	CycleHistory       []CycleRecord                `json:"cycle_history"`
+	ValidationResults  string                       `json:"validation_results"`
+	KnownRisks         []string                     `json:"known_risks"`
+	RecommendedAction  string                       `json:"recommended_action"`
+	ReviewFindings     []ReviewFindingSummary        `json:"review_findings,omitempty"`
+	AcceptanceCriteria []AcceptanceCriterionSummary  `json:"acceptance_criteria,omitempty"`
 }
 
 // NormalizeNilFields maps nil slices to empty values for consistent JSON serialization.
@@ -128,6 +144,12 @@ func (r *ReviewInput) NormalizeNilFields() {
 	}
 	if r.KnownRisks == nil {
 		r.KnownRisks = []string{}
+	}
+	if r.ReviewFindings == nil {
+		r.ReviewFindings = []ReviewFindingSummary{}
+	}
+	if r.AcceptanceCriteria == nil {
+		r.AcceptanceCriteria = []AcceptanceCriterionSummary{}
 	}
 }
 
@@ -156,6 +178,28 @@ func (b *Bundler) WriteReview(r ReviewInput) error {
 	md += "## Known Risks\n\n"
 	for _, risk := range r.KnownRisks {
 		md += fmt.Sprintf("- %s\n", risk)
+	}
+
+	md += "\n## Review Findings\n\n"
+	if len(r.ReviewFindings) > 0 {
+		md += "| Facet | Count | Severities |\n"
+		md += "|-------|-------|------------|\n"
+		for _, f := range r.ReviewFindings {
+			md += fmt.Sprintf("| %s | %d | %s |\n", f.Facet, f.Count, f.Severities)
+		}
+	} else {
+		md += "No review findings.\n"
+	}
+
+	md += "\n## Acceptance Criteria\n\n"
+	if len(r.AcceptanceCriteria) > 0 {
+		md += "| Criterion | Status | Rationale |\n"
+		md += "|-----------|--------|-----------|\n"
+		for _, c := range r.AcceptanceCriteria {
+			md += fmt.Sprintf("| %s | %s | %s |\n", c.Criterion, c.Status, c.Rationale)
+		}
+	} else {
+		md += "No acceptance criteria evaluated.\n"
 	}
 
 	md += fmt.Sprintf("\n## Recommended Action\n\n%s\n", r.RecommendedAction)

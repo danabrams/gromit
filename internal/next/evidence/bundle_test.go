@@ -318,3 +318,51 @@ func TestBundler_WriteAcceptanceResults(t *testing.T) {
 		t.Error("has_fail_or_unclear should be true")
 	}
 }
+
+func TestBundler_WriteReview_IncludesReviewFindings(t *testing.T) {
+	dir := t.TempDir()
+	b := NewBundler(dir)
+	if err := b.Init(); err != nil {
+		t.Fatal(err)
+	}
+
+	input := ReviewInput{
+		TerminalState:     "ready_for_review",
+		WhatChanged:       "Added refund handler",
+		CycleHistory:      []CycleRecord{{Cycle: 1, TaskCount: 4, PassCount: 4}},
+		ValidationResults: "6/6 passed",
+		KnownRisks:        []string{},
+		RecommendedAction: "approve",
+		ReviewFindings: []ReviewFindingSummary{
+			{Facet: "spec_alignment", Count: 0, Severities: "none"},
+			{Facet: "code_quality", Count: 1, Severities: "1 info"},
+		},
+		AcceptanceCriteria: []AcceptanceCriterionSummary{
+			{Criterion: "returns 200", Status: "pass", Rationale: "test proves it"},
+			{Criterion: "handles errors", Status: "pass", Rationale: "error tests exist"},
+		},
+	}
+
+	if err := b.WriteReview(input); err != nil {
+		t.Fatalf("WriteReview: %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(dir, "review.md"))
+	if err != nil {
+		t.Fatalf("read review.md: %v", err)
+	}
+
+	content := string(data)
+	if !strings.Contains(content, "Review Findings") {
+		t.Error("review.md should contain Review Findings section")
+	}
+	if !strings.Contains(content, "spec_alignment") {
+		t.Error("review.md should list spec_alignment facet")
+	}
+	if !strings.Contains(content, "Acceptance Criteria") {
+		t.Error("review.md should contain Acceptance Criteria section")
+	}
+	if !strings.Contains(content, "returns 200") {
+		t.Error("review.md should list acceptance criteria")
+	}
+}
