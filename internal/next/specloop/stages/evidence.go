@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"time"
 
 	"github.com/danabrams/gromit/internal/next/evidence"
@@ -146,8 +147,16 @@ func (s *EvidenceStage) readReviewFindings(path string) []evidence.ReviewFinding
 		}
 	}
 
+	// Collect facet keys and sort for deterministic output
+	facetKeys := make([]string, 0, len(facetFindings))
+	for facet := range facetFindings {
+		facetKeys = append(facetKeys, facet)
+	}
+	sort.Strings(facetKeys)
+
 	var summaries []evidence.ReviewFindingSummary
-	for facet, findings := range facetFindings {
+	for _, facet := range facetKeys {
+		findings := facetFindings[facet]
 		severityCounts := map[string]int{}
 		for _, f := range findings {
 			severityCounts[f.Severity.String()]++
@@ -163,21 +172,11 @@ func (s *EvidenceStage) readReviewFindings(path string) []evidence.ReviewFinding
 			sevStr = "none"
 		}
 
-		// Add finding descriptions as sub-entries
-		for _, f := range findings {
-			summaries = append(summaries, evidence.ReviewFindingSummary{
-				Facet:      facet,
-				Count:      len(findings),
-				Severities: f.Description,
-			})
-		}
-		if len(findings) == 0 {
-			summaries = append(summaries, evidence.ReviewFindingSummary{
-				Facet:      facet,
-				Count:      0,
-				Severities: sevStr,
-			})
-		}
+		summaries = append(summaries, evidence.ReviewFindingSummary{
+			Facet:      facet,
+			Count:      len(findings),
+			Severities: sevStr,
+		})
 	}
 
 	return summaries

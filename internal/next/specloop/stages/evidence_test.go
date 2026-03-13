@@ -48,8 +48,8 @@ func TestEvidenceStage_ReadsReviewJSONFromDisk(t *testing.T) {
 	if !strings.Contains(content, "spec_alignment") {
 		t.Error("review.md should contain review findings from review.json")
 	}
-	if !strings.Contains(content, "missing validation") {
-		t.Error("review.md should contain finding description from review.json")
+	if !strings.Contains(content, "1 error") {
+		t.Error("review.md should contain aggregated severity counts from review.json")
 	}
 }
 
