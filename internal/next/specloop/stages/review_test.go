@@ -129,6 +129,34 @@ func TestReviewStage_InfoOnly_Continue(t *testing.T) {
 	}
 }
 
+func TestReviewStage_StoresFindingsInRunState(t *testing.T) {
+	runner := &mockReviewRunner{
+		result: &review.RunResult{
+			AllFindings: []review.Finding{
+				{Facet: "code_quality", Severity: review.SeverityInfo, File: "handler.go", Description: "consider helper"},
+			},
+			FindingsByFacet: map[string][]review.Finding{
+				"code_quality": {{Severity: review.SeverityInfo, File: "handler.go", Description: "consider helper"}},
+			},
+			BlockingFindings:    []review.Finding{},
+			HasBlockingFindings: false,
+		},
+	}
+
+	stage := NewReviewStage(runner, ReviewStageConfig{}, nil)
+	rs := runstore.NewRunState("test-spec", "test-project")
+	rs.Cycle = 1
+
+	_, err := stage.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	if len(rs.ReviewFindings) == 0 {
+		t.Fatal("ReviewFindings should be populated in RunState after review")
+	}
+}
+
 func TestReviewStage_DiffProviderError(t *testing.T) {
 	runner := &mockReviewRunner{
 		result: &review.RunResult{},

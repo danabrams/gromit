@@ -76,6 +76,9 @@ func (s *ReviewStage) Run(ctx context.Context, rs *runstore.RunState) (specloop.
 	// Accumulate prior findings for disposition matching across cycles
 	s.priorFindings = append(s.priorFindings, result.AllFindings...)
 
+	// Store all findings as strings in RunState for planner/FailureContext consumption
+	rs.ReviewFindings = review.ReviewFailuresToStrings(result.AllFindings)
+
 	// Write structured review.json via Bundler
 	if s.bundler != nil {
 		if err := s.bundler.WriteReviewFindings(result.FindingsByFacet); err != nil {
@@ -85,13 +88,7 @@ func (s *ReviewStage) Run(ctx context.Context, rs *runstore.RunState) (specloop.
 
 	if result.HasBlockingFindings {
 		rs.FinalReviewPassed = false
-		// Convert blocking findings to strings for planner context
-		var failures []string
-		for _, f := range result.BlockingFindings {
-			failures = append(failures, fmt.Sprintf("review:%s: %s in %s — %s",
-				f.Severity, f.Facet, f.File, f.Description))
-		}
-		rs.ReviewFindings = failures
+		failures := review.BuildFailureStrings(*result)
 
 		return specloop.NextAction{
 			Kind: specloop.ReplanFrom,
