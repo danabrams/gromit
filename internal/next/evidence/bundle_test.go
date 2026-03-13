@@ -1,11 +1,13 @@
 package evidence
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/danabrams/gromit/internal/next/review"
 	"github.com/danabrams/gromit/internal/next/runstore"
 	"github.com/danabrams/gromit/internal/next/validator"
 )
@@ -235,5 +237,42 @@ func TestMetrics_NormalizeNilFields(t *testing.T) {
 	m.NormalizeNilFields()
 	if m.Invocations == nil {
 		t.Fatal("Invocations should not be nil after NormalizeNilFields")
+	}
+}
+
+func TestBundler_WriteReviewFindings(t *testing.T) {
+	dir := t.TempDir()
+	b := NewBundler(dir)
+	if err := b.Init(); err != nil {
+		t.Fatal(err)
+	}
+
+	findings := map[string][]review.Finding{
+		"spec_alignment": {
+			{Facet: "spec_alignment", Severity: review.SeverityError, File: "handler.go", Line: 42, Description: "missing validation"},
+		},
+		"code_quality": {
+			{Facet: "code_quality", Severity: review.SeverityWarning, File: "router.go", Line: 10, Description: "long function"},
+		},
+	}
+
+	if err := b.WriteReviewFindings(findings); err != nil {
+		t.Fatalf("WriteReviewFindings: %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(dir, "review.json"))
+	if err != nil {
+		t.Fatalf("read review.json: %v", err)
+	}
+
+	var parsed map[string][]json.RawMessage
+	if err := json.Unmarshal(data, &parsed); err != nil {
+		t.Fatalf("review.json should be a facet-keyed JSON object: %v", err)
+	}
+	if len(parsed["spec_alignment"]) != 1 {
+		t.Errorf("expected 1 spec_alignment finding, got %d", len(parsed["spec_alignment"]))
+	}
+	if len(parsed["code_quality"]) != 1 {
+		t.Errorf("expected 1 code_quality finding, got %d", len(parsed["code_quality"]))
 	}
 }

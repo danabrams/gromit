@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/danabrams/gromit/internal/next/review"
 	"github.com/danabrams/gromit/internal/next/runstore"
 	"github.com/danabrams/gromit/internal/next/validator"
 )
@@ -159,6 +160,11 @@ func (b *Bundler) WriteReview(r ReviewInput) error {
 	md += fmt.Sprintf("\n## Recommended Action\n\n%s\n", r.RecommendedAction)
 
 	return os.WriteFile(filepath.Join(b.dir, "review.md"), []byte(md), 0o644)
+}
+
+// WriteReviewFindings writes facet-keyed review findings to review.json.
+func (b *Bundler) WriteReviewFindings(findings map[string][]review.Finding) error {
+	return b.writeJSON("review.json", findings)
 }
 
 func (b *Bundler) writeJSON(name string, v any) error {
