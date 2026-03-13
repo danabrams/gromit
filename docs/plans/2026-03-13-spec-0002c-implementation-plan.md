@@ -23,6 +23,7 @@ package llmadapter
 import (
 	"context"
 	"errors"
+	"io"
 	"testing"
 	"time"
 
@@ -326,7 +327,7 @@ func TestProviderPlanAgent_Invoke_ReturnsAgentResult(t *testing.T) {
 		OutputTokens: 100,
 		Model:       "sonnet",
 	}
-	agent := NewProviderPlanAgent(newMockLLMAdapter(result, nil))
+	agent := NewProviderPlanAgent(newMockLLMAdapter(result, nil), "medium")
 	ar, err := agent.Invoke(context.Background(), "plan prompt", "medium")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -349,7 +350,7 @@ func TestProviderPlanAgent_Invoke_ReturnsAgentResult(t *testing.T) {
 }
 
 func TestProviderPlanAgent_Invoke_PropagatesError(t *testing.T) {
-	agent := NewProviderPlanAgent(newMockLLMAdapter(nil, errors.New("provider down")))
+	agent := NewProviderPlanAgent(newMockLLMAdapter(nil, errors.New("provider down")), "high")
 	_, err := agent.Invoke(context.Background(), "prompt", "high")
 	if err == nil {
 		t.Fatal("expected error")
@@ -454,30 +455,138 @@ func (a *LLMAdapter) Provider() provider.Provider {
 var _ ProviderAwareInvoker = (*LLMAdapter)(nil)
 ```
 
-**Step 2: Implement ProviderPlanAgent**
+**Step 2: Create shared `ExtractJSON` utility in `llmadapter/parse.go`**
+
+Also create: `internal/next/llmadapter/parse.go`
+
+```go
+package llmadapter
+
+import "strings"
+
+// ExtractJSON extracts JSON from raw LLM output.
+// Handles both bare JSON and markdown code fences (```json ... ```).
+func ExtractJSON(output string) string {
+	if idx := strings.Index(output, "```json"); idx >= 0 {
+		start := idx + len("```json")
+		if end := strings.Index(output[start:], "```"); end >= 0 {
+			return strings.TrimSpace(output[start : start+end])
+		}
+	}
+	if idx := strings.Index(output, "```"); idx >= 0 {
+		start := idx + len("```")
+		if end := strings.Index(output[start:], "```"); end >= 0 {
+			return strings.TrimSpace(output[start : start+end])
+		}
+	}
+	return strings.TrimSpace(output)
+}
+```
+
+Also create: `internal/next/llmadapter/parse_test.go`
+
+```go
+package llmadapter
+
+import "testing"
+
+func TestExtractJSON_BareJSON(t *testing.T) {
+	input := `[{"key":"value"}]`
+	got := ExtractJSON(input)
+	if got != input {
+		t.Errorf("expected %q, got %q", input, got)
+	}
+}
+
+func TestExtractJSON_MarkdownFencedJSON(t *testing.T) {
+	input := "Here is the result:\n```json\n{\"key\":\"value\"}\n```\nDone."
+	want := `{"key":"value"}`
+	got := ExtractJSON(input)
+	if got != want {
+		t.Errorf("expected %q, got %q", want, got)
+	}
+}
+
+func TestExtractJSON_NestedFences(t *testing.T) {
+	// Only extracts content from the first fenced block
+	input := "```json\n{\"a\":1}\n```\nsome text\n```json\n{\"b\":2}\n```"
+	want := `{"a":1}`
+	got := ExtractJSON(input)
+	if got != want {
+		t.Errorf("expected %q, got %q", want, got)
+	}
+}
+
+func TestExtractJSON_NoClosingFence(t *testing.T) {
+	// Falls through to bare ``` check, then to plain trim
+	input := "```json\n{\"key\":\"value\"}"
+	got := ExtractJSON(input)
+	// No closing fence means it falls through to bare ``` check, also no closing fence, so returns trimmed input
+	if got != input {
+		t.Errorf("expected trimmed input, got %q", got)
+	}
+}
+
+func TestExtractJSON_MultipleFencedBlocks_ReturnsFirst(t *testing.T) {
+	input := "```\nfirst block\n```\n```\nsecond block\n```"
+	want := "first block"
+	got := ExtractJSON(input)
+	if got != want {
+		t.Errorf("expected %q, got %q", want, got)
+	}
+}
+
+func TestExtractJSON_NoJSONAtAll(t *testing.T) {
+	input := "   just some plain text   "
+	want := "just some plain text"
+	got := ExtractJSON(input)
+	if got != want {
+		t.Errorf("expected %q, got %q", want, got)
+	}
+}
+
+func TestExtractJSON_RawJSONWithoutFences(t *testing.T) {
+	input := `  {"status":"pass","rationale":"ok"}  `
+	want := `{"status":"pass","rationale":"ok"}`
+	got := ExtractJSON(input)
+	if got != want {
+		t.Errorf("expected %q, got %q", want, got)
+	}
+}
+```
+
+**Step 3: Implement ProviderPlanAgent**
 
 ```go
 package planner
 
 import (
 	"context"
+	"log"
 
 	"github.com/danabrams/gromit/internal/next/llmadapter"
 )
 
 // ProviderPlanAgent adapts an LLM invoker to satisfy the planner.Agent interface.
 type ProviderPlanAgent struct {
-	llm llmadapter.Invoker
+	llm     llmadapter.Invoker
+	adpTier string // tier configured on the underlying LLMAdapter
 }
 
 // NewProviderPlanAgent creates a ProviderPlanAgent.
-func NewProviderPlanAgent(llm llmadapter.Invoker) *ProviderPlanAgent {
-	return &ProviderPlanAgent{llm: llm}
+// adapterTier is the tier configured on the LLMAdapter, used for mismatch warnings.
+func NewProviderPlanAgent(llm llmadapter.Invoker, adapterTier string) *ProviderPlanAgent {
+	return &ProviderPlanAgent{llm: llm, adpTier: adapterTier}
 }
 
 // Invoke delegates to the LLM adapter and maps the result to AgentResult.
-// The tier parameter is ignored — tier is configured on the LLMAdapter.
+// The tier parameter is accepted for interface compatibility but is not used
+// for routing — tier is configured on the LLMAdapter. A mismatch is logged
+// as a warning.
 func (a *ProviderPlanAgent) Invoke(ctx context.Context, prompt string, tier string) (AgentResult, error) {
+	if tier != "" && tier != a.adpTier {
+		log.Printf("warning: tier parameter %q ignored, using adapter tier %q", tier, a.adpTier)
+	}
 	result, err := a.llm.Invoke(ctx, prompt)
 	if err != nil {
 		return AgentResult{}, err
@@ -507,8 +616,8 @@ Expected: PASS
 **Step 4: Commit**
 
 ```bash
-git add internal/next/llmadapter/invoker.go internal/next/planner/provider_agent.go internal/next/planner/provider_agent_test.go internal/next/llmadapter/adapter.go
-git commit -m "green: ProviderPlanAgent + Invoker interface"
+git add internal/next/llmadapter/invoker.go internal/next/llmadapter/parse.go internal/next/llmadapter/parse_test.go internal/next/planner/provider_agent.go internal/next/planner/provider_agent_test.go internal/next/llmadapter/adapter.go
+git commit -m "green: ProviderPlanAgent + Invoker interface + shared ExtractJSON utility"
 ```
 
 ---
@@ -655,7 +764,6 @@ package review
 import (
 	"context"
 	"encoding/json"
-	"strings"
 
 	"github.com/danabrams/gromit/internal/next/llmadapter"
 )
@@ -679,7 +787,7 @@ func (a *ProviderReviewAgent) ReviewFacet(ctx context.Context, facetName string,
 		return nil, err
 	}
 
-	jsonStr := extractJSON(result.Output)
+	jsonStr := llmadapter.ExtractJSON(result.Output)
 	var findings []Finding
 	if err := json.Unmarshal([]byte(jsonStr), &findings); err != nil {
 		return nil, &ParseError{Msg: "failed to parse findings JSON: " + err.Error()}
@@ -687,29 +795,11 @@ func (a *ProviderReviewAgent) ReviewFacet(ctx context.Context, facetName string,
 	return findings, nil
 }
 
-// extractJSON extracts JSON from raw LLM output.
-// Handles both bare JSON and markdown code fences (```json ... ```).
-func extractJSON(output string) string {
-	// Try to find ```json fenced block
-	if idx := strings.Index(output, "```json"); idx >= 0 {
-		start := idx + len("```json")
-		if end := strings.Index(output[start:], "```"); end >= 0 {
-			return strings.TrimSpace(output[start : start+end])
-		}
-	}
-	// Try bare ``` fenced block
-	if idx := strings.Index(output, "```"); idx >= 0 {
-		start := idx + len("```")
-		if end := strings.Index(output[start:], "```"); end >= 0 {
-			return strings.TrimSpace(output[start : start+end])
-		}
-	}
-	return strings.TrimSpace(output)
-}
-
 // Compile-time check.
 var _ ReviewAgent = (*ProviderReviewAgent)(nil)
 ```
+
+> **Note:** Uses `llmadapter.ExtractJSON` (defined in Task 4) — no local `extractJSON` needed.
 
 **Step 2: Run tests to verify they pass**
 
@@ -845,7 +935,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	"github.com/danabrams/gromit/internal/next/llmadapter"
 )
@@ -867,7 +956,7 @@ func (a *ProviderAcceptAgent) EvaluateCriterion(ctx context.Context, prompt stri
 		return CriterionResult{}, err
 	}
 
-	jsonStr := extractJSON(result.Output)
+	jsonStr := llmadapter.ExtractJSON(result.Output)
 	var cr CriterionResult
 	if err := json.Unmarshal([]byte(jsonStr), &cr); err != nil {
 		return CriterionResult{}, fmt.Errorf("failed to parse criterion result: %w", err)
@@ -876,25 +965,10 @@ func (a *ProviderAcceptAgent) EvaluateCriterion(ctx context.Context, prompt stri
 	return cr, nil
 }
 
-// extractJSON extracts JSON from raw LLM output, handling markdown fences.
-func extractJSON(output string) string {
-	if idx := strings.Index(output, "```json"); idx >= 0 {
-		start := idx + len("```json")
-		if end := strings.Index(output[start:], "```"); end >= 0 {
-			return strings.TrimSpace(output[start : start+end])
-		}
-	}
-	if idx := strings.Index(output, "```"); idx >= 0 {
-		start := idx + len("```")
-		if end := strings.Index(output[start:], "```"); end >= 0 {
-			return strings.TrimSpace(output[start : start+end])
-		}
-	}
-	return strings.TrimSpace(output)
-}
-
 var _ AcceptAgent = (*ProviderAcceptAgent)(nil)
 ```
+
+> **Note:** Uses `llmadapter.ExtractJSON` (defined in Task 4) — no local `extractJSON` needed.
 
 **Step 2: Run tests**
 
@@ -925,6 +999,7 @@ package specloop
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -1011,7 +1086,7 @@ func TestProviderTaskRunner_RepairTask(t *testing.T) {
 	if invoker.lastPrompt == "" {
 		t.Fatal("expected prompt to be captured")
 	}
-	if !containsSubstring(invoker.lastPrompt, "test_foo failed") {
+	if !strings.Contains(invoker.lastPrompt, "test_foo failed") {
 		t.Error("repair prompt should include failure details")
 	}
 }
@@ -1021,7 +1096,7 @@ func TestProviderTaskRunner_RunTask_PromptContainsObjective(t *testing.T) {
 	runner := NewProviderTaskRunner(invoker)
 	task := runstore.Task{TaskID: "t-001", Objective: "add user validation"}
 	_, _ = runner.RunTask(context.Background(), task)
-	if !containsSubstring(invoker.lastPrompt, "add user validation") {
+	if !strings.Contains(invoker.lastPrompt, "add user validation") {
 		t.Error("task prompt should include the task objective")
 	}
 }
@@ -1049,12 +1124,7 @@ func (c *capturingInvoker) Invoke(ctx context.Context, prompt string) (*provider
 	return c.result, nil
 }
 
-func containsSubstring(s, sub string) bool {
-	return len(s) >= len(sub) && (s == sub || len(s) > 0 && strings.Contains(s, sub))
-}
 ```
-
-Add `"strings"` to imports.
 
 **Step 2: Run and verify failure**
 
@@ -1199,13 +1269,11 @@ package validator
 import (
 	"context"
 	"testing"
-
-	"github.com/danabrams/gromit/internal/provider"
 )
 
 func TestShellValidator_AllChecksPass(t *testing.T) {
 	runner := NewRunner()
-	v := NewShellValidator(runner, nil) // no LLM needed when all pass
+	v := NewShellValidator(runner)
 	checks := []Check{
 		{Name: "echo", Command: "echo ok", Type: "test"},
 	}
@@ -1218,12 +1286,9 @@ func TestShellValidator_AllChecksPass(t *testing.T) {
 	}
 }
 
-func TestShellValidator_FailingCheck_InvokesLLM(t *testing.T) {
-	invoker := &mockInvoker{
-		result: &provider.Result{Output: "The test failed because X was nil"},
-	}
+func TestShellValidator_FailingCheck_ReturnsFailure(t *testing.T) {
 	runner := NewRunner()
-	v := NewShellValidator(runner, invoker)
+	v := NewShellValidator(runner)
 	checks := []Check{
 		{Name: "fail", Command: "exit 1", Type: "test"},
 	}
@@ -1234,29 +1299,11 @@ func TestShellValidator_FailingCheck_InvokesLLM(t *testing.T) {
 	if result.Pass {
 		t.Error("expected fail when a check fails")
 	}
-	if invoker.calls == 0 {
-		t.Error("expected LLM to be invoked for diagnosis")
-	}
 }
 
-func TestShellValidator_NoLLM_FailingCheck_StillReturnsFailure(t *testing.T) {
+func TestShellValidator_MultipleChecks_MixedResults(t *testing.T) {
 	runner := NewRunner()
-	v := NewShellValidator(runner, nil) // no LLM configured
-	checks := []Check{
-		{Name: "fail", Command: "exit 1", Type: "test"},
-	}
-	result, err := v.RunFinal(context.Background(), checks, nil, t.TempDir())
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if result.Pass {
-		t.Error("expected fail")
-	}
-}
-
-func TestShellValidator_MultiplChecks_MixedResults(t *testing.T) {
-	runner := NewRunner()
-	v := NewShellValidator(runner, nil)
+	v := NewShellValidator(runner)
 	checks := []Check{
 		{Name: "pass", Command: "echo ok", Type: "test"},
 		{Name: "fail", Command: "exit 1", Type: "lint"},
@@ -1281,17 +1328,6 @@ func TestShellValidator_MultiplChecks_MixedResults(t *testing.T) {
 		t.Errorf("expected 1 pass and 1 fail, got %d pass and %d fail", passCount, failCount)
 	}
 }
-
-type mockInvoker struct {
-	result *provider.Result
-	err    error
-	calls  int
-}
-
-func (m *mockInvoker) Invoke(ctx context.Context, prompt string) (*provider.Result, error) {
-	m.calls++
-	return m.result, m.err
-}
 ```
 
 **Step 2: Run and verify failure**
@@ -1303,7 +1339,7 @@ Expected: FAIL
 
 ```bash
 git add internal/next/validator/shell_validator_test.go
-git commit -m "red: ShellValidator tests for shell-first validation with LLM diagnosis"
+git commit -m "red: ShellValidator tests for shell-first validation via Runner.RunFinal"
 ```
 
 ---
@@ -1320,84 +1356,26 @@ package validator
 
 import (
 	"context"
-	"fmt"
-	"strings"
-
-	"github.com/danabrams/gromit/internal/next/llmadapter"
 )
 
-// ShellValidator composes the existing Runner for shell execution
-// and adds LLM-based diagnosis on failure.
+// ShellValidator composes the existing Runner for shell execution.
+// It delegates entirely to Runner.RunFinal for check execution and result aggregation.
+//
+// Future enhancement: add LLM-based failure diagnosis by composing an llmadapter.Invoker
+// here and invoking it on failures. Currently omitted because no consumer reads
+// the diagnosis output, and the LLM call would cost money for no effect.
 type ShellValidator struct {
-	runner *Runner            // delegates check execution to existing Runner
-	llm    llmadapter.Invoker // nil if no LLM diagnosis desired
+	runner *Runner // delegates check execution to existing Runner
 }
 
-// NewShellValidator creates a ShellValidator. runner must not be nil; llm may be nil.
-func NewShellValidator(runner *Runner, llm llmadapter.Invoker) *ShellValidator {
-	return &ShellValidator{runner: runner, llm: llm}
+// NewShellValidator creates a ShellValidator. runner must not be nil.
+func NewShellValidator(runner *Runner) *ShellValidator {
+	return &ShellValidator{runner: runner}
 }
 
-// RunFinal executes all checks via the composed Runner. On failure, optionally invokes LLM for diagnosis.
+// RunFinal delegates entirely to the composed Runner.RunFinal.
 func (v *ShellValidator) RunFinal(ctx context.Context, alwaysRun []Check, projectChecks []Check, workDir string) (FinalResult, error) {
-	alwaysResults := v.runChecks(ctx, alwaysRun, workDir)
-	projectResults := v.runChecks(ctx, projectChecks, workDir)
-
-	allPass := true
-	var failures []CheckResult
-	for _, r := range alwaysResults.Results {
-		if !r.Pass {
-			allPass = false
-			failures = append(failures, r)
-		}
-	}
-	for _, r := range projectResults.Results {
-		if !r.Pass {
-			allPass = false
-			failures = append(failures, r)
-		}
-	}
-
-	if !allPass && v.llm != nil {
-		// Feed failures to LLM for diagnosis (best-effort, don't fail on LLM error)
-		prompt := renderDiagnosisPrompt(failures)
-		_, _ = v.llm.Invoke(ctx, prompt)
-	}
-
-	return FinalResult{
-		Pass:          allPass,
-		AlwaysRun:     alwaysResults,
-		ProjectChecks: projectResults,
-	}, nil
-}
-
-func (v *ShellValidator) runChecks(ctx context.Context, checks []Check, workDir string) CheckResults {
-	var results []CheckResult
-	for _, c := range checks {
-		cr, err := v.runner.RunCheck(ctx, c, workDir)
-		if err != nil {
-			// Infrastructure failure — record as failed check with error output
-			cr = CheckResult{
-				Name:   c.Name,
-				Pass:   false,
-				Output: err.Error(),
-				Type:   c.Type,
-			}
-		}
-		results = append(results, cr)
-	}
-	return CheckResults{Results: results}
-}
-
-func renderDiagnosisPrompt(failures []CheckResult) string {
-	var b strings.Builder
-	b.WriteString("The following validation checks failed. Diagnose the root cause.\n\n")
-	for _, f := range failures {
-		b.WriteString(fmt.Sprintf("## %s (%s)\n", f.Name, f.Type))
-		b.WriteString(f.Output)
-		b.WriteString("\n\n")
-	}
-	return b.String()
+	return v.runner.RunFinal(ctx, alwaysRun, projectChecks, workDir)
 }
 ```
 
@@ -1410,7 +1388,7 @@ Expected: PASS
 
 ```bash
 git add internal/next/validator/shell_validator.go
-git commit -m "green: ShellValidator runs checks via shell, LLM diagnosis on failure"
+git commit -m "green: ShellValidator delegates to Runner.RunFinal for check execution"
 ```
 
 ---
@@ -1429,6 +1407,7 @@ package contextpkt
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -1503,7 +1482,6 @@ package contextpkt
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 )
@@ -1570,56 +1548,21 @@ git commit -m "green: SpecCompilerAdapter satisfies stages.SpecCompiler"
 
 ---
 
-### Task 15: Refactor `extractJSON` into shared utility
+### Task 15: Verify `ExtractJSON` usage consistency
 
-**Files:**
-- Create: `internal/next/llmadapter/parse.go`
-- Modify: `internal/next/review/provider_agent.go` — use shared `extractJSON`
-- Modify: `internal/next/acceptor/provider_agent.go` — use shared `extractJSON`
+> **Note:** `llmadapter.ExtractJSON` was already defined in Task 4 and used directly by Tasks 6 and 8. No refactoring or deduplication is needed. This task is a verification-only step.
 
-Both `ProviderReviewAgent` and `ProviderAcceptAgent` duplicate `extractJSON`. Move it to `llmadapter`.
+**Step 1: Verify no local `extractJSON` exists in review or acceptor packages**
 
-**Step 1: Create shared utility**
+Run: `cd /Users/dabrams/gromit && grep -rn 'func extractJSON' internal/next/review/ internal/next/acceptor/`
+Expected: No output (no local copies exist)
 
-```go
-package llmadapter
+**Step 2: Verify `llmadapter.ExtractJSON` unit tests pass**
 
-import "strings"
-
-// ExtractJSON extracts JSON from raw LLM output.
-// Handles both bare JSON and markdown code fences (```json ... ```).
-func ExtractJSON(output string) string {
-	if idx := strings.Index(output, "```json"); idx >= 0 {
-		start := idx + len("```json")
-		if end := strings.Index(output[start:], "```"); end >= 0 {
-			return strings.TrimSpace(output[start : start+end])
-		}
-	}
-	if idx := strings.Index(output, "```"); idx >= 0 {
-		start := idx + len("```")
-		if end := strings.Index(output[start:], "```"); end >= 0 {
-			return strings.TrimSpace(output[start : start+end])
-		}
-	}
-	return strings.TrimSpace(output)
-}
-```
-
-**Step 2: Update review and acceptor adapters to use `llmadapter.ExtractJSON`**
-
-Remove local `extractJSON` from both files. Replace calls with `llmadapter.ExtractJSON`.
-
-**Step 3: Run all tests**
-
-Run: `cd /Users/dabrams/gromit && go test ./internal/next/llmadapter/ ./internal/next/review/ ./internal/next/acceptor/ -v -count=1`
+Run: `cd /Users/dabrams/gromit && go test ./internal/next/llmadapter/ -run TestExtractJSON -v -count=1`
 Expected: PASS
 
-**Step 4: Commit**
-
-```bash
-git add internal/next/llmadapter/parse.go internal/next/review/provider_agent.go internal/next/acceptor/provider_agent.go
-git commit -m "refactor: extract shared ExtractJSON utility to llmadapter"
-```
+No commit needed — this is a verification checkpoint.
 
 ---
 
@@ -1646,13 +1589,16 @@ This test should verify that calling `BuildStages` produces stages backed by rea
 
 Replace noop implementations in `BuildStages` with:
 - `contextpkt.NewSpecCompilerAdapter(...)` for Compile
-- `planner.NewProviderPlanAgent(planAdapter)` wrapped in `planner.NewPlanner(agent, tier)` for Plan (note: PlanStage takes `PlanCreator` — check if `Planner` satisfies it)
+- `planner.NewProviderPlanAgent(planAdapter, policy.Models.Planner)` wrapped in `planner.NewPlanner(agent, tier)` for Plan (note: PlanStage takes `PlanCreator` — check if `Planner` satisfies it)
 - `specloop.NewProviderTaskRunner(execAdapter)` for Execute
-- `validator.NewShellValidator(validator.NewRunner(), validateAdapter)` for Validate
+- `validator.NewShellValidator(validator.NewRunner())` for Validate
 - `review.NewProviderReviewAgent(reviewAdapter)` wrapped in `review.NewRunner(agent, config)` for Review
 - `acceptor.NewProviderAcceptAgent(reviewAdapter)` wrapped in `acceptor.NewEvaluator(agent)` for Accept
 
-The `RealStageProvider` will need a `provider.Provider` — for 0002c, hardcode Claude:
+The `RealStageProvider` will need a `provider.Provider` — for 0002c, hardcode Claude.
+
+> **Implementation note:** Verify `claude.NewClient` constructor signature against actual code at `internal/provider/claude.go` during implementation. The signature shown below is illustrative — the real constructor may differ in parameter names, types, or order.
+
 
 ```go
 claudeClient, err := claude.NewClient("claude", []string{"--no-input"}, 300)
@@ -1814,7 +1760,7 @@ Expected: All SKIP (env var not set)
 
 ```bash
 git add internal/next/planner/agent_contract_test.go internal/next/review/agent_contract_test.go internal/next/acceptor/agent_contract_test.go internal/next/specloop/taskrunner_contract_test.go
-git commit -m "feat: contract test suite scaffolds (stubs) for all domain agents (gated by build tag + env var)"
+git commit -m "scaffold: contract test suite stubs for all domain agents (gated by build tag + env var)"
 ```
 
 ---
@@ -1901,7 +1847,7 @@ func TestIntegration_BudgetExhaustion(t *testing.T) {
 
 ```bash
 git add internal/next/specloop/integration_test.go
-git commit -m "feat: integration test scaffolds for pipeline scenarios"
+git commit -m "scaffold: integration test placeholder stubs for pipeline scenarios (not yet functional)"
 ```
 
 ---

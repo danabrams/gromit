@@ -4,7 +4,7 @@
 
 **Goal:** Replace the hardcoded Claude provider in `RealStageProvider` with the existing `provider.Router`, enabling Codex (and future providers) as alternatives with automatic fallback on usage-limit errors.
 
-**Architecture:** Add a `FallbackAdapter` to `llmadapter/` that wraps the base `LLMAdapter` with transparent usage-limit failover via the Router. Update `RealStageProvider` to use Router-selected providers per stage phase. Validate Codex compatibility via contract tests.
+**Architecture:** Add a `FallbackAdapter` to `llmadapter/` that lazily selects providers via the Router on first `Invoke` call, with transparent usage-limit failover (single-hop). Update `RealStageProvider` to wire FallbackAdapters per stage phase (provider selection deferred to invocation time). Validate Codex compatibility via contract tests.
 
 **Tech Stack:** Go, `provider.Router`, `provider.CodexProvider`, `llmadapter.LLMAdapter`
 
@@ -27,17 +27,20 @@ package llmadapter
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/provider"
 )
 
 func TestFallbackAdapter_NormalInvocation_NoFallback(t *testing.T) {
-	primary := &mockInvokerWithProvider{
-		result: &provider.Result{Output: "hello", CostUSD: 0.01},
-		prov:   &mockProvider{name: "claude"},
+	// Pre-resolved primary — router Select returns a known provider
+	primaryProv := &mockProvider{name: "claude", runResult: &provider.Result{Output: "hello", CostUSD: 0.01}}
+	router := &mockRouter{
+		selectProvider: primaryProv,
+		selectModel:    "claude-opus",
 	}
-	fa := NewFallbackAdapter(primary, nil, "build", Config{}, "medium")
+	fa := NewFallbackAdapter(router, "build", Config{}, "medium")
 	result, err := fa.Invoke(context.Background(), "prompt")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -48,21 +51,19 @@ func TestFallbackAdapter_NormalInvocation_NoFallback(t *testing.T) {
 }
 
 func TestFallbackAdapter_UsageLimit_FallsBackToRouter(t *testing.T) {
-	// Primary returns usage-limit error
-	primaryProv := &mockProviderWithUsageLimit{name: "claude", isUsageLimit: true}
-	primary := &mockInvokerWithProvider{
-		result: &provider.Result{Output: "", ExitCode: 2},
-		err:    errors.New("usage limit"),
-		prov:   primaryProv,
-	}
-	// Router returns fallback provider
+	// Primary returns usage-limit error on first Select
+	primaryProv := &mockProviderWithUsageLimit{name: "claude", isUsageLimit: true,
+		runResult: &provider.Result{Output: "", ExitCode: 2}, runErr: errors.New("usage limit")}
 	fallbackResult := &provider.Result{Output: "fallback worked", CostUSD: 0.02}
 	fallbackProv := &mockProvider{name: "codex", runResult: fallbackResult}
+	// Router returns primary first, then fallback on second Select
 	router := &mockRouter{
-		selectProvider: fallbackProv,
-		selectModel:    "gpt-5.3-codex",
+		selectSequence: []mockSelectResult{
+			{prov: primaryProv, model: "claude-opus"},
+			{prov: fallbackProv, model: "gpt-5.3-codex"},
+		},
 	}
-	fa := NewFallbackAdapter(primary, router, "build", Config{}, "medium")
+	fa := NewFallbackAdapter(router, "build", Config{}, "medium")
 	result, err := fa.Invoke(context.Background(), "prompt")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -76,13 +77,13 @@ func TestFallbackAdapter_UsageLimit_FallsBackToRouter(t *testing.T) {
 }
 
 func TestFallbackAdapter_NonUsageLimitError_NoFallback(t *testing.T) {
-	primaryProv := &mockProviderWithUsageLimit{name: "claude", isUsageLimit: false}
-	primary := &mockInvokerWithProvider{
-		result: &provider.Result{Output: ""},
-		err:    errors.New("network timeout"),
-		prov:   primaryProv,
+	primaryProv := &mockProviderWithUsageLimit{name: "claude", isUsageLimit: false,
+		runResult: &provider.Result{Output: ""}, runErr: errors.New("network timeout")}
+	router := &mockRouter{
+		selectProvider: primaryProv,
+		selectModel:    "claude-opus",
 	}
-	fa := NewFallbackAdapter(primary, nil, "build", Config{}, "medium")
+	fa := NewFallbackAdapter(router, "build", Config{}, "medium")
 	_, err := fa.Invoke(context.Background(), "prompt")
 	if err == nil {
 		t.Fatal("expected error to propagate")
@@ -90,18 +91,16 @@ func TestFallbackAdapter_NonUsageLimitError_NoFallback(t *testing.T) {
 }
 
 func TestFallbackAdapter_AllProvidersExhausted_ReturnsError(t *testing.T) {
-	primaryProv := &mockProviderWithUsageLimit{name: "claude", isUsageLimit: true}
-	primary := &mockInvokerWithProvider{
-		result: &provider.Result{Output: "", ExitCode: 2},
-		err:    errors.New("usage limit"),
-		prov:   primaryProv,
-	}
-	// Router returns nil — all providers exhausted
+	primaryProv := &mockProviderWithUsageLimit{name: "claude", isUsageLimit: true,
+		runResult: &provider.Result{Output: "", ExitCode: 2}, runErr: errors.New("usage limit")}
+	// Router returns primary first, then nil on second Select (all exhausted)
 	router := &mockRouter{
-		selectProvider: nil,
-		selectModel:    "",
+		selectSequence: []mockSelectResult{
+			{prov: primaryProv, model: "claude-opus"},
+			{prov: nil, model: ""},
+		},
 	}
-	fa := NewFallbackAdapter(primary, router, "build", Config{}, "medium")
+	fa := NewFallbackAdapter(router, "build", Config{}, "medium")
 	_, err := fa.Invoke(context.Background(), "prompt")
 	if err == nil {
 		t.Fatal("expected error when all providers exhausted")
@@ -111,13 +110,27 @@ func TestFallbackAdapter_AllProvidersExhausted_ReturnsError(t *testing.T) {
 	}
 }
 
-func TestFallbackAdapter_SatisfiesInvoker(t *testing.T) {
-	// Compile-time check is sufficient, but verify runtime too
-	var _ Invoker = (*FallbackAdapter)(nil)
+func TestFallbackAdapter_SatisfiesProviderAwareInvoker(t *testing.T) {
+	// Compile-time check — FallbackAdapter must satisfy ProviderAwareInvoker
+	var _ ProviderAwareInvoker = (*FallbackAdapter)(nil)
+}
+
+func TestFallbackAdapter_Provider_ReturnsPrimaryProvider(t *testing.T) {
+	primaryProv := &mockProvider{name: "claude"}
+	router := &mockRouter{
+		selectProvider: primaryProv,
+		selectModel:    "claude-opus",
+	}
+	fa := NewFallbackAdapter(router, "build", Config{}, "medium")
+	// Force lazy init by calling Provider()
+	p := fa.Provider()
+	if p.Name() != "claude" {
+		t.Errorf("expected provider name 'claude', got %q", p.Name())
+	}
 }
 ```
 
-Mock types for tests will need to be defined (router mock, provider-with-usage-limit mock, invoker-with-provider mock).
+Mock types for tests will need to be defined (router mock with select-sequence support, provider-with-usage-limit mock, invoker-with-provider mock).
 
 **Step 2: Run and verify failure**
 
@@ -147,6 +160,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"sync"
 
 	"github.com/danabrams/gromit/internal/provider"
 )
@@ -163,36 +177,67 @@ type RouterSelector interface {
 	MarkUnavailable(name string)
 }
 
-// FallbackAdapter wraps an Invoker with automatic fallback on usage-limit errors.
-// If the primary invocation fails with a usage-limit error, it marks the provider
-// unavailable via the router and retries with the next available provider.
-// Domain adapters are unaware of this fallback — same Invoker interface.
+// FallbackAdapter wraps provider selection with automatic fallback on usage-limit errors.
+// Provider selection is deferred to first Invoke call (lazy Select) so that
+// provider availability is evaluated at invocation time, not at pipeline build time.
+// Current design supports single-hop fallback only (primary -> one fallback).
+// If all providers fail, the last error is returned. N-hop fallback can be
+// added later by looping through available providers.
+// Domain adapters are unaware of this fallback — same ProviderAwareInvoker interface.
 type FallbackAdapter struct {
-	primary ProviderAwareInvoker
 	router  RouterSelector
 	phase   string
 	tier    string
 	cfg     Config
+
+	once    sync.Once
+	primary ProviderAwareInvoker  // resolved lazily on first Invoke
 }
 
-// NewFallbackAdapter creates a FallbackAdapter.
+// NewFallbackAdapter creates a FallbackAdapter that lazily resolves the primary
+// provider via Router.Select on first Invoke call.
 // cfg and tier are passed through so the fallback adapter can construct a
 // properly configured LLMAdapter when falling back to a different provider.
-func NewFallbackAdapter(primary ProviderAwareInvoker, router RouterSelector, phase string, cfg Config, tier string) *FallbackAdapter {
+func NewFallbackAdapter(router RouterSelector, phase string, cfg Config, tier string) *FallbackAdapter {
 	return &FallbackAdapter{
-		primary: primary,
-		router:  router,
-		phase:   phase,
-		cfg:     cfg,
-		tier:    tier,
+		router: router,
+		phase:  phase,
+		cfg:    cfg,
+		tier:   tier,
 	}
 }
 
-// Invoke delegates to the primary invoker. On usage-limit error, falls back via router.
+// resolvePrimary selects the primary provider from the router.
+func (f *FallbackAdapter) resolvePrimary() ProviderAwareInvoker {
+	prov, _ := f.router.Select(f.phase, f.tier)
+	if prov == nil {
+		return nil
+	}
+	return New(prov, f.cfg)
+}
+
+// Provider returns the primary adapter's provider (satisfies ProviderAwareInvoker).
+// Note: triggers lazy initialization if not yet invoked.
+func (f *FallbackAdapter) Provider() provider.Provider {
+	f.once.Do(func() { f.primary = f.resolvePrimary() })
+	if f.primary == nil {
+		return nil
+	}
+	return f.primary.Provider()
+}
+
+// Invoke delegates to the primary invoker, resolved lazily on first call.
+// On usage-limit error, logs the primary error and falls back via router.
 func (f *FallbackAdapter) Invoke(ctx context.Context, prompt string) (*provider.Result, error) {
+	f.once.Do(func() { f.primary = f.resolvePrimary() })
+	if f.primary == nil {
+		return nil, fmt.Errorf("no providers available for phase %q tier %q", f.phase, f.tier)
+	}
 	result, err := f.primary.Invoke(ctx, prompt)
-	if err != nil && f.router != nil && f.primary.Provider().IsUsageLimitError(result, err) {
+	if err != nil && f.primary.Provider().IsUsageLimitError(result, err) {
 		primaryName := f.primary.Provider().Name()
+		// Log primary error before attempting fallback
+		log.Printf("provider %s hit usage limit, attempting fallback: %v", primaryName, err)
 		f.router.MarkUnavailable(primaryName)
 		fallbackProv, _ := f.router.Select(f.phase, f.tier)
 		if fallbackProv == nil {
@@ -203,14 +248,15 @@ func (f *FallbackAdapter) Invoke(ctx context.Context, prompt string) (*provider.
 		if fallbackErr != nil {
 			return fallbackResult, fmt.Errorf("fallback provider %s also failed (primary was %s): %w", fallbackProv.Name(), primaryName, fallbackErr)
 		}
-		// Annotate that fallback occurred: log primary→fallback transition
-		log.Printf("provider fallback: %s (usage limit) → %s (success)", primaryName, fallbackProv.Name())
+		log.Printf("provider fallback: %s (usage limit) -> %s (success)", primaryName, fallbackProv.Name())
 		return fallbackResult, nil
 	}
 	return result, err
 }
 
+// Compile-time interface checks.
 var _ Invoker = (*FallbackAdapter)(nil)
+var _ ProviderAwareInvoker = (*FallbackAdapter)(nil)
 ```
 
 **Step 2: Run tests**
@@ -240,9 +286,19 @@ The `Policy` struct currently has no `Routing` field. Add it to `internal/next/e
 ```go
 // RoutingConfig defines multi-provider routing preferences.
 type RoutingConfig struct {
-    Preferences map[string]string `json:"preferences"` // phase → provider name or "any"
-    Ratio       map[string]int    `json:"ratio"`        // provider name → percentage (must sum to 100)
-    Cooldown    time.Duration     `json:"cooldown"`     // how long to mark a provider unavailable after usage-limit
+    Preferences    map[string]string `json:"preferences"`      // phase -> provider name or "any"
+    Ratio          map[string]int    `json:"ratio"`             // provider name -> percentage (must sum to 100)
+    CooldownSeconds int              `json:"cooldown_seconds"`  // how long (in seconds) to mark a provider unavailable after usage-limit
+}
+
+// NormalizeNilFields maps nil slices/maps to empty values.
+func (rc *RoutingConfig) NormalizeNilFields() {
+    if rc.Preferences == nil {
+        rc.Preferences = map[string]string{}
+    }
+    if rc.Ratio == nil {
+        rc.Ratio = map[string]int{}
+    }
 }
 ```
 
@@ -254,35 +310,98 @@ Routing RoutingConfig `json:"routing"`
 Add defaults in `DefaultPolicy()`:
 ```go
 Routing: RoutingConfig{
-    Preferences: map[string]string{"plan": "any", "execute": "any", "review": "any", "validate": "any"},
-    Ratio:       map[string]int{"claude": 100},
-    Cooldown:    5 * time.Minute,
+    Preferences:    map[string]string{"plan": "any", "execute": "any", "review": "any", "validate": "any"},
+    Ratio:          map[string]int{"claude": 100},
+    CooldownSeconds: 300, // 5 minutes
 },
 ```
 
-Add nil-field normalization for the new maps in `NormalizeNilFields()`.
+Add nil-field normalization for the new maps in `Policy.NormalizeNilFields()`:
+```go
+func (p *Policy) NormalizeNilFields() {
+    // ... existing normalization ...
+    p.Routing.NormalizeNilFields()
+}
+```
 
-**Step 1: Update BuildStages to accept Router**
+Add validation in `Policy.Validate()`:
+```go
+// Validate ratio values sum to 100.
+if len(p.Routing.Ratio) > 0 {
+    sum := 0
+    for _, v := range p.Routing.Ratio {
+        sum += v
+    }
+    if sum != 100 {
+        return fmt.Errorf("routing.ratio values must sum to 100, got %d", sum)
+    }
+}
+// Validate ratio keys reference known provider names.
+knownProviders := map[string]bool{"claude": true, "codex": true} // extend as providers are added
+for name := range p.Routing.Ratio {
+    if !knownProviders[name] {
+        return fmt.Errorf("routing.ratio references unknown provider %q", name)
+    }
+}
+```
 
-Replace the hardcoded Claude provider (from 0002c) with Router-based selection:
+Corresponding test cases for validation:
+```go
+func TestPolicy_Validate_RoutingRatioSumsTo100(t *testing.T) {
+    p := DefaultPolicy()
+    p.Routing.Ratio = map[string]int{"claude": 70, "codex": 20}
+    err := p.Validate()
+    if err == nil || !strings.Contains(err.Error(), "sum to 100") {
+        t.Errorf("expected ratio sum validation error, got %v", err)
+    }
+}
+
+func TestPolicy_Validate_RoutingRatioUnknownProvider(t *testing.T) {
+    p := DefaultPolicy()
+    p.Routing.Ratio = map[string]int{"claude": 50, "unknown": 50}
+    err := p.Validate()
+    if err == nil || !strings.Contains(err.Error(), "unknown provider") {
+        t.Errorf("expected unknown provider error, got %v", err)
+    }
+}
+
+func TestPolicy_Validate_RoutingRatioValid(t *testing.T) {
+    p := DefaultPolicy()
+    p.Routing.Ratio = map[string]int{"claude": 70, "codex": 30}
+    err := p.Validate()
+    if err != nil {
+        t.Errorf("expected no error for valid ratio, got %v", err)
+    }
+}
+```
+
+**Step 1: Update BuildStages to use Router with lazy selection**
+
+Replace the hardcoded Claude provider (from 0002c) with FallbackAdapter wrapping the Router.
+Provider selection is deferred to first Invoke (lazy Select), so BuildStages does NOT
+call `router.Select` — it passes the Router to FallbackAdapter instead:
 
 ```go
 func (p *RealStageProvider) BuildStages(policy execpolicy.Policy, rs *runstore.RunState, budget *specloop.Budget) ([]specloop.Stage, error) {
     router := p.buildRouter(policy)
     costCallback := func(c float64) { budget.AddCost(c) }
 
-    // Select provider per stage phase
-    planProv, _ := router.Select("plan", policy.Models.Planner)
-    execProv, _ := router.Select("execute", policy.Models.Executor)
-    reviewProv, _ := router.Select("review", policy.Models.Evaluator)
-    validateProv, _ := router.Select("validate", provider.TierLow)
-
-    // Build adapters with fallback
+    // Build adapters with lazy provider selection via FallbackAdapter.
+    // Provider is resolved on first Invoke, not here.
     planCfg := llmadapter.Config{Tier: policy.Models.Planner, OnCost: costCallback}
     planAdapter := llmadapter.NewFallbackAdapter(
-        llmadapter.NewProviderAware(planProv, planCfg),
         router, "plan", planCfg, policy.Models.Planner)
-    // ... same pattern for exec, review, validate (each passing its own cfg and tier)
+
+    execCfg := llmadapter.Config{Tier: policy.Models.Executor, OnCost: costCallback}
+    execAdapter := llmadapter.NewFallbackAdapter(
+        router, "execute", execCfg, policy.Models.Executor)
+
+    reviewCfg := llmadapter.Config{Tier: policy.Models.Evaluator, OnCost: costCallback}
+    reviewAdapter := llmadapter.NewFallbackAdapter(
+        router, "review", reviewCfg, policy.Models.Evaluator)
+
+    // ShellValidator does not use LLM — no adapter needed for validate phase.
+    // ... wire adapters into stages
 }
 ```
 
@@ -299,12 +418,66 @@ func (p *RealStageProvider) buildRouter(policy execpolicy.Policy) *provider.Rout
     }
 
     // Phase preferences and ratio from policy routing config
-    preferences := policy.Routing.Preferences  // e.g. {"plan": "claude", "execute": "any"}
-    ratio := policy.Routing.Ratio              // e.g. {"claude": 70, "codex": 30}
-    cooldown := policy.Routing.Cooldown        // e.g. 5 * time.Minute
+    preferences := policy.Routing.Preferences     // e.g. {"plan": "claude", "execute": "any"}
+    ratio := policy.Routing.Ratio                  // e.g. {"claude": 70, "codex": 30}
+    // Convert CooldownSeconds (int) to time.Duration internally
+    cooldown := time.Duration(policy.Routing.CooldownSeconds) * time.Second
 
-    // NewRouter signature: providers, preferences, ratio, cooldown, stateFn, circuitBreaker
+    // NewRouter signature (from provider/router.go):
+    //   NewRouter(providers, preferences, ratio, cooldown, stateFn, circuitBreaker)
     return provider.NewRouter(providers, preferences, ratio, cooldown, p.stateFn, p.circuitBreaker)
+}
+```
+
+**Step 2b: Add tests for `buildRouter` construction**
+
+```go
+func TestBuildRouter_ReturnsConfiguredRouter(t *testing.T) {
+    p := &RealStageProvider{
+        claudeProvider: &mockProvider{name: "claude"},
+        codexProvider:  &mockProvider{name: "codex"},
+        stateFn:        nil,
+        circuitBreaker: nil,
+    }
+    policy := execpolicy.DefaultPolicy()
+    policy.Routing.Ratio = map[string]int{"claude": 70, "codex": 30}
+    router := p.buildRouter(policy)
+    // Router should be non-nil and usable
+    prov, _ := router.Select("plan", "high")
+    if prov == nil {
+        t.Fatal("expected router to return a provider")
+    }
+}
+
+func TestBuildStages_SelectsDifferentProvidersPerPhase(t *testing.T) {
+    p := &RealStageProvider{
+        claudeProvider: &mockProvider{name: "claude"},
+        codexProvider:  &mockProvider{name: "codex"},
+    }
+    policy := execpolicy.DefaultPolicy()
+    policy.Routing.Preferences = map[string]string{
+        "plan": "claude", "execute": "codex", "review": "any", "validate": "any",
+    }
+    policy.Routing.Ratio = map[string]int{"claude": 50, "codex": 50}
+    // Build stages and verify different providers are selected per phase.
+    // FallbackAdapter.Provider() triggers lazy Select, which respects preferences.
+}
+
+func TestBuildStages_NilCodexProvider_SingleProviderMode(t *testing.T) {
+    p := &RealStageProvider{
+        claudeProvider: &mockProvider{name: "claude"},
+        codexProvider:  nil, // single-provider mode
+    }
+    policy := execpolicy.DefaultPolicy()
+    policy.Routing.Ratio = map[string]int{"claude": 100}
+    router := p.buildRouter(policy)
+    prov, _ := router.Select("plan", "high")
+    if prov == nil {
+        t.Fatal("expected claude provider in single-provider mode")
+    }
+    if prov.Name() != "claude" {
+        t.Errorf("expected claude, got %q", prov.Name())
+    }
 }
 ```
 
@@ -323,6 +496,13 @@ git commit -m "feat: wire Router into RealStageProvider for multi-provider routi
 ---
 
 ### Task 4: Codex contract tests
+
+> **Cross-plan dependency:** This task requires the following 0002c tasks to be complete before work can begin:
+> - 0002c contract test suites must exist (`RunPlanAgentContract`, `RunReviewAgentContract`, `RunAcceptAgentContract`, `RunTaskRunnerContract`)
+> - 0002c `LLMAdapter` and `NewProviderAware` constructor must be implemented
+> - 0002c per-domain provider agents (`ProviderPlanAgent`, `ProviderReviewAgent`, `ProviderAcceptAgent`, `ProviderTaskRunner`) must be implemented
+>
+> The Codex provider itself (`provider.NewCodexProvider`) already exists from 0001.
 
 **Files:**
 - Modify: `internal/next/planner/agent_contract_test.go` — add Codex test
@@ -375,20 +555,26 @@ git commit -m "feat: Codex contract tests — validate provider compatibility"
 **Files:**
 - Modify: `internal/next/specloop/integration_test.go`
 
-**Step 1: Add a non-skipped unit test for all-providers-exhausted error path**
+**Step 1: Add a cross-package integration test for fallback wiring**
 
-This test exercises `FallbackAdapter` with a mock router that returns nil (all providers exhausted), complementing the unit test from Task 1:
+This test verifies `FallbackAdapter` from the `specloop` package perspective (cross-package),
+differentiating it from Task 1's same-package unit test. It exercises the exported API
+surface to confirm that the `llmadapter` package's public types wire correctly from
+an external consumer:
 
 ```go
-func TestUnit_FallbackAdapter_AllProvidersExhausted_ReturnsError(t *testing.T) {
-    primaryProv := &mockProviderWithUsageLimit{name: "claude", isUsageLimit: true}
-    primary := &mockInvokerWithProvider{
-        result: &provider.Result{Output: "", ExitCode: 2},
-        err:    errors.New("usage limit"),
-        prov:   primaryProv,
+func TestIntegration_FallbackAdapter_CrossPackage_AllProvidersExhausted(t *testing.T) {
+    // This test uses only exported types from llmadapter, verifying
+    // cross-package wiring works correctly (vs Task 1's internal unit test).
+    primaryProv := &mockProviderWithUsageLimit{name: "claude", isUsageLimit: true,
+        runResult: &provider.Result{Output: "", ExitCode: 2}, runErr: errors.New("usage limit")}
+    router := &mockRouter{
+        selectSequence: []mockSelectResult{
+            {prov: primaryProv, model: "claude-opus"},
+            {prov: nil, model: ""},  // all exhausted on fallback attempt
+        },
     }
-    router := &mockRouter{selectProvider: nil, selectModel: ""}
-    fa := llmadapter.NewFallbackAdapter(primary, router, "build", llmadapter.Config{}, "medium")
+    fa := llmadapter.NewFallbackAdapter(router, "build", llmadapter.Config{}, "medium")
     _, err := fa.Invoke(context.Background(), "prompt")
     if err == nil {
         t.Fatal("expected error when all providers exhausted")
