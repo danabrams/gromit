@@ -2,10 +2,14 @@ package stages
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/danabrams/gromit/internal/next/evidence"
+	"github.com/danabrams/gromit/internal/next/review"
 	"github.com/danabrams/gromit/internal/next/runstore"
 	"github.com/danabrams/gromit/internal/next/specloop"
 	"github.com/danabrams/gromit/internal/next/validator"
@@ -95,17 +99,119 @@ func (s *EvidenceStage) Run(ctx context.Context, rs *runstore.RunState) (specloo
 		return specloop.NextAction{}, fmt.Errorf("write summary: %w", err)
 	}
 
-	review := evidence.ReviewInput{
-		TerminalState:     rs.Status,
-		WhatChanged:       s.cfg.DiffSummary,
-		CycleHistory:      []evidence.CycleRecord{{Cycle: rs.Cycle, TaskCount: len(rs.Tasks), PassCount: passCount}},
-		ValidationResults: fmt.Sprintf("pass=%v", rs.FinalValidationPassed),
-		KnownRisks:        []string{},
-		RecommendedAction: "review",
+	// Read review.json and acceptance.json from disk (written by ReviewStage/AcceptStage)
+	reviewFindings, acceptanceCriteria := s.readReviewEvidence(rs.RunID)
+
+	reviewInput := evidence.ReviewInput{
+		TerminalState:      rs.Status,
+		WhatChanged:        s.cfg.DiffSummary,
+		CycleHistory:       []evidence.CycleRecord{{Cycle: rs.Cycle, TaskCount: len(rs.Tasks), PassCount: passCount}},
+		ValidationResults:  fmt.Sprintf("pass=%v", rs.FinalValidationPassed),
+		KnownRisks:         []string{},
+		RecommendedAction:  "review",
+		ReviewFindings:     reviewFindings,
+		AcceptanceCriteria: acceptanceCriteria,
 	}
-	if err := bundler.WriteReview(review); err != nil {
+	if err := bundler.WriteReview(reviewInput); err != nil {
 		return specloop.NextAction{}, fmt.Errorf("write review: %w", err)
 	}
 
 	return specloop.NextAction{Kind: specloop.Continue}, nil
+}
+
+// readReviewEvidence reads review.json and acceptance.json from disk and converts
+// them to summary types for the review decision sheet. Missing files produce
+// "Not evaluated" sentinel entries for backward compatibility with 0002a runs.
+func (s *EvidenceStage) readReviewEvidence(runID string) ([]evidence.ReviewFindingSummary, []evidence.AcceptanceCriterionSummary) {
+	evidenceDir := s.store.RunEvidenceDir(runID)
+
+	reviewFindings := s.readReviewFindings(filepath.Join(evidenceDir, "review.json"))
+	acceptanceCriteria := s.readAcceptanceCriteria(filepath.Join(evidenceDir, "acceptance.json"))
+
+	return reviewFindings, acceptanceCriteria
+}
+
+func (s *EvidenceStage) readReviewFindings(path string) []evidence.ReviewFindingSummary {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return []evidence.ReviewFindingSummary{
+			{Facet: "review", Count: 0, Severities: "Not evaluated"},
+		}
+	}
+
+	var facetFindings map[string][]review.Finding
+	if err := json.Unmarshal(data, &facetFindings); err != nil {
+		return []evidence.ReviewFindingSummary{
+			{Facet: "review", Count: 0, Severities: "Not evaluated"},
+		}
+	}
+
+	var summaries []evidence.ReviewFindingSummary
+	for facet, findings := range facetFindings {
+		severityCounts := map[string]int{}
+		for _, f := range findings {
+			severityCounts[f.Severity.String()]++
+		}
+		sevStr := ""
+		for sev, count := range severityCounts {
+			if sevStr != "" {
+				sevStr += ", "
+			}
+			sevStr += fmt.Sprintf("%d %s", count, sev)
+		}
+		if sevStr == "" {
+			sevStr = "none"
+		}
+
+		// Add finding descriptions as sub-entries
+		for _, f := range findings {
+			summaries = append(summaries, evidence.ReviewFindingSummary{
+				Facet:      facet,
+				Count:      len(findings),
+				Severities: f.Description,
+			})
+		}
+		if len(findings) == 0 {
+			summaries = append(summaries, evidence.ReviewFindingSummary{
+				Facet:      facet,
+				Count:      0,
+				Severities: sevStr,
+			})
+		}
+	}
+
+	return summaries
+}
+
+func (s *EvidenceStage) readAcceptanceCriteria(path string) []evidence.AcceptanceCriterionSummary {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return []evidence.AcceptanceCriterionSummary{
+			{Criterion: "acceptance", Status: "Not evaluated", Rationale: "No acceptance.json found"},
+		}
+	}
+
+	var result struct {
+		Results []struct {
+			Criterion string `json:"criterion"`
+			Status    string `json:"status"`
+			Rationale string `json:"rationale"`
+		} `json:"results"`
+	}
+	if err := json.Unmarshal(data, &result); err != nil {
+		return []evidence.AcceptanceCriterionSummary{
+			{Criterion: "acceptance", Status: "Not evaluated", Rationale: "Invalid acceptance.json"},
+		}
+	}
+
+	var summaries []evidence.AcceptanceCriterionSummary
+	for _, r := range result.Results {
+		summaries = append(summaries, evidence.AcceptanceCriterionSummary{
+			Criterion: r.Criterion,
+			Status:    r.Status,
+			Rationale: r.Rationale,
+		})
+	}
+
+	return summaries
 }
