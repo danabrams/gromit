@@ -3,6 +3,8 @@ package stages
 import (
 	"context"
 	"fmt"
+	"sort"
+	"strings"
 
 	"github.com/danabrams/gromit/internal/next/evidence"
 	"github.com/danabrams/gromit/internal/next/review"
@@ -71,6 +73,22 @@ func (s *ReviewStage) Run(ctx context.Context, rs *runstore.RunState) (specloop.
 	})
 	if err != nil {
 		return specloop.NextAction{}, fmt.Errorf("review run: %w", err)
+	}
+
+	// Handle all-facets-errored case
+	if result.AllFacetsErrored {
+		var errMsgs []string
+		for _, msg := range result.ErroredFacets {
+			errMsgs = append(errMsgs, msg)
+		}
+		sort.Strings(errMsgs)
+		return specloop.NextAction{
+			Kind: specloop.Blocked,
+			Context: &specloop.FailureContext{
+				Failures: []string{fmt.Sprintf("all review facets failed: [%s]", strings.Join(errMsgs, ", "))},
+				Cycle:    rs.Cycle,
+			},
+		}, nil
 	}
 
 	// Accumulate prior findings for disposition matching across cycles

@@ -220,6 +220,39 @@ func TestReviewStage_FixCycle_PassesPriorFindings(t *testing.T) {
 	}
 }
 
+func TestReviewStage_AllFacetsError_ReturnsBlocked(t *testing.T) {
+	runner := &mockReviewRunner{
+		result: &review.RunResult{
+			AllFacetsErrored: true,
+			ErroredFacets: map[string]string{
+				"spec_alignment": "API timeout",
+				"code_quality":   "rate limited",
+			},
+		},
+	}
+
+	stage := NewReviewStage(runner, ReviewStageConfig{
+		DiffProvider: &fakeDiffProvider{diff: "some diff"},
+	}, nil)
+	rs := runstore.NewRunState("test-spec", "test-project")
+	rs.Cycle = 1
+
+	action, err := stage.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	if action.Kind != specloop.Blocked {
+		t.Errorf("expected Blocked action, got %v", action.Kind)
+	}
+	if action.Context == nil {
+		t.Fatal("expected FailureContext to be non-nil")
+	}
+	if len(action.Context.Failures) != 1 {
+		t.Errorf("expected 1 failure message, got %d", len(action.Context.Failures))
+	}
+}
+
 func TestReviewStage_ComputesDiffFromDiffProvider(t *testing.T) {
 	var capturedInput review.RunInput
 	runner := &capturingReviewRunner{

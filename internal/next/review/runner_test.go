@@ -255,6 +255,39 @@ func TestRunner_AllFacetsErrored(t *testing.T) {
 	}
 }
 
+func TestRunner_AllFacetsError_ReturnsAllErrored(t *testing.T) {
+	agent := &mockReviewAgent{
+		errors: map[string]error{
+			"spec_alignment": fmt.Errorf("API timeout"),
+			"code_quality":   fmt.Errorf("rate limited"),
+		},
+	}
+
+	runner := NewRunner(agent, RunnerConfig{
+		Facets:    []string{"spec_alignment", "code_quality"},
+		Threshold: SeverityWarning,
+	})
+
+	result, err := runner.Run(context.Background(), RunInput{
+		DiffSummary: "Added handler",
+		SpecContent: "# Spec",
+		Cycle:       1,
+	})
+	if err != nil {
+		t.Fatalf("Run should not return error even when all facets fail: %v", err)
+	}
+
+	if len(result.ErroredFacets) != 2 {
+		t.Errorf("expected 2 errored facets, got %d", len(result.ErroredFacets))
+	}
+	if len(result.AllFindings) != 0 {
+		t.Errorf("expected 0 findings when all facets errored, got %d", len(result.AllFindings))
+	}
+	if !result.AllFacetsErrored {
+		t.Error("AllFacetsErrored should be true when every facet errors")
+	}
+}
+
 func TestRunner_FacetError_ContinuesWithOtherFacets(t *testing.T) {
 	agent := &mockReviewAgent{
 		findings: map[string][]Finding{

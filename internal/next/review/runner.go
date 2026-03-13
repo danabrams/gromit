@@ -33,6 +33,7 @@ type RunResult struct {
 	HasBlockingFindings bool                 `json:"has_blocking_findings"`
 	FindingsByFacet     map[string][]Finding `json:"findings_by_facet"`
 	ErroredFacets       map[string]string    `json:"errored_facets"`
+	AllFacetsErrored    bool                 `json:"all_facets_errored"`
 }
 
 // NormalizeNilFields maps nil slices/maps to empty values.
@@ -127,6 +128,7 @@ func (r *Runner) Run(ctx context.Context, input RunInput) (*RunResult, error) {
 		}
 	}
 	result.HasBlockingFindings = len(result.BlockingFindings) > 0
+	result.AllFacetsErrored = len(result.ErroredFacets) > 0 && len(result.AllFindings) == 0
 	result.NormalizeNilFields()
 
 	return result, nil
