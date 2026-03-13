@@ -6,6 +6,11 @@ import (
 	"context"
 	"os"
 	"testing"
+	"time"
+
+	"github.com/danabrams/gromit/internal/claude"
+	"github.com/danabrams/gromit/internal/next/llmadapter"
+	"github.com/danabrams/gromit/internal/provider"
 )
 
 // RunReviewAgentContract runs the agent contract suite against any ReviewAgent implementation.
@@ -74,6 +79,18 @@ func TestContract_ProviderReviewAgent(t *testing.T) {
 
 func buildRealReviewAgent(t *testing.T) ReviewAgent {
 	t.Helper()
-	t.Skip("TODO: wire real provider for contract tests")
-	return nil
+	client, err := claude.NewClient("claude", []string{"--no-input"}, 120)
+	if err != nil {
+		t.Fatalf("failed to create claude client: %v", err)
+	}
+	prov := provider.NewClaudeProvider(client, map[string]string{
+		"low":    "claude-haiku-4-5-20251001",
+		"medium": "claude-sonnet-4-5-20250514",
+		"high":   "claude-sonnet-4-5-20250514",
+	})
+	adapter := llmadapter.New(prov, llmadapter.Config{
+		Tier:    "low",
+		Timeout: 2 * time.Minute,
+	})
+	return NewProviderReviewAgent(adapter)
 }
