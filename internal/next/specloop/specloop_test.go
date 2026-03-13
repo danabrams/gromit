@@ -210,6 +210,81 @@ func TestSpecLoop_BudgetExceeded_StillRunsEvidence(t *testing.T) {
 	}
 }
 
+type mockStage struct {
+	name  string
+	runFn func(ctx context.Context, rs *runstore.RunState) (NextAction, error)
+}
+
+func (s *mockStage) Name() string { return s.name }
+func (s *mockStage) Run(ctx context.Context, rs *runstore.RunState) (NextAction, error) {
+	return s.runFn(ctx, rs)
+}
+
+func TestSpecLoop_CycleResetsGateFields(t *testing.T) {
+	rs := runstore.NewRunState("test-spec", "test-project")
+	rs.FinalValidationPassed = true
+	rs.FinalReviewPassed = true
+	rs.FinalAcceptancePassed = true
+	rs.ReviewFindings = []string{"prior finding 1"}
+	rs.AcceptanceResults = []string{"prior result 1"}
+
+	var capturedRS *runstore.RunState
+	captureStage := &mockStage{
+		name: "capture",
+		runFn: func(ctx context.Context, rs *runstore.RunState) (NextAction, error) {
+			capturedRS = rs
+			return NextAction{Kind: Continue}, nil
+		},
+	}
+
+	budget := NewBudget(execpolicy.Budgets{MaxSpecCycles: 1, MaxTaskDurationSeconds: 300, MaxRunDurationSeconds: 3600, MaxRunCostUSD: 50.0})
+	loop := NewSpecLoop([]Stage{captureStage}, SpecLoopConfig{
+		Budget: budget,
+	})
+
+	loop.Run(context.Background(), rs)
+
+	if capturedRS.FinalValidationPassed {
+		t.Error("FinalValidationPassed should be reset to false at cycle start")
+	}
+	if capturedRS.FinalReviewPassed {
+		t.Error("FinalReviewPassed should be reset to false at cycle start")
+	}
+	if capturedRS.FinalAcceptancePassed {
+		t.Error("FinalAcceptancePassed should be reset to false at cycle start")
+	}
+	if len(capturedRS.ReviewFindings) != 0 {
+		t.Errorf("ReviewFindings should be empty at cycle start, got %v", capturedRS.ReviewFindings)
+	}
+	if len(capturedRS.AcceptanceResults) != 0 {
+		t.Errorf("AcceptanceResults should be empty at cycle start, got %v", capturedRS.AcceptanceResults)
+	}
+}
+
+func TestSpecLoop_CycleReset_ValidateStageResetsGateAfterReset(t *testing.T) {
+	validateStub := &mockStage{
+		name: "validate",
+		runFn: func(ctx context.Context, rs *runstore.RunState) (NextAction, error) {
+			rs.FinalValidationPassed = true
+			return NextAction{Kind: Continue}, nil
+		},
+	}
+
+	budget := NewBudget(execpolicy.Budgets{MaxSpecCycles: 1, MaxTaskDurationSeconds: 300, MaxRunDurationSeconds: 3600, MaxRunCostUSD: 50.0})
+	loop := NewSpecLoop([]Stage{validateStub}, SpecLoopConfig{
+		Budget: budget,
+	})
+	rs := &runstore.RunState{FinalValidationPassed: true}
+
+	err := loop.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !rs.FinalValidationPassed {
+		t.Error("ValidateStage should re-set FinalValidationPassed after cycle reset")
+	}
+}
+
 func TestSpecLoop_CycleExhaustion_RunsEvidence(t *testing.T) {
 	budget := NewBudget(execpolicy.Budgets{MaxSpecCycles: 1, MaxRunCostUSD: 99})
 

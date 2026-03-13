@@ -35,6 +35,13 @@ func (sl *SpecLoop) Run(ctx context.Context, rs *runstore.RunState) error {
 	for cycle := 0; cycle < maxCycles; cycle++ {
 		rs.Cycle = cycle + 1
 
+		// Reset gate booleans and review/acceptance fields at cycle start
+		rs.FinalValidationPassed = false
+		rs.FinalReviewPassed = false
+		rs.FinalAcceptancePassed = false
+		rs.ReviewFindings = []string{}
+		rs.AcceptanceResults = []string{}
+
 		startIdx := 0
 		if cycle > 0 && sl.config.ReplanStage != "" {
 			if idx := sl.findStageIndex(sl.config.ReplanStage); idx >= 0 {
