@@ -127,6 +127,9 @@ func (p *Policy) Validate() error {
 	if p.Models.Executor == "" {
 		errs = append(errs, fmt.Errorf("Models.Executor must be non-empty"))
 	}
+	if p.Models.Evaluator == "" {
+		errs = append(errs, fmt.Errorf("Models.Evaluator must be non-empty"))
+	}
 	return errors.Join(errs...)
 }
 

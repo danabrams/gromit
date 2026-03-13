@@ -171,6 +171,22 @@ func TestDefaultPolicy_ReviewTiers(t *testing.T) {
 	}
 }
 
+func TestDefaultPolicy_HasEvaluatorTier(t *testing.T) {
+	p := DefaultPolicy()
+	if p.Models.Evaluator != "high" {
+		t.Errorf("Evaluator tier = %q, want high", p.Models.Evaluator)
+	}
+}
+
+func TestPolicy_Validate_EvaluatorRequired(t *testing.T) {
+	p := DefaultPolicy()
+	p.Models.Evaluator = ""
+	err := p.Validate()
+	if err == nil {
+		t.Error("Validate should fail when Evaluator is empty")
+	}
+}
+
 func TestValidate_RejectsEmptyCheckNameAndCommand(t *testing.T) {
 	p := DefaultPolicy()
 	p.AlwaysRun = []Check{
