@@ -138,6 +138,63 @@ func TestValidate_RejectsEmptyCheckCommand(t *testing.T) {
 	}
 }
 
+func TestLoadPolicy_ReviewConfigFromJSON(t *testing.T) {
+	tmpDir := t.TempDir()
+	policyJSON := `{
+		"review": {
+			"facets": ["spec_alignment", "code_quality", "logic_gaps"],
+			"tiers": {
+				"spec_alignment": "high",
+				"code_quality": "medium",
+				"logic_gaps": "high"
+			},
+			"replan_threshold": "error"
+		}
+	}`
+	path := filepath.Join(tmpDir, "policy.json")
+	if err := os.WriteFile(path, []byte(policyJSON), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	p, err := LoadPolicy(path)
+	if err != nil {
+		t.Fatalf("LoadPolicy: %v", err)
+	}
+	if len(p.Review.Facets) != 3 {
+		t.Errorf("expected 3 facets, got %d", len(p.Review.Facets))
+	}
+	if p.Review.ReplanThreshold != "error" {
+		t.Errorf("threshold = %q, want error", p.Review.ReplanThreshold)
+	}
+	if p.Review.Tiers["logic_gaps"] != "high" {
+		t.Errorf("logic_gaps tier = %q, want high", p.Review.Tiers["logic_gaps"])
+	}
+}
+
+func TestLoadPolicy_ReviewDefaultsPreservedOnPartialJSON(t *testing.T) {
+	tmpDir := t.TempDir()
+	policyJSON := `{
+		"review": {
+			"replan_threshold": "warning"
+		}
+	}`
+	path := filepath.Join(tmpDir, "policy.json")
+	if err := os.WriteFile(path, []byte(policyJSON), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	p, err := LoadPolicy(path)
+	if err != nil {
+		t.Fatalf("LoadPolicy: %v", err)
+	}
+	if p.Review.ReplanThreshold != "warning" {
+		t.Errorf("threshold should be overridden to warning, got %q", p.Review.ReplanThreshold)
+	}
+	if len(p.Review.Facets) != 2 {
+		t.Errorf("facets should be default (2), got %d", len(p.Review.Facets))
+	}
+}
+
 func TestDefaultPolicy_HasFacetRetryCount(t *testing.T) {
 	p := DefaultPolicy()
 	if p.Review.FacetRetries != 2 {
