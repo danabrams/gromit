@@ -249,6 +249,12 @@ func unmarshalEvent(data []byte) (TypedEvent, error) {
 	case "budget_exceeded":
 		var e BudgetExceededEvent
 		ev = &e
+	case "review_result":
+		var e ReviewResultEvent
+		ev = &e
+	case "acceptance_result":
+		var e AcceptanceResultEvent
+		ev = &e
 	case "terminal_state":
 		var e TerminalStateEvent
 		ev = &e

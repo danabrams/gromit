@@ -3,6 +3,7 @@ package stages
 import (
 	"context"
 	"errors"
+	"path/filepath"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/next/acceptor"
@@ -212,6 +213,35 @@ func TestAcceptStage_StoresFailuresInRunState(t *testing.T) {
 	}
 	if len(rs.AcceptanceResults) == 0 {
 		t.Error("AcceptanceResults should contain failure strings")
+	}
+}
+
+func TestAcceptStage_EmitsEvent(t *testing.T) {
+	eval := &mockAcceptEvaluator{
+		results: []acceptor.AcceptanceResult{{
+			Results: []acceptor.CriterionResult{
+				{Criterion: "x", Status: acceptor.StatusPass},
+			},
+			AllPass: true,
+		}},
+	}
+
+	eventLog := runstore.NewEventLog(filepath.Join(t.TempDir(), "events.jsonl"))
+	stage := NewAcceptStage(eval, AcceptStageConfig{Criteria: []string{"x"}}, eventLog)
+	rs := runstore.NewRunState("test-spec", "test-project")
+	rs.Cycle = 1
+
+	_, err := stage.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	events, err := eventLog.ReadAll()
+	if err != nil {
+		t.Fatalf("ReadAll: %v", err)
+	}
+	if len(events) == 0 {
+		t.Fatal("expected at least one event")
 	}
 }
 

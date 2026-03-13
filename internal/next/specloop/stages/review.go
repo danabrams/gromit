@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/danabrams/gromit/internal/next/evidence"
 	"github.com/danabrams/gromit/internal/next/review"
@@ -73,6 +74,21 @@ func (s *ReviewStage) Run(ctx context.Context, rs *runstore.RunState) (specloop.
 	})
 	if err != nil {
 		return specloop.NextAction{}, fmt.Errorf("review run: %w", err)
+	}
+
+	// Emit review_result event
+	if s.eventLog != nil {
+		var facets []string
+		for f := range result.FindingsByFacet {
+			facets = append(facets, f)
+		}
+		sort.Strings(facets)
+		s.eventLog.Append(runstore.ReviewResultEvent{
+			BaseEvent:        runstore.BaseEvent{Type: "review_result", Timestamp: time.Now()},
+			TotalFindings:    len(result.AllFindings),
+			BlockingFindings: len(result.BlockingFindings),
+			FacetsReviewed:   facets,
+		})
 	}
 
 	// Handle all-facets-errored case

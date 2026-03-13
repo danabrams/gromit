@@ -3,6 +3,7 @@ package stages
 import (
 	"context"
 	"errors"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -284,6 +285,39 @@ func TestReviewStage_ComputesDiffFromDiffProvider(t *testing.T) {
 	}
 	if !strings.Contains(capturedInput.DiffSummary, "handler.go") {
 		t.Error("DiffSummary should contain diff output from DiffProvider")
+	}
+}
+
+func TestReviewStage_EmitsEvent(t *testing.T) {
+	runner := &mockReviewRunner{
+		result: &review.RunResult{
+			AllFindings: []review.Finding{
+				{Severity: review.SeverityInfo, File: "handler.go", Description: "info note"},
+			},
+			BlockingFindings:    []review.Finding{},
+			HasBlockingFindings: false,
+			FindingsByFacet: map[string][]review.Finding{
+				"code_quality": {{Severity: review.SeverityInfo}},
+			},
+		},
+	}
+
+	eventLog := runstore.NewEventLog(filepath.Join(t.TempDir(), "events.jsonl"))
+	stage := NewReviewStage(runner, ReviewStageConfig{}, eventLog)
+	rs := runstore.NewRunState("test-spec", "test-project")
+	rs.Cycle = 1
+
+	_, err := stage.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	events, err := eventLog.ReadAll()
+	if err != nil {
+		t.Fatalf("ReadAll: %v", err)
+	}
+	if len(events) == 0 {
+		t.Fatal("expected at least one event")
 	}
 }
 

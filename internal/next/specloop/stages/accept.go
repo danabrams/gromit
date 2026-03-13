@@ -3,6 +3,7 @@ package stages
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/danabrams/gromit/internal/next/acceptor"
 	"github.com/danabrams/gromit/internal/next/evidence"
@@ -96,6 +97,28 @@ func (s *AcceptStage) Run(ctx context.Context, rs *runstore.RunState) (specloop.
 		if err := s.bundler.WriteAcceptanceResults(result); err != nil {
 			return specloop.NextAction{}, fmt.Errorf("write acceptance results: %w", err)
 		}
+	}
+
+	// Emit acceptance_result event
+	if s.eventLog != nil {
+		var passCount, failCount, unclearCount int
+		for _, r := range result.Results {
+			switch r.Status {
+			case acceptor.StatusPass:
+				passCount++
+			case acceptor.StatusFail:
+				failCount++
+			case acceptor.StatusUnclear:
+				unclearCount++
+			}
+		}
+		s.eventLog.Append(runstore.AcceptanceResultEvent{
+			BaseEvent:     runstore.BaseEvent{Type: "acceptance_result", Timestamp: time.Now()},
+			TotalCriteria: len(result.Results),
+			PassCount:     passCount,
+			FailCount:     failCount,
+			UnclearCount:  unclearCount,
+		})
 	}
 
 	if result.HasFailOrUnclear {
