@@ -14,7 +14,11 @@
 - `*LLMAdapter` satisfies `ProviderAwareInvoker` (has `Provider() provider.Provider` method)
 - `llmadapter.Config` struct — passed through by `FallbackAdapter` when constructing adapters
 
+**Tasks:** 9 tasks across 4 phases (expanded from original 6 by splitting Task 3)
+
 ---
+
+## Phase 1: FallbackAdapter
 
 ### Task 1: `FallbackAdapter` — failing tests
 
@@ -137,54 +141,12 @@ func TestFallbackAdapter_Provider_ReturnsPrimaryProvider(t *testing.T) {
 
 **Mock type definitions** (add to `fallback_test.go` before the test functions):
 
+> **Note:** The `mockProvider` and `mockProviderWithUsageLimit` types are already defined in
+> `adapter_test.go` (from 0002c Task 1). Since `fallback_test.go` is in the same package,
+> these types are already available. Do NOT redefine them here. Only define the new mock types
+> needed for fallback testing: `mockSelectResult`, `mockRouter`.
+
 ```go
-// mockProvider satisfies provider.Provider with configurable results.
-type mockProvider struct {
-	name      string
-	runResult *provider.Result
-	runErr    error
-}
-
-func (m *mockProvider) Name() string                                              { return m.name }
-func (m *mockProvider) ModelForTier(tier string) string                           { return tier }
-func (m *mockProvider) Run(ctx context.Context, prompt string, tier string) (*provider.Result, error) {
-	return m.runResult, m.runErr
-}
-func (m *mockProvider) StreamRun(ctx context.Context, prompt string, tier string, output io.Writer,
-	handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
-	return m.runResult, m.runErr
-}
-func (m *mockProvider) RunValidation(ctx context.Context, commands []string, tier string, workDir string) (*provider.Result, error) {
-	return m.runResult, m.runErr
-}
-func (m *mockProvider) IsUsageLimitError(r *provider.Result, err error) bool      { return false }
-func (m *mockProvider) IsValidationPassed(r *provider.Result) bool                { return true }
-func (m *mockProvider) IsScopeTooLarge(r *provider.Result) (bool, string)         { return false, "" }
-
-// mockProviderWithUsageLimit is like mockProvider but with configurable IsUsageLimitError.
-type mockProviderWithUsageLimit struct {
-	name         string
-	runResult    *provider.Result
-	runErr       error
-	isUsageLimit bool
-}
-
-func (m *mockProviderWithUsageLimit) Name() string                                              { return m.name }
-func (m *mockProviderWithUsageLimit) ModelForTier(tier string) string                           { return tier }
-func (m *mockProviderWithUsageLimit) Run(ctx context.Context, prompt string, tier string) (*provider.Result, error) {
-	return m.runResult, m.runErr
-}
-func (m *mockProviderWithUsageLimit) StreamRun(ctx context.Context, prompt string, tier string, output io.Writer,
-	handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
-	return m.runResult, m.runErr
-}
-func (m *mockProviderWithUsageLimit) RunValidation(ctx context.Context, commands []string, tier string, workDir string) (*provider.Result, error) {
-	return m.runResult, m.runErr
-}
-func (m *mockProviderWithUsageLimit) IsUsageLimitError(r *provider.Result, err error) bool      { return m.isUsageLimit }
-func (m *mockProviderWithUsageLimit) IsValidationPassed(r *provider.Result) bool                { return true }
-func (m *mockProviderWithUsageLimit) IsScopeTooLarge(r *provider.Result) (bool, string)         { return false, "" }
-
 // mockSelectResult holds a provider/model pair for sequence-based mock router.
 type mockSelectResult struct {
 	prov  provider.Provider
@@ -306,7 +268,11 @@ func (f *FallbackAdapter) resolvePrimary() ProviderAwareInvoker {
 	if prov == nil {
 		return nil
 	}
-	return New(prov, f.cfg)
+	// Override cfg.Tier with the FallbackAdapter's tier to ensure the inner
+	// LLMAdapter invokes provider.Run with the correct tier string.
+	cfg := f.cfg
+	cfg.Tier = f.tier
+	return New(prov, cfg)
 }
 
 // Provider returns the primary adapter's provider (satisfies ProviderAwareInvoker).
@@ -356,7 +322,9 @@ func (f *FallbackAdapter) Invoke(ctx context.Context, prompt string) (*provider.
 		if fallbackProv == nil {
 			return result, fmt.Errorf("all providers exhausted after %s usage limit: %w", primaryName, err)
 		}
-		fallback := New(fallbackProv, f.cfg)
+		cfg := f.cfg
+		cfg.Tier = f.tier
+		fallback := New(fallbackProv, cfg)
 		fallbackResult, fallbackErr := fallback.Invoke(ctx, prompt)
 		if fallbackErr != nil {
 			return fallbackResult, fmt.Errorf("fallback provider %s also failed (primary was %s): %w", fallbackProv.Name(), primaryName, fallbackErr)
@@ -386,56 +354,48 @@ git commit -m "green: FallbackAdapter with transparent usage-limit failover"
 
 ---
 
-### Task 3: Update `RealStageProvider` to use Router
+## Phase 2: Router Wiring
+
+### Task 3a: Add `RoutingConfig` to `execpolicy.Policy`
 
 **Files:**
-- Modify: `cmd/gromit-next/stage_provider.go`
-- Modify: `cmd/gromit-next/exec.go` (add `--provider` flag or routing config)
+- Modify: `internal/next/execpolicy/policy.go`
+- Modify: `internal/next/execpolicy/policy_test.go`
 
-**Step 0a: Add provider fields to `RealStageProvider`**
+**Step 1: Write failing tests**
 
-`RealStageProvider` currently has no provider fields. Add the following to `cmd/gromit-next/stage_provider.go`:
+Add to `internal/next/execpolicy/policy_test.go`:
 
 ```go
-// RealStageProvider fields needed for multi-provider routing:
-type RealStageProvider struct {
-    // ... existing fields ...
-    claudeProvider  provider.Provider        // required — always present
-    codexProvider   provider.Provider        // optional — nil in single-provider mode
-    stateFn         provider.StateFile       // optional — for stateful routing
-    circuitBreaker  *provider.CircuitBreaker // optional — for circuit-breaking
+func TestPolicy_Validate_RoutingRatioSumsTo100(t *testing.T) {
+    p := DefaultPolicy()
+    p.Routing.Ratio = map[string]int{"claude": 70, "codex": 20}
+    err := p.Validate()
+    if err == nil || !strings.Contains(err.Error(), "sum to 100") {
+        t.Errorf("expected ratio sum validation error, got %v", err)
+    }
 }
-```
 
-Update `RealStageProviderConfig` to accept these:
+// NOTE: Unknown provider name validation is NOT tested here because it is
+// deferred to router construction time (where the actual provider map is known).
+// See provider.NewRouter tests for unknown-name rejection.
 
-```go
-type RealStageProviderConfig struct {
-    // ... existing fields ...
-    ClaudeProvider  provider.Provider        // required
-    CodexProvider   provider.Provider        // optional
-    StateFn         provider.StateFile       // optional
-    CircuitBreaker  *provider.CircuitBreaker // optional
-}
-```
-
-Update the constructor to wire them:
-
-```go
-func NewRealStageProvider(cfg RealStageProviderConfig) *RealStageProvider {
-    return &RealStageProvider{
-        // ... existing wiring ...
-        claudeProvider:  cfg.ClaudeProvider,
-        codexProvider:   cfg.CodexProvider,
-        stateFn:         cfg.StateFn,
-        circuitBreaker:  cfg.CircuitBreaker,
+func TestPolicy_Validate_RoutingRatioValid(t *testing.T) {
+    p := DefaultPolicy()
+    p.Routing.Ratio = map[string]int{"claude": 70, "codex": 30}
+    err := p.Validate()
+    if err != nil {
+        t.Errorf("expected no error for valid ratio, got %v", err)
     }
 }
 ```
 
-**Step 0b: Add `Routing` config to `execpolicy.Policy`**
+Run: `cd /Users/dabrams/gromit && go test ./internal/next/execpolicy/ -run TestPolicy_Validate_Routing -v -count=1`
+Expected: FAIL
 
-The `Policy` struct currently has no `Routing` field. Add it to `internal/next/execpolicy/policy.go`:
+**Step 2: Implement `RoutingConfig` and wire into `Policy`**
+
+Add to `internal/next/execpolicy/policy.go`:
 
 ```go
 // RoutingConfig defines multi-provider routing preferences.
@@ -496,32 +456,260 @@ if len(p.Routing.Ratio) > 0 {
 // reject unknown provider names when it receives the providers map.
 ```
 
-Corresponding test cases for validation:
+**Step 3: Run tests**
+
+Run: `cd /Users/dabrams/gromit && go test ./internal/next/execpolicy/ -v -count=1`
+Expected: PASS
+
+**Step 4: Commit**
+
+```bash
+git add internal/next/execpolicy/policy.go internal/next/execpolicy/policy_test.go
+git commit -m "feat: add RoutingConfig to execpolicy.Policy with ratio validation"
+```
+
+---
+
+### Task 3b: Add provider fields to `RealStageProvider`
+
+**Files:**
+- Modify: `cmd/gromit-next/stage_provider.go`
+- Modify: `cmd/gromit-next/stage_provider_test.go`
+
+**Step 1: Write failing test**
+
+Add to `cmd/gromit-next/stage_provider_test.go`:
+
 ```go
-func TestPolicy_Validate_RoutingRatioSumsTo100(t *testing.T) {
-    p := DefaultPolicy()
-    p.Routing.Ratio = map[string]int{"claude": 70, "codex": 20}
-    err := p.Validate()
-    if err == nil || !strings.Contains(err.Error(), "sum to 100") {
-        t.Errorf("expected ratio sum validation error, got %v", err)
+func TestNewRealStageProvider_AcceptsProviderFields(t *testing.T) {
+    claudeProv := &mockProvider{name: "claude"}
+    codexProv := &mockProvider{name: "codex"}
+    sp := NewRealStageProvider(RealStageProviderConfig{
+        ClaudeProvider: claudeProv,
+        CodexProvider:  codexProv,
+    })
+    if sp.claudeProvider == nil {
+        t.Error("expected claudeProvider to be set")
     }
-}
-
-// NOTE: Unknown provider name validation is NOT tested here because it is
-// deferred to router construction time (where the actual provider map is known).
-// See provider.NewRouter tests for unknown-name rejection.
-
-func TestPolicy_Validate_RoutingRatioValid(t *testing.T) {
-    p := DefaultPolicy()
-    p.Routing.Ratio = map[string]int{"claude": 70, "codex": 30}
-    err := p.Validate()
-    if err != nil {
-        t.Errorf("expected no error for valid ratio, got %v", err)
+    if sp.codexProvider == nil {
+        t.Error("expected codexProvider to be set")
     }
 }
 ```
 
-**Step 0c: Update `exec.go` to construct providers and pass them to `RealStageProviderConfig`**
+Run: `cd /Users/dabrams/gromit && go test ./cmd/gromit-next/ -run TestNewRealStageProvider_AcceptsProviderFields -v -count=1`
+Expected: FAIL
+
+**Step 2: Add provider fields**
+
+`RealStageProvider` currently has no provider fields. Add the following to `cmd/gromit-next/stage_provider.go`:
+
+```go
+// RealStageProvider fields needed for multi-provider routing:
+type RealStageProvider struct {
+    // ... existing fields ...
+    claudeProvider  provider.Provider        // required — always present
+    codexProvider   provider.Provider        // optional — nil in single-provider mode
+    stateFn         provider.StateFile       // optional — for stateful routing
+    circuitBreaker  *provider.CircuitBreaker // optional — for circuit-breaking
+}
+```
+
+Update `RealStageProviderConfig` to accept these:
+
+```go
+type RealStageProviderConfig struct {
+    // ... existing fields ...
+    ClaudeProvider  provider.Provider        // required
+    CodexProvider   provider.Provider        // optional
+    StateFn         provider.StateFile       // optional
+    CircuitBreaker  *provider.CircuitBreaker // optional
+}
+```
+
+Update the constructor to wire them:
+
+```go
+func NewRealStageProvider(cfg RealStageProviderConfig) *RealStageProvider {
+    return &RealStageProvider{
+        // ... existing wiring ...
+        claudeProvider:  cfg.ClaudeProvider,
+        codexProvider:   cfg.CodexProvider,
+        stateFn:         cfg.StateFn,
+        circuitBreaker:  cfg.CircuitBreaker,
+    }
+}
+```
+
+**Step 3: Run tests**
+
+Run: `cd /Users/dabrams/gromit && go test ./cmd/gromit-next/ -run TestNewRealStageProvider -v -count=1`
+Expected: PASS
+
+**Step 4: Commit**
+
+```bash
+git add cmd/gromit-next/stage_provider.go cmd/gromit-next/stage_provider_test.go
+git commit -m "feat: add provider fields to RealStageProvider for multi-provider routing"
+```
+
+---
+
+### Task 3c: Implement `buildRouter`
+
+**Files:**
+- Modify: `cmd/gromit-next/stage_provider.go`
+- Modify: `cmd/gromit-next/stage_provider_test.go`
+
+**Step 1: Write failing tests**
+
+Add to `cmd/gromit-next/stage_provider_test.go`:
+
+```go
+func TestBuildRouter_ReturnsConfiguredRouter(t *testing.T) {
+    p := &RealStageProvider{
+        claudeProvider: &mockProvider{name: "claude"},
+        codexProvider:  &mockProvider{name: "codex"},
+        stateFn:        nil,
+        circuitBreaker: nil,
+    }
+    policy := execpolicy.DefaultPolicy()
+    policy.Routing.Ratio = map[string]int{"claude": 70, "codex": 30}
+    router := p.buildRouter(policy)
+    // Router should be non-nil and usable
+    prov, _ := router.Select("plan", "high")
+    if prov == nil {
+        t.Fatal("expected router to return a provider")
+    }
+}
+
+func TestBuildStages_NilCodexProvider_SingleProviderMode(t *testing.T) {
+    p := &RealStageProvider{
+        claudeProvider: &mockProvider{name: "claude"},
+        codexProvider:  nil, // single-provider mode
+    }
+    policy := execpolicy.DefaultPolicy()
+    policy.Routing.Ratio = map[string]int{"claude": 100}
+    router := p.buildRouter(policy)
+    prov, _ := router.Select("plan", "high")
+    if prov == nil {
+        t.Fatal("expected claude provider in single-provider mode")
+    }
+    if prov.Name() != "claude" {
+        t.Errorf("expected claude, got %q", prov.Name())
+    }
+}
+```
+
+Run: `cd /Users/dabrams/gromit && go test ./cmd/gromit-next/ -run TestBuildRouter -v -count=1`
+Expected: FAIL
+
+**Step 2: Implement `buildRouter`**
+
+Add to `cmd/gromit-next/stage_provider.go`:
+
+```go
+func (p *RealStageProvider) buildRouter(policy execpolicy.Policy) *provider.Router {
+    // Build providers map from policy config
+    providers := map[string]provider.Provider{
+        "claude": p.claudeProvider,
+    }
+    if p.codexProvider != nil {
+        providers["codex"] = p.codexProvider
+    }
+
+    // Phase preferences and ratio from policy routing config
+    preferences := policy.Routing.Preferences     // e.g. {"plan": "claude", "execute": "any"}
+    ratio := policy.Routing.Ratio                  // e.g. {"claude": 70, "codex": 30}
+    // Convert CooldownSeconds (int) to time.Duration internally
+    cooldown := time.Duration(policy.Routing.CooldownSeconds) * time.Second
+
+    // NewRouter signature (from provider/router.go):
+    //   NewRouter(providers, preferences, ratio, cooldown, stateFn, circuitBreaker)
+    return provider.NewRouter(providers, preferences, ratio, cooldown, p.stateFn, p.circuitBreaker)
+}
+```
+
+**Step 3: Run tests**
+
+Run: `cd /Users/dabrams/gromit && go test ./cmd/gromit-next/ -run "TestBuildRouter|TestBuildStages_NilCodex" -v -count=1`
+Expected: PASS
+
+**Step 4: Commit**
+
+```bash
+git add cmd/gromit-next/stage_provider.go cmd/gromit-next/stage_provider_test.go
+git commit -m "feat: implement buildRouter for multi-provider routing"
+```
+
+---
+
+### Task 3d: Update `BuildStages` to use FallbackAdapter
+
+**Files:**
+- Modify: `cmd/gromit-next/stage_provider.go`
+- Modify: `cmd/gromit-next/stage_provider_test.go`
+- Modify: `cmd/gromit-next/exec.go` (construct providers and pass to `RealStageProviderConfig`)
+
+**Step 1: Write failing test**
+
+Add to `cmd/gromit-next/stage_provider_test.go`:
+
+```go
+func TestBuildStages_SelectsDifferentProvidersPerPhase(t *testing.T) {
+    p := &RealStageProvider{
+        claudeProvider: &mockProvider{name: "claude"},
+        codexProvider:  &mockProvider{name: "codex"},
+    }
+    policy := execpolicy.DefaultPolicy()
+    policy.Routing.Preferences = map[string]string{
+        "plan": "claude", "execute": "codex", "review": "any", "validate": "any",
+    }
+    policy.Routing.Ratio = map[string]int{"claude": 50, "codex": 50}
+    // Build stages and verify different providers are selected per phase.
+    // FallbackAdapter.Provider() triggers lazy Select, which respects preferences.
+    t.Skip("TODO: complete assertions after BuildStages returns inspectable adapters — call Provider() on the FallbackAdapters and check names match phase preferences")
+}
+```
+
+Run: `cd /Users/dabrams/gromit && go test ./cmd/gromit-next/ -run TestBuildStages_SelectsDifferentProviders -v -count=1`
+Expected: FAIL (or SKIP)
+
+**Step 2: Update BuildStages to use Router with lazy selection**
+
+Replace the hardcoded Claude provider (from 0002c) with FallbackAdapter wrapping the Router.
+Provider selection is deferred to first Invoke (lazy Select), so BuildStages does NOT
+call `router.Select` — it passes the Router to FallbackAdapter instead:
+
+```go
+func (p *RealStageProvider) BuildStages(policy execpolicy.Policy, rs *runstore.RunState, budget *specloop.Budget) ([]specloop.Stage, error) {
+    router := p.buildRouter(policy)
+    costCallback := func(c float64) { budget.AddCost(c) }
+
+    // Build adapters with lazy provider selection via FallbackAdapter.
+    // Provider is resolved on first Invoke, not here.
+    planCfg := llmadapter.Config{Tier: policy.Models.Planner, OnCost: costCallback}
+    planAdapter := llmadapter.NewFallbackAdapter(
+        router, "plan", planCfg, policy.Models.Planner)
+
+    execCfg := llmadapter.Config{Tier: policy.Models.Executor, OnCost: costCallback}
+    execAdapter := llmadapter.NewFallbackAdapter(
+        router, "execute", execCfg, policy.Models.Executor)
+
+    reviewCfg := llmadapter.Config{Tier: policy.Models.Evaluator, OnCost: costCallback}
+    reviewAdapter := llmadapter.NewFallbackAdapter(
+        router, "review", reviewCfg, policy.Models.Evaluator)
+
+    acceptCfg := llmadapter.Config{Tier: policy.Models.Evaluator, OnCost: costCallback}
+    acceptAdapter := llmadapter.NewFallbackAdapter(
+        router, "accept", acceptCfg, policy.Models.Evaluator)
+
+    // ShellValidator does not use LLM — no adapter needed for validate phase.
+    // ... wire adapters into stages (planAdapter, execAdapter, reviewAdapter, acceptAdapter)
+}
+```
+
+**Step 3: Update `exec.go` to construct providers and pass them to `RealStageProviderConfig`**
 
 In `cmd/gromit-next/exec.go`, inside the `RunE` closure where `NewRealStageProvider` is called,
 add provider construction before the `RealStageProviderConfig`:
@@ -562,130 +750,21 @@ Note: The exact `claude.NewClient()` constructor depends on 0002c's adapter wiri
 The key point is that `exec.go` constructs both providers and passes them into
 `RealStageProviderConfig`, which then forwards them to `buildRouter`.
 
-**Step 1: Update BuildStages to use Router with lazy selection**
-
-Replace the hardcoded Claude provider (from 0002c) with FallbackAdapter wrapping the Router.
-Provider selection is deferred to first Invoke (lazy Select), so BuildStages does NOT
-call `router.Select` — it passes the Router to FallbackAdapter instead:
-
-```go
-func (p *RealStageProvider) BuildStages(policy execpolicy.Policy, rs *runstore.RunState, budget *specloop.Budget) ([]specloop.Stage, error) {
-    router := p.buildRouter(policy)
-    costCallback := func(c float64) { budget.AddCost(c) }
-
-    // Build adapters with lazy provider selection via FallbackAdapter.
-    // Provider is resolved on first Invoke, not here.
-    planCfg := llmadapter.Config{Tier: policy.Models.Planner, OnCost: costCallback}
-    planAdapter := llmadapter.NewFallbackAdapter(
-        router, "plan", planCfg, policy.Models.Planner)
-
-    execCfg := llmadapter.Config{Tier: policy.Models.Executor, OnCost: costCallback}
-    execAdapter := llmadapter.NewFallbackAdapter(
-        router, "execute", execCfg, policy.Models.Executor)
-
-    reviewCfg := llmadapter.Config{Tier: policy.Models.Evaluator, OnCost: costCallback}
-    reviewAdapter := llmadapter.NewFallbackAdapter(
-        router, "review", reviewCfg, policy.Models.Evaluator)
-
-    acceptCfg := llmadapter.Config{Tier: policy.Models.Evaluator, OnCost: costCallback}
-    acceptAdapter := llmadapter.NewFallbackAdapter(
-        router, "accept", acceptCfg, policy.Models.Evaluator)
-
-    // ShellValidator does not use LLM — no adapter needed for validate phase.
-    // ... wire adapters into stages (planAdapter, execAdapter, reviewAdapter, acceptAdapter)
-}
-```
-
-**Step 2: Add router construction**
-
-```go
-func (p *RealStageProvider) buildRouter(policy execpolicy.Policy) *provider.Router {
-    // Build providers map from policy config
-    providers := map[string]provider.Provider{
-        "claude": p.claudeProvider,
-    }
-    if p.codexProvider != nil {
-        providers["codex"] = p.codexProvider
-    }
-
-    // Phase preferences and ratio from policy routing config
-    preferences := policy.Routing.Preferences     // e.g. {"plan": "claude", "execute": "any"}
-    ratio := policy.Routing.Ratio                  // e.g. {"claude": 70, "codex": 30}
-    // Convert CooldownSeconds (int) to time.Duration internally
-    cooldown := time.Duration(policy.Routing.CooldownSeconds) * time.Second
-
-    // NewRouter signature (from provider/router.go):
-    //   NewRouter(providers, preferences, ratio, cooldown, stateFn, circuitBreaker)
-    return provider.NewRouter(providers, preferences, ratio, cooldown, p.stateFn, p.circuitBreaker)
-}
-```
-
-**Step 2b: Add tests for `buildRouter` construction**
-
-```go
-func TestBuildRouter_ReturnsConfiguredRouter(t *testing.T) {
-    p := &RealStageProvider{
-        claudeProvider: &mockProvider{name: "claude"},
-        codexProvider:  &mockProvider{name: "codex"},
-        stateFn:        nil,
-        circuitBreaker: nil,
-    }
-    policy := execpolicy.DefaultPolicy()
-    policy.Routing.Ratio = map[string]int{"claude": 70, "codex": 30}
-    router := p.buildRouter(policy)
-    // Router should be non-nil and usable
-    prov, _ := router.Select("plan", "high")
-    if prov == nil {
-        t.Fatal("expected router to return a provider")
-    }
-}
-
-func TestBuildStages_SelectsDifferentProvidersPerPhase(t *testing.T) {
-    p := &RealStageProvider{
-        claudeProvider: &mockProvider{name: "claude"},
-        codexProvider:  &mockProvider{name: "codex"},
-    }
-    policy := execpolicy.DefaultPolicy()
-    policy.Routing.Preferences = map[string]string{
-        "plan": "claude", "execute": "codex", "review": "any", "validate": "any",
-    }
-    policy.Routing.Ratio = map[string]int{"claude": 50, "codex": 50}
-    // Build stages and verify different providers are selected per phase.
-    // FallbackAdapter.Provider() triggers lazy Select, which respects preferences.
-    t.Skip("TODO: complete assertions after BuildStages returns inspectable adapters — call Provider() on the FallbackAdapters and check names match phase preferences")
-}
-
-func TestBuildStages_NilCodexProvider_SingleProviderMode(t *testing.T) {
-    p := &RealStageProvider{
-        claudeProvider: &mockProvider{name: "claude"},
-        codexProvider:  nil, // single-provider mode
-    }
-    policy := execpolicy.DefaultPolicy()
-    policy.Routing.Ratio = map[string]int{"claude": 100}
-    router := p.buildRouter(policy)
-    prov, _ := router.Select("plan", "high")
-    if prov == nil {
-        t.Fatal("expected claude provider in single-provider mode")
-    }
-    if prov.Name() != "claude" {
-        t.Errorf("expected claude, got %q", prov.Name())
-    }
-}
-```
-
-**Step 3: Run tests**
+**Step 4: Run tests**
 
 Run: `cd /Users/dabrams/gromit && go test ./cmd/gromit-next/ -v -count=1`
 Expected: PASS
 
-**Step 4: Commit**
+**Step 5: Commit**
 
 ```bash
-git add cmd/gromit-next/stage_provider.go cmd/gromit-next/exec.go
-git commit -m "feat: wire Router into RealStageProvider for multi-provider routing"
+git add cmd/gromit-next/stage_provider.go cmd/gromit-next/stage_provider_test.go cmd/gromit-next/exec.go
+git commit -m "feat: wire FallbackAdapter into BuildStages for multi-provider routing"
 ```
 
 ---
+
+## Phase 3: Codex Validation
 
 ### Task 4: Codex contract tests
 
@@ -852,6 +931,8 @@ git commit -m "feat: integration test scaffolds for multi-provider routing scena
 ```
 
 ---
+
+## Phase 4: Verification
 
 ### Task 6: Final verification
 

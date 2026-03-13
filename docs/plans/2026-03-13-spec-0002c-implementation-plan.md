@@ -8,6 +8,16 @@
 
 **Tech Stack:** Go, `provider.Provider` interface, `internal/claude`, existing stage interfaces from `specloop/stages/`
 
+**Tasks:** 18 tasks across 5 phases
+
+---
+
+## Phase 1: LLMAdapter Base
+
+Build the shared `LLMAdapter` wrapper that all per-domain adapters compose. Establishes timeout enforcement, cost tracking, and the `Invoke` API.
+
+Tasks: 1, 2
+
 ---
 
 ### Task 1: Create `llmadapter` package — failing tests
@@ -372,96 +382,17 @@ git commit -m "green: implement LLMAdapter with invoke, timeout, and cost tracki
 
 ---
 
-### Task 3: `ProviderPlanAgent` — failing tests
+## Phase 2: Interfaces and Utilities
 
-**Files:**
-- Create: `internal/next/planner/provider_agent_test.go`
+Define the `Invoker` and `ProviderAwareInvoker` interfaces that decouple domain adapters from `LLMAdapter`, and the shared `ExtractJSON` utility for parsing LLM output.
 
-**Step 1: Write the failing tests**
-
-```go
-package planner
-
-import (
-	"context"
-	"errors"
-	"testing"
-
-	"github.com/danabrams/gromit/internal/provider"
-)
-
-func TestProviderPlanAgent_Invoke_ReturnsAgentResult(t *testing.T) {
-	result := &provider.Result{
-		Output:      `{"spec_id":"test","cycle":1,"kind":"original","tasks":[{"task_id":"t-001","objective":"do thing","expected_touched_area":["pkg/"],"proof_checks":["go test"]}]}`,
-		CostUSD:     0.05,
-		InputTokens: 200,
-		OutputTokens: 100,
-		Model:       "sonnet",
-	}
-	agent := NewProviderPlanAgent(newMockLLMAdapter(result, nil), "medium")
-	ar, err := agent.Invoke(context.Background(), "plan prompt", "medium")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if ar.Output != result.Output {
-		t.Errorf("output mismatch")
-	}
-	if ar.TokensIn != 200 {
-		t.Errorf("expected TokensIn 200, got %d", ar.TokensIn)
-	}
-	if ar.TokensOut != 100 {
-		t.Errorf("expected TokensOut 100, got %d", ar.TokensOut)
-	}
-	if ar.Cost != 0.05 {
-		t.Errorf("expected Cost 0.05, got %f", ar.Cost)
-	}
-	if ar.Model != "sonnet" {
-		t.Errorf("expected Model 'sonnet', got %q", ar.Model)
-	}
-}
-
-func TestProviderPlanAgent_Invoke_PropagatesError(t *testing.T) {
-	agent := NewProviderPlanAgent(newMockLLMAdapter(nil, errors.New("provider down")), "high")
-	_, err := agent.Invoke(context.Background(), "prompt", "high")
-	if err == nil {
-		t.Fatal("expected error")
-	}
-}
-```
-
-Note: `newMockLLMAdapter` is a test helper — Task 3 step 1 also needs a small mock for `LLMAdapter`. Since `LLMAdapter` is a concrete struct (not an interface), the `ProviderPlanAgent` should depend on an interface:
-
-```go
-// mockLLMInvoker satisfies the Invoker interface for tests.
-type mockLLMInvoker struct {
-	result *provider.Result
-	err    error
-}
-
-func (m *mockLLMInvoker) Invoke(ctx context.Context, prompt string) (*provider.Result, error) {
-	return m.result, m.err
-}
-
-func newMockLLMAdapter(result *provider.Result, err error) *mockLLMInvoker {
-	return &mockLLMInvoker{result: result, err: err}
-}
-```
-
-**Step 2: Run tests to verify they fail**
-
-Run: `cd /Users/dabrams/gromit && go test ./internal/next/planner/ -run TestProviderPlanAgent -v -count=1`
-Expected: FAIL — `NewProviderPlanAgent` undefined
-
-**Step 3: Commit**
-
-```bash
-git add internal/next/planner/provider_agent_test.go
-git commit -m "red: ProviderPlanAgent tests for invoke and error propagation"
-```
+Tasks: 4a, 4b
 
 ---
 
 ### Task 4a: Define `Invoker` and `ProviderAwareInvoker` interfaces
+
+> **Reorder note:** Task 4a was moved before Task 3 because `ProviderPlanAgent` (Task 3) depends on `llmadapter.Invoker` which is defined here.
 
 **Files:**
 - Create: `internal/next/llmadapter/invoker.go`
@@ -553,12 +484,13 @@ git commit -m "green: Invoker and ProviderAwareInvoker interfaces with LLMAdapte
 
 ---
 
-### Task 4b: Implement `ProviderPlanAgent` + shared `ExtractJSON` utility
+### Task 4b: `ExtractJSON` utility
+
+> **Reorder note:** Task 4b was narrowed to only the `ExtractJSON` utility (parse.go and parse_test.go). The `ProviderPlanAgent` implementation that was previously in this task moved to Task 3.
 
 **Files:**
 - Create: `internal/next/llmadapter/parse.go`
 - Create: `internal/next/llmadapter/parse_test.go`
-- Create: `internal/next/planner/provider_agent.go`
 
 **Step 1: Create shared `ExtractJSON` utility in `llmadapter/parse.go`**
 
@@ -729,7 +661,119 @@ func TestExtractJSON_ProsePrefixedJSON(t *testing.T) {
 }
 ```
 
-**Step 2: Implement ProviderPlanAgent**
+**Step 2: Run tests to verify they pass**
+
+Run: `cd /Users/dabrams/gromit && go test ./internal/next/llmadapter/ -v -count=1`
+Expected: PASS
+
+**Step 3: Commit**
+
+```bash
+git add internal/next/llmadapter/parse.go internal/next/llmadapter/parse_test.go
+git commit -m "green: shared ExtractJSON utility for parsing LLM output"
+```
+
+---
+
+## Phase 3: Per-Domain Adapters
+
+Thin adapters for each pipeline domain that compose `LLMAdapter` via the `Invoker` interface, parse LLM output into domain types, and satisfy the existing stage interfaces.
+
+Tasks: 3, 5-14
+
+---
+
+### Task 3: `ProviderPlanAgent` — failing tests and implementation
+
+> **Reorder note:** Task 3 was moved after Tasks 4a/4b because `ProviderPlanAgent` depends on `llmadapter.Invoker` (Task 4a) and `llmadapter.ExtractJSON` (Task 4b). This task now includes both the red tests and the green implementation (previously split across Task 3 and Task 4b).
+
+**Files:**
+- Create: `internal/next/planner/provider_agent_test.go`
+- Create: `internal/next/planner/provider_agent.go`
+
+**Step 1: Write the failing tests**
+
+```go
+package planner
+
+import (
+	"context"
+	"errors"
+	"testing"
+
+	"github.com/danabrams/gromit/internal/provider"
+)
+
+func TestProviderPlanAgent_Invoke_ReturnsAgentResult(t *testing.T) {
+	result := &provider.Result{
+		Output:      `{"spec_id":"test","cycle":1,"kind":"original","tasks":[{"task_id":"t-001","objective":"do thing","expected_touched_area":["pkg/"],"proof_checks":["go test"]}]}`,
+		CostUSD:     0.05,
+		InputTokens: 200,
+		OutputTokens: 100,
+		Model:       "sonnet",
+	}
+	agent := NewProviderPlanAgent(newMockLLMAdapter(result, nil), "medium")
+	ar, err := agent.Invoke(context.Background(), "plan prompt", "medium")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if ar.Output != result.Output {
+		t.Errorf("output mismatch")
+	}
+	if ar.TokensIn != 200 {
+		t.Errorf("expected TokensIn 200, got %d", ar.TokensIn)
+	}
+	if ar.TokensOut != 100 {
+		t.Errorf("expected TokensOut 100, got %d", ar.TokensOut)
+	}
+	if ar.Cost != 0.05 {
+		t.Errorf("expected Cost 0.05, got %f", ar.Cost)
+	}
+	if ar.Model != "sonnet" {
+		t.Errorf("expected Model 'sonnet', got %q", ar.Model)
+	}
+}
+
+func TestProviderPlanAgent_Invoke_PropagatesError(t *testing.T) {
+	agent := NewProviderPlanAgent(newMockLLMAdapter(nil, errors.New("provider down")), "high")
+	_, err := agent.Invoke(context.Background(), "prompt", "high")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+```
+
+Note: `newMockLLMAdapter` is a test helper — Task 3 step 1 also needs a small mock for `LLMAdapter`. Since `LLMAdapter` is a concrete struct (not an interface), the `ProviderPlanAgent` should depend on an interface:
+
+```go
+// mockLLMInvoker satisfies the Invoker interface for tests.
+type mockLLMInvoker struct {
+	result *provider.Result
+	err    error
+}
+
+func (m *mockLLMInvoker) Invoke(ctx context.Context, prompt string) (*provider.Result, error) {
+	return m.result, m.err
+}
+
+func newMockLLMAdapter(result *provider.Result, err error) *mockLLMInvoker {
+	return &mockLLMInvoker{result: result, err: err}
+}
+```
+
+**Step 2: Run tests to verify they fail**
+
+Run: `cd /Users/dabrams/gromit && go test ./internal/next/planner/ -run TestProviderPlanAgent -v -count=1`
+Expected: FAIL — `NewProviderPlanAgent` undefined
+
+**Step 3: Commit red tests**
+
+```bash
+git add internal/next/planner/provider_agent_test.go
+git commit -m "red: ProviderPlanAgent tests for invoke and error propagation"
+```
+
+**Step 4: Implement ProviderPlanAgent**
 
 ```go
 package planner
@@ -786,16 +830,16 @@ Add compile-time check:
 var _ Agent = (*ProviderPlanAgent)(nil)
 ```
 
-**Step 3: Run tests to verify they pass**
+**Step 5: Run tests to verify they pass**
 
 Run: `cd /Users/dabrams/gromit && go test ./internal/next/planner/ -run TestProviderPlanAgent -v -count=1`
 Expected: PASS
 
-**Step 4: Commit**
+**Step 6: Commit**
 
 ```bash
-git add internal/next/llmadapter/parse.go internal/next/llmadapter/parse_test.go internal/next/planner/provider_agent.go internal/next/planner/provider_agent_test.go
-git commit -m "green: ProviderPlanAgent + shared ExtractJSON utility"
+git add internal/next/planner/provider_agent.go internal/next/planner/provider_agent_test.go
+git commit -m "green: ProviderPlanAgent adapts Invoker to planner.Agent"
 ```
 
 ---
@@ -1739,6 +1783,14 @@ git commit -m "green: SpecCompilerAdapter satisfies stages.SpecCompiler"
 
 ---
 
+## Phase 4: Wiring
+
+Wire the real LLM-backed adapters into `RealStageProvider`, replacing noop implementations with the adapters built in Phases 1-3.
+
+Tasks: 15, 16
+
+---
+
 ### Task 15: Verify `ExtractJSON` usage consistency
 
 > **Note:** `llmadapter.ExtractJSON` was already defined in Task 4 and used directly by Tasks 6 and 8. No refactoring or deduplication is needed. This task is a verification-only step.
@@ -1762,6 +1814,14 @@ No commit needed — this is a verification checkpoint.
 **Files:**
 - Modify: `cmd/gromit-next/stage_provider.go`
 
+**Step 0: Add Provider field to RealStageProviderConfig**
+
+Add a `Provider` field to `RealStageProviderConfig`:
+
+    Provider provider.Provider // LLM provider (0002c: Claude only; 0002d: replaced by Router)
+
+Update `NewRealStageProvider` to store it.
+
 **Step 1: Write a test for real adapter wiring**
 
 Add to `cmd/gromit-next/exec_test.go` or create a new test file:
@@ -1774,11 +1834,14 @@ func TestRealStageProvider_BuildStages_ReturnsRealAdapters(t *testing.T) {
 		name:      "test",
 		runResult: &provider.Result{Output: "ok", Success: true},
 	}
-	sp := NewRealStageProvider(mp)
+	sp := NewRealStageProvider(RealStageProviderConfig{
+		// ... existing config fields ...
+		Provider: mp,
+	})
 
-	policy := DefaultPolicy()
+	policy := execpolicy.DefaultPolicy()
 	state := runstore.NewRunState("test-spec", 1)
-	budget := NewBudget(10.0, 100000)
+	budget := specloop.NewBudget(policy.Budgets)
 
 	stages, err := sp.BuildStages(policy, state, budget)
 	if err != nil {
@@ -1787,9 +1850,9 @@ func TestRealStageProvider_BuildStages_ReturnsRealAdapters(t *testing.T) {
 	if stages == nil {
 		t.Fatal("expected non-nil stages slice")
 	}
-	// Expect 6 stages: Compile, Plan, Execute, Validate, Review, Accept
-	if len(stages) != 6 {
-		t.Errorf("expected 6 stages, got %d", len(stages))
+	// Expect 9 stages: Init, Compile, Plan, Execute, Validate, Review, Accept, Evidence, Finalize
+	if len(stages) != 9 {
+		t.Errorf("expected 9 stages, got %d", len(stages))
 	}
 }
 ```
@@ -1806,6 +1869,11 @@ Replace noop implementations in `BuildStages` with:
 - `validator.NewShellValidator(validator.NewRunner())` for Validate
 - `review.NewProviderReviewAgent(reviewAdapter)` wrapped in `review.NewRunner(agent, reviewConfig)` for Review
 - `acceptor.NewProviderAcceptAgent(acceptAdapter)` wrapped in `acceptor.NewEvaluator(agent)` for Accept (note: `acceptAdapter` uses the same provider but may use a different tier config; if sharing `reviewAdapter`, add a comment explaining the shared tier)
+
+> **ArtifactStore wiring:** The `ArtifactStore` needed by `SpecCompilerAdapter` comes from the
+> project cell infrastructure (Spec 0001). In `RealStageProvider`, construct it via
+> `artifact.NewStore(cellPath)` where `cellPath` is already available in `RealStageProviderConfig`.
+> Add `CellPath string` and `CellName string` fields to `RealStageProviderConfig` if not already present.
 
 The `RealStageProvider` will need a `provider.Provider` — for 0002c, hardcode Claude.
 
@@ -1859,6 +1927,14 @@ Expected: PASS
 git add cmd/gromit-next/stage_provider.go
 git commit -m "feat: wire real LLM adapters in RealStageProvider, replacing noops"
 ```
+
+---
+
+## Phase 5: Contract Tests
+
+Contract tests that run against real LLM providers to verify structural contracts. Gated by build tag and environment variable to avoid running in CI without provider access.
+
+Tasks: 17, 18
 
 ---
 
