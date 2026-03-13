@@ -130,7 +130,7 @@ func (r *Runner) Run(ctx context.Context, input RunInput) (*RunResult, error) {
 		}
 	}
 	result.HasBlockingFindings = len(result.BlockingFindings) > 0
-	result.AllFacetsErrored = len(result.ErroredFacets) > 0 && len(result.AllFindings) == 0
+	result.AllFacetsErrored = len(result.ErroredFacets) == len(r.config.Facets)
 	result.NormalizeNilFields()
 
 	return result, nil

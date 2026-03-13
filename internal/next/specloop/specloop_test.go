@@ -362,3 +362,215 @@ func TestSpecLoop_CycleExhaustion_RunsEvidence(t *testing.T) {
 		t.Fatal("evidence stage should run on cycle exhaustion")
 	}
 }
+
+func TestSpecLoop_BudgetSharing_ValidationThenReview(t *testing.T) {
+	// Validation replan on cycle 1, review replan on cycle 2 — both consume from same budget.
+	// With MaxSpecCycles=3, the third cycle should succeed, proving shared budget.
+	validateCalls := 0
+	reviewCalls := 0
+
+	stages := []Stage{
+		&countStage{name: "plan", counts: map[string]int{}},
+		&countStage{name: "execute", counts: map[string]int{}},
+		&mockStage{name: "validate", runFn: func(_ context.Context, rs *runstore.RunState) (NextAction, error) {
+			validateCalls++
+			if validateCalls == 1 {
+				return NextAction{Kind: ReplanFrom, Context: &FailureContext{Failures: []string{"validation failed"}}}, nil
+			}
+			rs.FinalValidationPassed = true
+			return NextAction{Kind: Continue}, nil
+		}},
+		&mockStage{name: "review", runFn: func(_ context.Context, rs *runstore.RunState) (NextAction, error) {
+			reviewCalls++
+			if reviewCalls == 1 {
+				return NextAction{Kind: ReplanFrom, Context: &FailureContext{Failures: []string{"review findings"}}}, nil
+			}
+			rs.FinalReviewPassed = true
+			return NextAction{Kind: Continue}, nil
+		}},
+		&countStage{name: "finalize", counts: map[string]int{}},
+	}
+
+	budget := NewBudget(execpolicy.Budgets{MaxSpecCycles: 3, MaxRunCostUSD: 99})
+	loop := NewSpecLoop(stages, SpecLoopConfig{Budget: budget, ReplanStage: "plan"})
+	rs := runstore.NewRunState("s1", "p1")
+
+	err := loop.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Validation replanned once (cycle 1), review replanned once (cycle 2),
+	// third cycle should complete successfully.
+	if validateCalls < 2 {
+		t.Fatalf("validate should run at least 2 times (replan+success), got %d", validateCalls)
+	}
+	if reviewCalls < 2 {
+		t.Fatalf("review should run at least 2 times (replan+success), got %d", reviewCalls)
+	}
+}
+
+func TestSpecLoop_BudgetSharing_ReviewThenAcceptance(t *testing.T) {
+	// Review replan on cycle 1, acceptance replan on cycle 2 — both share the same budget.
+	reviewCalls := 0
+	acceptCalls := 0
+
+	stages := []Stage{
+		&countStage{name: "plan", counts: map[string]int{}},
+		&countStage{name: "execute", counts: map[string]int{}},
+		&mockStage{name: "validate", runFn: func(_ context.Context, rs *runstore.RunState) (NextAction, error) {
+			rs.FinalValidationPassed = true
+			return NextAction{Kind: Continue}, nil
+		}},
+		&mockStage{name: "review", runFn: func(_ context.Context, rs *runstore.RunState) (NextAction, error) {
+			reviewCalls++
+			if reviewCalls == 1 {
+				return NextAction{Kind: ReplanFrom, Context: &FailureContext{Failures: []string{"review findings"}}}, nil
+			}
+			rs.FinalReviewPassed = true
+			return NextAction{Kind: Continue}, nil
+		}},
+		&mockStage{name: "acceptance", runFn: func(_ context.Context, rs *runstore.RunState) (NextAction, error) {
+			acceptCalls++
+			if acceptCalls == 1 {
+				return NextAction{Kind: ReplanFrom, Context: &FailureContext{Failures: []string{"acceptance failed"}}}, nil
+			}
+			rs.FinalAcceptancePassed = true
+			return NextAction{Kind: Continue}, nil
+		}},
+		&countStage{name: "finalize", counts: map[string]int{}},
+	}
+
+	budget := NewBudget(execpolicy.Budgets{MaxSpecCycles: 3, MaxRunCostUSD: 99})
+	loop := NewSpecLoop(stages, SpecLoopConfig{Budget: budget, ReplanStage: "plan"})
+	rs := runstore.NewRunState("s1", "p1")
+
+	err := loop.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if reviewCalls < 2 {
+		t.Fatalf("review should run at least 2 times, got %d", reviewCalls)
+	}
+	if acceptCalls < 2 {
+		t.Fatalf("acceptance should run at least 2 times, got %d", acceptCalls)
+	}
+}
+
+func TestSpecLoop_BudgetExhausted_ReviewCycles_NeedsHuman(t *testing.T) {
+	// Review always replans — budget should exhaust and produce needs_human.
+	stages := []Stage{
+		&countStage{name: "plan", counts: map[string]int{}},
+		&countStage{name: "execute", counts: map[string]int{}},
+		&mockStage{name: "validate", runFn: func(_ context.Context, rs *runstore.RunState) (NextAction, error) {
+			rs.FinalValidationPassed = true
+			return NextAction{Kind: Continue}, nil
+		}},
+		&mockStage{name: "review", runFn: func(_ context.Context, _ *runstore.RunState) (NextAction, error) {
+			return NextAction{Kind: ReplanFrom, Context: &FailureContext{Failures: []string{"review findings persist"}}}, nil
+		}},
+		&countStage{name: "finalize", counts: map[string]int{}},
+	}
+
+	budget := NewBudget(execpolicy.Budgets{MaxSpecCycles: 2, MaxRunCostUSD: 99})
+	loop := NewSpecLoop(stages, SpecLoopConfig{Budget: budget, ReplanStage: "plan"})
+	rs := runstore.NewRunState("s1", "p1")
+
+	err := loop.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if rs.Status != runstore.StatusNeedsHuman {
+		t.Fatalf("want needs_human, got %s", rs.Status)
+	}
+	if rs.TerminalReason != "cycles_exhausted" {
+		t.Fatalf("want cycles_exhausted, got %s", rs.TerminalReason)
+	}
+}
+
+func TestSpecLoop_PreexistingFindings_DontBlock(t *testing.T) {
+	// First cycle: review returns ReplanFrom. Second cycle: review returns Continue
+	// (simulating pre-existing findings that don't block after first replan).
+	reviewCalls := 0
+
+	stages := []Stage{
+		&countStage{name: "plan", counts: map[string]int{}},
+		&countStage{name: "execute", counts: map[string]int{}},
+		&mockStage{name: "validate", runFn: func(_ context.Context, rs *runstore.RunState) (NextAction, error) {
+			rs.FinalValidationPassed = true
+			return NextAction{Kind: Continue}, nil
+		}},
+		&mockStage{name: "review", runFn: func(_ context.Context, rs *runstore.RunState) (NextAction, error) {
+			reviewCalls++
+			if reviewCalls == 1 {
+				return NextAction{Kind: ReplanFrom, Context: &FailureContext{Failures: []string{"new findings"}}}, nil
+			}
+			// Second call: only pre-existing findings remain, so Continue
+			rs.FinalReviewPassed = true
+			return NextAction{Kind: Continue}, nil
+		}},
+		&countStage{name: "finalize", counts: map[string]int{}},
+	}
+
+	budget := NewBudget(execpolicy.Budgets{MaxSpecCycles: 3, MaxRunCostUSD: 99})
+	loop := NewSpecLoop(stages, SpecLoopConfig{Budget: budget, ReplanStage: "plan"})
+	rs := runstore.NewRunState("s1", "p1")
+
+	err := loop.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Should not be needs_human — review passed on second cycle
+	if rs.Status == runstore.StatusNeedsHuman {
+		t.Fatal("pre-existing findings should not block; expected non-needs_human status")
+	}
+	if reviewCalls != 2 {
+		t.Fatalf("review should run exactly 2 times, got %d", reviewCalls)
+	}
+}
+
+func TestSpecLoop_VisionLabelNotSet(t *testing.T) {
+	// Verify that no VISION review outcome label is set in terminal RunState.
+	// The RunState should not have any field or metadata referencing "VISION".
+	stages := []Stage{
+		&countStage{name: "plan", counts: map[string]int{}},
+		&countStage{name: "execute", counts: map[string]int{}},
+		&mockStage{name: "validate", runFn: func(_ context.Context, rs *runstore.RunState) (NextAction, error) {
+			rs.FinalValidationPassed = true
+			return NextAction{Kind: Continue}, nil
+		}},
+		&mockStage{name: "review", runFn: func(_ context.Context, rs *runstore.RunState) (NextAction, error) {
+			rs.FinalReviewPassed = true
+			return NextAction{Kind: Continue}, nil
+		}},
+		&mockStage{name: "finalize", runFn: func(_ context.Context, rs *runstore.RunState) (NextAction, error) {
+			if rs.Status == "" || rs.Status == runstore.StatusRunning {
+				rs.Status = runstore.StatusReadyForReview
+			}
+			return NextAction{Kind: Continue}, nil
+		}},
+	}
+
+	budget := NewBudget(execpolicy.Budgets{MaxSpecCycles: 1, MaxRunCostUSD: 99})
+	loop := NewSpecLoop(stages, SpecLoopConfig{Budget: budget})
+	rs := runstore.NewRunState("s1", "p1")
+
+	err := loop.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Verify terminal status does not contain "VISION"
+	if rs.Status == "VISION" {
+		t.Fatal("RunState.Status should not be set to VISION")
+	}
+	if rs.TerminalReason == "VISION" {
+		t.Fatal("RunState.TerminalReason should not be set to VISION")
+	}
+	if rs.BlockerSummary == "VISION" {
+		t.Fatal("RunState.BlockerSummary should not be set to VISION")
+	}
+}

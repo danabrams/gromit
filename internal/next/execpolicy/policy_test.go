@@ -297,6 +297,18 @@ func TestPolicy_Validate_CatchesEmptyThreshold(t *testing.T) {
 	}
 }
 
+func TestPolicy_Validate_RejectsInfoThreshold(t *testing.T) {
+	p := DefaultPolicy()
+	p.Review.ReplanThreshold = "info"
+	err := p.Validate()
+	if err == nil {
+		t.Error("Validate should reject 'info' as replan_threshold since info never blocks")
+	}
+	if !strings.Contains(err.Error(), "invalid ReplanThreshold") {
+		t.Errorf("unexpected error message: %v", err)
+	}
+}
+
 func TestValidate_RejectsEmptyCheckNameAndCommand(t *testing.T) {
 	p := DefaultPolicy()
 	p.AlwaysRun = []Check{

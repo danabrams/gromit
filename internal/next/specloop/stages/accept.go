@@ -89,14 +89,43 @@ func (s *AcceptStage) Run(ctx context.Context, rs *runstore.RunState) (specloop.
 		diffSummary = d
 	}
 
+	// Populate task results summary from RunState
+	var taskResults string
+	for _, t := range rs.Tasks {
+		if taskResults != "" {
+			taskResults += "; "
+		}
+		taskResults += fmt.Sprintf("task %s: %s", t.TaskID, t.Status)
+	}
+
+	var validationResults string
+	if rs.LastValidationResult != nil {
+		validationResults = *rs.LastValidationResult
+	}
+
+	var reviewFindings string
+	for _, f := range rs.ReviewFindings {
+		if reviewFindings != "" {
+			reviewFindings += "; "
+		}
+		reviewFindings += f
+	}
+
 	input := acceptor.EvaluateInput{
-		Criteria:    criteria,
-		DiffSummary: diffSummary,
+		Criteria:          criteria,
+		DiffSummary:       diffSummary,
+		TaskResults:       taskResults,
+		ValidationResults: validationResults,
+		ReviewFindings:    reviewFindings,
 	}
 
 	// Call evaluator with one retry on API failure
 	result, err := s.evaluator.Evaluate(ctx, input)
 	if err != nil {
+		// Don't retry if context is canceled/expired
+		if ctx.Err() != nil {
+			return specloop.NextAction{}, fmt.Errorf("acceptance evaluation: %w", err)
+		}
 		// Retry once
 		result, err = s.evaluator.Evaluate(ctx, input)
 		if err != nil {

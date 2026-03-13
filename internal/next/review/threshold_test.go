@@ -49,3 +49,37 @@ func TestFilterBlockingFindings(t *testing.T) {
 		t.Errorf("second blocking should be warning, got %q", blocking[1].Description)
 	}
 }
+
+func TestFilterBlockingFindings_AllBelowThreshold(t *testing.T) {
+	findings := []Finding{
+		{Severity: SeveritySuggestion, Description: "suggestion finding"},
+		{Severity: SeverityInfo, Description: "info finding"},
+	}
+
+	blocking := FilterBlockingFindings(findings, SeverityWarning)
+	if len(blocking) != 0 {
+		t.Errorf("expected 0 blocking findings when all below threshold, got %d", len(blocking))
+	}
+}
+
+func TestFilterBlockingFindings_EmptyInput(t *testing.T) {
+	blocking := FilterBlockingFindings([]Finding{}, SeverityWarning)
+	if blocking == nil {
+		t.Fatal("expected empty slice, got nil")
+	}
+	if len(blocking) != 0 {
+		t.Errorf("expected 0 blocking findings for empty input, got %d", len(blocking))
+	}
+}
+
+func TestFilterBlockingFindings_InfoThresholdNeverBlocks(t *testing.T) {
+	findings := []Finding{
+		{Severity: SeverityInfo, Description: "info finding 1"},
+		{Severity: SeverityInfo, Description: "info finding 2"},
+	}
+
+	blocking := FilterBlockingFindings(findings, SeverityInfo)
+	if len(blocking) != 0 {
+		t.Errorf("info findings should never block regardless of threshold, got %d", len(blocking))
+	}
+}
