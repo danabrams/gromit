@@ -1,8 +1,6 @@
 package review
 
-import (
-	"fmt"
-)
+import "fmt"
 
 // BuildFailureStrings converts blocking findings from a RunResult into
 // human-readable strings for planner FailureContext consumption.
@@ -25,4 +23,3 @@ func ReviewFailuresToStrings(findings []Finding) []string {
 	}
 	return strs
 }
-
