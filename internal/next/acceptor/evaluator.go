@@ -66,4 +66,3 @@ func (e *Evaluator) Evaluate(ctx context.Context, input EvaluateInput) (Acceptan
 		HasFailOrUnclear: hasFailOrUnclear,
 	}, nil
 }
-

@@ -25,7 +25,7 @@ func (cr *CriterionResult) NormalizeNilFields() {
 type AcceptanceResult struct {
 	Results          []CriterionResult `json:"results"`
 	AllPass          bool              `json:"all_pass"`
-	HasFailOrUnclear bool             `json:"has_fail_or_unclear"`
+	HasFailOrUnclear bool              `json:"has_fail_or_unclear"`
 }
 
 // NormalizeNilFields maps nil slices to empty values.
