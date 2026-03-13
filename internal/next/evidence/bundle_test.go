@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/danabrams/gromit/internal/next/acceptor"
 	"github.com/danabrams/gromit/internal/next/review"
 	"github.com/danabrams/gromit/internal/next/runstore"
 	"github.com/danabrams/gromit/internal/next/validator"
@@ -274,5 +275,46 @@ func TestBundler_WriteReviewFindings(t *testing.T) {
 	}
 	if len(parsed["code_quality"]) != 1 {
 		t.Errorf("expected 1 code_quality finding, got %d", len(parsed["code_quality"]))
+	}
+}
+
+func TestBundler_WriteAcceptanceResults(t *testing.T) {
+	dir := t.TempDir()
+	b := NewBundler(dir)
+	if err := b.Init(); err != nil {
+		t.Fatal(err)
+	}
+
+	result := acceptor.AcceptanceResult{
+		Results: []acceptor.CriterionResult{
+			{Criterion: "multi-currency", Status: "fail", Rationale: "implement missing behavior"},
+			{Criterion: "audit log", Status: "unclear", Rationale: "add tests or evidence to prove/disprove"},
+		},
+		AllPass:          false,
+		HasFailOrUnclear: true,
+	}
+
+	if err := b.WriteAcceptanceResults(result); err != nil {
+		t.Fatalf("WriteAcceptanceResults: %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(dir, "acceptance.json"))
+	if err != nil {
+		t.Fatalf("read acceptance.json: %v", err)
+	}
+
+	var parsed map[string]interface{}
+	if err := json.Unmarshal(data, &parsed); err != nil {
+		t.Fatalf("acceptance.json should be a valid JSON object: %v", err)
+	}
+	results, ok := parsed["results"].([]interface{})
+	if !ok || len(results) != 2 {
+		t.Errorf("expected 2 results in results array, got %v", parsed["results"])
+	}
+	if parsed["all_pass"] != false {
+		t.Error("all_pass should be false")
+	}
+	if parsed["has_fail_or_unclear"] != true {
+		t.Error("has_fail_or_unclear should be true")
 	}
 }

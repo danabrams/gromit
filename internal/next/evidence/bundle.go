@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/danabrams/gromit/internal/next/acceptor"
 	"github.com/danabrams/gromit/internal/next/review"
 	"github.com/danabrams/gromit/internal/next/runstore"
 	"github.com/danabrams/gromit/internal/next/validator"
@@ -165,6 +166,12 @@ func (b *Bundler) WriteReview(r ReviewInput) error {
 // WriteReviewFindings writes facet-keyed review findings to review.json.
 func (b *Bundler) WriteReviewFindings(findings map[string][]review.Finding) error {
 	return b.writeJSON("review.json", findings)
+}
+
+// WriteAcceptanceResults writes structured acceptance results to acceptance.json.
+func (b *Bundler) WriteAcceptanceResults(result acceptor.AcceptanceResult) error {
+	result.NormalizeNilFields()
+	return b.writeJSON("acceptance.json", result)
 }
 
 func (b *Bundler) writeJSON(name string, v any) error {
