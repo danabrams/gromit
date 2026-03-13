@@ -187,6 +187,41 @@ func TestPolicy_Validate_EvaluatorRequired(t *testing.T) {
 	}
 }
 
+func TestPolicy_ValidateReviewFacets_ValidFacets(t *testing.T) {
+	p := DefaultPolicy()
+	err := p.ValidateReviewFacets([]string{"spec_alignment", "code_quality", "logic_gaps", "test_coverage", "architecture_drift"})
+	if err != nil {
+		t.Errorf("valid facets should not error: %v", err)
+	}
+}
+
+func TestPolicy_ValidateReviewFacets_UnknownFacet(t *testing.T) {
+	p := DefaultPolicy()
+	p.Review.Facets = []string{"spec_alignment", "nonexistent_facet"}
+	err := p.ValidateReviewFacets([]string{"spec_alignment", "code_quality"})
+	if err == nil {
+		t.Error("unknown facet should produce validation error")
+	}
+}
+
+func TestPolicy_ValidateReviewThreshold_Valid(t *testing.T) {
+	p := DefaultPolicy()
+	for _, threshold := range []string{"error", "warning", "suggestion"} {
+		p.Review.ReplanThreshold = threshold
+		if err := p.ValidateReviewConfig(); err != nil {
+			t.Errorf("threshold %q should be valid: %v", threshold, err)
+		}
+	}
+}
+
+func TestPolicy_ValidateReviewThreshold_Invalid(t *testing.T) {
+	p := DefaultPolicy()
+	p.Review.ReplanThreshold = "critical"
+	if err := p.ValidateReviewConfig(); err == nil {
+		t.Error("invalid threshold should produce error")
+	}
+}
+
 func TestValidate_RejectsEmptyCheckNameAndCommand(t *testing.T) {
 	p := DefaultPolicy()
 	p.AlwaysRun = []Check{

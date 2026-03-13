@@ -133,6 +133,32 @@ func (p *Policy) Validate() error {
 	return errors.Join(errs...)
 }
 
+// ValidateReviewFacets checks that each facet in p.Review.Facets is in the
+// known facets list.
+func (p *Policy) ValidateReviewFacets(knownFacets []string) error {
+	known := make(map[string]bool, len(knownFacets))
+	for _, f := range knownFacets {
+		known[f] = true
+	}
+	var errs []error
+	for _, f := range p.Review.Facets {
+		if !known[f] {
+			errs = append(errs, fmt.Errorf("unknown review facet %q", f))
+		}
+	}
+	return errors.Join(errs...)
+}
+
+// ValidateReviewConfig checks that ReplanThreshold is a valid severity level.
+func (p *Policy) ValidateReviewConfig() error {
+	switch p.Review.ReplanThreshold {
+	case "error", "warning", "suggestion":
+		return nil
+	default:
+		return fmt.Errorf("invalid ReplanThreshold %q, must be one of: error, warning, suggestion", p.Review.ReplanThreshold)
+	}
+}
+
 // NormalizeNilFields maps nil slices/maps to empty values.
 // Exported since Policy is a cross-package type.
 func (p *Policy) NormalizeNilFields() {
