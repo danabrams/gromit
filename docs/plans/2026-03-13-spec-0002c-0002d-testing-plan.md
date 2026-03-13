@@ -84,6 +84,7 @@ File: `internal/next/llmadapter/adapter_test.go`
 **`TestInvoke_ErrorWithResult_ReturnsBoth`**
 - Input: Provider returns `(&provider.Result{Output: "partial"}, errors.New("usage limit"))`.
 - Assert: Both result and error are non-nil. Callers (like FallbackAdapter) can inspect the result.
+- Note: This behavior is critical for `FallbackAdapter.Invoke`, which calls `provider.IsUsageLimitError(result, err)` — if `result` were nil on error, usage-limit detection would fail. See `TestFallbackAdapter_UsageLimit_FallsBackToRouter`.
 
 **`TestInvokeStream_CallsProviderStreamRun_WithCorrectTier`**
 - Input: `mockProvider`, `Config{Tier: "medium"}`.
@@ -93,6 +94,14 @@ File: `internal/next/llmadapter/adapter_test.go`
 **`TestInvokeStream_OnCostCallback_Fires`**
 - Input: Provider returns streaming result with `CostUSD: 0.10`.
 - Assert: OnCost callback fires with `0.10`.
+
+**`TestInvokeStream_ErrorPropagation`**
+- Input: Provider's `StreamRun` returns `(nil, errors.New("stream failure"))`.
+- Assert: Error returned, contains "stream failure".
+
+**`TestInvokeStream_TimeoutEnforcement_CancelsContext`**
+- Input: `Config{Timeout: 1 * time.Millisecond}`, provider's `StreamRun` blocks until context canceled.
+- Assert: Returns context deadline exceeded error.
 
 **`TestProviderName_ReturnsProviderName`**
 - Input: `mockProvider{name: "codex"}`.
@@ -145,6 +154,18 @@ File: `internal/next/llmadapter/extract_test.go`
 **`TestExtractJSON_MultipleFences_ReturnsFirst`**
 - Input: Two markdown fences with different JSON objects.
 - Assert: Returns the first JSON object.
+
+**`TestExtractJSON_MultipleBareObjects_ReturnsFirst`**
+- Input: `'{"first":1} and {"second":2}'`.
+- Assert: Returns `'{"first":1}'` — returns the first JSON object found.
+
+**`TestExtractJSON_TrailingComma_ReturnsEmptyString`**
+- Input: `'{"key": "value",}'`.
+- Assert: Returns `""` — trailing comma is invalid JSON; ExtractJSON does not attempt repair.
+
+**`TestExtractJSON_SingleQuotes_ReturnsEmptyString`**
+- Input: `"{'key': 'value'}"`.
+- Assert: Returns `""` — single quotes are not valid JSON; ExtractJSON does not attempt repair.
 
 File: `internal/next/llmadapter/invoker_test.go`
 
@@ -203,6 +224,21 @@ File: `internal/next/llmadapter/fallback_test.go`
 - Input: Primary hits usage limit. Fallback also returns error.
 - Assert: Error message contains both primary name and fallback name.
 
+**`TestFallbackAdapter_InvokeStream_UsageLimit_FallsBackToRouter`**
+- Input: Primary `mockProviderWithUsageLimit{isUsageLimit: true}` returns usage-limit error on `StreamRun`. `mockRouter` second `Select` returns `mockProvider{name: "codex"}`.
+- Call `InvokeStream(ctx, "prompt", writer, handler, onToolCall)`.
+- Assert: Result from codex. Router `MarkUnavailable` called with primary name.
+
+**`TestFallbackAdapter_InvokeStream_NormalInvocation_NoFallback`**
+- Input: `mockRouter` returns `mockProvider{name: "claude"}` with successful `StreamRun`.
+- Call `InvokeStream(ctx, "prompt", writer, handler, onToolCall)`.
+- Assert: Result from claude. No fallback triggered.
+
+**`TestFallbackAdapter_ChainedFallback_ThreeProviders`**
+- Input: Three providers: primary `mockProviderWithUsageLimit{name: "claude", isUsageLimit: true}` (returns usage-limit error), secondary `mockProviderWithUsageLimit{name: "codex", isUsageLimit: true}` (returns usage-limit error), tertiary `mockProvider{name: "gemini", runResult: {Output: "tertiary success"}}` (succeeds). `mockRouter` returns providers in sequence: claude, codex, gemini.
+- Call `Invoke(ctx, "prompt")`.
+- Assert: Primary is tried first, fails with usage-limit. Router selects secondary, which also fails with usage-limit. Router selects tertiary, which succeeds. Final result output is `"tertiary success"`. Confirms the fallback chain loops through all available providers before giving up.
+
 ### planner/ tests
 
 File: `internal/next/planner/provider_agent_test.go`
@@ -218,7 +254,7 @@ File: `internal/next/planner/provider_agent_test.go`
 
 **`TestProviderPlanAgent_Invoke_TierMismatch_LogsWarning`**
 - Input: `ProviderPlanAgent` constructed with adapter tier `"high"`. Called with `tier="medium"`.
-- Assert: No error (tier param is ignored). Warning logged once via `sync.Once` (verify by capturing log output).
+- Assert: No error (tier param is ignored). Warning logged once via `sync.Once`. Verify by injecting a `*slog.Logger` backed by `slog.NewTextHandler(&buf, nil)` and asserting `buf` contains `"tier mismatch"`.
 
 **`TestProviderPlanAgent_SatisfiesAgent`**
 - Compile-time check: `var _ Agent = (*ProviderPlanAgent)(nil)`.
@@ -385,7 +421,12 @@ File: `internal/next/execpolicy/policy_test.go` (additions)
 
 **`TestPolicy_Validate_RoutingRatioEmpty_NoError`**
 - Input: `Routing.Ratio = map[string]int{}`.
-- Assert: No validation error (empty ratio is valid -- single-provider mode).
+- Assert: No validation error. Design decision: empty ratio bypasses the sum-to-100 check because it signals single-provider mode (provider selected by preference or default, not by weighted ratio). This is distinct from a ratio with entries that don't sum to 100.
+
+**`TestRouter_EmptyRatios_FallsBackToPreferencesOnly`**
+- Input: Router constructed with an empty ratio map (`map[string]int{}`) and provider preferences `["claude", "codex"]`.
+- Call `SelectProvider()` — returns `"claude"` (first preference).
+- Assert: Confirms that empty ratios signal single-provider mode using preferences, not round-robin.
 
 **`TestPolicy_Validate_RoutingRatioSingleProvider`**
 - Input: `Routing.Ratio = map[string]int{"claude": 100}`.
@@ -399,6 +440,16 @@ File: `internal/next/execpolicy/policy_test.go` (additions)
 - Assert: `DefaultPolicy().Routing.Preferences` is non-nil.
 - Assert: `DefaultPolicy().Routing.Ratio` is non-nil.
 - Assert: `DefaultPolicy().Routing.CooldownSeconds > 0`.
+
+**`TestRouter_CooldownReenablesProvider`**
+- Input: Router with `CooldownSeconds: 60` and an injectable `Clock` interface (`type Clock interface { Now() time.Time }`). `mockProvider{name: "claude"}` and `mockProvider{name: "codex"}`. Inject a `fakeClock` whose `Now()` return value is controlled by the test.
+- Call `MarkUnavailable("claude")`.
+- Call `Select("plan", "high")` immediately — returns codex (claude is cooling down).
+- Advance `fakeClock` by 61 seconds (past the cooldown duration).
+- Call `Select("plan", "high")` again — returns claude (cooldown expired).
+- Assert: Provider re-enabled after cooldown period.
+- Note: This test lives in the router package, not in FallbackAdapter. FallbackAdapter delegates cooldown to the Router via `MarkUnavailable`.
+- Note: The Router accepts a `Clock` interface to avoid real-time waits in tests. Production code passes a `realClock` that delegates to `time.Now()`. Tests pass a `fakeClock` whose time is advanced explicitly, ensuring determinism with no timing dependencies.
 
 **`TestPolicy_LoadPolicy_PartialRouting`**
 - Input: JSON with only `routing.cooldown_seconds: 600` set.
@@ -514,14 +565,16 @@ func RunReviewAgentContract(t *testing.T, agent ReviewAgent) {
             }
         }
     })
-    t.Run("returns empty findings not nil for clean code", func(t *testing.T) {
+    t.Run("returns non-nil findings slice for clean code", func(t *testing.T) {
         findings, err := agent.ReviewFacet(ctx, "code_quality", sampleCleanCodePrompt)
         if err != nil {
             t.Fatalf("review facet: %v", err)
         }
         if findings == nil {
-            t.Error("expected non-nil findings slice (empty is ok)")
+            t.Error("expected non-nil findings slice")
         }
+        // Note: An LLM may still return style suggestions for clean code,
+        // so we assert only that the slice is non-nil, not that it is empty.
     })
     t.Run("handles empty prompt gracefully", func(t *testing.T) {
         _, err := agent.ReviewFacet(ctx, "code_quality", "")
@@ -664,7 +717,7 @@ File: `internal/next/specloop/adapter_integration_test.go`
 
 Setup:
 - Create fixture project in `t.TempDir()` with `go.mod`, `main.go`, passing test.
-- Wire `mockProvider` returning: valid plan JSON (2 tasks) for plan phase, implementation output for execute phase, findings JSON for review phase, criterion result for accept phase.
+- Wire `mockProvider` with phase-aware responses: `mockProvider.Run` inspects the prompt for phase markers (e.g., `"## Phase: plan"`) and returns the corresponding canned response. Alternatively, use a call-sequence `mockProvider` that returns responses in order: first call → plan JSON, subsequent calls → implementation output, then review findings, then acceptance result. The sequence approach is simpler and preferred.
 - Construct real adapters: `ProviderPlanAgent`, `ProviderTaskRunner`, `ProviderReviewAgent`, `ProviderAcceptAgent`.
 - Wire into real stages. Use `ShellValidator` with `Runner` for validation.
 
@@ -761,7 +814,7 @@ Mapping spec requirements to test functions.
 
 | # | Requirement (0002d) | Test(s) |
 |---|---------------------|---------|
-| D1 | FallbackAdapter provides transparent usage-limit failover | `TestFallbackAdapter_UsageLimit_FallsBackToRouter`, `TestIntegration_FallbackAdapter_UsageLimitFallback_ThroughRouter` |
+| D1 | FallbackAdapter provides transparent usage-limit failover | `TestFallbackAdapter_UsageLimit_FallsBackToRouter`, `TestFallbackAdapter_InvokeStream_UsageLimit_FallsBackToRouter`, `TestIntegration_FallbackAdapter_UsageLimitFallback_ThroughRouter` |
 | D2 | Non-usage-limit errors propagate without fallback | `TestFallbackAdapter_NonUsageLimitError_NoFallback` |
 | D3 | All providers exhausted returns descriptive error | `TestFallbackAdapter_AllProvidersExhausted_ReturnsError` |
 | D4 | FallbackAdapter satisfies ProviderAwareInvoker | `TestFallbackAdapter_SatisfiesProviderAwareInvoker` |
@@ -784,6 +837,8 @@ All mocks live alongside their test files (package-internal). Shared test utilit
 // internal/next/llmadapter/adapter_test.go (or fallback_test.go)
 
 // mockProvider satisfies provider.Provider for unit tests.
+// Thread safety: mockProvider is designed for single-goroutine use only.
+// If subtests use t.Parallel(), add sync.Mutex protection around calls and lastTier fields.
 type mockProvider struct {
     name      string
     runResult *provider.Result

@@ -97,6 +97,8 @@ Confirm `validation.json`, `architecture.json`, etc. exist in each project cell.
 
 ## 2. Test Scenarios
 
+> **Scenario ordering**: Scenarios 1–5 must be run in order, as each builds on artifacts from prior scenarios. Scenarios 6–12 can be run independently after Scenario 1 completes (they only require the binary and provider access from the prerequisites).
+
 ### Notation
 
 - `RUN_DIR` = `~/.local/share/gromit/projects/<project>/runs/<run-id>/`
@@ -320,7 +322,7 @@ GROMIT_LLM_CONTRACT=1 go test ./internal/next/... \
 2. **ReviewAgent contract**: All subtests pass:
    - `returns valid findings for well-formed prompt` -- findings parse as `[]Finding`
    - `returns empty findings not nil for clean code` -- empty slice, not nil
-   - `findings have required fields (severity, message, location)` -- structural compliance
+   - `findings have required fields (File, Description, Severity)` -- structural compliance
 
 3. **AcceptAgent contract**: All subtests pass:
    - `result has pass/fail/unclear` -- valid enum value
@@ -443,6 +445,8 @@ $GROMIT exec spec --project fixture-calc \
    - At least one task has `duration_ms` near the 3-second limit (3000ms +/- tolerance).
    - Failed tasks should have a timeout-related reason.
 
+   **Note**: If Claude responds in < 3 seconds for a trivial spec, the timeout will not trigger. Use a spec requiring substantial output (e.g., `broad-refactor.md`) to maximize the chance of exceeding the limit. Also, the actual observed `duration_ms` may exceed 3000ms by a margin because context cancellation propagation is asynchronous — the provider process may not terminate instantly.
+
 2. **Context cancellation propagated**: The adapter did not hang indefinitely:
    - The run completed (did not need to be killed manually).
    - CLI output mentions timeout or context cancelled.
@@ -459,6 +463,8 @@ $GROMIT exec spec --project fixture-calc \
    - Terminal state: `blocked`.
    - Run completes within approximately 10 seconds (not hanging).
    - `events.jsonl` contains `budget_exceeded` with `"budget": "time"`.
+
+**If the timeout does not trigger**: If the LLM responds within the timeout for all tasks, mark this scenario as **DEFERRED TO UNIT TEST**. Verify that `TestInvoke_TimeoutEnforcement_CancelsContext` passes in the automated test suite (`go test ./internal/next/llmadapter/ -run TestInvoke_TimeoutEnforcement -v`). Record the unit test output as evidence instead.
 
 **Expected**: Adapter-level timeout cancels context. Provider calls do not hang. Run-level timeout enforced.
 
@@ -542,6 +548,8 @@ export ANTHROPIC_API_KEY="$REAL_KEY"
 **Note**: An invalid API key produces an authentication error, NOT a usage-limit error. The `FallbackAdapter` only triggers fallback on `IsUsageLimitError()`. For a true usage-limit test, you must either:
 1. Exhaust your Claude API quota, or
 2. Rely on the unit tests (Approach A), which mock the usage-limit detection.
+
+**Expected behavior for Approach B**: The run will likely FAIL to trigger fallback. The primary provider will fail with an authentication error, and Codex will NOT be invoked. This is correct behavior — it confirms that `FallbackAdapter` correctly distinguishes auth errors from usage-limit errors. If this occurs, record the auth error output and mark Approach B as PASS (auth-error-distinction verified).
 
 **Verify (Approach A)**:
 
@@ -668,6 +676,7 @@ $GROMIT exec spec --project fixture-calc \
 - All invocations show `provider: "claude"`.
 - Log output may mention "codex not available" or similar.
 - This is acceptable behavior for single-provider mode (see Scenario 10).
+- **Mark this as a DEGRADED PASS** — routing was not actually tested. The scenario must be re-run with Codex available before 0002d can be considered fully verified.
 
 **Expected**: Provider selection respects per-phase preferences. Plan and review use Claude; execute uses Codex (when available).
 
@@ -800,9 +809,14 @@ $GROMIT exec spec --project fixture-calc \
 ```
 
 **Verify**:
-- Error message mentions ratio values must sum to 100 (got 90).
-- Run does NOT start (blocked at policy validation).
-- Terminal state: `blocked` or CLI error before run creation.
+- CLI exits with non-zero exit code (`echo $?` → non-zero).
+- Error message on stderr mentions ratio values must sum to 100 (got 90).
+- Run does NOT start — no run directory created:
+  ```bash
+  ls ~/.local/share/gromit/projects/fixture-calc/runs/ | tail -1
+  # Should NOT show a new run-id created after the failed command
+  ```
+- No `events.jsonl` created for this attempt.
 
 #### 9b: Valid routing config
 
@@ -938,6 +952,61 @@ $GROMIT exec spec --project fixture-calc \
 
 ---
 
+### Scenario 10b: Cost Budget Exceeded Mid-Run
+
+**Purpose**: Verify that when `max_run_cost_usd` is exceeded mid-run, the pipeline halts gracefully via the adapter layer's cost tracking.
+
+**Setup**:
+```bash
+# Set an extremely low cost budget to trigger mid-run
+jq '.budgets.max_run_cost_usd = 0.01' \
+  ~/.local/share/gromit/projects/fixture-calc/policy/execution.json > /tmp/ep.json \
+  && mv /tmp/ep.json ~/.local/share/gromit/projects/fixture-calc/policy/execution.json
+```
+
+**Execute**:
+```bash
+$GROMIT exec spec --project fixture-calc \
+  --spec /tmp/gromit-fixtures/fixture-calc/specs/add-subtract.md 2>&1 | tee /tmp/cost-exceeded-output.txt
+```
+
+**Verify**:
+
+1. **Run terminates before completing all stages**:
+   ```bash
+   RUN_ID=<from output>
+   jq '{status, terminal_state}' \
+     ~/.local/share/gromit/projects/fixture-calc/runs/$RUN_ID/run.json
+   ```
+   - Terminal state: `blocked` (budget exceeded).
+
+2. **Budget exceeded event recorded**:
+   ```bash
+   grep 'budget_exceeded' ~/.local/share/gromit/projects/fixture-calc/runs/$RUN_ID/events.jsonl | \
+     jq '{event_type, budget, accumulated_cost_usd}'
+   ```
+   - `budget` field: `"cost"`.
+   - `accumulated_cost_usd` > 0.01 (exceeded the limit).
+
+3. **Cost was tracked through adapter OnCost callbacks**:
+   ```bash
+   jq '.total_cost_usd' ~/.local/share/gromit/projects/fixture-calc/runs/$RUN_ID/evidence/metrics.json
+   ```
+   - `total_cost_usd` is positive and near or above the budget limit.
+
+4. **No panic or crash**: CLI output does not contain stack traces.
+
+**Expected**: Pipeline halts gracefully when cost budget exceeded. Cost tracked through adapter layer's OnCost callbacks feeds budget enforcement.
+
+**Cleanup**:
+```bash
+jq '.budgets.max_run_cost_usd = 50.0' \
+  ~/.local/share/gromit/projects/fixture-calc/policy/execution.json > /tmp/ep.json \
+  && mv /tmp/ep.json ~/.local/share/gromit/projects/fixture-calc/policy/execution.json
+```
+
+---
+
 ### Scenario 11: ExtractJSON Robustness
 
 **Purpose**: Verify that `ExtractJSON` correctly handles various LLM output formats (bare JSON, markdown fenced, prose-prefixed, nested objects).
@@ -995,26 +1064,36 @@ $GROMIT exec spec --project fixture-calc \
 
 **Verify**:
 
-1. **Review findings parse correctly**: Inspect review output:
+1. **Discover evidence files**: First, list the evidence directory to find actual file names:
    ```bash
    RUN_ID=<from output>
-   cat ~/.local/share/gromit/projects/fixture-calc/runs/$RUN_ID/evidence/review.md
+   RUN_DIR=~/.local/share/gromit/projects/fixture-calc/runs/$RUN_ID
+   ls $RUN_DIR/evidence/
+   ```
+   Identify the review findings file(s) and acceptance results file(s) from the listing. The exact names may vary (e.g., `review.md`, `review-findings.json`, `acceptance.json`, or similar). Use the discovered names in the steps below.
+
+2. **Review findings parse correctly**: Inspect the review output file identified above:
+   ```bash
+   # Use the review file discovered in step 1, e.g.:
+   cat $RUN_DIR/evidence/<review-file>
    ```
    - Contains structured findings (not raw JSON dump).
-   - Findings have `severity` (one of: critical, high, medium, low, info).
-   - Findings have `message` (non-empty descriptive text).
-   - Findings have `location` (file path or code reference).
+   - Findings have `Severity` (one of: critical, high, medium, low, info).
+   - Findings have `Description` (non-empty descriptive text).
+   - Findings have `File` (file path or code reference).
 
-2. **Review findings JSON is valid**: If a JSON version exists:
+3. **Review findings JSON is valid**: If a JSON review file exists in the listing:
    ```bash
-   jq '.' ~/.local/share/gromit/projects/fixture-calc/runs/$RUN_ID/evidence/review-findings.json 2>/dev/null
+   # Use the JSON review file discovered in step 1, e.g.:
+   cat $RUN_DIR/evidence/<review-json-file> | jq .
    ```
    - Each finding has required fields.
    - Severity values are valid enum values.
 
-3. **Acceptance criterion results parse correctly**:
+4. **Acceptance criterion results parse correctly**: Inspect the acceptance file identified above:
    ```bash
-   jq '.' ~/.local/share/gromit/projects/fixture-calc/runs/$RUN_ID/evidence/acceptance.json 2>/dev/null
+   # Use the acceptance file discovered in step 1, e.g.:
+   cat $RUN_DIR/evidence/<acceptance-file> | jq .
    ```
    - Each criterion result has:
      - `pass` -- boolean (true/false) or string ("pass"/"fail"/"unclear")
@@ -1022,24 +1101,77 @@ $GROMIT exec spec --project fixture-calc \
      - `criterion` -- references the acceptance criterion being evaluated
    - No criterion result has empty rationale.
 
-4. **Review-triggered replan check**: If any review finding has severity `critical`:
+5. **Review-triggered replan check**: If any review finding has severity `critical`:
    ```bash
-   grep 'replan_triggered' ~/.local/share/gromit/projects/fixture-calc/runs/$RUN_ID/events.jsonl
+   grep 'replan_triggered' $RUN_DIR/events.jsonl
    ```
    - If critical findings exist, verify whether replan was triggered.
    - If no critical findings, verify the run proceeded to acceptance.
 
-5. **Acceptance-triggered replan check**: If any acceptance criterion failed:
+6. **Acceptance-triggered replan check**: If any acceptance criterion failed:
    ```bash
-   grep 'acceptance_failed' ~/.local/share/gromit/projects/fixture-calc/runs/$RUN_ID/events.jsonl
+   grep 'acceptance_failed' $RUN_DIR/events.jsonl
    ```
    - If criteria failed, verify the run transitions appropriately (replan or needs_human).
 
-6. **Review and acceptance used different prompts**: Verify the review and acceptance stages sent distinct prompts (not the same prompt):
+7. **Review and acceptance used different prompts**: Verify the review and acceptance stages sent distinct prompts (not the same prompt):
    - Review prompt should reference code changes, facets, and review criteria.
    - Acceptance prompt should reference specific acceptance criteria from the spec.
 
 **Expected**: Review produces structured findings with valid severity levels. Acceptance produces criterion results with rationale. Both parse correctly through `ExtractJSON` and domain-specific unmarshalling.
+
+**Cleanup**: None needed.
+
+---
+
+### Scenario 12b: Adapter Parse Error Recovery
+
+**Purpose**: Verify that when an LLM returns output that `ExtractJSON` cannot parse into the expected domain type, the pipeline handles it gracefully (retry, fail task, or mark blocked — not crash).
+
+**Setup**: Use the standard fixture-calc setup. This scenario is best observed opportunistically — it occurs when an LLM returns malformed output. To increase the likelihood, use a vague or minimal spec:
+
+```bash
+cat > /tmp/gromit-fixtures/fixture-calc/specs/vague-spec.md << 'SPEC'
+# Vague Spec
+Do something interesting with the calculator.
+SPEC
+cd /tmp/gromit-fixtures/fixture-calc && git add specs/ && git commit -m "add vague spec" --allow-empty
+```
+
+**Execute**:
+```bash
+$GROMIT exec spec --project fixture-calc \
+  --spec /tmp/gromit-fixtures/fixture-calc/specs/vague-spec.md 2>&1 | tee /tmp/parse-error-output.txt
+```
+
+**Verify**:
+
+1. **No panic or crash**: Check output:
+   ```bash
+   grep -i 'panic\|nil pointer\|segfault' /tmp/parse-error-output.txt
+   ```
+   Expected: no matches.
+
+2. **If parse error occurred**: Check events for retry or failure:
+   ```bash
+   RUN_ID=<from output>
+   grep -E 'parse_error|retry|failed' \
+     ~/.local/share/gromit/projects/fixture-calc/runs/$RUN_ID/events.jsonl | \
+     jq '{event_type, phase, error}'
+   ```
+   - Parse errors should result in retry (up to configured limit) or task failure — not an unhandled crash.
+
+3. **If no parse error occurred** (LLM returned valid output): The scenario passes vacuously. Note this in results and rely on the unit tests (`TestProviderReviewAgent_ReviewFacet_InvalidJSON_ReturnsParseError`, etc.) for parse error coverage.
+
+4. **Alternative — force parse error via unit test**:
+   ```bash
+   cd /Users/dabrams/gromit
+   go test ./internal/next/review/ -run TestProviderReviewAgent_ReviewFacet_InvalidJSON -v -count=1
+   go test ./internal/next/acceptor/ -run TestProviderAcceptAgent_EvaluateCriterion_InvalidJSON -v -count=1
+   ```
+   Both must PASS, confirming parse errors are returned (not panicked on).
+
+**Expected**: Parse errors from adapter layer are handled gracefully — retried or failed with a descriptive error, never crashing. Unit tests provide deterministic coverage; end-to-end is opportunistic.
 
 **Cleanup**: None needed.
 
@@ -1266,6 +1398,8 @@ Before merging Spec 0002c implementation:
 - [ ] Scenario 5 (Timeout) -- adapter-level timeout works
 - [ ] Scenario 11 (ExtractJSON) -- all unit tests pass
 - [ ] Scenario 12 (Review/Accept) -- findings and criteria parse correctly
+- [ ] Scenario 10b (Cost Budget) -- pipeline halts when cost exceeded
+- [ ] Scenario 12b (Parse Errors) -- unit tests pass; end-to-end no crash
 - [ ] `go vet ./...` clean
 - [ ] `gofmt -l .` produces no output
 
