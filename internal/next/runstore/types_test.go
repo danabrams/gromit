@@ -112,3 +112,29 @@ func TestRunState_NormalizeNilFields_IncludesNewFields(t *testing.T) {
 		t.Error("AcceptanceResults should not be nil after NormalizeNilFields")
 	}
 }
+
+func TestRunState_NormalizeNilFields_ReviewAndAcceptanceSlices(t *testing.T) {
+	rs := &RunState{}
+	// Verify slices start nil
+	if rs.ReviewFindings != nil {
+		t.Fatal("precondition: ReviewFindings should be nil before normalize")
+	}
+	if rs.AcceptanceResults != nil {
+		t.Fatal("precondition: AcceptanceResults should be nil before normalize")
+	}
+
+	rs.NormalizeNilFields()
+
+	if rs.ReviewFindings == nil {
+		t.Error("ReviewFindings should be non-nil empty slice after NormalizeNilFields")
+	}
+	if len(rs.ReviewFindings) != 0 {
+		t.Errorf("ReviewFindings should be empty, got %d", len(rs.ReviewFindings))
+	}
+	if rs.AcceptanceResults == nil {
+		t.Error("AcceptanceResults should be non-nil empty slice after NormalizeNilFields")
+	}
+	if len(rs.AcceptanceResults) != 0 {
+		t.Errorf("AcceptanceResults should be empty, got %d", len(rs.AcceptanceResults))
+	}
+}
