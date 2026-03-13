@@ -217,3 +217,50 @@ func TestRunner_FacetRetry_MissingFields(t *testing.T) {
 		t.Errorf("expected 1 finding after retry, got %d", len(result.AllFindings))
 	}
 }
+
+func TestRunner_AllFacetsErrored(t *testing.T) {
+	agent := &programmableReviewAgent{
+		reviewFn: func(ctx context.Context, facetName string, prompt string) ([]Finding, error) {
+			return nil, &ParseError{Msg: "bad response"}
+		},
+	}
+
+	runner := NewRunner(agent, RunnerConfig{
+		Facets:       []string{"spec_alignment", "code_quality"},
+		Threshold:    SeverityWarning,
+		FacetRetries: 1,
+	})
+
+	result, err := runner.Run(context.Background(), RunInput{
+		DiffSummary: "Some diff",
+		SpecContent: "# Spec",
+		Cycle:       1,
+	})
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	if len(result.ErroredFacets) != 2 {
+		t.Errorf("expected 2 errored facets, got %d", len(result.ErroredFacets))
+	}
+	if len(result.AllFindings) != 0 {
+		t.Errorf("expected 0 findings, got %d", len(result.AllFindings))
+	}
+}
+
+func TestRunResult_NormalizeNilFields(t *testing.T) {
+	r := RunResult{}
+	r.NormalizeNilFields()
+	if r.AllFindings == nil {
+		t.Error("AllFindings should not be nil after normalize")
+	}
+	if r.BlockingFindings == nil {
+		t.Error("BlockingFindings should not be nil after normalize")
+	}
+	if r.FindingsByFacet == nil {
+		t.Error("FindingsByFacet should not be nil after normalize")
+	}
+	if r.ErroredFacets == nil {
+		t.Error("ErroredFacets should not be nil after normalize")
+	}
+}

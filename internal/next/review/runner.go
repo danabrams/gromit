@@ -25,11 +25,27 @@ type RunInput struct {
 
 // RunResult holds the outcome of a review run.
 type RunResult struct {
-	AllFindings         []Finding
-	BlockingFindings    []Finding
-	HasBlockingFindings bool
-	FindingsByFacet     map[string][]Finding
-	ErroredFacets       map[string]string
+	AllFindings         []Finding            `json:"all_findings"`
+	BlockingFindings    []Finding            `json:"blocking_findings"`
+	HasBlockingFindings bool                 `json:"has_blocking_findings"`
+	FindingsByFacet     map[string][]Finding `json:"findings_by_facet"`
+	ErroredFacets       map[string]string    `json:"errored_facets"`
+}
+
+// NormalizeNilFields maps nil slices/maps to empty values.
+func (r *RunResult) NormalizeNilFields() {
+	if r.AllFindings == nil {
+		r.AllFindings = []Finding{}
+	}
+	if r.BlockingFindings == nil {
+		r.BlockingFindings = []Finding{}
+	}
+	if r.FindingsByFacet == nil {
+		r.FindingsByFacet = map[string][]Finding{}
+	}
+	if r.ErroredFacets == nil {
+		r.ErroredFacets = map[string]string{}
+	}
 }
 
 // Runner orchestrates per-facet review.
@@ -108,6 +124,7 @@ func (r *Runner) Run(ctx context.Context, input RunInput) (*RunResult, error) {
 		}
 	}
 	result.HasBlockingFindings = len(result.BlockingFindings) > 0
+	result.NormalizeNilFields()
 
 	return result, nil
 }

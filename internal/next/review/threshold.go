@@ -12,7 +12,7 @@ func IsBlocking(threshold, findingSeverity Severity) bool {
 // FilterBlockingFindings returns the subset of findings that are blocking
 // at the given threshold.
 func FilterBlockingFindings(findings []Finding, threshold Severity) []Finding {
-	var result []Finding
+	result := []Finding{}
 	for _, f := range findings {
 		if IsBlocking(threshold, f.Severity) {
 			result = append(result, f)
