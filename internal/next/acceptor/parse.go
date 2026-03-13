@@ -31,10 +31,10 @@ func ParseAcceptanceCriteria(specMarkdown string) ([]string, error) {
 			continue
 		}
 
-		// Look for the acceptance criteria heading (case-insensitive)
+		// Look for the acceptance criteria heading (exact match per design)
 		if strings.HasPrefix(trimmed, "## ") {
 			heading := strings.TrimPrefix(trimmed, "## ")
-			if strings.EqualFold(strings.TrimSpace(heading), "Acceptance Criteria") {
+			if strings.TrimSpace(heading) == "Acceptance Criteria" {
 				inSection = true
 			}
 		}

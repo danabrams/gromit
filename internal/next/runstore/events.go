@@ -120,6 +120,7 @@ type ReviewResultEvent struct {
 	TotalFindings    int      `json:"total_findings"`
 	BlockingFindings int      `json:"blocking_findings"`
 	FacetsReviewed   []string `json:"facets_reviewed"`
+	ErroredFacets    []string `json:"errored_facets,omitempty"`
 }
 
 type AcceptanceResultEvent struct {

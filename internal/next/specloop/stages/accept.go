@@ -7,6 +7,7 @@ import (
 
 	"github.com/danabrams/gromit/internal/next/acceptor"
 	"github.com/danabrams/gromit/internal/next/evidence"
+	"github.com/danabrams/gromit/internal/next/review"
 	"github.com/danabrams/gromit/internal/next/runstore"
 	"github.com/danabrams/gromit/internal/next/specloop"
 )
@@ -18,11 +19,12 @@ type AcceptEvaluator interface {
 
 // AcceptStageConfig configures the AcceptStage.
 type AcceptStageConfig struct {
-	Criteria    []string
-	SpecContent string
-	EvidenceDir string
-	DiffSummary string
-	Tier        string
+	Criteria     []string
+	SpecContent  string
+	EvidenceDir  string
+	DiffProvider review.DiffProvider
+	BaseBranch   string
+	Tier         string
 }
 
 // AcceptStage evaluates acceptance criteria and decides whether to continue or replan.
@@ -77,9 +79,19 @@ func (s *AcceptStage) Run(ctx context.Context, rs *runstore.RunState) (specloop.
 		criteria = parsed
 	}
 
+	// Compute diff at runtime (fresh on each cycle, not stale from construction time)
+	var diffSummary string
+	if s.cfg.DiffProvider != nil {
+		d, err := s.cfg.DiffProvider.Diff(s.cfg.BaseBranch)
+		if err != nil {
+			return specloop.NextAction{}, fmt.Errorf("acceptance diff: %w", err)
+		}
+		diffSummary = d
+	}
+
 	input := acceptor.EvaluateInput{
 		Criteria:    criteria,
-		DiffSummary: s.cfg.DiffSummary,
+		DiffSummary: diffSummary,
 	}
 
 	// Call evaluator with one retry on API failure

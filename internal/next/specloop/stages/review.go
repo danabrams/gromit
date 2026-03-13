@@ -90,11 +90,17 @@ func (s *ReviewStage) Run(ctx context.Context, rs *runstore.RunState) (specloop.
 			facets = append(facets, f)
 		}
 		sort.Strings(facets)
+		var erroredFacetNames []string
+		for f := range result.ErroredFacets {
+			erroredFacetNames = append(erroredFacetNames, f)
+		}
+		sort.Strings(erroredFacetNames)
 		s.eventLog.Append(runstore.ReviewResultEvent{
 			BaseEvent:        runstore.BaseEvent{Type: "review_result", Timestamp: time.Now()},
 			TotalFindings:    len(result.AllFindings),
 			BlockingFindings: len(result.BlockingFindings),
 			FacetsReviewed:   facets,
+			ErroredFacets:    erroredFacetNames,
 		})
 	}
 
