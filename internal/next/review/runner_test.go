@@ -2,15 +2,22 @@ package review
 
 import (
 	"context"
+	"fmt"
 	"testing"
 )
 
 // mockReviewAgent is a test double for the LLM review agent.
 type mockReviewAgent struct {
 	findings map[string][]Finding // facet name -> findings
+	errors   map[string]error     // facet name -> error (optional)
 }
 
 func (m *mockReviewAgent) ReviewFacet(ctx context.Context, facetName string, prompt string) ([]Finding, error) {
+	if m.errors != nil {
+		if err, ok := m.errors[facetName]; ok {
+			return nil, err
+		}
+	}
 	return m.findings[facetName], nil
 }
 
@@ -245,6 +252,39 @@ func TestRunner_AllFacetsErrored(t *testing.T) {
 	}
 	if len(result.AllFindings) != 0 {
 		t.Errorf("expected 0 findings, got %d", len(result.AllFindings))
+	}
+}
+
+func TestRunner_FacetError_ContinuesWithOtherFacets(t *testing.T) {
+	agent := &mockReviewAgent{
+		findings: map[string][]Finding{
+			"spec_alignment": {{Severity: SeverityError, File: "handler.go", Description: "missing validation"}},
+		},
+		errors: map[string]error{
+			"code_quality": fmt.Errorf("API timeout"),
+		},
+	}
+
+	runner := NewRunner(agent, RunnerConfig{
+		Facets:    []string{"spec_alignment", "code_quality"},
+		Threshold: SeverityWarning,
+	})
+
+	result, err := runner.Run(context.Background(), RunInput{
+		DiffSummary: "Added handler",
+		SpecContent: "# Spec",
+		Cycle:       1,
+	})
+	if err != nil {
+		t.Fatalf("Run should not return error on partial facet failure: %v", err)
+	}
+
+	if len(result.AllFindings) != 1 {
+		t.Errorf("expected 1 finding from successful facet, got %d", len(result.AllFindings))
+	}
+
+	if result.ErroredFacets == nil || result.ErroredFacets["code_quality"] == "" {
+		t.Error("expected code_quality to be marked as errored")
 	}
 }
 
