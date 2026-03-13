@@ -3,6 +3,73 @@
 > **REQUIRED:** Use `superpowers:subagent-driven-development` to execute independent tasks in parallel.
 > **Plan document:** `docs/plans/2026-03-13-spec-0002c-implementation-plan.md`
 > **Design document:** `docs/plans/2026-03-13-spec-0002c-0002d-design.md`
+> **Test plans:** `docs/plans/2026-03-13-spec-0002c-0002d-testing-plan.md` and `docs/plans/2026-03-13-spec-0002c-0002d-manual-test-plan.md`
+
+---
+
+## Execution Workflow — MUST FOLLOW
+
+**You implement ONE PHASE per conversation.** After each phase:
+
+### Phase → Review Loop → CONTINUE.md → Context Clear
+
+```
+1. Implement the phase (TDD: red tests → green implementation → commit)
+2. Run phase checkpoint tests
+3. REVIEW ROUND 1: Use superpowers:code-reviewer to do a thorough review of all code written in this phase
+   - Fix every Critical and Important issue found
+   - Commit fixes
+4. If issues were found in round 1:
+   REVIEW ROUND 2: Run superpowers:code-reviewer again on the same scope
+   - Fix every Critical and Important issue found
+   - Commit fixes
+5. If issues were found in round 2:
+   REVIEW ROUND 3: Run superpowers:code-reviewer again (FINAL round)
+   - Fix every Critical and Important issue found
+   - Commit fixes
+6. Run phase checkpoint tests one final time to confirm everything passes
+7. Write progress to CONTINUE.md (see format below)
+8. STOP — tell user the phase is complete and context can be cleared
+```
+
+**Review scope:** All files created or modified during the current phase. Compare against the phase's task descriptions in the implementation plan.
+
+**Early exit:** If a review round finds ZERO issues, skip remaining rounds and proceed to CONTINUE.md.
+
+### CONTINUE.md Format
+
+Write `CONTINUE.md` to the worktree root with this structure:
+
+```markdown
+# Spec 0002c — Continue
+
+## Status
+- **Current phase:** Phase N — COMPLETE
+- **Next phase:** Phase N+1 — [phase title]
+- **Date:** [today's date]
+
+## Completed Phases
+- Phase 1: [title] — COMPLETE ([N] tests passing)
+- Phase 2: [title] — COMPLETE ([N] tests passing)
+- ...
+
+## Phase [N] Summary
+- Files created: [list]
+- Files modified: [list]
+- Tests added: [count]
+- Review rounds: [1-3], issues fixed: [count]
+- Final checkpoint: PASS
+
+## Next Phase Instructions
+1. Read this file
+2. Read the execution prompt: docs/plans/2026-03-13-spec-0002c-execution-prompt.md
+3. Read the implementation plan: docs/plans/2026-03-13-spec-0002c-implementation-plan.md
+4. Skip to "Phase [N+1]" section below
+5. Implement Phase [N+1] following the Phase → Review Loop → CONTINUE.md workflow
+
+## Verification
+[paste the actual test output from the final checkpoint run]
+```
 
 ---
 
@@ -129,6 +196,8 @@ Read these files before implementing to understand existing interfaces and patte
 go test ./internal/next/llmadapter/ -v -count=1
 ```
 
+**→ Now run the Review Loop (up to 3 rounds), then write CONTINUE.md and STOP.**
+
 ---
 
 ### Phase 2: Invoker interfaces + ExtractJSON (sequential, single agent)
@@ -145,6 +214,8 @@ go test ./internal/next/llmadapter/ -v -count=1
 ```bash
 go test ./internal/next/llmadapter/ -v -count=1
 ```
+
+**→ Now run the Review Loop (up to 3 rounds), then write CONTINUE.md and STOP.**
 
 ---
 
@@ -365,6 +436,8 @@ go test ./internal/next/contextpkt/ -v -count=1
 go vet ./internal/next/...
 ```
 
+**→ Now run the Review Loop (up to 3 rounds), then write CONTINUE.md and STOP.**
+
 ---
 
 ### Phase 4: RealStageProvider wiring (sequential, single agent)
@@ -395,6 +468,8 @@ go test ./cmd/gromit-next/ -v -count=1
 go build ./cmd/gromit-next/
 ```
 
+**→ Now run the Review Loop (up to 3 rounds), then write CONTINUE.md and STOP.**
+
 ---
 
 ### Phase 5: Contract test framework (sequential, single agent)
@@ -421,6 +496,8 @@ go test -tags llmcontract ./internal/next/... -run TestContract -v -count=1
 GROMIT_LLM_CONTRACT=1 go test -tags llmcontract ./internal/next/... -run TestContract -v -count=1 -timeout 300s
 ```
 
+**→ Now run the Review Loop (up to 3 rounds), then write CONTINUE.md and STOP.**
+
 ---
 
 ### Phase 6: Verification checkpoint
@@ -438,6 +515,8 @@ go mod tidy && git diff --exit-code go.mod go.sum
 ```
 
 All must pass with zero output from `gofmt -l` and no `go.mod`/`go.sum` drift.
+
+**→ Now run the Review Loop (up to 3 rounds), then write FINAL CONTINUE.md and STOP.**
 
 ---
 
