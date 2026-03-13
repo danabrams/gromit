@@ -143,9 +143,30 @@ All implementation phases (1-9) are complete. Task 45 is deferred per the plan. 
 
 **Test status (after Phase 9):** 429 internal/next tests + 33 cmd/gromit-next tests = 462 total passing. `go vet` clean, `gofmt` clean, build clean.
 
-## What's Next — All phases complete
+### Phase 10 (3 commits — review fixes and test coverage)
 
-Task 45 (per-task artifact files) is deferred per the plan. All implementation phases (1-9) are complete.
+70. `527499a01` — fix(next): add CLAUDE.md nil-field normalization visibility comments to all new NormalizeNilFields methods
+71. `ec65addd1` — fix(next): address review findings — stale diff, case sensitivity, event observability
+72. `8edfa3fdf` — test(next): add DiffProvider coverage for AcceptStage
+
+### Phase 10 details:
+
+- **CLAUDE comments:** Added required `// See CLAUDE.md nil-field normalization visibility convention:` comments to 10 files in internal/next/ to fix TestNormalizeNilFieldsVisibilityPolicy.
+- **AcceptStage stale diff fix:** Replaced static `DiffSummary string` with `DiffProvider review.DiffProvider` + `BaseBranch string` so diffs are computed fresh on each fix cycle (matching ReviewStage pattern).
+- **ParseAcceptanceCriteria:** Changed from case-insensitive (`EqualFold`) to exact case match per design spec.
+- **ReviewResultEvent:** Added `ErroredFacets []string` field for observability (design required errored facets in event log).
+- **Test coverage:** Added `TestAcceptStage_ComputesDiffFromDiffProvider` and `TestAcceptStage_DiffProviderError` tests.
+
+**3 review passes completed:**
+- Pass 1: Found 2 major + 7 minor issues. Fixed 3 (stale diff, case sensitivity, event observability).
+- Pass 2: Found 1 major (missing DiffProvider tests). Fixed it.
+- Pass 3: Clean — all remaining items are design choices, not bugs.
+
+**Test status (after Phase 10):** 7921 total tests passing (431 internal/next + rest of project). `go vet` clean, `gofmt` clean, build clean.
+
+## What's Next — Ready to finish branch
+
+All implementation phases (1-9) + review phase (10) are complete. Task 45 (per-task artifact files) is deferred per the plan.
 
 Use `superpowers:finishing-a-development-branch` to integrate the work.
 
@@ -160,4 +181,4 @@ Use `superpowers:finishing-a-development-branch` to integrate the work.
 ## Deferred items for later phases
 
 - Real GitDiffProvider implementation wired into stage_provider.go (Task 33b added the type, but stage_provider still uses noopDiffProvider)
-- AcceptStage DiffSummary is static (set at construction time, not computed at runtime like ReviewStage)
+- AcceptStage DiffProvider wired into stage_provider.go (currently uses nil DiffProvider in production wiring)
