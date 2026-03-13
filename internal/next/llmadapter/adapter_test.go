@@ -19,7 +19,7 @@ type mockProvider struct {
 	lastTier  string
 }
 
-func (m *mockProvider) Name() string                   { return m.name }
+func (m *mockProvider) Name() string                    { return m.name }
 func (m *mockProvider) ModelForTier(tier string) string { return "mock-" + tier }
 func (m *mockProvider) Run(ctx context.Context, prompt string, tier string) (*provider.Result, error) {
 	m.calls++
