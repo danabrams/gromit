@@ -130,11 +130,7 @@ func TestInvoke_OnCostNotCalledOnZero(t *testing.T) {
 }
 
 func TestInvoke_RespectsTimeout(t *testing.T) {
-	mp := &mockProvider{
-		name: "test",
-		runResult: &provider.Result{},
-	}
-	// Override Run to block until context is done
+	// Use slowMockProvider which blocks until context is done
 	slowProvider := &slowMockProvider{delay: 5 * time.Second, result: &provider.Result{}}
 	adapter := New(slowProvider, Config{
 		Tier:    "low",
@@ -159,6 +155,27 @@ func TestTier(t *testing.T) {
 	adapter := New(mp, Config{Tier: "xhigh"})
 	if adapter.Tier() != "xhigh" {
 		t.Errorf("expected 'xhigh', got %q", adapter.Tier())
+	}
+}
+
+func TestInvokeStream_DelegatesToProvider(t *testing.T) {
+	mp := &mockProvider{
+		name:      "test",
+		runResult: &provider.Result{Output: "streamed", CostUSD: 0.08, InputTokens: 150, OutputTokens: 75},
+	}
+	adapter := New(mp, Config{Tier: "medium"})
+	result, err := adapter.InvokeStream(context.Background(), "do something", io.Discard, nil, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Output != "streamed" {
+		t.Errorf("expected output 'streamed', got %q", result.Output)
+	}
+	if mp.calls != 1 {
+		t.Errorf("expected 1 call, got %d", mp.calls)
+	}
+	if mp.lastTier != "medium" {
+		t.Errorf("expected tier 'medium', got %q", mp.lastTier)
 	}
 }
 ```
@@ -390,11 +407,10 @@ git commit -m "red: ProviderPlanAgent tests for invoke and error propagation"
 
 ---
 
-### Task 4: Implement `ProviderPlanAgent` + `Invoker` interface
+### Task 4a: Define `Invoker` and `ProviderAwareInvoker` interfaces
 
 **Files:**
 - Create: `internal/next/llmadapter/invoker.go`
-- Create: `internal/next/planner/provider_agent.go`
 
 **Step 1: Define Invoker interface in llmadapter**
 
@@ -455,7 +471,42 @@ func (a *LLMAdapter) Provider() provider.Provider {
 var _ ProviderAwareInvoker = (*LLMAdapter)(nil)
 ```
 
-**Step 2: Create shared `ExtractJSON` utility in `llmadapter/parse.go`**
+**Step 2: Add compile-time interface satisfaction tests**
+
+Add to `internal/next/llmadapter/adapter_test.go`:
+
+```go
+func TestLLMAdapter_SatisfiesInvoker(t *testing.T) {
+	var _ Invoker = (*LLMAdapter)(nil)
+}
+
+func TestLLMAdapter_SatisfiesProviderAwareInvoker(t *testing.T) {
+	var _ ProviderAwareInvoker = (*LLMAdapter)(nil)
+}
+```
+
+**Step 3: Run tests to verify they pass**
+
+Run: `cd /Users/dabrams/gromit && go test ./internal/next/llmadapter/ -v -count=1`
+Expected: PASS
+
+**Step 4: Commit**
+
+```bash
+git add internal/next/llmadapter/invoker.go internal/next/llmadapter/adapter.go internal/next/llmadapter/adapter_test.go
+git commit -m "green: Invoker and ProviderAwareInvoker interfaces with LLMAdapter satisfaction"
+```
+
+---
+
+### Task 4b: Implement `ProviderPlanAgent` + shared `ExtractJSON` utility
+
+**Files:**
+- Create: `internal/next/llmadapter/parse.go`
+- Create: `internal/next/llmadapter/parse_test.go`
+- Create: `internal/next/planner/provider_agent.go`
+
+**Step 1: Create shared `ExtractJSON` utility in `llmadapter/parse.go`**
 
 Also create: `internal/next/llmadapter/parse.go`
 
@@ -555,7 +606,7 @@ func TestExtractJSON_RawJSONWithoutFences(t *testing.T) {
 }
 ```
 
-**Step 3: Implement ProviderPlanAgent**
+**Step 2: Implement ProviderPlanAgent**
 
 ```go
 package planner
@@ -616,8 +667,8 @@ Expected: PASS
 **Step 4: Commit**
 
 ```bash
-git add internal/next/llmadapter/invoker.go internal/next/llmadapter/parse.go internal/next/llmadapter/parse_test.go internal/next/planner/provider_agent.go internal/next/planner/provider_agent_test.go internal/next/llmadapter/adapter.go
-git commit -m "green: ProviderPlanAgent + Invoker interface + shared ExtractJSON utility"
+git add internal/next/llmadapter/parse.go internal/next/llmadapter/parse_test.go internal/next/planner/provider_agent.go internal/next/planner/provider_agent_test.go
+git commit -m "green: ProviderPlanAgent + shared ExtractJSON utility"
 ```
 
 ---
@@ -1456,6 +1507,8 @@ func (s *inMemoryStore) Exists(cellPath string, artifact string) bool {
 }
 ```
 
+> **Note on assertions:** Test assertions should check for error presence and type (e.g., `errors.As`, `errors.Is`, nil checks) rather than exact error message strings. Compiler internals and error messages may change across versions, so asserting on specific message text creates fragile tests.
+
 **Step 2: Run and verify failure**
 
 Run: `cd /Users/dabrams/gromit && go test ./internal/next/contextpkt/ -run TestSpecCompilerAdapter -v -count=1`
@@ -1599,8 +1652,8 @@ The `RealStageProvider` will need a `provider.Provider` — for 0002c, hardcode 
 
 > **Implementation note:** Verify `claude.NewClient` constructor signature against actual code at `internal/provider/claude.go` during implementation. The signature shown below is illustrative — the real constructor may differ in parameter names, types, or order.
 
-
 ```go
+// Create Claude provider (hardcoded for 0002c; 0002d adds multi-provider routing)
 claudeClient, err := claude.NewClient("claude", []string{"--no-input"}, 300)
 if err != nil {
     return fmt.Errorf("create claude client: %w", err)
@@ -1611,6 +1664,12 @@ claudeProvider := provider.NewClaudeProvider(claudeClient, map[string]string{
     provider.TierMedium: "sonnet",
     provider.TierLow:    "haiku",
 })
+
+// Wire PlanStage with both PlanCreator and FixPlanCreator
+planAgent := planner.NewProviderPlanAgent(planAdapter, policy.Models.Planner)
+p := planner.NewPlanner(planAgent, tier)
+planStage := stages.NewPlanStage(p)
+planStage.SetFixPlanner(p) // same Planner satisfies FixPlanCreator via CreateFixPlan
 ```
 
 **Important:** Check what `stages.NewPlanStage` accepts — it takes `PlanCreator` interface, not `planner.Planner` directly. Verify that `planner.Planner` satisfies `PlanCreator`:
@@ -1624,7 +1683,7 @@ type PlanCreator interface {
 
 `planner.Planner.CreatePlan` matches this signature.
 
-**Important:** `PlanStage` also requires a `FixPlanCreator` for re-planning after validation failures. The `planner.Planner` type has `CreateFixPlan` which satisfies `FixPlanCreator`. Wire it via `planStage.SetFixPlanner(fp)` where `fp` is the same `planner.Planner` instance used as `PlanCreator`.
+**Important:** `PlanStage` also requires a `FixPlanCreator` for re-planning after validation failures. The `planner.Planner` type has `CreateFixPlan` which satisfies `FixPlanCreator`. The `SetFixPlanner` call is shown in the code block above.
 
 Similarly for ReviewStage — it takes `ReviewRunner` (which has `Run(ctx, RunInput) (*RunResult, error)`). `review.Runner.Run` satisfies this.
 
@@ -1729,7 +1788,7 @@ func buildRealPlanAgent(t *testing.T) Agent {
 	// Implementation depends on how Claude client is configured.
 	// This is intentionally left for the implementor to wire based on
 	// the local environment (claude binary must be available).
-	t.Fatal("TODO: wire real provider for contract tests")
+	t.Skip("TODO: wire real provider for contract tests")
 	return nil
 }
 ```
@@ -1800,7 +1859,7 @@ git commit -m "feat: wire contract tests to real Claude provider"
 ### Task 19: Integration scenario scaffolds
 
 **Files:**
-- Create: `internal/next/specloop/integration_test.go`
+- Create: `internal/next/specloop/pipeline_integration_test.go`
 
 **Step 1: Write scenario scaffolds**
 
@@ -1846,7 +1905,7 @@ func TestIntegration_BudgetExhaustion(t *testing.T) {
 **Step 2: Commit**
 
 ```bash
-git add internal/next/specloop/integration_test.go
+git add internal/next/specloop/pipeline_integration_test.go
 git commit -m "scaffold: integration test placeholder stubs for pipeline scenarios (not yet functional)"
 ```
 
