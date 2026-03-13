@@ -66,7 +66,7 @@ func TestEvidenceStage_ReadsAcceptanceJSONFromDisk(t *testing.T) {
 		"results": []map[string]string{
 			{"criterion": "multi-currency", "status": "fail", "rationale": "only USD supported"},
 		},
-		"all_pass":           false,
+		"all_pass":            false,
 		"has_fail_or_unclear": true,
 	}
 	data, _ := json.MarshalIndent(acceptData, "", "  ")

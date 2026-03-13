@@ -133,8 +133,8 @@ type ReviewInput struct {
 	ValidationResults  string                       `json:"validation_results"`
 	KnownRisks         []string                     `json:"known_risks"`
 	RecommendedAction  string                       `json:"recommended_action"`
-	ReviewFindings     []ReviewFindingSummary        `json:"review_findings,omitempty"`
-	AcceptanceCriteria []AcceptanceCriterionSummary  `json:"acceptance_criteria,omitempty"`
+	ReviewFindings     []ReviewFindingSummary       `json:"review_findings,omitempty"`
+	AcceptanceCriteria []AcceptanceCriterionSummary `json:"acceptance_criteria,omitempty"`
 }
 
 // NormalizeNilFields maps nil slices to empty values for consistent JSON serialization.
