@@ -36,7 +36,16 @@ func (e *Evaluator) Evaluate(ctx context.Context, input EvaluateInput) (Acceptan
 	hasFailOrUnclear := false
 
 	for _, criterion := range input.Criteria {
-		prompt := buildEvalPrompt(criterion, input)
+		prompt, renderErr := RenderAcceptancePrompt(AcceptancePromptInput{
+			Criterion:         criterion,
+			DiffSummary:       input.DiffSummary,
+			TaskResults:       input.TaskResults,
+			ValidationResults: input.ValidationResults,
+			ReviewFindings:    input.ReviewFindings,
+		})
+		if renderErr != nil {
+			return AcceptanceResult{}, fmt.Errorf("rendering prompt for %q: %w", criterion, renderErr)
+		}
 		cr, err := e.agent.EvaluateCriterion(ctx, prompt)
 		if err != nil {
 			return AcceptanceResult{}, fmt.Errorf("evaluating criterion %q: %w", criterion, err)
@@ -58,19 +67,3 @@ func (e *Evaluator) Evaluate(ctx context.Context, input EvaluateInput) (Acceptan
 	}, nil
 }
 
-func buildEvalPrompt(criterion string, input EvaluateInput) string {
-	prompt := fmt.Sprintf("Evaluate this acceptance criterion: %s\n", criterion)
-	if input.DiffSummary != "" {
-		prompt += fmt.Sprintf("\nDiff summary:\n%s\n", input.DiffSummary)
-	}
-	if input.TaskResults != "" {
-		prompt += fmt.Sprintf("\nTask results:\n%s\n", input.TaskResults)
-	}
-	if input.ValidationResults != "" {
-		prompt += fmt.Sprintf("\nValidation results:\n%s\n", input.ValidationResults)
-	}
-	if input.ReviewFindings != "" {
-		prompt += fmt.Sprintf("\nReview findings:\n%s\n", input.ReviewFindings)
-	}
-	return prompt
-}

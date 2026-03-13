@@ -8,6 +8,14 @@ type AcceptanceFailure struct {
 	Status       string   `json:"status"`
 	Rationale    string   `json:"rationale"`
 	EvidenceRefs []string `json:"evidence_refs"`
+	Cycle        int      `json:"cycle"`
+}
+
+// NormalizeNilFields maps nil slices to empty values for consistent JSON serialization.
+func (af *AcceptanceFailure) NormalizeNilFields() {
+	if af.EvidenceRefs == nil {
+		af.EvidenceRefs = []string{}
+	}
 }
 
 // BuildFailureContext extracts non-pass results from an AcceptanceResult for planner consumption.
@@ -17,12 +25,15 @@ func BuildFailureContext(result AcceptanceResult, cycle int) []AcceptanceFailure
 		if cr.Status == StatusPass {
 			continue
 		}
-		failures = append(failures, AcceptanceFailure{
+		f := AcceptanceFailure{
 			Criterion:    cr.Criterion,
 			Status:       cr.Status,
 			Rationale:    cr.Rationale,
 			EvidenceRefs: cr.EvidenceRefs,
-		})
+			Cycle:        cycle,
+		}
+		f.NormalizeNilFields()
+		failures = append(failures, f)
 	}
 	return failures
 }
