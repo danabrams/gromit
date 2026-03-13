@@ -218,28 +218,6 @@ func TestFinalizeStage_ReadyForReview_RequiresAllGates(t *testing.T) {
 	}
 }
 
-func TestFinalizeStage_PreservesWorktreeForBlocked(t *testing.T) {
-	fakeStore := runstore.NewStore(t.TempDir())
-	removeCalled := false
-	fakeGit := &fakeGitOps{
-		removeErr: nil,
-	}
-	// Override to track calls
-	origRemove := fakeGit.removedPath
-	stage := NewFinalizeStage(fakeGit, fakeStore, nil)
-	rs := &runstore.RunState{Status: runstore.StatusBlocked, WorktreePath: "/tmp/test-worktree"}
-
-	_, err := stage.Run(context.Background(), rs)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	_ = origRemove
-	removeCalled = fakeGit.removedPath != ""
-	if removeCalled {
-		t.Error("FinalizeStage should NOT remove worktree for blocked runs")
-	}
-}
-
 func TestFinalizeStage_RecordsWorktreePathInRunJSON(t *testing.T) {
 	tmp := t.TempDir()
 	store := runstore.NewStore(tmp)

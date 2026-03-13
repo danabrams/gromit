@@ -120,9 +120,12 @@ func (s *InitStage) cleanBlockedWorktrees(rs *runstore.RunState) error {
 		if prior.SpecID != rs.SpecID || prior.Status != runstore.StatusBlocked || prior.WorktreePath == "" {
 			continue
 		}
-		// Remove the worktree directory
-		if err := os.RemoveAll(prior.WorktreePath); err != nil {
-			return fmt.Errorf("remove worktree %s: %w", prior.WorktreePath, err)
+		// Capture path before clearing
+		cleanedPath := prior.WorktreePath
+		// Remove the worktree directory (os.RemoveAll is sufficient for stale
+		// blocked worktrees; git worktree prune handles metadata cleanup)
+		if err := os.RemoveAll(cleanedPath); err != nil {
+			return fmt.Errorf("remove worktree %s: %w", cleanedPath, err)
 		}
 		// Clear worktree path and save
 		prior.WorktreePath = ""
@@ -134,7 +137,7 @@ func (s *InitStage) cleanBlockedWorktrees(rs *runstore.RunState) error {
 			s.eventLog.Append(runstore.BlockedWorktreeCleanedEvent{
 				BaseEvent:    runstore.BaseEvent{Type: "blocked_worktree_cleaned", Timestamp: time.Now()},
 				PriorRunID:   prior.RunID,
-				WorktreePath: prior.WorktreePath,
+				WorktreePath: cleanedPath,
 			})
 		}
 	}

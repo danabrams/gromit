@@ -57,6 +57,27 @@ func TestInitStage_CleansBlockedWorktrees(t *testing.T) {
 	if reloaded.WorktreePath != "" {
 		t.Error("worktree_path should be cleared in run.json")
 	}
+
+	// Verify blocked_worktree_cleaned event was emitted with correct path
+	events, err := eventLog.ReadAll()
+	if err != nil {
+		t.Fatalf("ReadAll events: %v", err)
+	}
+	var foundCleanEvent bool
+	for _, ev := range events {
+		if bwc, ok := ev.(*runstore.BlockedWorktreeCleanedEvent); ok {
+			foundCleanEvent = true
+			if bwc.PriorRunID != priorRS.RunID {
+				t.Errorf("event PriorRunID = %q, want %q", bwc.PriorRunID, priorRS.RunID)
+			}
+			if bwc.WorktreePath == "" {
+				t.Error("event WorktreePath should not be empty")
+			}
+		}
+	}
+	if !foundCleanEvent {
+		t.Error("expected blocked_worktree_cleaned event to be emitted")
+	}
 }
 
 func TestInitStage_SkipsNonBlockedWorktrees(t *testing.T) {
