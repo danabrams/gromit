@@ -142,6 +142,3 @@ func TestParseCriterionResult_MalformedJSON(t *testing.T) {
 		t.Fatal("expected error for malformed JSON")
 	}
 }
-
-// Compile-time interface check.
-var _ AcceptAgent = (*ProviderAcceptAgent)(nil)

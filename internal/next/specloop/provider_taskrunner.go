@@ -87,6 +87,14 @@ func renderRepairPrompt(task runstore.Task, failures []string) string {
 		b.WriteString("\n")
 	}
 
+	if len(task.ProofChecks) > 0 {
+		b.WriteString("### Proof Checks\n")
+		for _, check := range task.ProofChecks {
+			fmt.Fprintf(&b, "- %s\n", check)
+		}
+		b.WriteString("\n")
+	}
+
 	b.WriteString("### Failures to Address\n")
 	for _, f := range failures {
 		fmt.Fprintf(&b, "- %s\n", f)
