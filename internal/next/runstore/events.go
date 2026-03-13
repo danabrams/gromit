@@ -106,6 +106,7 @@ type FinalValidationResultEvent struct {
 type ReplanTriggeredEvent struct {
 	BaseEvent
 	Reason string `json:"reason,omitempty"`
+	Source string `json:"source,omitempty"`
 }
 
 type BudgetExceededEvent struct {

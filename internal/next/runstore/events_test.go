@@ -125,6 +125,27 @@ func TestAcceptanceResultEvent_JSON(t *testing.T) {
 	}
 }
 
+func TestReplanTriggeredEvent_Source_JSON(t *testing.T) {
+	evt := ReplanTriggeredEvent{
+		BaseEvent: BaseEvent{Type: "replan_triggered", Timestamp: time.Now()},
+		Reason:    "blocking findings",
+		Source:    "review",
+	}
+
+	data, err := json.Marshal(evt)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+
+	var got map[string]interface{}
+	if err := json.Unmarshal(data, &got); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if got["source"] != "review" {
+		t.Errorf("source = %v, want review", got["source"])
+	}
+}
+
 func TestEvents_ReadAll_EmptyFile(t *testing.T) {
 	dir := t.TempDir()
 	el := NewEventLog(filepath.Join(dir, "events.jsonl"))

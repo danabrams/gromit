@@ -55,6 +55,7 @@ func (sl *SpecLoop) Run(ctx context.Context, rs *runstore.RunState) error {
 
 		replan := false
 		var replanContext *FailureContext
+		var replanSource string
 		for i := startIdx; i < len(sl.stages); i++ {
 			stage := sl.stages[i]
 
@@ -87,6 +88,7 @@ func (sl *SpecLoop) Run(ctx context.Context, rs *runstore.RunState) error {
 			case ReplanFrom:
 				replan = true
 				replanContext = action.Context
+				replanSource = stage.Name()
 			case NeedsHuman:
 				rs.Status = runstore.StatusNeedsHuman
 				sl.emitTerminal(rs)
@@ -126,6 +128,7 @@ func (sl *SpecLoop) Run(ctx context.Context, rs *runstore.RunState) error {
 		sl.emitEvent(runstore.ReplanTriggeredEvent{
 			BaseEvent: runstore.BaseEvent{Type: "replan_triggered", Timestamp: time.Now()},
 			Reason:    reason,
+			Source:    replanSource,
 		})
 
 		// Increment cycle in budget AFTER a completed cycle, before the next one
