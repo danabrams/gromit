@@ -15,9 +15,13 @@ type mockAcceptEvaluator struct {
 	results []acceptor.AcceptanceResult
 	errs    []error
 	calls   int
+	capture func(input acceptor.EvaluateInput)
 }
 
 func (m *mockAcceptEvaluator) Evaluate(ctx context.Context, input acceptor.EvaluateInput) (acceptor.AcceptanceResult, error) {
+	if m.capture != nil {
+		m.capture(input)
+	}
 	idx := m.calls
 	m.calls++
 	if idx < len(m.errs) && m.errs[idx] != nil {
@@ -290,5 +294,60 @@ func TestAcceptStage_NoCriteria_NoSection_NeedsHuman(t *testing.T) {
 	}
 	if action.Kind != specloop.NeedsHuman {
 		t.Errorf("expected NeedsHuman when spec lacks criteria, got %v", action.Kind)
+	}
+}
+
+func TestAcceptStage_ComputesDiffFromDiffProvider(t *testing.T) {
+	var capturedInput acceptor.EvaluateInput
+	eval := &mockAcceptEvaluator{
+		results: []acceptor.AcceptanceResult{{
+			Results: []acceptor.CriterionResult{
+				{Criterion: "works", Status: acceptor.StatusPass},
+			},
+			AllPass: true,
+		}},
+		capture: func(input acceptor.EvaluateInput) {
+			capturedInput = input
+		},
+	}
+
+	stage := NewAcceptStage(eval, AcceptStageConfig{
+		Criteria:     []string{"works"},
+		DiffProvider: &fakeDiffProvider{diff: "diff --git a/main.go b/main.go\n+added"},
+		BaseBranch:   "main",
+	}, nil)
+	rs := runstore.NewRunState("test-spec", "test-project")
+	rs.Cycle = 1
+
+	_, err := stage.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if capturedInput.DiffSummary == "" {
+		t.Error("DiffProvider output should reach evaluator DiffSummary")
+	}
+	if capturedInput.DiffSummary != "diff --git a/main.go b/main.go\n+added" {
+		t.Errorf("unexpected diff: %q", capturedInput.DiffSummary)
+	}
+}
+
+func TestAcceptStage_DiffProviderError(t *testing.T) {
+	eval := &mockAcceptEvaluator{
+		results: []acceptor.AcceptanceResult{{}},
+	}
+
+	stage := NewAcceptStage(eval, AcceptStageConfig{
+		Criteria:     []string{"works"},
+		DiffProvider: &fakeDiffProvider{err: errors.New("git not found")},
+	}, nil)
+	rs := runstore.NewRunState("test-spec", "test-project")
+	rs.Cycle = 1
+
+	_, err := stage.Run(context.Background(), rs)
+	if err == nil {
+		t.Fatal("expected error from DiffProvider failure")
+	}
+	if !errors.Is(err, errors.Unwrap(err)) && err.Error() != "acceptance diff: git not found" {
+		t.Errorf("unexpected error: %v", err)
 	}
 }
