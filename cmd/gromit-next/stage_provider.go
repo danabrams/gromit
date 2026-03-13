@@ -8,12 +8,14 @@ import (
 
 	"github.com/danabrams/gromit/internal/next/acceptor"
 	"github.com/danabrams/gromit/internal/next/execpolicy"
+	"github.com/danabrams/gromit/internal/next/llmadapter"
 	"github.com/danabrams/gromit/internal/next/planner"
 	"github.com/danabrams/gromit/internal/next/review"
 	"github.com/danabrams/gromit/internal/next/runstore"
 	"github.com/danabrams/gromit/internal/next/specloop"
 	"github.com/danabrams/gromit/internal/next/specloop/stages"
 	"github.com/danabrams/gromit/internal/next/validator"
+	"github.com/danabrams/gromit/internal/provider"
 )
 
 // RealStageProviderConfig holds paths and options for building real stages.
@@ -22,6 +24,7 @@ type RealStageProviderConfig struct {
 	StoreDir   string
 	SpecPath   string
 	PolicyPath string
+	Provider   provider.Provider // LLM provider (0002c: Claude only; 0002d: replaced by Router). Nil falls back to noops.
 }
 
 // RealStageProvider builds real stages using noop agents where LLM dependencies
@@ -62,11 +65,82 @@ func (p *RealStageProvider) BuildStages(policy execpolicy.Policy, rs *runstore.R
 		GitOps:     gitOps,
 	}, store, nil)
 
-	compileStage := stages.NewCompileStage(&noopCompiler{}, store, nil)
+	// Convert execpolicy.Check to validator.Check.
+	alwaysRun := make([]validator.Check, len(policy.AlwaysRun))
+	for i, c := range policy.AlwaysRun {
+		alwaysRun[i] = validator.Check{Name: c.Name, Command: c.Command, Type: c.Type}
+	}
 
-	planStage := stages.NewPlanStage(&noopPlanCreator{}, store, nil)
+	var (
+		compiler      stages.SpecCompiler
+		planCreator   stages.PlanCreator
+		taskRunner    specloop.TaskRunner
+		finalVal      stages.FinalValidator
+		reviewRunner  stages.ReviewRunner
+		acceptEval    stages.AcceptEvaluator
+		diffProv      review.DiffProvider = &noopDiffProvider{}
+	)
 
-	executeStage := stages.NewExecuteStage(&noopTaskRunner{}, stages.ExecuteStageConfig{
+	if p.cfg.Provider != nil {
+		// Wire real LLM-backed adapters.
+		planAdapter := llmadapter.New(p.cfg.Provider, llmadapter.Config{
+			Tier:   policy.Models.Planner,
+			OnCost: func(cost float64) { budget.AddCost(cost) },
+		})
+		planAgent := planner.NewProviderPlanAgent(planAdapter)
+		pl := planner.NewPlanner(planAgent, policy.Models.Planner)
+		planCreator = pl
+
+		// Execute adapter: OnCost is nil to avoid double-counting —
+		// RunTaskLoop already calls Budget.AddCost(result.Cost) after each task.
+		execAdapter := llmadapter.New(p.cfg.Provider, llmadapter.Config{
+			Tier: policy.Models.Executor,
+		})
+		taskRunner = specloop.NewProviderTaskRunner(execAdapter)
+
+		finalVal = validator.NewShellValidator(validator.NewRunner())
+
+		reviewAdapter := llmadapter.New(p.cfg.Provider, llmadapter.Config{
+			Tier:   policy.Models.Evaluator,
+			OnCost: func(cost float64) { budget.AddCost(cost) },
+		})
+		reviewAgent := review.NewProviderReviewAgent(reviewAdapter)
+		threshold, _ := review.ParseSeverity(policy.Review.ReplanThreshold)
+		reviewRunner = review.NewRunner(reviewAgent, review.RunnerConfig{
+			Facets:    policy.Review.Facets,
+			Threshold: threshold,
+			FacetTiers: policy.Review.Tiers,
+		})
+
+		acceptAdapter := llmadapter.New(p.cfg.Provider, llmadapter.Config{
+			Tier:   policy.Models.Evaluator,
+			OnCost: func(cost float64) { budget.AddCost(cost) },
+		})
+		acceptAgent := acceptor.NewProviderAcceptAgent(acceptAdapter)
+		acceptEval = acceptor.NewEvaluator(acceptAgent)
+
+		diffProv = &review.GitDiffProvider{WorkDir: p.cfg.WorkDir}
+
+		compiler = &noopCompiler{} // TODO(0002d): wire SpecCompilerAdapter with real ArtifactStore
+	} else {
+		// Fallback to noops when no Provider is configured.
+		compiler = &noopCompiler{}
+		planCreator = &noopPlanCreator{}
+		taskRunner = &noopTaskRunner{}
+		finalVal = &noopValidator{}
+		reviewRunner = &noopReviewRunner{}
+		acceptEval = &noopAcceptEvaluator{}
+	}
+
+	compileStage := stages.NewCompileStage(compiler, store, nil)
+
+	planStage := stages.NewPlanStage(planCreator, store, nil)
+	if p.cfg.Provider != nil {
+		// Planner satisfies both PlanCreator and FixPlanCreator.
+		planStage.SetFixPlanner(planCreator.(stages.FixPlanCreator))
+	}
+
+	executeStage := stages.NewExecuteStage(taskRunner, stages.ExecuteStageConfig{
 		MaxRetries:             policy.Budgets.MaxTaskRetries,
 		MaxRedecompositions:    policy.Budgets.MaxRedecompositionPasses,
 		WorkDir:                p.cfg.WorkDir,
@@ -74,33 +148,24 @@ func (p *RealStageProvider) BuildStages(policy execpolicy.Policy, rs *runstore.R
 		Budget:                 budget,
 	})
 
-	// Convert execpolicy.Check to validator.Check.
-	alwaysRun := make([]validator.Check, len(policy.AlwaysRun))
-	for i, c := range policy.AlwaysRun {
-		alwaysRun[i] = validator.Check{Name: c.Name, Command: c.Command, Type: c.Type}
-	}
-	validateStage := stages.NewValidateStage(&noopValidator{}, stages.ValidateStageConfig{
+	validateStage := stages.NewValidateStage(finalVal, stages.ValidateStageConfig{
 		AlwaysRun: alwaysRun,
 		WorkDir:   p.cfg.WorkDir,
 	}, nil)
 
-	// TODO(next-phase): Wire EvidenceDir from store.RunEvidenceDir(runID) so
-	// review.json and acceptance.json are written during real pipeline runs.
-	// TODO(next-phase): Wire SpecContent from spec file so review/acceptance
-	// prompts contain actual spec text when real agents replace noops.
-	reviewStage := stages.NewReviewStage(&noopReviewRunner{}, stages.ReviewStageConfig{
+	reviewStage := stages.NewReviewStage(reviewRunner, stages.ReviewStageConfig{
 		SpecContent:  string(specContent),
-		DiffProvider: &noopDiffProvider{},
+		DiffProvider: diffProv,
 		BaseBranch:   "main",
 		DefaultTier:  policy.Models.Evaluator,
 		FacetTiers:   policy.Review.Tiers,
 	}, nil)
 
-	// TODO(next-phase): Wire DiffProvider and BaseBranch into AcceptStageConfig
-	// so acceptance evaluation has diff context with real agents.
-	acceptStage := stages.NewAcceptStage(&noopAcceptEvaluator{}, stages.AcceptStageConfig{
-		SpecContent: string(specContent),
-		Tier:        policy.Models.Evaluator,
+	acceptStage := stages.NewAcceptStage(acceptEval, stages.AcceptStageConfig{
+		SpecContent:  string(specContent),
+		DiffProvider: diffProv,
+		BaseBranch:   "main",
+		Tier:         policy.Models.Evaluator,
 	}, nil)
 
 	evidenceStage := stages.NewEvidenceStage(store, stages.EvidenceStageConfig{
