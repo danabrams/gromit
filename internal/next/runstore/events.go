@@ -114,6 +114,21 @@ type BudgetExceededEvent struct {
 	Budget          float64 `json:"budget,omitempty"`
 }
 
+type ReviewResultEvent struct {
+	BaseEvent
+	TotalFindings    int      `json:"total_findings"`
+	BlockingFindings int      `json:"blocking_findings"`
+	FacetsReviewed   []string `json:"facets_reviewed"`
+}
+
+type AcceptanceResultEvent struct {
+	BaseEvent
+	TotalCriteria int `json:"total_criteria"`
+	PassCount     int `json:"pass_count"`
+	FailCount     int `json:"fail_count"`
+	UnclearCount  int `json:"unclear_count"`
+}
+
 type TerminalStateEvent struct {
 	BaseEvent
 	Status string `json:"status"`

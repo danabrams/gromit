@@ -1,6 +1,7 @@
 package runstore
 
 import (
+	"encoding/json"
 	"path/filepath"
 	"testing"
 	"time"
@@ -76,6 +77,51 @@ func TestEvents_AllEventTypes(t *testing.T) {
 		if ev.EventType() != allEvents[i].EventType() {
 			t.Errorf("event %d: want %s, got %s", i, allEvents[i].EventType(), ev.EventType())
 		}
+	}
+}
+
+func TestReviewResultEvent_JSON(t *testing.T) {
+	evt := ReviewResultEvent{
+		BaseEvent:        BaseEvent{Type: "review_result", Timestamp: time.Now()},
+		TotalFindings:    3,
+		BlockingFindings: 1,
+		FacetsReviewed:   []string{"spec_alignment", "code_quality"},
+	}
+
+	data, err := json.Marshal(evt)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+
+	var got map[string]interface{}
+	if err := json.Unmarshal(data, &got); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if got["type"] != "review_result" {
+		t.Errorf("type = %v, want review_result", got["type"])
+	}
+}
+
+func TestAcceptanceResultEvent_JSON(t *testing.T) {
+	evt := AcceptanceResultEvent{
+		BaseEvent:     BaseEvent{Type: "acceptance_result", Timestamp: time.Now()},
+		TotalCriteria: 5,
+		PassCount:     4,
+		FailCount:     1,
+		UnclearCount:  0,
+	}
+
+	data, err := json.Marshal(evt)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+
+	var got map[string]interface{}
+	if err := json.Unmarshal(data, &got); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if got["type"] != "acceptance_result" {
+		t.Errorf("type = %v, want acceptance_result", got["type"])
 	}
 }
 
