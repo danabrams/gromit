@@ -143,6 +143,9 @@ func (r *Runner) invokeFacet(ctx context.Context, facetName, prompt string) ([]F
 
 	var lastErr error
 	for attempt := 0; attempt < maxAttempts; attempt++ {
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
 		findings, err := r.agent.ReviewFacet(ctx, facetName, prompt)
 		if err == nil {
 			return findings, nil
