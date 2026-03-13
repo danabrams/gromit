@@ -3,6 +3,7 @@ package stages
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/next/review"
@@ -143,7 +144,7 @@ func TestReviewStage_DiffProviderError(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error from DiffProvider failure")
 	}
-	if !errors.Is(err, errors.Unwrap(err)) {
-		// Just verify the error message wraps correctly
+	if !strings.Contains(err.Error(), "review diff") {
+		t.Errorf("expected wrapped error with 'review diff', got: %v", err)
 	}
 }

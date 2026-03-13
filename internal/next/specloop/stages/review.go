@@ -77,7 +77,7 @@ func (s *ReviewStage) Run(ctx context.Context, rs *runstore.RunState) (specloop.
 	s.priorFindings = append(s.priorFindings, result.AllFindings...)
 
 	// Write structured review.json via Bundler
-	if s.bundler != nil && result.FindingsByFacet != nil {
+	if s.bundler != nil {
 		if err := s.bundler.WriteReviewFindings(result.FindingsByFacet); err != nil {
 			return specloop.NextAction{}, fmt.Errorf("write review findings: %w", err)
 		}
