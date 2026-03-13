@@ -20,6 +20,7 @@ var specCmd = &cobra.Command{
 
 // ProjectConfig holds project configuration loaded from project.json.
 type ProjectConfig struct {
+	RepoPath string `json:"repo_path"`
 	SpecsDir string `json:"specs_dir"`
 }
 
@@ -140,6 +141,9 @@ func newSpecListCmd() *cobra.Command {
 					return fmt.Errorf("load project config: %w", err)
 				}
 				specsDir = cfg.SpecsDir
+				if specsDir == "" && cfg.RepoPath != "" {
+					specsDir = filepath.Join(cfg.RepoPath, "specs")
+				}
 			}
 
 			specs, err := DiscoverSpecs(specsDir)

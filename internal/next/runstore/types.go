@@ -13,7 +13,7 @@ const (
 	StatusNeedsHuman     = "needs_human"
 	StatusBlocked        = "blocked"
 	// StatusCompleted indicates that human review has accepted the work.
-	// This status will be actively used when Spec 0002b adds acceptance gates.
+	// This status will be actively used when Spec 0003 adds VISION review outcome labels.
 	StatusCompleted = "completed"
 )
 

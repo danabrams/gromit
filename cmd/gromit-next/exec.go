@@ -10,6 +10,7 @@ import (
 	"github.com/danabrams/gromit/internal/next/execpolicy"
 	"github.com/danabrams/gromit/internal/next/runstore"
 	"github.com/danabrams/gromit/internal/next/specloop"
+	"github.com/danabrams/gromit/internal/next/workspace"
 	"github.com/spf13/cobra"
 )
 
@@ -135,6 +136,13 @@ func newExecSpecCmdWithProvider(provider StageProvider) *cobra.Command {
 			specPath, _ := cmd.Flags().GetString("spec")
 			projectID, _ := cmd.Flags().GetString("project")
 			policyPath, _ := cmd.Flags().GetString("policy")
+			if policyPath == "" {
+				resolver := workspace.NewEnvResolver()
+				root, err := resolver.Resolve()
+				if err == nil {
+					policyPath = filepath.Join(root.ProjectCell(projectID), "policy", "execution.json")
+				}
+			}
 			dryRun, _ := cmd.Flags().GetBool("dry-run")
 			storeDir, _ := cmd.Flags().GetString("store-dir")
 			if storeDir == "" {

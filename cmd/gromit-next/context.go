@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"text/tabwriter"
 
 	"github.com/danabrams/gromit/internal/next/artifact"
 	"github.com/danabrams/gromit/internal/next/contextpkt"
@@ -79,13 +80,88 @@ var contextBuildCmd = &cobra.Command{
 	},
 }
 
+var contextInspectCmd = &cobra.Command{
+	Use:   "inspect",
+	Short: "Inspect context artifacts for a project cell",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		projectName, _ := cmd.Flags().GetString("project")
+		if projectName == "" {
+			return fmt.Errorf("--project flag is required")
+		}
+
+		store, err := resolveProjectStore()
+		if err != nil {
+			return err
+		}
+
+		cell, err := store.Get(projectName)
+		if err != nil {
+			return err
+		}
+
+		subdirs := []string{"artifacts", "doctrine", "guide", "provenance"}
+
+		w := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
+		fmt.Fprintf(w, "DIRECTORY\tFILE\tSIZE\n")
+
+		totalFiles := 0
+		for _, sub := range subdirs {
+			dir := filepath.Join(cell.CellPath, sub)
+			entries, err := os.ReadDir(dir)
+			if err != nil {
+				// Directory doesn't exist — skip
+				continue
+			}
+			for _, e := range entries {
+				if e.IsDir() {
+					continue
+				}
+				info, err := e.Info()
+				if err != nil {
+					continue
+				}
+				fmt.Fprintf(w, "%s\t%s\t%d bytes\n", sub, e.Name(), info.Size())
+				totalFiles++
+			}
+		}
+		w.Flush()
+
+		if totalFiles == 0 {
+			fmt.Printf("\nNo context artifacts found for project %q.\n", projectName)
+		} else {
+			fmt.Printf("\n%d artifact(s) found for project %q.\n", totalFiles, projectName)
+		}
+		return nil
+	},
+}
+
+var contextEnrichCmd = &cobra.Command{
+	Use:   "enrich",
+	Short: "Enrich context for a project cell",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		projectName, _ := cmd.Flags().GetString("project")
+		if projectName == "" {
+			return fmt.Errorf("--project flag is required")
+		}
+
+		fmt.Printf("Context enrichment not yet implemented for project %q\n", projectName)
+		return nil
+	},
+}
+
 func init() {
 	contextBuildCmd.Flags().String("level", "project", "context level: project, spec, or task")
 	contextBuildCmd.Flags().String("spec", "", "spec file path (required for spec and task levels)")
 	contextBuildCmd.Flags().String("task", "", "task ID (required for task level)")
 	contextBuildCmd.Flags().Int("budget", 0, "token budget (0 for unlimited)")
 	contextBuildCmd.Flags().Bool("include-inferred", false, "include inferred facts in the context packet")
+
+	contextInspectCmd.Flags().String("project", "", "project name")
+	contextEnrichCmd.Flags().String("project", "", "project name")
+
 	contextCmd.AddCommand(contextBuildCmd)
+	contextCmd.AddCommand(contextInspectCmd)
+	contextCmd.AddCommand(contextEnrichCmd)
 }
 
 // artifactsDirStore wraps artifact.JSONStore to read from the artifacts/ subdirectory.
