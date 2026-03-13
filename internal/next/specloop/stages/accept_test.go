@@ -158,6 +158,63 @@ func TestAcceptStage_RetriesOnAPIFailure(t *testing.T) {
 	}
 }
 
+func TestAcceptStage_StoresResultsInRunState(t *testing.T) {
+	eval := &mockAcceptEvaluator{
+		results: []acceptor.AcceptanceResult{{
+			Results: []acceptor.CriterionResult{
+				{Criterion: "returns 200", Status: acceptor.StatusPass, Rationale: "test proves it"},
+			},
+			AllPass:          true,
+			HasFailOrUnclear: false,
+		}},
+	}
+
+	stage := NewAcceptStage(eval, AcceptStageConfig{
+		Criteria: []string{"returns 200"},
+	}, nil)
+	rs := runstore.NewRunState("test-spec", "test-project")
+	rs.Cycle = 1
+
+	_, err := stage.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	if !rs.FinalAcceptancePassed {
+		t.Error("FinalAcceptancePassed should be true when all pass")
+	}
+	// AcceptanceResults may be empty when all pass (no failures to report)
+}
+
+func TestAcceptStage_StoresFailuresInRunState(t *testing.T) {
+	eval := &mockAcceptEvaluator{
+		results: []acceptor.AcceptanceResult{{
+			Results: []acceptor.CriterionResult{
+				{Criterion: "multi-currency", Status: acceptor.StatusFail, Rationale: "only USD"},
+			},
+			HasFailOrUnclear: true,
+		}},
+	}
+
+	stage := NewAcceptStage(eval, AcceptStageConfig{
+		Criteria: []string{"multi-currency"},
+	}, nil)
+	rs := runstore.NewRunState("test-spec", "test-project")
+	rs.Cycle = 1
+
+	_, err := stage.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	if rs.FinalAcceptancePassed {
+		t.Error("FinalAcceptancePassed should be false on failure")
+	}
+	if len(rs.AcceptanceResults) == 0 {
+		t.Error("AcceptanceResults should contain failure strings")
+	}
+}
+
 func TestAcceptStage_NoCriteria_ParsesFromSpec(t *testing.T) {
 	eval := &mockAcceptEvaluator{
 		results: []acceptor.AcceptanceResult{{
