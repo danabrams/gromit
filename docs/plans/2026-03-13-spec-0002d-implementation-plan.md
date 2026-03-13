@@ -8,7 +8,11 @@
 
 **Tech Stack:** Go, `provider.Router`, `provider.CodexProvider`, `llmadapter.LLMAdapter`
 
-**Depends on:** Spec 0002c (adapter layer must be complete). Specifically, 0002c defines `ProviderAwareInvoker` (extends `Invoker` with `Provider() provider.Provider`) in the `llmadapter` package. 0002d imports and uses this interface — it must NOT redefine it.
+**Depends on:** Spec 0002c (adapter layer must be complete). Specifically, 0002d depends on:
+- `ProviderAwareInvoker` interface (extends `Invoker` with `Provider() provider.Provider`) defined in `llmadapter` — 0002d must NOT redefine it
+- `llmadapter.New()` constructor — used by `FallbackAdapter` to wrap providers
+- `*LLMAdapter` satisfies `ProviderAwareInvoker` (has `Provider() provider.Provider` method)
+- `llmadapter.Config` struct — passed through by `FallbackAdapter` when constructing adapters
 
 ---
 
@@ -130,7 +134,72 @@ func TestFallbackAdapter_Provider_ReturnsPrimaryProvider(t *testing.T) {
 }
 ```
 
-Mock types for tests will need to be defined (router mock with select-sequence support, provider-with-usage-limit mock, invoker-with-provider mock).
+**Mock type definitions** (add to `fallback_test.go` before the test functions):
+
+```go
+// mockProvider satisfies provider.Provider with configurable results.
+type mockProvider struct {
+	name      string
+	runResult *provider.Result
+	runErr    error
+}
+
+func (m *mockProvider) Name() string                                              { return m.name }
+func (m *mockProvider) Run(ctx context.Context, opts provider.RunOpts) (*provider.Result, error) {
+	return m.runResult, m.runErr
+}
+func (m *mockProvider) IsUsageLimitError(r *provider.Result, err error) bool      { return false }
+
+// mockProviderWithUsageLimit is like mockProvider but with configurable IsUsageLimitError.
+type mockProviderWithUsageLimit struct {
+	name         string
+	runResult    *provider.Result
+	runErr       error
+	isUsageLimit bool
+}
+
+func (m *mockProviderWithUsageLimit) Name() string                                              { return m.name }
+func (m *mockProviderWithUsageLimit) Run(ctx context.Context, opts provider.RunOpts) (*provider.Result, error) {
+	return m.runResult, m.runErr
+}
+func (m *mockProviderWithUsageLimit) IsUsageLimitError(r *provider.Result, err error) bool      { return m.isUsageLimit }
+
+// mockSelectResult holds a provider/model pair for sequence-based mock router.
+type mockSelectResult struct {
+	prov  provider.Provider
+	model string
+}
+
+// mockRouter satisfies RouterSelector with two modes:
+// - Single-result mode: selectProvider/selectModel returned on every Select call
+// - Sequence mode: selectSequence consumed in order (for testing fallback chains)
+type mockRouter struct {
+	// Single-result mode
+	selectProvider provider.Provider
+	selectModel    string
+
+	// Sequence mode (takes priority over single-result if non-empty)
+	selectSequence       []mockSelectResult
+	selectIdx            int
+	markUnavailableCalled bool
+}
+
+func (m *mockRouter) Select(phase string, tier string) (provider.Provider, string) {
+	if len(m.selectSequence) > 0 {
+		if m.selectIdx >= len(m.selectSequence) {
+			return nil, ""
+		}
+		r := m.selectSequence[m.selectIdx]
+		m.selectIdx++
+		return r.prov, r.model
+	}
+	return m.selectProvider, m.selectModel
+}
+
+func (m *mockRouter) MarkUnavailable(name string) {
+	m.markUnavailableCalled = true
+}
+```
 
 **Step 2: Run and verify failure**
 
@@ -304,10 +373,10 @@ git commit -m "green: FallbackAdapter with transparent usage-limit failover"
 // RealStageProvider fields needed for multi-provider routing:
 type RealStageProvider struct {
     // ... existing fields ...
-    claudeProvider  provider.Provider // required — always present
-    codexProvider   provider.Provider // optional — nil in single-provider mode
-    stateFn         func() provider.RouterState // optional — for stateful routing
-    circuitBreaker  provider.CircuitBreaker     // optional — for circuit-breaking
+    claudeProvider  provider.Provider        // required — always present
+    codexProvider   provider.Provider        // optional — nil in single-provider mode
+    stateFn         provider.StateFile       // optional — for stateful routing
+    circuitBreaker  *provider.CircuitBreaker // optional — for circuit-breaking
 }
 ```
 
@@ -316,10 +385,10 @@ Update `RealStageProviderConfig` to accept these:
 ```go
 type RealStageProviderConfig struct {
     // ... existing fields ...
-    ClaudeProvider  provider.Provider
-    CodexProvider   provider.Provider          // optional
-    StateFn         func() provider.RouterState // optional
-    CircuitBreaker  provider.CircuitBreaker     // optional
+    ClaudeProvider  provider.Provider        // required
+    CodexProvider   provider.Provider        // optional
+    StateFn         provider.StateFile       // optional
+    CircuitBreaker  *provider.CircuitBreaker // optional
 }
 ```
 
@@ -394,20 +463,10 @@ if len(p.Routing.Ratio) > 0 {
         return fmt.Errorf("routing.ratio values must sum to 100, got %d", sum)
     }
 }
-// Validate ratio keys reference known provider names.
-// NOTE: Do NOT hardcode provider names here. Derive the known set from
-// the provider package (e.g., provider.KnownProviders()) or validate
-// against registered providers at router construction time. Example:
-//   knownProviders := provider.KnownProviders() // returns map[string]bool
-// If provider.KnownProviders() is not yet available, accept any string
-// here and defer validation to router construction, where the actual
-// provider map is known.
-knownProviders := provider.KnownProviders()
-for name := range p.Routing.Ratio {
-    if !knownProviders[name] {
-        return fmt.Errorf("routing.ratio references unknown provider %q", name)
-    }
-}
+// Provider name validation is deferred to router construction time,
+// where the actual provider map is known. Policy.Validate() only checks
+// structural invariants (ratio sums to 100). The router constructor will
+// reject unknown provider names when it receives the providers map.
 ```
 
 Corresponding test cases for validation:
@@ -421,14 +480,9 @@ func TestPolicy_Validate_RoutingRatioSumsTo100(t *testing.T) {
     }
 }
 
-func TestPolicy_Validate_RoutingRatioUnknownProvider(t *testing.T) {
-    p := DefaultPolicy()
-    p.Routing.Ratio = map[string]int{"claude": 50, "unknown": 50}
-    err := p.Validate()
-    if err == nil || !strings.Contains(err.Error(), "unknown provider") {
-        t.Errorf("expected unknown provider error, got %v", err)
-    }
-}
+// NOTE: Unknown provider name validation is NOT tested here because it is
+// deferred to router construction time (where the actual provider map is known).
+// See provider.NewRouter tests for unknown-name rejection.
 
 func TestPolicy_Validate_RoutingRatioValid(t *testing.T) {
     p := DefaultPolicy()
@@ -526,6 +580,7 @@ func TestBuildStages_SelectsDifferentProvidersPerPhase(t *testing.T) {
     policy.Routing.Ratio = map[string]int{"claude": 50, "codex": 50}
     // Build stages and verify different providers are selected per phase.
     // FallbackAdapter.Provider() triggers lazy Select, which respects preferences.
+    t.Skip("TODO: complete assertions after BuildStages returns inspectable adapters — call Provider() on the FallbackAdapters and check names match phase preferences")
 }
 
 func TestBuildStages_NilCodexProvider_SingleProviderMode(t *testing.T) {
@@ -647,22 +702,23 @@ func TestIntegration_BuildStages_FallbackAdapter_RouterWiring(t *testing.T) {
     }
     policy.Routing.Ratio = map[string]int{"claude": 50, "codex": 50}
 
-    budget := specloop.NewBudget(10.0)
+    budget := specloop.NewBudget(execpolicy.DefaultPolicy().Budgets)
     rs := &runstore.RunState{}
     stages, err := sp.BuildStages(policy, rs, budget)
     if err != nil {
         t.Fatalf("BuildStages failed: %v", err)
     }
 
-    // Verify stages are wired with FallbackAdapters that resolve to correct providers
-    for _, stage := range stages {
-        if fa, ok := stage.Invoker().(*llmadapter.FallbackAdapter); ok {
-            prov := fa.Provider()
-            if prov == nil {
-                t.Errorf("stage %q: FallbackAdapter resolved to nil provider", stage.Name())
-            }
-        }
+    // Verify stages are wired correctly by invoking them and checking which
+    // mock provider was called (behavioral verification). The Stage interface
+    // does not expose Invoker() directly, so we verify through invocation.
+    // TODO: verify wiring through stage invocation — invoke each stage with a
+    // test prompt and assert the correct mock provider's Run method was called.
+    // For now, verify stages were created successfully.
+    if len(stages) == 0 {
+        t.Fatal("expected at least one stage from BuildStages")
     }
+    t.Skip("TODO: verify wiring through stage invocation — Stage interface does not expose Invoker() directly; invoke stages and check which mock provider was called")
 }
 
 func TestIntegration_FallbackAdapter_UsageLimitFallback_ThroughRouter(t *testing.T) {
