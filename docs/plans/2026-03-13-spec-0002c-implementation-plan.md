@@ -411,12 +411,47 @@ import (
 type Invoker interface {
 	Invoke(ctx context.Context, prompt string) (*provider.Result, error)
 }
+
+// ProviderAwareInvoker extends Invoker with access to the underlying provider.
+// Needed by 0002d's FallbackAdapter to inspect/route by provider.
+type ProviderAwareInvoker interface {
+	Invoker
+	Provider() provider.Provider
+}
+
+// ProviderAware wraps an Invoker and a Provider to satisfy ProviderAwareInvoker.
+type ProviderAware struct {
+	Invoker
+	prov provider.Provider
+}
+
+// NewProviderAware creates a ProviderAware wrapper.
+func NewProviderAware(inv Invoker, prov provider.Provider) *ProviderAware {
+	return &ProviderAware{Invoker: inv, prov: prov}
+}
+
+// Provider returns the underlying provider.
+func (pa *ProviderAware) Provider() provider.Provider {
+	return pa.prov
+}
 ```
 
 Verify `LLMAdapter` satisfies `Invoker` — add compile-time check to `adapter.go`:
 
 ```go
 var _ Invoker = (*LLMAdapter)(nil)
+```
+
+Also add a `Provider()` method to `LLMAdapter` so it can directly satisfy `ProviderAwareInvoker`:
+
+```go
+// Provider returns the underlying provider. This allows LLMAdapter to
+// satisfy ProviderAwareInvoker directly.
+func (a *LLMAdapter) Provider() provider.Provider {
+	return a.provider
+}
+
+var _ ProviderAwareInvoker = (*LLMAdapter)(nil)
 ```
 
 **Step 2: Implement ProviderPlanAgent**
@@ -1169,7 +1204,8 @@ import (
 )
 
 func TestShellValidator_AllChecksPass(t *testing.T) {
-	v := NewShellValidator(nil) // no LLM needed when all pass
+	runner := NewRunner()
+	v := NewShellValidator(runner, nil) // no LLM needed when all pass
 	checks := []Check{
 		{Name: "echo", Command: "echo ok", Type: "test"},
 	}
@@ -1186,7 +1222,8 @@ func TestShellValidator_FailingCheck_InvokesLLM(t *testing.T) {
 	invoker := &mockInvoker{
 		result: &provider.Result{Output: "The test failed because X was nil"},
 	}
-	v := NewShellValidator(invoker)
+	runner := NewRunner()
+	v := NewShellValidator(runner, invoker)
 	checks := []Check{
 		{Name: "fail", Command: "exit 1", Type: "test"},
 	}
@@ -1203,7 +1240,8 @@ func TestShellValidator_FailingCheck_InvokesLLM(t *testing.T) {
 }
 
 func TestShellValidator_NoLLM_FailingCheck_StillReturnsFailure(t *testing.T) {
-	v := NewShellValidator(nil) // no LLM configured
+	runner := NewRunner()
+	v := NewShellValidator(runner, nil) // no LLM configured
 	checks := []Check{
 		{Name: "fail", Command: "exit 1", Type: "test"},
 	}
@@ -1217,7 +1255,8 @@ func TestShellValidator_NoLLM_FailingCheck_StillReturnsFailure(t *testing.T) {
 }
 
 func TestShellValidator_MultiplChecks_MixedResults(t *testing.T) {
-	v := NewShellValidator(nil)
+	runner := NewRunner()
+	v := NewShellValidator(runner, nil)
 	checks := []Check{
 		{Name: "pass", Command: "echo ok", Type: "test"},
 		{Name: "fail", Command: "exit 1", Type: "lint"},
@@ -1282,24 +1321,24 @@ package validator
 import (
 	"context"
 	"fmt"
-	"os/exec"
 	"strings"
-	"time"
 
 	"github.com/danabrams/gromit/internal/next/llmadapter"
 )
 
-// ShellValidator runs checks via shell and uses an LLM for failure diagnosis.
+// ShellValidator composes the existing Runner for shell execution
+// and adds LLM-based diagnosis on failure.
 type ShellValidator struct {
-	llm llmadapter.Invoker // nil if no LLM diagnosis desired
+	runner *Runner            // delegates check execution to existing Runner
+	llm    llmadapter.Invoker // nil if no LLM diagnosis desired
 }
 
-// NewShellValidator creates a ShellValidator. llm may be nil.
-func NewShellValidator(llm llmadapter.Invoker) *ShellValidator {
-	return &ShellValidator{llm: llm}
+// NewShellValidator creates a ShellValidator. runner must not be nil; llm may be nil.
+func NewShellValidator(runner *Runner, llm llmadapter.Invoker) *ShellValidator {
+	return &ShellValidator{runner: runner, llm: llm}
 }
 
-// RunFinal executes all checks via shell. On failure, optionally invokes LLM for diagnosis.
+// RunFinal executes all checks via the composed Runner. On failure, optionally invokes LLM for diagnosis.
 func (v *ShellValidator) RunFinal(ctx context.Context, alwaysRun []Check, projectChecks []Check, workDir string) (FinalResult, error) {
 	alwaysResults := v.runChecks(ctx, alwaysRun, workDir)
 	projectResults := v.runChecks(ctx, projectChecks, workDir)
@@ -1335,19 +1374,17 @@ func (v *ShellValidator) RunFinal(ctx context.Context, alwaysRun []Check, projec
 func (v *ShellValidator) runChecks(ctx context.Context, checks []Check, workDir string) CheckResults {
 	var results []CheckResult
 	for _, c := range checks {
-		start := time.Now()
-		cmd := exec.CommandContext(ctx, "sh", "-c", c.Command)
-		cmd.Dir = workDir
-		output, err := cmd.CombinedOutput()
-		duration := time.Since(start)
-		pass := err == nil
-		results = append(results, CheckResult{
-			Name:     c.Name,
-			Pass:     pass,
-			Output:   string(output),
-			Duration: duration,
-			Type:     c.Type,
-		})
+		cr, err := v.runner.RunCheck(ctx, c, workDir)
+		if err != nil {
+			// Infrastructure failure — record as failed check with error output
+			cr = CheckResult{
+				Name:   c.Name,
+				Pass:   false,
+				Output: err.Error(),
+				Type:   c.Type,
+			}
+		}
+		results = append(results, cr)
 	}
 	return CheckResults{Results: results}
 }
@@ -1392,6 +1429,7 @@ package contextpkt
 
 import (
 	"context"
+	"strings"
 	"testing"
 )
 
@@ -1411,7 +1449,13 @@ func TestSpecCompilerAdapter_ReturnsPacketAsString(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if result == "" {
-		t.Error("expected non-empty compiled output")
+		t.Fatal("expected non-empty compiled output")
+	}
+	// The store returns errors for all reads, so only sections that don't
+	// depend on store data will be present. Verify the spec-text section
+	// appears (it reads from disk, not the store).
+	if !strings.Contains(result, "spec-text") && !strings.Contains(result, "## Spec") {
+		t.Error("expected compiled output to contain spec-text section")
 	}
 }
 
@@ -1604,7 +1648,7 @@ Replace noop implementations in `BuildStages` with:
 - `contextpkt.NewSpecCompilerAdapter(...)` for Compile
 - `planner.NewProviderPlanAgent(planAdapter)` wrapped in `planner.NewPlanner(agent, tier)` for Plan (note: PlanStage takes `PlanCreator` — check if `Planner` satisfies it)
 - `specloop.NewProviderTaskRunner(execAdapter)` for Execute
-- `validator.NewShellValidator(validateAdapter)` for Validate
+- `validator.NewShellValidator(validator.NewRunner(), validateAdapter)` for Validate
 - `review.NewProviderReviewAgent(reviewAdapter)` wrapped in `review.NewRunner(agent, config)` for Review
 - `acceptor.NewProviderAcceptAgent(reviewAdapter)` wrapped in `acceptor.NewEvaluator(agent)` for Accept
 
@@ -1612,6 +1656,9 @@ The `RealStageProvider` will need a `provider.Provider` — for 0002c, hardcode 
 
 ```go
 claudeClient, err := claude.NewClient("claude", []string{"--no-input"}, 300)
+if err != nil {
+    return fmt.Errorf("create claude client: %w", err)
+}
 claudeProvider := provider.NewClaudeProvider(claudeClient, map[string]string{
     provider.TierXHigh:  "opus",
     provider.TierHigh:   "opus",
@@ -1630,6 +1677,8 @@ type PlanCreator interface {
 ```
 
 `planner.Planner.CreatePlan` matches this signature.
+
+**Important:** `PlanStage` also requires a `FixPlanCreator` for re-planning after validation failures. The `planner.Planner` type has `CreateFixPlan` which satisfies `FixPlanCreator`. Wire it via `planStage.SetFixPlanner(fp)` where `fp` is the same `planner.Planner` instance used as `PlanCreator`.
 
 Similarly for ReviewStage — it takes `ReviewRunner` (which has `Run(ctx, RunInput) (*RunResult, error)`). `review.Runner.Run` satisfies this.
 
@@ -1765,7 +1814,7 @@ Expected: All SKIP (env var not set)
 
 ```bash
 git add internal/next/planner/agent_contract_test.go internal/next/review/agent_contract_test.go internal/next/acceptor/agent_contract_test.go internal/next/specloop/taskrunner_contract_test.go
-git commit -m "feat: contract test suites for all domain agents (gated by build tag + env var)"
+git commit -m "feat: contract test suite scaffolds (stubs) for all domain agents (gated by build tag + env var)"
 ```
 
 ---
@@ -1877,6 +1926,6 @@ Expected: PASS for all contract tests against Claude
 **Step 4: Final commit if any cleanup needed**
 
 ```bash
-git add -A
+git add internal/next/ cmd/gromit-next/
 git commit -m "chore: final cleanup for spec 0002c"
 ```
