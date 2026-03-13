@@ -99,7 +99,7 @@ func (s *AcceptStage) Run(ctx context.Context, rs *runstore.RunState) (specloop.
 		}
 	}
 
-	// Emit acceptance_result event
+	// Emit acceptance_result event (fire-and-forget, consistent with SpecLoop.emitEvent)
 	if s.eventLog != nil {
 		var passCount, failCount, unclearCount int
 		for _, r := range result.Results {

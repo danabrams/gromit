@@ -319,6 +319,9 @@ func TestReviewStage_EmitsEvent(t *testing.T) {
 	if len(events) == 0 {
 		t.Fatal("expected at least one event")
 	}
+	if events[0].EventType() != "review_result" {
+		t.Errorf("event type = %q, want review_result", events[0].EventType())
+	}
 }
 
 func TestReviewStage_DiffProviderError(t *testing.T) {

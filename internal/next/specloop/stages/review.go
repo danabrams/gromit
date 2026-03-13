@@ -76,10 +76,17 @@ func (s *ReviewStage) Run(ctx context.Context, rs *runstore.RunState) (specloop.
 		return specloop.NextAction{}, fmt.Errorf("review run: %w", err)
 	}
 
-	// Emit review_result event
+	// Emit review_result event (fire-and-forget, consistent with SpecLoop.emitEvent)
 	if s.eventLog != nil {
-		var facets []string
+		facetSet := make(map[string]bool)
 		for f := range result.FindingsByFacet {
+			facetSet[f] = true
+		}
+		for f := range result.ErroredFacets {
+			facetSet[f] = true
+		}
+		var facets []string
+		for f := range facetSet {
 			facets = append(facets, f)
 		}
 		sort.Strings(facets)

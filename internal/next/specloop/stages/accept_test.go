@@ -243,6 +243,9 @@ func TestAcceptStage_EmitsEvent(t *testing.T) {
 	if len(events) == 0 {
 		t.Fatal("expected at least one event")
 	}
+	if events[0].EventType() != "acceptance_result" {
+		t.Errorf("event type = %q, want acceptance_result", events[0].EventType())
+	}
 }
 
 func TestAcceptStage_NoCriteria_ParsesFromSpec(t *testing.T) {
