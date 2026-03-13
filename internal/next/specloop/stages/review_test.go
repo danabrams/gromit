@@ -157,6 +157,69 @@ func TestReviewStage_StoresFindingsInRunState(t *testing.T) {
 	}
 }
 
+type capturingReviewRunner struct {
+	resultFn func() *review.RunResult
+	capture  func(review.RunInput)
+}
+
+func (c *capturingReviewRunner) Run(ctx context.Context, input review.RunInput) (*review.RunResult, error) {
+	if c.capture != nil {
+		c.capture(input)
+	}
+	return c.resultFn(), nil
+}
+
+func TestReviewStage_FixCycle_PassesPriorFindings(t *testing.T) {
+	cycle1Findings := []review.Finding{
+		{Facet: "spec_alignment", Severity: review.SeverityWarning, File: "handler.go", Description: "missing check"},
+	}
+
+	var capturedInput review.RunInput
+	callCount := 0
+	runner := &capturingReviewRunner{
+		resultFn: func() *review.RunResult {
+			callCount++
+			if callCount == 1 {
+				return &review.RunResult{
+					AllFindings:         cycle1Findings,
+					BlockingFindings:    []review.Finding{},
+					HasBlockingFindings: false,
+				}
+			}
+			return &review.RunResult{
+				AllFindings:         []review.Finding{},
+				BlockingFindings:    []review.Finding{},
+				HasBlockingFindings: false,
+			}
+		},
+		capture: func(input review.RunInput) {
+			capturedInput = input
+		},
+	}
+
+	stage := NewReviewStage(runner, ReviewStageConfig{}, nil)
+
+	// Cycle 1: produces findings, stage stores them internally
+	rs1 := runstore.NewRunState("test-spec", "test-project")
+	rs1.Cycle = 1
+	stage.Run(context.Background(), rs1)
+
+	// Cycle 2: stage should pass prior findings from its internal state
+	rs2 := runstore.NewRunState("test-spec", "test-project")
+	rs2.Cycle = 2
+	_, err := stage.Run(context.Background(), rs2)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	if len(capturedInput.PriorFindings) == 0 {
+		t.Error("on fix cycle, prior findings should be passed to runner from stage-local state")
+	}
+	if capturedInput.PriorFindings[0].Facet != "spec_alignment" {
+		t.Errorf("expected spec_alignment facet, got %s", capturedInput.PriorFindings[0].Facet)
+	}
+}
+
 func TestReviewStage_DiffProviderError(t *testing.T) {
 	runner := &mockReviewRunner{
 		result: &review.RunResult{},
