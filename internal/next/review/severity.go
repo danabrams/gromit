@@ -6,7 +6,7 @@ import "fmt"
 type Severity int
 
 const (
-	SeverityInfo       Severity = iota + 1
+	SeverityInfo Severity = iota + 1
 	SeveritySuggestion
 	SeverityWarning
 	SeverityError

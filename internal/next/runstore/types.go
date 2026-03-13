@@ -31,13 +31,13 @@ type RunState struct {
 	BlockerSummary        string    `json:"blocker_summary,omitempty"`
 	AccumulatedCost       float64   `json:"accumulated_cost"`
 	TerminalReason        string    `json:"terminal_reason,omitempty"`
-	FinalValidationPassed  bool      `json:"final_validation_passed"`
-	FinalReviewPassed      bool      `json:"final_review_passed"`
-	FinalAcceptancePassed  bool      `json:"final_acceptance_passed"`
-	ReplanContext          []string  `json:"replan_context,omitempty"`
-	LastValidationResult   *string   `json:"last_validation_result,omitempty"`
-	ReviewFindings         []string  `json:"review_findings,omitempty"`
-	AcceptanceResults      []string  `json:"acceptance_results,omitempty"`
+	FinalValidationPassed bool      `json:"final_validation_passed"`
+	FinalReviewPassed     bool      `json:"final_review_passed"`
+	FinalAcceptancePassed bool      `json:"final_acceptance_passed"`
+	ReplanContext         []string  `json:"replan_context,omitempty"`
+	LastValidationResult  *string   `json:"last_validation_result,omitempty"`
+	ReviewFindings        []string  `json:"review_findings,omitempty"`
+	AcceptanceResults     []string  `json:"acceptance_results,omitempty"`
 }
 
 // NormalizeNilFields maps nil slices to empty values for consistent JSON serialization.
