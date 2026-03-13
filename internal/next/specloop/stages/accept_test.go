@@ -91,9 +91,6 @@ func TestAcceptStage_Fail_ReplanFrom(t *testing.T) {
 	if action.Context == nil {
 		t.Fatal("expected FailureContext")
 	}
-	if !rs.FinalAcceptancePassed == true {
-		// FinalAcceptancePassed should be false
-	}
 	if rs.FinalAcceptancePassed {
 		t.Error("expected FinalAcceptancePassed = false")
 	}
@@ -158,5 +155,50 @@ func TestAcceptStage_RetriesOnAPIFailure(t *testing.T) {
 	}
 	if eval.calls != 2 {
 		t.Errorf("expected 2 evaluator calls, got %d", eval.calls)
+	}
+}
+
+func TestAcceptStage_NoCriteria_ParsesFromSpec(t *testing.T) {
+	eval := &mockAcceptEvaluator{
+		results: []acceptor.AcceptanceResult{{
+			Results: []acceptor.CriterionResult{
+				{Criterion: "Endpoint returns 200", Status: acceptor.StatusPass},
+			},
+			AllPass:          true,
+			HasFailOrUnclear: false,
+		}},
+	}
+
+	stage := NewAcceptStage(eval, AcceptStageConfig{
+		// No Criteria set — should parse from SpecContent
+		SpecContent: "# Spec\n\n## Acceptance Criteria\n- Endpoint returns 200\n\n## Notes\n",
+	}, nil)
+	rs := runstore.NewRunState("test-spec", "test-project")
+	rs.Cycle = 1
+
+	action, err := stage.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if action.Kind != specloop.Continue {
+		t.Errorf("expected Continue, got %v", action.Kind)
+	}
+}
+
+func TestAcceptStage_NoCriteria_NoSection_NeedsHuman(t *testing.T) {
+	stage := NewAcceptStage(&mockAcceptEvaluator{
+		results: []acceptor.AcceptanceResult{{}},
+	}, AcceptStageConfig{
+		SpecContent: "# Spec\n\nNo acceptance criteria here.\n",
+	}, nil)
+	rs := runstore.NewRunState("test-spec", "test-project")
+	rs.Cycle = 1
+
+	action, err := stage.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if action.Kind != specloop.NeedsHuman {
+		t.Errorf("expected NeedsHuman when spec lacks criteria, got %v", action.Kind)
 	}
 }

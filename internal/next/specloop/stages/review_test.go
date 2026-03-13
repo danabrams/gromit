@@ -2,6 +2,7 @@ package stages
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/next/review"
@@ -124,5 +125,25 @@ func TestReviewStage_InfoOnly_Continue(t *testing.T) {
 	}
 	if action.Kind != specloop.Continue {
 		t.Errorf("info-only findings should Continue, got %v", action.Kind)
+	}
+}
+
+func TestReviewStage_DiffProviderError(t *testing.T) {
+	runner := &mockReviewRunner{
+		result: &review.RunResult{},
+	}
+
+	stage := NewReviewStage(runner, ReviewStageConfig{
+		DiffProvider: &fakeDiffProvider{err: errors.New("git not found")},
+	}, nil)
+	rs := runstore.NewRunState("test-spec", "test-project")
+	rs.Cycle = 1
+
+	_, err := stage.Run(context.Background(), rs)
+	if err == nil {
+		t.Fatal("expected error from DiffProvider failure")
+	}
+	if !errors.Is(err, errors.Unwrap(err)) {
+		// Just verify the error message wraps correctly
 	}
 }

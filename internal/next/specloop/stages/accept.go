@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/danabrams/gromit/internal/next/acceptor"
+	"github.com/danabrams/gromit/internal/next/evidence"
 	"github.com/danabrams/gromit/internal/next/runstore"
 	"github.com/danabrams/gromit/internal/next/specloop"
 )
@@ -28,14 +29,20 @@ type AcceptStage struct {
 	evaluator AcceptEvaluator
 	cfg       AcceptStageConfig
 	eventLog  *runstore.EventLog
+	bundler   *evidence.Bundler
 }
 
 // NewAcceptStage creates a new AcceptStage.
 func NewAcceptStage(evaluator AcceptEvaluator, cfg AcceptStageConfig, eventLog *runstore.EventLog) *AcceptStage {
+	var bundler *evidence.Bundler
+	if cfg.EvidenceDir != "" {
+		bundler = evidence.NewBundler(cfg.EvidenceDir)
+	}
 	return &AcceptStage{
 		evaluator: evaluator,
 		cfg:       cfg,
 		eventLog:  eventLog,
+		bundler:   bundler,
 	}
 }
 
@@ -81,6 +88,13 @@ func (s *AcceptStage) Run(ctx context.Context, rs *runstore.RunState) (specloop.
 		result, err = s.evaluator.Evaluate(ctx, input)
 		if err != nil {
 			return specloop.NextAction{}, fmt.Errorf("acceptance evaluation: %w", err)
+		}
+	}
+
+	// Write structured acceptance.json via Bundler
+	if s.bundler != nil {
+		if err := s.bundler.WriteAcceptanceResults(result); err != nil {
+			return specloop.NextAction{}, fmt.Errorf("write acceptance results: %w", err)
 		}
 	}
 

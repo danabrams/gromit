@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/danabrams/gromit/internal/next/evidence"
 	"github.com/danabrams/gromit/internal/next/review"
 	"github.com/danabrams/gromit/internal/next/runstore"
 	"github.com/danabrams/gromit/internal/next/specloop"
@@ -29,15 +30,21 @@ type ReviewStage struct {
 	runner        ReviewRunner
 	cfg           ReviewStageConfig
 	eventLog      *runstore.EventLog
+	bundler       *evidence.Bundler
 	priorFindings []review.Finding
 }
 
 // NewReviewStage creates a new ReviewStage.
 func NewReviewStage(runner ReviewRunner, cfg ReviewStageConfig, eventLog *runstore.EventLog) *ReviewStage {
+	var bundler *evidence.Bundler
+	if cfg.EvidenceDir != "" {
+		bundler = evidence.NewBundler(cfg.EvidenceDir)
+	}
 	return &ReviewStage{
 		runner:   runner,
 		cfg:      cfg,
 		eventLog: eventLog,
+		bundler:  bundler,
 	}
 }
 
@@ -68,6 +75,13 @@ func (s *ReviewStage) Run(ctx context.Context, rs *runstore.RunState) (specloop.
 
 	// Accumulate prior findings for disposition matching across cycles
 	s.priorFindings = append(s.priorFindings, result.AllFindings...)
+
+	// Write structured review.json via Bundler
+	if s.bundler != nil && result.FindingsByFacet != nil {
+		if err := s.bundler.WriteReviewFindings(result.FindingsByFacet); err != nil {
+			return specloop.NextAction{}, fmt.Errorf("write review findings: %w", err)
+		}
+	}
 
 	if result.HasBlockingFindings {
 		rs.FinalReviewPassed = false
