@@ -165,8 +165,9 @@ func (p *Policy) ValidateReviewConfig() error {
 	}
 }
 
+// See CLAUDE.md nil-field normalization visibility convention:
+// exported — cross-package boundary type
 // NormalizeNilFields maps nil slices/maps to empty values.
-// Exported since Policy is a cross-package type.
 func (p *Policy) NormalizeNilFields() {
 	if p.AlwaysRun == nil {
 		p.AlwaysRun = []Check{}

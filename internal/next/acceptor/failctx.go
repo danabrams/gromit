@@ -11,6 +11,8 @@ type AcceptanceFailure struct {
 	Cycle        int      `json:"cycle"`
 }
 
+// See CLAUDE.md nil-field normalization visibility convention:
+// exported — cross-package boundary type
 // NormalizeNilFields maps nil slices to empty values for consistent JSON serialization.
 func (af *AcceptanceFailure) NormalizeNilFields() {
 	if af.EvidenceRefs == nil {

@@ -14,6 +14,8 @@ type CriterionResult struct {
 	EvidenceRefs []string `json:"evidence_refs"`
 }
 
+// See CLAUDE.md nil-field normalization visibility convention:
+// exported — cross-package boundary type
 // NormalizeNilFields maps nil slices to empty values.
 func (cr *CriterionResult) NormalizeNilFields() {
 	if cr.EvidenceRefs == nil {
@@ -28,6 +30,8 @@ type AcceptanceResult struct {
 	HasFailOrUnclear bool              `json:"has_fail_or_unclear"`
 }
 
+// See CLAUDE.md nil-field normalization visibility convention:
+// exported — cross-package boundary type
 // NormalizeNilFields maps nil slices to empty values.
 func (ar *AcceptanceResult) NormalizeNilFields() {
 	if ar.Results == nil {

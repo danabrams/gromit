@@ -22,6 +22,8 @@ type Finding struct {
 	Disposition  string   `json:"disposition,omitempty"`
 }
 
+// See CLAUDE.md nil-field normalization visibility convention:
+// exported — cross-package boundary type
 // NormalizeNilFields satisfies the codebase convention. Finding has no slice fields.
 func (f *Finding) NormalizeNilFields() {}
 
@@ -76,6 +78,8 @@ type FindingSet struct {
 	Findings []Finding `json:"findings"`
 }
 
+// See CLAUDE.md nil-field normalization visibility convention:
+// exported — cross-package boundary type
 // NormalizeNilFields maps nil Findings slice to empty.
 func (fs *FindingSet) NormalizeNilFields() {
 	if fs.Findings == nil {

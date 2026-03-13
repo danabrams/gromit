@@ -36,6 +36,8 @@ type RunResult struct {
 	AllFacetsErrored    bool                 `json:"all_facets_errored"`
 }
 
+// See CLAUDE.md nil-field normalization visibility convention:
+// exported — cross-package boundary type
 // NormalizeNilFields maps nil slices/maps to empty values.
 func (r *RunResult) NormalizeNilFields() {
 	if r.AllFindings == nil {

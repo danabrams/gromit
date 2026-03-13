@@ -65,6 +65,8 @@ type Metrics struct {
 	Invocations       []InvocationRecord `json:"invocations"`
 }
 
+// See CLAUDE.md nil-field normalization visibility convention:
+// exported — cross-package boundary type
 // NormalizeNilFields maps nil slices to empty values for consistent JSON serialization.
 func (m *Metrics) NormalizeNilFields() {
 	if m.Invocations == nil {
@@ -137,6 +139,8 @@ type ReviewInput struct {
 	AcceptanceCriteria []AcceptanceCriterionSummary `json:"acceptance_criteria,omitempty"`
 }
 
+// See CLAUDE.md nil-field normalization visibility convention:
+// exported — cross-package boundary type
 // NormalizeNilFields maps nil slices to empty values for consistent JSON serialization.
 func (r *ReviewInput) NormalizeNilFields() {
 	if r.CycleHistory == nil {
