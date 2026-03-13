@@ -1,6 +1,9 @@
 package review
 
-import "context"
+import (
+	"context"
+	"errors"
+)
 
 // ReviewAgent is the interface for invoking LLM review on a facet.
 type ReviewAgent interface {
@@ -151,7 +154,8 @@ func (r *Runner) invokeFacet(ctx context.Context, facetName, prompt string) ([]F
 }
 
 // isParseError checks if an error is a ParseError (retryable).
+// Uses errors.As to handle wrapped errors.
 func isParseError(err error) bool {
-	_, ok := err.(*ParseError)
-	return ok
+	var pe *ParseError
+	return errors.As(err, &pe)
 }

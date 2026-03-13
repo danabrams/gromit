@@ -22,6 +22,10 @@ func LabelDispositions(current, prior []Finding) []Finding {
 }
 
 // descriptionMatches returns true if either description contains the other as a substring.
+// Empty descriptions never match to prevent silently suppressing findings.
 func descriptionMatches(a, b string) bool {
+	if a == "" || b == "" {
+		return false
+	}
 	return strings.Contains(a, b) || strings.Contains(b, a)
 }
