@@ -242,6 +242,26 @@ func TestInvokeStream_RespectsTimeout(t *testing.T) {
 	}
 }
 
+func TestLLMAdapter_SatisfiesInvoker(t *testing.T) {
+	var _ Invoker = (*LLMAdapter)(nil)
+}
+
+func TestLLMAdapter_SatisfiesProviderAwareInvoker(t *testing.T) {
+	var _ ProviderAwareInvoker = (*LLMAdapter)(nil)
+}
+
+func TestProviderAware_SatisfiesProviderAwareInvoker(t *testing.T) {
+	var _ ProviderAwareInvoker = (*ProviderAware)(nil)
+}
+
+func TestLLMAdapter_ProviderReturnsUnderlying(t *testing.T) {
+	mp := &mockProvider{name: "claude"}
+	adapter := New(mp, Config{Tier: "high"})
+	if adapter.Provider() != mp {
+		t.Error("Provider() should return the underlying provider")
+	}
+}
+
 // slowMockProvider blocks for a configurable delay.
 type slowMockProvider struct {
 	mockProvider

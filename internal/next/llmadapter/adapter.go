@@ -73,3 +73,12 @@ func (a *LLMAdapter) ProviderName() string {
 func (a *LLMAdapter) Tier() string {
 	return a.cfg.Tier
 }
+
+// Provider returns the underlying provider. This allows LLMAdapter to
+// satisfy ProviderAwareInvoker directly.
+func (a *LLMAdapter) Provider() provider.Provider {
+	return a.provider
+}
+
+var _ Invoker = (*LLMAdapter)(nil)
+var _ ProviderAwareInvoker = (*LLMAdapter)(nil)
