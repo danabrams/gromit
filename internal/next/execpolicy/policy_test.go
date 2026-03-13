@@ -147,11 +147,27 @@ func TestDefaultPolicy_HasFacetRetryCount(t *testing.T) {
 
 func TestDefaultPolicy_HasReviewConfig(t *testing.T) {
 	p := DefaultPolicy()
-	if p.Review.ReplanThreshold != "warning" {
-		t.Errorf("default ReplanThreshold = %q, want %q", p.Review.ReplanThreshold, "warning")
-	}
 	if len(p.Review.Facets) != 2 {
-		t.Errorf("default Facets count = %d, want 2", len(p.Review.Facets))
+		t.Fatalf("default review should have 2 facets, got %d", len(p.Review.Facets))
+	}
+	if p.Review.Facets[0] != "spec_alignment" {
+		t.Errorf("first facet = %q, want spec_alignment", p.Review.Facets[0])
+	}
+	if p.Review.Facets[1] != "code_quality" {
+		t.Errorf("second facet = %q, want code_quality", p.Review.Facets[1])
+	}
+	if p.Review.ReplanThreshold != "warning" {
+		t.Errorf("ReplanThreshold = %q, want warning", p.Review.ReplanThreshold)
+	}
+}
+
+func TestDefaultPolicy_ReviewTiers(t *testing.T) {
+	p := DefaultPolicy()
+	if p.Review.Tiers["spec_alignment"] != "high" {
+		t.Errorf("spec_alignment tier = %q, want high", p.Review.Tiers["spec_alignment"])
+	}
+	if p.Review.Tiers["code_quality"] != "medium" {
+		t.Errorf("code_quality tier = %q, want medium", p.Review.Tiers["code_quality"])
 	}
 }
 
