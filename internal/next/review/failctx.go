@@ -2,7 +2,6 @@ package review
 
 import (
 	"fmt"
-	"strings"
 )
 
 // BuildFailureStrings converts blocking findings from a RunResult into
@@ -27,7 +26,3 @@ func ReviewFailuresToStrings(findings []Finding) []string {
 	return strs
 }
 
-// containsAny is a test helper checking if s contains substr.
-func containsAny(s, substr string) bool {
-	return strings.Contains(s, substr)
-}

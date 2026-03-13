@@ -228,11 +228,19 @@ func TestSpecLoop_CycleResetsGateFields(t *testing.T) {
 	rs.ReviewFindings = []string{"prior finding 1"}
 	rs.AcceptanceResults = []string{"prior result 1"}
 
-	var capturedRS *runstore.RunState
+	// Snapshot values at the moment the first stage runs
+	var snapValidation, snapReview, snapAcceptance bool
+	var snapReviewFindings []string
+	var snapAcceptanceResults []string
+
 	captureStage := &mockStage{
 		name: "capture",
 		runFn: func(ctx context.Context, rs *runstore.RunState) (NextAction, error) {
-			capturedRS = rs
+			snapValidation = rs.FinalValidationPassed
+			snapReview = rs.FinalReviewPassed
+			snapAcceptance = rs.FinalAcceptancePassed
+			snapReviewFindings = append([]string{}, rs.ReviewFindings...)
+			snapAcceptanceResults = append([]string{}, rs.AcceptanceResults...)
 			return NextAction{Kind: Continue}, nil
 		},
 	}
@@ -244,20 +252,20 @@ func TestSpecLoop_CycleResetsGateFields(t *testing.T) {
 
 	loop.Run(context.Background(), rs)
 
-	if capturedRS.FinalValidationPassed {
+	if snapValidation {
 		t.Error("FinalValidationPassed should be reset to false at cycle start")
 	}
-	if capturedRS.FinalReviewPassed {
+	if snapReview {
 		t.Error("FinalReviewPassed should be reset to false at cycle start")
 	}
-	if capturedRS.FinalAcceptancePassed {
+	if snapAcceptance {
 		t.Error("FinalAcceptancePassed should be reset to false at cycle start")
 	}
-	if len(capturedRS.ReviewFindings) != 0 {
-		t.Errorf("ReviewFindings should be empty at cycle start, got %v", capturedRS.ReviewFindings)
+	if len(snapReviewFindings) != 0 {
+		t.Errorf("ReviewFindings should be empty at cycle start, got %v", snapReviewFindings)
 	}
-	if len(capturedRS.AcceptanceResults) != 0 {
-		t.Errorf("AcceptanceResults should be empty at cycle start, got %v", capturedRS.AcceptanceResults)
+	if len(snapAcceptanceResults) != 0 {
+		t.Errorf("AcceptanceResults should be empty at cycle start, got %v", snapAcceptanceResults)
 	}
 }
 

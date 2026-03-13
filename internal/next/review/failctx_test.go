@@ -43,6 +43,10 @@ func TestBuildReviewFailureContext_Empty(t *testing.T) {
 	}
 }
 
+func containsAny(s, substr string) bool {
+	return strings.Contains(s, substr)
+}
+
 func TestBuildReviewFailureContext_IncludesSuggestedFix(t *testing.T) {
 	result := RunResult{
 		BlockingFindings: []Finding{
