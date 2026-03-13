@@ -161,12 +161,17 @@ func (s *EvidenceStage) readReviewFindings(path string) []evidence.ReviewFinding
 		for _, f := range findings {
 			severityCounts[f.Severity.String()]++
 		}
+		sevKeys := make([]string, 0, len(severityCounts))
+		for sev := range severityCounts {
+			sevKeys = append(sevKeys, sev)
+		}
+		sort.Strings(sevKeys)
 		sevStr := ""
-		for sev, count := range severityCounts {
+		for _, sev := range sevKeys {
 			if sevStr != "" {
 				sevStr += ", "
 			}
-			sevStr += fmt.Sprintf("%d %s", count, sev)
+			sevStr += fmt.Sprintf("%d %s", severityCounts[sev], sev)
 		}
 		if sevStr == "" {
 			sevStr = "none"

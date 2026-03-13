@@ -92,6 +92,34 @@ func TestEvidenceStage_ReadsAcceptanceJSONFromDisk(t *testing.T) {
 	}
 }
 
+func TestEvidenceStage_MalformedJSON_NotEvaluatedFallback(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := runstore.NewStore(tmpDir)
+	rs := runstore.NewRunState("test-spec", "test-project")
+	store.Save(rs)
+
+	evidenceDir := filepath.Join(store.RunDir(rs.RunID), "evidence")
+	os.MkdirAll(evidenceDir, 0o755)
+	os.WriteFile(filepath.Join(evidenceDir, "review.json"), []byte("{invalid json"), 0o644)
+	os.WriteFile(filepath.Join(evidenceDir, "acceptance.json"), []byte("{invalid json"), 0o644)
+
+	stage := NewEvidenceStage(store, EvidenceStageConfig{
+		DiffSummary: "test diff",
+		StartTime:   time.Now(),
+	})
+
+	_, err := stage.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	data, _ := os.ReadFile(filepath.Join(evidenceDir, "review.md"))
+	content := string(data)
+	if !strings.Contains(content, "Not evaluated") {
+		t.Error("review.md should contain 'Not evaluated' when JSON files are malformed")
+	}
+}
+
 func TestEvidenceStage_MissingFiles_NotEvaluatedSections(t *testing.T) {
 	tmpDir := t.TempDir()
 	store := runstore.NewStore(tmpDir)
