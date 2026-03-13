@@ -456,6 +456,24 @@ func TestExecSpec_NoDryRun_RunsAllStages(t *testing.T) {
 	}
 }
 
+func TestFilterStagesForDryRun_ExcludesReviewAndAccept(t *testing.T) {
+	allNames := []string{"init", "compile", "plan", "execute", "validate", "review", "accept", "evidence", "finalize"}
+	var allStages []specloop.Stage
+	for _, name := range allNames {
+		allStages = append(allStages, &stageRecorder{name: name})
+	}
+
+	filtered := filterStagesForDryRun(allStages, true)
+	for _, s := range filtered {
+		if s.Name() == "review" || s.Name() == "accept" {
+			t.Errorf("dry-run should not include %q stage", s.Name())
+		}
+	}
+	if len(filtered) != 3 {
+		t.Errorf("expected 3 dry-run stages, got %d", len(filtered))
+	}
+}
+
 // Test that exec show returns a friendly error for an unknown run ID.
 func TestExecShowCmd_UnknownRunID_FriendlyError(t *testing.T) {
 	tmp := t.TempDir()
