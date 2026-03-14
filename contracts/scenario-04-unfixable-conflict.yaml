@@ -1,0 +1,45 @@
+name: "Scenario 4 — Unfixable Conflict (contradictory spec)"
+scenario: 4
+spec: specs/unfixable-conflict.md
+fixture: fixture-calc
+policy: policies/fixture-calc-execution.json
+store_dir: .gromit-next
+
+fixture_reset:
+  git_files:
+    - commit: "7f6de76"
+      files: [calc/calc.go, calc/calc_test.go]
+  remove_files:
+    - calc/divide_test.go
+    - calc/divide_edge_test.go
+    - calc/divide_exact_test.go
+  add_files: []
+
+inline_policy: ""
+extra_flags: []
+
+assertions:
+  # Run state — contradictory spec causes cycles to exhaust
+  - status: needs_human
+  - terminal_reason: cycles_exhausted
+  - final_validation_passed: false
+  - ended_at_set: true
+  - cost_usd_gt: 0
+
+  # Evidence files
+  - invocations_count_gte: 1
+
+  # Task assertions — constraint enforcement: calc_test.go must not be modified
+  - all_tasks_attempted: true
+  - files_changed_nonempty: true
+  - files_changed_never_contains: calc/calc_test.go
+
+  # Filesystem assertions — test file must be unmodified
+  - file_not_modified: calc/calc_test.go
+
+  # Event assertions
+  - events_contain_type: task_validation_result
+
+  # CLI output assertions
+  - exec_show_full_not_contains: "running"
+  - exec_list_contains: needs_human

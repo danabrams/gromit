@@ -1,0 +1,66 @@
+name: "Scenario 3 — Budget Exhaustion (max_spec_cycles: 1)"
+scenario: 3
+spec: specs/add-subtract.md
+fixture: fixture-calc
+policy: ""
+store_dir: .gromit-next
+
+fixture_reset:
+  git_files:
+    - commit: "7f6de76"
+      files: [calc/calc.go, calc/calc_test.go]
+  remove_files:
+    - calc/divide_test.go
+    - calc/divide_edge_test.go
+    - calc/divide_exact_test.go
+  add_files: []
+
+# One-off policy: max_spec_cycles: 1 causes cycles_exhausted after the first
+# cycle completes. Subtract is implemented and validation passes, but the budget
+# gate fires before cycle 2, terminating with needs_human (cycles_exhausted).
+inline_policy: |
+  {
+    "always_run": [
+      {"name": "unit-tests", "command": "go test ./...", "type": "test"},
+      {"name": "format", "command": "gofmt -l .", "type": "lint"},
+      {"name": "vet", "command": "go vet ./...", "type": "lint"}
+    ],
+    "budgets": {
+      "max_spec_cycles": 1,
+      "max_task_retries": 1,
+      "max_redecomposition_passes": 1,
+      "max_task_duration_seconds": 300,
+      "max_run_duration_seconds": 3600,
+      "max_run_cost_usd": 50.0
+    },
+    "models": {
+      "planner": "high",
+      "executor": "medium"
+    }
+  }
+
+extra_flags: []
+
+assertions:
+  # Run state
+  - status: needs_human
+  - terminal_reason: cycles_exhausted
+  - cycle_eq: 1
+  - final_validation_passed: true
+  - ended_at_set: true
+  - cost_usd_gt: 0
+
+  # Evidence files
+  - invocations_count_gte: 1
+
+  # Task assertions
+  - all_tasks_attempted: true
+  - files_changed_nonempty: true
+
+  # Event assertions
+  - events_contain_type: task_validation_result
+
+  # CLI output assertions
+  - exec_show_contains: "Cycles:"
+  - exec_show_full_not_contains: "running"
+  - exec_list_contains: needs_human

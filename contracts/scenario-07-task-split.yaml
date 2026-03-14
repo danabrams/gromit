@@ -1,0 +1,39 @@
+name: "Scenario 7 — Task Split / Redecomposition (multi-package broad refactor)"
+scenario: 7
+spec: specs/broad-refactor.md
+fixture: fixture-multipackage
+policy: policies/fixture-multipackage-execution.json
+store_dir: .gromit-next
+
+# fixture-multipackage has its own git state; reset to HEAD
+fixture_reset:
+  git_files: []
+  remove_files:
+    - .gromit-next
+  add_files: []
+
+inline_policy: ""
+extra_flags: []
+
+assertions:
+  # Run state — broad-refactor exhausts cycles after splits/replans
+  - status_one_of: [needs_human, ready_for_review]
+  - terminal_reason: cycles_exhausted
+  - ended_at_set: true
+  - cost_usd_gt: 0
+  - replans_gte: 1
+
+  # Evidence files
+  - invocations_count_gte: 1
+
+  # Task assertions — at least one split must have occurred
+  - all_tasks_attempted: true
+  - files_changed_nonempty: true
+
+  # Event assertions — split and redecomposition events must be present
+  - events_contain_type: task_needs_split
+  - events_contain_type: task_validation_result
+
+  # CLI output assertions
+  - exec_show_contains: "Cycles:"
+  - exec_show_full_not_contains: "running"

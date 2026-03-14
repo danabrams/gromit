@@ -1,0 +1,53 @@
+name: "Scenario 1 — Happy Path"
+scenario: 1
+spec: specs/add-subtract.md
+fixture: fixture-calc
+policy: policies/fixture-calc-execution.json
+store_dir: .gromit-next
+
+fixture_reset:
+  git_files:
+    - commit: "7f6de76"
+      files: [calc/calc.go, calc/calc_test.go]
+  remove_files:
+    - calc/divide_test.go
+    - calc/divide_edge_test.go
+    - calc/divide_exact_test.go
+  add_files: []
+
+inline_policy: ""
+extra_flags: []
+
+assertions:
+  # Run state
+  - status: ready_for_review
+  - final_validation_passed: true
+  - cost_usd_gt: 0
+  - ended_at_set: true
+
+  # Evidence files
+  - acceptance_all_pass: true
+  - validation_pass: true
+  - no_error_severity_findings: true
+  - invocations_count_gte: 1
+
+  # Task assertions
+  - all_tasks_attempted: true
+  - files_changed_nonempty: true
+  - any_task_files_changed_contains: calc/calc.go
+
+  # Filesystem assertions
+  - file_contains:
+      path: calc/calc.go
+      pattern: "func Subtract"
+
+  # Event assertions
+  - events_contain_type: task_validation_result
+
+  # CLI output assertions
+  - exec_show_contains: "Cycles:"
+  - exec_show_not_contains: "Cost:    $0.0000"
+  - exec_show_full_not_contains: "running"
+  - exec_show_full_contains: "ready_for_review"
+  - exec_list_contains: ready_for_review
+  - spec_list_contains: ready_for_review

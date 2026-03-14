@@ -1,0 +1,61 @@
+name: "Scenario 10 — Timeout (max_run_duration_seconds: 5)"
+scenario: 10
+spec: specs/add-subtract.md
+fixture: fixture-calc
+policy: ""
+store_dir: .gromit-next
+
+fixture_reset:
+  git_files:
+    - commit: "7f6de76"
+      files: [calc/calc.go, calc/calc_test.go]
+  remove_files:
+    - calc/divide_test.go
+    - calc/divide_edge_test.go
+    - calc/divide_exact_test.go
+  add_files: []
+
+# 5-second wall-clock limit. The plan stage itself takes ~6s, so the timeout
+# fires after plan completes but before execute starts. calc.go is unchanged.
+# tasks have status: "pending", attempts: 0.
+inline_policy: |
+  {
+    "always_run": [
+      {"name": "unit-tests", "command": "go test ./...", "type": "test"},
+      {"name": "format", "command": "gofmt -l .", "type": "lint"},
+      {"name": "vet", "command": "go vet ./...", "type": "lint"}
+    ],
+    "budgets": {
+      "max_spec_cycles": 3,
+      "max_task_retries": 1,
+      "max_redecomposition_passes": 1,
+      "max_task_duration_seconds": 300,
+      "max_run_duration_seconds": 5,
+      "max_run_cost_usd": 50.0
+    },
+    "models": {
+      "planner": "high",
+      "executor": "medium"
+    }
+  }
+
+extra_flags: []
+
+assertions:
+  # Run state
+  - status: blocked
+  - terminal_reason: budget_exceeded
+  - ended_at_set: true
+
+  # Filesystem assertions — execute never ran
+  - file_not_modified: calc/calc.go
+
+  # Event assertions
+  - events_contain_type: budget_exceeded
+
+  # Evidence bundle emitted (6 files)
+  - invocations_count_gte: 1
+
+  # CLI output assertions
+  - exec_show_full_not_contains: "running"
+  - exec_list_contains: blocked

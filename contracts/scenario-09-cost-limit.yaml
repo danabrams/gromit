@@ -1,0 +1,59 @@
+name: "Scenario 9 — Cost Limits (max_run_cost_usd: 0.001)"
+scenario: 9
+spec: specs/add-subtract.md
+fixture: fixture-calc
+policy: ""
+store_dir: .gromit-next
+
+fixture_reset:
+  git_files:
+    - commit: "7f6de76"
+      files: [calc/calc.go, calc/calc_test.go]
+  remove_files:
+    - calc/divide_test.go
+    - calc/divide_edge_test.go
+    - calc/divide_exact_test.go
+  add_files: []
+
+# Cost limit of $0.001 — far below the ~$0.07 a single task invocation costs.
+# t-001 completes (Subtract added), then the budget check fires between tasks
+# → blocked (budget_exceeded). t-002 gets status: "blocked", attempts: 0.
+inline_policy: |
+  {
+    "always_run": [
+      {"name": "unit-tests", "command": "go test ./...", "type": "test"},
+      {"name": "format", "command": "gofmt -l .", "type": "lint"},
+      {"name": "vet", "command": "go vet ./...", "type": "lint"}
+    ],
+    "budgets": {
+      "max_spec_cycles": 3,
+      "max_task_retries": 1,
+      "max_redecomposition_passes": 1,
+      "max_task_duration_seconds": 300,
+      "max_run_duration_seconds": 3600,
+      "max_run_cost_usd": 0.001
+    },
+    "models": {
+      "planner": "high",
+      "executor": "medium"
+    }
+  }
+
+extra_flags: []
+
+assertions:
+  # Run state
+  - status: blocked
+  - terminal_reason: budget_exceeded
+  - ended_at_set: true
+  - cost_usd_gt: 0
+
+  # Evidence files (6 files emitted even after budget exceeded)
+  - invocations_count_gte: 1
+
+  # Event assertions
+  - events_contain_type: budget_exceeded
+
+  # CLI output assertions
+  - exec_show_full_not_contains: "running"
+  - exec_list_contains: blocked

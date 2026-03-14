@@ -1,0 +1,32 @@
+name: "Scenario 5 — Dry Run (plan only, no execution)"
+scenario: 5
+spec: specs/add-subtract.md
+fixture: fixture-calc
+policy: policies/fixture-calc-execution.json
+store_dir: .gromit-next
+
+fixture_reset:
+  git_files:
+    - commit: "7f6de76"
+      files: [calc/calc.go, calc/calc_test.go]
+  remove_files:
+    - calc/divide_test.go
+    - calc/divide_edge_test.go
+    - calc/divide_exact_test.go
+  add_files: []
+
+inline_policy: ""
+extra_flags: [--dry-run]
+
+assertions:
+  # Run state — dry-run never finalizes; status stays at init/plan
+  # (finalize never runs, so status is "running" from the harness's perspective,
+  # but the run.json shows the last stage completed before execute)
+  - ended_at_set: false
+
+  # Filesystem assertions — no code must have been executed
+  - file_not_modified: calc/calc.go
+  - file_not_modified: calc/calc_test.go
+
+  # CLI output assertions — plan artifacts must exist
+  - exec_show_contains: "Cycles:"

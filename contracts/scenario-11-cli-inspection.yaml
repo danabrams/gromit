@@ -1,0 +1,51 @@
+name: "Scenario 11 — CLI Inspection (exec list / show / show --full / spec list)"
+scenario: 11
+# This scenario does not run exec spec. It depends on Scenario 1 having
+# already completed and left a ready_for_review run in the store.
+# The harness must run Scenario 1 first (or reuse its result), then execute
+# only the CLI inspection commands below.
+depends_on_scenario: 1
+spec: specs/add-subtract.md
+fixture: fixture-calc
+policy: ""
+store_dir: .gromit-next
+
+fixture_reset:
+  # No reset needed — we inspect the result of the Scenario 1 run.
+  git_files: []
+  remove_files: []
+  add_files: []
+
+inline_policy: ""
+extra_flags: []
+
+assertions:
+  # exec list — table shows the ready_for_review run
+  - exec_list_contains: ready_for_review
+
+  # exec show <run-id> — structured fields present
+  - exec_show_contains: "Cycles:"
+  - exec_show_contains: "duration:"
+  - exec_show_contains: "Cost:"
+  - exec_show_contains: "Valid:"
+  - exec_show_contains: "Worktree"
+  - exec_show_contains: "Evidence"
+  - exec_show_not_contains: "Cost:    $0.0000"
+
+  # exec show latest — resolves to most recent run
+  - exec_show_contains: "ready_for_review"
+
+  # exec show --full — evidence files and task details present
+  - exec_show_full_contains: "acceptance.json"
+  - exec_show_full_contains: "diff-summary.md"
+  - exec_show_full_contains: "metrics.json"
+  - exec_show_full_contains: "review.json"
+  - exec_show_full_contains: "review.md"
+  - exec_show_full_contains: "summary.md"
+  - exec_show_full_contains: "task-results.json"
+  - exec_show_full_contains: "validation.json"
+  - exec_show_full_contains: "ready_for_review"
+  - exec_show_full_not_contains: "running"
+
+  # spec list — shows add-subtract with ready_for_review status
+  - spec_list_contains: ready_for_review

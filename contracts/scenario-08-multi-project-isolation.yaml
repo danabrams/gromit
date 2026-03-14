@@ -1,0 +1,64 @@
+name: "Scenario 8 — Multi-Project Isolation (concurrent calc + greeter runs)"
+scenario: 8
+# This scenario runs two projects concurrently and verifies isolation.
+# The harness must launch both runs in parallel and wait for both to finish.
+concurrent: true
+
+runs:
+  - name: calc
+    spec: add-subtract.md
+    fixture: fixture-calc
+    policy: policies/fixture-calc-execution.json
+    store_dir: .gromit-next
+    fixture_reset:
+      git_files:
+        - commit: "7f6de76"
+          files: [calc/calc.go, calc/calc_test.go]
+      remove_files:
+        - calc/divide_test.go
+        - calc/divide_edge_test.go
+        - calc/divide_exact_test.go
+      add_files: []
+    extra_flags: []
+    assertions:
+      - status: ready_for_review
+      - final_validation_passed: true
+      - cost_usd_gt: 0
+      - ended_at_set: true
+      - files_changed_nonempty: true
+      - any_task_files_changed_contains: calc/calc.go
+      - file_contains:
+          path: calc/calc.go
+          pattern: "func Subtract"
+      - events_contain_type: task_validation_result
+      - exec_show_full_not_contains: "running"
+      - exec_list_contains: ready_for_review
+
+  - name: greeter
+    spec: add-farewell.md
+    fixture: fixture-greeter
+    policy: policies/fixture-greeter-execution.json
+    store_dir: .gromit-next
+    fixture_reset:
+      git_files: []
+      remove_files: []
+      add_files: []
+    extra_flags: []
+    assertions:
+      - status: ready_for_review
+      - final_validation_passed: true
+      - cost_usd_gt: 0
+      - ended_at_set: true
+      - files_changed_nonempty: true
+      - events_contain_type: task_validation_result
+      - exec_show_full_not_contains: "running"
+      - exec_list_contains: ready_for_review
+
+# Cross-contamination assertions: verified by checking that calc evidence
+# contains no greeter references and vice versa. These are checked by the
+# harness against the calc run's evidence files.
+cross_contamination_assertions:
+  - calc_evidence_not_contains: "farewell"
+  - calc_evidence_not_contains: "greeter"
+  - greeter_evidence_not_contains: "subtract"
+  - greeter_evidence_not_contains: "calculator"
