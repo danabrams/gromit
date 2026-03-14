@@ -183,6 +183,7 @@ func (p *RealStageProvider) BuildStages(policy execpolicy.Policy, rs *runstore.R
 		WorkDir:                p.cfg.WorkDir,
 		MaxTaskDurationSeconds: policy.Budgets.MaxTaskDurationSeconds,
 		Budget:                 budget,
+		DetectFilesChanged:     specloop.GitFilesChanged(),
 	})
 
 	validateStage := stages.NewValidateStage(finalVal, stages.ValidateStageConfig{

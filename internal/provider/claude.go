@@ -31,6 +31,9 @@ type ClaudeProvider struct {
 // Compile-time check to verify ClaudeProvider implements Provider interface
 var _ Provider = (*ClaudeProvider)(nil)
 
+// Compile-time check to verify ClaudeProvider implements DirStreamRunner
+var _ DirStreamRunner = (*ClaudeProvider)(nil)
+
 // NewClaudeProvider creates a new ClaudeProvider with the given client and tier mapping
 func NewClaudeProvider(client claudeClient, tierToModel map[string]string) *ClaudeProvider {
 	return &ClaudeProvider{
@@ -135,6 +138,46 @@ func (cp *ClaudeProvider) StreamRun(ctx context.Context, prompt string, tier str
 	}
 
 	claudeResult, err := cp.client.StreamRun(ctx, prompt, modelName, output, claudeHandler, claudeToolHandler)
+	if err != nil {
+		return nil, err
+	}
+
+	return convertResult(claudeResult), nil
+}
+
+// StreamRunInDir executes a streaming LLM invocation in the specified working directory.
+// It resolves the tier to a model name and delegates to claude.Client.StreamRun()
+// with claude.WithDir(dir) to set the process working directory.
+func (cp *ClaudeProvider) StreamRunInDir(ctx context.Context, prompt string, tier string, dir string, output io.Writer, handler EventHandler, onToolCall ToolCallHandler) (*Result, error) {
+	if err := cp.validateProvider(); err != nil {
+		return nil, err
+	}
+
+	modelName := cp.resolveTier(tier)
+
+	// Convert provider handlers to claude handlers
+	var claudeHandler claude.EventHandler
+	if handler != nil {
+		claudeHandler = claude.EventHandler(handler)
+	}
+
+	var claudeToolHandler claude.ToolCallHandler
+	if onToolCall != nil {
+		claudeToolHandler = func(event claude.ToolEvent) {
+			onToolCall(ToolEvent{
+				ToolName:  event.ToolName,
+				FilePath:  event.FilePath,
+				Timestamp: event.Timestamp,
+			})
+		}
+	}
+
+	var opts []claude.RunOption
+	if dir != "" {
+		opts = append(opts, claude.WithDir(dir))
+	}
+
+	claudeResult, err := cp.client.StreamRun(ctx, prompt, modelName, output, claudeHandler, claudeToolHandler, opts...)
 	if err != nil {
 		return nil, err
 	}

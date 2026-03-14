@@ -75,10 +75,27 @@ func renderTaskBody(b *strings.Builder, task runstore.Task) {
 }
 
 // renderTaskPrompt builds the prompt sent to the LLM for a new task execution.
+// For fix tasks with FailuresAddressed, the prompt includes the specific failures
+// and instructs Claude to make surgical fixes without recreating the entire feature.
 func renderTaskPrompt(task runstore.Task) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "## Task: %s\n\n", task.TaskID)
+	if task.Kind == "fix" {
+		fmt.Fprintf(&b, "## Fix Task: %s\n\n", task.TaskID)
+	} else {
+		fmt.Fprintf(&b, "## Task: %s\n\n", task.TaskID)
+	}
 	renderTaskBody(&b, task)
+
+	if task.Kind == "fix" && len(task.FailuresAddressed) > 0 {
+		b.WriteString("### Failures to Address\n")
+		b.WriteString("This is a targeted fix task. Address ONLY the specific issues listed below.\n")
+		b.WriteString("Do not recreate or rewrite the entire feature — make surgical changes to fix these issues.\n\n")
+		for _, f := range task.FailuresAddressed {
+			fmt.Fprintf(&b, "- %s\n", f)
+		}
+		b.WriteString("\n")
+	}
+
 	return b.String()
 }
 

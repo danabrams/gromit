@@ -64,6 +64,11 @@ func (tr *TaskResult) NormalizeNilFields() {
 	}
 }
 
+// FilesChangedFunc detects files changed in a working directory.
+// It returns the list of changed file paths (relative to workDir), or an error.
+// Implementations should handle non-git directories gracefully (return empty list, no error).
+type FilesChangedFunc func(workDir string) ([]string, error)
+
 // TaskLoopConfig configures the task loop.
 type TaskLoopConfig struct {
 	MaxRetries             int
@@ -76,6 +81,7 @@ type TaskLoopConfig struct {
 	MaxTaskDurationSeconds int
 	EventLog               *runstore.EventLog
 	Cycle                  int
+	DetectFilesChanged     FilesChangedFunc // optional; if nil, FilesChanged stays as returned by runner
 }
 
 // RunTaskLoop executes all tasks, with inspection and retry support.
@@ -217,6 +223,13 @@ func RunTaskLoop(ctx context.Context, tasks []runstore.Task, runner TaskRunner, 
 
 		result.Attempts = attempts
 		result.Cost = cumulativeCost
+
+		// Detect files changed by this task (if detector is configured).
+		if cfg.DetectFilesChanged != nil && cfg.WorkDir != "" {
+			if changed, err := cfg.DetectFilesChanged(cfg.WorkDir); err == nil {
+				result.FilesChanged = changed
+			}
+		}
 
 		// Emit task_completed or task_failed
 		if result.Status == "done" {

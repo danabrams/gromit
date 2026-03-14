@@ -120,7 +120,8 @@ func (p *Planner) CreateFixPlan(ctx context.Context, req FixPlanRequest) (Plan, 
 // buildFixPlanPrompt constructs the prompt for fix-plan generation.
 func buildFixPlanPrompt(req FixPlanRequest) string {
 	var b strings.Builder
-	b.WriteString("You are a planning agent. Generate a FIX plan as JSON to address failures.\n\n")
+	b.WriteString("You are a planning agent. Generate a SURGICAL FIX plan as JSON.\n")
+	b.WriteString("Your goal is to create targeted tasks that address ONLY the specific failures and review findings listed below.\n\n")
 	b.WriteString(fmt.Sprintf("## Original Plan (Cycle %d, Spec %s)\n", req.OriginalPlan.Cycle, req.OriginalPlan.SpecID))
 	b.WriteString(fmt.Sprintf("Tasks in original plan: %d\n\n", len(req.OriginalPlan.Tasks)))
 
@@ -135,9 +136,32 @@ func buildFixPlanPrompt(req FixPlanRequest) string {
 		b.WriteString("\n")
 	}
 
-	if len(req.Failures) > 0 {
-		b.WriteString("## Failures to Address\n")
-		for _, f := range req.Failures {
+	// Separate review findings from other failures for clarity.
+	var reviewFindings []string
+	var otherFailures []string
+	for _, f := range req.Failures {
+		if strings.HasPrefix(f, "review:") {
+			reviewFindings = append(reviewFindings, f)
+		} else {
+			otherFailures = append(otherFailures, f)
+		}
+	}
+
+	if len(reviewFindings) > 0 {
+		b.WriteString("## Review Findings to Fix\n")
+		b.WriteString("The following review warnings were raised against the current code. Each fix task you create MUST directly address one or more of these findings.\n")
+		for _, f := range reviewFindings {
+			b.WriteString("- ")
+			b.WriteString(f)
+			b.WriteString("\n")
+		}
+		b.WriteString("\n")
+	}
+
+	if len(otherFailures) > 0 {
+		b.WriteString("## Validation Failures to Fix\n")
+		b.WriteString("The following validation failures occurred. Each fix task you create MUST directly address one or more of these failures.\n")
+		for _, f := range otherFailures {
 			b.WriteString("- ")
 			b.WriteString(f)
 			b.WriteString("\n")
@@ -151,9 +175,27 @@ func buildFixPlanPrompt(req FixPlanRequest) string {
 		b.WriteString("\n```\n\n")
 	}
 
-	b.WriteString("Do NOT replan or re-include tasks that already completed successfully. Only create new tasks targeting the specific validation failures listed above.\n\n")
-	b.WriteString("Respond with a JSON object with kind=\"fix\", parent_cycle, failures_addressed, and tasks.\n")
-	b.WriteString("Each task needs: task_id, objective, expected_touched_area, proof_checks, parent_cycle, failures_addressed.\n")
+	b.WriteString("## Instructions\n")
+	b.WriteString("- Do NOT replan or recreate original tasks — do not re-include work that already completed successfully.\n")
+	b.WriteString("- Create ONLY surgical fix tasks that address the specific failures and review findings listed above.\n")
+	b.WriteString("- Each fix task objective must reference which failure(s) or review finding(s) it addresses.\n")
+	b.WriteString("- Only touch files that are relevant to the listed issues.\n\n")
+
+	b.WriteString("## Output Format\n")
+	b.WriteString("Respond with a JSON object:\n")
+	b.WriteString("- kind: must be \"fix\"\n")
+	b.WriteString("- spec_id, cycle, parent_cycle, failures_addressed (array of strings from the failures above)\n")
+	b.WriteString("- tasks: array where each task has:\n")
+	b.WriteString("  - task_id: use \"t-NNN\" format")
+	if req.PriorMaxTaskID != "" {
+		b.WriteString(fmt.Sprintf(" (IDs must be greater than %s)", req.PriorMaxTaskID))
+	}
+	b.WriteString("\n")
+	b.WriteString("  - objective: string describing the surgical fix\n")
+	b.WriteString("  - expected_touched_area: array of strings (file paths or directories)\n")
+	b.WriteString("  - proof_checks: array of strings (commands to verify the fix)\n")
+	b.WriteString("  - parent_cycle: integer (the cycle being fixed)\n")
+	b.WriteString("  - failures_addressed: array of strings (subset of failures this task fixes)\n")
 	return b.String()
 }
 

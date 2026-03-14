@@ -173,6 +173,22 @@ func TestClaudeProviderStreamRunMethodSignature(t *testing.T) {
 	}
 }
 
+// TestClaudeProviderStreamRunInDirMethodSignature verifies that StreamRunInDir()
+// method exists and implements the DirStreamRunner interface.
+func TestClaudeProviderStreamRunInDirMethodSignature(t *testing.T) {
+	t.Parallel()
+	cp := &ClaudeProvider{}
+
+	// Verify compile-time interface satisfaction
+	var _ DirStreamRunner = cp
+
+	// Verify we can call StreamRunInDir with the expected signature
+	_, err := cp.StreamRunInDir(nil, "test prompt", TierHigh, "/tmp/dir", nil, nil, nil)
+	if err == nil {
+		t.Error("StreamRunInDir() with nil client should return an error")
+	}
+}
+
 // TestClaudeProviderRunValidationMethodSignature verifies that RunValidation()
 // method exists with the correct signature matching the Provider interface.
 // Expected failure: RunValidation() method does not exist yet

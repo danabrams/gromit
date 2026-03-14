@@ -18,6 +18,7 @@ type ExecuteStageConfig struct {
 	WorkDir                string
 	MaxTaskDurationSeconds int
 	EventLog               *runstore.EventLog
+	DetectFilesChanged     specloop.FilesChangedFunc // optional; populates TaskResult.FilesChanged
 }
 
 // ExecuteStage runs the task loop on all tasks in the run state.
@@ -58,6 +59,7 @@ func (s *ExecuteStage) Run(ctx context.Context, rs *runstore.RunState) (specloop
 		MaxTaskDurationSeconds: s.cfg.MaxTaskDurationSeconds,
 		EventLog:               s.cfg.EventLog,
 		Cycle:                  rs.Cycle,
+		DetectFilesChanged:     s.cfg.DetectFilesChanged,
 	})
 	if err != nil {
 		return specloop.NextAction{}, err

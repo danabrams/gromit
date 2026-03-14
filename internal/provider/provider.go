@@ -188,6 +188,14 @@ func ValidateModelProviderAttribution(model, provider string) (valid bool, reaso
 	return true, ""
 }
 
+// DirStreamRunner is an optional extension interface for providers that support
+// streaming invocations with a working directory. Providers that implement this
+// can run the LLM process in a specific directory (e.g., a worktree).
+type DirStreamRunner interface {
+	StreamRunInDir(ctx context.Context, prompt string, tier string, dir string, output io.Writer,
+		handler EventHandler, onToolCall ToolCallHandler) (*Result, error)
+}
+
 // Compile-time interface satisfaction checks
 // These will be implemented by concrete provider types (ClaudeProvider, CodexProvider, etc.)
 // and verified in their respective files

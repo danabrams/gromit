@@ -2,6 +2,7 @@ package specloop
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -454,5 +455,80 @@ func TestTaskLoop_RunTaskGetsTimeoutContext(t *testing.T) {
 
 	if !runDeadlineSet {
 		t.Fatal("RunTask context should have a deadline when MaxTaskDurationSeconds is set")
+	}
+}
+
+func TestTaskLoop_DetectFilesChanged_PopulatesResult(t *testing.T) {
+	runner := &fakeTaskRunner{fn: func(_ context.Context, task runstore.Task) (TaskResult, error) {
+		return TaskResult{Status: "done"}, nil
+	}}
+	inspector := &fakeInspector{pass: true}
+	tasks := []runstore.Task{{TaskID: "t-001", Status: "pending"}}
+
+	detector := func(workDir string) ([]string, error) {
+		return []string{"main.go", "util.go"}, nil
+	}
+
+	results, err := RunTaskLoop(context.Background(), tasks, runner, TaskLoopConfig{
+		MaxRetries:         0,
+		Inspector:          inspector,
+		WorkDir:            "/tmp/test",
+		DetectFilesChanged: detector,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(results[0].FilesChanged) != 2 {
+		t.Fatalf("expected 2 files changed, got %v", results[0].FilesChanged)
+	}
+	if results[0].FilesChanged[0] != "main.go" || results[0].FilesChanged[1] != "util.go" {
+		t.Fatalf("unexpected files: %v", results[0].FilesChanged)
+	}
+}
+
+func TestTaskLoop_DetectFilesChanged_NilDetectorKeepsRunnerResult(t *testing.T) {
+	runner := &fakeTaskRunner{fn: func(_ context.Context, task runstore.Task) (TaskResult, error) {
+		return TaskResult{Status: "done", FilesChanged: []string{"from-runner.go"}}, nil
+	}}
+	inspector := &fakeInspector{pass: true}
+	tasks := []runstore.Task{{TaskID: "t-001", Status: "pending"}}
+
+	results, err := RunTaskLoop(context.Background(), tasks, runner, TaskLoopConfig{
+		MaxRetries: 0,
+		Inspector:  inspector,
+		WorkDir:    "/tmp/test",
+		// DetectFilesChanged is nil — should keep runner's result
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(results[0].FilesChanged) != 1 || results[0].FilesChanged[0] != "from-runner.go" {
+		t.Fatalf("expected runner's files unchanged, got %v", results[0].FilesChanged)
+	}
+}
+
+func TestTaskLoop_DetectFilesChanged_ErrorFallsBack(t *testing.T) {
+	runner := &fakeTaskRunner{fn: func(_ context.Context, task runstore.Task) (TaskResult, error) {
+		return TaskResult{Status: "done", FilesChanged: []string{"original.go"}}, nil
+	}}
+	inspector := &fakeInspector{pass: true}
+	tasks := []runstore.Task{{TaskID: "t-001", Status: "pending"}}
+
+	detector := func(workDir string) ([]string, error) {
+		return nil, fmt.Errorf("git not available")
+	}
+
+	results, err := RunTaskLoop(context.Background(), tasks, runner, TaskLoopConfig{
+		MaxRetries:         0,
+		Inspector:          inspector,
+		WorkDir:            "/tmp/test",
+		DetectFilesChanged: detector,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// On detector error, should keep the runner's original FilesChanged
+	if len(results[0].FilesChanged) != 1 || results[0].FilesChanged[0] != "original.go" {
+		t.Fatalf("expected original files on detector error, got %v", results[0].FilesChanged)
 	}
 }
