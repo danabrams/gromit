@@ -152,10 +152,9 @@ func newExecSpecCmdWithProvider(provider StageProvider) *cobra.Command {
 			p := provider
 			if p == nil {
 				workDir, _ := os.Getwd()
-				// TODO(0002c): Provider field is not yet set here, so the
-				// real-adapter branch in RealStageProvider.BuildStages is
-				// unreachable from `gromit-next exec spec`. Wiring requires
-				// CLI flag plumbing for provider selection.
+				// TODO(0002d): Wire real providers here once CLI flag plumbing
+				// for provider selection is complete. For now, ClaudeProvider
+				// is nil so BuildStages falls through to noop or legacy path.
 				p = NewRealStageProvider(RealStageProviderConfig{
 					WorkDir:    workDir,
 					StoreDir:   storeDir,

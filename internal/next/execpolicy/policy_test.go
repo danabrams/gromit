@@ -339,6 +339,18 @@ func TestPolicy_NormalizeNilFields(t *testing.T) {
 	if len(p.Review.Tiers) != 0 {
 		t.Fatalf("Review.Tiers should be empty, got %d", len(p.Review.Tiers))
 	}
+	if p.Routing.Preferences == nil {
+		t.Fatal("Routing.Preferences should be non-nil after normalization")
+	}
+	if len(p.Routing.Preferences) != 0 {
+		t.Fatalf("Routing.Preferences should be empty, got %d", len(p.Routing.Preferences))
+	}
+	if p.Routing.Ratio == nil {
+		t.Fatal("Routing.Ratio should be non-nil after normalization")
+	}
+	if len(p.Routing.Ratio) != 0 {
+		t.Fatalf("Routing.Ratio should be empty, got %d", len(p.Routing.Ratio))
+	}
 }
 
 func TestPolicy_NormalizeNilFields_PreservesExisting(t *testing.T) {
@@ -367,6 +379,33 @@ func TestValidate_RejectsEmptyReviewFacets(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "at least one review facet is required") {
 		t.Fatalf("unexpected error message: %v", err)
+	}
+}
+
+func TestPolicy_Validate_RoutingRatioSumsTo100(t *testing.T) {
+	p := DefaultPolicy()
+	p.Routing.Ratio = map[string]int{"claude": 70, "codex": 20}
+	err := p.Validate()
+	if err == nil || !strings.Contains(err.Error(), "sum to 100") {
+		t.Errorf("expected ratio sum validation error, got %v", err)
+	}
+}
+
+func TestPolicy_Validate_RoutingRatioValid(t *testing.T) {
+	p := DefaultPolicy()
+	p.Routing.Ratio = map[string]int{"claude": 70, "codex": 30}
+	err := p.Validate()
+	if err != nil {
+		t.Errorf("expected no error for valid ratio, got %v", err)
+	}
+}
+
+func TestPolicy_Validate_RoutingRatioRejectsNegative(t *testing.T) {
+	p := DefaultPolicy()
+	p.Routing.Ratio = map[string]int{"claude": 150, "codex": -50}
+	err := p.Validate()
+	if err == nil || !strings.Contains(err.Error(), "non-negative") {
+		t.Errorf("expected negative ratio validation error, got %v", err)
 	}
 }
 

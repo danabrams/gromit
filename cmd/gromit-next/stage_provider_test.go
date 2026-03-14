@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/danabrams/gromit/internal/next/execpolicy"
+	"github.com/danabrams/gromit/internal/next/llmadapter"
 	"github.com/danabrams/gromit/internal/next/runstore"
 	"github.com/danabrams/gromit/internal/next/specloop"
 	"github.com/danabrams/gromit/internal/provider"
@@ -480,6 +481,78 @@ func TestRealStageProvider_BuildStages_WithProvider_NilProviderFallsBackToNoops(
 	}
 }
 
+func TestNewRealStageProvider_AcceptsProviderFields(t *testing.T) {
+	claudeProv := &mockTestProvider{name: "claude"}
+	codexProv := &mockTestProvider{name: "codex"}
+	sp := NewRealStageProvider(RealStageProviderConfig{
+		ClaudeProvider: claudeProv,
+		CodexProvider:  codexProv,
+		WorkDir:        t.TempDir(),
+		StoreDir:       t.TempDir(),
+		SpecPath:       "test.md",
+	})
+	if sp.claudeProvider == nil {
+		t.Error("expected claudeProvider to be set")
+	}
+	if sp.codexProvider == nil {
+		t.Error("expected codexProvider to be set")
+	}
+}
+
+func TestBuildRouter_ReturnsConfiguredRouter(t *testing.T) {
+	p := &RealStageProvider{
+		claudeProvider: &mockTestProvider{name: "claude"},
+		codexProvider:  &mockTestProvider{name: "codex"},
+		stateFn:        nil,
+		circuitBreaker: nil,
+	}
+	policy := execpolicy.DefaultPolicy()
+	policy.Routing.Ratio = map[string]int{"claude": 70, "codex": 30}
+	router := p.buildRouter(policy)
+	// Router should be non-nil and usable
+	prov, _ := router.Select("plan", "high")
+	if prov == nil {
+		t.Fatal("expected router to return a provider")
+	}
+}
+
+func TestBuildRouter_NilCodexProvider_SingleProviderMode(t *testing.T) {
+	p := &RealStageProvider{
+		claudeProvider: &mockTestProvider{name: "claude"},
+		codexProvider:  nil, // single-provider mode
+	}
+	policy := execpolicy.DefaultPolicy()
+	policy.Routing.Ratio = map[string]int{"claude": 100}
+	router := p.buildRouter(policy)
+	prov, _ := router.Select("plan", "high")
+	if prov == nil {
+		t.Fatal("expected claude provider in single-provider mode")
+	}
+	if prov.Name() != "claude" {
+		t.Errorf("expected claude, got %q", prov.Name())
+	}
+}
+
+func TestBuildStages_WithClaudeProvider_UsesFallbackAdapter(t *testing.T) {
+	policy := execpolicy.DefaultPolicy()
+	rs := runstore.NewRunState("test-spec", "test-project")
+
+	sp := NewRealStageProvider(RealStageProviderConfig{
+		WorkDir:        t.TempDir(),
+		StoreDir:       t.TempDir(),
+		SpecPath:       "test-spec.md",
+		ClaudeProvider: &mockTestProvider{name: "claude"},
+	})
+
+	stages, err := sp.BuildStages(policy, rs, specloop.NewBudget(policy.Budgets))
+	if err != nil {
+		t.Fatalf("BuildStages returned error: %v", err)
+	}
+	if len(stages) != 9 {
+		t.Fatalf("expected 9 stages, got %d", len(stages))
+	}
+}
+
 func TestRealStageProvider_BuildStages_MissingSpecFileIsNotError(t *testing.T) {
 	policy := execpolicy.DefaultPolicy()
 	rs := runstore.NewRunState("test-spec", "test-project")
@@ -493,5 +566,109 @@ func TestRealStageProvider_BuildStages_MissingSpecFileIsNotError(t *testing.T) {
 	_, err := provider.BuildStages(policy, rs, specloop.NewBudget(policy.Budgets))
 	if err != nil {
 		t.Fatalf("BuildStages should not fail for missing spec file, got: %v", err)
+	}
+}
+
+func TestNewRealStageProvider_LegacyProviderPromotion(t *testing.T) {
+	t.Run("legacy Provider promoted to claudeProvider when ClaudeProvider is nil", func(t *testing.T) {
+		legacyProv := &mockTestProvider{name: "legacy"}
+		sp := NewRealStageProvider(RealStageProviderConfig{
+			Provider: legacyProv,
+			WorkDir:  t.TempDir(),
+			StoreDir: t.TempDir(),
+			SpecPath: "test.md",
+		})
+		if sp.claudeProvider == nil {
+			t.Fatal("expected claudeProvider to be set via legacy Provider promotion")
+		}
+		if sp.claudeProvider.Name() != "legacy" {
+			t.Errorf("expected claudeProvider.Name() = %q, got %q", "legacy", sp.claudeProvider.Name())
+		}
+	})
+
+	t.Run("ClaudeProvider takes precedence over legacy Provider", func(t *testing.T) {
+		legacyProv := &mockTestProvider{name: "legacy"}
+		claudeProv := &mockTestProvider{name: "claude-explicit"}
+		sp := NewRealStageProvider(RealStageProviderConfig{
+			Provider:       legacyProv,
+			ClaudeProvider: claudeProv,
+			WorkDir:        t.TempDir(),
+			StoreDir:       t.TempDir(),
+			SpecPath:       "test.md",
+		})
+		if sp.claudeProvider == nil {
+			t.Fatal("expected claudeProvider to be set")
+		}
+		if sp.claudeProvider.Name() != "claude-explicit" {
+			t.Errorf("expected claudeProvider.Name() = %q, got %q", "claude-explicit", sp.claudeProvider.Name())
+		}
+	})
+}
+
+func TestBuildRouter_FallbackAdapter_Integration(t *testing.T) {
+	// Construct a real Router via buildRouter, wrap it in a FallbackAdapter,
+	// and invoke it with a mock provider that succeeds.
+	mockProv := &mockTestProvider{name: "claude"}
+	p := &RealStageProvider{
+		claudeProvider: mockProv,
+		codexProvider:  nil,
+	}
+	policy := execpolicy.DefaultPolicy()
+	policy.Routing.Ratio = map[string]int{"claude": 100}
+	policy.Routing.Preferences = map[string]string{"plan": "claude"}
+
+	router := p.buildRouter(policy)
+
+	adapter := llmadapter.NewFallbackAdapter(
+		router, "plan",
+		llmadapter.Config{Tier: "high"},
+		"high",
+	)
+
+	result, err := adapter.Invoke(context.Background(), "test prompt")
+	if err != nil {
+		t.Fatalf("FallbackAdapter.Invoke returned error: %v", err)
+	}
+	if result == nil {
+		t.Fatal("expected non-nil result")
+	}
+	if !result.Success {
+		t.Error("expected result.Success to be true")
+	}
+	if result.Output != "ok" {
+		t.Errorf("expected result.Output = %q, got %q", "ok", result.Output)
+	}
+}
+
+func TestIntegration_BuildStages_FallbackAdapter_RouterWiring(t *testing.T) {
+	// Build a real RealStageProvider with mock providers
+	claudeProv := &mockTestProvider{name: "claude"}
+	codexProv := &mockTestProvider{name: "codex"}
+	sp := NewRealStageProvider(RealStageProviderConfig{
+		ClaudeProvider: claudeProv,
+		CodexProvider:  codexProv,
+		WorkDir:        t.TempDir(),
+		StoreDir:       t.TempDir(),
+		SpecPath:       "test-spec.md",
+	})
+
+	policy := execpolicy.DefaultPolicy()
+	policy.Routing.Preferences = map[string]string{
+		"plan": "claude", "execute": "codex", "review": "any", "accept": "any",
+	}
+	policy.Routing.Ratio = map[string]int{"claude": 50, "codex": 50}
+
+	budget := specloop.NewBudget(policy.Budgets)
+	rs := runstore.NewRunState("test-spec", "test-project")
+	stages, err := sp.BuildStages(policy, rs, budget)
+	if err != nil {
+		t.Fatalf("BuildStages failed: %v", err)
+	}
+	if len(stages) == 0 {
+		t.Fatal("expected at least one stage from BuildStages")
+	}
+	// Verify 9 stages are returned (same as before — multi-provider doesn't change stage count)
+	if len(stages) != 9 {
+		t.Fatalf("expected 9 stages, got %d", len(stages))
 	}
 }

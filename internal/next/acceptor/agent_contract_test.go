@@ -72,3 +72,16 @@ func buildRealAcceptAgent(t *testing.T) AcceptAgent {
 	t.Helper()
 	return NewProviderAcceptAgent(llmadapter.ContractInvoker(t))
 }
+
+func TestContract_ProviderAcceptAgent_Codex(t *testing.T) {
+	if os.Getenv("GROMIT_LLM_CONTRACT") != "1" {
+		t.Skip("set GROMIT_LLM_CONTRACT=1 to run contract tests")
+	}
+	agent := buildRealAcceptAgentCodex(t)
+	RunAcceptAgentContract(t, agent)
+}
+
+func buildRealAcceptAgentCodex(t *testing.T) AcceptAgent {
+	t.Helper()
+	return NewProviderAcceptAgent(llmadapter.ContractCodexInvoker(t))
+}
