@@ -57,9 +57,7 @@ func (f *FallbackAdapter) resolvePrimary() ProviderAwareInvoker {
 		return nil
 	}
 	cfg := f.cfg
-	if cfg.Tier == "" {
-		cfg.Tier = f.tier
-	}
+	cfg.Tier = f.tier
 	return New(prov, cfg)
 }
 
@@ -104,9 +102,7 @@ func (f *FallbackAdapter) Invoke(ctx context.Context, prompt string) (*provider.
 			return result, fmt.Errorf("all providers exhausted after %s usage limit: %w", primaryName, err)
 		}
 		cfg := f.cfg
-		if cfg.Tier == "" {
-			cfg.Tier = f.tier
-		}
+		cfg.Tier = f.tier
 		fallback := New(fallbackProv, cfg)
 		fallbackResult, fallbackErr := fallback.Invoke(ctx, prompt)
 		if fallbackErr != nil {

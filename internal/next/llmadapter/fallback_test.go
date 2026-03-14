@@ -37,6 +37,7 @@ type mockRouter struct {
 	selectSequence        []mockSelectResult
 	selectIdx             int
 	markUnavailableCalled bool
+	markUnavailableName   string
 }
 
 func (m *mockRouter) Select(phase string, tier string) (provider.Provider, string) {
@@ -53,6 +54,7 @@ func (m *mockRouter) Select(phase string, tier string) (provider.Provider, strin
 
 func (m *mockRouter) MarkUnavailable(name string) {
 	m.markUnavailableCalled = true
+	m.markUnavailableName = name
 }
 
 func TestFallbackAdapter_NormalInvocation_NoFallback(t *testing.T) {
@@ -94,6 +96,9 @@ func TestFallbackAdapter_UsageLimit_FallsBackToRouter(t *testing.T) {
 	}
 	if !router.markUnavailableCalled {
 		t.Error("expected router.MarkUnavailable to be called")
+	}
+	if router.markUnavailableName != "claude" {
+		t.Errorf("expected MarkUnavailable('claude'), got %q", router.markUnavailableName)
 	}
 }
 
