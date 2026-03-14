@@ -219,6 +219,23 @@ func (p *RealStageProvider) BuildStages(policy execpolicy.Policy, rs *runstore.R
 	}, nil
 }
 
+// buildRouter constructs a provider.Router from the policy's routing config
+// and the provider fields on RealStageProvider.
+func (p *RealStageProvider) buildRouter(policy execpolicy.Policy) *provider.Router {
+	providers := map[string]provider.Provider{
+		"claude": p.claudeProvider,
+	}
+	if p.codexProvider != nil {
+		providers["codex"] = p.codexProvider
+	}
+
+	preferences := policy.Routing.Preferences
+	ratio := policy.Routing.Ratio
+	cooldown := time.Duration(policy.Routing.CooldownSeconds) * time.Second
+
+	return provider.NewRouter(providers, preferences, ratio, cooldown, p.stateFn, p.circuitBreaker)
+}
+
 // noopCompiler satisfies SpecCompiler with a no-op.
 type noopCompiler struct{}
 
