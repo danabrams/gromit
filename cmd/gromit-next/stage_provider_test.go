@@ -567,3 +567,36 @@ func TestRealStageProvider_BuildStages_MissingSpecFileIsNotError(t *testing.T) {
 		t.Fatalf("BuildStages should not fail for missing spec file, got: %v", err)
 	}
 }
+
+func TestIntegration_BuildStages_FallbackAdapter_RouterWiring(t *testing.T) {
+	// Build a real RealStageProvider with mock providers
+	claudeProv := &mockTestProvider{name: "claude"}
+	codexProv := &mockTestProvider{name: "codex"}
+	sp := NewRealStageProvider(RealStageProviderConfig{
+		ClaudeProvider: claudeProv,
+		CodexProvider:  codexProv,
+		WorkDir:        t.TempDir(),
+		StoreDir:       t.TempDir(),
+		SpecPath:       "test-spec.md",
+	})
+
+	policy := execpolicy.DefaultPolicy()
+	policy.Routing.Preferences = map[string]string{
+		"plan": "claude", "execute": "codex", "review": "any", "accept": "any",
+	}
+	policy.Routing.Ratio = map[string]int{"claude": 50, "codex": 50}
+
+	budget := specloop.NewBudget(policy.Budgets)
+	rs := runstore.NewRunState("test-spec", "test-project")
+	stages, err := sp.BuildStages(policy, rs, budget)
+	if err != nil {
+		t.Fatalf("BuildStages failed: %v", err)
+	}
+	if len(stages) == 0 {
+		t.Fatal("expected at least one stage from BuildStages")
+	}
+	// Verify 9 stages are returned (same as before — multi-provider doesn't change stage count)
+	if len(stages) != 9 {
+		t.Fatalf("expected 9 stages, got %d", len(stages))
+	}
+}
