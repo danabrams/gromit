@@ -8,6 +8,13 @@ import (
 	"github.com/danabrams/gromit/internal/next/llmadapter"
 )
 
+// validStatuses is the set of allowed CriterionResult.Status values.
+var validStatuses = map[string]bool{
+	StatusPass:    true,
+	StatusFail:    true,
+	StatusUnclear: true,
+}
+
 // Compile-time interface check.
 var _ AcceptAgent = (*ProviderAcceptAgent)(nil)
 
@@ -40,7 +47,19 @@ func ParseCriterionResult(output string) (CriterionResult, error) {
 	extracted := llmadapter.ExtractJSON(output)
 	var cr CriterionResult
 	if err := json.Unmarshal([]byte(extracted), &cr); err != nil {
-		return CriterionResult{}, fmt.Errorf("parsing criterion result: %w", err)
+		return CriterionResult{}, &ParseError{Msg: "parsing criterion result: " + err.Error()}
+	}
+	if cr.Criterion == "" {
+		return CriterionResult{}, &ParseError{Msg: "missing required field: criterion"}
+	}
+	if cr.Status == "" {
+		return CriterionResult{}, &ParseError{Msg: "missing required field: status"}
+	}
+	if !validStatuses[cr.Status] {
+		return CriterionResult{}, &ParseError{Msg: fmt.Sprintf("invalid status %q: must be pass, fail, or unclear", cr.Status)}
+	}
+	if cr.Rationale == "" {
+		return CriterionResult{}, &ParseError{Msg: "missing required field: rationale"}
 	}
 	cr.NormalizeNilFields()
 	return cr, nil

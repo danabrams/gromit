@@ -160,6 +160,25 @@ func TestProviderReviewAgent_MissingDescription(t *testing.T) {
 	}
 }
 
+func TestProviderReviewAgent_ReviewFacet_UnknownSeverity(t *testing.T) {
+	mock := &mockInvoker{
+		result: &provider.Result{
+			Output: `[{"severity":"major","file":"handler.go","description":"something wrong"}]`,
+		},
+	}
+
+	agent := NewProviderReviewAgent(mock)
+	_, err := agent.ReviewFacet(context.Background(), "quality", "check")
+
+	if err == nil {
+		t.Fatal("expected error for unknown severity, got nil")
+	}
+	var pe *ParseError
+	if !errors.As(err, &pe) {
+		t.Errorf("expected *ParseError, got %T: %v", err, err)
+	}
+}
+
 func TestProviderReviewAgent_InvokerErrorPropagated(t *testing.T) {
 	expectedErr := errors.New("provider unavailable")
 	mock := &mockInvoker{err: expectedErr}

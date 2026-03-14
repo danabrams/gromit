@@ -191,8 +191,8 @@ func TestRealStageProvider_BuildStages_SpecContentWiredIntoReviewAndAccept(t *te
 			if err != nil {
 				t.Fatalf("accept stage Run: %v", err)
 			}
-			if action.Kind != 0 { // 0 = Continue
-				t.Errorf("accept stage returned kind=%d, want Continue (0); SpecContent likely not wired", action.Kind)
+			if action.Kind != specloop.Continue {
+				t.Errorf("accept stage returned kind=%v, want Continue; SpecContent likely not wired", action.Kind)
 			}
 		}
 	}

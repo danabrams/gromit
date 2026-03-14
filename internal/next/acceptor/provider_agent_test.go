@@ -177,4 +177,52 @@ func TestParseCriterionResult_MalformedJSON(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for malformed JSON")
 	}
+	var pe *ParseError
+	if !errors.As(err, &pe) {
+		t.Errorf("expected *ParseError, got %T: %v", err, err)
+	}
+}
+
+func TestParseCriterionResult_InvalidStatus(t *testing.T) {
+	_, err := ParseCriterionResult(`{"criterion":"x","status":"bogus","rationale":"r"}`)
+	if err == nil {
+		t.Fatal("expected error for invalid status")
+	}
+	var pe *ParseError
+	if !errors.As(err, &pe) {
+		t.Errorf("expected *ParseError, got %T: %v", err, err)
+	}
+}
+
+func TestParseCriterionResult_EmptyStatus(t *testing.T) {
+	_, err := ParseCriterionResult(`{"criterion":"x","status":"","rationale":"r"}`)
+	if err == nil {
+		t.Fatal("expected error for empty status")
+	}
+	var pe *ParseError
+	if !errors.As(err, &pe) {
+		t.Errorf("expected *ParseError, got %T: %v", err, err)
+	}
+}
+
+func TestParseCriterionResult_EmptyCriterion(t *testing.T) {
+	_, err := ParseCriterionResult(`{"criterion":"","status":"pass","rationale":"r"}`)
+	if err == nil {
+		t.Fatal("expected error for empty criterion")
+	}
+	var pe *ParseError
+	if !errors.As(err, &pe) {
+		t.Errorf("expected *ParseError, got %T: %v", err, err)
+	}
+}
+
+func TestParseCriterionResult_EmptyRationale(t *testing.T) {
+	_, err := ParseCriterionResult(`{"criterion":"x","status":"pass","rationale":""}`)
+	if err == nil {
+		t.Fatal("expected error for empty rationale")
+	}
+	var pe *ParseError
+	if !errors.As(err, &pe) {
+		t.Errorf("expected *ParseError, got %T: %v", err, err)
+	}
 }

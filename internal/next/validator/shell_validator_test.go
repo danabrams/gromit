@@ -65,6 +65,21 @@ func TestShellValidator_FailingCheck(t *testing.T) {
 	}
 }
 
+func TestShellValidator_CancelledContext(t *testing.T) {
+	sv := validator.NewShellValidator(validator.NewRunner())
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	checks := []validator.Check{
+		{Name: "sleep", Command: "sleep 10", Type: "always"},
+	}
+	_, err := sv.RunFinal(ctx, checks, nil, t.TempDir())
+	if err == nil {
+		t.Fatal("expected error for cancelled context, got nil")
+	}
+}
+
 func TestShellValidator_EmptyChecks(t *testing.T) {
 	sv := validator.NewShellValidator(validator.NewRunner())
 

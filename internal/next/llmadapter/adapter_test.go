@@ -242,6 +242,60 @@ func TestInvokeStream_RespectsTimeout(t *testing.T) {
 	}
 }
 
+func TestInvokeStream_OnCostCalledOnErrorWithCost(t *testing.T) {
+	var captured float64
+	mp := &mockProvider{
+		name:      "test",
+		runResult: &provider.Result{Output: "partial", CostUSD: 0.03},
+		runErr:    errors.New("partial failure"),
+	}
+	adapter := New(mp, Config{
+		Tier:   "low",
+		OnCost: func(c float64) { captured = c },
+	})
+	_, err := adapter.InvokeStream(context.Background(), "prompt", io.Discard, nil, nil)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if captured != 0.03 {
+		t.Errorf("expected cost 0.03 even on error, got %f", captured)
+	}
+}
+
+func TestInvokeStream_NilResultOnError(t *testing.T) {
+	mp := &mockProvider{
+		name:      "test",
+		runResult: nil,
+		runErr:    errors.New("total failure"),
+	}
+	adapter := New(mp, Config{
+		Tier:   "low",
+		OnCost: func(c float64) { t.Fatal("OnCost should not be called when result is nil") },
+	})
+	result, err := adapter.InvokeStream(context.Background(), "prompt", io.Discard, nil, nil)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if result != nil {
+		t.Errorf("expected nil result, got %+v", result)
+	}
+}
+
+func TestInvoke_Timeout_ResultIsNil(t *testing.T) {
+	slowProvider := &slowMockProvider{delay: 5 * time.Second, result: &provider.Result{}}
+	adapter := New(slowProvider, Config{
+		Tier:    "low",
+		Timeout: 50 * time.Millisecond,
+	})
+	result, err := adapter.Invoke(context.Background(), "prompt")
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("expected DeadlineExceeded, got %v", err)
+	}
+	if result != nil {
+		t.Errorf("expected nil result on timeout, got %+v", result)
+	}
+}
+
 func TestLLMAdapter_SatisfiesInvoker(t *testing.T) {
 	var _ Invoker = (*LLMAdapter)(nil)
 }

@@ -88,7 +88,7 @@ func (p *RealStageProvider) BuildStages(policy execpolicy.Policy, rs *runstore.R
 			Tier:   policy.Models.Planner,
 			OnCost: func(cost float64) { budget.AddCost(cost) },
 		})
-		planAgent := planner.NewProviderPlanAgent(planAdapter)
+		planAgent := planner.NewProviderPlanAgent(planAdapter, policy.Models.Planner)
 		pl := planner.NewPlanner(planAgent, policy.Models.Planner)
 		planCreator = pl
 
@@ -125,7 +125,7 @@ func (p *RealStageProvider) BuildStages(policy execpolicy.Policy, rs *runstore.R
 
 		diffProv = &review.GitDiffProvider{WorkDir: p.cfg.WorkDir}
 
-		compiler = &noopCompiler{} // TODO(0002d): wire SpecCompilerAdapter with real ArtifactStore
+		compiler = &noopCompiler{} // TODO(0002c): Wire real SpecCompilerAdapter here. Deferred — requires ArtifactStore and cell resolution from project config, which needs CLI flag plumbing.
 	} else {
 		// Fallback to noops when no Provider is configured.
 		compiler = &noopCompiler{}

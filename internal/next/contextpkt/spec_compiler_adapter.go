@@ -4,7 +4,12 @@ import (
 	"context"
 	"fmt"
 	"strings"
+
+	"github.com/danabrams/gromit/internal/next/specloop/stages"
 )
+
+// Compile-time interface check: SpecCompilerAdapter must satisfy stages.SpecCompiler.
+var _ stages.SpecCompiler = (*SpecCompilerAdapter)(nil)
 
 // SpecCompilerAdapter adapts the contextpkt.Compiler interface to the
 // stages.SpecCompiler interface by capturing cell, level, and opts at

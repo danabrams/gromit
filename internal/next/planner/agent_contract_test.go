@@ -65,5 +65,5 @@ func TestContract_ProviderPlanAgent(t *testing.T) {
 
 func buildRealPlanAgent(t *testing.T) Agent {
 	t.Helper()
-	return NewProviderPlanAgent(llmadapter.ContractInvoker(t))
+	return NewProviderPlanAgent(llmadapter.ContractInvoker(t), "sonnet")
 }

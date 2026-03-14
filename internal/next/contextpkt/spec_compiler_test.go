@@ -6,11 +6,7 @@ import (
 	"testing"
 
 	"github.com/danabrams/gromit/internal/next/contextpkt"
-	"github.com/danabrams/gromit/internal/next/specloop/stages"
 )
-
-// Compile-time interface check: SpecCompilerAdapter must satisfy stages.SpecCompiler.
-var _ stages.SpecCompiler = (*contextpkt.SpecCompilerAdapter)(nil)
 
 // mockCompiler satisfies contextpkt.Compiler for testing.
 type mockCompiler struct {
@@ -108,6 +104,30 @@ func TestSpecCompilerAdapter_EmptySections(t *testing.T) {
 
 	if got != "" {
 		t.Errorf("expected empty string, got %q", got)
+	}
+}
+
+func TestSpecCompilerAdapter_NilSections(t *testing.T) {
+	mc := &mockCompiler{
+		packet: contextpkt.Packet{
+			Sections: nil,
+		},
+	}
+
+	adapter := contextpkt.NewSpecCompilerAdapter(
+		mc,
+		contextpkt.Cell{Name: "root", CellPath: "/tmp/cell"},
+		contextpkt.LevelSpec,
+		contextpkt.CompileOpts{SpecPath: "specs/001.md"},
+	)
+
+	got, err := adapter.Compile(context.Background())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if got != "" {
+		t.Errorf("expected empty string for nil sections, got %q", got)
 	}
 }
 

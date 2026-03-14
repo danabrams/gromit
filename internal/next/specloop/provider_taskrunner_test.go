@@ -230,6 +230,66 @@ func TestProviderTaskRunner_RepairTask_MapsResultCorrectly(t *testing.T) {
 	}
 }
 
+func TestProviderTaskRunner_RunTask_NilResult(t *testing.T) {
+	inv := &mockInvoker{
+		result: nil,
+		err:    nil,
+	}
+	runner := NewProviderTaskRunner(inv)
+	task := runstore.Task{TaskID: "t-nil-run", Objective: "should handle nil"}
+
+	result, err := runner.RunTask(context.Background(), task)
+	if err == nil {
+		t.Fatal("expected error for nil result, got nil")
+	}
+	if !strings.Contains(err.Error(), "nil result") {
+		t.Errorf("expected nil-result error message, got %q", err.Error())
+	}
+	// Zero-value TaskResult with initialized FilesChanged slice
+	if result.Status != "" {
+		t.Errorf("expected empty Status, got %q", result.Status)
+	}
+	if result.TokensUsed != 0 {
+		t.Errorf("expected TokensUsed=0, got %d", result.TokensUsed)
+	}
+	if result.FilesChanged == nil {
+		t.Error("expected non-nil FilesChanged slice")
+	}
+	if len(result.FilesChanged) != 0 {
+		t.Errorf("expected empty FilesChanged, got %v", result.FilesChanged)
+	}
+}
+
+func TestProviderTaskRunner_RepairTask_NilResult(t *testing.T) {
+	inv := &mockInvoker{
+		result: nil,
+		err:    nil,
+	}
+	runner := NewProviderTaskRunner(inv)
+	task := runstore.Task{TaskID: "t-nil-repair", Objective: "should handle nil"}
+
+	result, err := runner.RepairTask(context.Background(), task, []string{"some failure"})
+	if err == nil {
+		t.Fatal("expected error for nil result, got nil")
+	}
+	if !strings.Contains(err.Error(), "nil result") {
+		t.Errorf("expected nil-result error message, got %q", err.Error())
+	}
+	// Zero-value TaskResult with initialized FilesChanged slice
+	if result.Status != "" {
+		t.Errorf("expected empty Status, got %q", result.Status)
+	}
+	if result.TokensUsed != 0 {
+		t.Errorf("expected TokensUsed=0, got %d", result.TokensUsed)
+	}
+	if result.FilesChanged == nil {
+		t.Error("expected non-nil FilesChanged slice")
+	}
+	if len(result.FilesChanged) != 0 {
+		t.Errorf("expected empty FilesChanged, got %v", result.FilesChanged)
+	}
+}
+
 func TestProviderTaskRunner_RunTask_ContextCancelled(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()

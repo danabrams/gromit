@@ -1,8 +1,12 @@
 package planner
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"log"
+	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -34,7 +38,7 @@ func TestProviderPlanAgent_SuccessfulInvocation(t *testing.T) {
 		},
 	}
 
-	agent := NewProviderPlanAgent(mock)
+	agent := NewProviderPlanAgent(mock, "sonnet")
 	result, err := agent.Invoke(context.Background(), "generate a plan", "high")
 
 	if err != nil {
@@ -67,7 +71,7 @@ func TestProviderPlanAgent_ErrorPropagation(t *testing.T) {
 	expectedErr := errors.New("provider unavailable")
 	mock := &mockInvoker{err: expectedErr}
 
-	agent := NewProviderPlanAgent(mock)
+	agent := NewProviderPlanAgent(mock, "sonnet")
 	_, err := agent.Invoke(context.Background(), "some prompt", "medium")
 
 	if err == nil {
@@ -78,7 +82,7 @@ func TestProviderPlanAgent_ErrorPropagation(t *testing.T) {
 	}
 }
 
-func TestProviderPlanAgent_TierIgnored(t *testing.T) {
+func TestProviderPlanAgent_TierMismatchLogsOnce(t *testing.T) {
 	mock := &mockInvoker{
 		result: &provider.Result{
 			Output:       "output",
@@ -90,22 +94,73 @@ func TestProviderPlanAgent_TierIgnored(t *testing.T) {
 		},
 	}
 
-	agent := NewProviderPlanAgent(mock)
-	prompt := "same prompt"
+	// Capture log output.
+	var buf bytes.Buffer
+	log.SetOutput(&buf)
+	defer log.SetOutput(os.Stderr)
+	log.SetFlags(0)
 
-	// Call with different tiers — invoker should receive the same prompt regardless.
-	for _, tier := range []string{"low", "medium", "high", "xhigh", ""} {
-		mock.calledWithPrompt = ""
-		result, err := agent.Invoke(context.Background(), prompt, tier)
-		if err != nil {
-			t.Fatalf("tier=%q: unexpected error: %v", tier, err)
-		}
-		if mock.calledWithPrompt != prompt {
-			t.Errorf("tier=%q: invoker received prompt %q, want %q", tier, mock.calledWithPrompt, prompt)
-		}
-		if result.Output != "output" {
-			t.Errorf("tier=%q: Output = %q, want %q", tier, result.Output, "output")
-		}
+	agent := NewProviderPlanAgent(mock, "sonnet")
+
+	// Matching tier — no warning expected.
+	_, err := agent.Invoke(context.Background(), "p1", "sonnet")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if buf.Len() != 0 {
+		t.Errorf("expected no log for matching tier, got %q", buf.String())
+	}
+
+	// Mismatched tier — warning expected.
+	_, err = agent.Invoke(context.Background(), "p2", "opus")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	logged := buf.String()
+	if !strings.Contains(logged, "tier mismatch") {
+		t.Errorf("expected tier mismatch log, got %q", logged)
+	}
+	if !strings.Contains(logged, `"opus"`) || !strings.Contains(logged, `"sonnet"`) {
+		t.Errorf("expected log to mention both tiers, got %q", logged)
+	}
+
+	// Second mismatch — should NOT log again (sync.Once).
+	buf.Reset()
+	_, err = agent.Invoke(context.Background(), "p3", "haiku")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if buf.Len() != 0 {
+		t.Errorf("expected no second log (sync.Once), got %q", buf.String())
+	}
+}
+
+func TestProviderPlanAgent_EmptyTierNoWarning(t *testing.T) {
+	mock := &mockInvoker{
+		result: &provider.Result{
+			Output:       "output",
+			InputTokens:  10,
+			OutputTokens: 5,
+			CostUSD:      0.001,
+			Model:        "sonnet",
+			Duration:     100 * time.Millisecond,
+		},
+	}
+
+	var buf bytes.Buffer
+	log.SetOutput(&buf)
+	defer log.SetOutput(os.Stderr)
+	log.SetFlags(0)
+
+	agent := NewProviderPlanAgent(mock, "sonnet")
+
+	// Empty tier should never trigger a warning.
+	_, err := agent.Invoke(context.Background(), "p", "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if buf.Len() != 0 {
+		t.Errorf("expected no log for empty tier, got %q", buf.String())
 	}
 }
 
@@ -123,7 +178,7 @@ func TestProviderPlanAgent_PartialResultPreservedOnError(t *testing.T) {
 		err: expectedErr,
 	}
 
-	agent := NewProviderPlanAgent(mock)
+	agent := NewProviderPlanAgent(mock, "sonnet")
 	result, err := agent.Invoke(context.Background(), "generate a plan", "high")
 
 	if !errors.Is(err, expectedErr) {
@@ -152,7 +207,7 @@ func TestProviderPlanAgent_NilResultReturnsError(t *testing.T) {
 		err:    nil,
 	}
 
-	agent := NewProviderPlanAgent(mock)
+	agent := NewProviderPlanAgent(mock, "sonnet")
 	_, err := agent.Invoke(context.Background(), "generate a plan", "high")
 
 	if err == nil {
@@ -172,7 +227,7 @@ func TestProviderPlanAgent_Invoke_ContextCancelled(t *testing.T) {
 		err:    context.Canceled,
 	}
 
-	agent := NewProviderPlanAgent(mock)
+	agent := NewProviderPlanAgent(mock, "sonnet")
 	_, err := agent.Invoke(ctx, "generate a plan", "high")
 
 	if err == nil {
