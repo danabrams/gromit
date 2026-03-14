@@ -15,7 +15,7 @@ import (
 // It uses the cheapest tier (haiku) with a 2-minute timeout.
 func ContractInvoker(t *testing.T) Invoker {
 	t.Helper()
-	client, err := claude.NewClient("claude", []string{"--no-input"}, 120)
+	client, err := claude.NewClient("claude", []string{"--dangerously-skip-permissions"}, 120)
 	if err != nil {
 		t.Fatalf("failed to create claude client: %v", err)
 	}

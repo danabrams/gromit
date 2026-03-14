@@ -193,6 +193,9 @@ func buildPlanPrompt(req PlanRequest) string {
 	}
 
 	b.WriteString("Respond with a JSON object containing spec_id, cycle, kind, and tasks array.\n")
+	b.WriteString("kind must be \"original\" (not \"implementation\" or any other value).\n")
+	b.WriteString("task_id must use the format \"t-NNN\" (e.g. \"t-001\", \"t-002\").\n")
+	b.WriteString("expected_touched_area must be an array of strings (e.g. [\"calc/calc.go\"]).\n")
 	b.WriteString("Each task needs: task_id, objective, expected_touched_area, proof_checks.\n")
 	return b.String()
 }

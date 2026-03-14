@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"time"
 
 	"github.com/danabrams/gromit/internal/next/acceptor"
@@ -153,8 +154,9 @@ func (p *RealStageProvider) BuildStages(policy execpolicy.Policy, rs *runstore.R
 
 		diffProv = &review.GitDiffProvider{WorkDir: p.cfg.WorkDir}
 
-		// TODO: Wire real SpecCompilerAdapter here (blocked on ArtifactStore, cell resolution, level selection)
-		compiler = &noopCompiler{}
+		// TODO: Wire real SpecCompilerAdapter here (blocked on ArtifactStore, cell resolution, level selection).
+		// For now, pass-through the raw spec file as the spec packet.
+		compiler = &passthruCompiler{specPath: p.cfg.SpecPath}
 	} else {
 		// Fallback to noops when no Provider is configured.
 		compiler = &noopCompiler{}
@@ -248,6 +250,20 @@ func (n *noopCompiler) Compile(_ context.Context) (string, error) {
 	return "noop spec packet", nil
 }
 
+// passthruCompiler reads the spec file and returns its content as the spec packet.
+// This is a temporary stand-in until the real SpecCompilerAdapter is wired.
+type passthruCompiler struct {
+	specPath string
+}
+
+func (c *passthruCompiler) Compile(_ context.Context) (string, error) {
+	data, err := os.ReadFile(c.specPath)
+	if err != nil {
+		return "", fmt.Errorf("read spec file: %w", err)
+	}
+	return string(data), nil
+}
+
 // noopPlanCreator satisfies PlanCreator with a no-op.
 type noopPlanCreator struct{}
 
@@ -266,15 +282,22 @@ func (n *noopTaskRunner) RepairTask(_ context.Context, task runstore.Task, _ []s
 	return specloop.TaskResult{Status: "done"}, nil
 }
 
-// noopGitOps satisfies GitOps with a no-op that uses a temp directory as worktree.
+// noopGitOps satisfies GitOps with a copy-based worktree (no real git worktree).
+// It copies the repo directory into a temp dir so the executor can work with
+// real files. This is a stand-in until real git worktree support is wired.
 type noopGitOps struct {
 	workDir string
 }
 
-func (n *noopGitOps) CreateWorktree(_, _ string) (string, error) {
+func (n *noopGitOps) CreateWorktree(repoDir, _ string) (string, error) {
 	dir, err := os.MkdirTemp("", "gromit-noop-worktree-*")
 	if err != nil {
 		return "", err
+	}
+	// Copy repo contents so the executor has real files to work with.
+	cmd := exec.Command("cp", "-a", repoDir+"/.", dir)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return "", fmt.Errorf("copy repo to worktree: %s: %w", string(out), err)
 	}
 	return dir, nil
 }

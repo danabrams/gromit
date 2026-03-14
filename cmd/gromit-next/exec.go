@@ -7,10 +7,12 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/danabrams/gromit/internal/claude"
 	"github.com/danabrams/gromit/internal/next/execpolicy"
 	"github.com/danabrams/gromit/internal/next/runstore"
 	"github.com/danabrams/gromit/internal/next/specloop"
 	"github.com/danabrams/gromit/internal/next/workspace"
+	providerPkg "github.com/danabrams/gromit/internal/provider"
 	"github.com/spf13/cobra"
 )
 
@@ -152,14 +154,21 @@ func newExecSpecCmdWithProvider(provider StageProvider) *cobra.Command {
 			p := provider
 			if p == nil {
 				workDir, _ := os.Getwd()
-				// TODO(0002d): Wire real providers here once CLI flag plumbing
-				// for provider selection is complete. For now, ClaudeProvider
-				// is nil so BuildStages falls through to noop or legacy path.
+				claudeClient, err := claude.NewClient("claude", []string{"--dangerously-skip-permissions"}, 300)
+				if err != nil {
+					return fmt.Errorf("create claude client: %w", err)
+				}
+				claudeProv := providerPkg.NewClaudeProvider(claudeClient, map[string]string{
+					"low":    "haiku",
+					"medium": "sonnet",
+					"high":   "sonnet",
+				})
 				p = NewRealStageProvider(RealStageProviderConfig{
-					WorkDir:    workDir,
-					StoreDir:   storeDir,
-					SpecPath:   specPath,
-					PolicyPath: policyPath,
+					WorkDir:        workDir,
+					StoreDir:       storeDir,
+					SpecPath:       specPath,
+					PolicyPath:     policyPath,
+					ClaudeProvider: claudeProv,
 				})
 			}
 
