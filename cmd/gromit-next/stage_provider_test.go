@@ -498,6 +498,40 @@ func TestNewRealStageProvider_AcceptsProviderFields(t *testing.T) {
 	}
 }
 
+func TestBuildRouter_ReturnsConfiguredRouter(t *testing.T) {
+	p := &RealStageProvider{
+		claudeProvider: &mockTestProvider{name: "claude"},
+		codexProvider:  &mockTestProvider{name: "codex"},
+		stateFn:        nil,
+		circuitBreaker: nil,
+	}
+	policy := execpolicy.DefaultPolicy()
+	policy.Routing.Ratio = map[string]int{"claude": 70, "codex": 30}
+	router := p.buildRouter(policy)
+	// Router should be non-nil and usable
+	prov, _ := router.Select("plan", "high")
+	if prov == nil {
+		t.Fatal("expected router to return a provider")
+	}
+}
+
+func TestBuildRouter_NilCodexProvider_SingleProviderMode(t *testing.T) {
+	p := &RealStageProvider{
+		claudeProvider: &mockTestProvider{name: "claude"},
+		codexProvider:  nil, // single-provider mode
+	}
+	policy := execpolicy.DefaultPolicy()
+	policy.Routing.Ratio = map[string]int{"claude": 100}
+	router := p.buildRouter(policy)
+	prov, _ := router.Select("plan", "high")
+	if prov == nil {
+		t.Fatal("expected claude provider in single-provider mode")
+	}
+	if prov.Name() != "claude" {
+		t.Errorf("expected claude, got %q", prov.Name())
+	}
+}
+
 func TestRealStageProvider_BuildStages_MissingSpecFileIsNotError(t *testing.T) {
 	policy := execpolicy.DefaultPolicy()
 	rs := runstore.NewRunState("test-spec", "test-project")
