@@ -223,6 +223,9 @@ func (b *Bundler) WriteAcceptanceResults(result acceptor.AcceptanceResult) error
 }
 
 func (b *Bundler) writeJSON(name string, v any) error {
+	if err := os.MkdirAll(b.dir, 0o755); err != nil {
+		return fmt.Errorf("create evidence dir: %w", err)
+	}
 	data, err := json.MarshalIndent(v, "", "  ")
 	if err != nil {
 		return err

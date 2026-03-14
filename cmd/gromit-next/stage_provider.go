@@ -107,11 +107,12 @@ func (p *RealStageProvider) BuildStages(policy execpolicy.Policy, rs *runstore.R
 	if p.claudeProvider != nil {
 		router := p.buildRouter(policy)
 		costCallback := func(c float64) { budget.AddCost(c) }
+		invocationCallback := func(r runstore.InvocationRecord) { budget.AddInvocation(r) }
 
 		// Plan adapter with FallbackAdapter for lazy provider selection.
 		planAdapter := llmadapter.NewFallbackAdapter(
 			router, "plan",
-			llmadapter.Config{Tier: policy.Models.Planner, OnCost: costCallback},
+			llmadapter.Config{Tier: policy.Models.Planner, OnCost: costCallback, OnInvocation: invocationCallback},
 			policy.Models.Planner,
 		)
 		planAgent := planner.NewProviderPlanAgent(planAdapter, policy.Models.Planner)
@@ -121,9 +122,10 @@ func (p *RealStageProvider) BuildStages(policy execpolicy.Policy, rs *runstore.R
 		// Execute adapter: OnCost is intentionally nil to avoid double-counting.
 		// RunTaskLoop already calls Budget.AddCost(result.Cost) after each task,
 		// so wiring OnCost here would count execution costs twice.
+		// OnInvocation has no such double-counting risk and is wired normally.
 		execAdapter := llmadapter.NewFallbackAdapter(
 			router, "execute",
-			llmadapter.Config{Tier: policy.Models.Executor},
+			llmadapter.Config{Tier: policy.Models.Executor, OnInvocation: invocationCallback},
 			policy.Models.Executor,
 		)
 		taskRunner = specloop.NewProviderTaskRunner(execAdapter, p.cfg.WorkDir)
@@ -133,7 +135,7 @@ func (p *RealStageProvider) BuildStages(policy execpolicy.Policy, rs *runstore.R
 		// Review adapter with FallbackAdapter.
 		reviewAdapter := llmadapter.NewFallbackAdapter(
 			router, "review",
-			llmadapter.Config{Tier: policy.Models.Evaluator, OnCost: costCallback},
+			llmadapter.Config{Tier: policy.Models.Evaluator, OnCost: costCallback, OnInvocation: invocationCallback},
 			policy.Models.Evaluator,
 		)
 		reviewAgent := review.NewProviderReviewAgent(reviewAdapter)
@@ -146,13 +148,13 @@ func (p *RealStageProvider) BuildStages(policy execpolicy.Policy, rs *runstore.R
 		// Accept adapter with FallbackAdapter.
 		acceptAdapter := llmadapter.NewFallbackAdapter(
 			router, "accept",
-			llmadapter.Config{Tier: policy.Models.Evaluator, OnCost: costCallback},
+			llmadapter.Config{Tier: policy.Models.Evaluator, OnCost: costCallback, OnInvocation: invocationCallback},
 			policy.Models.Evaluator,
 		)
 		acceptAgent := acceptor.NewProviderAcceptAgent(acceptAdapter)
 		acceptEval = acceptor.NewEvaluator(acceptAgent)
 
-		diffProv = &review.GitDiffProvider{WorkDir: p.cfg.WorkDir}
+		diffProv = &lazyDiffProvider{rs: rs, fallbackDir: p.cfg.WorkDir}
 
 		// TODO: Wire real SpecCompilerAdapter here (blocked on ArtifactStore, cell resolution, level selection).
 		// For now, pass-through the raw spec file as the spec packet.
@@ -191,8 +193,11 @@ func (p *RealStageProvider) BuildStages(policy execpolicy.Policy, rs *runstore.R
 		WorkDir:   p.cfg.WorkDir,
 	}, nil)
 
+	evidenceDir := store.RunEvidenceDir(rs.RunID)
+
 	reviewStage := stages.NewReviewStage(reviewRunner, stages.ReviewStageConfig{
 		SpecContent:  string(specContent),
+		EvidenceDir:  evidenceDir,
 		DiffProvider: diffProv,
 		BaseBranch:   "main",
 		DefaultTier:  policy.Models.Evaluator,
@@ -201,15 +206,17 @@ func (p *RealStageProvider) BuildStages(policy execpolicy.Policy, rs *runstore.R
 
 	acceptStage := stages.NewAcceptStage(acceptEval, stages.AcceptStageConfig{
 		SpecContent:  string(specContent),
+		EvidenceDir:  evidenceDir,
 		DiffProvider: diffProv,
 		BaseBranch:   "main",
 		Tier:         policy.Models.Evaluator,
 	}, nil)
 
 	evidenceStage := stages.NewEvidenceStage(store, stages.EvidenceStageConfig{
-		DiffProvider: diffProv,
-		BaseBranch:   "main",
-		StartTime:    time.Now(),
+		DiffProvider:     diffProv,
+		BaseBranch:       "main",
+		StartTime:        time.Now(),
+		InvocationSource: budget,
 	})
 
 	finalizeStage := stages.NewFinalizeStage(gitOps, store, nil)
@@ -328,6 +335,27 @@ type noopDiffProvider struct{}
 
 func (n *noopDiffProvider) Diff(_ string) (string, error) {
 	return "", nil
+}
+
+// lazyDiffProvider resolves WorkDir at call time from RunState.WorktreePath,
+// falling back to the original WorkDir. Currently the executor runs in the
+// original WorkDir (noopGitOps copies files but doesn't redirect execution),
+// so we prefer fallbackDir until real git worktree support redirects execution
+// into WorktreePath.
+type lazyDiffProvider struct {
+	rs          *runstore.RunState
+	fallbackDir string
+}
+
+func (l *lazyDiffProvider) Diff(baseBranch string) (string, error) {
+	// Prefer fallbackDir (where the executor actually runs) over WorktreePath
+	// (the noopGitOps copy that never gets modified). When real git worktrees
+	// are wired and execution happens in WorktreePath, swap priority here.
+	dir := l.fallbackDir
+	if dir == "" {
+		dir = l.rs.WorktreePath
+	}
+	return (&review.GitDiffProvider{WorkDir: dir}).Diff(baseBranch)
 }
 
 // noopAcceptEvaluator satisfies AcceptEvaluator with a no-op.
