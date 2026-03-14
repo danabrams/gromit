@@ -370,6 +370,24 @@ func TestValidate_RejectsEmptyReviewFacets(t *testing.T) {
 	}
 }
 
+func TestPolicy_Validate_RoutingRatioSumsTo100(t *testing.T) {
+	p := DefaultPolicy()
+	p.Routing.Ratio = map[string]int{"claude": 70, "codex": 20}
+	err := p.Validate()
+	if err == nil || !strings.Contains(err.Error(), "sum to 100") {
+		t.Errorf("expected ratio sum validation error, got %v", err)
+	}
+}
+
+func TestPolicy_Validate_RoutingRatioValid(t *testing.T) {
+	p := DefaultPolicy()
+	p.Routing.Ratio = map[string]int{"claude": 70, "codex": 30}
+	err := p.Validate()
+	if err != nil {
+		t.Errorf("expected no error for valid ratio, got %v", err)
+	}
+}
+
 func TestValidate_RejectsEmptyCheckNameAndCommand(t *testing.T) {
 	p := DefaultPolicy()
 	p.AlwaysRun = []Check{
