@@ -271,6 +271,36 @@ func TestPlanStage_FixCycle_TasksAreAppended(t *testing.T) {
 	}
 }
 
+func TestPlanStage_SpecConstraintsCopiedToTasks(t *testing.T) {
+	tmp := t.TempDir()
+	store := runstore.NewStore(tmp)
+	rs := runstore.NewRunState("spec-001", "proj-001")
+	rs.SpecConstraints = "## Out-of-Scope\n- Do NOT modify existing tests"
+	runDir := store.RunDir(rs.RunID)
+	os.MkdirAll(runDir, 0o755)
+	os.WriteFile(filepath.Join(runDir, "spec-packet.md"), []byte("spec content"), 0o644)
+
+	fp := &fakePlanner{plans: []planner.Plan{validPlan()}}
+	stage := NewPlanStage(fp, store, nil)
+
+	action, err := stage.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if action.Kind != specloop.Continue {
+		t.Fatalf("expected Continue, got %v", action.Kind)
+	}
+	if len(rs.Tasks) == 0 {
+		t.Fatal("expected tasks to be created")
+	}
+	for _, task := range rs.Tasks {
+		if task.SpecConstraints != rs.SpecConstraints {
+			t.Fatalf("task %q: expected SpecConstraints %q, got %q",
+				task.TaskID, rs.SpecConstraints, task.SpecConstraints)
+		}
+	}
+}
+
 func TestPlanStage_FixCycle_UsesCreatePlanWhenNoFixPlanner(t *testing.T) {
 	tmp := t.TempDir()
 	store := runstore.NewStore(tmp)
@@ -305,5 +335,134 @@ func TestPlanStage_FixCycle_UsesCreatePlanWhenNoFixPlanner(t *testing.T) {
 	}
 	if rs.Tasks[0].TaskID != "t-001" {
 		t.Fatalf("expected first task preserved, got %q", rs.Tasks[0].TaskID)
+	}
+}
+
+func TestFilterForbiddenFixTasks_RemovesTestFileTasks(t *testing.T) {
+	tasks := []planner.TaskDef{
+		{TaskID: "t-002", Objective: "fix test", ExpectedTouchedArea: []string{"calc/divide_test.go"}, ProofChecks: []string{"go test ./..."}},
+		{TaskID: "t-003", Objective: "fix impl", ExpectedTouchedArea: []string{"calc/calc.go"}, ProofChecks: []string{"go test ./..."}},
+	}
+	constraints := "## Out-of-Scope\n- Do NOT modify any existing test files\n"
+	result := filterForbiddenFixTasks(tasks, constraints)
+	if len(result) != 1 {
+		t.Fatalf("expected 1 task after filtering, got %d", len(result))
+	}
+	if result[0].TaskID != "t-003" {
+		t.Fatalf("expected t-003 to survive, got %q", result[0].TaskID)
+	}
+}
+
+func TestFilterForbiddenFixTasks_AllFilteredWhenAllTargetTestFiles(t *testing.T) {
+	tasks := []planner.TaskDef{
+		{TaskID: "t-002", Objective: "fix test", ExpectedTouchedArea: []string{"calc/divide_test.go"}, ProofChecks: []string{"go test ./..."}},
+	}
+	constraints := "## Out-of-Scope\n- Do NOT modify any existing test files\n"
+	result := filterForbiddenFixTasks(tasks, constraints)
+	if len(result) != 0 {
+		t.Fatalf("expected 0 tasks after filtering, got %d", len(result))
+	}
+}
+
+func TestFilterForbiddenFixTasks_NoConstraint_PassesThrough(t *testing.T) {
+	tasks := []planner.TaskDef{
+		{TaskID: "t-002", Objective: "fix test", ExpectedTouchedArea: []string{"calc/divide_test.go"}, ProofChecks: []string{"go test ./..."}},
+	}
+	result := filterForbiddenFixTasks(tasks, "")
+	if len(result) != 1 {
+		t.Fatalf("expected task to pass through when no constraints, got %d tasks", len(result))
+	}
+}
+
+func TestPlanStage_FixCycle_CreateFixPlanErrorReturnsContinue(t *testing.T) {
+	dir := t.TempDir()
+	store := runstore.NewStore(dir)
+	rs := &runstore.RunState{RunID: "run-x", Cycle: 2, ReplanContext: []string{"unit-tests: TestAdd failed"}}
+	rs.SpecConstraints = "## Out-of-Scope\n- Do NOT modify any existing test files\n"
+	rs.Tasks = []runstore.Task{{TaskID: "t-001", Status: "done"}}
+	_ = os.MkdirAll(store.RunDir(rs.RunID), 0o755)
+	_ = os.WriteFile(filepath.Join(store.RunDir(rs.RunID), "spec-packet.md"), []byte("spec"), 0o644)
+
+	// Fix planner returns an error (e.g. LLM couldn't produce valid plan after retries)
+	stage := NewPlanStage(nil, store, nil)
+	stage.SetFixPlanner(&fakeFixPlanner{
+		errs: []error{errors.New("fix plan generation failed after 2 attempts: plan validation failed: task t-002: missing expected_touched_area")},
+	})
+
+	action, err := stage.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if action.Kind != specloop.Continue {
+		t.Fatalf("expected Continue when CreateFixPlan errors, got %v", action.Kind)
+	}
+	if len(rs.Tasks) != 1 {
+		t.Fatalf("expected 1 task (no new tasks added), got %d", len(rs.Tasks))
+	}
+}
+
+func TestPlanStage_FixCycle_InvalidPlanAfterRetriesReturnsContinue(t *testing.T) {
+	dir := t.TempDir()
+	store := runstore.NewStore(dir)
+	rs := &runstore.RunState{RunID: "run-x", Cycle: 2, ReplanContext: []string{"unit-tests: TestAdd failed"}}
+	rs.SpecConstraints = "## Out-of-Scope\n- Do NOT modify any existing test files\n"
+	rs.Tasks = []runstore.Task{{TaskID: "t-001", Status: "done"}}
+	_ = os.MkdirAll(store.RunDir(rs.RunID), 0o755)
+	_ = os.WriteFile(filepath.Join(store.RunDir(rs.RunID), "spec-packet.md"), []byte("spec"), 0o644)
+
+	// Fix planner returns a structurally invalid plan (missing expected_touched_area) on both attempts
+	invalidPlan := planner.Plan{
+		Kind:  "fix",
+		Cycle: 2,
+		Tasks: []planner.TaskDef{
+			{TaskID: "t-002", Objective: "fix something", ProofChecks: []string{"go test ./..."}},
+			// ExpectedTouchedArea intentionally omitted — ValidatePlan will reject this
+		},
+	}
+	stage := NewPlanStage(nil, store, nil)
+	stage.SetFixPlanner(&fakeFixPlanner{plans: []planner.Plan{invalidPlan, invalidPlan}})
+
+	action, err := stage.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if action.Kind != specloop.Continue {
+		t.Fatalf("expected Continue when fix plan tasks are invalid after retries, got %v", action.Kind)
+	}
+	if len(rs.Tasks) != 1 {
+		t.Fatalf("expected 1 task (no new tasks added), got %d", len(rs.Tasks))
+	}
+}
+
+func TestPlanStage_FixCycle_AllTasksFilteredReturnsContinue(t *testing.T) {
+	dir := t.TempDir()
+	store := runstore.NewStore(dir)
+	rs := &runstore.RunState{RunID: "run-x", Cycle: 2, ReplanContext: []string{"unit-tests: format %d"}}
+	rs.SpecConstraints = "## Out-of-Scope\n- Do NOT modify any existing test files\n"
+	rs.Tasks = []runstore.Task{{TaskID: "t-001", Status: "done"}}
+	_ = os.MkdirAll(store.RunDir(rs.RunID), 0o755)
+	_ = os.WriteFile(filepath.Join(store.RunDir(rs.RunID), "spec-packet.md"), []byte("spec"), 0o644)
+
+	// Fix planner returns a plan that ONLY targets test files (will be filtered out)
+	fixPlan := planner.Plan{
+		Kind:  "fix",
+		Cycle: 2,
+		Tasks: []planner.TaskDef{
+			{TaskID: "t-002", Objective: "fix test file", ExpectedTouchedArea: []string{"calc/divide_test.go"}, ProofChecks: []string{"go test ./..."}},
+		},
+	}
+	stage := NewPlanStage(nil, store, nil)
+	stage.SetFixPlanner(&fakeFixPlanner{plans: []planner.Plan{fixPlan}})
+
+	action, err := stage.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if action.Kind != specloop.Continue {
+		t.Fatalf("expected Continue when all fix tasks filtered, got %v", action.Kind)
+	}
+	// No new tasks should have been added
+	if len(rs.Tasks) != 1 {
+		t.Fatalf("expected 1 task (no new tasks added), got %d", len(rs.Tasks))
 	}
 }

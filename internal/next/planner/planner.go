@@ -77,12 +77,14 @@ type CompletedTask struct {
 
 // FixPlanRequest contains everything needed to generate a fix plan.
 type FixPlanRequest struct {
-	OriginalPlan   Plan            `json:"original_plan"`
-	CompletedTasks []CompletedTask `json:"completed_tasks"`
-	Failures       []string        `json:"failures"`
-	CurrentDiff    string          `json:"current_diff"`
-	Cycle          int             `json:"cycle"`
-	PriorMaxTaskID string          `json:"prior_max_task_id,omitempty"` // e.g. "t-004"; if set, fix plan task IDs must be greater
+	OriginalPlan    Plan            `json:"original_plan"`
+	CompletedTasks  []CompletedTask `json:"completed_tasks"`
+	Failures        []string        `json:"failures"`
+	CurrentDiff     string          `json:"current_diff"`
+	Cycle           int             `json:"cycle"`
+	PriorMaxTaskID  string          `json:"prior_max_task_id,omitempty"` // e.g. "t-004"; if set, fix plan task IDs must be greater
+	SpecConstraints string          `json:"spec_constraints,omitempty"`  // Out-of-Scope + Architectural Constraints from spec.md
+	SpecPacket      string          `json:"spec_packet,omitempty"`       // full spec packet for context (requirements, scope, acceptance criteria)
 }
 
 // CreateFixPlan invokes the agent to produce a fix plan addressing failures.
@@ -126,6 +128,24 @@ func buildFixPlanPrompt(req FixPlanRequest) string {
 	b.WriteString(fmt.Sprintf("Tasks in original plan: %d\n\n", len(req.OriginalPlan.Tasks)))
 
 	b.WriteString(fmt.Sprintf("## Fix Cycle: %d\n\n", req.Cycle))
+
+	if req.SpecPacket != "" {
+		b.WriteString("## Spec (Original Requirements)\n")
+		b.WriteString("Fix tasks MUST comply with these requirements. Do NOT produce changes that violate the In-Scope or Acceptance Criteria.\n\n")
+		b.WriteString(req.SpecPacket)
+		b.WriteString("\n\n")
+	}
+
+	if req.SpecConstraints != "" {
+		b.WriteString("## HARD REQUIREMENTS — Spec Constraints\n")
+		b.WriteString("These constraints are ABSOLUTE and cannot be overridden by any failure or review finding.\n")
+		b.WriteString("'Modify' includes editing, deleting, renaming, or moving a file.\n")
+		b.WriteString("CRITICAL: If the ONLY way to fix a failure is by violating a constraint (e.g., modifying a forbidden test file),\n")
+		b.WriteString("then do NOT create a fix task for that failure at all. Leave it unfixed.\n")
+		b.WriteString("It is BETTER to exhaust cycles and hand off to a human than to violate a spec constraint.\n\n")
+		b.WriteString(req.SpecConstraints)
+		b.WriteString("\n\n")
+	}
 
 	if len(req.CompletedTasks) > 0 {
 		b.WriteString("## Completed Tasks\n")
@@ -179,7 +199,9 @@ func buildFixPlanPrompt(req FixPlanRequest) string {
 	b.WriteString("- Do NOT replan or recreate original tasks — do not re-include work that already completed successfully.\n")
 	b.WriteString("- Create ONLY surgical fix tasks that address the specific failures and review findings listed above.\n")
 	b.WriteString("- Each fix task objective must reference which failure(s) or review finding(s) it addresses.\n")
-	b.WriteString("- Only touch files that are relevant to the listed issues.\n\n")
+	b.WriteString("- Only touch files that are relevant to the listed issues.\n")
+	b.WriteString("- NEVER create tasks that touch files prohibited by spec constraints (e.g., existing test files if the spec says not to modify them).\n")
+	b.WriteString("- If a failure can ONLY be fixed by modifying a prohibited file, skip that failure entirely — do not create a task for it.\n\n")
 
 	b.WriteString("## Output Format\n")
 	b.WriteString("Respond with a JSON object:\n")

@@ -6,12 +6,37 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/danabrams/gromit/internal/next/planner"
 	"github.com/danabrams/gromit/internal/next/runstore"
 	"github.com/danabrams/gromit/internal/next/specloop"
 )
+
+// maxTaskID returns the highest task ID from a slice of tasks in the form
+// "t-NNN". If the slice is empty or no IDs can be parsed, it returns "".
+func maxTaskID(tasks []runstore.Task) string {
+	max := -1
+	for _, t := range tasks {
+		id := t.TaskID
+		if !strings.HasPrefix(id, "t-") {
+			continue
+		}
+		n, err := strconv.Atoi(id[2:])
+		if err != nil {
+			continue
+		}
+		if n > max {
+			max = n
+		}
+	}
+	if max < 0 {
+		return ""
+	}
+	return fmt.Sprintf("t-%03d", max)
+}
 
 // PlanCreator abstracts plan generation for testability.
 type PlanCreator interface {
@@ -60,14 +85,34 @@ func (s *PlanStage) Run(ctx context.Context, rs *runstore.RunState) (specloop.Ne
 
 	if isFixCycle && s.fixPlanner != nil {
 		fixReq := planner.FixPlanRequest{
-			Failures: rs.ReplanContext,
-			Cycle:    rs.Cycle,
+			Failures:        rs.ReplanContext,
+			Cycle:           rs.Cycle,
+			PriorMaxTaskID:  maxTaskID(rs.Tasks),
+			SpecConstraints: rs.SpecConstraints,
+			SpecPacket:      string(specPacket),
 		}
 		// Try up to 2 times (initial + 1 retry)
+		allFiltered := false
 		for attempt := 0; attempt < 2; attempt++ {
 			plan, err = s.fixPlanner.CreateFixPlan(ctx, fixReq)
 			if err != nil {
-				return specloop.NextAction{}, fmt.Errorf("create fix plan: %w", err)
+				// Fix plan generation failed (LLM couldn't produce a valid plan, or
+				// API/system error). Treat as no viable fix this cycle so cycles
+				// exhaust naturally → needs_human rather than hard-blocking.
+				allFiltered = true
+				break
+			}
+
+			// Structurally filter out tasks that would touch files forbidden by
+			// spec constraints (e.g., test files when spec says "Do NOT modify
+			// any existing test files"). This enforces constraints regardless of
+			// whether the LLM respects them in its plan output.
+			plan.Tasks = filterForbiddenFixTasks(plan.Tasks, rs.SpecConstraints)
+			if len(plan.Tasks) == 0 {
+				// All generated tasks were forbidden. No progress can be made
+				// this cycle; let cycles exhaust naturally → needs_human.
+				allFiltered = true
+				break
 			}
 
 			validationErr = planner.ValidatePlan(plan)
@@ -75,6 +120,15 @@ func (s *PlanStage) Run(ctx context.Context, rs *runstore.RunState) (specloop.Ne
 				break
 			}
 			fixReq.Failures = append(fixReq.Failures, validationErr.Error())
+		}
+		if allFiltered {
+			// Skip task execution this cycle; specloop will replan until exhausted.
+			return specloop.NextAction{Kind: specloop.Continue}, nil
+		}
+		if validationErr != nil {
+			// Fix plan tasks are structurally invalid after retries — no viable fix
+			// this cycle. Let cycles exhaust naturally → needs_human.
+			return specloop.NextAction{Kind: specloop.Continue}, nil
 		}
 	} else {
 		req := planner.PlanRequest{
@@ -125,15 +179,6 @@ func (s *PlanStage) Run(ctx context.Context, rs *runstore.RunState) (specloop.Ne
 		return specloop.NextAction{}, fmt.Errorf("write plan.md: %w", err)
 	}
 
-	// Write tasks.json
-	tasksJSON, err := json.MarshalIndent(plan.Tasks, "", "  ")
-	if err != nil {
-		return specloop.NextAction{}, fmt.Errorf("marshal tasks: %w", err)
-	}
-	if err := os.WriteFile(filepath.Join(runDir, "tasks.json"), tasksJSON, 0o644); err != nil {
-		return specloop.NextAction{}, fmt.Errorf("write tasks.json: %w", err)
-	}
-
 	// Populate rs.Tasks: on cycle 1 replace, on fix cycles append to preserve history
 	newTasks := make([]runstore.Task, len(plan.Tasks))
 	for i, td := range plan.Tasks {
@@ -149,6 +194,7 @@ func (s *PlanStage) Run(ctx context.Context, rs *runstore.RunState) (specloop.Ne
 			ProofChecks:         td.ProofChecks,
 			Kind:                kind,
 			Cycle:               rs.Cycle,
+			SpecConstraints:     rs.SpecConstraints,
 		}
 		if isFixCycle {
 			task.ParentCycle = td.ParentCycle
@@ -164,6 +210,17 @@ func (s *PlanStage) Run(ctx context.Context, rs *runstore.RunState) (specloop.Ne
 		rs.Tasks = append(rs.Tasks, newTasks...)
 	} else {
 		rs.Tasks = newTasks
+	}
+
+	// Write tasks.json with the full accumulated task list (rs.Tasks) so that
+	// the file mirrors in-memory state across all cycles, not just this cycle's
+	// new tasks.
+	tasksJSON, err := json.MarshalIndent(rs.Tasks, "", "  ")
+	if err != nil {
+		return specloop.NextAction{}, fmt.Errorf("marshal tasks: %w", err)
+	}
+	if err := os.WriteFile(filepath.Join(runDir, "tasks.json"), tasksJSON, 0o644); err != nil {
+		return specloop.NextAction{}, fmt.Errorf("write tasks.json: %w", err)
 	}
 
 	// Emit events
@@ -182,4 +239,36 @@ func (s *PlanStage) Run(ctx context.Context, rs *runstore.RunState) (specloop.Ne
 	}
 
 	return specloop.NextAction{Kind: specloop.Continue}, nil
+}
+
+// filterForbiddenFixTasks removes fix plan tasks whose expected_touched_area
+// includes files that are prohibited by spec constraints. Currently detects
+// the "Do NOT modify existing test files" constraint and removes any task
+// targeting a *_test.go file. Returns the filtered slice (may be empty).
+func filterForbiddenFixTasks(tasks []planner.TaskDef, specConstraints string) []planner.TaskDef {
+	if specConstraints == "" || len(tasks) == 0 {
+		return tasks
+	}
+	lower := strings.ToLower(specConstraints)
+	testFilesForbidden := strings.Contains(lower, "test file") &&
+		(strings.Contains(lower, "do not modify") ||
+			strings.Contains(lower, "must not be modified") ||
+			strings.Contains(lower, "not modify"))
+	if !testFilesForbidden {
+		return tasks
+	}
+	filtered := tasks[:0:0]
+	for _, t := range tasks {
+		touchesTestFile := false
+		for _, area := range t.ExpectedTouchedArea {
+			if strings.HasSuffix(area, "_test.go") {
+				touchesTestFile = true
+				break
+			}
+		}
+		if !touchesTestFile {
+			filtered = append(filtered, t)
+		}
+	}
+	return filtered
 }

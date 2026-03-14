@@ -179,6 +179,41 @@ func TestBuildFixPlanPrompt_ForbidsReplanningCompletedTasks(t *testing.T) {
 	}
 }
 
+func TestBuildFixPlanPrompt_IncludesSpecConstraints(t *testing.T) {
+	prompt := buildFixPlanPrompt(FixPlanRequest{
+		OriginalPlan:    Plan{SpecID: "s1", Cycle: 1},
+		Failures:        []string{"format error"},
+		Cycle:           2,
+		SpecConstraints: "## Out-of-Scope\n- Do NOT modify any existing test files",
+	})
+	if !strings.Contains(prompt, "Do NOT modify any existing test files") {
+		t.Fatal("fix plan prompt must include spec constraints")
+	}
+	if !strings.Contains(prompt, "HARD REQUIREMENTS") {
+		t.Fatal("fix plan prompt must label spec constraints as HARD REQUIREMENTS")
+	}
+	// Constraints must appear before failures so the LLM anchors on them first
+	constraintsIdx := strings.Index(prompt, "HARD REQUIREMENTS")
+	failuresIdx := strings.Index(prompt, "Review Findings")
+	if failuresIdx < 0 {
+		failuresIdx = strings.Index(prompt, "Validation Failures")
+	}
+	if failuresIdx >= 0 && constraintsIdx > failuresIdx {
+		t.Fatal("spec constraints must appear before failures in the fix plan prompt")
+	}
+}
+
+func TestBuildFixPlanPrompt_NoSpecConstraintsSection_WhenEmpty(t *testing.T) {
+	prompt := buildFixPlanPrompt(FixPlanRequest{
+		OriginalPlan: Plan{SpecID: "s1", Cycle: 1},
+		Failures:     []string{"lint error"},
+		Cycle:        2,
+	})
+	if strings.Contains(prompt, "HARD REQUIREMENTS") {
+		t.Fatal("fix plan prompt must not include HARD REQUIREMENTS section when spec constraints are empty")
+	}
+}
+
 func TestPlanner_CreatePlan_RetryFeedsBackParseError(t *testing.T) {
 	validJSON := `{"spec_id":"s1","cycle":1,"kind":"original","tasks":[{"task_id":"t-001","objective":"x","expected_touched_area":["a/"],"proof_checks":["true"]}]}`
 	agent := &fakeAgent{
