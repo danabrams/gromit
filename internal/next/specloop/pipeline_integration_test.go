@@ -34,3 +34,10 @@ func TestIntegration_BudgetExhaustion(t *testing.T) {
 	}
 	t.Skip("TODO: implement budget exhaustion scenario")
 }
+
+func TestIntegration_AcceptanceFailure(t *testing.T) {
+	if os.Getenv("GROMIT_LLM_CONTRACT") != "1" {
+		t.Skip("set GROMIT_LLM_CONTRACT=1")
+	}
+	t.Skip("TODO: implement acceptance failure triggers replan scenario")
+}
