@@ -388,6 +388,15 @@ func TestPolicy_Validate_RoutingRatioValid(t *testing.T) {
 	}
 }
 
+func TestPolicy_Validate_RoutingRatioRejectsNegative(t *testing.T) {
+	p := DefaultPolicy()
+	p.Routing.Ratio = map[string]int{"claude": 150, "codex": -50}
+	err := p.Validate()
+	if err == nil || !strings.Contains(err.Error(), "non-negative") {
+		t.Errorf("expected negative ratio validation error, got %v", err)
+	}
+}
+
 func TestValidate_RejectsEmptyCheckNameAndCommand(t *testing.T) {
 	p := DefaultPolicy()
 	p.AlwaysRun = []Check{

@@ -90,6 +90,7 @@ func DefaultPolicy() Policy {
 			FacetMaxAttempts: 2,
 		},
 		Routing: RoutingConfig{
+			// "validate" is intentionally absent: the validate stage uses ShellValidator (no LLM provider).
 			Preferences:     map[string]string{"plan": "any", "execute": "any", "review": "any", "accept": "any"},
 			Ratio:           map[string]int{"claude": 100},
 			CooldownSeconds: 300,
@@ -164,7 +165,10 @@ func (p *Policy) Validate() error {
 	}
 	if len(p.Routing.Ratio) > 0 {
 		sum := 0
-		for _, v := range p.Routing.Ratio {
+		for name, v := range p.Routing.Ratio {
+			if v < 0 {
+				errs = append(errs, fmt.Errorf("routing.ratio[%q] must be non-negative, got %d", name, v))
+			}
 			sum += v
 		}
 		if sum != 100 {

@@ -93,10 +93,13 @@ func (f *FallbackAdapter) Invoke(ctx context.Context, prompt string) (*provider.
 	}
 	result, err := primary.Invoke(ctx, prompt)
 	prov := primary.Provider()
-	if err != nil && prov != nil && prov.IsUsageLimitError(result, err) {
+	if err != nil && prov != nil && result != nil && prov.IsUsageLimitError(result, err) {
 		primaryName := prov.Name()
 		log.Printf("provider %s hit usage limit, attempting fallback: %v", primaryName, err)
 		f.router.MarkUnavailable(primaryName)
+		f.mu.Lock()
+		f.primary = nil
+		f.mu.Unlock()
 		fallbackProv, _ := f.router.Select(f.phase, f.tier)
 		if fallbackProv == nil {
 			return result, fmt.Errorf("all providers exhausted after %s usage limit: %w", primaryName, err)

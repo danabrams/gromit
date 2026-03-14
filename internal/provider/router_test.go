@@ -1464,3 +1464,198 @@ func (b *blockingProvider) IsValidationPassed(result *Result) bool {
 func (b *blockingProvider) IsScopeTooLarge(result *Result) (bool, string) {
 	return IsScopeTooLarge(result)
 }
+
+// TestRouterSelectCross_ReturnsDifferentProviderThanBuild verifies that
+// SelectCross returns a provider different from the build provider when
+// multiple providers are available.
+func TestRouterSelectCross_ReturnsDifferentProviderThanBuild(t *testing.T) {
+	t.Parallel()
+
+	claudeProv := &mockProvider{name: "claude"}
+	openaiProv := &mockProvider{name: "openai"}
+
+	r := &Router{
+		providers: map[string]Provider{
+			"claude": claudeProv,
+			"openai": openaiProv,
+		},
+		ratio:       map[string]int{"claude": 50, "openai": 50},
+		counts:      map[string]int{},
+		unavailable: map[string]time.Time{},
+		cooldown:    30 * time.Minute,
+		stateFn:     &mockStateFile{},
+	}
+
+	provider, model := r.SelectCross("claude", TierMedium)
+
+	if provider == nil {
+		t.Fatal("SelectCross returned nil provider, expected non-nil")
+	}
+
+	if provider.Name() == "claude" {
+		t.Errorf("SelectCross returned build provider %q, expected a different provider", provider.Name())
+	}
+
+	if provider.Name() != "openai" {
+		t.Errorf("SelectCross returned provider %q, expected %q", provider.Name(), "openai")
+	}
+
+	if model == "" {
+		t.Error("SelectCross returned empty model name")
+	}
+}
+
+// TestRouterSelectCross_FallsBackToBuildProvider_WhenOnlyOneAvailable verifies
+// that SelectCross falls back to the build provider when all other providers
+// are unavailable.
+func TestRouterSelectCross_FallsBackToBuildProvider_WhenOnlyOneAvailable(t *testing.T) {
+	t.Parallel()
+
+	claudeProv := &mockProvider{name: "claude"}
+	openaiProv := &mockProvider{name: "openai"}
+
+	r := &Router{
+		providers: map[string]Provider{
+			"claude": claudeProv,
+			"openai": openaiProv,
+		},
+		ratio:  map[string]int{"claude": 50, "openai": 50},
+		counts: map[string]int{},
+		unavailable: map[string]time.Time{
+			"openai": time.Now().Add(30 * time.Minute),
+		},
+		cooldown: 30 * time.Minute,
+		stateFn:  &mockStateFile{},
+	}
+
+	provider, model := r.SelectCross("claude", TierMedium)
+
+	if provider == nil {
+		t.Fatal("SelectCross returned nil provider, expected fallback to build provider")
+	}
+
+	if provider.Name() != "claude" {
+		t.Errorf("SelectCross returned provider %q, expected fallback to build provider %q", provider.Name(), "claude")
+	}
+
+	if model == "" {
+		t.Error("SelectCross returned empty model name")
+	}
+}
+
+// TestRouterSelectCross_ReturnsNil_WhenAllUnavailable verifies that SelectCross
+// returns nil when all providers (including the build provider) are unavailable.
+func TestRouterSelectCross_ReturnsNil_WhenAllUnavailable(t *testing.T) {
+	t.Parallel()
+
+	claudeProv := &mockProvider{name: "claude"}
+	openaiProv := &mockProvider{name: "openai"}
+
+	r := &Router{
+		providers: map[string]Provider{
+			"claude": claudeProv,
+			"openai": openaiProv,
+		},
+		ratio:  map[string]int{"claude": 50, "openai": 50},
+		counts: map[string]int{},
+		unavailable: map[string]time.Time{
+			"claude": time.Now().Add(30 * time.Minute),
+			"openai": time.Now().Add(30 * time.Minute),
+		},
+		cooldown: 30 * time.Minute,
+		stateFn:  &mockStateFile{},
+	}
+
+	provider, model := r.SelectCross("claude", TierMedium)
+
+	if provider != nil {
+		t.Errorf("SelectCross returned provider %q, expected nil when all unavailable", provider.Name())
+	}
+
+	if model != "" {
+		t.Errorf("SelectCross returned model %q, expected empty string when all unavailable", model)
+	}
+}
+
+// TestRouterSelectCross_SingleProviderRouter verifies that SelectCross returns
+// the single configured provider even when it is the same as the build provider.
+func TestRouterSelectCross_SingleProviderRouter(t *testing.T) {
+	t.Parallel()
+
+	claudeProv := &mockProvider{name: "claude"}
+
+	r := &Router{
+		providers: map[string]Provider{
+			"claude": claudeProv,
+		},
+		ratio:       map[string]int{"claude": 100},
+		counts:      map[string]int{},
+		unavailable: map[string]time.Time{},
+		cooldown:    30 * time.Minute,
+		stateFn:     &mockStateFile{},
+	}
+
+	provider, model := r.SelectCross("claude", TierMedium)
+
+	if provider == nil {
+		t.Fatal("SelectCross returned nil provider, expected the single configured provider")
+	}
+
+	if provider.Name() != "claude" {
+		t.Errorf("SelectCross returned provider %q, expected %q", provider.Name(), "claude")
+	}
+
+	if model == "" {
+		t.Error("SelectCross returned empty model name")
+	}
+}
+
+// TestRouterCooldownExpiry_ProviderBecomesAvailableAgain verifies that a provider
+// marked as unavailable becomes available again after the cooldown period expires.
+func TestRouterCooldownExpiry_ProviderBecomesAvailableAgain(t *testing.T) {
+	t.Parallel()
+
+	claudeProv := &mockProvider{name: "claude"}
+
+	cooldown := 1 * time.Millisecond
+
+	r := &Router{
+		providers: map[string]Provider{
+			"claude": claudeProv,
+		},
+		preferences: map[string]string{
+			"build": "claude",
+		},
+		ratio:       map[string]int{"claude": 100},
+		counts:      map[string]int{},
+		unavailable: map[string]time.Time{},
+		cooldown:    cooldown,
+		stateFn:     nil,
+	}
+
+	// Mark claude as unavailable
+	r.MarkUnavailable("claude")
+
+	// Immediately after marking, claude should not be selected
+	provider, _ := r.Select("build", TierMedium)
+	if provider != nil {
+		t.Errorf("Provider should not be available immediately after MarkUnavailable, got %q", provider.Name())
+	}
+
+	// Wait for cooldown to expire
+	time.Sleep(5 * time.Millisecond)
+
+	// After cooldown, claude should be available again
+	provider, model := r.Select("build", TierMedium)
+	if provider == nil {
+		t.Fatal("Provider should be available after cooldown expiry, got nil")
+	}
+
+	if provider.Name() != "claude" {
+		t.Errorf("Expected provider %q after cooldown expiry, got %q", "claude", provider.Name())
+	}
+
+	if model == "" {
+		t.Error("Expected non-empty model name after cooldown expiry")
+	}
+}
