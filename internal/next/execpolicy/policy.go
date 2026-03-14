@@ -24,6 +24,8 @@ type RoutingConfig struct {
 	CooldownSeconds int               `json:"cooldown_seconds"` // seconds to mark provider unavailable after usage-limit
 }
 
+// See CLAUDE.md nil-field normalization visibility convention:
+// exported — cross-package boundary type
 // NormalizeNilFields maps nil slices/maps to empty values.
 func (rc *RoutingConfig) NormalizeNilFields() {
 	if rc.Preferences == nil {

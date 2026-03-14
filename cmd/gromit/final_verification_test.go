@@ -195,7 +195,7 @@ func scanProjectTestFiles(projectRoot string) ([]scannedTestFile, error) {
 		if err != nil {
 			return err
 		}
-		if d.IsDir() && (d.Name() == "vendor" || d.Name() == ".git" || d.Name() == ".gromit" || d.Name() == "node_modules" || strings.HasPrefix(d.Name(), ".-gromit-")) {
+		if d.IsDir() && (d.Name() == "vendor" || d.Name() == ".git" || d.Name() == ".gromit" || d.Name() == ".claude" || d.Name() == ".worktrees" || d.Name() == "node_modules" || strings.HasPrefix(d.Name(), ".-gromit-")) {
 			return filepath.SkipDir
 		}
 		if d.IsDir() || !strings.HasSuffix(d.Name(), "_test.go") {
