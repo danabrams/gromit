@@ -38,15 +38,15 @@ func TestIntegration_AcceptanceFailure(t *testing.T) {
 
 type mockIntegrationProvider struct {
 	name         string
-	runFn        func(ctx context.Context, model string, prompt string) (*provider.Result, error)
+	runFn        func(ctx context.Context, prompt string, tier string) (*provider.Result, error)
 	isUsageLimit bool
 }
 
 func (m *mockIntegrationProvider) Name() string                    { return m.name }
 func (m *mockIntegrationProvider) ModelForTier(tier string) string { return "mock-" + tier }
-func (m *mockIntegrationProvider) Run(ctx context.Context, model string, prompt string) (*provider.Result, error) {
+func (m *mockIntegrationProvider) Run(ctx context.Context, prompt string, tier string) (*provider.Result, error) {
 	if m.runFn != nil {
-		return m.runFn(ctx, model, prompt)
+		return m.runFn(ctx, prompt, tier)
 	}
 	return &provider.Result{Output: "ok", Success: true}, nil
 }
