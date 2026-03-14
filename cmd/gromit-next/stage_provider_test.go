@@ -532,6 +532,26 @@ func TestBuildRouter_NilCodexProvider_SingleProviderMode(t *testing.T) {
 	}
 }
 
+func TestBuildStages_WithClaudeProvider_UsesFallbackAdapter(t *testing.T) {
+	policy := execpolicy.DefaultPolicy()
+	rs := runstore.NewRunState("test-spec", "test-project")
+
+	sp := NewRealStageProvider(RealStageProviderConfig{
+		WorkDir:        t.TempDir(),
+		StoreDir:       t.TempDir(),
+		SpecPath:       "test-spec.md",
+		ClaudeProvider: &mockTestProvider{name: "claude"},
+	})
+
+	stages, err := sp.BuildStages(policy, rs, specloop.NewBudget(policy.Budgets))
+	if err != nil {
+		t.Fatalf("BuildStages returned error: %v", err)
+	}
+	if len(stages) != 9 {
+		t.Fatalf("expected 9 stages, got %d", len(stages))
+	}
+}
+
 func TestRealStageProvider_BuildStages_MissingSpecFileIsNotError(t *testing.T) {
 	policy := execpolicy.DefaultPolicy()
 	rs := runstore.NewRunState("test-spec", "test-project")
