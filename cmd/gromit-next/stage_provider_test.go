@@ -480,6 +480,24 @@ func TestRealStageProvider_BuildStages_WithProvider_NilProviderFallsBackToNoops(
 	}
 }
 
+func TestNewRealStageProvider_AcceptsProviderFields(t *testing.T) {
+	claudeProv := &mockTestProvider{name: "claude"}
+	codexProv := &mockTestProvider{name: "codex"}
+	sp := NewRealStageProvider(RealStageProviderConfig{
+		ClaudeProvider: claudeProv,
+		CodexProvider:  codexProv,
+		WorkDir:        t.TempDir(),
+		StoreDir:       t.TempDir(),
+		SpecPath:       "test.md",
+	})
+	if sp.claudeProvider == nil {
+		t.Error("expected claudeProvider to be set")
+	}
+	if sp.codexProvider == nil {
+		t.Error("expected codexProvider to be set")
+	}
+}
+
 func TestRealStageProvider_BuildStages_MissingSpecFileIsNotError(t *testing.T) {
 	policy := execpolicy.DefaultPolicy()
 	rs := runstore.NewRunState("test-spec", "test-project")
