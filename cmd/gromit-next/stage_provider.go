@@ -92,8 +92,12 @@ func (p *RealStageProvider) BuildStages(policy execpolicy.Policy, rs *runstore.R
 		pl := planner.NewPlanner(planAgent, policy.Models.Planner)
 		planCreator = pl
 
-		// Execute adapter: OnCost is nil to avoid double-counting —
-		// RunTaskLoop already calls Budget.AddCost(result.Cost) after each task.
+		// Execute adapter: OnCost is intentionally nil to avoid double-counting.
+		// RunTaskLoop already calls Budget.AddCost(result.Cost) after each task,
+		// so wiring OnCost here would count execution costs twice. This is an
+		// intentional asymmetry: plan, review, and accept adapters wire
+		// OnCost → budget.AddCost because their costs are only visible via the
+		// adapter callback, while execution costs flow through RunTaskLoop.
 		execAdapter := llmadapter.New(p.cfg.Provider, llmadapter.Config{
 			Tier: policy.Models.Executor,
 		})
@@ -137,7 +141,9 @@ func (p *RealStageProvider) BuildStages(policy execpolicy.Policy, rs *runstore.R
 	planStage := stages.NewPlanStage(planCreator, store, nil)
 	if p.cfg.Provider != nil {
 		// Planner satisfies both PlanCreator and FixPlanCreator.
-		planStage.SetFixPlanner(planCreator.(stages.FixPlanCreator))
+		if fp, ok := planCreator.(stages.FixPlanCreator); ok {
+			planStage.SetFixPlanner(fp)
+		}
 	}
 
 	executeStage := stages.NewExecuteStage(taskRunner, stages.ExecuteStageConfig{

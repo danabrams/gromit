@@ -6,12 +6,9 @@ import (
 	"context"
 	"os"
 	"testing"
-	"time"
 
-	"github.com/danabrams/gromit/internal/claude"
 	"github.com/danabrams/gromit/internal/next/llmadapter"
 	"github.com/danabrams/gromit/internal/next/runstore"
-	"github.com/danabrams/gromit/internal/provider"
 )
 
 // RunTaskRunnerContract runs the contract suite against any TaskRunner implementation.
@@ -64,18 +61,5 @@ func TestContract_ProviderTaskRunner(t *testing.T) {
 
 func buildRealTaskRunner(t *testing.T) TaskRunner {
 	t.Helper()
-	client, err := claude.NewClient("claude", []string{"--no-input"}, 120)
-	if err != nil {
-		t.Fatalf("failed to create claude client: %v", err)
-	}
-	prov := provider.NewClaudeProvider(client, map[string]string{
-		"low":    "claude-haiku-4-5-20251001",
-		"medium": "claude-sonnet-4-5-20250514",
-		"high":   "claude-sonnet-4-5-20250514",
-	})
-	adapter := llmadapter.New(prov, llmadapter.Config{
-		Tier:    "low",
-		Timeout: 2 * time.Minute,
-	})
-	return NewProviderTaskRunner(adapter)
+	return NewProviderTaskRunner(llmadapter.ContractInvoker(t))
 }

@@ -180,6 +180,43 @@ func TestProviderReviewAgent_InvokerErrorPropagated(t *testing.T) {
 	}
 }
 
+func TestProviderReviewAgent_NilResultReturnsError(t *testing.T) {
+	mock := &mockInvoker{
+		result: nil,
+		err:    nil,
+	}
+
+	agent := NewProviderReviewAgent(mock)
+	_, err := agent.ReviewFacet(context.Background(), "quality", "check")
+
+	if err == nil {
+		t.Fatal("expected error for nil result, got nil")
+	}
+	if err.Error() != "review: provider returned nil result" {
+		t.Errorf("error = %q, want %q", err.Error(), "review: provider returned nil result")
+	}
+}
+
+func TestProviderReviewAgent_ReviewFacet_ContextCancelled(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	mock := &mockInvoker{
+		result: nil,
+		err:    context.Canceled,
+	}
+
+	agent := NewProviderReviewAgent(mock)
+	_, err := agent.ReviewFacet(ctx, "quality", "check quality")
+
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !errors.Is(err, context.Canceled) {
+		t.Errorf("expected context.Canceled, got %v", err)
+	}
+}
+
 func TestProviderReviewAgent_CompileTimeInterfaceCheck(t *testing.T) {
 	// The actual compile-time check is: var _ ReviewAgent = (*ProviderReviewAgent)(nil)
 	// in the implementation file. This test confirms the type assertion works.

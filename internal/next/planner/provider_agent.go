@@ -2,6 +2,7 @@ package planner
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/danabrams/gromit/internal/next/llmadapter"
 )
@@ -25,15 +26,23 @@ func NewProviderPlanAgent(invoker llmadapter.Invoker) *ProviderPlanAgent {
 // The tier parameter is intentionally ignored.
 func (a *ProviderPlanAgent) Invoke(ctx context.Context, prompt string, tier string) (AgentResult, error) {
 	result, err := a.invoker.Invoke(ctx, prompt)
-	if err != nil {
-		return AgentResult{}, err
+	// Build partial result for observability even on error
+	var ar AgentResult
+	if result != nil {
+		ar = AgentResult{
+			Output:    result.Output,
+			TokensIn:  result.InputTokens,
+			TokensOut: result.OutputTokens,
+			Cost:      result.CostUSD,
+			Model:     result.Model,
+			Duration:  result.Duration.Milliseconds(),
+		}
 	}
-	return AgentResult{
-		Output:    result.Output,
-		TokensIn:  result.InputTokens,
-		TokensOut: result.OutputTokens,
-		Cost:      result.CostUSD,
-		Model:     result.Model,
-		Duration:  result.Duration.Milliseconds(),
-	}, nil
+	if err != nil {
+		return ar, err
+	}
+	if result == nil {
+		return AgentResult{}, fmt.Errorf("planner: provider returned nil result")
+	}
+	return ar, nil
 }

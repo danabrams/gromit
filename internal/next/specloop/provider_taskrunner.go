@@ -32,6 +32,9 @@ func (r *ProviderTaskRunner) RunTask(ctx context.Context, task runstore.Task) (T
 	if err != nil {
 		return tr, err
 	}
+	if result == nil {
+		return tr, fmt.Errorf("taskrunner: provider returned nil result")
+	}
 	return tr, nil
 }
 
@@ -44,19 +47,20 @@ func (r *ProviderTaskRunner) RepairTask(ctx context.Context, task runstore.Task,
 	if err != nil {
 		return tr, err
 	}
+	if result == nil {
+		return tr, fmt.Errorf("taskrunner: provider returned nil result")
+	}
 	return tr, nil
 }
 
-// renderTaskPrompt builds the prompt sent to the LLM for a new task execution.
-func renderTaskPrompt(task runstore.Task) string {
-	var b strings.Builder
-	fmt.Fprintf(&b, "## Task: %s\n\n", task.TaskID)
-	fmt.Fprintf(&b, "### Objective\n%s\n\n", task.Objective)
+// renderTaskBody writes the common task sections (Objective, Expected Touched Area, Proof Checks).
+func renderTaskBody(b *strings.Builder, task runstore.Task) {
+	fmt.Fprintf(b, "### Objective\n%s\n\n", task.Objective)
 
 	if len(task.ExpectedTouchedArea) > 0 {
 		b.WriteString("### Expected Touched Area\n")
 		for _, area := range task.ExpectedTouchedArea {
-			fmt.Fprintf(&b, "- %s\n", area)
+			fmt.Fprintf(b, "- %s\n", area)
 		}
 		b.WriteString("\n")
 	}
@@ -64,11 +68,17 @@ func renderTaskPrompt(task runstore.Task) string {
 	if len(task.ProofChecks) > 0 {
 		b.WriteString("### Proof Checks\n")
 		for _, check := range task.ProofChecks {
-			fmt.Fprintf(&b, "- %s\n", check)
+			fmt.Fprintf(b, "- %s\n", check)
 		}
 		b.WriteString("\n")
 	}
+}
 
+// renderTaskPrompt builds the prompt sent to the LLM for a new task execution.
+func renderTaskPrompt(task runstore.Task) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "## Task: %s\n\n", task.TaskID)
+	renderTaskBody(&b, task)
 	return b.String()
 }
 
@@ -77,30 +87,12 @@ func renderTaskPrompt(task runstore.Task) string {
 func renderRepairPrompt(task runstore.Task, failures []string) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "## Repair Task: %s\n\n", task.TaskID)
-	fmt.Fprintf(&b, "### Objective\n%s\n\n", task.Objective)
-
-	if len(task.ExpectedTouchedArea) > 0 {
-		b.WriteString("### Expected Touched Area\n")
-		for _, area := range task.ExpectedTouchedArea {
-			fmt.Fprintf(&b, "- %s\n", area)
-		}
-		b.WriteString("\n")
-	}
-
-	if len(task.ProofChecks) > 0 {
-		b.WriteString("### Proof Checks\n")
-		for _, check := range task.ProofChecks {
-			fmt.Fprintf(&b, "- %s\n", check)
-		}
-		b.WriteString("\n")
-	}
-
+	renderTaskBody(&b, task)
 	b.WriteString("### Failures to Address\n")
 	for _, f := range failures {
 		fmt.Fprintf(&b, "- %s\n", f)
 	}
 	b.WriteString("\n")
-
 	return b.String()
 }
 

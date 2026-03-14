@@ -27,6 +27,9 @@ func (a *ProviderAcceptAgent) EvaluateCriterion(ctx context.Context, prompt stri
 	if err != nil {
 		return CriterionResult{}, err
 	}
+	if result == nil {
+		return CriterionResult{}, fmt.Errorf("acceptor: provider returned nil result")
+	}
 	return ParseCriterionResult(result.Output)
 }
 

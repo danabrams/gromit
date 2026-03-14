@@ -3,6 +3,7 @@ package review
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 
 	"github.com/danabrams/gromit/internal/next/llmadapter"
 )
@@ -28,7 +29,10 @@ func NewProviderReviewAgent(invoker llmadapter.Invoker) *ProviderReviewAgent {
 func (a *ProviderReviewAgent) ReviewFacet(ctx context.Context, facetName string, prompt string) ([]Finding, error) {
 	result, err := a.invoker.Invoke(ctx, prompt)
 	if err != nil {
-		return nil, err
+		return []Finding{}, err
+	}
+	if result == nil {
+		return []Finding{}, fmt.Errorf("review: provider returned nil result")
 	}
 
 	extracted := llmadapter.ExtractJSON(result.Output)
@@ -37,9 +41,9 @@ func (a *ProviderReviewAgent) ReviewFacet(ctx context.Context, facetName string,
 	if err := json.Unmarshal([]byte(extracted), &findings); err != nil {
 		// Check if it's already a ParseError (from Finding.UnmarshalJSON)
 		if pe, ok := err.(*ParseError); ok {
-			return nil, pe
+			return []Finding{}, pe
 		}
-		return nil, &ParseError{Msg: "failed to parse findings JSON: " + err.Error()}
+		return []Finding{}, &ParseError{Msg: "failed to parse findings JSON: " + err.Error()}
 	}
 
 	// Ensure non-nil empty slice

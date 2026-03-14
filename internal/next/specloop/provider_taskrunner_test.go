@@ -230,6 +230,27 @@ func TestProviderTaskRunner_RepairTask_MapsResultCorrectly(t *testing.T) {
 	}
 }
 
+func TestProviderTaskRunner_RunTask_ContextCancelled(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	inv := &mockInvoker{
+		result: nil,
+		err:    context.Canceled,
+	}
+	runner := NewProviderTaskRunner(inv)
+	task := runstore.Task{TaskID: "t-ctx", Objective: "should be cancelled"}
+
+	_, err := runner.RunTask(ctx, task)
+
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !errors.Is(err, context.Canceled) {
+		t.Errorf("expected context.Canceled, got %v", err)
+	}
+}
+
 func TestProviderTaskRunner_InvokerErrorPropagated(t *testing.T) {
 	expectedErr := errors.New("connection timeout")
 	inv := &mockInvoker{

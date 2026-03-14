@@ -59,32 +59,6 @@ func TestRealStageProvider_BuildStages_NoStubError(t *testing.T) {
 	}
 }
 
-func TestRealStageProvider_BuildStages_IncludesReviewAndAccept(t *testing.T) {
-	policy := execpolicy.DefaultPolicy()
-	rs := runstore.NewRunState("test-spec", "test-project")
-
-	provider := NewRealStageProvider(RealStageProviderConfig{
-		WorkDir:  t.TempDir(),
-		StoreDir: t.TempDir(),
-		SpecPath: "test-spec.md",
-	})
-
-	stages, err := provider.BuildStages(policy, rs, specloop.NewBudget(policy.Budgets))
-	if err != nil {
-		t.Fatalf("BuildStages: %v", err)
-	}
-
-	expectedOrder := []string{"init", "compile", "plan", "execute", "validate", "review", "accept", "evidence", "finalize"}
-	if len(stages) != len(expectedOrder) {
-		t.Fatalf("expected %d stages, got %d", len(expectedOrder), len(stages))
-	}
-	for i, name := range expectedOrder {
-		if stages[i].Name() != name {
-			t.Errorf("stage[%d].Name() = %q, want %q", i, stages[i].Name(), name)
-		}
-	}
-}
-
 func TestRealStageProvider_ReviewBeforeAccept(t *testing.T) {
 	policy := execpolicy.DefaultPolicy()
 	rs := runstore.NewRunState("test-spec", "test-project")
@@ -243,6 +217,83 @@ func (m *mockTestProvider) RunValidation(_ context.Context, _ []string, _ string
 func (m *mockTestProvider) IsUsageLimitError(_ *provider.Result, _ error) bool { return false }
 func (m *mockTestProvider) IsValidationPassed(_ *provider.Result) bool         { return true }
 func (m *mockTestProvider) IsScopeTooLarge(_ *provider.Result) (bool, string)  { return false, "" }
+
+// costTrackingProvider returns a result with a fixed CostUSD so that OnCost
+// callbacks fire when adapters invoke it. The output is a valid plan JSON
+// so that the planner can parse it without error.
+type costTrackingProvider struct {
+	mockTestProvider
+	costPerCall float64
+}
+
+const validPlanJSON = `{"spec_id":"s1","cycle":1,"kind":"original","tasks":[{"task_id":"t-001","objective":"build widget","expected_touched_area":["src/"],"proof_checks":["go test ./..."]}]}`
+
+func (c *costTrackingProvider) Run(_ context.Context, _ string, _ string) (*provider.Result, error) {
+	return &provider.Result{Output: validPlanJSON, Success: true, CostUSD: c.costPerCall}, nil
+}
+
+func (c *costTrackingProvider) StreamRun(_ context.Context, _ string, _ string, _ io.Writer, _ provider.EventHandler, _ provider.ToolCallHandler) (*provider.Result, error) {
+	return &provider.Result{Output: validPlanJSON, Success: true, CostUSD: c.costPerCall}, nil
+}
+
+func TestRealStageProvider_OnCostBudgetWiring_PlanStageFiresOnCost(t *testing.T) {
+	// Verifies that the plan adapter's OnCost callback fires and accumulates
+	// cost in the shared budget when the plan stage runs.
+	storeDir := t.TempDir()
+
+	policy := execpolicy.DefaultPolicy()
+	rs := runstore.NewRunState("test-spec", "test-project")
+
+	budget := specloop.NewBudget(policy.Budgets)
+
+	sp := NewRealStageProvider(RealStageProviderConfig{
+		WorkDir:  t.TempDir(),
+		StoreDir: storeDir,
+		SpecPath: "test-spec.md",
+		Provider: &costTrackingProvider{
+			mockTestProvider: mockTestProvider{name: "cost-tracker"},
+			costPerCall:      0.50,
+		},
+	})
+
+	stageList, err := sp.BuildStages(policy, rs, budget)
+	if err != nil {
+		t.Fatalf("BuildStages: %v", err)
+	}
+
+	if budget.Cost() != 0 {
+		t.Fatalf("expected initial budget cost 0, got %f", budget.Cost())
+	}
+
+	// Set up the store directory structure the plan stage expects:
+	// it reads <storeDir>/runs/<runID>/spec-packet.md
+	store := runstore.NewStore(storeDir)
+	runDir := store.RunDir(rs.RunID)
+	if err := os.MkdirAll(runDir, 0o755); err != nil {
+		t.Fatalf("mkdir runDir: %v", err)
+	}
+	specPacket := "# Test Spec Packet\n\nBuild a widget.\n"
+	if err := os.WriteFile(filepath.Join(runDir, "spec-packet.md"), []byte(specPacket), 0o644); err != nil {
+		t.Fatalf("write spec-packet.md: %v", err)
+	}
+
+	// Find and run the plan stage.
+	for _, s := range stageList {
+		if s.Name() == "plan" {
+			_, err := s.Run(context.Background(), rs)
+			if err != nil {
+				t.Fatalf("plan stage Run: %v", err)
+			}
+			break
+		}
+	}
+
+	// The costTrackingProvider reports $0.50 per call. The plan adapter's
+	// OnCost callback should have forwarded this to the budget.
+	if budget.Cost() <= 0 {
+		t.Errorf("expected budget.Cost() > 0 after plan stage run, got %f", budget.Cost())
+	}
+}
 
 func TestRealStageProvider_BuildStages_WithProvider_ReturnsRealAdapters(t *testing.T) {
 	policy := execpolicy.DefaultPolicy()

@@ -111,6 +111,42 @@ func TestProviderAcceptAgent_InvokerErrorPropagated(t *testing.T) {
 	}
 }
 
+func TestProviderAcceptAgent_NilResultReturnsError(t *testing.T) {
+	inv := &mockInvoker{
+		result: nil,
+		err:    nil,
+	}
+	agent := NewProviderAcceptAgent(inv)
+
+	_, err := agent.EvaluateCriterion(context.Background(), "prompt")
+	if err == nil {
+		t.Fatal("expected error for nil result, got nil")
+	}
+	if err.Error() != "acceptor: provider returned nil result" {
+		t.Errorf("error = %q, want %q", err.Error(), "acceptor: provider returned nil result")
+	}
+}
+
+func TestProviderAcceptAgent_EvaluateCriterion_ContextCancelled(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	inv := &mockInvoker{
+		result: nil,
+		err:    context.Canceled,
+	}
+	agent := NewProviderAcceptAgent(inv)
+
+	_, err := agent.EvaluateCriterion(ctx, "evaluate tests")
+
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !errors.Is(err, context.Canceled) {
+		t.Errorf("expected context.Canceled, got %v", err)
+	}
+}
+
 func TestParseCriterionResult_Valid(t *testing.T) {
 	output := `{"criterion":"x","status":"unclear","rationale":"maybe","evidence_refs":["a.go"]}`
 	got, err := ParseCriterionResult(output)
