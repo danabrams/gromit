@@ -42,10 +42,17 @@ type RealStageProvider struct {
 }
 
 // NewRealStageProvider creates a RealStageProvider.
+// If ClaudeProvider is nil but the legacy Provider field is set, the legacy
+// provider is promoted to claudeProvider so that all LLM wiring flows through
+// the single FallbackAdapter code path.
 func NewRealStageProvider(cfg RealStageProviderConfig) *RealStageProvider {
+	claude := cfg.ClaudeProvider
+	if claude == nil && cfg.Provider != nil {
+		claude = cfg.Provider
+	}
 	return &RealStageProvider{
 		cfg:            cfg,
-		claudeProvider: cfg.ClaudeProvider,
+		claudeProvider: claude,
 		codexProvider:  cfg.CodexProvider,
 		stateFn:        cfg.StateFn,
 		circuitBreaker: cfg.CircuitBreaker,
@@ -148,45 +155,6 @@ func (p *RealStageProvider) BuildStages(policy execpolicy.Policy, rs *runstore.R
 
 		// TODO(0002c): Wire real SpecCompilerAdapter here (blocked on ArtifactStore etc.)
 		compiler = &noopCompiler{}
-	} else if p.cfg.Provider != nil {
-		// Legacy path: single provider via p.cfg.Provider (backward compatibility).
-		// This path is used when ClaudeProvider is not set but Provider is.
-		planAdapter := llmadapter.New(p.cfg.Provider, llmadapter.Config{
-			Tier:   policy.Models.Planner,
-			OnCost: func(cost float64) { budget.AddCost(cost) },
-		})
-		planAgent := planner.NewProviderPlanAgent(planAdapter, policy.Models.Planner)
-		pl := planner.NewPlanner(planAgent, policy.Models.Planner)
-		planCreator = pl
-
-		execAdapter := llmadapter.New(p.cfg.Provider, llmadapter.Config{
-			Tier: policy.Models.Executor,
-		})
-		taskRunner = specloop.NewProviderTaskRunner(execAdapter)
-
-		finalVal = validator.NewShellValidator(validator.NewRunner())
-
-		reviewAdapter := llmadapter.New(p.cfg.Provider, llmadapter.Config{
-			Tier:   policy.Models.Evaluator,
-			OnCost: func(cost float64) { budget.AddCost(cost) },
-		})
-		reviewAgent := review.NewProviderReviewAgent(reviewAdapter)
-		reviewRunner = review.NewRunner(reviewAgent, review.RunnerConfig{
-			Facets:     policy.Review.Facets,
-			Threshold:  threshold,
-			FacetTiers: policy.Review.Tiers,
-		})
-
-		acceptAdapter := llmadapter.New(p.cfg.Provider, llmadapter.Config{
-			Tier:   policy.Models.Evaluator,
-			OnCost: func(cost float64) { budget.AddCost(cost) },
-		})
-		acceptAgent := acceptor.NewProviderAcceptAgent(acceptAdapter)
-		acceptEval = acceptor.NewEvaluator(acceptAgent)
-
-		diffProv = &review.GitDiffProvider{WorkDir: p.cfg.WorkDir}
-
-		compiler = &noopCompiler{}
 	} else {
 		// Fallback to noops when no Provider is configured.
 		compiler = &noopCompiler{}
@@ -200,7 +168,7 @@ func (p *RealStageProvider) BuildStages(policy execpolicy.Policy, rs *runstore.R
 	compileStage := stages.NewCompileStage(compiler, store, nil)
 
 	planStage := stages.NewPlanStage(planCreator, store, nil)
-	if p.claudeProvider != nil || p.cfg.Provider != nil {
+	if p.claudeProvider != nil {
 		// Planner satisfies both PlanCreator and FixPlanCreator.
 		if fp, ok := planCreator.(stages.FixPlanCreator); ok {
 			planStage.SetFixPlanner(fp)

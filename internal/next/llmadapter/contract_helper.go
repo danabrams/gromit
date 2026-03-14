@@ -40,6 +40,8 @@ func ContractCodexInvoker(t *testing.T) Invoker {
 	if err != nil {
 		t.Skip("codex binary not found on $PATH; skipping Codex contract test")
 	}
+	// NOTE: These model version strings need periodic updates as new model
+	// versions are released by OpenAI.
 	prov := provider.NewCodexProvider(codexPath, []string{}, map[string]string{
 		"low":    "o4-mini",
 		"medium": "o3",

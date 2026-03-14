@@ -90,7 +90,7 @@ func DefaultPolicy() Policy {
 			FacetMaxAttempts: 2,
 		},
 		Routing: RoutingConfig{
-			Preferences:     map[string]string{"plan": "any", "execute": "any", "review": "any", "validate": "any"},
+			Preferences:     map[string]string{"plan": "any", "execute": "any", "review": "any", "accept": "any"},
 			Ratio:           map[string]int{"claude": 100},
 			CooldownSeconds: 300,
 		},
