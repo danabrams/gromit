@@ -96,8 +96,61 @@ func (p *RealStageProvider) BuildStages(policy execpolicy.Policy, rs *runstore.R
 		diffProv     review.DiffProvider = &noopDiffProvider{}
 	)
 
-	if p.cfg.Provider != nil {
-		// Wire real LLM-backed adapters.
+	if p.claudeProvider != nil {
+		router := p.buildRouter(policy)
+		costCallback := func(c float64) { budget.AddCost(c) }
+
+		// Plan adapter with FallbackAdapter for lazy provider selection.
+		planAdapter := llmadapter.NewFallbackAdapter(
+			router, "plan",
+			llmadapter.Config{Tier: policy.Models.Planner, OnCost: costCallback},
+			policy.Models.Planner,
+		)
+		planAgent := planner.NewProviderPlanAgent(planAdapter, policy.Models.Planner)
+		pl := planner.NewPlanner(planAgent, policy.Models.Planner)
+		planCreator = pl
+
+		// Execute adapter: OnCost is intentionally nil to avoid double-counting.
+		// RunTaskLoop already calls Budget.AddCost(result.Cost) after each task,
+		// so wiring OnCost here would count execution costs twice.
+		execAdapter := llmadapter.NewFallbackAdapter(
+			router, "execute",
+			llmadapter.Config{Tier: policy.Models.Executor},
+			policy.Models.Executor,
+		)
+		taskRunner = specloop.NewProviderTaskRunner(execAdapter)
+
+		finalVal = validator.NewShellValidator(validator.NewRunner())
+
+		// Review adapter with FallbackAdapter.
+		reviewAdapter := llmadapter.NewFallbackAdapter(
+			router, "review",
+			llmadapter.Config{Tier: policy.Models.Evaluator, OnCost: costCallback},
+			policy.Models.Evaluator,
+		)
+		reviewAgent := review.NewProviderReviewAgent(reviewAdapter)
+		reviewRunner = review.NewRunner(reviewAgent, review.RunnerConfig{
+			Facets:     policy.Review.Facets,
+			Threshold:  threshold,
+			FacetTiers: policy.Review.Tiers,
+		})
+
+		// Accept adapter with FallbackAdapter.
+		acceptAdapter := llmadapter.NewFallbackAdapter(
+			router, "accept",
+			llmadapter.Config{Tier: policy.Models.Evaluator, OnCost: costCallback},
+			policy.Models.Evaluator,
+		)
+		acceptAgent := acceptor.NewProviderAcceptAgent(acceptAdapter)
+		acceptEval = acceptor.NewEvaluator(acceptAgent)
+
+		diffProv = &review.GitDiffProvider{WorkDir: p.cfg.WorkDir}
+
+		// TODO(0002c): Wire real SpecCompilerAdapter here (blocked on ArtifactStore etc.)
+		compiler = &noopCompiler{}
+	} else if p.cfg.Provider != nil {
+		// Legacy path: single provider via p.cfg.Provider (backward compatibility).
+		// This path is used when ClaudeProvider is not set but Provider is.
 		planAdapter := llmadapter.New(p.cfg.Provider, llmadapter.Config{
 			Tier:   policy.Models.Planner,
 			OnCost: func(cost float64) { budget.AddCost(cost) },
@@ -106,12 +159,6 @@ func (p *RealStageProvider) BuildStages(policy execpolicy.Policy, rs *runstore.R
 		pl := planner.NewPlanner(planAgent, policy.Models.Planner)
 		planCreator = pl
 
-		// Execute adapter: OnCost is intentionally nil to avoid double-counting.
-		// RunTaskLoop already calls Budget.AddCost(result.Cost) after each task,
-		// so wiring OnCost here would count execution costs twice. This is an
-		// intentional asymmetry: plan, review, and accept adapters wire
-		// OnCost → budget.AddCost because their costs are only visible via the
-		// adapter callback, while execution costs flow through RunTaskLoop.
 		execAdapter := llmadapter.New(p.cfg.Provider, llmadapter.Config{
 			Tier: policy.Models.Executor,
 		})
@@ -139,16 +186,6 @@ func (p *RealStageProvider) BuildStages(policy execpolicy.Policy, rs *runstore.R
 
 		diffProv = &review.GitDiffProvider{WorkDir: p.cfg.WorkDir}
 
-		// TODO(0002c): Wire real SpecCompilerAdapter (contextpkt.NewSpecCompilerAdapter) here.
-		// Blocked on:
-		//   1. ArtifactStore — needs a concrete implementation wired from project config
-		//   2. Cell resolution — needs CellName + CellPath plumbed from CLI flags into RealStageProviderConfig
-		//   3. Level selection — needs to be determined from pipeline context (LevelSpec for spec-level compilation)
-		//   4. CompileOpts — needs SpecPath (available) + TokenBudget (needs policy plumbing)
-		// Once those are available, replace noopCompiler with:
-		//   store := contextpkt.NewSomeArtifactStore(...)  // concrete store TBD
-		//   cell := contextpkt.Cell{Name: cfg.CellName, CellPath: cfg.CellPath}
-		//   compiler = contextpkt.NewSpecCompilerAdapter(contextpkt.NewCompiler(store), cell, contextpkt.LevelSpec, contextpkt.CompileOpts{SpecPath: cfg.SpecPath})
 		compiler = &noopCompiler{}
 	} else {
 		// Fallback to noops when no Provider is configured.
@@ -163,7 +200,7 @@ func (p *RealStageProvider) BuildStages(policy execpolicy.Policy, rs *runstore.R
 	compileStage := stages.NewCompileStage(compiler, store, nil)
 
 	planStage := stages.NewPlanStage(planCreator, store, nil)
-	if p.cfg.Provider != nil {
+	if p.claudeProvider != nil || p.cfg.Provider != nil {
 		// Planner satisfies both PlanCreator and FixPlanCreator.
 		if fp, ok := planCreator.(stages.FixPlanCreator); ok {
 			planStage.SetFixPlanner(fp)
