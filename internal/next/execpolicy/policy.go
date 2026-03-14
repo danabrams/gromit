@@ -19,9 +19,9 @@ type Policy struct {
 
 // RoutingConfig defines multi-provider routing preferences.
 type RoutingConfig struct {
-	Preferences     map[string]string `json:"preferences"`       // phase -> provider name or "any"
-	Ratio           map[string]int    `json:"ratio"`              // provider name -> percentage (must sum to 100)
-	CooldownSeconds int               `json:"cooldown_seconds"`   // seconds to mark provider unavailable after usage-limit
+	Preferences     map[string]string `json:"preferences"`      // phase -> provider name or "any"
+	Ratio           map[string]int    `json:"ratio"`            // provider name -> percentage (must sum to 100)
+	CooldownSeconds int               `json:"cooldown_seconds"` // seconds to mark provider unavailable after usage-limit
 }
 
 // NormalizeNilFields maps nil slices/maps to empty values.
