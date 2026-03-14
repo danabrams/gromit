@@ -179,10 +179,20 @@ func (p *RealStageProvider) BuildStages(policy execpolicy.Policy, rs *runstore.R
 		}
 	}
 
+	var decomposer specloop.TaskDecomposer
+	if p.claudeProvider != nil && policy.Budgets.MaxRedecompositionPasses > 0 {
+		decomposer = &PlannerDecomposer{
+			planner: planCreator,
+			tier:    policy.Models.Planner,
+		}
+	}
+
 	executeStage := stages.NewExecuteStage(taskRunner, stages.ExecuteStageConfig{
 		MaxRetries:             policy.Budgets.MaxTaskRetries,
 		MaxRedecompositions:    policy.Budgets.MaxRedecompositionPasses,
 		Inspector:              specloop.NewShellTaskInspector(p.cfg.WorkDir),
+		Decomposer:             decomposer,
+		GitOps:                 &shellGitOps{},
 		WorkDir:                p.cfg.WorkDir,
 		MaxTaskDurationSeconds: policy.Budgets.MaxTaskDurationSeconds,
 		Budget:                 budget,
@@ -316,6 +326,23 @@ func (n *noopGitOps) RemoveWorktree(path string) error {
 	return os.RemoveAll(path)
 }
 
+// shellGitOps implements specloop.GitOps using git CLI commands.
+// It is used by the task loop to revert files before redecomposition.
+type shellGitOps struct{}
+
+func (s *shellGitOps) CheckoutFiles(workDir string, files []string) error {
+	if len(files) == 0 {
+		return nil
+	}
+	args := append([]string{"checkout", "--"}, files...)
+	cmd := exec.Command("git", args...)
+	cmd.Dir = workDir
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("git checkout files: %s: %w", string(out), err)
+	}
+	return nil
+}
+
 // noopValidator satisfies FinalValidator with a no-op.
 type noopValidator struct{}
 
@@ -358,6 +385,43 @@ func (l *lazyDiffProvider) Diff(baseBranch string) (string, error) {
 		dir = l.rs.WorktreePath
 	}
 	return (&review.GitDiffProvider{WorkDir: dir}).Diff(baseBranch)
+}
+
+// PlannerDecomposer implements specloop.TaskDecomposer by asking the planner
+// to create a sub-plan for a task that is too broad to execute as-is.
+type PlannerDecomposer struct {
+	planner stages.PlanCreator
+	tier    string
+}
+
+// Decompose invokes the planner to break the given task into smaller sub-tasks.
+// It uses the task's objective as the spec packet so the planner can generate
+// a focused sub-plan. The resulting tasks are returned as pending runstore.Task
+// values ready to be enqueued by the task loop.
+func (d *PlannerDecomposer) Decompose(ctx context.Context, task runstore.Task) ([]runstore.Task, error) {
+	req := planner.PlanRequest{
+		SpecPacket: "Decompose this task into smaller sub-tasks:\n\n" + task.Objective,
+		Cycle:      task.Cycle,
+	}
+	plan, err := d.planner.CreatePlan(ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("decompose task %s: %w", task.TaskID, err)
+	}
+	subTasks := make([]runstore.Task, len(plan.Tasks))
+	for i, td := range plan.Tasks {
+		st := runstore.Task{
+			TaskID:              td.TaskID,
+			Objective:           td.Objective,
+			Status:              "pending",
+			ExpectedTouchedArea: td.ExpectedTouchedArea,
+			ProofChecks:         td.ProofChecks,
+			Cycle:               task.Cycle,
+			Kind:                "decomposed",
+		}
+		st.NormalizeNilFields()
+		subTasks[i] = st
+	}
+	return subTasks, nil
 }
 
 // noopAcceptEvaluator satisfies AcceptEvaluator with a no-op.

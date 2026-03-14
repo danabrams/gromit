@@ -11,8 +11,10 @@ import (
 
 	"github.com/danabrams/gromit/internal/next/execpolicy"
 	"github.com/danabrams/gromit/internal/next/llmadapter"
+	"github.com/danabrams/gromit/internal/next/planner"
 	"github.com/danabrams/gromit/internal/next/runstore"
 	"github.com/danabrams/gromit/internal/next/specloop"
+	executestages "github.com/danabrams/gromit/internal/next/specloop/stages"
 	"github.com/danabrams/gromit/internal/provider"
 )
 
@@ -638,6 +640,138 @@ func TestBuildRouter_FallbackAdapter_Integration(t *testing.T) {
 	if result.Output != "ok" {
 		t.Errorf("expected result.Output = %q, got %q", "ok", result.Output)
 	}
+}
+
+// TestBuildStages_DecomposerWired verifies that when max_redecomposition_passes > 0
+// and a claudeProvider is set, the execute stage's Decomposer is wired (non-nil).
+// We verify this by running the execute stage with a task that would normally
+// trigger NeedsSplit. With decomposer wired, decomposed sub-tasks should appear
+// in the RunState. With nil decomposer, the task would just be marked failed.
+func TestBuildStages_DecomposerWired_WithClaudeProvider(t *testing.T) {
+	policy := execpolicy.DefaultPolicy()
+	policy.Budgets.MaxRedecompositionPasses = 1 // must be > 0 to wire decomposer
+	rs := runstore.NewRunState("test-spec", "test-project")
+
+	sp := NewRealStageProvider(RealStageProviderConfig{
+		WorkDir:        t.TempDir(),
+		StoreDir:       t.TempDir(),
+		SpecPath:       "test-spec.md",
+		ClaudeProvider: &mockTestProvider{name: "claude"},
+	})
+
+	builtStages, err := sp.BuildStages(policy, rs, specloop.NewBudget(policy.Budgets), nil)
+	if err != nil {
+		t.Fatalf("BuildStages returned error: %v", err)
+	}
+
+	// Find execute stage and verify Decomposer and GitOps are both wired.
+	var execute *executestages.ExecuteStage
+	for _, s := range builtStages {
+		if es, ok := s.(*executestages.ExecuteStage); ok {
+			execute = es
+			break
+		}
+	}
+	if execute == nil {
+		t.Fatal("expected *stages.ExecuteStage in BuildStages output")
+	}
+	if execute.Decomposer() == nil {
+		t.Error("expected non-nil Decomposer when MaxRedecompositionPasses > 0 with claudeProvider")
+	}
+	if execute.TaskGitOps() == nil {
+		t.Error("expected non-nil TaskGitOps — file revert before redecomposition requires it")
+	}
+}
+
+// TestBuildStages_DecomposerNotWired_WhenMaxRedecompositionsZero verifies that
+// when max_redecomposition_passes == 0, the Decomposer is not set (nil),
+// consistent with the "zero means disabled" semantic.
+func TestBuildStages_DecomposerNotWired_WhenMaxRedecompositionsZero(t *testing.T) {
+	policy := execpolicy.DefaultPolicy()
+	policy.Budgets.MaxRedecompositionPasses = 0 // disabled
+	rs := runstore.NewRunState("test-spec", "test-project")
+
+	sp := NewRealStageProvider(RealStageProviderConfig{
+		WorkDir:        t.TempDir(),
+		StoreDir:       t.TempDir(),
+		SpecPath:       "test-spec.md",
+		ClaudeProvider: &mockTestProvider{name: "claude"},
+	})
+
+	builtStages, err := sp.BuildStages(policy, rs, specloop.NewBudget(policy.Budgets), nil)
+	if err != nil {
+		t.Fatalf("BuildStages returned error: %v", err)
+	}
+
+	var execute *executestages.ExecuteStage
+	for _, s := range builtStages {
+		if es, ok := s.(*executestages.ExecuteStage); ok {
+			execute = es
+			break
+		}
+	}
+	if execute == nil {
+		t.Fatal("expected *stages.ExecuteStage in BuildStages output")
+	}
+	if execute.Decomposer() != nil {
+		t.Error("expected nil Decomposer when MaxRedecompositionPasses == 0")
+	}
+}
+
+// TestPlannerDecomposer_Decompose verifies that PlannerDecomposer converts a
+// planner.Plan into runstore.Task values correctly.
+func TestPlannerDecomposer_Decompose(t *testing.T) {
+	mockPlan := &mockPlanCreatorForDecompose{
+		plan: func() ([]string, []string) {
+			return []string{"t-002", "t-003"}, []string{"Do part A", "Do part B"}
+		},
+	}
+
+	decomposer := &PlannerDecomposer{
+		planner: mockPlan,
+		tier:    "medium",
+	}
+
+	task := runstore.Task{
+		TaskID:    "t-001",
+		Objective: "Build a widget",
+		Cycle:     1,
+	}
+
+	subTasks, err := decomposer.Decompose(context.Background(), task)
+	if err != nil {
+		t.Fatalf("Decompose returned error: %v", err)
+	}
+	if len(subTasks) != 2 {
+		t.Fatalf("expected 2 sub-tasks, got %d", len(subTasks))
+	}
+	if subTasks[0].TaskID != "t-002" {
+		t.Errorf("expected first sub-task ID t-002, got %q", subTasks[0].TaskID)
+	}
+	if subTasks[1].TaskID != "t-003" {
+		t.Errorf("expected second sub-task ID t-003, got %q", subTasks[1].TaskID)
+	}
+	if subTasks[0].Status != "pending" {
+		t.Errorf("expected sub-task status 'pending', got %q", subTasks[0].Status)
+	}
+}
+
+// mockPlanCreatorForDecompose is a test double for stages.PlanCreator used in
+// PlannerDecomposer tests.
+type mockPlanCreatorForDecompose struct {
+	plan func() ([]string, []string) // returns (taskIDs, objectives)
+}
+
+func (m *mockPlanCreatorForDecompose) CreatePlan(_ context.Context, _ planner.PlanRequest) (planner.Plan, error) {
+	ids, objs := m.plan()
+	tasks := make([]planner.TaskDef, len(ids))
+	for i := range ids {
+		tasks[i] = planner.TaskDef{
+			TaskID:    ids[i],
+			Objective: objs[i],
+		}
+	}
+	return planner.Plan{Kind: "original", Tasks: tasks}, nil
 }
 
 func TestIntegration_BuildStages_FallbackAdapter_RouterWiring(t *testing.T) {

@@ -216,6 +216,7 @@ func buildFixPlanPrompt(req FixPlanRequest) string {
 	b.WriteString("  - objective: string describing the surgical fix\n")
 	b.WriteString("  - expected_touched_area: array of strings (file paths or directories)\n")
 	b.WriteString("  - proof_checks: array of EXECUTABLE SHELL COMMANDS to verify the fix (e.g. \"go test ./...\", \"grep -q 'func Foo' file.go\"). Must be runnable via `sh -c`. No prose descriptions.\n")
+	b.WriteString("For each `*_test.go` file listed in `expected_touched_area`, you MUST include at least one proof check that verifies new content exists in that test file — for example `grep -q 'TestFoo_Bar' path/to/foo_test.go` or `grep -q 'expectedFunction' path/to/foo_test.go`. Do NOT rely solely on `go test ./...`; it passes even when no new tests were added.\n")
 	b.WriteString("  - parent_cycle: integer (the cycle being fixed)\n")
 	b.WriteString("  - failures_addressed: array of strings (subset of failures this task fixes)\n")
 	return b.String()
@@ -262,5 +263,6 @@ func buildPlanPrompt(req PlanRequest) string {
 	b.WriteString("expected_touched_area must be an array of strings (e.g. [\"calc/calc.go\"]).\n")
 	b.WriteString("Each task needs: task_id, objective, expected_touched_area, proof_checks.\n")
 	b.WriteString("proof_checks must be EXECUTABLE SHELL COMMANDS only (run via `sh -c`). Examples: \"go test ./...\", \"grep -q 'func Subtract' calc/calc.go\", \"gofmt -l . | diff - /dev/null\". Do NOT write prose descriptions — only runnable commands.\n")
+	b.WriteString("For each `*_test.go` file listed in `expected_touched_area`, you MUST include at least one proof check that verifies new content exists in that test file — for example `grep -q 'TestFoo_Bar' path/to/foo_test.go` or `grep -q 'expectedFunction' path/to/foo_test.go`. Do NOT rely solely on `go test ./...`; it passes even when no new tests were added.\n")
 	return b.String()
 }

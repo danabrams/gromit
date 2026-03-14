@@ -60,7 +60,7 @@ func TestExecuteStage_RunsTaskLoop(t *testing.T) {
 	}
 }
 
-func TestExecuteStage_AllTasksFailed_NeedsHuman(t *testing.T) {
+func TestExecuteStage_AllTasksFailed_ReplanFrom(t *testing.T) {
 	runner := &fakeTaskRunner{
 		results: []specloop.TaskResult{
 			{Status: "failed"},
@@ -80,8 +80,8 @@ func TestExecuteStage_AllTasksFailed_NeedsHuman(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if action.Kind != specloop.NeedsHuman {
-		t.Fatalf("expected NeedsHuman, got %v", action.Kind)
+	if action.Kind != specloop.ReplanFrom {
+		t.Fatalf("expected ReplanFrom, got %v", action.Kind)
 	}
 }
 
@@ -133,6 +133,41 @@ func (c *countingTaskRunner) RunTask(ctx context.Context, task runstore.Task) (s
 
 func (c *countingTaskRunner) RepairTask(ctx context.Context, task runstore.Task, failures []string) (specloop.TaskResult, error) {
 	return c.inner.RepairTask(ctx, task, failures)
+}
+
+func TestExecuteStage_DecomposedParentNotRequeued(t *testing.T) {
+	// After a task is decomposed, its status in rs.Tasks must be updated from
+	// "pending" to "decomposed" so it is not re-queued on the next cycle.
+	runner := &fakeTaskRunner{
+		results: []specloop.TaskResult{
+			// t-001 returns "decomposed" (parent result emitted by taskloop after split)
+			{Status: "decomposed"},
+			// sub-tasks return "done"
+			{Status: "done"},
+			{Status: "done"},
+		},
+	}
+
+	stage := NewExecuteStage(runner, ExecuteStageConfig{MaxRetries: 0})
+
+	rs := runstore.NewRunState("spec-001", "proj-001")
+	rs.Tasks = []runstore.Task{
+		{TaskID: "t-001", Status: "pending", Objective: "parent task"},
+	}
+
+	_, err := stage.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// The parent task must no longer be "pending" — otherwise pendingTasks()
+	// would re-queue it on the next cycle.
+	if rs.Tasks[0].Status == "pending" {
+		t.Fatal("parent task status is still 'pending' after decomposition — will be re-queued next cycle")
+	}
+	if rs.Tasks[0].Status != "decomposed" {
+		t.Fatalf("expected parent status 'decomposed', got %q", rs.Tasks[0].Status)
+	}
 }
 
 func TestExecuteStage_PartialFailure_Continue(t *testing.T) {

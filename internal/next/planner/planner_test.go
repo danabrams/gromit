@@ -268,6 +268,33 @@ func TestPlanner_CreateFixPlan_RetryFeedsBackParseError(t *testing.T) {
 	}
 }
 
+func TestBuildPlanPrompt_RequiresTestFileProofChecks(t *testing.T) {
+	prompt := buildPlanPrompt(PlanRequest{
+		SpecPacket: "build a thing",
+		Cycle:      1,
+	})
+	if !strings.Contains(prompt, "*_test.go") {
+		t.Fatal("buildPlanPrompt must instruct LLM to require proof checks for *_test.go files")
+	}
+	if !strings.Contains(prompt, "Do NOT rely solely on `go test ./...`") {
+		t.Fatal("buildPlanPrompt must warn that go test passes even without new test assertions")
+	}
+}
+
+func TestBuildFixPlanPrompt_RequiresTestFileProofChecks(t *testing.T) {
+	prompt := buildFixPlanPrompt(FixPlanRequest{
+		OriginalPlan: Plan{SpecID: "s1", Cycle: 1},
+		Failures:     []string{"missing test coverage"},
+		Cycle:        2,
+	})
+	if !strings.Contains(prompt, "*_test.go") {
+		t.Fatal("buildFixPlanPrompt must instruct LLM to require proof checks for *_test.go files")
+	}
+	if !strings.Contains(prompt, "Do NOT rely solely on `go test ./...`") {
+		t.Fatal("buildFixPlanPrompt must warn that go test passes even without new test assertions")
+	}
+}
+
 func TestPlanner_CreateFixPlan_RetryFeedsBackValidationError(t *testing.T) {
 	// First output: valid JSON but task ID t-002 <= prior max t-004
 	badIDJSON := `{"spec_id":"s1","cycle":2,"kind":"fix","tasks":[{"task_id":"t-002","objective":"fix","expected_touched_area":["a/"],"proof_checks":["true"],"parent_cycle":1,"failures_addressed":["err"]}]}`

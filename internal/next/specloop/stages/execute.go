@@ -35,6 +35,14 @@ func NewExecuteStage(runner specloop.TaskRunner, cfg ExecuteStageConfig) *Execut
 // Name returns the stage name.
 func (s *ExecuteStage) Name() string { return "execute" }
 
+// Decomposer returns the configured TaskDecomposer (nil if not set).
+// Exposed for testing wiring in BuildStages.
+func (s *ExecuteStage) Decomposer() specloop.TaskDecomposer { return s.cfg.Decomposer }
+
+// TaskGitOps returns the configured GitOps (nil if not set).
+// Exposed for testing wiring in BuildStages.
+func (s *ExecuteStage) TaskGitOps() specloop.GitOps { return s.cfg.GitOps }
+
 // pendingTasks returns only tasks that have not yet been executed (status "pending").
 func pendingTasks(tasks []runstore.Task) []runstore.Task {
 	var pending []runstore.Task
@@ -112,7 +120,7 @@ func (s *ExecuteStage) Run(ctx context.Context, rs *runstore.RunState) (specloop
 
 	if allFailed && len(results) > 0 {
 		return specloop.NextAction{
-			Kind: specloop.NeedsHuman,
+			Kind: specloop.ReplanFrom,
 			Context: &specloop.FailureContext{
 				Failures: []string{"all tasks failed"},
 				Cycle:    rs.Cycle,

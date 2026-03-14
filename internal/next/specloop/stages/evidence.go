@@ -44,6 +44,27 @@ func NewEvidenceStage(store *runstore.Store, cfg EvidenceStageConfig) *EvidenceS
 // Name returns the stage name.
 func (s *EvidenceStage) Name() string { return "evidence" }
 
+// effectiveStatus returns the terminal status for display in evidence files.
+// When evidence runs before finalize (happy path), rs.Status is still "running".
+// This replicates FinalizeStage's logic so summary.md and review.md show the
+// correct terminal state rather than "running".
+func effectiveStatus(rs *runstore.RunState) string {
+	if rs.Status != runstore.StatusRunning {
+		return rs.Status
+	}
+	allDone := true
+	for _, t := range rs.Tasks {
+		if t.Status != "done" {
+			allDone = false
+			break
+		}
+	}
+	if allDone && rs.FinalValidationPassed && rs.FinalReviewPassed && rs.FinalAcceptancePassed {
+		return runstore.StatusReadyForReview
+	}
+	return runstore.StatusNeedsHuman
+}
+
 // Run assembles the evidence bundle.
 func (s *EvidenceStage) Run(ctx context.Context, rs *runstore.RunState) (specloop.NextAction, error) {
 	// Compute diff at runtime via DiffProvider (same pattern as ReviewStage).
@@ -137,7 +158,7 @@ func (s *EvidenceStage) Run(ctx context.Context, rs *runstore.RunState) (specloo
 
 	summary := evidence.SummaryInput{
 		SpecID:    rs.SpecID,
-		Status:    rs.Status,
+		Status:    effectiveStatus(rs),
 		TaskCount: len(rs.Tasks),
 		PassCount: passCount,
 		Cycles:    rs.Cycle,
@@ -150,7 +171,7 @@ func (s *EvidenceStage) Run(ctx context.Context, rs *runstore.RunState) (specloo
 	reviewFindings, acceptanceCriteria := s.readReviewEvidence(rs.RunID)
 
 	reviewInput := evidence.ReviewInput{
-		TerminalState:      rs.Status,
+		TerminalState:      effectiveStatus(rs),
 		WhatChanged:        diffSummary,
 		CycleHistory:       []evidence.CycleRecord{{Cycle: rs.Cycle, TaskCount: len(rs.Tasks), PassCount: passCount}},
 		ValidationResults:  fmt.Sprintf("pass=%v", rs.FinalValidationPassed),

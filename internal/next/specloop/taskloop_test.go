@@ -579,3 +579,388 @@ func TestTaskLoop_DetectFilesChanged_ErrorFallsBack(t *testing.T) {
 		t.Fatalf("expected original files on detector error, got %v", results[0].FilesChanged)
 	}
 }
+
+// TestTaskLoop_NeedsSplit_DetectedFromFilesChanged verifies that when a task
+// runner returns "done" but the files changed span 3+ distinct directories,
+// the taskloop promotes the result to "needs_split" and triggers decomposition.
+func TestTaskLoop_NeedsSplit_DetectedFromFilesChanged(t *testing.T) {
+	// Runner returns "done" — never sets needs_split itself.
+	runner := &fakeTaskRunner{fn: func(_ context.Context, task runstore.Task) (TaskResult, error) {
+		return TaskResult{Status: "done"}, nil
+	}}
+	decomposer := &fakeDecomposer{subTasks: []runstore.Task{
+		{TaskID: "t-001a", Status: "pending"},
+		{TaskID: "t-001b", Status: "pending"},
+	}}
+	inspector := &fakeInspector{pass: true}
+	tasks := []runstore.Task{{TaskID: "t-001", Status: "pending"}}
+
+	// Detector returns files in 3 different directories for the parent task only.
+	// Sub-tasks return no changed files so they don't retrigger NeedsSplit.
+	callCount := 0
+	detector := func(workDir string) ([]string, error) {
+		callCount++
+		if callCount%2 == 1 {
+			return []string{}, nil // baseline calls (odd): always return empty
+		}
+		if callCount == 2 {
+			// Second call = delta for t-001: 3 distinct parent dirs triggers NeedsSplit.
+			return []string{"pkg/a/file.go", "pkg/b/file.go", "pkg/c/file.go"}, nil
+		}
+		// Delta calls for sub-tasks: no files changed.
+		return []string{}, nil
+	}
+
+	results, err := RunTaskLoop(context.Background(), tasks, runner, TaskLoopConfig{
+		MaxRetries:          0,
+		Inspector:           inspector,
+		Decomposer:          decomposer,
+		MaxRedecompositions: 1,
+		WorkDir:             "/tmp/test",
+		DetectFilesChanged:  detector,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// The parent t-001 should appear in results as "decomposed".
+	// Sub-tasks t-001a and t-001b should be "done".
+	doneCount := 0
+	parentOK := false
+	for _, r := range results {
+		if r.Status == "done" {
+			doneCount++
+		}
+		if r.TaskID == "t-001" {
+			if r.Status != "decomposed" {
+				t.Fatalf("parent t-001 expected status 'decomposed', got %q", r.Status)
+			}
+			parentOK = true
+		}
+	}
+	if !parentOK {
+		t.Fatal("parent t-001 not found in results")
+	}
+	if doneCount != 2 {
+		t.Fatalf("expected 2 done sub-tasks after NeedsSplit detection, got %d done (results: %v)", doneCount, results)
+	}
+}
+
+// TestTaskLoop_NeedsSplit_FilesChangedPopulatedBeforeHandler verifies that
+// result.FilesChanged is populated before the needs_split handler runs,
+// enabling the revert (CheckoutFiles) to work correctly.
+func TestTaskLoop_NeedsSplit_FilesChangedPopulatedBeforeHandler(t *testing.T) {
+	gitOps := &fakeGitOps{}
+
+	runner := &fakeTaskRunner{fn: func(_ context.Context, task runstore.Task) (TaskResult, error) {
+		return TaskResult{Status: "done"}, nil
+	}}
+	decomposer := &fakeDecomposer{subTasks: []runstore.Task{
+		{TaskID: "t-001a", Status: "pending"},
+	}}
+	inspector := &fakeInspector{pass: true}
+	tasks := []runstore.Task{{TaskID: "t-001", Status: "pending"}}
+
+	// Files in 3 dirs — NeedsSplit triggers. FilesChanged must be populated
+	// before the handler so CheckoutFiles receives the actual changed files.
+	callCount := 0
+	detector := func(workDir string) ([]string, error) {
+		callCount++
+		if callCount%2 == 1 {
+			return []string{}, nil // baseline calls (odd): always return empty
+		}
+		if callCount == 2 {
+			// Delta for t-001: 3 files across 3 dirs triggers NeedsSplit.
+			return []string{"pkg/a/file.go", "pkg/b/file.go", "pkg/c/file.go"}, nil
+		}
+		return []string{}, nil // sub-task deltas: no files
+	}
+
+	RunTaskLoop(context.Background(), tasks, runner, TaskLoopConfig{
+		MaxRetries:          0,
+		Inspector:           inspector,
+		Decomposer:          decomposer,
+		MaxRedecompositions: 1,
+		GitOps:              gitOps,
+		WorkDir:             "/tmp/test",
+		DetectFilesChanged:  detector,
+	})
+
+	// GitOps.CheckoutFiles should have been called with the detected files.
+	if !gitOps.checkoutCalled {
+		t.Fatal("expected git checkout to be called for revert before decomposition")
+	}
+	if len(gitOps.checkoutFiles) != 3 {
+		t.Fatalf("expected 3 files to be reverted, got %d: %v", len(gitOps.checkoutFiles), gitOps.checkoutFiles)
+	}
+}
+
+// TestTaskLoop_NeedsSplit_OnlyForDoneStatus verifies that NeedsSplit detection
+// is skipped when the runner returns "failed" (only applied to "done" results).
+func TestTaskLoop_NeedsSplit_OnlyForDoneStatus(t *testing.T) {
+	runner := &fakeTaskRunner{fn: func(_ context.Context, task runstore.Task) (TaskResult, error) {
+		return TaskResult{Status: "failed"}, nil
+	}}
+	decomposer := &fakeDecomposer{subTasks: []runstore.Task{
+		{TaskID: "t-001a", Status: "pending"},
+	}}
+	inspector := &fakeInspector{pass: true}
+	tasks := []runstore.Task{{TaskID: "t-001", Status: "pending"}}
+
+	callCount := 0
+	detector := func(workDir string) ([]string, error) {
+		callCount++
+		if callCount == 1 {
+			return []string{}, nil
+		}
+		// 3 distinct dirs — would trigger NeedsSplit, but runner returned "failed"
+		return []string{"pkg/a/file.go", "pkg/b/file.go", "pkg/c/file.go"}, nil
+	}
+
+	results, err := RunTaskLoop(context.Background(), tasks, runner, TaskLoopConfig{
+		MaxRetries:          0,
+		Inspector:           inspector,
+		Decomposer:          decomposer,
+		MaxRedecompositions: 1,
+		WorkDir:             "/tmp/test",
+		DetectFilesChanged:  detector,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Runner returned "failed" — should not be promoted to needs_split or decomposed.
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result (no decomposition), got %d", len(results))
+	}
+	if results[0].Status != "failed" {
+		t.Fatalf("expected status 'failed', got %q", results[0].Status)
+	}
+}
+
+// TestTaskLoop_TestFileCoverage_MissingTestFile verifies that when a *_test.go
+// file is listed in expected_touched_area but not in files_changed, the
+// structural safety-net check fails inspection with the right message.
+func TestTaskLoop_TestFileCoverage_MissingTestFile(t *testing.T) {
+	runner := &fakeTaskRunner{fn: func(_ context.Context, task runstore.Task) (TaskResult, error) {
+		// Only returns a non-test file; the test file is NOT changed.
+		return TaskResult{Status: "done", FilesChanged: []string{"pkg/foo.go"}}, nil
+	}}
+	inspector := &fakeInspector{pass: true} // LLM checks all pass
+	tasks := []runstore.Task{{
+		TaskID:              "t-001",
+		Status:              "pending",
+		ExpectedTouchedArea: []string{"pkg/foo.go", "pkg/foo_test.go"},
+	}}
+
+	results, err := RunTaskLoop(context.Background(), tasks, runner, TaskLoopConfig{
+		MaxRetries: 0,
+		Inspector:  inspector,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if results[0].Status != "failed" {
+		t.Fatalf("expected status 'failed' when test file missing from files_changed, got %q", results[0].Status)
+	}
+}
+
+// TestTaskLoop_TestFileCoverage_TestFilePresent verifies that when a *_test.go
+// file is in both expected_touched_area and files_changed, inspection still passes.
+func TestTaskLoop_TestFileCoverage_TestFilePresent(t *testing.T) {
+	runner := &fakeTaskRunner{fn: func(_ context.Context, task runstore.Task) (TaskResult, error) {
+		return TaskResult{Status: "done", FilesChanged: []string{"pkg/foo.go", "pkg/foo_test.go"}}, nil
+	}}
+	inspector := &fakeInspector{pass: true}
+	tasks := []runstore.Task{{
+		TaskID:              "t-001",
+		Status:              "pending",
+		ExpectedTouchedArea: []string{"pkg/foo.go", "pkg/foo_test.go"},
+	}}
+
+	results, err := RunTaskLoop(context.Background(), tasks, runner, TaskLoopConfig{
+		MaxRetries: 0,
+		Inspector:  inspector,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if results[0].Status != "done" {
+		t.Fatalf("expected status 'done' when test file is present in files_changed, got %q", results[0].Status)
+	}
+}
+
+// TestTaskLoop_TestFileCoverage_NonTestFileMissingDoesNotFail verifies that the
+// structural check only applies to *_test.go files — non-test files missing from
+// files_changed do NOT cause a failure.
+func TestTaskLoop_TestFileCoverage_NonTestFileMissingDoesNotFail(t *testing.T) {
+	runner := &fakeTaskRunner{fn: func(_ context.Context, task runstore.Task) (TaskResult, error) {
+		// Only foo_test.go changed; bar.go (a non-test file) was not touched.
+		return TaskResult{Status: "done", FilesChanged: []string{"pkg/foo_test.go"}}, nil
+	}}
+	inspector := &fakeInspector{pass: true}
+	tasks := []runstore.Task{{
+		TaskID:              "t-001",
+		Status:              "pending",
+		ExpectedTouchedArea: []string{"pkg/foo_test.go", "pkg/bar.go"},
+	}}
+
+	results, err := RunTaskLoop(context.Background(), tasks, runner, TaskLoopConfig{
+		MaxRetries: 0,
+		Inspector:  inspector,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// bar.go is not a *_test.go file — its absence should not cause failure.
+	if results[0].Status != "done" {
+		t.Fatalf("expected status 'done' (non-test file missing is not enforced), got %q", results[0].Status)
+	}
+}
+
+// TestRunTaskLoop_StructuralCheckSkippedWhenNoFilesChanged verifies that when
+// a task has a *_test.go in expected_touched_area, the inspector returns Pass,
+// but FilesChanged is empty (e.g. a git-only operation), the structural
+// cross-check is skipped and the task is not downgraded to failed.
+func TestRunTaskLoop_StructuralCheckSkippedWhenNoFilesChanged(t *testing.T) {
+	runner := &fakeTaskRunner{fn: func(_ context.Context, task runstore.Task) (TaskResult, error) {
+		// Agent did a git-only op; no file contents were modified.
+		return TaskResult{Status: "done", FilesChanged: []string{}}, nil
+	}}
+	inspector := &fakeInspector{pass: true} // LLM checks all pass
+	tasks := []runstore.Task{{
+		TaskID:              "t-001",
+		Status:              "pending",
+		ExpectedTouchedArea: []string{"pkg/foo.go", "pkg/foo_test.go"},
+	}}
+
+	results, err := RunTaskLoop(context.Background(), tasks, runner, TaskLoopConfig{
+		MaxRetries: 0,
+		Inspector:  inspector,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// FilesChanged is empty — structural check must be skipped entirely.
+	// The inspector passed, so the task should remain "done".
+	if results[0].Status != "done" {
+		t.Fatalf("expected status 'done' when FilesChanged is empty (git-only op), got %q", results[0].Status)
+	}
+}
+
+// TestTaskLoop_DecomposedParentAppearsInResultsAsDecomposed verifies that when
+// a task is successfully split into sub-tasks, the parent task appears in the
+// results with status "decomposed" so execute.go can update rs.Tasks and prevent
+// the parent from being re-queued on the next cycle.
+func TestTaskLoop_DecomposedParentAppearsInResultsAsDecomposed(t *testing.T) {
+	runner := &fakeTaskRunner{fn: func(_ context.Context, task runstore.Task) (TaskResult, error) {
+		if task.TaskID == "t-001" {
+			return TaskResult{Status: "needs_split"}, nil
+		}
+		return TaskResult{Status: "done"}, nil
+	}}
+	decomposer := &fakeDecomposer{subTasks: []runstore.Task{
+		{TaskID: "t-002", Status: "pending"},
+		{TaskID: "t-003", Status: "pending"},
+	}}
+	inspector := &fakeInspector{pass: true}
+	tasks := []runstore.Task{{TaskID: "t-001", Status: "pending"}}
+
+	results, err := RunTaskLoop(context.Background(), tasks, runner, TaskLoopConfig{
+		MaxRetries: 1, Inspector: inspector, Decomposer: decomposer, MaxRedecompositions: 1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Parent t-001 must appear in results with status "decomposed" so that
+	// execute.go can mark it non-pending in rs.Tasks.
+	var parentResult *TaskResult
+	for i := range results {
+		if results[i].TaskID == "t-001" {
+			parentResult = &results[i]
+			break
+		}
+	}
+	if parentResult == nil {
+		t.Fatal("parent t-001 not found in results — execute.go cannot update its status, causing re-queue next cycle")
+	}
+	if parentResult.Status != "decomposed" {
+		t.Fatalf("expected parent status 'decomposed', got %q", parentResult.Status)
+	}
+}
+
+// TestRunTaskLoop_RedecompositionIDsContinueFromMax verifies that when a task
+// is decomposed into sub-tasks, the sub-task IDs are renumbered to continue
+// from the current maximum task ID in the queue — preventing ID collisions.
+func TestRunTaskLoop_RedecompositionIDsContinueFromMax(t *testing.T) {
+	// Queue starts with t-001 through t-005; t-006 triggers decomposition.
+	// The decomposer returns sub-tasks with colliding IDs t-001..t-003.
+	// After renumbering they should become t-007, t-008, t-009.
+
+	var executedIDs []string
+	runner := &fakeTaskRunner{fn: func(_ context.Context, task runstore.Task) (TaskResult, error) {
+		executedIDs = append(executedIDs, task.TaskID)
+		if task.TaskID == "t-006" {
+			return TaskResult{Status: "needs_split"}, nil
+		}
+		return TaskResult{Status: "done"}, nil
+	}}
+	// Decomposer returns sub-tasks with IDs that collide with the existing queue.
+	decomposer := &fakeDecomposer{subTasks: []runstore.Task{
+		{TaskID: "t-001", Status: "pending"},
+		{TaskID: "t-002", Status: "pending"},
+		{TaskID: "t-003", Status: "pending"},
+	}}
+	inspector := &fakeInspector{pass: true}
+	tasks := []runstore.Task{
+		{TaskID: "t-001", Status: "pending"},
+		{TaskID: "t-002", Status: "pending"},
+		{TaskID: "t-003", Status: "pending"},
+		{TaskID: "t-004", Status: "pending"},
+		{TaskID: "t-005", Status: "pending"},
+		{TaskID: "t-006", Status: "pending"},
+	}
+
+	results, err := RunTaskLoop(context.Background(), tasks, runner, TaskLoopConfig{
+		MaxRetries:          0,
+		Inspector:           inspector,
+		Decomposer:          decomposer,
+		MaxRedecompositions: 1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Collect the IDs of sub-tasks that were actually executed (from decomposition).
+	// We expect t-007, t-008, t-009 — not t-001..t-003 again.
+	subTaskIDs := map[string]bool{}
+	for _, id := range executedIDs {
+		subTaskIDs[id] = true
+	}
+
+	// The original t-001..t-003 were run before decomposition; those entries
+	// in executedIDs are fine. What we must NOT see is a *second* execution of
+	// t-001, t-002, or t-003 from the decomposed sub-tasks. Instead we expect
+	// t-007, t-008, t-009 in the results.
+	foundRenumbered := 0
+	for _, r := range results {
+		if r.TaskID == "t-007" || r.TaskID == "t-008" || r.TaskID == "t-009" {
+			foundRenumbered++
+			if r.Status != "done" {
+				t.Errorf("expected renumbered sub-task %s to be done, got %q", r.TaskID, r.Status)
+			}
+		}
+	}
+	if foundRenumbered != 3 {
+		var ids []string
+		for _, r := range results {
+			ids = append(ids, r.TaskID+"="+r.Status)
+		}
+		t.Fatalf("expected 3 renumbered sub-tasks (t-007..t-009) in results, got %d; results: %v", foundRenumbered, ids)
+	}
+}

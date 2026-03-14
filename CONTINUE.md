@@ -1,11 +1,13 @@
 # Manual Test Plan — Spec 0002a/0002c/0002d End-to-End
 
 ## Status
-- **Current phase:** Scenario 6 CONFIRMED WORKING — run-c4724a90ca32f14c passed. Ready for Scenario 7.
-- **Next:** Scenario 7 (Task Split / Redecomposition)
+- **Current phase:** Scenario 11 (CLI Inspection) CONFIRMED. All changes committed.
+- **Next:** **Scenario 12 (Broad Refactor — multi-package)**
 - **Date:** 2026-03-14
 - **Latest commits:**
-  - (uncommitted) fix: ShellTaskInspector — task repair wired end-to-end; EventLog through BuildStages; planner proof_checks require executable shell commands
+  - fix: effectiveStatus in EvidenceStage — review.md/summary.md showed "running" instead of terminal state
+  - fix: exec show — add Cycles, Duration, Cost, Validation, Worktree, Evidence path fields
+  - fix: ShellTaskInspector — task repair wired end-to-end; EventLog through BuildStages; planner proof_checks require executable shell commands
   - (uncommitted) fix: structural fix planner constraint enforcement — filterForbiddenFixTasks, SpecPacket/SpecConstraints in FixPlanRequest, stronger prompt wording
   - (uncommitted) fix: thread SpecConstraints from spec.md to task prompts so agent respects Out-of-Scope/Architectural Constraints
   - (uncommitted) fix: TestNormalizeNilFieldsVisibilityPolicy — added CLAUDE.md convention comment to execpolicy/policy.go
@@ -339,17 +341,278 @@ rm -rf .gromit-next/runs/*
 /Users/dabrams/gromit/gromit-next exec spec --project fixture-calc --spec /tmp/gromit-fixtures/fixture-calc/specs/add-subtract.md --store-dir .gromit-next
 ```
 
+## Scenario 7 — Task Split / Redecomposition — CORE MACHINERY CONFIRMED; NEW BUGS FOUND
+
+### Run 1 (pre-fix): run-c8ffddf7b0eee56e — cycles_exhausted ($1.55)
+
+`task_needs_split` + `redecomposition_triggered` fired twice. Cycles exhausted because agent missed test file assertions. Root cause: no structural enforcement of test-file coverage.
+
+**Fixes applied (uncommitted, 8221 tests pass):**
+1. `planner/planner.go` — require content-verification proof checks for every `*_test.go` in `expected_touched_area`
+2. `taskloop.go` — structural cross-check: `*_test.go` in `expected_touched_area` not in `files_changed` → downgrade `Pass: true` to `Pass: false`
+3. Tests: 2 planner + 3 taskloop tests added; gofmt fixed (8221 total)
+
+### Run 2 (post-fix): run-0ed6e5980aa970cd — stage_needs_human ($2.50)
+
+**Run ID:** run-0ed6e5980aa970cd
+**Status:** `needs_human` (stage_needs_human)
+**Cost:** $2.50
+**Cycle:** 3, `total_replans`: 2
+
+**Core objectives verified:**
+- [x] `task_needs_split` fired — t-011 triggered split ✓
+- [x] `redecomposition_triggered` fired ✓
+- [x] Structural test-file enforcement working in cycles 1–2: agent correctly touched test files (auth_test.go, billing_test.go, refund_test.go appear in `files_changed`) ✓
+- [x] All 8 evidence files present ✓
+- [x] `ended_at` populated, cost tracked ✓
+
+**What happened cycle-by-cycle:**
+- Cycle 1: Planner decomposed spec into 5 tasks upfront (per-package). All passed. Agent created `internal/logging/logger.go` (untracked).
+- Review fired: `logger.go` and `logger_test.go` exist on disk but are untracked (`??` in git status) — not in diff.
+- Cycle 2: Fix tasks (t-006..t-009) corrected test files. Review fired again for same untracked-files issue.
+- Cycle 3: Fix planner created t-010 (`git add` the logging files) and t-011 (fix double-close in test files). t-010 failed twice (structural check: `logger_test.go` in eta but `git add` doesn't change content → `files_changed: []`). t-011 triggered `needs_split` → redecomposed into t-001..t-005. All 5 sub-tasks failed. Execute stage returned `NeedsHuman` ("all tasks failed").
+
+**Bugs found and fixed (uncommitted, 760 tests pass):**
+
+1. **Untracked files review loop** — `noopGitOps` never stages new files. Fix planner correctly generates a git-add task (t-010), but bug #2 blocked it from succeeding. Expected to self-resolve with bug #2 fix. *Note: real git-worktree execution commits properly; this is a noopGitOps limitation.*
+
+2. **Structural check blocks git-only fix tasks** — Fixed in `taskloop.go`: structural `*_test.go` cross-check now skips when `result.FilesChanged` is empty. When `files_changed: []`, the agent did a non-content operation (git staging) or a genuine no-op — nothing to enforce. Applied to both initial inspection and repair retry.
+
+3. **Redecomposition ID collision** — Fixed in `taskloop.go`: after `Decompose()` returns sub-tasks, `maxTaskIDInQueue()` scans the queue for the current max numeric suffix, then `renumberSubTasks()` reassigns sub-task IDs starting at `max+1`. E.g., if t-011 triggers a split, sub-tasks become t-012, t-013, t-014 instead of t-001. Also copies `SpecConstraints` from parent to sub-tasks if decomposer doesn't set it.
+
+4. **`stage_needs_human` instead of `cycles_exhausted`** — Fixed in `stages/execute.go`: `allFailed` branch now returns `ReplanFrom` instead of `NeedsHuman`. Fix planner gets a chance to try recovery; normal cycle governor handles escalation. Test renamed `TestExecuteStage_AllTasksFailed_ReplanFrom`.
+
+### Run 3 (post-fix): run-afcbc8f4fe7ae6b2 — cycles_exhausted ($0.98) — CONFIRMED
+
+**Run ID:** run-afcbc8f4fe7ae6b2
+**Status:** `needs_human` (cycles_exhausted) — correct terminal state
+**Cost:** $0.98, **Cycle:** 3, **total_replans:** 3
+
+**All 4 bugs verified:**
+- [x] `task_needs_split` fired — t-001 triggered split ✓
+- [x] `redecomposition_triggered` fired ✓
+- [x] **Bug #3 (ID collision):** Sub-tasks got t-002..t-008, not t-001 again ✓
+- [x] **Bug #2 (structural check skip):** t-008, t-009 have `files_changed: []` and completed — no blocking ✓
+- [x] **Bug #4 (allFailed→ReplanFrom):** terminal_reason is `cycles_exhausted`, not `stage_needs_human` ✓
+- [x] `final_validation_passed: true` — all tests pass ✓
+- [x] All evidence files present ✓
+- [x] **Bug #1 (untracked files):** Correctly cycles to exhaustion rather than looping forever (noopGitOps limitation) ✓
+
+**Observation:** t-001 ran twice in events — once triggering the split (cycle 1), then again at start of cycle 2 with `files_changed: []`. Original task appears to be re-queued after redecomposition. Harmless but worth investigating later.
+
+**Remaining review error (noopGitOps limitation):** `logger.go` untracked in diff across all 3 cycles — real git-worktree execution would commit files properly, eliminating this.
+
+## Scenario 8 — Multi-Project Isolation — CONFIRMED WORKING
+
+**Calc Run ID:** run-af0838da20d5b1b3 | **Greeter Run ID:** run-1dc68ab47b0bb8df
+**Both Status:** `ready_for_review`
+**Calc Cost:** $0.18 | **Greeter Cost:** $0.12
+
+**Verified outcomes:**
+- [x] Both runs completed concurrently, both exit 0 ✓
+- [x] Run directories separate: `fixture-calc/.gromit-next/runs/` vs `fixture-greeter/.gromit-next/runs/` ✓
+- [x] Worktrees different: `gromit-noop-worktree-2418093440` vs `gromit-noop-worktree-409300836` ✓
+- [x] Spec packets distinct: calc → "Add a Subtract function to the calculator", greeter → "Add a Farewell function to the greeter" ✓
+- [x] No cross-contamination: no "greeter/farewell" refs in calc evidence; no "calculator/subtract" refs in greeter evidence ✓
+- [x] Events independent: 6 events each, separate task IDs, separate run artifacts ✓
+- [x] Correct code: calc got `Subtract(a, b int) int`, greeter got `Farewell(name string) string` ✓
+- [x] All 8 evidence files in each run's `evidence/` directory ✓
+- [x] Metrics independent: 11 invocations (calc), 8 invocations (greeter) ✓
+
+**Command:**
+```bash
+cd /tmp/gromit-fixtures/fixture-calc && git checkout -- . && rm -rf .gromit-next/runs/*
+cd /tmp/gromit-fixtures/fixture-greeter && git checkout -- . && rm -rf .gromit-next/runs/* 2>/dev/null
+
+cd /tmp/gromit-fixtures/fixture-calc && /Users/dabrams/gromit/gromit-next exec spec \
+  --project fixture-calc \
+  --spec /tmp/gromit-fixtures/fixture-calc/specs/add-subtract.md \
+  --policy /tmp/gromit-fixtures/policies/fixture-calc-execution.json \
+  --store-dir .gromit-next > /tmp/calc-run.log 2>&1 &
+
+cd /tmp/gromit-fixtures/fixture-greeter && /Users/dabrams/gromit/gromit-next exec spec \
+  --project fixture-greeter \
+  --spec /tmp/gromit-fixtures/fixture-greeter/specs/add-farewell.md \
+  --policy /tmp/gromit-fixtures/policies/fixture-greeter-execution.json \
+  --store-dir .gromit-next > /tmp/greeter-run.log 2>&1 &
+
+wait
+```
+
+## Scenario 9 — Cost Limits — CONFIRMED WORKING
+
+**Run ID:** run-dad4848b3ef42090
+**Status:** `blocked`
+**Policy:** `max_run_cost_usd: 0.001`
+**Actual cost:** $0.0719
+
+**Verified outcomes:**
+- [x] Status: `blocked` ✓
+- [x] `terminal_reason`: `budget_exceeded` ✓
+- [x] `blocker_summary`: `"cost budget exceeded: $0.07 >= $0.00"` ✓
+- [x] `ended_at`: populated ✓
+- [x] `accumulated_cost`: $0.0719 (71x the $0.001 limit) ✓
+- [x] `events.jsonl` has `budget_exceeded` event with `accumulated_cost: 0.0719` ✓
+- [x] **Cost enforcement timing**: t-001 completed (Subtract added); t-002 got `status: "blocked", attempts: 0` — budget check fires between tasks ✓
+- [x] No validate/finalize/review stages ran after budget exceeded ✓
+- [x] Evidence bundle emitted (6 files: diff-summary.md, metrics.json, review.md, summary.md, task-results.json, validation.json) ✓
+- [x] `metrics.json.total_cost_usd`: $0.0719, 2 invocations tracked ✓
+
+**Command:**
+```bash
+cd /tmp/gromit-fixtures/fixture-calc
+git show 7f6de76:calc/calc.go > calc/calc.go
+git show 7f6de76:calc/calc_test.go > calc/calc_test.go
+rm -rf .gromit-next/runs/*
+cat > /tmp/gromit-fixtures/policies/fixture-calc-cost001.json << 'EOF'
+{
+  "always_run": [
+    {"name": "unit-tests", "command": "go test ./...", "type": "test"},
+    {"name": "format", "command": "gofmt -l .", "type": "lint"},
+    {"name": "vet", "command": "go vet ./...", "type": "lint"}
+  ],
+  "budgets": {
+    "max_spec_cycles": 3,
+    "max_task_retries": 1,
+    "max_redecomposition_passes": 1,
+    "max_task_duration_seconds": 300,
+    "max_run_duration_seconds": 3600,
+    "max_run_cost_usd": 0.001
+  },
+  "models": {
+    "planner": "high",
+    "executor": "medium"
+  }
+}
+EOF
+/Users/dabrams/gromit/gromit-next exec spec \
+  --project fixture-calc \
+  --spec /tmp/gromit-fixtures/fixture-calc/specs/add-subtract.md \
+  --policy /tmp/gromit-fixtures/policies/fixture-calc-cost001.json \
+  --store-dir .gromit-next
+```
+
+## Scenario 10 — Timeout — CONFIRMED WORKING
+
+**Run ID:** run-a14e20583c1f1dc4
+**Status:** `blocked`
+**Policy:** `max_run_duration_seconds: 5`
+**Actual duration:** ~6.7 seconds
+
+**Verified outcomes:**
+- [x] Status: `blocked` ✓
+- [x] `terminal_reason`: `budget_exceeded` ✓
+- [x] `blocker_summary`: `"time budget exceeded: 6s >= 5s"` ✓
+- [x] `ended_at`: populated ✓
+- [x] `events.jsonl` has `budget_exceeded` event ✓
+- [x] Run completed in ~6.7s (roughly the timeout duration, not hanging) ✓
+- [x] Evidence bundle emitted: 6 files (diff-summary.md, metrics.json, review.md, summary.md, task-results.json, validation.json) ✓
+- [x] `metrics.json.invocations`: 1 invocation (plan stage, sonnet, 6427ms) ✓
+- [x] Execute stage never ran — tasks have `status: "pending", attempts: 0` ✓
+- [x] calc/calc.go unchanged ✓
+
+**Behavior:** Timeout fires between stages (init/compile/plan completed; execute never started). The plan stage ran for ~6.4s generating 2 tasks. After plan stage, the budget check fired (6s >= 5s) → `blocked`.
+
+**Note:** `accumulated_cost: 0` for this run because the plan-stage invocation returned no cost data from Claude CLI stream. This is expected — cost tracking works correctly in execute-stage invocations (seen in Scenarios 1-9).
+
+**Command:**
+```bash
+cd /tmp/gromit-fixtures/fixture-calc
+git show 7f6de76:calc/calc.go > calc/calc.go
+git show 7f6de76:calc/calc_test.go > calc/calc_test.go
+rm -f calc/divide_test.go calc/divide_edge_test.go calc/divide_exact_test.go
+rm -rf .gromit-next/runs/*
+cat > /tmp/gromit-fixtures/policies/fixture-calc-timeout5.json << 'EOF'
+{
+  "always_run": [
+    {"name": "unit-tests", "command": "go test ./...", "type": "test"},
+    {"name": "format", "command": "gofmt -l .", "type": "lint"},
+    {"name": "vet", "command": "go vet ./...", "type": "lint"}
+  ],
+  "budgets": {
+    "max_spec_cycles": 3,
+    "max_task_retries": 1,
+    "max_redecomposition_passes": 1,
+    "max_task_duration_seconds": 300,
+    "max_run_duration_seconds": 5,
+    "max_run_cost_usd": 50.0
+  },
+  "models": {
+    "planner": "high",
+    "executor": "medium"
+  }
+}
+EOF
+/Users/dabrams/gromit/gromit-next exec spec \
+  --project fixture-calc \
+  --spec /tmp/gromit-fixtures/fixture-calc/specs/add-subtract.md \
+  --policy /tmp/gromit-fixtures/policies/fixture-calc-timeout5.json \
+  --store-dir .gromit-next
+```
+
+## Scenario 11 — CLI Inspection — CONFIRMED WORKING
+
+**Run ID used:** run-ed72546cce95542b (ready_for_review, $0.14, Subtract spec)
+
+**Fixes applied:**
+1. `exec show` was missing Cycles, Duration, Cost, Validation pass, Worktree path, Evidence path. Added all fields. 1 new test.
+2. `review.md` and `summary.md` showed `status: running` — `EvidenceStage` runs before `FinalizeStage` so `rs.Status` was still "running" when evidence files were written. Fix: added `effectiveStatus(rs)` helper that derives the correct terminal state when `rs.Status == "running"`. 4 new tests. 767 tests total pass.
+
+**Verified outcomes:**
+
+#### 12a: `exec list`
+- [x] Table with RUN ID, SPEC, STATUS, STARTED ✓
+- [x] Multiple runs shown (ready_for_review + blocked) ✓
+
+#### 12b: `exec show <run-id>`
+- [x] Run ID, Spec, Project, Status (ready_for_review) ✓
+- [x] Cycles: 2 ✓
+- [x] Duration: 2m52.109s ✓
+- [x] Tasks: 3 total, 3 done ✓
+- [x] Valid: true ✓
+- [x] Cost: $0.1380 ✓
+- [x] Worktree path ✓
+- [x] Evidence path ✓
+
+#### 12c: `exec show latest`
+- [x] Resolves to most recent run ✓
+- [x] Fields match correctly ✓
+
+#### 12d: `exec show --full`
+- [x] All evidence files shown: acceptance.json, diff-summary.md, metrics.json, review.json, review.md, summary.md, task-results.json, validation.json ✓
+- [x] Task-level details per task: status, attempts, files_changed, proof_checks ✓
+
+#### 12e: `spec list`
+- [x] Table with SPEC, STATUS, LAST RUN ✓
+- [x] add-subtract: `ready_for_review` ✓
+- [x] divide-float64: `ready` (no run) ✓
+
+**Re-run verified (run-904c4763b46c98c8, $0.21):**
+- [x] `review.md` Terminal State: `ready_for_review` ✓ (was "running" before fix)
+- [x] `summary.md` Status: `ready_for_review` ✓ (was "running" before fix)
+
+**Command:**
+```bash
+cd /tmp/gromit-fixtures/fixture-calc
+git show 7f6de76:calc/calc.go > calc/calc.go
+git show 7f6de76:calc/calc_test.go > calc/calc_test.go
+rm -f calc/divide_test.go calc/divide_edge_test.go calc/divide_exact_test.go
+rm -rf .gromit-next/runs/*
+/Users/dabrams/gromit/gromit-next exec spec --project fixture-calc --spec /tmp/gromit-fixtures/fixture-calc/specs/add-subtract.md --store-dir .gromit-next
+# Then:
+/Users/dabrams/gromit/gromit-next exec list --project fixture-calc --store-dir .gromit-next
+/Users/dabrams/gromit/gromit-next exec show <run-id> --store-dir .gromit-next
+/Users/dabrams/gromit/gromit-next exec show latest --project fixture-calc --store-dir .gromit-next
+/Users/dabrams/gromit/gromit-next exec show <run-id> --full --store-dir .gromit-next
+/Users/dabrams/gromit/gromit-next spec list --project fixture-calc --store-dir .gromit-next
+```
+
 ## Remaining Scenarios (not yet run)
-7. Task Split / Redecomposition
-8. Multi-Project Isolation
-9. Cost Limits
-10. Timeout
-11. CLI Inspection (`exec inspect`)
 12. Broad Refactor (multi-package)
 
 ## How to Resume
 1. Read this file
-2. Read the manual test plan: `docs/plans/2026-03-13-spec-0002c-0002d-manual-test-plan.md`
+2. Read the manual test plan: `docs/plans/2026-03-11-spec-0002a-manual-test-plan.md` (Scenario 9 = Multi-Project Isolation, etc.)
 3. Fixture repos are at `/tmp/gromit-fixtures/` (may need to be recreated if `/tmp` was cleaned)
 4. Rebuild binary: `go build ./cmd/gromit-next/`
-5. Continue with Scenario 7 (Task Split / Redecomposition)
+5. Fix the 4 Scenario 7 bugs (see above), re-run Scenario 7 to confirm, then continue with Scenario 8 (Multi-Project Isolation)

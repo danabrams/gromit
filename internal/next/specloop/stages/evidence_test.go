@@ -14,6 +14,58 @@ import (
 
 // fakeDiffProvider is declared in review_test.go (same package).
 
+func TestEffectiveStatus_AlreadyTerminal(t *testing.T) {
+	for _, status := range []string{
+		runstore.StatusReadyForReview,
+		runstore.StatusNeedsHuman,
+		runstore.StatusBlocked,
+	} {
+		rs := &runstore.RunState{Status: status}
+		if got := effectiveStatus(rs); got != status {
+			t.Errorf("status %q: want %q, got %q", status, status, got)
+		}
+	}
+}
+
+func TestEffectiveStatus_RunningAllPass_ReturnsReadyForReview(t *testing.T) {
+	rs := &runstore.RunState{
+		Status:                runstore.StatusRunning,
+		FinalValidationPassed: true,
+		FinalReviewPassed:     true,
+		FinalAcceptancePassed: true,
+		Tasks:                 []runstore.Task{{Status: "done"}, {Status: "done"}},
+	}
+	if got := effectiveStatus(rs); got != runstore.StatusReadyForReview {
+		t.Errorf("want ready_for_review, got %q", got)
+	}
+}
+
+func TestEffectiveStatus_RunningValidationFailed_ReturnsNeedsHuman(t *testing.T) {
+	rs := &runstore.RunState{
+		Status:                runstore.StatusRunning,
+		FinalValidationPassed: false,
+		FinalReviewPassed:     true,
+		FinalAcceptancePassed: true,
+		Tasks:                 []runstore.Task{{Status: "done"}},
+	}
+	if got := effectiveStatus(rs); got != runstore.StatusNeedsHuman {
+		t.Errorf("want needs_human, got %q", got)
+	}
+}
+
+func TestEffectiveStatus_RunningTaskNotDone_ReturnsNeedsHuman(t *testing.T) {
+	rs := &runstore.RunState{
+		Status:                runstore.StatusRunning,
+		FinalValidationPassed: true,
+		FinalReviewPassed:     true,
+		FinalAcceptancePassed: true,
+		Tasks:                 []runstore.Task{{Status: "done"}, {Status: "failed"}},
+	}
+	if got := effectiveStatus(rs); got != runstore.StatusNeedsHuman {
+		t.Errorf("want needs_human, got %q", got)
+	}
+}
+
 func TestEvidenceStage_ReadsReviewJSONFromDisk(t *testing.T) {
 	tmpDir := t.TempDir()
 	store := runstore.NewStore(tmpDir)

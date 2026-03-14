@@ -491,6 +491,58 @@ func TestExecShowCmd_UnknownRunID_FriendlyError(t *testing.T) {
 	}
 }
 
+// Verify exec show includes the new fields: Cycles, Duration, Tasks done count, Valid, Cost, Evidence path.
+func TestExecShowCmd_ShowsExtendedFields(t *testing.T) {
+	tmp := t.TempDir()
+	store := runstore.NewStore(tmp)
+
+	start := time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC)
+	end := start.Add(90 * time.Second)
+	rs := &runstore.RunState{
+		RunID:                 "run-extended",
+		SpecID:                "spec-001",
+		ProjectID:             "proj-a",
+		Status:                runstore.StatusReadyForReview,
+		Cycle:                 3,
+		StartedAt:             start,
+		EndedAt:               end,
+		AccumulatedCost:       0.1234,
+		FinalValidationPassed: true,
+		WorktreePath:          "/tmp/worktree-xyz",
+		Tasks: []runstore.Task{
+			{Status: "done"},
+			{Status: "done"},
+			{Status: "failed"},
+		},
+	}
+	if err := store.Save(rs); err != nil {
+		t.Fatal(err)
+	}
+
+	output, err := execShow("run-extended", store, false)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	checks := []struct {
+		field string
+		want  string
+	}{
+		{"Cycles", "Cycles:  3"},
+		{"Duration", "duration: 1m30s"},
+		{"Tasks done", "3 total, 2 done"},
+		{"Validation", "Valid:   true"},
+		{"Cost", "$0.1234"},
+		{"Worktree", "/tmp/worktree-xyz"},
+		{"Evidence", store.RunEvidenceDir("run-extended")},
+	}
+	for _, c := range checks {
+		if !strings.Contains(output, c.want) {
+			t.Errorf("%s: want %q in output, got:\n%s", c.field, c.want, output)
+		}
+	}
+}
+
 // Verify exec show command uses stdout properly.
 func TestExecShowCmd_OutputToStdout(t *testing.T) {
 	tmp := t.TempDir()

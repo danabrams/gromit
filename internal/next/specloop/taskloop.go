@@ -2,8 +2,12 @@ package specloop
 
 import (
 	"context"
+	"fmt"
+	"strconv"
+	"strings"
 	"time"
 
+	"github.com/danabrams/gromit/internal/next/executor"
 	"github.com/danabrams/gromit/internal/next/runstore"
 )
 
@@ -152,6 +156,21 @@ func RunTaskLoop(ctx context.Context, tasks []runstore.Task, runner TaskRunner, 
 		result.TaskID = entry.task.TaskID
 		attempts := 1
 
+		// Detect files changed (second call: delta from baseline captured before RunTask).
+		// Populate result.FilesChanged early so the needs_split handler can revert them.
+		if cfg.DetectFilesChanged != nil && cfg.WorkDir != "" {
+			if changed, dErr := cfg.DetectFilesChanged(cfg.WorkDir); dErr == nil {
+				result.FilesChanged = changed
+			}
+		}
+
+		// Promote "done" to "needs_split" if the file change heuristic fires.
+		if result.Status == "done" {
+			if executor.NeedsSplit(result.FilesChanged, entry.task.ExpectedTouchedArea) {
+				result.Status = "needs_split"
+			}
+		}
+
 		// Handle needs_split
 		if result.Status == "needs_split" {
 			emitTaskEvent(cfg.EventLog, runstore.TaskNeedsSplitEvent{
@@ -171,10 +190,25 @@ func RunTaskLoop(ctx context.Context, tasks []runstore.Task, runner TaskRunner, 
 						BaseEvent: runstore.BaseEvent{Type: "redecomposition_triggered", Timestamp: time.Now()},
 						Reason:    "task " + entry.task.TaskID + " needs split",
 					})
-					for _, st := range subTasks {
-						queue = append(queue, taskEntry{task: st, canDecompose: false})
+					// Renumber sub-tasks to avoid ID collisions with tasks already in
+					// the queue. IDs continue from the current maximum task ID.
+					maxID := maxTaskIDInQueue(queue)
+					subTasks = renumberSubTasks(subTasks, maxID+1)
+					for i := range subTasks {
+						// Inherit SpecConstraints from parent if the decomposer didn't set it.
+						if subTasks[i].SpecConstraints == "" {
+							subTasks[i].SpecConstraints = entry.task.SpecConstraints
+						}
+						queue = append(queue, taskEntry{task: subTasks[i], canDecompose: false})
 					}
-					continue // skip adding a result for the parent
+					// Add the parent to results as "decomposed" so execute.go can update
+					// rs.Tasks and prevent it from being re-queued in the next cycle.
+					results = append(results, TaskResult{
+						TaskID:   entry.task.TaskID,
+						Status:   "decomposed",
+						Attempts: attempts,
+					})
+					continue
 				}
 			}
 			// Decomposition not possible or failed — treat as failed
@@ -184,6 +218,31 @@ func RunTaskLoop(ctx context.Context, tasks []runstore.Task, runner TaskRunner, 
 		// Inspect
 		if cfg.Inspector != nil && result.Status == "done" {
 			ir := cfg.Inspector.Inspect(ctx, entry.task)
+			// Structural safety-net: if the inspector passed, verify every *_test.go
+			// listed in expected_touched_area was actually changed. This catches cases
+			// where the planner forgot to include a content-verification proof check
+			// for a test file.
+			// Structural safety-net only applies when the agent actually changed
+			// file contents. If FilesChanged is empty (e.g. git-only operation like
+			// staging untracked files), there is nothing to enforce — skip the check.
+			if ir.Pass && len(result.FilesChanged) > 0 {
+				for _, expected := range entry.task.ExpectedTouchedArea {
+					if strings.HasSuffix(expected, "_test.go") {
+						found := false
+						for _, changed := range result.FilesChanged {
+							if changed == expected {
+								found = true
+								break
+							}
+						}
+						if !found {
+							ir.Pass = false
+							ir.Failures = append(ir.Failures,
+								fmt.Sprintf("expected to modify %s but it was not changed", expected))
+						}
+					}
+				}
+			}
 			emitTaskEvent(cfg.EventLog, runstore.TaskValidationResultEvent{
 				BaseEvent: runstore.BaseEvent{Type: "task_validation_result", Timestamp: time.Now()},
 				TaskID:    entry.task.TaskID,
@@ -214,6 +273,27 @@ func RunTaskLoop(ctx context.Context, tasks []runstore.Task, runner TaskRunner, 
 					result = repairResult
 					result.TaskID = entry.task.TaskID
 					ir = cfg.Inspector.Inspect(ctx, entry.task)
+					// Apply structural test-file coverage check after repair inspection too.
+					// Structural safety-net only applies when the agent actually changed
+					// file contents. Skip when FilesChanged is empty (e.g. git-only ops).
+					if ir.Pass && len(result.FilesChanged) > 0 {
+						for _, expected := range entry.task.ExpectedTouchedArea {
+							if strings.HasSuffix(expected, "_test.go") {
+								found := false
+								for _, changed := range result.FilesChanged {
+									if changed == expected {
+										found = true
+										break
+									}
+								}
+								if !found {
+									ir.Pass = false
+									ir.Failures = append(ir.Failures,
+										fmt.Sprintf("expected to modify %s but it was not changed", expected))
+								}
+							}
+						}
+					}
 					emitTaskEvent(cfg.EventLog, runstore.TaskValidationResultEvent{
 						BaseEvent: runstore.BaseEvent{Type: "task_validation_result", Timestamp: time.Now()},
 						TaskID:    entry.task.TaskID,
@@ -232,14 +312,6 @@ func RunTaskLoop(ctx context.Context, tasks []runstore.Task, runner TaskRunner, 
 
 		result.Attempts = attempts
 		result.Cost = cumulativeCost
-
-		// Detect files changed by this task (if detector is configured).
-		// Second call: stateful closure computes delta from baseline captured before task.
-		if cfg.DetectFilesChanged != nil && cfg.WorkDir != "" {
-			if changed, err := cfg.DetectFilesChanged(cfg.WorkDir); err == nil {
-				result.FilesChanged = changed
-			}
-		}
 
 		// Emit task_completed or task_failed
 		if result.Status == "done" {
@@ -274,4 +346,37 @@ func emitTaskEvent(el *runstore.EventLog, ev runstore.TypedEvent) {
 type taskEntry struct {
 	task         runstore.Task
 	canDecompose bool
+}
+
+// maxTaskIDInQueue scans queue for the highest numeric suffix in task IDs
+// formatted as "t-NNN" and returns that maximum value. Returns 0 if no
+// such IDs are found.
+func maxTaskIDInQueue(queue []taskEntry) int {
+	max := 0
+	for _, e := range queue {
+		id := e.task.TaskID
+		if !strings.HasPrefix(id, "t-") {
+			continue
+		}
+		n, err := strconv.Atoi(id[2:])
+		if err != nil {
+			continue
+		}
+		if n > max {
+			max = n
+		}
+	}
+	return max
+}
+
+// renumberSubTasks renumbers sub-tasks so their IDs continue from startAt,
+// incrementing by 1 for each sub-task. IDs are formatted as "t-NNN" with
+// zero-padding to at least 3 digits.
+func renumberSubTasks(subTasks []runstore.Task, startAt int) []runstore.Task {
+	result := make([]runstore.Task, len(subTasks))
+	for i, st := range subTasks {
+		st.TaskID = fmt.Sprintf("t-%03d", startAt+i)
+		result[i] = st
+	}
+	return result
 }

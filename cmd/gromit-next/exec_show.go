@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/danabrams/gromit/internal/next/runstore"
 	"github.com/spf13/cobra"
@@ -89,16 +90,31 @@ func execShow(runID string, store *runstore.Store, full bool) (string, error) {
 		return "", err
 	}
 
+	doneTasks := 0
+	for _, t := range rs.Tasks {
+		if t.Status == "done" {
+			doneTasks++
+		}
+	}
+
 	var b strings.Builder
 	fmt.Fprintf(&b, "Run:     %s\n", rs.RunID)
 	fmt.Fprintf(&b, "Spec:    %s\n", rs.SpecID)
 	fmt.Fprintf(&b, "Project: %s\n", rs.ProjectID)
 	fmt.Fprintf(&b, "Status:  %s\n", rs.Status)
+	fmt.Fprintf(&b, "Cycles:  %d\n", rs.Cycle)
 	fmt.Fprintf(&b, "Started: %s\n", rs.StartedAt.Format("2006-01-02 15:04:05"))
 	if !rs.EndedAt.IsZero() {
-		fmt.Fprintf(&b, "Ended:   %s\n", rs.EndedAt.Format("2006-01-02 15:04:05"))
+		duration := rs.EndedAt.Sub(rs.StartedAt)
+		fmt.Fprintf(&b, "Ended:   %s (duration: %s)\n", rs.EndedAt.Format("2006-01-02 15:04:05"), duration.Round(time.Millisecond))
 	}
-	fmt.Fprintf(&b, "Tasks:   %d\n", len(rs.Tasks))
+	fmt.Fprintf(&b, "Tasks:   %d total, %d done\n", len(rs.Tasks), doneTasks)
+	fmt.Fprintf(&b, "Valid:   %v\n", rs.FinalValidationPassed)
+	fmt.Fprintf(&b, "Cost:    $%.4f\n", rs.AccumulatedCost)
+	if rs.WorktreePath != "" {
+		fmt.Fprintf(&b, "Worktree: %s\n", rs.WorktreePath)
+	}
+	fmt.Fprintf(&b, "Evidence: %s\n", store.RunEvidenceDir(runID))
 
 	if full {
 		evidenceDir := store.RunEvidenceDir(runID)
