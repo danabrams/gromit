@@ -97,6 +97,10 @@ func (e *execSpecRun) run(ctx context.Context) (string, error) {
 	// SpecLoop's budget gate.
 	budget := specloop.NewBudget(policy.Budgets)
 
+	// 3b. Create the event log so pipeline events are persisted to disk.
+	eventLogPath := filepath.Join(store.RunDir(rs.RunID), "events.jsonl")
+	eventLog := runstore.NewEventLog(eventLogPath)
+
 	// 4. Build stages via provider, passing the shared budget
 	stages, err := e.stageProvider.BuildStages(policy, rs, budget)
 	if err != nil {
@@ -108,6 +112,7 @@ func (e *execSpecRun) run(ctx context.Context) (string, error) {
 	loop := specloop.NewSpecLoop(stages, specloop.SpecLoopConfig{
 		Budget:      budget,
 		ReplanStage: "plan",
+		EventLog:    eventLog,
 	})
 
 	if err := loop.Run(ctx, rs); err != nil {

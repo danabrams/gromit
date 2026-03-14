@@ -5,14 +5,16 @@ import (
 	"io"
 	"time"
 
+	"github.com/danabrams/gromit/internal/next/runstore"
 	"github.com/danabrams/gromit/internal/provider"
 )
 
 // Config configures an LLMAdapter instance.
 type Config struct {
-	Tier    string
-	Timeout time.Duration
-	OnCost  func(cost float64)
+	Tier         string
+	Timeout      time.Duration
+	OnCost       func(cost float64)
+	OnInvocation func(record runstore.InvocationRecord)
 }
 
 // LLMAdapter wraps a provider.Provider with timeout enforcement and cost tracking.
@@ -35,6 +37,28 @@ func New(p provider.Provider, cfg Config) *LLMAdapter {
 	return &LLMAdapter{provider: p, cfg: cfg}
 }
 
+// fireCallbacks fires the OnCost and OnInvocation callbacks for a completed invocation.
+func (a *LLMAdapter) fireCallbacks(result *provider.Result, err error, phase string, elapsed time.Duration) {
+	if result == nil {
+		return
+	}
+	if a.cfg.OnCost != nil && result.CostUSD > 0 {
+		a.cfg.OnCost(result.CostUSD)
+	}
+	if a.cfg.OnInvocation != nil {
+		a.cfg.OnInvocation(runstore.InvocationRecord{
+			Phase:      phase,
+			Tier:       a.cfg.Tier,
+			Model:      result.Model,
+			TokensIn:   result.InputTokens,
+			TokensOut:  result.OutputTokens,
+			DurationMs: elapsed.Milliseconds(),
+			CostUSD:    result.CostUSD,
+			Success:    err == nil && result.Success,
+		})
+	}
+}
+
 // Invoke calls provider.Run with the configured tier.
 // Returns the result even on error for 0002d FallbackAdapter compatibility.
 func (a *LLMAdapter) Invoke(ctx context.Context, prompt string) (*provider.Result, error) {
@@ -44,12 +68,9 @@ func (a *LLMAdapter) Invoke(ctx context.Context, prompt string) (*provider.Resul
 		defer cancel()
 	}
 
+	start := time.Now()
 	result, err := a.provider.Run(ctx, prompt, a.cfg.Tier)
-
-	// Track cost even on error — partial results may still incur charges.
-	if a.cfg.OnCost != nil && result != nil && result.CostUSD > 0 {
-		a.cfg.OnCost(result.CostUSD)
-	}
+	a.fireCallbacks(result, err, a.cfg.Tier, time.Since(start))
 
 	return result, err
 }
@@ -66,16 +87,13 @@ func (a *LLMAdapter) InvokeInDir(ctx context.Context, prompt string, dir string)
 
 	var result *provider.Result
 	var err error
+	start := time.Now()
 	if dsr, ok := a.provider.(provider.DirStreamRunner); ok {
 		result, err = dsr.StreamRunInDir(ctx, prompt, a.cfg.Tier, dir, io.Discard, nil, nil)
 	} else {
 		result, err = a.provider.Run(ctx, prompt, a.cfg.Tier)
 	}
-
-	// Track cost even on error — partial results may still incur charges.
-	if a.cfg.OnCost != nil && result != nil && result.CostUSD > 0 {
-		a.cfg.OnCost(result.CostUSD)
-	}
+	a.fireCallbacks(result, err, a.cfg.Tier, time.Since(start))
 
 	return result, err
 }
@@ -88,12 +106,9 @@ func (a *LLMAdapter) InvokeStream(ctx context.Context, prompt string, w io.Write
 		defer cancel()
 	}
 
+	start := time.Now()
 	result, err := a.provider.StreamRun(ctx, prompt, a.cfg.Tier, w, handler, onToolCall)
-
-	// Track cost even on error — partial results may still incur charges.
-	if a.cfg.OnCost != nil && result != nil && result.CostUSD > 0 {
-		a.cfg.OnCost(result.CostUSD)
-	}
+	a.fireCallbacks(result, err, a.cfg.Tier, time.Since(start))
 
 	return result, err
 }

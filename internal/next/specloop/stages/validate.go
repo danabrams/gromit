@@ -47,6 +47,7 @@ func (s *ValidateStage) Run(ctx context.Context, rs *runstore.RunState) (specloo
 	// Store validation result summary in RunState for EvidenceStage (L3)
 	validationSummary := fmt.Sprintf("pass=%v", result.Pass)
 	rs.LastValidationResult = &validationSummary
+	rs.LastFinalValidation = &result
 
 	// Emit final_validation_result event
 	if s.eventLog != nil {

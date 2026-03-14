@@ -118,6 +118,11 @@ func RunTaskLoop(ctx context.Context, tasks []runstore.Task, runner TaskRunner, 
 			taskCtx, taskCancel = context.WithTimeout(ctx, time.Duration(cfg.MaxTaskDurationSeconds)*time.Second)
 		}
 
+		if cfg.DetectFilesChanged != nil && cfg.WorkDir != "" {
+			// First call: stateful closure captures baseline; return value discarded.
+			cfg.DetectFilesChanged(cfg.WorkDir) //nolint:errcheck
+		}
+
 		result, err := runner.RunTask(taskCtx, entry.task)
 		if taskCancel != nil {
 			taskCancel()
@@ -129,6 +134,10 @@ func RunTaskLoop(ctx context.Context, tasks []runstore.Task, runner TaskRunner, 
 			cfg.Budget.AddCost(result.Cost)
 		}
 		if err != nil {
+			// Drain the stateful detector so the next task starts with a fresh baseline.
+			if cfg.DetectFilesChanged != nil && cfg.WorkDir != "" {
+				cfg.DetectFilesChanged(cfg.WorkDir) //nolint:errcheck
+			}
 			result.TaskID = entry.task.TaskID
 			result.Status = "failed"
 			result.Attempts = 1
@@ -225,6 +234,7 @@ func RunTaskLoop(ctx context.Context, tasks []runstore.Task, runner TaskRunner, 
 		result.Cost = cumulativeCost
 
 		// Detect files changed by this task (if detector is configured).
+		// Second call: stateful closure computes delta from baseline captured before task.
 		if cfg.DetectFilesChanged != nil && cfg.WorkDir != "" {
 			if changed, err := cfg.DetectFilesChanged(cfg.WorkDir); err == nil {
 				result.FilesChanged = changed

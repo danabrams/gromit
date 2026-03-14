@@ -465,8 +465,13 @@ func TestTaskLoop_DetectFilesChanged_PopulatesResult(t *testing.T) {
 	inspector := &fakeInspector{pass: true}
 	tasks := []runstore.Task{{TaskID: "t-001", Status: "pending"}}
 
+	callCount := 0
 	detector := func(workDir string) ([]string, error) {
-		return []string{"main.go", "util.go"}, nil
+		callCount++
+		if callCount == 1 {
+			return []string{}, nil // before: no pre-existing changes
+		}
+		return []string{"main.go", "util.go"}, nil // after: task added two files
 	}
 
 	results, err := RunTaskLoop(context.Background(), tasks, runner, TaskLoopConfig{
@@ -504,6 +509,48 @@ func TestTaskLoop_DetectFilesChanged_NilDetectorKeepsRunnerResult(t *testing.T) 
 	}
 	if len(results[0].FilesChanged) != 1 || results[0].FilesChanged[0] != "from-runner.go" {
 		t.Fatalf("expected runner's files unchanged, got %v", results[0].FilesChanged)
+	}
+}
+
+func TestTaskLoop_DetectFilesChanged_ExcludesPreExistingFiles(t *testing.T) {
+	runner := &fakeTaskRunner{fn: func(_ context.Context, task runstore.Task) (TaskResult, error) {
+		return TaskResult{Status: "done"}, nil
+	}}
+	inspector := &fakeInspector{pass: true}
+	tasks := []runstore.Task{{TaskID: "t-001", Status: "pending"}}
+
+	// Simulates the new stateful closure semantics:
+	//   call 1 (before task): captures baseline, returns []
+	//   call 2 (after task):  computes delta, returns changed files
+	callCount := 0
+	detector := func(workDir string) ([]string, error) {
+		callCount++
+		if callCount == 1 {
+			// before snapshot: capture baseline (return empty — pre-existing files
+			// are recorded internally, not returned)
+			return []string{}, nil
+		}
+		// after snapshot: return only files that changed during the task
+		return []string{"task-added.go"}, nil
+	}
+
+	results, err := RunTaskLoop(context.Background(), tasks, runner, TaskLoopConfig{
+		MaxRetries:         0,
+		Inspector:          inspector,
+		WorkDir:            "/tmp/test",
+		DetectFilesChanged: detector,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(results[0].FilesChanged) != 1 {
+		t.Fatalf("expected exactly 1 file (task-added.go), got %v", results[0].FilesChanged)
+	}
+	if results[0].FilesChanged[0] != "task-added.go" {
+		t.Fatalf("expected task-added.go, got %q", results[0].FilesChanged[0])
+	}
+	if callCount != 2 {
+		t.Fatalf("expected detector called twice (before and after), got %d", callCount)
 	}
 }
 

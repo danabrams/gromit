@@ -5,6 +5,8 @@ import (
 	"encoding/hex"
 	"fmt"
 	"time"
+
+	"github.com/danabrams/gromit/internal/next/validator"
 )
 
 const (
@@ -19,25 +21,28 @@ const (
 
 // RunState represents the full state of an execution run.
 type RunState struct {
-	RunID                 string    `json:"run_id"`
-	SpecID                string    `json:"spec_id"`
-	ProjectID             string    `json:"project_id"`
-	Status                string    `json:"status"`
-	Cycle                 int       `json:"cycle"`
-	StartedAt             time.Time `json:"started_at"`
-	EndedAt               time.Time `json:"ended_at,omitempty"`
-	Tasks                 []Task    `json:"tasks"`
-	WorktreePath          string    `json:"worktree_path,omitempty"`
-	BlockerSummary        string    `json:"blocker_summary,omitempty"`
-	AccumulatedCost       float64   `json:"accumulated_cost"`
-	TerminalReason        string    `json:"terminal_reason,omitempty"`
-	FinalValidationPassed bool      `json:"final_validation_passed"`
-	FinalReviewPassed     bool      `json:"final_review_passed"`
-	FinalAcceptancePassed bool      `json:"final_acceptance_passed"`
-	ReplanContext         []string  `json:"replan_context,omitempty"`
-	LastValidationResult  *string   `json:"last_validation_result,omitempty"`
-	ReviewFindings        []string  `json:"review_findings,omitempty"`
-	AcceptanceResults     []string  `json:"acceptance_results,omitempty"`
+	RunID                 string                 `json:"run_id"`
+	SpecID                string                 `json:"spec_id"`
+	ProjectID             string                 `json:"project_id"`
+	Status                string                 `json:"status"`
+	Cycle                 int                    `json:"cycle"`
+	StartedAt             time.Time              `json:"started_at"`
+	EndedAt               time.Time              `json:"ended_at,omitempty"`
+	Tasks                 []Task                 `json:"tasks"`
+	WorktreePath          string                 `json:"worktree_path,omitempty"`
+	BlockerSummary        string                 `json:"blocker_summary,omitempty"`
+	AccumulatedCost       float64                `json:"accumulated_cost"`
+	TerminalReason        string                 `json:"terminal_reason,omitempty"`
+	FinalValidationPassed bool                   `json:"final_validation_passed"`
+	FinalReviewPassed     bool                   `json:"final_review_passed"`
+	FinalAcceptancePassed bool                   `json:"final_acceptance_passed"`
+	ReplanContext         []string               `json:"replan_context,omitempty"`
+	LastValidationResult  *string                `json:"last_validation_result,omitempty"`
+	LastFinalValidation   *validator.FinalResult `json:"last_final_validation,omitempty"`
+	ReviewFindings        []string               `json:"review_findings,omitempty"`
+	AcceptanceResults     []string               `json:"acceptance_results,omitempty"`
+	TotalReplans          int                    `json:"total_replans"`
+	SpecConstraints       string                 `json:"spec_constraints,omitempty"`
 }
 
 // See CLAUDE.md nil-field normalization visibility convention:
@@ -86,6 +91,7 @@ type Task struct {
 	Kind                string   `json:"kind"` // "original" or "fix"
 	ParentCycle         int      `json:"parent_cycle,omitempty"`
 	FailuresAddressed   []string `json:"failures_addressed,omitempty"`
+	SpecConstraints     string   `json:"spec_constraints,omitempty"`
 }
 
 // See CLAUDE.md nil-field normalization visibility convention:
@@ -104,6 +110,20 @@ func (tk *Task) NormalizeNilFields() {
 	if tk.FailuresAddressed == nil {
 		tk.FailuresAddressed = []string{}
 	}
+}
+
+// InvocationRecord captures metadata for a single LLM invocation.
+// Defined here (not in evidence) so that packages like specloop and llmadapter
+// can reference it without importing evidence (which imports runstore).
+type InvocationRecord struct {
+	Phase      string  `json:"phase"`
+	Tier       string  `json:"tier"`
+	Model      string  `json:"model"`
+	TokensIn   int     `json:"tokens_in"`
+	TokensOut  int     `json:"tokens_out"`
+	DurationMs int64   `json:"duration_ms"`
+	CostUSD    float64 `json:"cost_usd"`
+	Success    bool    `json:"success"`
 }
 
 // NewRunState creates a new RunState with a generated ID and running status.

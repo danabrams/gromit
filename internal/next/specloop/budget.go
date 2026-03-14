@@ -2,18 +2,22 @@ package specloop
 
 import (
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/danabrams/gromit/internal/next/execpolicy"
+	"github.com/danabrams/gromit/internal/next/runstore"
 )
 
 // Budget tracks resource consumption against configured limits.
 type Budget struct {
-	limits    execpolicy.Budgets
-	cycles    int
-	cost      float64
-	startedAt time.Time
-	clock     Clock
+	limits      execpolicy.Budgets
+	cycles      int
+	cost        float64
+	startedAt   time.Time
+	clock       Clock
+	mu          sync.Mutex
+	invocations []runstore.InvocationRecord
 }
 
 // Clock abstracts time for testing.
@@ -40,6 +44,22 @@ func (b *Budget) IncrementCycle() { b.cycles++ }
 
 // AddCost records cost consumed.
 func (b *Budget) AddCost(usd float64) { b.cost += usd }
+
+// AddInvocation appends an invocation record to the budget's log.
+func (b *Budget) AddInvocation(r runstore.InvocationRecord) {
+	b.mu.Lock()
+	b.invocations = append(b.invocations, r)
+	b.mu.Unlock()
+}
+
+// GetInvocations returns a copy of all recorded invocations.
+func (b *Budget) GetInvocations() []runstore.InvocationRecord {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	out := make([]runstore.InvocationRecord, len(b.invocations))
+	copy(out, b.invocations)
+	return out
+}
 
 // Cost returns the total cost accumulated so far.
 func (b *Budget) Cost() float64 { return b.cost }

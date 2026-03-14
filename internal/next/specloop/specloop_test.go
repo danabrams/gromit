@@ -604,31 +604,46 @@ func TestSpecLoop_NeedsHuman_SetsTerminalReasonFromContext(t *testing.T) {
 	}
 }
 
-func TestSpecLoop_CycleReset_ClearsReplanContext(t *testing.T) {
+func TestSpecLoop_CycleReset_PreservesReplanContext(t *testing.T) {
+	// ReplanContext is set at the end of cycle N for PlanStage to read at the
+	// start of cycle N+1. It must NOT be cleared at cycle start, otherwise the
+	// fix planner never sees the failures that triggered the replan.
 	rs := runstore.NewRunState("test-spec", "test-project")
-	rs.ReplanContext = []string{"stale replan from prior cycle"}
 
 	var snapReplanContext []string
 
+	stagesCalled := 0
 	captureStage := &mockStage{
-		name: "capture",
+		name: "plan",
 		runFn: func(_ context.Context, rs *runstore.RunState) (NextAction, error) {
+			stagesCalled++
+			if stagesCalled == 1 {
+				// Cycle 1: return ReplanFrom to trigger cycle 2
+				return NextAction{
+					Kind:    ReplanFrom,
+					Context: &FailureContext{Failures: []string{"review found issues"}},
+				}, nil
+			}
+			// Cycle 2: capture the ReplanContext that should have survived
 			snapReplanContext = append([]string{}, rs.ReplanContext...)
 			return NextAction{Kind: Continue}, nil
 		},
 	}
 
-	budget := NewBudget(execpolicy.Budgets{MaxSpecCycles: 1, MaxTaskDurationSeconds: 300, MaxRunDurationSeconds: 3600, MaxRunCostUSD: 50.0})
-	loop := NewSpecLoop([]Stage{captureStage}, SpecLoopConfig{Budget: budget})
+	budget := NewBudget(execpolicy.Budgets{MaxSpecCycles: 2, MaxTaskDurationSeconds: 300, MaxRunDurationSeconds: 3600, MaxRunCostUSD: 50.0})
+	loop := NewSpecLoop([]Stage{captureStage}, SpecLoopConfig{Budget: budget, ReplanStage: "plan"})
 
 	loop.Run(context.Background(), rs)
 
-	if len(snapReplanContext) != 0 {
-		t.Errorf("ReplanContext should be cleared at cycle start, got %v", snapReplanContext)
+	if len(snapReplanContext) != 1 || snapReplanContext[0] != "review found issues" {
+		t.Errorf("ReplanContext should be preserved from previous cycle, got %v", snapReplanContext)
 	}
 }
 
-func TestSpecLoop_ReviewReplan_SkipsAcceptStage(t *testing.T) {
+func TestSpecLoop_ReviewReplan_RunsAcceptOnExhaustion(t *testing.T) {
+	// When review always replans and cycles exhaust, the accept stage should run
+	// once at cycles_exhausted to evaluate the final state of the code, even though
+	// accept was not reached during normal pipeline execution.
 	acceptRan := false
 
 	stages := []Stage{
@@ -639,7 +654,7 @@ func TestSpecLoop_ReviewReplan_SkipsAcceptStage(t *testing.T) {
 			return NextAction{Kind: Continue}, nil
 		}},
 		&mockStage{name: "review", runFn: func(_ context.Context, rs *runstore.RunState) (NextAction, error) {
-			// Always return ReplanFrom so accept should never run
+			// Always return ReplanFrom so accept does not run in the normal pipeline flow
 			return NextAction{
 				Kind:    ReplanFrom,
 				Context: &FailureContext{Failures: []string{"blocking finding"}},
@@ -658,8 +673,8 @@ func TestSpecLoop_ReviewReplan_SkipsAcceptStage(t *testing.T) {
 	rs := runstore.NewRunState("s1", "p1")
 	loop.Run(context.Background(), rs)
 
-	if acceptRan {
-		t.Fatal("accept stage should NOT run when review returns ReplanFrom")
+	if !acceptRan {
+		t.Fatal("accept stage should run at cycles_exhausted to evaluate final state")
 	}
 }
 

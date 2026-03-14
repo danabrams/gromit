@@ -16,11 +16,18 @@ import (
 	"github.com/danabrams/gromit/internal/next/validator"
 )
 
+// InvocationSource provides recorded LLM invocations for the evidence bundle.
+// Budget satisfies this interface; tests can substitute a stub.
+type InvocationSource interface {
+	GetInvocations() []runstore.InvocationRecord
+}
+
 // EvidenceStageConfig configures the EvidenceStage.
 type EvidenceStageConfig struct {
-	DiffProvider review.DiffProvider
-	BaseBranch   string
-	StartTime    time.Time
+	DiffProvider     review.DiffProvider
+	BaseBranch       string
+	StartTime        time.Time
+	InvocationSource InvocationSource // optional; nil → empty invocations list
 }
 
 // EvidenceStage assembles the evidence bundle for a run.
@@ -61,7 +68,12 @@ func (s *EvidenceStage) Run(ctx context.Context, rs *runstore.RunState) (specloo
 	}
 
 	// Build validation result from RunState (read at execution time, not statically configured)
-	validationResult := validator.FinalResult{Pass: rs.FinalValidationPassed}
+	var validationResult validator.FinalResult
+	if rs.LastFinalValidation != nil {
+		validationResult = *rs.LastFinalValidation
+	} else {
+		validationResult = validator.FinalResult{Pass: rs.FinalValidationPassed}
+	}
 	if err := bundler.WriteValidation(validationResult); err != nil {
 		return specloop.NextAction{}, fmt.Errorf("write validation: %w", err)
 	}
@@ -84,6 +96,26 @@ func (s *EvidenceStage) Run(ctx context.Context, rs *runstore.RunState) (specloo
 		durationMs = time.Since(s.cfg.StartTime).Milliseconds()
 	}
 
+	// Collect invocation records from the budget (if wired).
+	var invocations []evidence.InvocationRecord
+	if s.cfg.InvocationSource != nil {
+		for _, r := range s.cfg.InvocationSource.GetInvocations() {
+			invocations = append(invocations, evidence.InvocationRecord{
+				Phase:      r.Phase,
+				Tier:       r.Tier,
+				Model:      r.Model,
+				TokensIn:   r.TokensIn,
+				TokensOut:  r.TokensOut,
+				DurationMs: r.DurationMs,
+				CostUSD:    r.CostUSD,
+				Success:    r.Success,
+			})
+		}
+	}
+	if invocations == nil {
+		invocations = []evidence.InvocationRecord{}
+	}
+
 	metrics := evidence.Metrics{
 		TotalTokens:  totalTokens,
 		TotalCostUSD: rs.AccumulatedCost,
@@ -92,7 +124,8 @@ func (s *EvidenceStage) Run(ctx context.Context, rs *runstore.RunState) (specloo
 		FailedTasks:  failCount,
 		DurationMs:   durationMs,
 		Cycles:       rs.Cycle,
-		Invocations:  []evidence.InvocationRecord{},
+		TotalReplans: rs.TotalReplans,
+		Invocations:  invocations,
 	}
 	if err := bundler.WriteMetrics(metrics); err != nil {
 		return specloop.NextAction{}, fmt.Errorf("write metrics: %w", err)

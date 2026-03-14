@@ -39,13 +39,15 @@ func (sl *SpecLoop) Run(ctx context.Context, rs *runstore.RunState) error {
 	for cycle := 0; cycle < maxCycles; cycle++ {
 		rs.Cycle = cycle + 1
 
-		// Reset gate booleans and review/acceptance fields at cycle start
+		// Reset gate booleans and review/acceptance fields at cycle start.
+		// NOTE: ReplanContext is NOT reset here — it is set at the end of the
+		// previous cycle (after replan is triggered) and consumed by PlanStage
+		// at the start of this cycle to determine isFixCycle.
 		rs.FinalValidationPassed = false
 		rs.FinalReviewPassed = false
 		rs.FinalAcceptancePassed = false
 		rs.ReviewFindings = []string{}
 		rs.AcceptanceResults = []string{}
-		rs.ReplanContext = []string{}
 
 		startIdx := 0
 		if cycle > 0 && sl.config.ReplanStage != "" {
@@ -65,6 +67,7 @@ func (sl *SpecLoop) Run(ctx context.Context, rs *runstore.RunState) error {
 				rs.Status = runstore.StatusBlocked
 				rs.TerminalReason = "budget_exceeded"
 				rs.BlockerSummary = sl.config.Budget.Reason()
+				rs.EndedAt = time.Now()
 				sl.emitEvent(runstore.BudgetExceededEvent{
 					BaseEvent:       runstore.BaseEvent{Type: "budget_exceeded", Timestamp: time.Now()},
 					AccumulatedCost: rs.AccumulatedCost,
@@ -78,6 +81,7 @@ func (sl *SpecLoop) Run(ctx context.Context, rs *runstore.RunState) error {
 			if err != nil {
 				rs.Status = runstore.StatusBlocked
 				rs.BlockerSummary = err.Error()
+				rs.EndedAt = time.Now()
 				sl.emitTerminal(rs)
 				sl.runEvidence(ctx, rs)
 				return nil
@@ -96,11 +100,14 @@ func (sl *SpecLoop) Run(ctx context.Context, rs *runstore.RunState) error {
 					rs.TerminalReason = "stage_needs_human"
 					rs.BlockerSummary = action.Context.Failures[0]
 				}
+				rs.EndedAt = time.Now()
+				sl.runAccept(ctx, rs)
 				sl.emitTerminal(rs)
 				sl.runEvidence(ctx, rs)
 				return nil
 			case Blocked:
 				rs.Status = runstore.StatusBlocked
+				rs.EndedAt = time.Now()
 				sl.emitTerminal(rs)
 				sl.runEvidence(ctx, rs)
 				return nil
@@ -135,6 +142,7 @@ func (sl *SpecLoop) Run(ctx context.Context, rs *runstore.RunState) error {
 			Reason:    reason,
 			Source:    replanSource,
 		})
+		rs.TotalReplans++
 
 		// Increment cycle in budget AFTER a completed cycle, before the next one
 		if sl.config.Budget != nil {
@@ -149,6 +157,8 @@ func (sl *SpecLoop) Run(ctx context.Context, rs *runstore.RunState) error {
 		if len(rs.ReplanContext) > 0 {
 			rs.BlockerSummary = rs.ReplanContext[len(rs.ReplanContext)-1]
 		}
+		rs.EndedAt = time.Now()
+		sl.runAccept(ctx, rs)
 		sl.emitTerminal(rs)
 		sl.runEvidence(ctx, rs)
 	}
@@ -178,6 +188,17 @@ func (sl *SpecLoop) runEvidence(ctx context.Context, rs *runstore.RunState) {
 	if es := sl.findStage("evidence"); es != nil {
 		if _, err := es.Run(ctx, rs); err != nil {
 			rs.BlockerSummary += "; evidence collection failed: " + err.Error()
+		}
+	}
+}
+
+// runAccept finds and runs the "accept" stage if present.
+// Errors are recorded on RunState rather than propagated, since acceptance
+// evaluation is best-effort when the run is already in a terminal state.
+func (sl *SpecLoop) runAccept(ctx context.Context, rs *runstore.RunState) {
+	if as := sl.findStage("accept"); as != nil {
+		if _, err := as.Run(ctx, rs); err != nil {
+			rs.BlockerSummary += "; accept stage failed: " + err.Error()
 		}
 	}
 }
