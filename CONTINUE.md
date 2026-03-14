@@ -1,10 +1,11 @@
 # Manual Test Plan — Spec 0002a/0002c/0002d End-to-End
 
 ## Status
-- **Current phase:** Scenario 5 CONFIRMED WORKING — run-407b2101ecccee71 passed. Ready for Scenario 6.
-- **Next:** Scenario 6 (Task Repair — task retry on failure)
+- **Current phase:** Scenario 6 CONFIRMED WORKING — run-c4724a90ca32f14c passed. Ready for Scenario 7.
+- **Next:** Scenario 7 (Task Split / Redecomposition)
 - **Date:** 2026-03-14
 - **Latest commits:**
+  - (uncommitted) fix: ShellTaskInspector — task repair wired end-to-end; EventLog through BuildStages; planner proof_checks require executable shell commands
   - (uncommitted) fix: structural fix planner constraint enforcement — filterForbiddenFixTasks, SpecPacket/SpecConstraints in FixPlanRequest, stronger prompt wording
   - (uncommitted) fix: thread SpecConstraints from spec.md to task prompts so agent respects Out-of-Scope/Architectural Constraints
   - (uncommitted) fix: TestNormalizeNilFieldsVisibilityPolicy — added CLAUDE.md convention comment to execpolicy/policy.go
@@ -302,8 +303,43 @@ rm -rf .gromit-next/runs/*
 - [x] `SpecConstraints` present in tasks ✓
 - [x] 5 dry-run unit tests all pass ✓
 
+## Scenario 6 — Task Repair (task retry on failure) — CONFIRMED WORKING
+
+**Run ID:** run-c4724a90ca32f14c
+**Status:** `ready_for_review`
+**Cost:** $0.17
+
+**Bugs found and fixed (uncommitted):**
+
+1. **`ShellTaskInspector` not implemented** — Inspector field in `ExecuteStageConfig` was always nil; task repair never triggered. Fix: created `internal/next/specloop/shell_task_inspector.go` — runs task's `proof_checks` via `validator.Runner.RunTargeted()`. Returns `Pass=false` if any check fails, triggering `RepairTask` up to `MaxRetries` times. Wired into `stage_provider.go`. 5 tests added.
+
+2. **`EventLog` not wired to `ExecuteStage`** — Task-level events (`task_started`, `task_validation_result`, `task_completed`) were never persisted. Fix: added `eventLog *runstore.EventLog` to `BuildStages` interface signature; `stage_provider.go` receives it and passes to `ExecuteStageConfig.EventLog`.
+
+3. **Planner generated non-executable proof checks** — Proof checks like `"calc/calc.go contains a Subtract function..."` were prose descriptions, not shell commands. When `ShellTaskInspector` ran them, they always failed (shell tries to exec the file path). Fix: tightened `buildPlanPrompt` and `buildFixPlanPrompt` in `planner/planner.go` to explicitly require "EXECUTABLE SHELL COMMANDS only" with examples (`grep -q`, `go test ./...`, etc.).
+
+4. **Fixture `.gromit-next/` accidentally committed** — `git add -A` in reset commit included run artifacts. Fix: added `.gitignore` excluding `.gromit-next/`, untracked the directory.
+
+**Verified outcomes (run-c4724a90ca32f14c):**
+- [x] `status: ready_for_review` ✓
+- [x] `final_validation_passed: true` ✓
+- [x] `task_validation_result` events in `events.jsonl` — Inspector ran for every task ✓
+- [x] `attempts: 1` for all tasks — proof checks passed on first inspection ✓
+- [x] `files_changed` correct: t-001 → `[calc/calc.go, calc/calc_test.go]`, t-002 → `[calc/calc_test.go]` ✓
+- [x] Proof checks are executable shell commands: `grep -q`, `go test ./...`, `go vet ./...`, `gofmt -l .` ✓
+- [x] Repair mechanism confirmed via earlier run (run-b8f5c32b63eb5ab8): when proof checks fail, `attempts: 2` — repair triggers and `RepairTask` is called ✓
+- [x] 747 unit tests passing ✓
+
+**Note on max_task_retries:** Repair loop is gated on `cfg.Inspector != nil` (now wired) and inspection failure. Budget is enforced via `for retry := 0; retry < cfg.MaxRetries; retry++` in taskloop.go. With `max_task_retries: 1` (default), tasks get exactly one repair attempt if inspection fails.
+
+**Command:**
+```bash
+cd /tmp/gromit-fixtures/fixture-calc
+git checkout -- calc/
+rm -rf .gromit-next/runs/*
+/Users/dabrams/gromit/gromit-next exec spec --project fixture-calc --spec /tmp/gromit-fixtures/fixture-calc/specs/add-subtract.md --store-dir .gromit-next
+```
+
 ## Remaining Scenarios (not yet run)
-6. Task Repair — task retry on failure
 7. Task Split / Redecomposition
 8. Multi-Project Isolation
 9. Cost Limits
@@ -316,4 +352,4 @@ rm -rf .gromit-next/runs/*
 2. Read the manual test plan: `docs/plans/2026-03-13-spec-0002c-0002d-manual-test-plan.md`
 3. Fixture repos are at `/tmp/gromit-fixtures/` (may need to be recreated if `/tmp` was cleaned)
 4. Rebuild binary: `go build ./cmd/gromit-next/`
-5. Continue with Scenario 5 (Dry Run)
+5. Continue with Scenario 7 (Task Split / Redecomposition)

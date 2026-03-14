@@ -26,7 +26,7 @@ func TestRealStageProvider_BuildStages_ReturnsStages(t *testing.T) {
 		SpecPath: "test-spec.md",
 	})
 
-	stages, err := provider.BuildStages(policy, rs, specloop.NewBudget(policy.Budgets))
+	stages, err := provider.BuildStages(policy, rs, specloop.NewBudget(policy.Budgets), nil)
 	if err != nil {
 		t.Fatalf("BuildStages returned error: %v", err)
 	}
@@ -55,7 +55,7 @@ func TestRealStageProvider_BuildStages_NoStubError(t *testing.T) {
 		SpecPath: "test-spec.md",
 	})
 
-	_, err := provider.BuildStages(policy, rs, specloop.NewBudget(policy.Budgets))
+	_, err := provider.BuildStages(policy, rs, specloop.NewBudget(policy.Budgets), nil)
 	if err != nil {
 		t.Fatalf("BuildStages should not return stub error, got: %v", err)
 	}
@@ -71,7 +71,7 @@ func TestRealStageProvider_ReviewBeforeAccept(t *testing.T) {
 		SpecPath: "test-spec.md",
 	})
 
-	stages, err := provider.BuildStages(policy, rs, specloop.NewBudget(policy.Budgets))
+	stages, err := provider.BuildStages(policy, rs, specloop.NewBudget(policy.Budgets), nil)
 	if err != nil {
 		t.Fatalf("BuildStages: %v", err)
 	}
@@ -101,7 +101,7 @@ func TestRealStageProvider_BuildStages_InvalidThresholdReturnsError(t *testing.T
 		SpecPath: "test-spec.md",
 	})
 
-	_, err := provider.BuildStages(policy, rs, specloop.NewBudget(policy.Budgets))
+	_, err := provider.BuildStages(policy, rs, specloop.NewBudget(policy.Budgets), nil)
 	if err == nil {
 		t.Fatal("expected error for invalid replan threshold, got nil")
 	}
@@ -123,7 +123,7 @@ func TestRealStageProvider_BuildStages_ValidThresholdSucceeds(t *testing.T) {
 				SpecPath: "nonexistent-spec.md",
 			})
 
-			_, err := provider.BuildStages(policy, rs, specloop.NewBudget(policy.Budgets))
+			_, err := provider.BuildStages(policy, rs, specloop.NewBudget(policy.Budgets), nil)
 			if err != nil {
 				t.Fatalf("BuildStages returned error for valid threshold %q: %v", threshold, err)
 			}
@@ -148,7 +148,7 @@ func TestRealStageProvider_BuildStages_DefaultTierUsesModelsEvaluator(t *testing
 		SpecPath: "nonexistent-spec.md",
 	})
 
-	stages, err := provider.BuildStages(policy, rs, specloop.NewBudget(policy.Budgets))
+	stages, err := provider.BuildStages(policy, rs, specloop.NewBudget(policy.Budgets), nil)
 	if err != nil {
 		t.Fatalf("BuildStages: %v", err)
 	}
@@ -176,7 +176,7 @@ func TestRealStageProvider_BuildStages_SpecContentWiredIntoReviewAndAccept(t *te
 		SpecPath: specPath,
 	})
 
-	stages, err := provider.BuildStages(policy, rs, specloop.NewBudget(policy.Budgets))
+	stages, err := provider.BuildStages(policy, rs, specloop.NewBudget(policy.Budgets), nil)
 	if err != nil {
 		t.Fatalf("BuildStages: %v", err)
 	}
@@ -258,7 +258,7 @@ func TestRealStageProvider_OnCostBudgetWiring_PlanStageFiresOnCost(t *testing.T)
 		},
 	})
 
-	stageList, err := sp.BuildStages(policy, rs, budget)
+	stageList, err := sp.BuildStages(policy, rs, budget, nil)
 	if err != nil {
 		t.Fatalf("BuildStages: %v", err)
 	}
@@ -351,7 +351,7 @@ func TestRealStageProvider_OnCostBudgetWiring_ReviewStageFiresOnCost(t *testing.
 		},
 	})
 
-	stageList, err := sp.BuildStages(policy, rs, budget)
+	stageList, err := sp.BuildStages(policy, rs, budget, nil)
 	if err != nil {
 		t.Fatalf("BuildStages: %v", err)
 	}
@@ -408,7 +408,7 @@ func TestRealStageProvider_OnCostBudgetWiring_AcceptStageFiresOnCost(t *testing.
 		},
 	})
 
-	stageList, err := sp.BuildStages(policy, rs, budget)
+	stageList, err := sp.BuildStages(policy, rs, budget, nil)
 	if err != nil {
 		t.Fatalf("BuildStages: %v", err)
 	}
@@ -445,7 +445,7 @@ func TestRealStageProvider_BuildStages_WithProvider_ReturnsRealAdapters(t *testi
 		Provider: &mockTestProvider{name: "test-provider"},
 	})
 
-	stages, err := sp.BuildStages(policy, rs, specloop.NewBudget(policy.Budgets))
+	stages, err := sp.BuildStages(policy, rs, specloop.NewBudget(policy.Budgets), nil)
 	if err != nil {
 		t.Fatalf("BuildStages returned error: %v", err)
 	}
@@ -472,7 +472,7 @@ func TestRealStageProvider_BuildStages_WithProvider_NilProviderFallsBackToNoops(
 		SpecPath: "test-spec.md",
 	})
 
-	stages, err := sp.BuildStages(policy, rs, specloop.NewBudget(policy.Budgets))
+	stages, err := sp.BuildStages(policy, rs, specloop.NewBudget(policy.Budgets), nil)
 	if err != nil {
 		t.Fatalf("BuildStages returned error: %v", err)
 	}
@@ -544,7 +544,7 @@ func TestBuildStages_WithClaudeProvider_UsesFallbackAdapter(t *testing.T) {
 		ClaudeProvider: &mockTestProvider{name: "claude"},
 	})
 
-	stages, err := sp.BuildStages(policy, rs, specloop.NewBudget(policy.Budgets))
+	stages, err := sp.BuildStages(policy, rs, specloop.NewBudget(policy.Budgets), nil)
 	if err != nil {
 		t.Fatalf("BuildStages returned error: %v", err)
 	}
@@ -563,7 +563,7 @@ func TestRealStageProvider_BuildStages_MissingSpecFileIsNotError(t *testing.T) {
 		SpecPath: filepath.Join(t.TempDir(), "does-not-exist.md"),
 	})
 
-	_, err := provider.BuildStages(policy, rs, specloop.NewBudget(policy.Budgets))
+	_, err := provider.BuildStages(policy, rs, specloop.NewBudget(policy.Budgets), nil)
 	if err != nil {
 		t.Fatalf("BuildStages should not fail for missing spec file, got: %v", err)
 	}
@@ -660,7 +660,7 @@ func TestIntegration_BuildStages_FallbackAdapter_RouterWiring(t *testing.T) {
 
 	budget := specloop.NewBudget(policy.Budgets)
 	rs := runstore.NewRunState("test-spec", "test-project")
-	stages, err := sp.BuildStages(policy, rs, budget)
+	stages, err := sp.BuildStages(policy, rs, budget, nil)
 	if err != nil {
 		t.Fatalf("BuildStages failed: %v", err)
 	}

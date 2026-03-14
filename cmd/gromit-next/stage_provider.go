@@ -64,7 +64,7 @@ func NewRealStageProvider(cfg RealStageProviderConfig) *RealStageProvider {
 // The budget parameter is the single shared Budget instance created by exec.go;
 // it is passed to ExecuteStage so that cost accumulated during task execution
 // is visible to the SpecLoop's between-stage hard budget check.
-func (p *RealStageProvider) BuildStages(policy execpolicy.Policy, rs *runstore.RunState, budget *specloop.Budget) ([]specloop.Stage, error) {
+func (p *RealStageProvider) BuildStages(policy execpolicy.Policy, rs *runstore.RunState, budget *specloop.Budget, eventLog *runstore.EventLog) ([]specloop.Stage, error) {
 	// Validate and parse replan threshold early (fail fast on invalid config).
 	threshold, err := review.ParseSeverity(policy.Review.ReplanThreshold)
 	if err != nil {
@@ -182,10 +182,12 @@ func (p *RealStageProvider) BuildStages(policy execpolicy.Policy, rs *runstore.R
 	executeStage := stages.NewExecuteStage(taskRunner, stages.ExecuteStageConfig{
 		MaxRetries:             policy.Budgets.MaxTaskRetries,
 		MaxRedecompositions:    policy.Budgets.MaxRedecompositionPasses,
+		Inspector:              specloop.NewShellTaskInspector(p.cfg.WorkDir),
 		WorkDir:                p.cfg.WorkDir,
 		MaxTaskDurationSeconds: policy.Budgets.MaxTaskDurationSeconds,
 		Budget:                 budget,
 		DetectFilesChanged:     specloop.GitFilesChanged(),
+		EventLog:               eventLog,
 	})
 
 	validateStage := stages.NewValidateStage(finalVal, stages.ValidateStageConfig{

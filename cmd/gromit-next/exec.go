@@ -58,7 +58,7 @@ func filterStagesForDryRun(stages []specloop.Stage, dryRun bool) []specloop.Stag
 // across both the SpecLoop (cycle counting, hard budget checks between stages)
 // and the task loop inside ExecuteStage (per-task cost accumulation).
 type StageProvider interface {
-	BuildStages(policy execpolicy.Policy, rs *runstore.RunState, budget *specloop.Budget) ([]specloop.Stage, error)
+	BuildStages(policy execpolicy.Policy, rs *runstore.RunState, budget *specloop.Budget, eventLog *runstore.EventLog) ([]specloop.Stage, error)
 }
 
 // execSpecRun holds the wiring for an exec spec invocation, separated from
@@ -101,8 +101,8 @@ func (e *execSpecRun) run(ctx context.Context) (string, error) {
 	eventLogPath := filepath.Join(store.RunDir(rs.RunID), "events.jsonl")
 	eventLog := runstore.NewEventLog(eventLogPath)
 
-	// 4. Build stages via provider, passing the shared budget
-	stages, err := e.stageProvider.BuildStages(policy, rs, budget)
+	// 4. Build stages via provider, passing the shared budget and event log
+	stages, err := e.stageProvider.BuildStages(policy, rs, budget, eventLog)
 	if err != nil {
 		return "", err
 	}

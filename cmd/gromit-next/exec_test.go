@@ -70,7 +70,7 @@ type testStageProvider struct {
 	stages []specloop.Stage
 }
 
-func (p *testStageProvider) BuildStages(_ execpolicy.Policy, _ *runstore.RunState, _ *specloop.Budget) ([]specloop.Stage, error) {
+func (p *testStageProvider) BuildStages(_ execpolicy.Policy, _ *runstore.RunState, _ *specloop.Budget, _ *runstore.EventLog) ([]specloop.Stage, error) {
 	return p.stages, nil
 }
 
