@@ -52,6 +52,8 @@ func NewFallbackAdapter(router RouterSelector, phase string, cfg Config, tier st
 
 // resolvePrimary selects the primary provider from the router.
 func (f *FallbackAdapter) resolvePrimary() ProviderAwareInvoker {
+	// Model name from Select is discarded: LLMAdapter resolves it again
+	// internally via prov.ModelForTier(tier), so the name is not needed here.
 	prov, _ := f.router.Select(f.phase, f.tier)
 	if prov == nil {
 		return nil

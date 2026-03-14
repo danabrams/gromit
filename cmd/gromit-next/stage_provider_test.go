@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/danabrams/gromit/internal/next/execpolicy"
+	"github.com/danabrams/gromit/internal/next/llmadapter"
 	"github.com/danabrams/gromit/internal/next/runstore"
 	"github.com/danabrams/gromit/internal/next/specloop"
 	"github.com/danabrams/gromit/internal/provider"
@@ -565,6 +566,77 @@ func TestRealStageProvider_BuildStages_MissingSpecFileIsNotError(t *testing.T) {
 	_, err := provider.BuildStages(policy, rs, specloop.NewBudget(policy.Budgets))
 	if err != nil {
 		t.Fatalf("BuildStages should not fail for missing spec file, got: %v", err)
+	}
+}
+
+func TestNewRealStageProvider_LegacyProviderPromotion(t *testing.T) {
+	t.Run("legacy Provider promoted to claudeProvider when ClaudeProvider is nil", func(t *testing.T) {
+		legacyProv := &mockTestProvider{name: "legacy"}
+		sp := NewRealStageProvider(RealStageProviderConfig{
+			Provider: legacyProv,
+			WorkDir:  t.TempDir(),
+			StoreDir: t.TempDir(),
+			SpecPath: "test.md",
+		})
+		if sp.claudeProvider == nil {
+			t.Fatal("expected claudeProvider to be set via legacy Provider promotion")
+		}
+		if sp.claudeProvider.Name() != "legacy" {
+			t.Errorf("expected claudeProvider.Name() = %q, got %q", "legacy", sp.claudeProvider.Name())
+		}
+	})
+
+	t.Run("ClaudeProvider takes precedence over legacy Provider", func(t *testing.T) {
+		legacyProv := &mockTestProvider{name: "legacy"}
+		claudeProv := &mockTestProvider{name: "claude-explicit"}
+		sp := NewRealStageProvider(RealStageProviderConfig{
+			Provider:       legacyProv,
+			ClaudeProvider: claudeProv,
+			WorkDir:        t.TempDir(),
+			StoreDir:       t.TempDir(),
+			SpecPath:       "test.md",
+		})
+		if sp.claudeProvider == nil {
+			t.Fatal("expected claudeProvider to be set")
+		}
+		if sp.claudeProvider.Name() != "claude-explicit" {
+			t.Errorf("expected claudeProvider.Name() = %q, got %q", "claude-explicit", sp.claudeProvider.Name())
+		}
+	})
+}
+
+func TestBuildRouter_FallbackAdapter_Integration(t *testing.T) {
+	// Construct a real Router via buildRouter, wrap it in a FallbackAdapter,
+	// and invoke it with a mock provider that succeeds.
+	mockProv := &mockTestProvider{name: "claude"}
+	p := &RealStageProvider{
+		claudeProvider: mockProv,
+		codexProvider:  nil,
+	}
+	policy := execpolicy.DefaultPolicy()
+	policy.Routing.Ratio = map[string]int{"claude": 100}
+	policy.Routing.Preferences = map[string]string{"plan": "claude"}
+
+	router := p.buildRouter(policy)
+
+	adapter := llmadapter.NewFallbackAdapter(
+		router, "plan",
+		llmadapter.Config{Tier: "high"},
+		"high",
+	)
+
+	result, err := adapter.Invoke(context.Background(), "test prompt")
+	if err != nil {
+		t.Fatalf("FallbackAdapter.Invoke returned error: %v", err)
+	}
+	if result == nil {
+		t.Fatal("expected non-nil result")
+	}
+	if !result.Success {
+		t.Error("expected result.Success to be true")
+	}
+	if result.Output != "ok" {
+		t.Errorf("expected result.Output = %q, got %q", "ok", result.Output)
 	}
 }
 

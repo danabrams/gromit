@@ -153,7 +153,7 @@ func (p *RealStageProvider) BuildStages(policy execpolicy.Policy, rs *runstore.R
 
 		diffProv = &review.GitDiffProvider{WorkDir: p.cfg.WorkDir}
 
-		// TODO(0002c): Wire real SpecCompilerAdapter here (blocked on ArtifactStore etc.)
+		// TODO: Wire real SpecCompilerAdapter here (blocked on ArtifactStore, cell resolution, level selection)
 		compiler = &noopCompiler{}
 	} else {
 		// Fallback to noops when no Provider is configured.

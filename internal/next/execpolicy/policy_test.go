@@ -339,6 +339,18 @@ func TestPolicy_NormalizeNilFields(t *testing.T) {
 	if len(p.Review.Tiers) != 0 {
 		t.Fatalf("Review.Tiers should be empty, got %d", len(p.Review.Tiers))
 	}
+	if p.Routing.Preferences == nil {
+		t.Fatal("Routing.Preferences should be non-nil after normalization")
+	}
+	if len(p.Routing.Preferences) != 0 {
+		t.Fatalf("Routing.Preferences should be empty, got %d", len(p.Routing.Preferences))
+	}
+	if p.Routing.Ratio == nil {
+		t.Fatal("Routing.Ratio should be non-nil after normalization")
+	}
+	if len(p.Routing.Ratio) != 0 {
+		t.Fatalf("Routing.Ratio should be empty, got %d", len(p.Routing.Ratio))
+	}
 }
 
 func TestPolicy_NormalizeNilFields_PreservesExisting(t *testing.T) {
