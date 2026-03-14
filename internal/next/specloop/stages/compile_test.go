@@ -10,6 +10,91 @@ import (
 	"github.com/danabrams/gromit/internal/next/specloop"
 )
 
+func TestExtractSpecConstraints_BothSections(t *testing.T) {
+	input := `## Overview
+Some overview text.
+
+## Out-of-Scope
+- Do NOT modify any existing test files
+- No changes to existing functions
+
+## Architectural Constraints
+- All code stays in the ` + "`calc`" + ` package
+- Existing tests must not be modified
+
+## Some Other Section
+Irrelevant content.
+`
+	got := extractSpecConstraints(input)
+	want := "## Out-of-Scope\n- Do NOT modify any existing test files\n- No changes to existing functions\n\n## Architectural Constraints\n- All code stays in the `calc` package\n- Existing tests must not be modified"
+	if got != want {
+		t.Fatalf("extractSpecConstraints mismatch\ngot:  %q\nwant: %q", got, want)
+	}
+}
+
+func TestExtractSpecConstraints_OnlyOutOfScope(t *testing.T) {
+	input := `## Out-of-Scope
+- Do NOT modify any existing test files
+
+## Some Other Section
+Other content.
+`
+	got := extractSpecConstraints(input)
+	want := "## Out-of-Scope\n- Do NOT modify any existing test files"
+	if got != want {
+		t.Fatalf("extractSpecConstraints mismatch\ngot:  %q\nwant: %q", got, want)
+	}
+}
+
+func TestExtractSpecConstraints_OnlyArchitecturalConstraints(t *testing.T) {
+	input := `## Overview
+Overview text.
+
+## Architectural Constraints
+- All code stays in the calc package
+- Existing tests must not be modified
+`
+	got := extractSpecConstraints(input)
+	want := "## Architectural Constraints\n- All code stays in the calc package\n- Existing tests must not be modified"
+	if got != want {
+		t.Fatalf("extractSpecConstraints mismatch\ngot:  %q\nwant: %q", got, want)
+	}
+}
+
+func TestExtractSpecConstraints_NeitherSection(t *testing.T) {
+	input := `## Overview
+Some overview text.
+
+## Goals
+- Goal one
+- Goal two
+`
+	got := extractSpecConstraints(input)
+	if got != "" {
+		t.Fatalf("expected empty string, got %q", got)
+	}
+}
+
+func TestExtractSpecConstraints_StopsAtNextHeading(t *testing.T) {
+	input := `## Out-of-Scope
+- Only this line
+
+## Unrelated
+- Should not be included
+
+## Architectural Constraints
+- Also only this line
+
+## Another Section
+- Also excluded
+`
+	got := extractSpecConstraints(input)
+	want := "## Out-of-Scope\n- Only this line\n\n## Architectural Constraints\n- Also only this line"
+	if got != want {
+		t.Fatalf("extractSpecConstraints mismatch\ngot:  %q\nwant: %q", got, want)
+	}
+}
+
 type fakeCompiler struct {
 	content string
 	err     error

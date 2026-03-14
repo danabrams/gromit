@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/danabrams/gromit/internal/next/runstore"
@@ -44,6 +45,12 @@ func (s *CompileStage) Run(ctx context.Context, rs *runstore.RunState) (specloop
 		return specloop.NextAction{}, fmt.Errorf("write spec packet: %w", err)
 	}
 
+	// Extract spec constraints from spec.md and store in RunState.
+	specMD, err := os.ReadFile(filepath.Join(runDir, "spec.md"))
+	if err == nil {
+		rs.SpecConstraints = extractSpecConstraints(string(specMD))
+	}
+
 	// Emit spec_packet_compiled event
 	if s.eventLog != nil {
 		s.eventLog.Append(runstore.SpecPacketCompiledEvent{
@@ -52,4 +59,42 @@ func (s *CompileStage) Run(ctx context.Context, rs *runstore.RunState) (specloop
 	}
 
 	return specloop.NextAction{Kind: specloop.Continue}, nil
+}
+
+// extractSpecConstraints parses a spec markdown document and returns a
+// concatenated string containing the "## Out-of-Scope" and/or
+// "## Architectural Constraints" sections (whichever are present).
+// Each section is terminated at the next "##" heading.
+// Returns empty string if neither section exists.
+func extractSpecConstraints(specContent string) string {
+	targetHeadings := []string{"## Out-of-Scope", "## Architectural Constraints"}
+	lines := strings.Split(specContent, "\n")
+
+	var sections []string
+	for _, heading := range targetHeadings {
+		var sectionLines []string
+		inSection := false
+		for _, line := range lines {
+			if strings.TrimRight(line, " \t") == heading {
+				inSection = true
+				sectionLines = append(sectionLines, line)
+				continue
+			}
+			if inSection {
+				if strings.HasPrefix(line, "## ") {
+					break
+				}
+				sectionLines = append(sectionLines, line)
+			}
+		}
+		if inSection {
+			// Trim trailing blank lines from section
+			for len(sectionLines) > 0 && strings.TrimSpace(sectionLines[len(sectionLines)-1]) == "" {
+				sectionLines = sectionLines[:len(sectionLines)-1]
+			}
+			sections = append(sections, strings.Join(sectionLines, "\n"))
+		}
+	}
+
+	return strings.Join(sections, "\n\n")
 }

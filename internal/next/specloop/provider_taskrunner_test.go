@@ -440,6 +440,146 @@ func TestProviderTaskRunner_RunTask_UsesInvokeWhenWorkDirEmpty(t *testing.T) {
 	}
 }
 
+func TestRenderTaskPrompt_SpecConstraintsIncluded(t *testing.T) {
+	inv := &mockInvoker{
+		result: &provider.Result{
+			Success:  true,
+			Model:    "sonnet",
+			Duration: 1 * time.Second,
+		},
+	}
+	runner := NewProviderTaskRunner(inv, "")
+	task := runstore.Task{
+		TaskID:          "t-sc-1",
+		Objective:       "implement the widget",
+		SpecConstraints: "## Out-of-Scope\n- Do NOT modify any existing test files\n",
+	}
+
+	_, err := runner.RunTask(context.Background(), task)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if !strings.Contains(inv.capturedPrompt, "Spec Constraints") {
+		t.Error("prompt does not contain 'Spec Constraints' header")
+	}
+	if !strings.Contains(inv.capturedPrompt, "Do NOT modify any existing test files") {
+		t.Error("prompt does not contain the constraint text")
+	}
+}
+
+func TestRenderTaskPrompt_NoSpecConstraintsWhenEmpty(t *testing.T) {
+	inv := &mockInvoker{
+		result: &provider.Result{
+			Success:  true,
+			Model:    "sonnet",
+			Duration: 1 * time.Second,
+		},
+	}
+	runner := NewProviderTaskRunner(inv, "")
+	task := runstore.Task{
+		TaskID:          "t-sc-2",
+		Objective:       "implement the widget",
+		SpecConstraints: "",
+	}
+
+	_, err := runner.RunTask(context.Background(), task)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if strings.Contains(inv.capturedPrompt, "Spec Constraints") {
+		t.Error("prompt should not contain 'Spec Constraints' header when SpecConstraints is empty")
+	}
+}
+
+func TestRenderRepairPrompt_SpecConstraintsIncluded(t *testing.T) {
+	inv := &mockInvoker{
+		result: &provider.Result{
+			Success:  true,
+			Model:    "sonnet",
+			Duration: 1 * time.Second,
+		},
+	}
+	runner := NewProviderTaskRunner(inv, "")
+	task := runstore.Task{
+		TaskID:          "t-sc-3",
+		Objective:       "fix the widget",
+		SpecConstraints: "## Architectural Constraints\n- All code stays in the `calc` package\n",
+	}
+
+	_, err := runner.RepairTask(context.Background(), task, []string{"test failed"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if !strings.Contains(inv.capturedPrompt, "Spec Constraints") {
+		t.Error("repair prompt does not contain 'Spec Constraints' header")
+	}
+	if !strings.Contains(inv.capturedPrompt, "All code stays in the `calc` package") {
+		t.Error("repair prompt does not contain the constraint text")
+	}
+}
+
+func TestRenderTaskPrompt_SpecConstraintsAppearBeforeProofChecks(t *testing.T) {
+	inv := &mockInvoker{
+		result: &provider.Result{
+			Success:  true,
+			Model:    "sonnet",
+			Duration: 1 * time.Second,
+		},
+	}
+	runner := NewProviderTaskRunner(inv, "")
+	task := runstore.Task{
+		TaskID:          "t-order-1",
+		Objective:       "implement the widget",
+		ProofChecks:     []string{"go test ./..."},
+		SpecConstraints: "## Out-of-Scope\n- Do NOT modify any existing test files\n",
+	}
+
+	_, err := runner.RunTask(context.Background(), task)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	constraintIdx := strings.Index(inv.capturedPrompt, "Spec Constraints")
+	proofIdx := strings.Index(inv.capturedPrompt, "Proof Checks")
+	if constraintIdx == -1 {
+		t.Fatal("prompt does not contain 'Spec Constraints' header")
+	}
+	if proofIdx == -1 {
+		t.Fatal("prompt does not contain 'Proof Checks' header")
+	}
+	if constraintIdx > proofIdx {
+		t.Errorf("Spec Constraints (pos %d) must appear before Proof Checks (pos %d)", constraintIdx, proofIdx)
+	}
+}
+
+func TestRenderTaskPrompt_ConstraintPreambleMentionsDeletion(t *testing.T) {
+	inv := &mockInvoker{
+		result: &provider.Result{
+			Success:  true,
+			Model:    "sonnet",
+			Duration: 1 * time.Second,
+		},
+	}
+	runner := NewProviderTaskRunner(inv, "")
+	task := runstore.Task{
+		TaskID:          "t-preamble-1",
+		Objective:       "implement the widget",
+		SpecConstraints: "## Out-of-Scope\n- Do NOT modify any existing test files\n",
+	}
+
+	_, err := runner.RunTask(context.Background(), task)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if !strings.Contains(inv.capturedPrompt, "deleting") {
+		t.Error("constraint preamble should mention 'deleting' as a form of modification")
+	}
+}
+
 func TestProviderTaskRunner_RepairTask_UsesInvokeInDirWhenWorkDirSet(t *testing.T) {
 	inv := &mockInvoker{
 		result: &provider.Result{

@@ -64,9 +64,18 @@ func (r *ProviderTaskRunner) RepairTask(ctx context.Context, task runstore.Task,
 	return tr, nil
 }
 
-// renderTaskBody writes the common task sections (Objective, Expected Touched Area, Proof Checks).
+// renderTaskBody writes the common task sections (Objective, Spec Constraints, Expected Touched Area, Proof Checks).
+// Spec Constraints appear before Proof Checks so the agent anchors on hard limits before reading success criteria.
 func renderTaskBody(b *strings.Builder, task runstore.Task) {
 	fmt.Fprintf(b, "### Objective\n%s\n\n", task.Objective)
+
+	if task.SpecConstraints != "" {
+		b.WriteString("### Spec Constraints\n")
+		b.WriteString("The following constraints are HARD REQUIREMENTS from the spec. Do NOT violate them under any circumstances.\n")
+		b.WriteString("'Modify' includes editing, deleting, renaming, or moving a file — any change to an existing file counts as modification.\n\n")
+		b.WriteString(task.SpecConstraints)
+		b.WriteString("\n\n")
+	}
 
 	if len(task.ExpectedTouchedArea) > 0 {
 		b.WriteString("### Expected Touched Area\n")
