@@ -1,43 +1,27 @@
-//go:build llmcontract
+//go:build integration
 
 package specloop
 
 import (
-	"os"
 	"testing"
 )
 
 func TestIntegration_HappyPath(t *testing.T) {
-	if os.Getenv("GROMIT_LLM_CONTRACT") != "1" {
-		t.Skip("set GROMIT_LLM_CONTRACT=1")
-	}
-	t.Skip("TODO: implement happy path scenario")
+t.Skip("TODO: implement happy path scenario")
 }
 
 func TestIntegration_ValidationFailureTriggersRepair(t *testing.T) {
-	if os.Getenv("GROMIT_LLM_CONTRACT") != "1" {
-		t.Skip("set GROMIT_LLM_CONTRACT=1")
-	}
-	t.Skip("TODO: implement validation failure scenario")
+t.Skip("TODO: implement validation failure scenario")
 }
 
 func TestIntegration_ReviewTriggersReplan(t *testing.T) {
-	if os.Getenv("GROMIT_LLM_CONTRACT") != "1" {
-		t.Skip("set GROMIT_LLM_CONTRACT=1")
-	}
-	t.Skip("TODO: implement review replan scenario")
+t.Skip("TODO: implement review replan scenario")
 }
 
 func TestIntegration_BudgetExhaustion(t *testing.T) {
-	if os.Getenv("GROMIT_LLM_CONTRACT") != "1" {
-		t.Skip("set GROMIT_LLM_CONTRACT=1")
-	}
-	t.Skip("TODO: implement budget exhaustion scenario")
+t.Skip("TODO: implement budget exhaustion scenario")
 }
 
 func TestIntegration_AcceptanceFailure(t *testing.T) {
-	if os.Getenv("GROMIT_LLM_CONTRACT") != "1" {
-		t.Skip("set GROMIT_LLM_CONTRACT=1")
-	}
-	t.Skip("TODO: implement acceptance failure triggers replan scenario")
+t.Skip("TODO: implement acceptance failure triggers replan scenario")
 }

@@ -23,7 +23,15 @@ type LLMAdapter struct {
 }
 
 // New creates an LLMAdapter.
+// Panics if Tier is empty (construction-time fail-fast, consistent with
+// ShellValidator's nil-runner panic). Clamps negative Timeout to 0 (no timeout).
 func New(p provider.Provider, cfg Config) *LLMAdapter {
+	if cfg.Tier == "" {
+		panic("llmadapter: Tier must be non-empty")
+	}
+	if cfg.Timeout < 0 {
+		cfg.Timeout = 0
+	}
 	return &LLMAdapter{provider: p, cfg: cfg}
 }
 

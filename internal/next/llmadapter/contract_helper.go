@@ -18,6 +18,8 @@ func ContractInvoker(t *testing.T) Invoker {
 	if err != nil {
 		t.Fatalf("failed to create claude client: %v", err)
 	}
+	// NOTE: These model version strings need periodic updates as new model
+	// versions are released by Anthropic.
 	prov := provider.NewClaudeProvider(client, map[string]string{
 		"low":    "claude-haiku-4-5-20251001",
 		"medium": "claude-sonnet-4-5-20250514",

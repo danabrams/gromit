@@ -296,16 +296,54 @@ func TestInvoke_Timeout_ResultIsNil(t *testing.T) {
 	}
 }
 
-func TestLLMAdapter_SatisfiesInvoker(t *testing.T) {
-	var _ Invoker = (*LLMAdapter)(nil)
+func TestInvokeStream_OnCostNotCalledOnZero(t *testing.T) {
+	called := false
+	mp := &mockProvider{
+		name:      "test",
+		runResult: &provider.Result{CostUSD: 0},
+	}
+	adapter := New(mp, Config{
+		Tier:   "low",
+		OnCost: func(c float64) { called = true },
+	})
+	_, _ = adapter.InvokeStream(context.Background(), "prompt", io.Discard, nil, nil)
+	if called {
+		t.Error("OnCost should not be called for zero cost")
+	}
 }
 
-func TestLLMAdapter_SatisfiesProviderAwareInvoker(t *testing.T) {
-	var _ ProviderAwareInvoker = (*LLMAdapter)(nil)
+func TestInvoke_NilResultOnError(t *testing.T) {
+	mp := &mockProvider{
+		name:      "test",
+		runResult: nil,
+		runErr:    errors.New("total failure"),
+	}
+	adapter := New(mp, Config{
+		Tier:   "low",
+		OnCost: func(c float64) { t.Fatal("OnCost should not be called when result is nil") },
+	})
+	result, err := adapter.Invoke(context.Background(), "prompt")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if result != nil {
+		t.Errorf("expected nil result, got %+v", result)
+	}
 }
 
-func TestProviderAware_SatisfiesProviderAwareInvoker(t *testing.T) {
-	var _ ProviderAwareInvoker = (*ProviderAware)(nil)
+func TestInvokeStream_Timeout_ResultIsNil(t *testing.T) {
+	slowProvider := &slowMockProvider{delay: 5 * time.Second, result: &provider.Result{}}
+	adapter := New(slowProvider, Config{
+		Tier:    "low",
+		Timeout: 50 * time.Millisecond,
+	})
+	result, err := adapter.InvokeStream(context.Background(), "prompt", io.Discard, nil, nil)
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("expected DeadlineExceeded, got %v", err)
+	}
+	if result != nil {
+		t.Errorf("expected nil result on timeout, got %+v", result)
+	}
 }
 
 func TestProviderAware_DelegatesInvokeAndReturnsProvider(t *testing.T) {

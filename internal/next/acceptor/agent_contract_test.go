@@ -27,7 +27,7 @@ Return a JSON object with fields: criterion, status ("pass", "fail", or "unclear
 		if err != nil {
 			t.Fatalf("agent invocation failed: %v", err)
 		}
-		if result.Status != "pass" && result.Status != "fail" && result.Status != "unclear" {
+		if result.Status != StatusPass && result.Status != StatusFail && result.Status != StatusUnclear {
 			t.Errorf("unexpected status: %q (want pass/fail/unclear)", result.Status)
 		}
 		if result.Criterion == "" {
@@ -51,7 +51,7 @@ Return a JSON object with fields: criterion, status ("pass", "fail", or "unclear
 		if err != nil {
 			t.Fatalf("agent invocation failed: %v", err)
 		}
-		if result.Status == "pass" {
+		if result.Status == StatusPass {
 			t.Error("expected fail or unclear for unmet criterion")
 		}
 		if result.Rationale == "" {

@@ -96,3 +96,43 @@ func TestExtractJSON_ArrayWithNestedObjects(t *testing.T) {
 		t.Errorf("expected %q, got %q", input, got)
 	}
 }
+
+func TestExtractJSON_StringValuesContainingBraces(t *testing.T) {
+	input := `{"key": "value with { and } inside"}`
+	got := ExtractJSON(input)
+	if got != input {
+		t.Errorf("expected %q, got %q", input, got)
+	}
+}
+
+func TestExtractJSON_StringValuesContainingBrackets(t *testing.T) {
+	input := `{"key": "value with [ and ] inside"}`
+	got := ExtractJSON(input)
+	if got != input {
+		t.Errorf("expected %q, got %q", input, got)
+	}
+}
+
+func TestExtractJSON_EmptyObject(t *testing.T) {
+	input := `{}`
+	got := ExtractJSON(input)
+	if got != input {
+		t.Errorf("expected %q, got %q", input, got)
+	}
+}
+
+func TestExtractJSON_EmptyArray(t *testing.T) {
+	input := `[]`
+	got := ExtractJSON(input)
+	if got != input {
+		t.Errorf("expected %q, got %q", input, got)
+	}
+}
+
+func TestExtractJSON_WhitespaceOnly(t *testing.T) {
+	input := "   \t\n  "
+	got := ExtractJSON(input)
+	if got != "" {
+		t.Errorf("expected empty string, got %q", got)
+	}
+}

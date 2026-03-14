@@ -1,5 +1,3 @@
-//go:build llmcontract
-
 package validator_test
 
 import (

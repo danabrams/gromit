@@ -311,6 +311,60 @@ func TestProviderTaskRunner_RunTask_ContextCancelled(t *testing.T) {
 	}
 }
 
+func TestProviderTaskRunner_RepairTask_EmptyFailures(t *testing.T) {
+	inv := &mockInvoker{
+		result: &provider.Result{
+			Success:  true,
+			Model:    "sonnet",
+			Duration: 1 * time.Second,
+		},
+	}
+	runner := NewProviderTaskRunner(inv)
+	task := runstore.Task{
+		TaskID:    "t-empty-failures",
+		Objective: "fix the widget",
+	}
+
+	_, err := runner.RepairTask(context.Background(), task, []string{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if strings.Contains(inv.capturedPrompt, "Failures to Address") {
+		t.Error("prompt should not contain 'Failures to Address' header when failures slice is empty")
+	}
+}
+
+func TestProviderTaskRunner_RunTask_MinimalTask(t *testing.T) {
+	inv := &mockInvoker{
+		result: &provider.Result{
+			Success:  true,
+			Model:    "sonnet",
+			Duration: 1 * time.Second,
+		},
+	}
+	runner := NewProviderTaskRunner(inv)
+	task := runstore.Task{
+		TaskID:    "t-minimal",
+		Objective: "do something simple",
+	}
+
+	_, err := runner.RunTask(context.Background(), task)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if strings.Contains(inv.capturedPrompt, "Expected Touched Area") {
+		t.Error("prompt should not contain 'Expected Touched Area' when ExpectedTouchedArea is empty")
+	}
+	if strings.Contains(inv.capturedPrompt, "Proof Checks") {
+		t.Error("prompt should not contain 'Proof Checks' when ProofChecks is empty")
+	}
+	if !strings.Contains(inv.capturedPrompt, "do something simple") {
+		t.Error("prompt should still contain the objective")
+	}
+}
+
 func TestProviderTaskRunner_InvokerErrorPropagated(t *testing.T) {
 	expectedErr := errors.New("connection timeout")
 	inv := &mockInvoker{

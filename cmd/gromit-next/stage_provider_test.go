@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -292,6 +293,143 @@ func TestRealStageProvider_OnCostBudgetWiring_PlanStageFiresOnCost(t *testing.T)
 	// OnCost callback should have forwarded this to the budget.
 	if budget.Cost() <= 0 {
 		t.Errorf("expected budget.Cost() > 0 after plan stage run, got %f", budget.Cost())
+	}
+}
+
+// initGitRepo initializes a minimal git repo with an initial commit in the
+// given directory. This is needed so that GitDiffProvider.Diff can run
+// "git diff main...HEAD" without error.
+func initGitRepo(t *testing.T, dir string) {
+	t.Helper()
+	cmds := [][]string{
+		{"git", "init"},
+		{"git", "checkout", "-b", "main"},
+		{"git", "commit", "--allow-empty", "-m", "init"},
+	}
+	for _, args := range cmds {
+		cmd := exec.Command(args[0], args[1:]...)
+		cmd.Dir = dir
+		cmd.Env = append(os.Environ(), "GIT_CONFIG_NOSYSTEM=1",
+			"GIT_AUTHOR_NAME=test", "GIT_AUTHOR_EMAIL=test@test.com",
+			"GIT_COMMITTER_NAME=test", "GIT_COMMITTER_EMAIL=test@test.com")
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("%v failed: %v\n%s", args, err, out)
+		}
+	}
+}
+
+func TestRealStageProvider_OnCostBudgetWiring_ReviewStageFiresOnCost(t *testing.T) {
+	// Verifies that the review adapter's OnCost callback fires and accumulates
+	// cost in the shared budget when the review stage runs. The costTrackingProvider
+	// returns plan JSON (not valid findings), so the review runner records a
+	// parse error per facet — but OnCost fires at the adapter level before
+	// parsing, which is the documented behavior ("Track cost even on error").
+	workDir := t.TempDir()
+	initGitRepo(t, workDir)
+
+	specDir := t.TempDir()
+	specPath := filepath.Join(specDir, "test-spec.md")
+	specContent := "# Test Spec\n\n## Acceptance Criteria\n- It works\n"
+	if err := os.WriteFile(specPath, []byte(specContent), 0o644); err != nil {
+		t.Fatalf("write spec file: %v", err)
+	}
+
+	policy := execpolicy.DefaultPolicy()
+	rs := runstore.NewRunState("test-spec", "test-project")
+
+	budget := specloop.NewBudget(policy.Budgets)
+
+	sp := NewRealStageProvider(RealStageProviderConfig{
+		WorkDir:  workDir,
+		StoreDir: t.TempDir(),
+		SpecPath: specPath,
+		Provider: &costTrackingProvider{
+			mockTestProvider: mockTestProvider{name: "cost-tracker"},
+			costPerCall:      0.25,
+		},
+	})
+
+	stageList, err := sp.BuildStages(policy, rs, budget)
+	if err != nil {
+		t.Fatalf("BuildStages: %v", err)
+	}
+
+	if budget.Cost() != 0 {
+		t.Fatalf("expected initial budget cost 0, got %f", budget.Cost())
+	}
+
+	// Find and run the review stage. The runner catches parse errors per facet
+	// (puts them in ErroredFacets) but returns (result, nil). The stage sees
+	// AllFacetsErrored and returns Blocked — no error propagated.
+	for _, s := range stageList {
+		if s.Name() == "review" {
+			_, _ = s.Run(context.Background(), rs)
+			break
+		}
+	}
+
+	// The costTrackingProvider reports $0.25 per call. The review adapter's
+	// OnCost callback should have forwarded this to the budget. The review
+	// runner calls the adapter once per facet (default policy has 2 facets).
+	if budget.Cost() <= 0 {
+		t.Errorf("expected budget.Cost() > 0 after review stage run, got %f", budget.Cost())
+	}
+}
+
+func TestRealStageProvider_OnCostBudgetWiring_AcceptStageFiresOnCost(t *testing.T) {
+	// Verifies that the accept adapter's OnCost callback fires and accumulates
+	// cost in the shared budget when the accept stage runs. The costTrackingProvider
+	// returns plan JSON (not valid criterion result), so the accept evaluator
+	// will error on parse — but OnCost fires at the adapter level before parsing.
+	workDir := t.TempDir()
+	initGitRepo(t, workDir)
+
+	specDir := t.TempDir()
+	specPath := filepath.Join(specDir, "test-spec.md")
+	specContent := "# Test Spec\n\n## Acceptance Criteria\n- It works\n"
+	if err := os.WriteFile(specPath, []byte(specContent), 0o644); err != nil {
+		t.Fatalf("write spec file: %v", err)
+	}
+
+	policy := execpolicy.DefaultPolicy()
+	rs := runstore.NewRunState("test-spec", "test-project")
+
+	budget := specloop.NewBudget(policy.Budgets)
+
+	sp := NewRealStageProvider(RealStageProviderConfig{
+		WorkDir:  workDir,
+		StoreDir: t.TempDir(),
+		SpecPath: specPath,
+		Provider: &costTrackingProvider{
+			mockTestProvider: mockTestProvider{name: "cost-tracker"},
+			costPerCall:      0.30,
+		},
+	})
+
+	stageList, err := sp.BuildStages(policy, rs, budget)
+	if err != nil {
+		t.Fatalf("BuildStages: %v", err)
+	}
+
+	if budget.Cost() != 0 {
+		t.Fatalf("expected initial budget cost 0, got %f", budget.Cost())
+	}
+
+	// Find and run the accept stage. The evaluator calls EvaluateCriterion
+	// per criterion; OnCost fires in the adapter even if parsing fails downstream.
+	for _, s := range stageList {
+		if s.Name() == "accept" {
+			_, _ = s.Run(context.Background(), rs)
+			break
+		}
+	}
+
+	// The costTrackingProvider reports $0.30 per call. The accept adapter's
+	// OnCost callback should have forwarded this to the budget. The accept
+	// evaluator calls the adapter once per criterion (spec has 1 criterion).
+	if budget.Cost() <= 0 {
+		t.Errorf("expected budget.Cost() > 0 after accept stage run, got %f", budget.Cost())
 	}
 }
 

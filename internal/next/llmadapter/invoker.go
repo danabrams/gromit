@@ -34,3 +34,5 @@ func NewProviderAware(inv Invoker, prov provider.Provider) *ProviderAware {
 func (pa *ProviderAware) Provider() provider.Provider {
 	return pa.prov
 }
+
+var _ ProviderAwareInvoker = (*ProviderAware)(nil)

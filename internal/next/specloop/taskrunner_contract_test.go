@@ -24,8 +24,13 @@ func RunTaskRunnerContract(t *testing.T, runner TaskRunner) {
 		if err != nil {
 			t.Fatalf("RunTask failed: %v", err)
 		}
-		if result.Status == "" {
-			t.Error("expected non-empty status")
+		validStatuses := map[string]bool{
+			"done":        true,
+			"failed":      true,
+			"needs_split": true,
+		}
+		if !validStatuses[result.Status] {
+			t.Errorf("expected a valid status (done, failed, needs_split), got %q", result.Status)
 		}
 		if result.TokensUsed == 0 {
 			t.Error("expected non-zero TokensUsed")
@@ -42,8 +47,13 @@ func RunTaskRunnerContract(t *testing.T, runner TaskRunner) {
 		if err != nil {
 			t.Fatalf("RepairTask failed: %v", err)
 		}
-		if result.Status == "" {
-			t.Error("expected non-empty status")
+		validStatuses := map[string]bool{
+			"done":        true,
+			"failed":      true,
+			"needs_split": true,
+		}
+		if !validStatuses[result.Status] {
+			t.Errorf("expected a valid status (done, failed, needs_split), got %q", result.Status)
 		}
 		if result.TokensUsed == 0 {
 			t.Error("expected non-zero TokensUsed")

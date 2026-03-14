@@ -125,7 +125,17 @@ func (p *RealStageProvider) BuildStages(policy execpolicy.Policy, rs *runstore.R
 
 		diffProv = &review.GitDiffProvider{WorkDir: p.cfg.WorkDir}
 
-		compiler = &noopCompiler{} // TODO(0002c): Wire real SpecCompilerAdapter here. Deferred — requires ArtifactStore and cell resolution from project config, which needs CLI flag plumbing.
+		// TODO(0002c): Wire real SpecCompilerAdapter (contextpkt.NewSpecCompilerAdapter) here.
+		// Blocked on:
+		//   1. ArtifactStore — needs a concrete implementation wired from project config
+		//   2. Cell resolution — needs CellName + CellPath plumbed from CLI flags into RealStageProviderConfig
+		//   3. Level selection — needs to be determined from pipeline context (LevelSpec for spec-level compilation)
+		//   4. CompileOpts — needs SpecPath (available) + TokenBudget (needs policy plumbing)
+		// Once those are available, replace noopCompiler with:
+		//   store := contextpkt.NewSomeArtifactStore(...)  // concrete store TBD
+		//   cell := contextpkt.Cell{Name: cfg.CellName, CellPath: cfg.CellPath}
+		//   compiler = contextpkt.NewSpecCompilerAdapter(contextpkt.NewCompiler(store), cell, contextpkt.LevelSpec, contextpkt.CompileOpts{SpecPath: cfg.SpecPath})
+		compiler = &noopCompiler{}
 	} else {
 		// Fallback to noops when no Provider is configured.
 		compiler = &noopCompiler{}

@@ -39,7 +39,9 @@ func (a *ProviderReviewAgent) ReviewFacet(ctx context.Context, facetName string,
 
 	var findings []Finding
 	if err := json.Unmarshal([]byte(extracted), &findings); err != nil {
-		// Check if it's already a ParseError (from Finding.UnmarshalJSON)
+		// Check if it's already a ParseError (e.g. missing required field from Finding.UnmarshalJSON).
+		// Note: severity parse errors arrive as fmt.Errorf wrappers, not *ParseError,
+		// so they fall through to the generic wrap below.
 		if pe, ok := err.(*ParseError); ok {
 			return []Finding{}, pe
 		}

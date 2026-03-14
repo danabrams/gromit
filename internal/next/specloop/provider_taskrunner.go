@@ -88,11 +88,13 @@ func renderRepairPrompt(task runstore.Task, failures []string) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "## Repair Task: %s\n\n", task.TaskID)
 	renderTaskBody(&b, task)
-	b.WriteString("### Failures to Address\n")
-	for _, f := range failures {
-		fmt.Fprintf(&b, "- %s\n", f)
+	if len(failures) > 0 {
+		b.WriteString("### Failures to Address\n")
+		for _, f := range failures {
+			fmt.Fprintf(&b, "- %s\n", f)
+		}
+		b.WriteString("\n")
 	}
-	b.WriteString("\n")
 	return b.String()
 }
 
