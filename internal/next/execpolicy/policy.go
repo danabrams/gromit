@@ -10,10 +10,28 @@ import (
 // Policy defines execution policy configuration: always-run checks, budgets,
 // model tier config, and review settings.
 type Policy struct {
-	AlwaysRun []Check      `json:"always_run"`
-	Budgets   Budgets      `json:"budgets"`
-	Models    Models       `json:"models"`
-	Review    ReviewConfig `json:"review"`
+	AlwaysRun []Check       `json:"always_run"`
+	Budgets   Budgets       `json:"budgets"`
+	Models    Models        `json:"models"`
+	Review    ReviewConfig  `json:"review"`
+	Routing   RoutingConfig `json:"routing"`
+}
+
+// RoutingConfig defines multi-provider routing preferences.
+type RoutingConfig struct {
+	Preferences     map[string]string `json:"preferences"`       // phase -> provider name or "any"
+	Ratio           map[string]int    `json:"ratio"`              // provider name -> percentage (must sum to 100)
+	CooldownSeconds int               `json:"cooldown_seconds"`   // seconds to mark provider unavailable after usage-limit
+}
+
+// NormalizeNilFields maps nil slices/maps to empty values.
+func (rc *RoutingConfig) NormalizeNilFields() {
+	if rc.Preferences == nil {
+		rc.Preferences = map[string]string{}
+	}
+	if rc.Ratio == nil {
+		rc.Ratio = map[string]int{}
+	}
 }
 
 // ReviewConfig defines review stage configuration.
@@ -70,6 +88,11 @@ func DefaultPolicy() Policy {
 			Tiers:            map[string]string{"spec_alignment": "high", "code_quality": "medium"},
 			ReplanThreshold:  "warning",
 			FacetMaxAttempts: 2,
+		},
+		Routing: RoutingConfig{
+			Preferences:     map[string]string{"plan": "any", "execute": "any", "review": "any", "validate": "any"},
+			Ratio:           map[string]int{"claude": 100},
+			CooldownSeconds: 300,
 		},
 	}
 }
@@ -139,6 +162,15 @@ func (p *Policy) Validate() error {
 	if err := p.ValidateReviewConfig(); err != nil {
 		errs = append(errs, err)
 	}
+	if len(p.Routing.Ratio) > 0 {
+		sum := 0
+		for _, v := range p.Routing.Ratio {
+			sum += v
+		}
+		if sum != 100 {
+			errs = append(errs, fmt.Errorf("routing.ratio values must sum to 100, got %d", sum))
+		}
+	}
 	return errors.Join(errs...)
 }
 
@@ -181,4 +213,5 @@ func (p *Policy) NormalizeNilFields() {
 	if p.Review.Tiers == nil {
 		p.Review.Tiers = map[string]string{}
 	}
+	p.Routing.NormalizeNilFields()
 }
