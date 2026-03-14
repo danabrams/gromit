@@ -20,22 +20,36 @@ import (
 
 // RealStageProviderConfig holds paths and options for building real stages.
 type RealStageProviderConfig struct {
-	WorkDir    string
-	StoreDir   string
-	SpecPath   string
-	PolicyPath string
-	Provider   provider.Provider // LLM provider (0002c: Claude only; 0002d: replaced by Router). Nil falls back to noops.
+	WorkDir        string
+	StoreDir       string
+	SpecPath       string
+	PolicyPath     string
+	Provider       provider.Provider // LLM provider (0002c: Claude only; 0002d: replaced by Router). Nil falls back to noops.
+	ClaudeProvider provider.Provider
+	CodexProvider  provider.Provider
+	StateFn        provider.StateFile
+	CircuitBreaker *provider.CircuitBreaker
 }
 
 // RealStageProvider builds real stages using noop agents where LLM dependencies
 // are not yet configured. This replaces the stub defaultStageProvider.
 type RealStageProvider struct {
-	cfg RealStageProviderConfig
+	cfg            RealStageProviderConfig
+	claudeProvider provider.Provider
+	codexProvider  provider.Provider
+	stateFn        provider.StateFile
+	circuitBreaker *provider.CircuitBreaker
 }
 
 // NewRealStageProvider creates a RealStageProvider.
 func NewRealStageProvider(cfg RealStageProviderConfig) *RealStageProvider {
-	return &RealStageProvider{cfg: cfg}
+	return &RealStageProvider{
+		cfg:            cfg,
+		claudeProvider: cfg.ClaudeProvider,
+		codexProvider:  cfg.CodexProvider,
+		stateFn:        cfg.StateFn,
+		circuitBreaker: cfg.CircuitBreaker,
+	}
 }
 
 // BuildStages constructs the ordered pipeline of stages.
