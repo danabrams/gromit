@@ -13,13 +13,22 @@ import (
 
 // mockInvoker captures the prompt and returns a configured result.
 type mockInvoker struct {
-	capturedPrompt string
-	result         *provider.Result
-	err            error
+	capturedPrompt  string
+	capturedDir     string
+	usedInvokeInDir bool
+	result          *provider.Result
+	err             error
 }
 
 func (m *mockInvoker) Invoke(_ context.Context, prompt string) (*provider.Result, error) {
 	m.capturedPrompt = prompt
+	return m.result, m.err
+}
+
+func (m *mockInvoker) InvokeInDir(_ context.Context, prompt string, dir string) (*provider.Result, error) {
+	m.capturedPrompt = prompt
+	m.capturedDir = dir
+	m.usedInvokeInDir = true
 	return m.result, m.err
 }
 
@@ -42,7 +51,7 @@ func TestProviderTaskRunner_RunTask_SuccessMappedToDone(t *testing.T) {
 			Duration:     2 * time.Second,
 		},
 	}
-	runner := NewProviderTaskRunner(inv)
+	runner := NewProviderTaskRunner(inv, "")
 	task := runstore.Task{
 		TaskID:    "t-1",
 		Objective: "implement feature X",
@@ -69,7 +78,7 @@ func TestProviderTaskRunner_RunTask_FailureMappedToFailed(t *testing.T) {
 			Duration:     1 * time.Second,
 		},
 	}
-	runner := NewProviderTaskRunner(inv)
+	runner := NewProviderTaskRunner(inv, "")
 	task := runstore.Task{TaskID: "t-2", Objective: "fix bug Y"}
 
 	result, err := runner.RunTask(context.Background(), task)
@@ -91,7 +100,7 @@ func TestProviderTaskRunner_RunTask_TokensUsedIsSum(t *testing.T) {
 			Duration:     1 * time.Second,
 		},
 	}
-	runner := NewProviderTaskRunner(inv)
+	runner := NewProviderTaskRunner(inv, "")
 	task := runstore.Task{TaskID: "t-3", Objective: "anything"}
 
 	result, err := runner.RunTask(context.Background(), task)
@@ -111,7 +120,7 @@ func TestProviderTaskRunner_RunTask_PromptIncludesObjectiveAndArea(t *testing.T)
 			Duration: 1 * time.Second,
 		},
 	}
-	runner := NewProviderTaskRunner(inv)
+	runner := NewProviderTaskRunner(inv, "")
 	task := runstore.Task{
 		TaskID:              "t-4",
 		Objective:           "implement the frobnicator",
@@ -146,7 +155,7 @@ func TestProviderTaskRunner_RunTask_MapsAllResultFields(t *testing.T) {
 			Duration:     3500 * time.Millisecond,
 		},
 	}
-	runner := NewProviderTaskRunner(inv)
+	runner := NewProviderTaskRunner(inv, "")
 	task := runstore.Task{TaskID: "t-5", Objective: "test"}
 
 	result, err := runner.RunTask(context.Background(), task)
@@ -175,7 +184,7 @@ func TestProviderTaskRunner_RepairTask_PromptIncludesFailures(t *testing.T) {
 			Duration: 1 * time.Second,
 		},
 	}
-	runner := NewProviderTaskRunner(inv)
+	runner := NewProviderTaskRunner(inv, "")
 	task := runstore.Task{
 		TaskID:    "t-6",
 		Objective: "fix the widget",
@@ -209,7 +218,7 @@ func TestProviderTaskRunner_RepairTask_MapsResultCorrectly(t *testing.T) {
 			Duration:     2 * time.Second,
 		},
 	}
-	runner := NewProviderTaskRunner(inv)
+	runner := NewProviderTaskRunner(inv, "")
 	task := runstore.Task{TaskID: "t-7", Objective: "repair something"}
 
 	result, err := runner.RepairTask(context.Background(), task, []string{"failure1"})
@@ -235,7 +244,7 @@ func TestProviderTaskRunner_RunTask_NilResult(t *testing.T) {
 		result: nil,
 		err:    nil,
 	}
-	runner := NewProviderTaskRunner(inv)
+	runner := NewProviderTaskRunner(inv, "")
 	task := runstore.Task{TaskID: "t-nil-run", Objective: "should handle nil"}
 
 	result, err := runner.RunTask(context.Background(), task)
@@ -265,7 +274,7 @@ func TestProviderTaskRunner_RepairTask_NilResult(t *testing.T) {
 		result: nil,
 		err:    nil,
 	}
-	runner := NewProviderTaskRunner(inv)
+	runner := NewProviderTaskRunner(inv, "")
 	task := runstore.Task{TaskID: "t-nil-repair", Objective: "should handle nil"}
 
 	result, err := runner.RepairTask(context.Background(), task, []string{"some failure"})
@@ -298,7 +307,7 @@ func TestProviderTaskRunner_RunTask_ContextCancelled(t *testing.T) {
 		result: nil,
 		err:    context.Canceled,
 	}
-	runner := NewProviderTaskRunner(inv)
+	runner := NewProviderTaskRunner(inv, "")
 	task := runstore.Task{TaskID: "t-ctx", Objective: "should be cancelled"}
 
 	_, err := runner.RunTask(ctx, task)
@@ -319,7 +328,7 @@ func TestProviderTaskRunner_RepairTask_EmptyFailures(t *testing.T) {
 			Duration: 1 * time.Second,
 		},
 	}
-	runner := NewProviderTaskRunner(inv)
+	runner := NewProviderTaskRunner(inv, "")
 	task := runstore.Task{
 		TaskID:    "t-empty-failures",
 		Objective: "fix the widget",
@@ -343,7 +352,7 @@ func TestProviderTaskRunner_RunTask_MinimalTask(t *testing.T) {
 			Duration: 1 * time.Second,
 		},
 	}
-	runner := NewProviderTaskRunner(inv)
+	runner := NewProviderTaskRunner(inv, "")
 	task := runstore.Task{
 		TaskID:    "t-minimal",
 		Objective: "do something simple",
@@ -375,7 +384,7 @@ func TestProviderTaskRunner_InvokerErrorPropagated(t *testing.T) {
 		},
 		err: expectedErr,
 	}
-	runner := NewProviderTaskRunner(inv)
+	runner := NewProviderTaskRunner(inv, "")
 	task := runstore.Task{TaskID: "t-8", Objective: "something"}
 
 	result, err := runner.RunTask(context.Background(), task)
@@ -385,5 +394,71 @@ func TestProviderTaskRunner_InvokerErrorPropagated(t *testing.T) {
 	// Partial result should still have token/cost info
 	if result.TokensUsed != 100 {
 		t.Errorf("expected partial TokensUsed=100, got %d", result.TokensUsed)
+	}
+}
+
+func TestProviderTaskRunner_RunTask_UsesInvokeInDirWhenWorkDirSet(t *testing.T) {
+	inv := &mockInvoker{
+		result: &provider.Result{
+			Success:  true,
+			Model:    "sonnet",
+			Duration: 1 * time.Second,
+		},
+	}
+	runner := NewProviderTaskRunner(inv, "/tmp/workdir")
+	task := runstore.Task{TaskID: "t-dir-1", Objective: "implement feature"}
+
+	_, err := runner.RunTask(context.Background(), task)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !inv.usedInvokeInDir {
+		t.Error("expected InvokeInDir to be called when workDir is set")
+	}
+	if inv.capturedDir != "/tmp/workdir" {
+		t.Errorf("expected dir '/tmp/workdir', got %q", inv.capturedDir)
+	}
+}
+
+func TestProviderTaskRunner_RunTask_UsesInvokeWhenWorkDirEmpty(t *testing.T) {
+	inv := &mockInvoker{
+		result: &provider.Result{
+			Success:  true,
+			Model:    "sonnet",
+			Duration: 1 * time.Second,
+		},
+	}
+	runner := NewProviderTaskRunner(inv, "")
+	task := runstore.Task{TaskID: "t-dir-2", Objective: "implement feature"}
+
+	_, err := runner.RunTask(context.Background(), task)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if inv.usedInvokeInDir {
+		t.Error("expected Invoke (not InvokeInDir) to be called when workDir is empty")
+	}
+}
+
+func TestProviderTaskRunner_RepairTask_UsesInvokeInDirWhenWorkDirSet(t *testing.T) {
+	inv := &mockInvoker{
+		result: &provider.Result{
+			Success:  true,
+			Model:    "sonnet",
+			Duration: 1 * time.Second,
+		},
+	}
+	runner := NewProviderTaskRunner(inv, "/tmp/repair-dir")
+	task := runstore.Task{TaskID: "t-dir-3", Objective: "fix bug"}
+
+	_, err := runner.RepairTask(context.Background(), task, []string{"test failed"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !inv.usedInvokeInDir {
+		t.Error("expected InvokeInDir to be called when workDir is set")
+	}
+	if inv.capturedDir != "/tmp/repair-dir" {
+		t.Errorf("expected dir '/tmp/repair-dir', got %q", inv.capturedDir)
 	}
 }

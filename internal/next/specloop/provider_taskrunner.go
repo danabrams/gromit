@@ -16,18 +16,29 @@ var _ TaskRunner = (*ProviderTaskRunner)(nil)
 // ProviderTaskRunner executes tasks by invoking an LLM via llmadapter.Invoker.
 type ProviderTaskRunner struct {
 	invoker llmadapter.Invoker
+	workDir string
 }
 
 // NewProviderTaskRunner creates a ProviderTaskRunner backed by the given invoker.
-func NewProviderTaskRunner(invoker llmadapter.Invoker) *ProviderTaskRunner {
-	return &ProviderTaskRunner{invoker: invoker}
+// If workDir is non-empty, InvokeInDir is used instead of Invoke so the LLM
+// process runs in the specified directory.
+func NewProviderTaskRunner(invoker llmadapter.Invoker, workDir string) *ProviderTaskRunner {
+	return &ProviderTaskRunner{invoker: invoker, workDir: workDir}
+}
+
+// invoke calls InvokeInDir when workDir is set, otherwise calls Invoke.
+func (r *ProviderTaskRunner) invoke(ctx context.Context, prompt string) (*provider.Result, error) {
+	if r.workDir != "" {
+		return r.invoker.InvokeInDir(ctx, prompt, r.workDir)
+	}
+	return r.invoker.Invoke(ctx, prompt)
 }
 
 // RunTask renders a task prompt and invokes the LLM. It maps the provider result
 // to a TaskResult. FilesChanged is always empty — the TaskLoop fills that in.
 func (r *ProviderTaskRunner) RunTask(ctx context.Context, task runstore.Task) (TaskResult, error) {
 	prompt := renderTaskPrompt(task)
-	result, err := r.invoker.Invoke(ctx, prompt)
+	result, err := r.invoke(ctx, prompt)
 	tr := mapResult(result)
 	if err != nil {
 		return tr, err
@@ -42,7 +53,7 @@ func (r *ProviderTaskRunner) RunTask(ctx context.Context, task runstore.Task) (T
 // the LLM. Result mapping is the same as RunTask.
 func (r *ProviderTaskRunner) RepairTask(ctx context.Context, task runstore.Task, failures []string) (TaskResult, error) {
 	prompt := renderRepairPrompt(task, failures)
-	result, err := r.invoker.Invoke(ctx, prompt)
+	result, err := r.invoke(ctx, prompt)
 	tr := mapResult(result)
 	if err != nil {
 		return tr, err

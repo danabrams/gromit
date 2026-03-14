@@ -126,7 +126,7 @@ func (p *RealStageProvider) BuildStages(policy execpolicy.Policy, rs *runstore.R
 			llmadapter.Config{Tier: policy.Models.Executor},
 			policy.Models.Executor,
 		)
-		taskRunner = specloop.NewProviderTaskRunner(execAdapter)
+		taskRunner = specloop.NewProviderTaskRunner(execAdapter, p.cfg.WorkDir)
 
 		finalVal = validator.NewShellValidator(validator.NewRunner())
 

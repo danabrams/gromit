@@ -10,6 +10,7 @@ import (
 // LLMAdapter satisfies this, and tests can substitute mocks.
 type Invoker interface {
 	Invoke(ctx context.Context, prompt string) (*provider.Result, error)
+	InvokeInDir(ctx context.Context, prompt string, dir string) (*provider.Result, error)
 }
 
 // ProviderAwareInvoker extends Invoker with access to the underlying provider.

@@ -119,6 +119,44 @@ func (f *FallbackAdapter) Invoke(ctx context.Context, prompt string) (*provider.
 	return result, err
 }
 
+// InvokeInDir delegates to the primary invoker's InvokeInDir, with the same
+// lazy resolution and usage-limit fallback logic as Invoke.
+func (f *FallbackAdapter) InvokeInDir(ctx context.Context, prompt string, dir string) (*provider.Result, error) {
+	f.mu.Lock()
+	if f.primary == nil {
+		f.primary = f.resolvePrimary()
+	}
+	primary := f.primary
+	f.mu.Unlock()
+	if primary == nil {
+		return nil, fmt.Errorf("no providers available for phase %q tier %q", f.phase, f.tier)
+	}
+	result, err := primary.InvokeInDir(ctx, prompt, dir)
+	prov := primary.Provider()
+	if err != nil && prov != nil && result != nil && prov.IsUsageLimitError(result, err) {
+		primaryName := prov.Name()
+		log.Printf("provider %s hit usage limit, attempting fallback: %v", primaryName, err)
+		f.router.MarkUnavailable(primaryName)
+		f.mu.Lock()
+		f.primary = nil
+		f.mu.Unlock()
+		fallbackProv, _ := f.router.Select(f.phase, f.tier)
+		if fallbackProv == nil {
+			return result, fmt.Errorf("all providers exhausted after %s usage limit: %w", primaryName, err)
+		}
+		cfg := f.cfg
+		cfg.Tier = f.tier
+		fallback := New(fallbackProv, cfg)
+		fallbackResult, fallbackErr := fallback.InvokeInDir(ctx, prompt, dir)
+		if fallbackErr != nil {
+			return fallbackResult, fmt.Errorf("fallback provider %s also failed (primary was %s): %w", fallbackProv.Name(), primaryName, fallbackErr)
+		}
+		log.Printf("provider fallback: %s (usage limit) -> %s (success)", primaryName, fallbackProv.Name())
+		return fallbackResult, nil
+	}
+	return result, err
+}
+
 // Compile-time interface checks.
 var _ Invoker = (*FallbackAdapter)(nil)
 var _ ProviderAwareInvoker = (*FallbackAdapter)(nil)

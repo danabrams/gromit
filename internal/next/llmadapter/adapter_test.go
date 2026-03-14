@@ -374,6 +374,114 @@ func TestLLMAdapter_ProviderReturnsUnderlying(t *testing.T) {
 	}
 }
 
+// mockDirStreamProvider satisfies provider.Provider and provider.DirStreamRunner.
+type mockDirStreamProvider struct {
+	mockProvider
+	lastDir string
+}
+
+func (m *mockDirStreamProvider) StreamRunInDir(_ context.Context, _ string, tier string, dir string, _ io.Writer, _ provider.EventHandler, _ provider.ToolCallHandler) (*provider.Result, error) {
+	m.calls++
+	m.lastTier = tier
+	m.lastDir = dir
+	return m.runResult, m.runErr
+}
+
+func TestInvokeInDir_UsesDirStreamRunnerWhenAvailable(t *testing.T) {
+	mp := &mockDirStreamProvider{
+		mockProvider: mockProvider{
+			name:      "claude",
+			runResult: &provider.Result{Output: "dir-streamed", CostUSD: 0.10},
+		},
+	}
+	adapter := New(mp, Config{Tier: "high"})
+	result, err := adapter.InvokeInDir(context.Background(), "prompt", "/tmp/workdir")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Output != "dir-streamed" {
+		t.Errorf("expected output 'dir-streamed', got %q", result.Output)
+	}
+	if mp.lastDir != "/tmp/workdir" {
+		t.Errorf("expected dir '/tmp/workdir', got %q", mp.lastDir)
+	}
+	if mp.lastTier != "high" {
+		t.Errorf("expected tier 'high', got %q", mp.lastTier)
+	}
+}
+
+func TestInvokeInDir_FallsBackToRunWhenNotDirStreamRunner(t *testing.T) {
+	mp := &mockProvider{
+		name:      "test",
+		runResult: &provider.Result{Output: "run-fallback", CostUSD: 0.05},
+	}
+	adapter := New(mp, Config{Tier: "medium"})
+	result, err := adapter.InvokeInDir(context.Background(), "prompt", "/tmp/workdir")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Output != "run-fallback" {
+		t.Errorf("expected output 'run-fallback', got %q", result.Output)
+	}
+	if mp.calls != 1 {
+		t.Errorf("expected 1 call to Run, got %d", mp.calls)
+	}
+}
+
+func TestInvokeInDir_CallsOnCost(t *testing.T) {
+	var captured float64
+	mp := &mockDirStreamProvider{
+		mockProvider: mockProvider{
+			name:      "claude",
+			runResult: &provider.Result{CostUSD: 0.20},
+		},
+	}
+	adapter := New(mp, Config{
+		Tier:   "high",
+		OnCost: func(c float64) { captured = c },
+	})
+	_, err := adapter.InvokeInDir(context.Background(), "prompt", "/tmp/dir")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if captured != 0.20 {
+		t.Errorf("expected cost 0.20, got %f", captured)
+	}
+}
+
+func TestInvokeInDir_RespectsTimeout(t *testing.T) {
+	slowProv := &slowMockProvider{delay: 5 * time.Second, result: &provider.Result{}}
+	adapter := New(slowProv, Config{
+		Tier:    "low",
+		Timeout: 50 * time.Millisecond,
+	})
+	_, err := adapter.InvokeInDir(context.Background(), "prompt", "/tmp/dir")
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("expected DeadlineExceeded, got %v", err)
+	}
+}
+
+func TestInvokeInDir_PropagatesError(t *testing.T) {
+	mp := &mockDirStreamProvider{
+		mockProvider: mockProvider{
+			name:      "claude",
+			runResult: &provider.Result{Output: "partial"},
+			runErr:    errors.New("dir stream failure"),
+		},
+	}
+	adapter := New(mp, Config{Tier: "high"})
+	result, err := adapter.InvokeInDir(context.Background(), "prompt", "/tmp/dir")
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if err.Error() != "dir stream failure" {
+		t.Errorf("expected 'dir stream failure', got %q", err.Error())
+	}
+	if result == nil {
+		t.Fatal("expected non-nil result even on error")
+	}
+}
+
 // slowMockProvider blocks for a configurable delay.
 type slowMockProvider struct {
 	mockProvider

@@ -54,6 +54,32 @@ func (a *LLMAdapter) Invoke(ctx context.Context, prompt string) (*provider.Resul
 	return result, err
 }
 
+// InvokeInDir calls the provider with a working directory. If the provider
+// implements provider.DirStreamRunner, it uses StreamRunInDir; otherwise it
+// falls back to provider.Run (ignoring the directory).
+func (a *LLMAdapter) InvokeInDir(ctx context.Context, prompt string, dir string) (*provider.Result, error) {
+	if a.cfg.Timeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, a.cfg.Timeout)
+		defer cancel()
+	}
+
+	var result *provider.Result
+	var err error
+	if dsr, ok := a.provider.(provider.DirStreamRunner); ok {
+		result, err = dsr.StreamRunInDir(ctx, prompt, a.cfg.Tier, dir, io.Discard, nil, nil)
+	} else {
+		result, err = a.provider.Run(ctx, prompt, a.cfg.Tier)
+	}
+
+	// Track cost even on error — partial results may still incur charges.
+	if a.cfg.OnCost != nil && result != nil && result.CostUSD > 0 {
+		a.cfg.OnCost(result.CostUSD)
+	}
+
+	return result, err
+}
+
 // InvokeStream calls provider.StreamRun with the configured tier.
 func (a *LLMAdapter) InvokeStream(ctx context.Context, prompt string, w io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
 	if a.cfg.Timeout > 0 {

@@ -18,6 +18,10 @@ func (m *mockInvoker) Invoke(_ context.Context, _ string) (*provider.Result, err
 	return m.result, m.err
 }
 
+func (m *mockInvoker) InvokeInDir(ctx context.Context, prompt string, _ string) (*provider.Result, error) {
+	return m.Invoke(ctx, prompt)
+}
+
 func TestProviderAcceptAgent_ValidJSON(t *testing.T) {
 	inv := &mockInvoker{
 		result: &provider.Result{

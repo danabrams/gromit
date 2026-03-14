@@ -350,8 +350,10 @@ type threadSafeMockProviderWithUsageLimit struct {
 	usageLimitOnce bool // tracks whether the first call has been made
 }
 
-func (m *threadSafeMockProviderWithUsageLimit) Name() string                    { return m.name }
-func (m *threadSafeMockProviderWithUsageLimit) ModelForTier(tier string) string { return "mock-" + tier }
+func (m *threadSafeMockProviderWithUsageLimit) Name() string { return m.name }
+func (m *threadSafeMockProviderWithUsageLimit) ModelForTier(tier string) string {
+	return "mock-" + tier
+}
 func (m *threadSafeMockProviderWithUsageLimit) Run(_ context.Context, _ string, _ string) (*provider.Result, error) {
 	m.mu.Lock()
 	m.calls++
@@ -460,5 +462,47 @@ func TestFallbackAdapter_ConcurrentInvoke_WithFallback_NoRace(t *testing.T) {
 	}
 	if successCount == 0 {
 		t.Error("expected at least one successful invocation across concurrent goroutines")
+	}
+}
+
+func TestFallbackAdapter_InvokeInDir_NormalInvocation(t *testing.T) {
+	primaryProv := &mockProvider{name: "claude", runResult: &provider.Result{Output: "dir-hello", CostUSD: 0.01}}
+	router := &mockRouter{
+		selectProvider: primaryProv,
+		selectModel:    "claude-opus",
+	}
+	fa := NewFallbackAdapter(router, "build", Config{}, "medium")
+	result, err := fa.InvokeInDir(context.Background(), "prompt", "/tmp/workdir")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Output != "dir-hello" {
+		t.Errorf("expected 'dir-hello', got %q", result.Output)
+	}
+}
+
+func TestFallbackAdapter_InvokeInDir_UsageLimitFallback(t *testing.T) {
+	primaryProv := &mockProviderWithUsageLimit{
+		mockProvider: mockProvider{name: "claude", runResult: &provider.Result{Output: "", ExitCode: 2}, runErr: errors.New("usage limit")},
+		isUsageLimit: true,
+	}
+	fallbackResult := &provider.Result{Output: "dir-fallback", CostUSD: 0.02}
+	fallbackProv := &mockProvider{name: "codex", runResult: fallbackResult}
+	router := &mockRouter{
+		selectSequence: []mockSelectResult{
+			{prov: primaryProv, model: "claude-opus"},
+			{prov: fallbackProv, model: "gpt-5.3-codex"},
+		},
+	}
+	fa := NewFallbackAdapter(router, "build", Config{}, "medium")
+	result, err := fa.InvokeInDir(context.Background(), "prompt", "/tmp/workdir")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Output != "dir-fallback" {
+		t.Errorf("expected 'dir-fallback', got %q", result.Output)
+	}
+	if !router.markUnavailableCalled {
+		t.Error("expected router.MarkUnavailable to be called")
 	}
 }
