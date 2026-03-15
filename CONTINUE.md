@@ -1,8 +1,12 @@
 # Manual Test Plan — Spec 0002a/0002c/0002d End-to-End
 
 ## Status
-- **Current phase:** Spec 0002b — Scenario 6 complete. Next: Scenario 7.
-- **Next:** **Spec 0002b Scenario 7** (Acceptance Unclear Exhausts Budget → `needs_human`)
+- **Current phase:** Spec 0002b — Scenario 7 complete. Next: Scenario 8.
+- **Scenario 7 COMPLETE** — Acceptance Unclear Exhausts Budget → `needs_human` ✓
+  - Scenario tests: 3 tests (exec show, exec show --full, exec list) — all passing
+  - E2E contract: scenario-07-acceptance-unclear-exhausts-budget.yaml — PASS (5m17s, real Claude)
+  - Run ID: run-06c4fe38a5d2d03a — status: `needs_human`, reason: `cycles_exhausted`
+- **Next:** **Spec 0002b Scenario 8** (Multi-Spec Isolation or similar)
 - **Date:** 2026-03-15
 
 ## Context

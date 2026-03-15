@@ -857,3 +857,140 @@ func TestScenario_ExecList_BudgetExhaustion(t *testing.T) {
 		t.Errorf("expected needs_human in output, got:\n%s", output)
 	}
 }
+
+// TestScenario_ExecShow_AcceptanceUnclear_CyclesExhausted verifies that exec show
+// displays a run where acceptance criteria were unclear (not pass/fail), exhausted
+// the cycle budget, and reached needs_human status.
+func TestScenario_ExecShow_AcceptanceUnclear_CyclesExhausted(t *testing.T) {
+	tmp := t.TempDir()
+	store := runstore.NewStore(tmp)
+
+	// Seed: a run that hit max_spec_cycles=2 with repeated unclear acceptance.
+	// Cycle 1: acceptance criteria marked unclear → replan → cycle 2
+	// Cycle 2: acceptance criteria still unclear → cycles exhausted → needs_human.
+	rs := &runstore.RunState{
+		RunID:          "run-acceptance-unclear",
+		SpecID:         "subjective-criteria",
+		ProjectID:      "fixture-calc",
+		Status:         runstore.StatusNeedsHuman,
+		TerminalReason: "cycles_exhausted",
+		Cycle:          2,
+		TotalReplans:   1,
+		StartedAt:      time.Date(2026, 3, 15, 15, 0, 0, 0, time.UTC),
+		EndedAt:        time.Date(2026, 3, 15, 15, 10, 0, 0, time.UTC),
+		AccumulatedCost: 0.24,
+		Tasks: []runstore.Task{
+			{TaskID: "t-001", Status: "done", Attempts: 1, FilesChanged: []string{"calc/calc.go"}},
+		},
+	}
+	if err := store.Save(rs); err != nil {
+		t.Fatal(err)
+	}
+
+	output, err := execShow("run-acceptance-unclear", store, false)
+	if err != nil {
+		t.Fatalf("execShow: %v", err)
+	}
+
+	checks := []struct {
+		field string
+		want  string
+	}{
+		{"Status", "needs_human"},
+		{"Reason", "cycles_exhausted"},
+		{"Cycles", "Cycles:  2"},
+		{"Cost", "$0.2400"},
+	}
+	for _, c := range checks {
+		if !strings.Contains(output, c.want) {
+			t.Errorf("%s: want %q in output, got:\n%s", c.field, c.want, output)
+		}
+	}
+}
+
+// TestScenario_ExecShow_Full_AcceptanceUnclear_CyclesExhausted verifies that
+// exec show --full displays acceptance.json with unclear criteria and the
+// evidence bundle for an unclear-acceptance-exhausted run.
+func TestScenario_ExecShow_Full_AcceptanceUnclear_CyclesExhausted(t *testing.T) {
+	tmp := t.TempDir()
+	store := runstore.NewStore(tmp)
+
+	rs := &runstore.RunState{
+		RunID:          "run-unclear-full",
+		SpecID:         "subjective-criteria",
+		ProjectID:      "fixture-calc",
+		Status:         runstore.StatusNeedsHuman,
+		TerminalReason: "cycles_exhausted",
+		Cycle:          2,
+		TotalReplans:   1,
+		StartedAt:      time.Date(2026, 3, 15, 15, 0, 0, 0, time.UTC),
+		EndedAt:        time.Date(2026, 3, 15, 15, 10, 0, 0, time.UTC),
+		Tasks:          []runstore.Task{},
+	}
+	if err := store.Save(rs); err != nil {
+		t.Fatal(err)
+	}
+
+	seedEvidence(t, store, "run-unclear-full", map[string]string{
+		"acceptance.json": `{"all_pass": false, "criteria": [{"description": "Code is maintainable and follows best practices", "result": "unclear"}, {"description": "Error messages are user-friendly and actionable", "result": "unclear"}]}`,
+		"review.json":     `{"findings": []}`,
+		"metrics.json":    `{"total_cost_usd": 0.24, "cycles": 2}`,
+	})
+
+	output, err := execShow("run-unclear-full", store, true /* full */)
+	if err != nil {
+		t.Fatalf("execShow --full: %v", err)
+	}
+
+	// Evidence bundle must include both acceptance.json and review.json
+	if !strings.Contains(output, "acceptance.json") {
+		t.Errorf("expected acceptance.json section in full output, got:\n%s", output)
+	}
+	if !strings.Contains(output, "review.json") {
+		t.Errorf("expected review.json section in full output, got:\n%s", output)
+	}
+	// acceptance.json must show all_pass: false and at least one unclear result
+	if !strings.Contains(output, `"all_pass": false`) {
+		t.Errorf("expected all_pass: false in acceptance.json, got:\n%s", output)
+	}
+	if !strings.Contains(output, `"result": "unclear"`) {
+		t.Errorf("expected at least one 'unclear' result in acceptance.json, got:\n%s", output)
+	}
+	// Must not show stale "running" status
+	if strings.Contains(output, "Status: running") {
+		t.Errorf("full output shows stale 'running' status:\n%s", output)
+	}
+}
+
+// TestScenario_ExecList_AcceptanceUnclear verifies exec list shows an
+// acceptance-unclear cycles-exhausted run with needs_human status.
+func TestScenario_ExecList_AcceptanceUnclear(t *testing.T) {
+	tmp := t.TempDir()
+	store := runstore.NewStore(tmp)
+
+	if err := store.Save(&runstore.RunState{
+		RunID:          "run-unclear-list",
+		SpecID:         "subjective-criteria",
+		ProjectID:      "fixture-calc",
+		Status:         runstore.StatusNeedsHuman,
+		TerminalReason: "cycles_exhausted",
+		Cycle:          2,
+		TotalReplans:   1,
+		StartedAt:      time.Date(2026, 3, 15, 15, 0, 0, 0, time.UTC),
+		Tasks:          []runstore.Task{},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	output, err := execList("fixture-calc", store)
+	if err != nil {
+		t.Fatalf("execList: %v", err)
+	}
+
+	if !strings.Contains(output, "run-unclear-list") {
+		t.Errorf("expected run-unclear-list in output, got:\n%s", output)
+	}
+	if !strings.Contains(output, "needs_human") {
+		t.Errorf("expected needs_human in output, got:\n%s", output)
+	}
+}

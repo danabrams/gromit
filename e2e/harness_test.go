@@ -109,3 +109,8 @@ func TestE2E_Scenario17_AcceptanceUnclearAddsEvidence(t *testing.T) {
 	e2e.SetBinaryPath(e2e.BuildBinary(t))
 	e2e.RunNamedContract(t, 17, contractsDir, fixtureBase)
 }
+
+func TestE2E_Scenario07_AcceptanceUnclearExhaustsBudget(t *testing.T) {
+	e2e.SetBinaryPath(e2e.BuildBinary(t))
+	e2e.RunNamedContract(t, 7, contractsDir, fixtureBase)
+}
