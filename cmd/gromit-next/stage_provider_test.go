@@ -774,6 +774,84 @@ func (m *mockPlanCreatorForDecompose) CreatePlan(_ context.Context, _ planner.Pl
 	return planner.Plan{Kind: "original", Tasks: tasks}, nil
 }
 
+// TestBuildStages_InitStage_EmitsBlockedWorktreeCleanedEvent verifies that the
+// eventLog passed to BuildStages is wired into InitStage so that when InitStage
+// cleans a prior blocked worktree, it emits a blocked_worktree_cleaned event.
+//
+// This is a wiring regression test: stage_provider.go used to pass nil as the
+// eventLog to NewInitStage, silently dropping the event even though the worktree
+// was correctly cleaned from disk and the store.
+func TestBuildStages_InitStage_EmitsBlockedWorktreeCleanedEvent(t *testing.T) {
+	storeDir := t.TempDir()
+	workDir := t.TempDir()
+	store := runstore.NewStore(storeDir)
+
+	// Seed a prior blocked run for the same spec/project with a worktree.
+	worktreeDir := t.TempDir()
+	priorRS := runstore.NewRunState("add-subtract", "fixture-calc")
+	priorRS.Status = runstore.StatusBlocked
+	priorRS.WorktreePath = worktreeDir
+	if err := store.Save(priorRS); err != nil {
+		t.Fatalf("save prior run: %v", err)
+	}
+
+	// Create spec and policy files that InitStage needs.
+	specFile := filepath.Join(workDir, "add-subtract.md")
+	if err := os.WriteFile(specFile, []byte("# Add Subtract\n"), 0o644); err != nil {
+		t.Fatalf("write spec: %v", err)
+	}
+	policyFile := filepath.Join(workDir, "policy.json")
+	if err := os.WriteFile(policyFile, []byte(`{"budgets":{}}`), 0o644); err != nil {
+		t.Fatalf("write policy: %v", err)
+	}
+
+	// Create an eventLog backed by a temp file.
+	eventFile := filepath.Join(t.TempDir(), "events.jsonl")
+	eventLog := runstore.NewEventLog(eventFile)
+
+	policy := execpolicy.DefaultPolicy()
+	sp := NewRealStageProvider(RealStageProviderConfig{
+		WorkDir:    workDir,
+		StoreDir:   storeDir,
+		SpecPath:   specFile,
+		PolicyPath: policyFile,
+	})
+
+	budget := specloop.NewBudget(policy.Budgets)
+	rs := runstore.NewRunState("add-subtract", "fixture-calc")
+	stageList, err := sp.BuildStages(policy, rs, budget, eventLog)
+	if err != nil {
+		t.Fatalf("BuildStages: %v", err)
+	}
+
+	// Run the init stage — it should clean the prior blocked worktree and emit the event.
+	for _, s := range stageList {
+		if s.Name() == "init" {
+			_, err := s.Run(context.Background(), rs)
+			if err != nil {
+				t.Fatalf("init stage Run: %v", err)
+			}
+			break
+		}
+	}
+
+	// The blocked_worktree_cleaned event must be in the event log.
+	events, err := eventLog.ReadAll()
+	if err != nil {
+		t.Fatalf("ReadAll events: %v", err)
+	}
+	var found bool
+	for _, ev := range events {
+		if _, ok := ev.(*runstore.BlockedWorktreeCleanedEvent); ok {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("expected blocked_worktree_cleaned event — InitStage eventLog wiring missing in stage_provider.go")
+	}
+}
+
 func TestIntegration_BuildStages_FallbackAdapter_RouterWiring(t *testing.T) {
 	// Build a real RealStageProvider with mock providers
 	claudeProv := &mockTestProvider{name: "claude"}

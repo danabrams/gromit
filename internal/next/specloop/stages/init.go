@@ -42,15 +42,16 @@ func (s *InitStage) Name() string { return "init" }
 
 // Run executes the init stage.
 func (s *InitStage) Run(ctx context.Context, rs *runstore.RunState) (specloop.NextAction, error) {
-	// Clean up prior blocked worktrees for the same spec
-	if err := s.cleanBlockedWorktrees(rs); err != nil {
-		return specloop.NextAction{}, fmt.Errorf("clean blocked worktrees: %w", err)
-	}
-
-	// Create run directory
+	// Create run directory first so that the event log (which lives inside it)
+	// can be written by cleanBlockedWorktrees when emitting blocked_worktree_cleaned.
 	runDir := s.store.RunDir(rs.RunID)
 	if err := os.MkdirAll(runDir, 0o755); err != nil {
 		return specloop.NextAction{}, fmt.Errorf("create run dir: %w", err)
+	}
+
+	// Clean up prior blocked worktrees for the same spec
+	if err := s.cleanBlockedWorktrees(rs); err != nil {
+		return specloop.NextAction{}, fmt.Errorf("clean blocked worktrees: %w", err)
 	}
 
 	// Create git worktree

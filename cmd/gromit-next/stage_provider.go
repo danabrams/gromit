@@ -86,7 +86,7 @@ func (p *RealStageProvider) BuildStages(policy execpolicy.Policy, rs *runstore.R
 		PolicyPath: p.cfg.PolicyPath,
 		RepoDir:    p.cfg.WorkDir,
 		GitOps:     gitOps,
-	}, store, nil)
+	}, store, eventLog)
 
 	// Convert execpolicy.Check to validator.Check.
 	alwaysRun := make([]validator.Check, len(policy.AlwaysRun))

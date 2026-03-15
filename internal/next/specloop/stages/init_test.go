@@ -180,6 +180,63 @@ func (f *fakeGitOps) RemoveWorktree(path string) error {
 	return os.RemoveAll(path)
 }
 
+// TestInitStage_CleansBlockedWorktrees_EventWrittenToRunDir verifies that
+// blocked_worktree_cleaned is emitted even when the eventLog path is inside
+// the new run's directory — which does not exist yet when cleanBlockedWorktrees
+// runs. The fix requires creating the run dir before calling cleanBlockedWorktrees.
+func TestInitStage_CleansBlockedWorktrees_EventWrittenToRunDir(t *testing.T) {
+	storeDir := t.TempDir()
+	store := runstore.NewStore(storeDir)
+
+	priorRS := runstore.NewRunState("test-spec", "test-project")
+	priorRS.Status = runstore.StatusBlocked
+	priorRS.WorktreePath = filepath.Join(t.TempDir(), "old-worktree")
+	os.MkdirAll(priorRS.WorktreePath, 0o755)
+	store.Save(priorRS)
+
+	specFile := filepath.Join(storeDir, "spec.md")
+	os.WriteFile(specFile, []byte("# Test Spec"), 0o644)
+	policyFile := filepath.Join(storeDir, "policy.json")
+	os.WriteFile(policyFile, []byte(`{"budgets":{}}`), 0o644)
+
+	gitOps := &fakeGitOps{worktreePath: filepath.Join(t.TempDir(), "new-worktree")}
+	os.MkdirAll(gitOps.worktreePath, 0o755)
+
+	newRS := runstore.NewRunState("test-spec", "test-project")
+
+	// Use the same path pattern exec.go uses: store.RunDir(rs.RunID)/events.jsonl.
+	// This directory does NOT exist yet when cleanBlockedWorktrees runs.
+	eventLogPath := filepath.Join(store.RunDir(newRS.RunID), "events.jsonl")
+	eventLog := runstore.NewEventLog(eventLogPath)
+
+	stage := NewInitStage(InitStageConfig{
+		SpecPath:   specFile,
+		PolicyPath: policyFile,
+		RepoDir:    storeDir,
+		GitOps:     gitOps,
+	}, store, eventLog)
+
+	_, err := stage.Run(context.Background(), newRS)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	events, err := eventLog.ReadAll()
+	if err != nil {
+		t.Fatalf("ReadAll events: %v", err)
+	}
+	var found bool
+	for _, ev := range events {
+		if _, ok := ev.(*runstore.BlockedWorktreeCleanedEvent); ok {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("blocked_worktree_cleaned event not written — cleanBlockedWorktrees must run after run dir is created")
+	}
+}
+
 // Verify InitStage satisfies the Stage interface.
 var _ specloop.Stage = (*InitStage)(nil)
 
