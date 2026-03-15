@@ -1,0 +1,86 @@
+name: "Scenario 18 — Enable Additional Facet Via Config (logic_gaps)"
+scenario: 18
+spec: specs/add-subtract.md
+fixture: fixture-calc-clean
+store_dir: .gromit-next
+
+# fixture-calc-clean: git repo with only Add() at HEAD (1 commit).
+# The add-subtract spec is simple and should complete in 1 cycle.
+# The policy adds "logic_gaps" to review.facets — a config-only change that
+# requires no code modifications. The logic_gaps facet runs alongside
+# spec_alignment and code_quality; any findings should be suggestion-level
+# (non-blocking at "warning" threshold). The run should reach ready_for_review
+# in cycle 1 with execution-policy.json and review.json both reflecting the
+# logic_gaps facet in the configured policy.
+fixture_reset:
+  git_files:
+    - commit: "HEAD"
+      files: [calc/calc.go, calc/calc_test.go]
+  remove_files: []
+  add_files: []
+
+inline_policy: |
+  {
+    "always_run": [
+      {"name": "unit-tests", "command": "go test ./...", "type": "test"},
+      {"name": "format", "command": "gofmt -l .", "type": "lint"},
+      {"name": "vet", "command": "go vet ./...", "type": "lint"}
+    ],
+    "budgets": {
+      "max_spec_cycles": 3,
+      "max_task_retries": 1,
+      "max_redecomposition_passes": 1,
+      "max_task_duration_seconds": 300,
+      "max_run_duration_seconds": 3600,
+      "max_run_cost_usd": 50.0
+    },
+    "models": {
+      "planner": "high",
+      "executor": "medium",
+      "evaluator": "high"
+    },
+    "review": {
+      "facets": ["spec_alignment", "code_quality", "logic_gaps"],
+      "tiers": {
+        "spec_alignment": "high",
+        "code_quality": "medium",
+        "logic_gaps": "medium"
+      },
+      "replan_threshold": "warning"
+    }
+  }
+
+extra_flags: []
+concurrent: false
+
+assertions:
+  # Run state — config-only change, run completes successfully in 1 cycle
+  - status: ready_for_review
+  - final_validation_passed: true
+  - cost_usd_gt: 0
+  - ended_at_set: true
+
+  # Evidence files — all gates passed
+  - acceptance_all_pass: true
+  - validation_pass: true
+  - no_error_severity_findings: true
+  - invocations_count_gte: 1
+
+  # Task assertions — Subtract was implemented
+  - files_changed_nonempty: true
+  - any_task_files_changed_contains: calc/calc.go
+
+  # Filesystem — Subtract implemented
+  - file_contains:
+      path: calc/calc.go
+      pattern: "func Subtract"
+
+  # Event assertions
+  - events_contain_type: task_validation_result
+
+  # CLI output — logic_gaps facet appears in evidence bundle (review.json or execution-policy.json)
+  - exec_show_contains: "Cycles:"
+  - exec_show_not_contains: "Cost:    $0.0000"
+  - exec_show_full_contains: "logic_gaps"
+  - exec_show_full_contains: "ready_for_review"
+  - exec_list_contains: ready_for_review

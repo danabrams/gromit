@@ -994,3 +994,148 @@ func TestScenario_ExecList_AcceptanceUnclear(t *testing.T) {
 		t.Errorf("expected needs_human in output, got:\n%s", output)
 	}
 }
+
+// --- Scenario 8b: Enable Additional Facet Via Config (logic_gaps) ---
+
+// TestScenario_ExecShow_LogicGapsFacet verifies that exec show correctly
+// displays a run where the policy enabled the logic_gaps review facet.
+// The run completes successfully (ready_for_review) — config-only change.
+func TestScenario_ExecShow_LogicGapsFacet(t *testing.T) {
+	tmp := t.TempDir()
+	store := runstore.NewStore(tmp)
+
+	// Seed: a run that used logic_gaps facet in review config.
+	// Cycle 1: agent implemented Subtract, all three gates passed → ready_for_review.
+	// The logic_gaps facet ran and produced suggestion-level findings (non-blocking).
+	rs := &runstore.RunState{
+		RunID:                 "run-logic-gaps",
+		SpecID:                "add-subtract",
+		ProjectID:             "fixture-calc",
+		Status:                runstore.StatusReadyForReview,
+		Cycle:                 1,
+		TotalReplans:          0,
+		StartedAt:             time.Date(2026, 3, 15, 16, 0, 0, 0, time.UTC),
+		EndedAt:               time.Date(2026, 3, 15, 16, 3, 0, 0, time.UTC),
+		AccumulatedCost:       0.22,
+		FinalValidationPassed: true,
+		FinalReviewPassed:     true,
+		FinalAcceptancePassed: true,
+		Tasks: []runstore.Task{
+			{TaskID: "t-001", Status: "done", Attempts: 1, FilesChanged: []string{"calc/calc.go", "calc/calc_test.go"}},
+		},
+	}
+	if err := store.Save(rs); err != nil {
+		t.Fatal(err)
+	}
+
+	output, err := execShow("run-logic-gaps", store, false)
+	if err != nil {
+		t.Fatalf("execShow: %v", err)
+	}
+
+	checks := []struct {
+		field string
+		want  string
+	}{
+		{"Status", "ready_for_review"},
+		{"Cycles", "Cycles:  1"},
+		{"Cost", "$0.2200"},
+		{"Validation", "Valid:   true"},
+	}
+	for _, c := range checks {
+		if !strings.Contains(output, c.want) {
+			t.Errorf("%s: want %q in output, got:\n%s", c.field, c.want, output)
+		}
+	}
+}
+
+// TestScenario_ExecShow_Full_LogicGapsFacet verifies that exec show --full
+// displays review.json with logic_gaps facet findings and execution-policy.json
+// showing logic_gaps in the configured facets list.
+func TestScenario_ExecShow_Full_LogicGapsFacet(t *testing.T) {
+	tmp := t.TempDir()
+	store := runstore.NewStore(tmp)
+
+	rs := &runstore.RunState{
+		RunID:                 "run-logic-gaps-full",
+		SpecID:                "add-subtract",
+		ProjectID:             "fixture-calc",
+		Status:                runstore.StatusReadyForReview,
+		Cycle:                 1,
+		TotalReplans:          0,
+		StartedAt:             time.Date(2026, 3, 15, 16, 0, 0, 0, time.UTC),
+		EndedAt:               time.Date(2026, 3, 15, 16, 3, 0, 0, time.UTC),
+		FinalValidationPassed: true,
+		FinalReviewPassed:     true,
+		FinalAcceptancePassed: true,
+		Tasks:                 []runstore.Task{},
+	}
+	if err := store.Save(rs); err != nil {
+		t.Fatal(err)
+	}
+
+	seedEvidence(t, store, "run-logic-gaps-full", map[string]string{
+		"review.json": `{"findings": [{"facet": "logic_gaps", "severity": "suggestion", "description": "Consider adding overflow checks in arithmetic operations", "disposition": "new"}]}`,
+		"execution-policy.json": `{"review": {"facets": ["spec_alignment", "code_quality", "logic_gaps"], "tiers": {"spec_alignment": "high", "code_quality": "medium", "logic_gaps": "medium"}, "replan_threshold": "warning"}}`,
+		"acceptance.json": `{"all_pass": true, "criteria": [{"description": "Subtract(5, 3) returns 2", "result": "pass"}]}`,
+	})
+
+	output, err := execShow("run-logic-gaps-full", store, true /* full */)
+	if err != nil {
+		t.Fatalf("execShow --full: %v", err)
+	}
+
+	// review.json must appear and contain logic_gaps facet findings
+	if !strings.Contains(output, "review.json") {
+		t.Errorf("expected review.json section in full output, got:\n%s", output)
+	}
+	if !strings.Contains(output, "logic_gaps") {
+		t.Errorf("expected logic_gaps facet in review.json, got:\n%s", output)
+	}
+	// execution-policy.json must appear and list logic_gaps in facets
+	if !strings.Contains(output, "execution-policy.json") {
+		t.Errorf("expected execution-policy.json section in full output, got:\n%s", output)
+	}
+	// Must not show stale "running" status
+	if strings.Contains(output, "Status: running") {
+		t.Errorf("full output shows stale 'running' status:\n%s", output)
+	}
+	if !strings.Contains(output, "ready_for_review") {
+		t.Errorf("expected ready_for_review in full output, got:\n%s", output)
+	}
+}
+
+// TestScenario_ExecList_LogicGapsFacet verifies exec list shows a run that
+// used the logic_gaps facet with ready_for_review status.
+func TestScenario_ExecList_LogicGapsFacet(t *testing.T) {
+	tmp := t.TempDir()
+	store := runstore.NewStore(tmp)
+
+	if err := store.Save(&runstore.RunState{
+		RunID:                 "run-logic-gaps-list",
+		SpecID:                "add-subtract",
+		ProjectID:             "fixture-calc",
+		Status:                runstore.StatusReadyForReview,
+		Cycle:                 1,
+		TotalReplans:          0,
+		StartedAt:             time.Date(2026, 3, 15, 16, 0, 0, 0, time.UTC),
+		FinalValidationPassed: true,
+		FinalReviewPassed:     true,
+		FinalAcceptancePassed: true,
+		Tasks:                 []runstore.Task{},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	output, err := execList("fixture-calc", store)
+	if err != nil {
+		t.Fatalf("execList: %v", err)
+	}
+
+	if !strings.Contains(output, "run-logic-gaps-list") {
+		t.Errorf("expected run-logic-gaps-list in output, got:\n%s", output)
+	}
+	if !strings.Contains(output, "ready_for_review") {
+		t.Errorf("expected ready_for_review in output, got:\n%s", output)
+	}
+}

@@ -114,3 +114,8 @@ func TestE2E_Scenario07_AcceptanceUnclearExhaustsBudget(t *testing.T) {
 	e2e.SetBinaryPath(e2e.BuildBinary(t))
 	e2e.RunNamedContract(t, 7, contractsDir, fixtureBase)
 }
+
+func TestE2E_Scenario18_LogicGapsFacet(t *testing.T) {
+	e2e.SetBinaryPath(e2e.BuildBinary(t))
+	e2e.RunNamedContract(t, 18, contractsDir, fixtureBase)
+}
