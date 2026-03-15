@@ -2,16 +2,16 @@ package e2e
 
 // Contract defines a scenario test contract loaded from a YAML file.
 type Contract struct {
-	Name      string `yaml:"name"`
-	Scenario  int    `yaml:"scenario"`
-	Spec      string `yaml:"spec"`
-	Fixture   string `yaml:"fixture"`
-	StoreDir  string `yaml:"store_dir"`
-	Policy    string `yaml:"policy"`
-	ExtraFlags []string `yaml:"extra_flags"`
-	InlinePolicy string `yaml:"inline_policy"`
-	DependsOnScenario int `yaml:"depends_on_scenario"`
-	Concurrent bool `yaml:"concurrent"`
+	Name              string   `yaml:"name"`
+	Scenario          int      `yaml:"scenario"`
+	Spec              string   `yaml:"spec"`
+	Fixture           string   `yaml:"fixture"`
+	StoreDir          string   `yaml:"store_dir"`
+	Policy            string   `yaml:"policy"`
+	ExtraFlags        []string `yaml:"extra_flags"`
+	InlinePolicy      string   `yaml:"inline_policy"`
+	DependsOnScenario int      `yaml:"depends_on_scenario"`
+	Concurrent        bool     `yaml:"concurrent"`
 
 	FixtureReset FixtureReset `yaml:"fixture_reset"`
 	Assertions   []Assertion  `yaml:"assertions"`
@@ -43,6 +43,8 @@ type Assertion struct {
 	StatusOneOf           []string `yaml:"status_one_of"`
 	TerminalReason        string   `yaml:"terminal_reason"`
 	FinalValidationPassed *bool    `yaml:"final_validation_passed"`
+	FinalReviewPassed     *bool    `yaml:"final_review_passed"`
+	FinalAcceptancePassed *bool    `yaml:"final_acceptance_passed"`
 	CostUSDGt             *float64 `yaml:"cost_usd_gt"`
 	ReplansGte            *int     `yaml:"replans_gte"`
 	ReplansEq             *int     `yaml:"replans_eq"`
@@ -66,7 +68,9 @@ type Assertion struct {
 	FileNotModified string                 `yaml:"file_not_modified"`
 
 	// Events
-	EventsContainType string `yaml:"events_contain_type"`
+	EventsContainType            string `yaml:"events_contain_type"`
+	EventsContainReplanSource    string `yaml:"events_contain_replan_source"`
+	EventsNotContainReplanSource string `yaml:"events_not_contain_replan_source"`
 
 	// CLI
 	ExecShowContains        string `yaml:"exec_show_contains"`

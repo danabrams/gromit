@@ -84,3 +84,18 @@ func TestE2E_Scenario11_CLIInspection(t *testing.T) {
 	e2e.SetBinaryPath(e2e.BuildBinary(t))
 	e2e.RunNamedContract(t, 11, contractsDir, fixtureBase)
 }
+
+func TestE2E_Scenario13_ReviewAcceptanceHappyPath(t *testing.T) {
+	e2e.SetBinaryPath(e2e.BuildBinary(t))
+	e2e.RunNamedContract(t, 13, contractsDir, fixtureBase)
+}
+
+func TestE2E_Scenario14_ReviewTriggeredFixCycle(t *testing.T) {
+	e2e.SetBinaryPath(e2e.BuildBinary(t))
+	e2e.RunNamedContract(t, 14, contractsDir, fixtureBase)
+}
+
+func TestE2E_Scenario15_ConfigurableThreshold(t *testing.T) {
+	e2e.SetBinaryPath(e2e.BuildBinary(t))
+	e2e.RunNamedContract(t, 15, contractsDir, fixtureBase)
+}

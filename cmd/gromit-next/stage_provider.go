@@ -214,7 +214,7 @@ func (p *RealStageProvider) BuildStages(policy execpolicy.Policy, rs *runstore.R
 		BaseBranch:   "main",
 		DefaultTier:  policy.Models.Evaluator,
 		FacetTiers:   policy.Review.Tiers,
-	}, nil)
+	}, eventLog)
 
 	acceptStage := stages.NewAcceptStage(acceptEval, stages.AcceptStageConfig{
 		SpecContent:  string(specContent),
@@ -222,7 +222,7 @@ func (p *RealStageProvider) BuildStages(policy execpolicy.Policy, rs *runstore.R
 		DiffProvider: diffProv,
 		BaseBranch:   "main",
 		Tier:         policy.Models.Evaluator,
-	}, nil)
+	}, eventLog)
 
 	evidenceStage := stages.NewEvidenceStage(store, stages.EvidenceStageConfig{
 		DiffProvider:     diffProv,

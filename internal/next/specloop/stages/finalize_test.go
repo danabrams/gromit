@@ -70,7 +70,7 @@ func TestFinalizeStage_AllTasksDoneButValidationFailed_NeedsHuman(t *testing.T) 
 	}
 }
 
-func TestFinalizeStage_SetsNeedsHumanWhenTasksFailed(t *testing.T) {
+func TestFinalizeStage_SetsNeedsHumanWhenReviewFailed(t *testing.T) {
 	tmp := t.TempDir()
 	store := runstore.NewStore(tmp)
 	gitOps := &fakeGitOps{}
@@ -79,6 +79,7 @@ func TestFinalizeStage_SetsNeedsHumanWhenTasksFailed(t *testing.T) {
 
 	rs := runstore.NewRunState("spec-001", "proj-001")
 	rs.FinalValidationPassed = true
+	// FinalReviewPassed and FinalAcceptancePassed default to false
 	rs.Tasks = []runstore.Task{
 		{TaskID: "t-001", Status: "done"},
 		{TaskID: "t-002", Status: "failed"},
@@ -94,6 +95,38 @@ func TestFinalizeStage_SetsNeedsHumanWhenTasksFailed(t *testing.T) {
 	}
 	if rs.Status != runstore.StatusNeedsHuman {
 		t.Fatalf("expected status needs_human, got %q", rs.Status)
+	}
+}
+
+func TestFinalizeStage_AllGatesPassedWithFailedTask_ReadyForReview(t *testing.T) {
+	tmp := t.TempDir()
+	store := runstore.NewStore(tmp)
+	gitOps := &fakeGitOps{}
+
+	stage := NewFinalizeStage(gitOps, store, nil)
+
+	// Simulates a multi-cycle run: t-001 failed, fix tasks t-002 and t-003 succeeded.
+	// All three gates pass in the final cycle, so status should be ready_for_review.
+	rs := runstore.NewRunState("spec-001", "proj-001")
+	rs.FinalValidationPassed = true
+	rs.FinalReviewPassed = true
+	rs.FinalAcceptancePassed = true
+	rs.Tasks = []runstore.Task{
+		{TaskID: "t-001", Status: "failed"},
+		{TaskID: "t-002", Status: "done"},
+		{TaskID: "t-003", Status: "done"},
+	}
+	rs.WorktreePath = "/tmp/worktree"
+
+	action, err := stage.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if action.Kind != specloop.Continue {
+		t.Fatalf("expected Continue, got %v", action.Kind)
+	}
+	if rs.Status != runstore.StatusReadyForReview {
+		t.Fatalf("expected status ready_for_review, got %q", rs.Status)
 	}
 }
 

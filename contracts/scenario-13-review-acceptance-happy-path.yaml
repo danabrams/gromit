@@ -1,0 +1,83 @@
+name: "Scenario 13 — Review + Acceptance Happy Path"
+scenario: 13
+spec: specs/add-subtract.md
+fixture: fixture-calc-clean
+store_dir: .gromit-next
+
+# fixture-calc-clean: git repo with only Add() — created at /tmp/gromit-fixtures/fixture-calc-clean/
+# Reset restores calc.go and calc_test.go to HEAD (initial Add-only commit) after each run.
+fixture_reset:
+  git_files:
+    - commit: "HEAD"
+      files: [calc/calc.go, calc/calc_test.go]
+  remove_files: []
+  add_files: []
+
+inline_policy: |
+  {
+    "always_run": [
+      {"name": "unit-tests", "command": "go test ./...", "type": "test"},
+      {"name": "format", "command": "gofmt -l .", "type": "lint"},
+      {"name": "vet", "command": "go vet ./...", "type": "lint"}
+    ],
+    "budgets": {
+      "max_spec_cycles": 3,
+      "max_task_retries": 1,
+      "max_redecomposition_passes": 1,
+      "max_task_duration_seconds": 300,
+      "max_run_duration_seconds": 3600,
+      "max_run_cost_usd": 50.0
+    },
+    "models": {
+      "planner": "high",
+      "executor": "medium",
+      "evaluator": "high"
+    },
+    "review": {
+      "facets": ["spec_alignment", "code_quality"],
+      "tiers": {
+        "spec_alignment": "high",
+        "code_quality": "medium"
+      },
+      "replan_threshold": "warning"
+    }
+  }
+
+extra_flags: []
+concurrent: false
+
+assertions:
+  # Run state — three-gate finalize
+  - status: ready_for_review
+  - final_validation_passed: true
+  - final_review_passed: true
+  - final_acceptance_passed: true
+  - cost_usd_gt: 0
+  - ended_at_set: true
+
+  # Evidence files
+  - acceptance_all_pass: true
+  - validation_pass: true
+  - no_error_severity_findings: true
+  - invocations_count_gte: 1
+
+  # Task assertions
+  - all_tasks_attempted: true
+  - any_task_files_changed_contains: calc/calc.go
+
+  # Filesystem assertions
+  - file_contains:
+      path: calc/calc.go
+      pattern: "func Subtract"
+
+  # Event assertions — 0002b adds review_result and acceptance_result
+  - events_contain_type: task_validation_result
+  - events_contain_type: review_result
+  - events_contain_type: acceptance_result
+
+  # CLI output assertions
+  - exec_show_contains: "Cycles:"
+  - exec_show_not_contains: "Cost:    $0.0000"
+  - exec_show_full_not_contains: "running"
+  - exec_show_full_contains: "ready_for_review"
+  - exec_list_contains: ready_for_review

@@ -43,16 +43,10 @@ func (s *FinalizeStage) Run(ctx context.Context, rs *runstore.RunState) (specloo
 		return specloop.NextAction{Kind: specloop.Continue}, nil
 	}
 
-	// Determine terminal status
-	allDone := true
-	for _, t := range rs.Tasks {
-		if t.Status != "done" {
-			allDone = false
-			break
-		}
-	}
-
-	if allDone && rs.FinalValidationPassed && rs.FinalReviewPassed && rs.FinalAcceptancePassed {
+	// Determine terminal status by the three quality gates.
+	// Individual task failures from earlier cycles do not block ready_for_review
+	// if validation, review, and acceptance all passed in the final cycle.
+	if rs.FinalValidationPassed && rs.FinalReviewPassed && rs.FinalAcceptancePassed {
 		rs.Status = runstore.StatusReadyForReview
 	} else {
 		rs.Status = runstore.StatusNeedsHuman

@@ -326,6 +326,20 @@ func checkAssertion(t *testing.T, label string, a Assertion, result *ScenarioRes
 		}
 	}
 
+	if a.FinalReviewPassed != nil {
+		requireRunState(t, label+"/final_review_passed", rs, result.runID)
+		if rs != nil && rs.FinalReviewPassed != *a.FinalReviewPassed {
+			t.Errorf("%s: final_review_passed = %v, want %v", label, rs.FinalReviewPassed, *a.FinalReviewPassed)
+		}
+	}
+
+	if a.FinalAcceptancePassed != nil {
+		requireRunState(t, label+"/final_acceptance_passed", rs, result.runID)
+		if rs != nil && rs.FinalAcceptancePassed != *a.FinalAcceptancePassed {
+			t.Errorf("%s: final_acceptance_passed = %v, want %v", label, rs.FinalAcceptancePassed, *a.FinalAcceptancePassed)
+		}
+	}
+
 	if a.CostUSDGt != nil {
 		requireRunState(t, label+"/cost_usd_gt", rs, result.runID)
 		if rs != nil && rs.AccumulatedCost <= *a.CostUSDGt {
@@ -485,6 +499,14 @@ func checkAssertion(t *testing.T, label string, a Assertion, result *ScenarioRes
 
 	if a.EventsContainType != "" {
 		checkEventsContainType(t, label+"/events_contain_type", result, a.EventsContainType, store)
+	}
+
+	if a.EventsContainReplanSource != "" {
+		checkEventsContainReplanSource(t, label+"/events_contain_replan_source", result, a.EventsContainReplanSource, store)
+	}
+
+	if a.EventsNotContainReplanSource != "" {
+		checkEventsNotContainReplanSource(t, label+"/events_not_contain_replan_source", result, a.EventsNotContainReplanSource, store)
 	}
 
 	// --- CLI assertions ---
@@ -708,6 +730,82 @@ func checkEventsContainType(t *testing.T, label string, result *ScenarioResult, 
 	}
 	if !found {
 		t.Errorf("%s: events.jsonl does not contain event type %q", label, eventType)
+	}
+}
+
+// checkEventsContainReplanSource reads events.jsonl and checks for a
+// replan_triggered event with the given source field value.
+func checkEventsContainReplanSource(t *testing.T, label string, result *ScenarioResult, source string, store *runstore.Store) {
+	t.Helper()
+	if result.runID == "" {
+		t.Errorf("%s: no run ID to check events", label)
+		return
+	}
+	eventsPath := filepath.Join(store.RunDir(result.runID), "events.jsonl")
+	f, err := os.Open(eventsPath)
+	if err != nil {
+		t.Errorf("%s: open events.jsonl: %v", label, err)
+		return
+	}
+	defer f.Close()
+
+	found := false
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" {
+			continue
+		}
+		var ev struct {
+			Type   string `json:"type"`
+			Source string `json:"source"`
+		}
+		if err := json.Unmarshal([]byte(line), &ev); err != nil {
+			continue
+		}
+		if ev.Type == "replan_triggered" && ev.Source == source {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("%s: events.jsonl does not contain replan_triggered event with source %q", label, source)
+	}
+}
+
+// checkEventsNotContainReplanSource reads events.jsonl and fails if any
+// replan_triggered event has the given source field value.
+func checkEventsNotContainReplanSource(t *testing.T, label string, result *ScenarioResult, source string, store *runstore.Store) {
+	t.Helper()
+	if result.runID == "" {
+		t.Errorf("%s: no run ID to check events", label)
+		return
+	}
+	eventsPath := filepath.Join(store.RunDir(result.runID), "events.jsonl")
+	f, err := os.Open(eventsPath)
+	if err != nil {
+		t.Errorf("%s: open events.jsonl: %v", label, err)
+		return
+	}
+	defer f.Close()
+
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" {
+			continue
+		}
+		var ev struct {
+			Type   string `json:"type"`
+			Source string `json:"source"`
+		}
+		if err := json.Unmarshal([]byte(line), &ev); err != nil {
+			continue
+		}
+		if ev.Type == "replan_triggered" && ev.Source == source {
+			t.Errorf("%s: events.jsonl contains unexpected replan_triggered event with source %q", label, source)
+			return
+		}
 	}
 }
 
