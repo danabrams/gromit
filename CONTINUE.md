@@ -1,8 +1,16 @@
 # Manual Test Plan — Spec 0002a/0002c/0002d End-to-End
 
 ## Status
-- **Current phase:** Spec 0002c/0002d — NOT YET STARTED
+- **Current phase:** Spec 0002c — Scenario 1 COMPLETE
 - **Spec 0002b:** ALL 11 SCENARIOS COMPLETE (including Scenario 7 E2E — see below)
+- **Spec 0002c Scenario 1 COMPLETE** — Provider Identification in Invocation Records ✓
+  - Approach: TDD first — scenario test written RED, implementation made it GREEN, E2E contract confirmed
+  - Feature: `Provider string` field added to `InvocationRecord` (runstore + evidence), populated via `LLMAdapter.ProviderName()`
+  - Files changed: `runstore/types.go`, `llmadapter/adapter.go`, `evidence/bundle.go`, `stages/evidence.go`
+  - Scenario test: `TestScenario_ExecShow_Full_InvocationsHaveProvider` — passing
+  - E2E contract: `contracts/scenario-22-provider-identification.yaml` — PASS (~15m, real Claude)
+  - Contract run ID: run-ded5af78756ab00e (first run, needs_human — fixture dirty); second run PASS
+  - All invocations show `"provider": "claude"` with real per-invocation costs ✓
 - **Scenario 11 COMPLETE** — Blocked Worktree Cleanup on Re-run ✓ (2 bugs found and fixed)
 - **Scenario 10 COMPLETE** — Missing Acceptance Criteria → `needs_human` ✓
   - Scenario tests: 3 tests (exec show, exec show --full, exec list) — all passing (TDD first)
@@ -12,7 +20,7 @@
 - **Scenario 7 COMPLETE** — Acceptance Unclear Exhausts Budget ✓
   - Scenario tests: 6 tests (exec show, exec show --full, exec list) — all passing
   - E2E contract: contracts/scenario-07-acceptance-unclear-exhausts-budget.yaml — PASS
-- **Next:** **Spec 0002c Scenario 1** (End-to-End Happy Path with real Claude adapters)
+- **Next:** **Spec 0002c Scenario 2** (Adapter Wiring Verification)
 - **Date:** 2026-03-15
 
 ## Context

@@ -125,6 +125,7 @@ func (s *EvidenceStage) Run(ctx context.Context, rs *runstore.RunState) (specloo
 				Phase:      r.Phase,
 				Tier:       r.Tier,
 				Model:      r.Model,
+				Provider:   r.Provider,
 				TokensIn:   r.TokensIn,
 				TokensOut:  r.TokensOut,
 				DurationMs: r.DurationMs,

@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -1655,5 +1656,95 @@ func TestScenario_ExecShow_BlockedWorktreeCleared(t *testing.T) {
 	}
 	if !strings.Contains(newOut, "/tmp/gromit-worktree-new") {
 		t.Errorf("new run should show its own worktree path, got:\n%s", newOut)
+	}
+}
+
+// --- Scenario: Spec 0002c — Provider-Agnostic Adapter Layer ---
+
+// TestScenario_ExecShow_Full_InvocationsHaveProvider verifies that exec show --full
+// displays metrics.json with provider-labeled invocation records.
+// Spec 0002c adds a Provider field to InvocationRecord so each invocation
+// identifies which LLM provider was used (e.g. "claude").
+//
+// RED: runstore.InvocationRecord has no Provider field — this test will not compile
+// until Spec 0002c wires ProviderName() into InvocationRecord.
+func TestScenario_ExecShow_Full_InvocationsHaveProvider(t *testing.T) {
+	tmp := t.TempDir()
+	store := runstore.NewStore(tmp)
+
+	rs := &runstore.RunState{
+		RunID:                 "run-0002c-provider",
+		SpecID:                "add-subtract",
+		ProjectID:             "fixture-calc",
+		Status:                runstore.StatusReadyForReview,
+		Cycle:                 1,
+		TotalReplans:          0,
+		StartedAt:             time.Date(2026, 3, 15, 12, 0, 0, 0, time.UTC),
+		EndedAt:               time.Date(2026, 3, 15, 12, 3, 0, 0, time.UTC),
+		AccumulatedCost:       0.21,
+		FinalValidationPassed: true,
+		FinalReviewPassed:     true,
+		FinalAcceptancePassed: true,
+		Tasks: []runstore.Task{
+			{TaskID: "t-001", Status: "done", Attempts: 1, FilesChanged: []string{"calc/calc.go", "calc/calc_test.go"}},
+		},
+	}
+	if err := store.Save(rs); err != nil {
+		t.Fatal(err)
+	}
+
+	// Build metrics.json using InvocationRecord struct to confirm Provider field exists.
+	// Spec 0002c: LLMAdapter.ProviderName() is recorded in each InvocationRecord.
+	invocations := []runstore.InvocationRecord{
+		{
+			Phase:     "plan",
+			Tier:      "high",
+			Model:     "opus",
+			Provider:  "claude", // Spec 0002c: Provider field — RED until added
+			TokensIn:  500,
+			TokensOut: 150,
+			CostUSD:   0.08,
+			Success:   true,
+		},
+		{
+			Phase:     "execute",
+			Tier:      "medium",
+			Model:     "sonnet",
+			Provider:  "claude", // Spec 0002c: Provider field — RED until added
+			TokensIn:  1200,
+			TokensOut: 400,
+			CostUSD:   0.13,
+			Success:   true,
+		},
+	}
+	type metricsDoc struct {
+		TotalCostUSD float64                     `json:"total_cost_usd"`
+		Invocations  []runstore.InvocationRecord `json:"invocations"`
+	}
+	metricsData, err := json.MarshalIndent(metricsDoc{TotalCostUSD: 0.21, Invocations: invocations}, "", "  ")
+	if err != nil {
+		t.Fatalf("marshal metrics: %v", err)
+	}
+
+	seedEvidence(t, store, "run-0002c-provider", map[string]string{
+		"metrics.json": string(metricsData),
+	})
+
+	output, err := execShow("run-0002c-provider", store, true /* full */)
+	if err != nil {
+		t.Fatalf("execShow --full: %v", err)
+	}
+
+	// Each invocation record must include the provider name.
+	if !strings.Contains(output, `"provider": "claude"`) {
+		t.Errorf("expected provider 'claude' in invocation records, got:\n%s", output)
+	}
+	// Both plan and execute invocations should have provider.
+	if strings.Count(output, `"provider": "claude"`) < 2 {
+		t.Errorf("expected at least 2 invocation records with provider='claude', got:\n%s", output)
+	}
+	// Cost must be non-zero per invocation (real LLM calls).
+	if !strings.Contains(output, `"cost_usd": 0.08`) {
+		t.Errorf("expected non-zero cost_usd for plan invocation, got:\n%s", output)
 	}
 }

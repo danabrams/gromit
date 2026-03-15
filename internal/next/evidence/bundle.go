@@ -43,6 +43,7 @@ type InvocationRecord struct {
 	Phase      string  `json:"phase"`
 	Tier       string  `json:"tier"`
 	Model      string  `json:"model"`
+	Provider   string  `json:"provider"`
 	TokensIn   int     `json:"tokens_in"`
 	TokensOut  int     `json:"tokens_out"`
 	DurationMs int64   `json:"duration_ms"`

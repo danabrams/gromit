@@ -1,0 +1,53 @@
+name: "Scenario 22 — Provider Identification in Invocation Records"
+scenario: 22
+spec: specs/add-subtract.md
+fixture: fixture-calc
+store_dir: .gromit-next
+
+fixture_reset:
+  git_files:
+    - commit: "7f6de76"
+      files: [calc/calc.go, calc/calc_test.go]
+  remove_files:
+    - calc/divide_test.go
+    - calc/divide_edge_test.go
+    - calc/divide_exact_test.go
+    - calc/abs.go
+    - calc/abs_test.go
+    - calc/division.go
+    - calc/division_test.go
+    - calc/doc.go
+    - calc/modulo.go
+    - calc/modulo_test.go
+    - calc/power.go
+    - calc/power_test.go
+  add_files: []
+
+assertions:
+  # Run state
+  - status: ready_for_review
+  - final_validation_passed: true
+  - cost_usd_gt: 0
+  - ended_at_set: true
+
+  # Invocation records include provider field (Spec 0002c)
+  - invocations_count_gte: 1
+  - exec_show_full_contains: '"provider": "claude"'
+
+  # Evidence files
+  - acceptance_all_pass: true
+  - validation_pass: true
+
+  # Task assertions
+  - all_tasks_attempted: true
+  - files_changed_nonempty: true
+  - any_task_files_changed_contains: calc/calc.go
+
+  # Filesystem assertions
+  - file_contains:
+      path: calc/calc.go
+      pattern: "func Subtract"
+
+  # CLI output assertions
+  - exec_show_not_contains: "Cost:    $0.0000"
+  - exec_show_full_not_contains: '"provider": ""'

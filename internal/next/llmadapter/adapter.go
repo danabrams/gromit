@@ -50,6 +50,7 @@ func (a *LLMAdapter) fireCallbacks(result *provider.Result, err error, phase str
 			Phase:      phase,
 			Tier:       a.cfg.Tier,
 			Model:      result.Model,
+			Provider:   a.provider.Name(),
 			TokensIn:   result.InputTokens,
 			TokensOut:  result.OutputTokens,
 			DurationMs: elapsed.Milliseconds(),
