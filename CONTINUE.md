@@ -1,12 +1,12 @@
 # Manual Test Plan — Spec 0002a/0002c/0002d End-to-End
 
 ## Status
-- **Current phase:** Spec 0002b — Scenario 7 complete. Next: Scenario 8.
-- **Scenario 7 COMPLETE** — Acceptance Unclear Exhausts Budget → `needs_human` ✓
-  - Scenario tests: 3 tests (exec show, exec show --full, exec list) — all passing
-  - E2E contract: scenario-07-acceptance-unclear-exhausts-budget.yaml — PASS (5m17s, real Claude)
-  - Run ID: run-06c4fe38a5d2d03a — status: `needs_human`, reason: `cycles_exhausted`
-- **Next:** **Spec 0002b Scenario 8** (Multi-Spec Isolation or similar)
+- **Current phase:** Spec 0002b — Scenario 8 complete. Next: Scenario 9.
+- **Scenario 8 COMPLETE** — Enable Additional Facet Via Config (logic_gaps) → `ready_for_review` ✓
+  - Scenario tests: 3 tests (exec show, exec show --full, exec list) — all passing (TDD first)
+  - E2E contract: contracts/scenario-18-logic-gaps-facet.yaml — written (not yet run via harness)
+  - Run ID: run-e149687ff9cdad0b — status: `ready_for_review`, cycle: 2, cost: $0.17
+- **Next:** **Spec 0002b Scenario 9** (New-vs-Preexisting Finding Distinction)
 - **Date:** 2026-03-15
 
 ## Context
@@ -1028,19 +1028,25 @@ cd /tmp/gromit-fixtures/fixture-calc && rm -rf .gromit-next/runs/*
 
 ---
 
-## Spec 0002b Scenario 8 — Enable Additional Facet Via Config
+## Spec 0002b Scenario 8 — Enable Additional Facet Via Config — CONFIRMED WORKING
 
-**Status:** NOT YET RUN
+**Run ID:** run-e149687ff9cdad0b
+**Status:** `ready_for_review`
+**Cost:** $0.17 | **Cycle:** 2 | **total_replans:** 1
 
-**Purpose**: Adding `logic_gaps` to `review.facets` in policy causes it to run without code changes.
+**Fixture:** `fixture-calc-clean` + `add-subtract.md` + inline policy adding `logic_gaps` to facets.
 
-**Command:** Run add-subtract on fixture-calc with policy patched to add `"logic_gaps"` to facets.
+**TDD approach:** Scenario tests written first, then manual run to verify.
+- Commit: a550be066 — 3 synthetic CLI tests + scenario-18-logic-gaps-facet.yaml
+
+**Note on cycle 2:** Review caught that t-002 used `Subtract(3, 3)` instead of `Subtract(0, 0)` for the zero case (spec said "Subtract(0,0) returns 0"). Fix task corrected the test. Normal review-triggered fix cycle, not related to logic_gaps.
 
 **Pass/Fail Checklist:**
-- [ ] `review.json` contains `logic_gaps` key
-- [ ] `execution-policy.json` snapshot includes `logic_gaps` in facets
-- [ ] No code changes needed — config-only
-- [ ] Terminal state: `ready_for_review` or `needs_human`
+- [x] `review.json` contains `logic_gaps` key: `{"code_quality": [], "logic_gaps": [], "spec_alignment": []}` ✓
+- [x] `execution-policy.json` in run dir includes `logic_gaps` in facets ✓
+- [x] Terminal state: `ready_for_review` ✓
+- [x] All acceptance criteria pass ✓
+- [x] `exec show --full` contains "logic_gaps" ✓
 
 ---
 
