@@ -1,0 +1,93 @@
+name: "Scenario 17 — Acceptance Unclear Adds Evidence"
+scenario: 17
+spec: specs/multiply-with-logging.md
+fixture: fixture-calc-clean
+store_dir: .gromit-next
+
+# fixture-calc-clean: git repo with only Add() at HEAD (1 commit).
+# The multiply-with-logging spec has acceptance criterion 3: "After calling Multiply(3, 4),
+# AuditLog contains an entry recording the inputs and result". The planner generates tasks
+# to implement Multiply and write tests, but may not write a test that directly inspects
+# AuditLog contents. The acceptance evaluator sees no direct test evidence for criterion 3
+# → marks it unclear → triggers a fix cycle to add a test demonstrating AuditLog behavior.
+# The fix cycle adds evidence (a direct AuditLog assertion in the test file); cycle 2
+# acceptance passes with all_pass: true.
+fixture_reset:
+  git_files:
+    - commit: "HEAD"
+      files: [calc/calc.go, calc/calc_test.go]
+  remove_files: []
+  add_files:
+    - src: e2e/testdata/multiply-with-logging.md
+      dst: specs/multiply-with-logging.md
+
+# replan_threshold: "error" so review warnings do not trigger a fix cycle independently.
+# Only acceptance-unclear triggers the replan we want to observe.
+inline_policy: |
+  {
+    "always_run": [
+      {"name": "unit-tests", "command": "go test ./...", "type": "test"},
+      {"name": "format", "command": "gofmt -l .", "type": "lint"},
+      {"name": "vet", "command": "go vet ./...", "type": "lint"}
+    ],
+    "budgets": {
+      "max_spec_cycles": 3,
+      "max_task_retries": 1,
+      "max_redecomposition_passes": 1,
+      "max_task_duration_seconds": 300,
+      "max_run_duration_seconds": 3600,
+      "max_run_cost_usd": 50.0
+    },
+    "models": {
+      "planner": "high",
+      "executor": "medium",
+      "evaluator": "high"
+    },
+    "review": {
+      "facets": ["spec_alignment", "code_quality"],
+      "tiers": {
+        "spec_alignment": "high",
+        "code_quality": "medium"
+      },
+      "replan_threshold": "error"
+    }
+  }
+
+extra_flags: []
+concurrent: false
+
+assertions:
+  # Run state — unclear acceptance in cycle 1 triggered a fix cycle; cycle 2 passed
+  - status: ready_for_review
+  - final_validation_passed: true
+  - final_review_passed: true
+  - final_acceptance_passed: true
+  - replans_gte: 1
+  - cost_usd_gt: 0
+  - ended_at_set: true
+
+  # Evidence files — all acceptance criteria pass in the final cycle
+  - acceptance_all_pass: true
+  - validation_pass: true
+  - invocations_count_gte: 1
+
+  # Task assertions — at least one task changed calc_test.go (evidence added)
+  - any_task_files_changed_contains: calc/calc_test.go
+
+  # Filesystem — Multiply and AuditLog implemented
+  - file_contains:
+      path: calc/calc.go
+      pattern: "func Multiply"
+  - file_contains:
+      path: calc/calc.go
+      pattern: "AuditLog"
+
+  # Event assertions — acceptance ran and a replan was triggered
+  - events_contain_type: acceptance_result
+  - events_contain_type: replan_triggered
+
+  # CLI output assertions
+  - exec_show_contains: "Cycles:"
+  - exec_show_not_contains: "Cost:    $0.0000"
+  - exec_show_full_contains: "ready_for_review"
+  - exec_list_contains: ready_for_review

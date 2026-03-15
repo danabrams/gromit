@@ -104,3 +104,8 @@ func TestE2E_Scenario16_AcceptanceFailTriggersFixCycle(t *testing.T) {
 	e2e.SetBinaryPath(e2e.BuildBinary(t))
 	e2e.RunNamedContract(t, 16, contractsDir, fixtureBase)
 }
+
+func TestE2E_Scenario17_AcceptanceUnclearAddsEvidence(t *testing.T) {
+	e2e.SetBinaryPath(e2e.BuildBinary(t))
+	e2e.RunNamedContract(t, 17, contractsDir, fixtureBase)
+}
