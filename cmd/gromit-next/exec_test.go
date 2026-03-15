@@ -1314,3 +1314,133 @@ func TestScenario_ExecList_NewVsPreexisting(t *testing.T) {
 		t.Errorf("expected ready_for_review in output, got:\n%s", output)
 	}
 }
+
+// --- Scenario 10: Missing Acceptance Criteria → needs_human ---
+
+// TestScenario_ExecShow_MissingAcceptanceCriteria verifies that exec show correctly
+// displays a run that terminated with needs_human because the spec had no
+// Acceptance Criteria section. The blocker summary must appear in the output
+// so the user understands why execution stopped without any fix cycles.
+func TestScenario_ExecShow_MissingAcceptanceCriteria(t *testing.T) {
+	tmp := t.TempDir()
+	store := runstore.NewStore(tmp)
+
+	// Seed: a run that hit stage_needs_human in the accept stage because the
+	// spec had no ## Acceptance Criteria section. No fix cycles were attempted —
+	// the accept stage terminates immediately on missing criteria.
+	rs := &runstore.RunState{
+		RunID:           "run-no-criteria",
+		SpecID:          "no-acceptance-criteria",
+		ProjectID:       "fixture-calc",
+		Status:          runstore.StatusNeedsHuman,
+		TerminalReason:  "stage_needs_human",
+		BlockerSummary:  "spec lacks acceptance criteria section — cannot evaluate acceptance. Revise the spec to include acceptance criteria.",
+		Cycle:           1,
+		TotalReplans:    0,
+		StartedAt:       time.Date(2026, 3, 15, 17, 0, 0, 0, time.UTC),
+		EndedAt:         time.Date(2026, 3, 15, 17, 1, 0, 0, time.UTC),
+		AccumulatedCost: 0.05,
+		Tasks:           []runstore.Task{},
+	}
+	if err := store.Save(rs); err != nil {
+		t.Fatal(err)
+	}
+
+	output, err := execShow("run-no-criteria", store, false)
+	if err != nil {
+		t.Fatalf("execShow: %v", err)
+	}
+
+	checks := []struct {
+		field string
+		want  string
+	}{
+		{"Status", "needs_human"},
+		{"Reason", "stage_needs_human"},
+		{"Blocker", "acceptance criteria"},
+		{"Cycles", "Cycles:  1"},
+		{"Cost", "$0.0500"},
+	}
+	for _, c := range checks {
+		if !strings.Contains(output, c.want) {
+			t.Errorf("%s: want %q in output, got:\n%s", c.field, c.want, output)
+		}
+	}
+}
+
+// TestScenario_ExecShow_Full_MissingAcceptanceCriteria verifies that exec show --full
+// displays the summary.md evidence file for a run that terminated because the
+// spec had no Acceptance Criteria section.
+func TestScenario_ExecShow_Full_MissingAcceptanceCriteria(t *testing.T) {
+	tmp := t.TempDir()
+	store := runstore.NewStore(tmp)
+
+	rs := &runstore.RunState{
+		RunID:          "run-no-criteria-full",
+		SpecID:         "no-acceptance-criteria",
+		ProjectID:      "fixture-calc",
+		Status:         runstore.StatusNeedsHuman,
+		TerminalReason: "stage_needs_human",
+		BlockerSummary: "spec lacks acceptance criteria section — cannot evaluate acceptance. Revise the spec to include acceptance criteria.",
+		Cycle:          1,
+		TotalReplans:   0,
+		StartedAt:      time.Date(2026, 3, 15, 17, 0, 0, 0, time.UTC),
+		EndedAt:        time.Date(2026, 3, 15, 17, 1, 0, 0, time.UTC),
+		Tasks:          []runstore.Task{},
+	}
+	if err := store.Save(rs); err != nil {
+		t.Fatal(err)
+	}
+
+	seedEvidence(t, store, "run-no-criteria-full", map[string]string{
+		"summary.md": "# Execution Summary\n\n- **Status:** needs_human\n- **Reason:** spec lacks acceptance criteria section — cannot evaluate acceptance. Revise the spec to include acceptance criteria.\n",
+	})
+
+	output, err := execShow("run-no-criteria-full", store, true /* full */)
+	if err != nil {
+		t.Fatalf("execShow --full: %v", err)
+	}
+
+	if !strings.Contains(output, "summary.md") {
+		t.Errorf("expected summary.md section in full output, got:\n%s", output)
+	}
+	if !strings.Contains(output, "needs_human") {
+		t.Errorf("expected needs_human in full output, got:\n%s", output)
+	}
+	if strings.Contains(output, "Status: running") {
+		t.Errorf("full output shows stale 'running' status:\n%s", output)
+	}
+}
+
+// TestScenario_ExecList_MissingAcceptanceCriteria verifies exec list shows a run
+// that terminated with needs_human due to missing acceptance criteria.
+func TestScenario_ExecList_MissingAcceptanceCriteria(t *testing.T) {
+	tmp := t.TempDir()
+	store := runstore.NewStore(tmp)
+
+	if err := store.Save(&runstore.RunState{
+		RunID:          "run-no-criteria-list",
+		SpecID:         "no-acceptance-criteria",
+		ProjectID:      "fixture-calc",
+		Status:         runstore.StatusNeedsHuman,
+		TerminalReason: "stage_needs_human",
+		Cycle:          1,
+		TotalReplans:   0,
+		StartedAt:      time.Date(2026, 3, 15, 17, 0, 0, 0, time.UTC),
+		Tasks:          []runstore.Task{},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	output, err := execList("fixture-calc", store)
+	if err != nil {
+		t.Fatalf("execList: %v", err)
+	}
+
+	if !strings.Contains(output, "run-no-criteria-list") {
+		t.Errorf("expected run-no-criteria-list in output, got:\n%s", output)
+	}
+	if !strings.Contains(output, "needs_human") {
+		t.Errorf("expected needs_human in output, got:\n%s", output)
+	}
+}

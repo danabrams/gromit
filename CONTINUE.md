@@ -1,12 +1,13 @@
 # Manual Test Plan — Spec 0002a/0002c/0002d End-to-End
 
 ## Status
-- **Current phase:** Spec 0002b — Scenario 9 complete. Next: Scenario 10.
-- **Scenario 9 COMPLETE** — New-vs-Preexisting Finding Distinction → `ready_for_review` ✓
+- **Current phase:** Spec 0002b — Scenario 10 complete. Next: Scenario 11.
+- **Scenario 10 COMPLETE** — Missing Acceptance Criteria → `needs_human` ✓
   - Scenario tests: 3 tests (exec show, exec show --full, exec list) — all passing (TDD first)
-  - E2E contract: contracts/scenario-19-new-vs-preexisting-finding.yaml — PASS (~5m, real Claude)
-  - Contract run ID: run-099d09c27d1a59ee — status: `ready_for_review`, cycle: 3, cost: ~$0.30
-- **Next:** **Spec 0002b Scenario 10** (Missing Acceptance Criteria → `needs_human`)
+  - Bug fixed: `exec show` was not rendering `BlockerSummary` — added `Blocker:` field to exec_show.go
+  - E2E contract: contracts/scenario-20-missing-acceptance-criteria.yaml — PASS (~1m22s, real Claude)
+  - Contract run ID: run-36fb9b9faec89604 — status: `needs_human`, cycle: 1, cost: ~$0.10
+- **Next:** **Spec 0002b Scenario 11** (Blocked Worktree Cleanup on Re-run)
 - **Date:** 2026-03-15
 
 ## Context
@@ -1080,36 +1081,46 @@ contract asserts `"disposition"` field IS present (confirming LabelDispositions 
 
 ---
 
-## Spec 0002b Scenario 10 — Missing Acceptance Criteria → needs_human
+## Spec 0002b Scenario 10 — Missing Acceptance Criteria → needs_human — CONFIRMED WORKING
 
-**Status:** NOT YET RUN
+**Run ID:** run-36fb9b9faec89604
+**Status:** `needs_human`
+**Cost:** $0.10 | **Cycle:** 1 | **total_replans:** 0
 
-**Purpose**: Spec without `## Acceptance Criteria` section → `needs_human` immediately (no cycles wasted).
+**TDD approach:** Scenario tests written first, then E2E contract run to verify.
+- 3 synthetic CLI tests (exec show, exec show --full, exec list) — all passing (TDD first)
+- Bug found: `exec show` did not render `BlockerSummary`. Fixed: added `Blocker:` line to `exec_show.go`.
+- Commit: TBD — 3 synthetic CLI tests + exec_show.go fix + scenario-20 contract
 
-**Setup:**
+**Spec used:** `e2e/testdata/no-acceptance-criteria.md` — adds Multiply without `## Acceptance Criteria` section.
+Injected into fixture via `add_files` in the contract.
+
+**Command:**
 ```bash
-cat > /tmp/gromit-fixtures/fixture-calc/specs/no-acceptance-criteria.md << 'EOF'
-# Test Spec — No Acceptance Criteria
-## spec_id
-no-acceptance-criteria
-## Title
-Build a simple health endpoint
-## Problem
-The service needs a health check endpoint.
-## In-Scope
-- Add GET /health handler
-## Out-of-Scope
-- No database checks
-## Validation
-- `go test ./...`
-- `go vet ./...`
-EOF
+cd /tmp/gromit-fixtures/fixture-calc-clean
+git checkout 1b33edd -- calc/calc.go calc/calc_test.go
+rm -rf .gromit-next/runs/*
+/Users/dabrams/gromit/gromit-next exec spec \
+  --project fixture-calc-clean \
+  --spec /tmp/gromit-fixtures/fixture-calc-clean/specs/no-acceptance-criteria.md \
+  --policy /tmp/gromit-fixtures/policies/fixture-calc-0002b-errorthreshold.json \
+  --store-dir .gromit-next
 ```
 
 **Pass/Fail Checklist:**
-- [ ] Terminal state: `needs_human` (not `blocked`)
-- [ ] `blocker_summary` mentions missing acceptance criteria
-- [ ] No fix cycles consumed before termination
+- [x] Terminal state: `needs_human` (not `blocked`) ✓
+- [x] `blocker_summary` mentions missing acceptance criteria — "spec lacks acceptance criteria section — cannot evaluate acceptance. Revise the spec to include acceptance criteria." ✓
+- [x] No fix cycles consumed before termination — cycle: 1, total_replans: 0 ✓
+
+**exec show output:**
+```
+Status:  needs_human
+Reason:  stage_needs_human
+Blocker: spec lacks acceptance criteria section — cannot evaluate acceptance. Revise the spec to include acceptance criteria.
+Cycles:  1
+```
+
+**E2E contract:** `contracts/scenario-20-missing-acceptance-criteria.yaml` — PASS
 
 ---
 

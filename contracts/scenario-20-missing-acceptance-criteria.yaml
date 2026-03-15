@@ -1,0 +1,64 @@
+name: "Scenario 20 — Missing Acceptance Criteria → needs_human"
+scenario: 20
+spec: specs/no-acceptance-criteria.md
+fixture: fixture-calc-clean
+policy: ""
+store_dir: .gromit-next
+
+fixture_reset:
+  git_files:
+    - commit: "1b33edd"
+      files: [calc/calc.go, calc/calc_test.go]
+  remove_files: []
+  add_files:
+    - src: e2e/testdata/no-acceptance-criteria.md
+      dst: specs/no-acceptance-criteria.md
+
+# Use error threshold to prevent review suggestions from triggering fix cycles.
+# The spec has no Acceptance Criteria section, so the accept stage will fire
+# stage_needs_human immediately after the first successful cycle.
+inline_policy: |
+  {
+    "always_run": [
+      {"name": "unit-tests", "command": "go test ./calc/...", "type": "test"},
+      {"name": "format", "command": "gofmt -l .", "type": "lint"},
+      {"name": "vet", "command": "go vet ./...", "type": "lint"}
+    ],
+    "budgets": {
+      "max_spec_cycles": 3,
+      "max_task_retries": 1,
+      "max_redecomposition_passes": 1,
+      "max_task_duration_seconds": 300,
+      "max_run_duration_seconds": 3600,
+      "max_run_cost_usd": 50.0
+    },
+    "models": {
+      "planner": "high",
+      "executor": "medium",
+      "evaluator": "high"
+    },
+    "review": {
+      "facets": ["spec_alignment", "code_quality"],
+      "tiers": {
+        "spec_alignment": "high",
+        "code_quality": "medium"
+      },
+      "replan_threshold": "error"
+    }
+  }
+
+extra_flags: []
+
+assertions:
+  # Run state — accept stage detects no criteria → needs_human immediately
+  - status: needs_human
+  - terminal_reason: stage_needs_human
+  - ended_at_set: true
+  - cost_usd_gt: 0
+
+  # CLI output — blocker summary must mention the missing criteria
+  - exec_show_contains: "needs_human"
+  - exec_show_contains: "stage_needs_human"
+  - exec_show_contains: "acceptance criteria"
+  - exec_show_full_not_contains: "Status: running"
+  - exec_list_contains: needs_human

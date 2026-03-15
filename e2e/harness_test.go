@@ -124,3 +124,8 @@ func TestE2E_Scenario19_NewVsPreexistingFinding(t *testing.T) {
 	e2e.SetBinaryPath(e2e.BuildBinary(t))
 	e2e.RunNamedContract(t, 19, contractsDir, fixtureBase)
 }
+
+func TestE2E_Scenario20_MissingAcceptanceCriteria(t *testing.T) {
+	e2e.SetBinaryPath(e2e.BuildBinary(t))
+	e2e.RunNamedContract(t, 20, contractsDir, fixtureBase)
+}

@@ -105,6 +105,9 @@ func execShow(runID string, store *runstore.Store, full bool) (string, error) {
 	if rs.TerminalReason != "" {
 		fmt.Fprintf(&b, "Reason:  %s\n", rs.TerminalReason)
 	}
+	if rs.BlockerSummary != "" {
+		fmt.Fprintf(&b, "Blocker: %s\n", rs.BlockerSummary)
+	}
 	fmt.Fprintf(&b, "Cycles:  %d\n", rs.Cycle)
 	fmt.Fprintf(&b, "Started: %s\n", rs.StartedAt.Format("2006-01-02 15:04:05"))
 	if !rs.EndedAt.IsZero() {
