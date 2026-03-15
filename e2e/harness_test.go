@@ -129,3 +129,8 @@ func TestE2E_Scenario20_MissingAcceptanceCriteria(t *testing.T) {
 	e2e.SetBinaryPath(e2e.BuildBinary(t))
 	e2e.RunNamedContract(t, 20, contractsDir, fixtureBase)
 }
+
+func TestE2E_Scenario21_BlockedWorktreeCleanup(t *testing.T) {
+	e2e.SetBinaryPath(e2e.BuildBinary(t))
+	e2e.RunNamedContract(t, 21, contractsDir, fixtureBase)
+}

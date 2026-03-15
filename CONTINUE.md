@@ -1,7 +1,8 @@
 # Manual Test Plan — Spec 0002a/0002c/0002d End-to-End
 
 ## Status
-- **Current phase:** Spec 0002b — Scenario 10 complete. Next: Scenario 11.
+- **Current phase:** Spec 0002b — ALL 11 SCENARIOS COMPLETE.
+- **Scenario 11 COMPLETE** — Blocked Worktree Cleanup on Re-run ✓ (2 bugs found and fixed)
 - **Scenario 10 COMPLETE** — Missing Acceptance Criteria → `needs_human` ✓
   - Scenario tests: 3 tests (exec show, exec show --full, exec list) — all passing (TDD first)
   - Bug fixed: `exec show` was not rendering `BlockerSummary` — added `Blocker:` field to exec_show.go
@@ -1124,20 +1125,24 @@ Cycles:  1
 
 ---
 
-## Spec 0002b Scenario 11 — Blocked Worktree Cleanup on Re-run
+## Spec 0002b Scenario 11 — Blocked Worktree Cleanup on Re-run — CONFIRMED WORKING
 
-**Status:** NOT YET RUN
+**Run 1 ID:** run-4cea8f934ff7e65c (blocked, fake key)
+**Run 2 ID:** run-e4906222d65e05d6 (ready_for_review, $0.19, cycle 2)
 
-**Purpose**: FinalizeStage preserves worktrees for `blocked` runs; InitStage auto-cleans `blocked` worktrees on re-run of same spec.
-
-**Setup:** Set `ANTHROPIC_API_KEY` to invalid key to force `blocked` terminal state, then restore and re-run same spec to verify cleanup.
+**TDD approach:** 4 CLI scenario tests written first, then E2E manual run.
+- Bugs found and fixed (TDD):
+  1. `stage_provider.go` passed `nil` instead of `eventLog` to `NewInitStage` — event silently dropped even though worktree WAS cleaned. Fix: pass `eventLog`. New test: `TestBuildStages_InitStage_EmitsBlockedWorktreeCleanedEvent`.
+  2. `init.go` called `cleanBlockedWorktrees` BEFORE `os.MkdirAll(runDir)` — eventLog path (`store.RunDir(rs.RunID)/events.jsonl`) didn't exist yet, so write silently failed. Fix: create run dir first, then clean. New test: `TestInitStage_CleansBlockedWorktrees_EventWrittenToRunDir`.
 
 **Pass/Fail Checklist:**
-- [ ] First run terminal state: `blocked` (provider failure)
-- [ ] First run worktree preserved after `blocked`
-- [ ] Second run auto-cleans first run's worktree
-- [ ] Second run emits `blocked_worktree_cleaned` event
-- [ ] Second run creates its own new worktree
+- [x] First run terminal state: `blocked` (provider failure) ✓
+- [x] First run worktree preserved after `blocked` ✓ (`Worktree:` shown in exec show)
+- [x] Second run auto-cleans first run's worktree ✓ (removed from disk, worktree_path cleared in store)
+- [x] Second run emits `blocked_worktree_cleaned` event ✓ (`prior_run_id`, `worktree_path` correct)
+- [x] Second run creates its own new worktree ✓
+
+**Why existing test didn't catch bug #2:** `TestInitStage_CleansBlockedWorktrees` used `filepath.Join(storeDir, "events.jsonl")` — storeDir already existed. Production uses `store.RunDir(rs.RunID)/events.jsonl` — dir didn't exist yet. Path mismatch masked the bug.
 
 ---
 

@@ -1444,3 +1444,216 @@ func TestScenario_ExecList_MissingAcceptanceCriteria(t *testing.T) {
 		t.Errorf("expected needs_human in output, got:\n%s", output)
 	}
 }
+
+// --- Scenario 11: Blocked Worktree Cleanup on Re-run ---
+
+// TestScenario_ExecShow_BlockedWorktreePreserved verifies that exec show displays
+// a run that terminated with blocked status (e.g. provider failure) with its
+// worktree path preserved — so the user can diagnose what went wrong.
+func TestScenario_ExecShow_BlockedWorktreePreserved(t *testing.T) {
+	tmp := t.TempDir()
+	store := runstore.NewStore(tmp)
+
+	// Seed: a blocked run where the provider failed (e.g. invalid API key).
+	// FinalizeStage preserves the worktree for blocked runs.
+	rs := &runstore.RunState{
+		RunID:           "run-blocked-wt",
+		SpecID:          "add-subtract",
+		ProjectID:       "fixture-calc",
+		Status:          runstore.StatusBlocked,
+		TerminalReason:  "provider_failure",
+		BlockerSummary:  "Claude API returned 401: invalid API key",
+		WorktreePath:    "/tmp/gromit-worktree-12345",
+		Cycle:           1,
+		TotalReplans:    0,
+		StartedAt:       time.Date(2026, 3, 15, 18, 0, 0, 0, time.UTC),
+		EndedAt:         time.Date(2026, 3, 15, 18, 1, 0, 0, time.UTC),
+		AccumulatedCost: 0.00,
+		Tasks:           []runstore.Task{},
+	}
+	if err := store.Save(rs); err != nil {
+		t.Fatal(err)
+	}
+
+	output, err := execShow("run-blocked-wt", store, false)
+	if err != nil {
+		t.Fatalf("execShow: %v", err)
+	}
+
+	checks := []struct {
+		field string
+		want  string
+	}{
+		{"Status", "blocked"},
+		{"Reason", "provider_failure"},
+		{"Blocker", "invalid API key"},
+		{"Worktree", "/tmp/gromit-worktree-12345"},
+	}
+	for _, c := range checks {
+		if !strings.Contains(output, c.want) {
+			t.Errorf("%s: want %q in output, got:\n%s", c.field, c.want, output)
+		}
+	}
+}
+
+// TestScenario_ExecShow_Full_BlockedWorktreePreserved verifies that exec show --full
+// on a blocked run displays evidence showing the blocked terminal state.
+func TestScenario_ExecShow_Full_BlockedWorktreePreserved(t *testing.T) {
+	tmp := t.TempDir()
+	store := runstore.NewStore(tmp)
+
+	rs := &runstore.RunState{
+		RunID:          "run-blocked-wt-full",
+		SpecID:         "add-subtract",
+		ProjectID:      "fixture-calc",
+		Status:         runstore.StatusBlocked,
+		TerminalReason: "provider_failure",
+		BlockerSummary: "Claude API returned 401: invalid API key",
+		WorktreePath:   "/tmp/gromit-worktree-12345",
+		Cycle:          1,
+		TotalReplans:   0,
+		StartedAt:      time.Date(2026, 3, 15, 18, 0, 0, 0, time.UTC),
+		EndedAt:        time.Date(2026, 3, 15, 18, 1, 0, 0, time.UTC),
+		Tasks:          []runstore.Task{},
+	}
+	if err := store.Save(rs); err != nil {
+		t.Fatal(err)
+	}
+
+	seedEvidence(t, store, "run-blocked-wt-full", map[string]string{
+		"summary.md": "# Execution Summary\n\n- **Status:** blocked\n- **Reason:** Claude API returned 401: invalid API key\n",
+	})
+
+	output, err := execShow("run-blocked-wt-full", store, true /* full */)
+	if err != nil {
+		t.Fatalf("execShow --full: %v", err)
+	}
+
+	if !strings.Contains(output, "summary.md") {
+		t.Errorf("expected summary.md section in full output, got:\n%s", output)
+	}
+	if !strings.Contains(output, "blocked") {
+		t.Errorf("expected blocked status in full output, got:\n%s", output)
+	}
+	if strings.Contains(output, "Status: running") {
+		t.Errorf("full output shows stale 'running' status:\n%s", output)
+	}
+}
+
+// TestScenario_ExecList_BlockedWorktreeCleanup verifies exec list shows a blocked
+// run alongside a subsequent re-run of the same spec, with correct statuses.
+// After re-run, the blocked run's worktree is cleaned by InitStage — the store
+// reflects both runs, each with the correct status.
+func TestScenario_ExecList_BlockedWorktreeCleanup(t *testing.T) {
+	tmp := t.TempDir()
+	store := runstore.NewStore(tmp)
+
+	// First run: blocked (provider failure). WorktreePath cleared by re-run's InitStage.
+	if err := store.Save(&runstore.RunState{
+		RunID:          "run-blocked-cleaned",
+		SpecID:         "add-subtract",
+		ProjectID:      "fixture-calc",
+		Status:         runstore.StatusBlocked,
+		TerminalReason: "provider_failure",
+		WorktreePath:   "", // cleared by second run's InitStage
+		Cycle:          1,
+		TotalReplans:   0,
+		StartedAt:      time.Date(2026, 3, 15, 18, 0, 0, 0, time.UTC),
+		Tasks:          []runstore.Task{},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Second run: completed successfully after fixing the API key.
+	if err := store.Save(&runstore.RunState{
+		RunID:                 "run-second-after-blocked",
+		SpecID:                "add-subtract",
+		ProjectID:             "fixture-calc",
+		Status:                runstore.StatusReadyForReview,
+		WorktreePath:          "/tmp/gromit-worktree-67890",
+		Cycle:                 1,
+		TotalReplans:          0,
+		StartedAt:             time.Date(2026, 3, 15, 19, 0, 0, 0, time.UTC),
+		FinalValidationPassed: true,
+		FinalReviewPassed:     true,
+		FinalAcceptancePassed: true,
+		Tasks:                 []runstore.Task{},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	output, err := execList("fixture-calc", store)
+	if err != nil {
+		t.Fatalf("execList: %v", err)
+	}
+
+	if !strings.Contains(output, "run-blocked-cleaned") {
+		t.Errorf("expected run-blocked-cleaned in output, got:\n%s", output)
+	}
+	if !strings.Contains(output, "blocked") {
+		t.Errorf("expected blocked status in output, got:\n%s", output)
+	}
+	if !strings.Contains(output, "run-second-after-blocked") {
+		t.Errorf("expected run-second-after-blocked in output, got:\n%s", output)
+	}
+	if !strings.Contains(output, "ready_for_review") {
+		t.Errorf("expected ready_for_review status in output, got:\n%s", output)
+	}
+}
+
+// TestScenario_ExecShow_BlockedWorktreeCleared verifies that after a re-run,
+// exec show on the prior blocked run shows no worktree path (cleared by InitStage),
+// while exec show on the new run shows its own worktree path.
+func TestScenario_ExecShow_BlockedWorktreeCleared(t *testing.T) {
+	tmp := t.TempDir()
+	store := runstore.NewStore(tmp)
+
+	// Prior blocked run: WorktreePath cleared by second run's InitStage.
+	if err := store.Save(&runstore.RunState{
+		RunID:          "run-prior-blocked",
+		SpecID:         "add-subtract",
+		ProjectID:      "fixture-calc",
+		Status:         runstore.StatusBlocked,
+		TerminalReason: "provider_failure",
+		WorktreePath:   "", // cleared
+		Cycle:          1,
+		StartedAt:      time.Date(2026, 3, 15, 18, 0, 0, 0, time.UTC),
+		EndedAt:        time.Date(2026, 3, 15, 18, 1, 0, 0, time.UTC),
+		Tasks:          []runstore.Task{},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	// New run: has its own worktree.
+	if err := store.Save(&runstore.RunState{
+		RunID:        "run-new-after-cleanup",
+		SpecID:       "add-subtract",
+		ProjectID:    "fixture-calc",
+		Status:       runstore.StatusReadyForReview,
+		WorktreePath: "/tmp/gromit-worktree-new",
+		Cycle:        1,
+		StartedAt:    time.Date(2026, 3, 15, 19, 0, 0, 0, time.UTC),
+		EndedAt:      time.Date(2026, 3, 15, 19, 5, 0, 0, time.UTC),
+		Tasks:        []runstore.Task{},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Prior blocked run: worktree path should be absent from output.
+	priorOut, err := execShow("run-prior-blocked", store, false)
+	if err != nil {
+		t.Fatalf("execShow prior: %v", err)
+	}
+	if strings.Contains(priorOut, "Worktree:") {
+		t.Errorf("prior blocked run should have no Worktree line after cleanup, got:\n%s", priorOut)
+	}
+
+	// New run: should show its own worktree path.
+	newOut, err := execShow("run-new-after-cleanup", store, false)
+	if err != nil {
+		t.Fatalf("execShow new: %v", err)
+	}
+	if !strings.Contains(newOut, "/tmp/gromit-worktree-new") {
+		t.Errorf("new run should show its own worktree path, got:\n%s", newOut)
+	}
+}

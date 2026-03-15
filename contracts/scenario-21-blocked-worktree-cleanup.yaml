@@ -1,0 +1,67 @@
+name: "Scenario 21 — Blocked Worktree Cleanup on Re-run"
+scenario: 21
+spec: specs/add-subtract.md
+fixture: fixture-calc-clean
+policy: ""
+store_dir: .gromit-next
+
+# Pre-seed a prior blocked run for the same spec+project.
+# The blocked run has worktree_path set to a nonexistent path so that
+# InitStage's cleanBlockedWorktrees removes it (os.RemoveAll is a noop for
+# nonexistent paths), clears the path in the store, and emits the event.
+fixture_reset:
+  git_files:
+    - commit: "1b33edd"
+      files: [calc/calc.go, calc/calc_test.go]
+  remove_files:
+    - .gromit-next/runs/run-blocked-sentinel/run.json
+  add_files:
+    - src: e2e/testdata/blocked-sentinel-run.json
+      dst: .gromit-next/runs/run-blocked-sentinel/run.json
+
+inline_policy: |
+  {
+    "always_run": [
+      {"name": "unit-tests", "command": "go test ./calc/...", "type": "test"},
+      {"name": "format", "command": "gofmt -l .", "type": "lint"},
+      {"name": "vet", "command": "go vet ./...", "type": "lint"}
+    ],
+    "budgets": {
+      "max_spec_cycles": 3,
+      "max_task_retries": 1,
+      "max_redecomposition_passes": 1,
+      "max_task_duration_seconds": 300,
+      "max_run_duration_seconds": 3600,
+      "max_run_cost_usd": 50.0
+    },
+    "models": {
+      "planner": "high",
+      "executor": "medium",
+      "evaluator": "high"
+    },
+    "review": {
+      "facets": ["spec_alignment", "code_quality"],
+      "tiers": {
+        "spec_alignment": "high",
+        "code_quality": "medium"
+      },
+      "replan_threshold": "error"
+    }
+  }
+
+extra_flags: []
+
+assertions:
+  # Run state — the new run should complete normally
+  - status: ready_for_review
+  - ended_at_set: true
+  - cost_usd_gt: 0
+
+  # The blocked_worktree_cleaned event must be present, confirming InitStage
+  # detected and cleaned the prior blocked run's worktree before starting.
+  - events_contain_type: blocked_worktree_cleaned
+
+  # CLI output — new run shows normal ready_for_review state
+  - exec_show_contains: "ready_for_review"
+  - exec_show_full_not_contains: "Status: running"
+  - exec_list_contains: ready_for_review

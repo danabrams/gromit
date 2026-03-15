@@ -1,0 +1,18 @@
+{
+  "run_id": "run-blocked-sentinel",
+  "spec_id": "add-subtract",
+  "project_id": "fixture-calc-clean",
+  "status": "blocked",
+  "worktree_path": "/tmp/nonexistent-gromit-worktree-sentinel",
+  "cycle": 1,
+  "started_at": "2026-03-14T12:00:00Z",
+  "ended_at": "2026-03-14T12:01:00Z",
+  "tasks": [],
+  "blocker_summary": "create plan: plan generation failed after 2 attempts: no JSON found in agent output",
+  "accumulated_cost": 0,
+  "final_validation_passed": false,
+  "final_review_passed": false,
+  "final_acceptance_passed": false,
+  "total_replans": 0,
+  "spec_constraints": ""
+}
