@@ -119,3 +119,8 @@ func TestE2E_Scenario18_LogicGapsFacet(t *testing.T) {
 	e2e.SetBinaryPath(e2e.BuildBinary(t))
 	e2e.RunNamedContract(t, 18, contractsDir, fixtureBase)
 }
+
+func TestE2E_Scenario19_NewVsPreexistingFinding(t *testing.T) {
+	e2e.SetBinaryPath(e2e.BuildBinary(t))
+	e2e.RunNamedContract(t, 19, contractsDir, fixtureBase)
+}

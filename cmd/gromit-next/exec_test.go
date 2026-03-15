@@ -735,15 +735,15 @@ func TestScenario_ExecShow_BudgetExhaustion_CyclesExhausted(t *testing.T) {
 	// Review found errors on cycle 1 → replan → cycle 2 → acceptance still failing
 	// → cycles exhausted → needs_human.
 	rs := &runstore.RunState{
-		RunID:          "run-budget-cycles",
-		SpecID:         "unfixable-conflict",
-		ProjectID:      "fixture-calc",
-		Status:         runstore.StatusNeedsHuman,
-		TerminalReason: "cycles_exhausted",
-		Cycle:          2,
-		TotalReplans:   1,
-		StartedAt:      time.Date(2026, 3, 15, 14, 0, 0, 0, time.UTC),
-		EndedAt:        time.Date(2026, 3, 15, 14, 8, 0, 0, time.UTC),
+		RunID:           "run-budget-cycles",
+		SpecID:          "unfixable-conflict",
+		ProjectID:       "fixture-calc",
+		Status:          runstore.StatusNeedsHuman,
+		TerminalReason:  "cycles_exhausted",
+		Cycle:           2,
+		TotalReplans:    1,
+		StartedAt:       time.Date(2026, 3, 15, 14, 0, 0, 0, time.UTC),
+		EndedAt:         time.Date(2026, 3, 15, 14, 8, 0, 0, time.UTC),
 		AccumulatedCost: 0.18,
 		Tasks: []runstore.Task{
 			{TaskID: "t-001", Status: "done", Attempts: 1, FilesChanged: []string{"calc/calc.go"}},
@@ -869,15 +869,15 @@ func TestScenario_ExecShow_AcceptanceUnclear_CyclesExhausted(t *testing.T) {
 	// Cycle 1: acceptance criteria marked unclear → replan → cycle 2
 	// Cycle 2: acceptance criteria still unclear → cycles exhausted → needs_human.
 	rs := &runstore.RunState{
-		RunID:          "run-acceptance-unclear",
-		SpecID:         "subjective-criteria",
-		ProjectID:      "fixture-calc",
-		Status:         runstore.StatusNeedsHuman,
-		TerminalReason: "cycles_exhausted",
-		Cycle:          2,
-		TotalReplans:   1,
-		StartedAt:      time.Date(2026, 3, 15, 15, 0, 0, 0, time.UTC),
-		EndedAt:        time.Date(2026, 3, 15, 15, 10, 0, 0, time.UTC),
+		RunID:           "run-acceptance-unclear",
+		SpecID:          "subjective-criteria",
+		ProjectID:       "fixture-calc",
+		Status:          runstore.StatusNeedsHuman,
+		TerminalReason:  "cycles_exhausted",
+		Cycle:           2,
+		TotalReplans:    1,
+		StartedAt:       time.Date(2026, 3, 15, 15, 0, 0, 0, time.UTC),
+		EndedAt:         time.Date(2026, 3, 15, 15, 10, 0, 0, time.UTC),
 		AccumulatedCost: 0.24,
 		Tasks: []runstore.Task{
 			{TaskID: "t-001", Status: "done", Attempts: 1, FilesChanged: []string{"calc/calc.go"}},
@@ -1075,9 +1075,9 @@ func TestScenario_ExecShow_Full_LogicGapsFacet(t *testing.T) {
 	}
 
 	seedEvidence(t, store, "run-logic-gaps-full", map[string]string{
-		"review.json": `{"findings": [{"facet": "logic_gaps", "severity": "suggestion", "description": "Consider adding overflow checks in arithmetic operations", "disposition": "new"}]}`,
+		"review.json":           `{"findings": [{"facet": "logic_gaps", "severity": "suggestion", "description": "Consider adding overflow checks in arithmetic operations", "disposition": "new"}]}`,
 		"execution-policy.json": `{"review": {"facets": ["spec_alignment", "code_quality", "logic_gaps"], "tiers": {"spec_alignment": "high", "code_quality": "medium", "logic_gaps": "medium"}, "replan_threshold": "warning"}}`,
-		"acceptance.json": `{"all_pass": true, "criteria": [{"description": "Subtract(5, 3) returns 2", "result": "pass"}]}`,
+		"acceptance.json":       `{"all_pass": true, "criteria": [{"description": "Subtract(5, 3) returns 2", "result": "pass"}]}`,
 	})
 
 	output, err := execShow("run-logic-gaps-full", store, true /* full */)
@@ -1134,6 +1134,181 @@ func TestScenario_ExecList_LogicGapsFacet(t *testing.T) {
 
 	if !strings.Contains(output, "run-logic-gaps-list") {
 		t.Errorf("expected run-logic-gaps-list in output, got:\n%s", output)
+	}
+	if !strings.Contains(output, "ready_for_review") {
+		t.Errorf("expected ready_for_review in output, got:\n%s", output)
+	}
+}
+
+// TestScenario_ExecShow_NewVsPreexistingFindings verifies exec show correctly
+// displays a cycle-2 run where a review finding triggered a fix cycle.
+// Scenario 9: after cycle 1 blocked on a spec_alignment error, the agent fixed it
+// in cycle 2 and all gates passed → ready_for_review.
+func TestScenario_ExecShow_NewVsPreexistingFindings(t *testing.T) {
+	tmp := t.TempDir()
+	store := runstore.NewStore(tmp)
+
+	rs := &runstore.RunState{
+		RunID:                 "run-new-vs-preexisting",
+		SpecID:                "add-refund-endpoint",
+		ProjectID:             "fixture-multipackage",
+		Status:                runstore.StatusReadyForReview,
+		Cycle:                 2,
+		TotalReplans:          1,
+		StartedAt:             time.Date(2026, 3, 15, 16, 0, 0, 0, time.UTC),
+		EndedAt:               time.Date(2026, 3, 15, 16, 5, 0, 0, time.UTC),
+		AccumulatedCost:       0.35,
+		FinalValidationPassed: true,
+		FinalReviewPassed:     true,
+		FinalAcceptancePassed: true,
+		Tasks: []runstore.Task{
+			{TaskID: "t-001", Status: "done", Attempts: 1, FilesChanged: []string{"internal/refund/refund.go"}},
+			{TaskID: "t-002", Status: "done", Attempts: 1, FilesChanged: []string{"internal/refund/refund.go"}},
+		},
+	}
+	if err := store.Save(rs); err != nil {
+		t.Fatal(err)
+	}
+
+	output, err := execShow("run-new-vs-preexisting", store, false)
+	if err != nil {
+		t.Fatalf("execShow: %v", err)
+	}
+
+	checks := []struct {
+		field string
+		want  string
+	}{
+		{"Status", "ready_for_review"},
+		{"Cycles", "Cycles:  2"},
+		{"Cost", "$0.3500"},
+		{"Validation", "Valid:   true"},
+	}
+	for _, c := range checks {
+		if !strings.Contains(output, c.want) {
+			t.Errorf("%s: want %q in output, got:\n%s", c.field, c.want, output)
+		}
+	}
+}
+
+// TestScenario_ExecShow_Full_NewVsPreexistingDispositions verifies exec show --full
+// renders review.json with findings labeled "new" and "pre-existing".
+// In a multi-cycle run, pre-existing findings from cycle 1 reappear with
+// disposition "pre-existing" in cycle 2 and do not trigger further replanning.
+func TestScenario_ExecShow_Full_NewVsPreexistingDispositions(t *testing.T) {
+	tmp := t.TempDir()
+	store := runstore.NewStore(tmp)
+
+	rs := &runstore.RunState{
+		RunID:                 "run-dispositions-full",
+		SpecID:                "add-refund-endpoint",
+		ProjectID:             "fixture-multipackage",
+		Status:                runstore.StatusReadyForReview,
+		Cycle:                 2,
+		TotalReplans:          1,
+		StartedAt:             time.Date(2026, 3, 15, 16, 0, 0, 0, time.UTC),
+		EndedAt:               time.Date(2026, 3, 15, 16, 5, 0, 0, time.UTC),
+		FinalValidationPassed: true,
+		FinalReviewPassed:     true,
+		FinalAcceptancePassed: true,
+		Tasks:                 []runstore.Task{},
+	}
+	if err := store.Save(rs); err != nil {
+		t.Fatal(err)
+	}
+
+	// review.json: cycle-2 findings with both "new" and "pre-existing" dispositions.
+	// code_quality suggestion from cycle 1 reappears → "pre-existing" (does not reblock).
+	// spec_alignment suggestion is new in cycle 2 → "new" (below error threshold, non-blocking).
+	seedEvidence(t, store, "run-dispositions-full", map[string]string{
+		"review.json": `{
+  "code_quality": [
+    {
+      "facet": "code_quality",
+      "severity": "suggestion",
+      "file": "internal/refund/refund.go",
+      "line": 10,
+      "description": "Consider adding error handling for nil Refund input",
+      "cycle": 2,
+      "disposition": "pre-existing"
+    }
+  ],
+  "spec_alignment": [
+    {
+      "facet": "spec_alignment",
+      "severity": "suggestion",
+      "file": "internal/refund/refund.go",
+      "line": 25,
+      "description": "ProcessPartial could include a comment explaining the percentage semantics",
+      "cycle": 2,
+      "disposition": "new"
+    }
+  ]
+}`,
+	})
+
+	output, err := execShow("run-dispositions-full", store, true /* full */)
+	if err != nil {
+		t.Fatalf("execShow --full: %v", err)
+	}
+
+	// review.json must appear in the evidence bundle
+	if !strings.Contains(output, "review.json") {
+		t.Errorf("expected review.json section in full output, got:\n%s", output)
+	}
+	// "pre-existing" disposition must appear in review.json content
+	if !strings.Contains(output, "pre-existing") {
+		t.Errorf("expected pre-existing disposition in review.json, got:\n%s", output)
+	}
+	// "disposition" field name must appear
+	if !strings.Contains(output, "disposition") {
+		t.Errorf("expected disposition field in review.json, got:\n%s", output)
+	}
+	// Both facets must appear
+	if !strings.Contains(output, "code_quality") {
+		t.Errorf("expected code_quality facet in review.json, got:\n%s", output)
+	}
+	if !strings.Contains(output, "spec_alignment") {
+		t.Errorf("expected spec_alignment facet in review.json, got:\n%s", output)
+	}
+	// Status must be ready_for_review, not the stale "running"
+	if strings.Contains(output, "Status: running") {
+		t.Errorf("full output shows stale 'running' status:\n%s", output)
+	}
+	if !strings.Contains(output, "ready_for_review") {
+		t.Errorf("expected ready_for_review in full output, got:\n%s", output)
+	}
+}
+
+// TestScenario_ExecList_NewVsPreexisting verifies exec list shows a run that
+// completed with new-vs-preexisting finding distinction (cycle 2, ready_for_review).
+func TestScenario_ExecList_NewVsPreexisting(t *testing.T) {
+	tmp := t.TempDir()
+	store := runstore.NewStore(tmp)
+
+	if err := store.Save(&runstore.RunState{
+		RunID:                 "run-nvp-list",
+		SpecID:                "add-refund-endpoint",
+		ProjectID:             "fixture-multipackage",
+		Status:                runstore.StatusReadyForReview,
+		Cycle:                 2,
+		TotalReplans:          1,
+		StartedAt:             time.Date(2026, 3, 15, 16, 0, 0, 0, time.UTC),
+		FinalValidationPassed: true,
+		FinalReviewPassed:     true,
+		FinalAcceptancePassed: true,
+		Tasks:                 []runstore.Task{},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	output, err := execList("fixture-multipackage", store)
+	if err != nil {
+		t.Fatalf("execList: %v", err)
+	}
+
+	if !strings.Contains(output, "run-nvp-list") {
+		t.Errorf("expected run-nvp-list in output, got:\n%s", output)
 	}
 	if !strings.Contains(output, "ready_for_review") {
 		t.Errorf("expected ready_for_review in output, got:\n%s", output)
