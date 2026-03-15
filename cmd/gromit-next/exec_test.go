@@ -596,9 +596,9 @@ func TestScenario_ExecShow_AcceptanceFailFixCycle(t *testing.T) {
 	tmp := t.TempDir()
 	store := runstore.NewStore(tmp)
 
-	// Seed: a run that went through an acceptance-fail fix cycle.
-	// Cycle 1: agent implemented Divide, acceptance failed (float64 precision).
-	// Cycle 2: agent fixed, all criteria pass → ready_for_review.
+	// Seed: a run that went through a fix cycle.
+	// Cycle 1: agent implemented Divide without godoc comment (proof checks failed).
+	// Cycle 2: fix task added comment + zero-divisor guard, all gates pass → ready_for_review.
 	rs := &runstore.RunState{
 		RunID:                 "run-accept-fail",
 		SpecID:                "divide-float64",

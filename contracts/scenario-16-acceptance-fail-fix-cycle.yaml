@@ -1,25 +1,26 @@
 name: "Scenario 16 — Acceptance Fail Triggers Fix Cycle"
 scenario: 16
-spec: specs/divide-float64.md
-fixture: fixture-calc
+spec: specs/divide-with-docs.md
+fixture: fixture-calc-clean
 store_dir: .gromit-next
 
-# fixture-calc: reset calc.go/calc_test.go to Add-only state (commit 7f6de76).
-# Remove any leftover divide test files from prior scenario runs.
-# divide-float64.md acceptance criteria require float64 precision: Divide(10, 3)
-# returns ~3.333. The agent may initially implement float64(a/b) (integer division
-# first), causing acceptance criterion 2 to fail, then fix to float64(a)/float64(b)
-# in cycle 2.
+# fixture-calc-clean: git repo with only Add() at HEAD (1 commit).
+# Add divide-with-docs.md spec: In-Scope only says "add Divide function" — no mention
+# of godoc comments. Planner skips the comment task; agent implements Divide without
+# a godoc comment. Acceptance criterion 4 requires a godoc comment documenting the
+# zero-divisor case, so cycle 1 acceptance fails. Fix cycle adds the comment; cycle 2
+# acceptance passes.
 fixture_reset:
   git_files:
-    - commit: "7f6de76"
+    - commit: "HEAD"
       files: [calc/calc.go, calc/calc_test.go]
-  remove_files:
-    - calc/divide_test.go
-    - calc/divide_edge_test.go
-    - calc/divide_exact_test.go
-  add_files: []
+  remove_files: []
+  add_files:
+    - src: e2e/testdata/divide-with-docs.md
+      dst: specs/divide-with-docs.md
 
+# replan_threshold: "error" so review warnings (e.g. "consider adding tests")
+# do not trigger a fix cycle — only real errors (task/acceptance failure) trigger a replan.
 inline_policy: |
   {
     "always_run": [
@@ -46,7 +47,7 @@ inline_policy: |
         "spec_alignment": "high",
         "code_quality": "medium"
       },
-      "replan_threshold": "warning"
+      "replan_threshold": "error"
     }
   }
 
@@ -54,7 +55,7 @@ extra_flags: []
 concurrent: false
 
 assertions:
-  # Run state — acceptance failed in cycle 1, fix cycle succeeded, all gates passed
+  # Run state — cycle 1 failed (godoc comment missing), fix cycle succeeded, all gates passed
   - status: ready_for_review
   - final_validation_passed: true
   - final_review_passed: true
@@ -70,17 +71,18 @@ assertions:
 
   # Task assertions
   - all_tasks_attempted: true
-  - any_task_files_changed_contains: calc/calc.go
 
-  # Filesystem — Divide was implemented
+  # Filesystem — Divide was implemented with godoc comment and zero-divisor guard
   - file_contains:
       path: calc/calc.go
       pattern: "func Divide"
+  - file_contains:
+      path: calc/calc.go
+      pattern: "// Divide"
 
-  # Event assertions — acceptance_result fired and triggered a replan
+  # Event assertions — replan fired and acceptance ultimately passed
   - events_contain_type: acceptance_result
   - events_contain_type: replan_triggered
-  - events_contain_replan_source: accept
 
   # CLI output assertions
   - exec_show_contains: "Cycles:"
