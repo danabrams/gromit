@@ -723,3 +723,137 @@ func TestScenario_ExecList_ShowsAcceptanceFixCycleRun(t *testing.T) {
 		t.Errorf("expected ready_for_review in output, got:\n%s", output)
 	}
 }
+
+// TestScenario_ExecShow_BudgetExhaustion_CyclesExhausted verifies that exec show
+// displays a run that exhausted its cycle budget with needs_human status and the
+// cycles_exhausted terminal reason.
+func TestScenario_ExecShow_BudgetExhaustion_CyclesExhausted(t *testing.T) {
+	tmp := t.TempDir()
+	store := runstore.NewStore(tmp)
+
+	// Seed: a run that hit max_spec_cycles=2 during review+acceptance fix cycles.
+	// Review found errors on cycle 1 → replan → cycle 2 → acceptance still failing
+	// → cycles exhausted → needs_human.
+	rs := &runstore.RunState{
+		RunID:          "run-budget-cycles",
+		SpecID:         "unfixable-conflict",
+		ProjectID:      "fixture-calc",
+		Status:         runstore.StatusNeedsHuman,
+		TerminalReason: "cycles_exhausted",
+		Cycle:          2,
+		TotalReplans:   1,
+		StartedAt:      time.Date(2026, 3, 15, 14, 0, 0, 0, time.UTC),
+		EndedAt:        time.Date(2026, 3, 15, 14, 8, 0, 0, time.UTC),
+		AccumulatedCost: 0.18,
+		Tasks: []runstore.Task{
+			{TaskID: "t-001", Status: "done", Attempts: 1, FilesChanged: []string{"calc/calc.go"}},
+		},
+	}
+	if err := store.Save(rs); err != nil {
+		t.Fatal(err)
+	}
+
+	output, err := execShow("run-budget-cycles", store, false)
+	if err != nil {
+		t.Fatalf("execShow: %v", err)
+	}
+
+	checks := []struct {
+		field string
+		want  string
+	}{
+		{"Status", "needs_human"},
+		{"Reason", "cycles_exhausted"},
+		{"Cycles", "Cycles:  2"},
+		{"Cost", "$0.1800"},
+	}
+	for _, c := range checks {
+		if !strings.Contains(output, c.want) {
+			t.Errorf("%s: want %q in output, got:\n%s", c.field, c.want, output)
+		}
+	}
+}
+
+// TestScenario_ExecShow_Full_BudgetExhaustion_AcceptanceFailed verifies that
+// exec show --full displays acceptance.json (with a failing criterion) and
+// review.json for a cycles-exhausted run.
+func TestScenario_ExecShow_Full_BudgetExhaustion_AcceptanceFailed(t *testing.T) {
+	tmp := t.TempDir()
+	store := runstore.NewStore(tmp)
+
+	rs := &runstore.RunState{
+		RunID:          "run-budget-full",
+		SpecID:         "unfixable-conflict",
+		ProjectID:      "fixture-calc",
+		Status:         runstore.StatusNeedsHuman,
+		TerminalReason: "cycles_exhausted",
+		Cycle:          2,
+		TotalReplans:   1,
+		StartedAt:      time.Date(2026, 3, 15, 14, 0, 0, 0, time.UTC),
+		EndedAt:        time.Date(2026, 3, 15, 14, 8, 0, 0, time.UTC),
+		Tasks:          []runstore.Task{},
+	}
+	if err := store.Save(rs); err != nil {
+		t.Fatal(err)
+	}
+
+	seedEvidence(t, store, "run-budget-full", map[string]string{
+		"acceptance.json": `{"all_pass": false, "criteria": [{"description": "No global mutable state", "result": "fail"}, {"description": "All functions documented", "result": "pass"}]}`,
+		"review.json":     `{"findings": [{"facet": "spec_alignment", "severity": "error", "description": "Conflicting requirements unresolvable"}]}`,
+		"metrics.json":    `{"total_cost_usd": 0.18, "cycles": 2}`,
+	})
+
+	output, err := execShow("run-budget-full", store, true /* full */)
+	if err != nil {
+		t.Fatalf("execShow --full: %v", err)
+	}
+
+	// Evidence bundle must include both acceptance.json and review.json
+	if !strings.Contains(output, "acceptance.json") {
+		t.Errorf("expected acceptance.json section in full output, got:\n%s", output)
+	}
+	if !strings.Contains(output, "review.json") {
+		t.Errorf("expected review.json section in full output, got:\n%s", output)
+	}
+	// acceptance.json must show all_pass: false (at least one criterion failed)
+	if !strings.Contains(output, `"all_pass": false`) {
+		t.Errorf("expected all_pass: false in acceptance.json, got:\n%s", output)
+	}
+	// Must not show stale "running" status
+	if strings.Contains(output, "Status: running") {
+		t.Errorf("full output shows stale 'running' status:\n%s", output)
+	}
+}
+
+// TestScenario_ExecList_BudgetExhaustion verifies exec list shows a
+// cycles-exhausted run with needs_human status.
+func TestScenario_ExecList_BudgetExhaustion(t *testing.T) {
+	tmp := t.TempDir()
+	store := runstore.NewStore(tmp)
+
+	if err := store.Save(&runstore.RunState{
+		RunID:          "run-budget-list",
+		SpecID:         "unfixable-conflict",
+		ProjectID:      "fixture-calc",
+		Status:         runstore.StatusNeedsHuman,
+		TerminalReason: "cycles_exhausted",
+		Cycle:          2,
+		TotalReplans:   1,
+		StartedAt:      time.Date(2026, 3, 15, 14, 0, 0, 0, time.UTC),
+		Tasks:          []runstore.Task{},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	output, err := execList("fixture-calc", store)
+	if err != nil {
+		t.Fatalf("execList: %v", err)
+	}
+
+	if !strings.Contains(output, "run-budget-list") {
+		t.Errorf("expected run-budget-list in output, got:\n%s", output)
+	}
+	if !strings.Contains(output, "needs_human") {
+		t.Errorf("expected needs_human in output, got:\n%s", output)
+	}
+}

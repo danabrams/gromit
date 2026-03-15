@@ -1,8 +1,8 @@
 # Manual Test Plan — Spec 0002a/0002c/0002d End-to-End
 
 ## Status
-- **Current phase:** Spec 0002b — Scenario 5 complete + e2e contract (scenario-17). Next: Scenario 6.
-- **Next:** **Spec 0002b Scenario 6** (Budget Exhaustion Across Review + Acceptance)
+- **Current phase:** Spec 0002b — Scenario 6 complete. Next: Scenario 7.
+- **Next:** **Spec 0002b Scenario 7** (Acceptance Unclear Exhausts Budget → `needs_human`)
 - **Date:** 2026-03-15
 
 ## Context
@@ -965,9 +965,9 @@ rm -rf .gromit-next/runs/*
 
 ---
 
-## Spec 0002b Scenario 6 — Budget Exhaustion Across Review + Acceptance
+## Spec 0002b Scenario 6 — Budget Exhaustion Across Review + Acceptance — CONFIRMED WORKING
 
-**Status:** NOT YET RUN
+**Status:** COMPLETE
 
 **Purpose**: Review + acceptance fix cycles consume from shared `max_spec_cycles` budget; budget exhaustion → `needs_human`.
 
@@ -997,11 +997,13 @@ cd /tmp/gromit-fixtures/fixture-calc && rm -rf .gromit-next/runs/*
 ```
 
 **Pass/Fail Checklist:**
-- [ ] Terminal state: `needs_human` (not `blocked`)
-- [ ] `terminal_reason`: `cycles_exhausted`
-- [ ] `metrics.json.cycles` = 2 (= max_spec_cycles)
-- [ ] `acceptance.json` has at least one remaining failure
-- [ ] Evidence bundle complete (review.json, acceptance.json present)
+- [x] Terminal state: `needs_human` (not `blocked`)
+- [x] `terminal_reason`: `cycles_exhausted`
+- [x] `metrics.json.cycles` = 2 (= max_spec_cycles)
+- [x] `acceptance.json` has at least one remaining failure
+- [x] Evidence bundle complete (review.json, acceptance.json present)
+
+**Notes:** Also added `exec show` scenario tests (TDD) first — discovered `TerminalReason` was not rendered by `exec show`. Fixed in `exec_show.go`. Run ID: `run-82305da0dd44e143`.
 
 ---
 
