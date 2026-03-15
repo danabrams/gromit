@@ -1,0 +1,90 @@
+name: "Scenario 16 — Acceptance Fail Triggers Fix Cycle"
+scenario: 16
+spec: specs/divide-float64.md
+fixture: fixture-calc
+store_dir: .gromit-next
+
+# fixture-calc: reset calc.go/calc_test.go to Add-only state (commit 7f6de76).
+# Remove any leftover divide test files from prior scenario runs.
+# divide-float64.md acceptance criteria require float64 precision: Divide(10, 3)
+# returns ~3.333. The agent may initially implement float64(a/b) (integer division
+# first), causing acceptance criterion 2 to fail, then fix to float64(a)/float64(b)
+# in cycle 2.
+fixture_reset:
+  git_files:
+    - commit: "7f6de76"
+      files: [calc/calc.go, calc/calc_test.go]
+  remove_files:
+    - calc/divide_test.go
+    - calc/divide_edge_test.go
+    - calc/divide_exact_test.go
+  add_files: []
+
+inline_policy: |
+  {
+    "always_run": [
+      {"name": "unit-tests", "command": "go test ./...", "type": "test"},
+      {"name": "format", "command": "gofmt -l .", "type": "lint"},
+      {"name": "vet", "command": "go vet ./...", "type": "lint"}
+    ],
+    "budgets": {
+      "max_spec_cycles": 3,
+      "max_task_retries": 1,
+      "max_redecomposition_passes": 1,
+      "max_task_duration_seconds": 300,
+      "max_run_duration_seconds": 3600,
+      "max_run_cost_usd": 50.0
+    },
+    "models": {
+      "planner": "high",
+      "executor": "medium",
+      "evaluator": "high"
+    },
+    "review": {
+      "facets": ["spec_alignment", "code_quality"],
+      "tiers": {
+        "spec_alignment": "high",
+        "code_quality": "medium"
+      },
+      "replan_threshold": "warning"
+    }
+  }
+
+extra_flags: []
+concurrent: false
+
+assertions:
+  # Run state — acceptance failed in cycle 1, fix cycle succeeded, all gates passed
+  - status: ready_for_review
+  - final_validation_passed: true
+  - final_review_passed: true
+  - final_acceptance_passed: true
+  - replans_gte: 1
+  - cost_usd_gt: 0
+  - ended_at_set: true
+
+  # Evidence files
+  - acceptance_all_pass: true
+  - validation_pass: true
+  - invocations_count_gte: 1
+
+  # Task assertions
+  - all_tasks_attempted: true
+  - any_task_files_changed_contains: calc/calc.go
+
+  # Filesystem — Divide was implemented
+  - file_contains:
+      path: calc/calc.go
+      pattern: "func Divide"
+
+  # Event assertions — acceptance_result fired and triggered a replan
+  - events_contain_type: acceptance_result
+  - events_contain_type: replan_triggered
+  - events_contain_replan_source: accept
+
+  # CLI output assertions
+  - exec_show_contains: "Cycles:"
+  - exec_show_not_contains: "Cost:    $0.0000"
+  - exec_show_full_not_contains: "running"
+  - exec_show_full_contains: "ready_for_review"
+  - exec_list_contains: ready_for_review

@@ -571,3 +571,155 @@ func TestExecShowCmd_OutputToStdout(t *testing.T) {
 		t.Fatal("expected output to contain run ID")
 	}
 }
+
+// --- Scenario 16: Acceptance Fail Triggers Fix Cycle (CLI layer) ---
+
+// seedEvidence creates evidence files directly in the store's evidence directory.
+func seedEvidence(t *testing.T, store *runstore.Store, runID string, files map[string]string) {
+	t.Helper()
+	dir := store.RunEvidenceDir(runID)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatalf("mkdir evidence: %v", err)
+	}
+	for name, content := range files {
+		path := filepath.Join(dir, name)
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+			t.Fatalf("write %s: %v", name, err)
+		}
+	}
+}
+
+// TestScenario_ExecShow_AcceptanceFailFixCycle verifies that exec show correctly
+// displays a run that completed via an acceptance-fail fix cycle (cycle 2,
+// 1 replan, all three gates passed).
+func TestScenario_ExecShow_AcceptanceFailFixCycle(t *testing.T) {
+	tmp := t.TempDir()
+	store := runstore.NewStore(tmp)
+
+	// Seed: a run that went through an acceptance-fail fix cycle.
+	// Cycle 1: agent implemented Divide, acceptance failed (float64 precision).
+	// Cycle 2: agent fixed, all criteria pass → ready_for_review.
+	rs := &runstore.RunState{
+		RunID:                 "run-accept-fail",
+		SpecID:                "divide-float64",
+		ProjectID:             "fixture-calc",
+		Status:                runstore.StatusReadyForReview,
+		Cycle:                 2,
+		TotalReplans:          1,
+		StartedAt:             time.Date(2026, 3, 15, 12, 0, 0, 0, time.UTC),
+		EndedAt:               time.Date(2026, 3, 15, 12, 5, 0, 0, time.UTC),
+		AccumulatedCost:       0.25,
+		FinalValidationPassed: true,
+		FinalReviewPassed:     true,
+		FinalAcceptancePassed: true,
+		Tasks: []runstore.Task{
+			{TaskID: "t-001", Status: "done", Attempts: 1, FilesChanged: []string{"calc/calc.go"}},
+		},
+	}
+	if err := store.Save(rs); err != nil {
+		t.Fatal(err)
+	}
+
+	output, err := execShow("run-accept-fail", store, false)
+	if err != nil {
+		t.Fatalf("execShow: %v", err)
+	}
+
+	checks := []struct {
+		field string
+		want  string
+	}{
+		{"Cycles", "Cycles:  2"},
+		{"Status", "ready_for_review"},
+		{"Cost", "$0.2500"},
+		{"Validation", "Valid:   true"},
+	}
+	for _, c := range checks {
+		if !strings.Contains(output, c.want) {
+			t.Errorf("%s: want %q in output, got:\n%s", c.field, c.want, output)
+		}
+	}
+}
+
+// TestScenario_ExecShow_Full_AcceptanceAllPass verifies exec show --full shows
+// acceptance.json with all_pass: true for an acceptance-fail-fixed run.
+func TestScenario_ExecShow_Full_AcceptanceAllPass(t *testing.T) {
+	tmp := t.TempDir()
+	store := runstore.NewStore(tmp)
+
+	rs := &runstore.RunState{
+		RunID:                 "run-accept-full",
+		SpecID:                "divide-float64",
+		ProjectID:             "fixture-calc",
+		Status:                runstore.StatusReadyForReview,
+		Cycle:                 2,
+		TotalReplans:          1,
+		StartedAt:             time.Date(2026, 3, 15, 12, 0, 0, 0, time.UTC),
+		EndedAt:               time.Date(2026, 3, 15, 12, 5, 0, 0, time.UTC),
+		FinalValidationPassed: true,
+		FinalReviewPassed:     true,
+		FinalAcceptancePassed: true,
+		Tasks:                 []runstore.Task{},
+	}
+	if err := store.Save(rs); err != nil {
+		t.Fatal(err)
+	}
+
+	seedEvidence(t, store, "run-accept-full", map[string]string{
+		"acceptance.json": `{"all_pass": true, "criteria": [{"description": "Divide(10, 2) returns 5.0", "result": "pass"}, {"description": "Divide(10, 3) returns ~3.333", "result": "pass"}]}`,
+		"summary.md":      "# Execution Summary\n\n- **Status:** ready_for_review\n- **Cycles:** 2\n",
+	})
+
+	output, err := execShow("run-accept-full", store, true /* full */)
+	if err != nil {
+		t.Fatalf("execShow --full: %v", err)
+	}
+
+	if !strings.Contains(output, "acceptance.json") {
+		t.Errorf("expected acceptance.json section in full output, got:\n%s", output)
+	}
+	if !strings.Contains(output, "all_pass") {
+		t.Errorf("expected all_pass in acceptance.json, got:\n%s", output)
+	}
+	if strings.Contains(output, "Status: running") {
+		t.Errorf("full output shows stale 'running' status:\n%s", output)
+	}
+	if !strings.Contains(output, "ready_for_review") {
+		t.Errorf("expected ready_for_review in full output, got:\n%s", output)
+	}
+}
+
+// TestScenario_ExecList_ShowsAcceptanceFixCycleRun verifies exec list includes a
+// run that completed via acceptance-fail fix cycle with correct status.
+func TestScenario_ExecList_ShowsAcceptanceFixCycleRun(t *testing.T) {
+	tmp := t.TempDir()
+	store := runstore.NewStore(tmp)
+
+	if err := store.Save(&runstore.RunState{
+		RunID:                 "run-accept-list",
+		SpecID:                "divide-float64",
+		ProjectID:             "fixture-calc",
+		Status:                runstore.StatusReadyForReview,
+		Cycle:                 2,
+		TotalReplans:          1,
+		StartedAt:             time.Date(2026, 3, 15, 12, 0, 0, 0, time.UTC),
+		FinalValidationPassed: true,
+		FinalReviewPassed:     true,
+		FinalAcceptancePassed: true,
+		Tasks:                 []runstore.Task{},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	output, err := execList("fixture-calc", store)
+	if err != nil {
+		t.Fatalf("execList: %v", err)
+	}
+
+	if !strings.Contains(output, "run-accept-list") {
+		t.Errorf("expected run-accept-list in output, got:\n%s", output)
+	}
+	if !strings.Contains(output, "ready_for_review") {
+		t.Errorf("expected ready_for_review in output, got:\n%s", output)
+	}
+}

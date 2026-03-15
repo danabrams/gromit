@@ -99,3 +99,8 @@ func TestE2E_Scenario15_ConfigurableThreshold(t *testing.T) {
 	e2e.SetBinaryPath(e2e.BuildBinary(t))
 	e2e.RunNamedContract(t, 15, contractsDir, fixtureBase)
 }
+
+func TestE2E_Scenario16_AcceptanceFailTriggersFixCycle(t *testing.T) {
+	e2e.SetBinaryPath(e2e.BuildBinary(t))
+	e2e.RunNamedContract(t, 16, contractsDir, fixtureBase)
+}
