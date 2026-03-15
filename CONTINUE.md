@@ -4,8 +4,9 @@
 - **Current phase:** Spec 0002b — Scenario 8 complete. Next: Scenario 9.
 - **Scenario 8 COMPLETE** — Enable Additional Facet Via Config (logic_gaps) → `ready_for_review` ✓
   - Scenario tests: 3 tests (exec show, exec show --full, exec list) — all passing (TDD first)
-  - E2E contract: contracts/scenario-18-logic-gaps-facet.yaml — written (not yet run via harness)
-  - Run ID: run-e149687ff9cdad0b — status: `ready_for_review`, cycle: 2, cost: $0.17
+  - E2E contract: contracts/scenario-18-logic-gaps-facet.yaml — PASS (1m59s, real Claude)
+  - Manual run ID: run-e149687ff9cdad0b — status: `ready_for_review`, cycle: 2, cost: $0.17
+  - Contract run ID: run-ebd6520b1a8f2abe — status: `ready_for_review`, cycle: 1, cost: $0.10
 - **Next:** **Spec 0002b Scenario 9** (New-vs-Preexisting Finding Distinction)
 - **Date:** 2026-03-15
 
@@ -1047,6 +1048,10 @@ cd /tmp/gromit-fixtures/fixture-calc && rm -rf .gromit-next/runs/*
 - [x] Terminal state: `ready_for_review` ✓
 - [x] All acceptance criteria pass ✓
 - [x] `exec show --full` contains "logic_gaps" ✓
+
+**Contract test (run-ebd6520b1a8f2abe):** PASS — 1m59s, $0.10, cycle 1, 0 replans
+- `logic_gaps: []`, `spec_alignment: []`, `code_quality`: 1 suggestion (table-driven tests — non-blocking) ✓
+- `TestE2E_Scenario18_LogicGapsFacet` passes ✓
 
 ---
 
