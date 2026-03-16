@@ -683,11 +683,11 @@ func TestExecShowCmd_ShowsExtendedFields(t *testing.T) {
 		field string
 		want  string
 	}{
-		{"Cycles", "Cycles:  3"},
-		{"Duration", "duration: 1m30s"},
-		{"Tasks done", "3 total, 2 done"},
-		{"Validation", "Valid:   true"},
-		{"Cost", "$0.1234"},
+		{"Cycles", "Cycles: 3"},
+		{"Duration", "Duration: 1m"},
+		{"Tasks", "Tasks (3):"},
+		{"Validation", "Validation: \u2713 passed"},
+		{"Cost", "$0.12"},
 		{"Worktree", "/tmp/worktree-xyz"},
 		{"Evidence", store.RunEvidenceDir("run-extended")},
 	}
@@ -784,10 +784,10 @@ func TestScenario_ExecShow_AcceptanceFailFixCycle(t *testing.T) {
 		field string
 		want  string
 	}{
-		{"Cycles", "Cycles:  2"},
+		{"Cycles", "Cycles: 2"},
 		{"Status", "ready_for_review"},
-		{"Cost", "$0.2500"},
-		{"Validation", "Valid:   true"},
+		{"Cost", "$0.25"},
+		{"Validation", "Validation: \u2713 passed"},
 	}
 	for _, c := range checks {
 		if !strings.Contains(output, c.want) {
@@ -919,8 +919,8 @@ func TestScenario_ExecShow_BudgetExhaustion_CyclesExhausted(t *testing.T) {
 	}{
 		{"Status", "needs_human"},
 		{"Reason", "cycles_exhausted"},
-		{"Cycles", "Cycles:  2"},
-		{"Cost", "$0.1800"},
+		{"Cycles", "Cycles: 2"},
+		{"Cost", "$0.18"},
 	}
 	for _, c := range checks {
 		if !strings.Contains(output, c.want) {
@@ -1053,8 +1053,8 @@ func TestScenario_ExecShow_AcceptanceUnclear_CyclesExhausted(t *testing.T) {
 	}{
 		{"Status", "needs_human"},
 		{"Reason", "cycles_exhausted"},
-		{"Cycles", "Cycles:  2"},
-		{"Cost", "$0.2400"},
+		{"Cycles", "Cycles: 2"},
+		{"Cost", "$0.24"},
 	}
 	for _, c := range checks {
 		if !strings.Contains(output, c.want) {
@@ -1193,9 +1193,9 @@ func TestScenario_ExecShow_LogicGapsFacet(t *testing.T) {
 		want  string
 	}{
 		{"Status", "ready_for_review"},
-		{"Cycles", "Cycles:  1"},
-		{"Cost", "$0.2200"},
-		{"Validation", "Valid:   true"},
+		{"Cycles", "Cycles: 1"},
+		{"Cost", "$0.22"},
+		{"Validation", "Validation: \u2713 passed"},
 	}
 	for _, c := range checks {
 		if !strings.Contains(output, c.want) {
@@ -1335,9 +1335,9 @@ func TestScenario_ExecShow_NewVsPreexistingFindings(t *testing.T) {
 		want  string
 	}{
 		{"Status", "ready_for_review"},
-		{"Cycles", "Cycles:  2"},
-		{"Cost", "$0.3500"},
-		{"Validation", "Valid:   true"},
+		{"Cycles", "Cycles: 2"},
+		{"Cost", "$0.35"},
+		{"Validation", "Validation: \u2713 passed"},
 	}
 	for _, c := range checks {
 		if !strings.Contains(output, c.want) {
@@ -1513,8 +1513,8 @@ func TestScenario_ExecShow_MissingAcceptanceCriteria(t *testing.T) {
 		{"Status", "needs_human"},
 		{"Reason", "stage_needs_human"},
 		{"Blocker", "acceptance criteria"},
-		{"Cycles", "Cycles:  1"},
-		{"Cost", "$0.0500"},
+		{"Cycles", "Cycles: 1"},
+		{"Cost", "$0.05"},
 	}
 	for _, c := range checks {
 		if !strings.Contains(output, c.want) {
