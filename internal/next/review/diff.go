@@ -16,17 +16,24 @@ type GitDiffProvider struct {
 	WorkDir string
 }
 
-// Diff runs git diff against the given base branch.
-// Uses "git diff <base>" (not "git diff <base>...HEAD") so that uncommitted
-// working-tree changes are included. This is essential when the worktree is a
-// cp -a copy of the repo (noopGitOps) where no commits are made — the three-dot
-// form would always produce empty output because HEAD equals the base branch.
+// Diff stages all changes (including untracked files) and then runs
+// git diff --cached against the given base branch. Staging first ensures that
+// newly created files appear in the diff output. The worktree is ephemeral,
+// so staging has no side effects on the main repo.
 func (g *GitDiffProvider) Diff(baseBranch string) (string, error) {
-	cmd := exec.Command("git", "diff", baseBranch)
+	// Stage all changes (including new files) so they appear in the diff.
+	// The worktree is ephemeral, so staging has no side effects on the main repo.
+	addCmd := exec.Command("git", "add", "-A")
+	addCmd.Dir = g.WorkDir
+	if out, err := addCmd.CombinedOutput(); err != nil {
+		return "", fmt.Errorf("git add -A: %s: %w", string(out), err)
+	}
+
+	cmd := exec.Command("git", "diff", "--cached", baseBranch)
 	cmd.Dir = g.WorkDir
 	out, err := cmd.Output()
 	if err != nil {
-		return "", fmt.Errorf("git diff %s: %w", baseBranch, err)
+		return "", fmt.Errorf("git diff --cached %s: %w", baseBranch, err)
 	}
 	return strings.TrimSpace(string(out)), nil
 }
