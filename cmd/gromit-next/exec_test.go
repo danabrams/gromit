@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -1746,5 +1747,131 @@ func TestScenario_ExecShow_Full_InvocationsHaveProvider(t *testing.T) {
 	// Cost must be non-zero per invocation (real LLM calls).
 	if !strings.Contains(output, `"cost_usd": 0.08`) {
 		t.Errorf("expected non-zero cost_usd for plan invocation, got:\n%s", output)
+	}
+}
+
+// TestScenario_ExecShow_AdapterWiring_InvocationCountShown verifies that exec show
+// (brief mode) displays the total LLM invocation count from metrics.json.
+// Spec 0002c Scenario 2 (Adapter Wiring Verification): the brief summary must make
+// invocation count visible without requiring --full.
+//
+// RED: exec show currently has no "Invocations:" line — it shows Cost but not count.
+// GREEN after: execShow reads metrics.json and emits "Invocations: N".
+func TestScenario_ExecShow_AdapterWiring_InvocationCountShown(t *testing.T) {
+	tmp := t.TempDir()
+	store := runstore.NewStore(tmp)
+
+	rs := &runstore.RunState{
+		RunID:                 "run-0002c-wiring",
+		SpecID:                "add-subtract",
+		ProjectID:             "fixture-calc",
+		Status:                runstore.StatusReadyForReview,
+		Cycle:                 1,
+		TotalReplans:          0,
+		StartedAt:             time.Date(2026, 3, 15, 12, 0, 0, 0, time.UTC),
+		EndedAt:               time.Date(2026, 3, 15, 12, 5, 0, 0, time.UTC),
+		AccumulatedCost:       0.30,
+		FinalValidationPassed: true,
+		FinalReviewPassed:     true,
+		FinalAcceptancePassed: true,
+		Tasks: []runstore.Task{
+			{TaskID: "t-001", Status: "done", Attempts: 1, FilesChanged: []string{"calc/calc.go"}},
+		},
+	}
+	if err := store.Save(rs); err != nil {
+		t.Fatal(err)
+	}
+
+	// Build metrics.json with 4 LLM-backed invocations (plan, execute, review, accept).
+	// validate and compile are NOT included — they use shell/deterministic adapters.
+	invocations := []runstore.InvocationRecord{
+		{Phase: "plan", Tier: "high", Model: "opus", Provider: "claude", CostUSD: 0.08, Success: true},
+		{Phase: "execute", Tier: "medium", Model: "sonnet", Provider: "claude", CostUSD: 0.13, Success: true},
+		{Phase: "review", Tier: "medium", Model: "sonnet", Provider: "claude", CostUSD: 0.05, Success: true},
+		{Phase: "accept", Tier: "medium", Model: "sonnet", Provider: "claude", CostUSD: 0.04, Success: true},
+	}
+	type metricsDoc struct {
+		TotalCostUSD float64                     `json:"total_cost_usd"`
+		Invocations  []runstore.InvocationRecord `json:"invocations"`
+	}
+	metricsData, err := json.MarshalIndent(metricsDoc{TotalCostUSD: 0.30, Invocations: invocations}, "", "  ")
+	if err != nil {
+		t.Fatalf("marshal metrics: %v", err)
+	}
+	seedEvidence(t, store, "run-0002c-wiring", map[string]string{
+		"metrics.json": string(metricsData),
+	})
+
+	// Brief mode (not --full).
+	output, err := execShow("run-0002c-wiring", store, false)
+	if err != nil {
+		t.Fatalf("execShow: %v", err)
+	}
+
+	// Spec 0002c Scenario 2: invocation count must appear in brief output.
+	// RED: exec show currently has no "Invocations:" line.
+	if !strings.Contains(output, "Invocations: 4") {
+		t.Errorf("expected 'Invocations: 4' in exec show brief output, got:\n%s", output)
+	}
+}
+
+// TestScenario_ExecShow_Full_AdapterWiring_OnlyLLMPhasesInMetrics verifies that
+// exec show --full shows invocations for LLM-backed phases (plan, execute, review, accept)
+// and that validate/compile do NOT appear — those stages use shell/deterministic adapters.
+// Spec 0002c Scenario 2 (Adapter Wiring Verification).
+func TestScenario_ExecShow_Full_AdapterWiring_OnlyLLMPhasesInMetrics(t *testing.T) {
+	tmp := t.TempDir()
+	store := runstore.NewStore(tmp)
+
+	rs := &runstore.RunState{
+		RunID:                 "run-0002c-phases",
+		SpecID:                "add-subtract",
+		ProjectID:             "fixture-calc",
+		Status:                runstore.StatusReadyForReview,
+		Cycle:                 1,
+		AccumulatedCost:       0.30,
+		FinalValidationPassed: true,
+		FinalReviewPassed:     true,
+		FinalAcceptancePassed: true,
+		Tasks:                 []runstore.Task{{TaskID: "t-001", Status: "done"}},
+	}
+	if err := store.Save(rs); err != nil {
+		t.Fatal(err)
+	}
+
+	invocations := []runstore.InvocationRecord{
+		{Phase: "plan", Tier: "high", Model: "opus", Provider: "claude", CostUSD: 0.08, Success: true},
+		{Phase: "execute", Tier: "medium", Model: "sonnet", Provider: "claude", CostUSD: 0.13, Success: true},
+		{Phase: "review", Tier: "medium", Model: "sonnet", Provider: "claude", CostUSD: 0.05, Success: true},
+		{Phase: "accept", Tier: "medium", Model: "sonnet", Provider: "claude", CostUSD: 0.04, Success: true},
+	}
+	type metricsDoc struct {
+		TotalCostUSD float64                     `json:"total_cost_usd"`
+		Invocations  []runstore.InvocationRecord `json:"invocations"`
+	}
+	metricsData, err := json.MarshalIndent(metricsDoc{TotalCostUSD: 0.30, Invocations: invocations}, "", "  ")
+	if err != nil {
+		t.Fatalf("marshal metrics: %v", err)
+	}
+	seedEvidence(t, store, "run-0002c-phases", map[string]string{
+		"metrics.json": string(metricsData),
+	})
+
+	output, err := execShow("run-0002c-phases", store, true /* full */)
+	if err != nil {
+		t.Fatalf("execShow --full: %v", err)
+	}
+
+	// All 4 LLM-backed phases must appear in invocation records.
+	for _, phase := range []string{"plan", "execute", "review", "accept"} {
+		if !strings.Contains(output, fmt.Sprintf(`"phase": "%s"`, phase)) {
+			t.Errorf("expected phase %q in invocation records, got:\n%s", phase, output)
+		}
+	}
+	// validate and compile must NOT appear — they use shell/deterministic adapters, not LLM.
+	for _, phase := range []string{"validate", "compile"} {
+		if strings.Contains(output, fmt.Sprintf(`"phase": "%s"`, phase)) {
+			t.Errorf("phase %q should not appear in LLM invocation records (uses non-LLM adapter), got:\n%s", phase, output)
+		}
 	}
 }

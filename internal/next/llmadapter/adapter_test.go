@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/danabrams/gromit/internal/next/runstore"
 	"github.com/danabrams/gromit/internal/provider"
 )
 
@@ -101,6 +102,35 @@ func TestInvoke_CallsOnCost(t *testing.T) {
 	}
 	if captured != 0.12 {
 		t.Errorf("expected cost 0.12, got %f", captured)
+	}
+}
+
+// TestInvoke_OnInvocation_PhaseIsStageNotTier verifies that the Phase field in
+// InvocationRecord is populated from Config.Phase (the stage name like "plan"),
+// not from Config.Tier (the model tier like "high").
+//
+// RED: Config has no Phase field — invocations currently record Tier in Phase.
+// GREEN after: Config.Phase wired through; fireCallbacks uses cfg.Phase.
+func TestInvoke_OnInvocation_PhaseIsStageNotTier(t *testing.T) {
+	var recorded runstore.InvocationRecord
+	mp := &mockProvider{
+		name:      "claude",
+		runResult: &provider.Result{CostUSD: 0.05, InputTokens: 100, OutputTokens: 50},
+	}
+	adapter := New(mp, Config{
+		Phase:        "plan", // stage name — RED: field does not exist yet
+		Tier:         "high",
+		OnInvocation: func(r runstore.InvocationRecord) { recorded = r },
+	})
+	_, err := adapter.Invoke(context.Background(), "prompt")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if recorded.Phase != "plan" {
+		t.Errorf("expected Phase='plan' (stage name), got %q — tier must not be used as phase", recorded.Phase)
+	}
+	if recorded.Tier != "high" {
+		t.Errorf("expected Tier='high', got %q", recorded.Tier)
 	}
 }
 

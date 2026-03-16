@@ -59,6 +59,7 @@ func (f *FallbackAdapter) resolvePrimary() ProviderAwareInvoker {
 		return nil
 	}
 	cfg := f.cfg
+	cfg.Phase = f.phase
 	cfg.Tier = f.tier
 	return New(prov, cfg)
 }

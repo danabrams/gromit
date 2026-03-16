@@ -1,0 +1,60 @@
+name: "Scenario 23 — Adapter Wiring Verification"
+scenario: 23
+spec: specs/add-subtract.md
+fixture: fixture-calc
+store_dir: .gromit-next
+
+fixture_reset:
+  git_files:
+    - commit: "7f6de76"
+      files: [calc/calc.go, calc/calc_test.go]
+  remove_files:
+    # Only remove files not tracked in git HEAD — deleting committed files
+    # (abs.go, division.go, etc.) leaves them as dirty deletions in the working
+    # tree, which the review flags as "files deleted outside spec scope" and
+    # triggers a replan loop → cycles_exhausted.
+    - calc/divide_test.go
+    - calc/divide_edge_test.go
+    - calc/divide_exact_test.go
+  add_files: []
+
+assertions:
+  # Run state
+  - status: ready_for_review
+  - final_validation_passed: true
+  - cost_usd_gt: 0
+  - ended_at_set: true
+
+  # Adapter wiring: LLM-backed phases must produce invocations (Spec 0002c Scenario 2)
+  - invocations_count_gte: 4
+
+  # exec show (brief) now shows invocation count (new feature from Scenario 2 TDD)
+  - exec_show_contains: "Invocations:"
+
+  # exec show --full: LLM phases appear in invocation records
+  - exec_show_full_contains: '"phase": "plan"'
+  - exec_show_full_contains: '"phase": "execute"'
+  - exec_show_full_contains: '"phase": "review"'
+  - exec_show_full_contains: '"phase": "accept"'
+
+  # exec show --full: validate and compile do NOT appear (shell/deterministic adapters, not LLM)
+  - exec_show_full_not_contains: '"phase": "validate"'
+  - exec_show_full_not_contains: '"phase": "compile"'
+
+  # Provider identification (inherited from Scenario 22)
+  - exec_show_full_contains: '"provider": "claude"'
+  - exec_show_full_not_contains: '"provider": ""'
+
+  # Evidence files
+  - acceptance_all_pass: true
+  - validation_pass: true
+
+  # Task assertions
+  - all_tasks_attempted: true
+  - files_changed_nonempty: true
+  - any_task_files_changed_contains: calc/calc.go
+
+  # Filesystem assertions
+  - file_contains:
+      path: calc/calc.go
+      pattern: "func Subtract"

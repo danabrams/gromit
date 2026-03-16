@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -117,6 +118,9 @@ func execShow(runID string, store *runstore.Store, full bool) (string, error) {
 	fmt.Fprintf(&b, "Tasks:   %d total, %d done\n", len(rs.Tasks), doneTasks)
 	fmt.Fprintf(&b, "Valid:   %v\n", rs.FinalValidationPassed)
 	fmt.Fprintf(&b, "Cost:    $%.4f\n", rs.AccumulatedCost)
+	if n := readInvocationCount(store.RunEvidenceDir(runID)); n >= 0 {
+		fmt.Fprintf(&b, "Invocations: %d\n", n)
+	}
 	if rs.WorktreePath != "" {
 		fmt.Fprintf(&b, "Worktree: %s\n", rs.WorktreePath)
 	}
@@ -142,4 +146,20 @@ func execShow(runID string, store *runstore.Store, full bool) (string, error) {
 	}
 
 	return b.String(), nil
+}
+
+// readInvocationCount reads metrics.json from the evidence dir and returns the
+// number of invocation records, or -1 if the file is absent or unreadable.
+func readInvocationCount(evidenceDir string) int {
+	data, err := os.ReadFile(filepath.Join(evidenceDir, "metrics.json"))
+	if err != nil {
+		return -1
+	}
+	var m struct {
+		Invocations []json.RawMessage `json:"invocations"`
+	}
+	if err := json.Unmarshal(data, &m); err != nil {
+		return -1
+	}
+	return len(m.Invocations)
 }

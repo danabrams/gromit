@@ -11,6 +11,7 @@ import (
 
 // Config configures an LLMAdapter instance.
 type Config struct {
+	Phase        string // stage name: "plan", "execute", "review", "accept" — set by FallbackAdapter
 	Tier         string
 	Timeout      time.Duration
 	OnCost       func(cost float64)
@@ -71,7 +72,7 @@ func (a *LLMAdapter) Invoke(ctx context.Context, prompt string) (*provider.Resul
 
 	start := time.Now()
 	result, err := a.provider.Run(ctx, prompt, a.cfg.Tier)
-	a.fireCallbacks(result, err, a.cfg.Tier, time.Since(start))
+	a.fireCallbacks(result, err, a.cfg.Phase, time.Since(start))
 
 	return result, err
 }
@@ -94,7 +95,7 @@ func (a *LLMAdapter) InvokeInDir(ctx context.Context, prompt string, dir string)
 	} else {
 		result, err = a.provider.Run(ctx, prompt, a.cfg.Tier)
 	}
-	a.fireCallbacks(result, err, a.cfg.Tier, time.Since(start))
+	a.fireCallbacks(result, err, a.cfg.Phase, time.Since(start))
 
 	return result, err
 }
@@ -109,7 +110,7 @@ func (a *LLMAdapter) InvokeStream(ctx context.Context, prompt string, w io.Write
 
 	start := time.Now()
 	result, err := a.provider.StreamRun(ctx, prompt, a.cfg.Tier, w, handler, onToolCall)
-	a.fireCallbacks(result, err, a.cfg.Tier, time.Since(start))
+	a.fireCallbacks(result, err, a.cfg.Phase, time.Since(start))
 
 	return result, err
 }
