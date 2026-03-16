@@ -193,8 +193,8 @@ func (p *RealStageProvider) BuildStages(policy execpolicy.Policy, rs *runstore.R
 	}
 
 	executeStage := stages.NewExecuteStage(taskRunner, stages.ExecuteStageConfig{
-		MaxRetries:             policy.Budgets.MaxTaskRetries,
-		MaxRedecompositions:    policy.Budgets.MaxRedecompositionPasses,
+		MaxRetries:          policy.Budgets.MaxTaskRetries,
+		MaxRedecompositions: policy.Budgets.MaxRedecompositionPasses,
 		Inspector: specloop.NewShellTaskInspector(func() string {
 			if rs.WorktreePath != "" {
 				return rs.WorktreePath
@@ -310,30 +310,6 @@ func (n *noopTaskRunner) RunTask(_ context.Context, task runstore.Task) (specloo
 
 func (n *noopTaskRunner) RepairTask(_ context.Context, task runstore.Task, _ []string) (specloop.TaskResult, error) {
 	return specloop.TaskResult{Status: "done"}, nil
-}
-
-// noopGitOps satisfies GitOps with a copy-based worktree (no real git worktree).
-// It copies the repo directory into a temp dir so the executor can work with
-// real files. This is a stand-in until real git worktree support is wired.
-type noopGitOps struct {
-	workDir string
-}
-
-func (n *noopGitOps) CreateWorktree(repoDir, _ string) (string, error) {
-	dir, err := os.MkdirTemp("", "gromit-noop-worktree-*")
-	if err != nil {
-		return "", err
-	}
-	// Copy repo contents so the executor has real files to work with.
-	cmd := exec.Command("cp", "-a", repoDir+"/.", dir)
-	if out, err := cmd.CombinedOutput(); err != nil {
-		return "", fmt.Errorf("copy repo to worktree: %s: %w", string(out), err)
-	}
-	return dir, nil
-}
-
-func (n *noopGitOps) RemoveWorktree(path string) error {
-	return os.RemoveAll(path)
 }
 
 // shellGitOps implements specloop.GitOps using git CLI commands.
