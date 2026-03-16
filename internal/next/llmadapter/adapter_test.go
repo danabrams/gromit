@@ -512,6 +512,67 @@ func TestInvokeInDir_PropagatesError(t *testing.T) {
 	}
 }
 
+// costAwareMockProvider returns different results for Run vs StreamRun,
+// allowing tests to verify which method Invoke() delegates to.
+// Run returns CostUSD=0 (simulating the real claude.Client.Run which has no --output-format stream-json).
+// StreamRun returns CostUSD=0.05 (simulating real cost from JSON stream parsing).
+type costAwareMockProvider struct {
+	name            string
+	runResult       *provider.Result
+	streamRunResult *provider.Result
+}
+
+func (m *costAwareMockProvider) Name() string                    { return m.name }
+func (m *costAwareMockProvider) ModelForTier(tier string) string { return "mock-" + tier }
+func (m *costAwareMockProvider) Run(ctx context.Context, prompt string, tier string) (*provider.Result, error) {
+	return m.runResult, nil
+}
+func (m *costAwareMockProvider) StreamRun(ctx context.Context, prompt string, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
+	return m.streamRunResult, nil
+}
+func (m *costAwareMockProvider) RunValidation(ctx context.Context, commands []string, tier string, workDir string) (*provider.Result, error) {
+	return m.runResult, nil
+}
+func (m *costAwareMockProvider) IsUsageLimitError(result *provider.Result, err error) bool {
+	return false
+}
+func (m *costAwareMockProvider) IsValidationPassed(result *provider.Result) bool {
+	return result != nil && result.Success
+}
+func (m *costAwareMockProvider) IsScopeTooLarge(result *provider.Result) (bool, string) {
+	return false, ""
+}
+
+// TestInvoke_UsesStreamRun_ForCostCapture verifies that Invoke() uses StreamRun
+// (not Run) so that cost data from the JSON event stream is captured in InvocationRecord.
+//
+// ROOT CAUSE: claude.Client.Run() uses -p (print mode) without --output-format stream-json,
+// so CostUSD is always 0. StreamRun parses the JSON event stream and captures real cost.
+// Plan/review/accept all call Invoke(), so their invocations had cost_usd=0.
+//
+// RED: Invoke() currently delegates to provider.Run → cost=0, test fails.
+// GREEN after: Invoke() delegates to provider.StreamRun(io.Discard) → cost captured.
+func TestInvoke_UsesStreamRun_ForCostCapture(t *testing.T) {
+	mp := &costAwareMockProvider{
+		name:            "claude",
+		runResult:       &provider.Result{Output: "from-run", CostUSD: 0},
+		streamRunResult: &provider.Result{Output: "from-stream", CostUSD: 0.05, InputTokens: 100, OutputTokens: 50},
+	}
+	var recorded runstore.InvocationRecord
+	adapter := New(mp, Config{
+		Phase:        "plan",
+		Tier:         "high",
+		OnInvocation: func(r runstore.InvocationRecord) { recorded = r },
+	})
+	_, err := adapter.Invoke(context.Background(), "prompt")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if recorded.CostUSD == 0 {
+		t.Errorf("Invoke must use StreamRun to capture cost; got cost_usd=0 (Run was used instead of StreamRun)")
+	}
+}
+
 // slowMockProvider blocks for a configurable delay.
 type slowMockProvider struct {
 	mockProvider

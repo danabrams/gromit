@@ -61,7 +61,9 @@ func (a *LLMAdapter) fireCallbacks(result *provider.Result, err error, phase str
 	}
 }
 
-// Invoke calls provider.Run with the configured tier.
+// Invoke calls provider.StreamRun with the configured tier, discarding streaming output.
+// StreamRun (--output-format stream-json) captures real cost/token data from the JSON
+// event stream; provider.Run (-p print mode) does not return cost data.
 // Returns the result even on error for 0002d FallbackAdapter compatibility.
 func (a *LLMAdapter) Invoke(ctx context.Context, prompt string) (*provider.Result, error) {
 	if a.cfg.Timeout > 0 {
@@ -71,7 +73,7 @@ func (a *LLMAdapter) Invoke(ctx context.Context, prompt string) (*provider.Resul
 	}
 
 	start := time.Now()
-	result, err := a.provider.Run(ctx, prompt, a.cfg.Tier)
+	result, err := a.provider.StreamRun(ctx, prompt, a.cfg.Tier, io.Discard, nil, nil)
 	a.fireCallbacks(result, err, a.cfg.Phase, time.Since(start))
 
 	return result, err
