@@ -71,25 +71,18 @@ func filterStagesForDryRun(stages []specloop.Stage, dryRun bool) []specloop.Stag
 
 // filterStagesForResume removes stages that are unnecessary when resuming
 // a prior run. Init is skipped if a worktree already exists, compile is
-// always skipped (spec packet was written in the prior run), and plan is
-// skipped if tasks already exist.
+// always skipped (spec packet was written in the prior run). Plan is kept
+// because replan cycles need it.
 func filterStagesForResume(stages []specloop.Stage, rs *runstore.RunState) []specloop.Stage {
 	var filtered []specloop.Stage
 	for _, s := range stages {
 		switch s.Name() {
 		case "init":
-			// Skip if worktree already exists
 			if rs.WorktreePath != "" {
 				continue
 			}
 		case "compile":
-			// Skip — spec packet already written in prior run
 			continue
-		case "plan":
-			// Skip if tasks already exist from prior run
-			if len(rs.Tasks) > 0 {
-				continue
-			}
 		}
 		filtered = append(filtered, s)
 	}
@@ -113,6 +106,7 @@ type execSpecRun struct {
 	policyPath    string
 	dryRun        bool
 	resumeRunID   string
+	resumeCycles  int
 	storeDir      string
 	stageProvider StageProvider
 	policy        *execpolicy.Policy // pre-loaded policy; skips re-load in run()
@@ -164,11 +158,11 @@ func (e *execSpecRun) run(ctx context.Context) (string, error) {
 		rs = runstore.NewRunState(specIDFromPath(e.specPath), e.projectID)
 	}
 
-	// 3. Create a single shared Budget instance. This same instance is passed
-	// to both the SpecLoop (for cycle counting and hard budget checks between
-	// stages) and to ExecuteStage (for per-task cost accumulation). Using one
-	// instance ensures cost tracked during task execution is visible to the
-	// SpecLoop's budget gate.
+	// 3. Create a single shared Budget instance.
+	// On resume, override MaxSpecCycles with the requested cycle count.
+	if e.resumeRunID != "" && e.resumeCycles > 0 {
+		policy.Budgets.MaxSpecCycles = e.resumeCycles
+	}
 	budget := specloop.NewBudget(policy.Budgets)
 
 	// 3b. Create the event log so pipeline events are persisted to disk.
@@ -227,6 +221,7 @@ func newExecSpecCmdWithProvider(provider StageProvider) *cobra.Command {
 			}
 			dryRun, _ := cmd.Flags().GetBool("dry-run")
 			resumeRunID, _ := cmd.Flags().GetString("resume")
+			resumeCycles, _ := cmd.Flags().GetInt("cycles")
 			storeDir, _ := cmd.Flags().GetString("store-dir")
 			if storeDir == "" {
 				storeDir = ".gromit-next"
@@ -271,6 +266,7 @@ func newExecSpecCmdWithProvider(provider StageProvider) *cobra.Command {
 				policyPath:    policyPath,
 				dryRun:        dryRun,
 				resumeRunID:   resumeRunID,
+				resumeCycles:  resumeCycles,
 				storeDir:      storeDir,
 				stageProvider: p,
 				policy:        &policy,
@@ -289,6 +285,7 @@ func newExecSpecCmdWithProvider(provider StageProvider) *cobra.Command {
 	cmd.Flags().String("policy", "", "Path to execution policy JSON file")
 	cmd.Flags().Bool("dry-run", false, "Compile plan but do not execute")
 	cmd.Flags().String("resume", "", "Resume a previous run by run ID")
+	cmd.Flags().Int("cycles", 3, "Number of cycles to run (useful with --resume)")
 	cmd.Flags().String("store-dir", "", "Override store directory (for testing)")
 	_ = cmd.MarkFlagRequired("spec")
 	_ = cmd.MarkFlagRequired("project")

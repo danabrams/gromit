@@ -59,21 +59,9 @@ func TestFilterStagesForResume(t *testing.T) {
 		}
 	})
 
-	t.Run("skips plan when tasks exist", func(t *testing.T) {
+	t.Run("keeps plan for replan cycles", func(t *testing.T) {
 		rs := &runstore.RunState{
 			Tasks: []runstore.Task{{TaskID: "t1", Status: "done"}},
-		}
-		filtered := filterStagesForResume(allStages, rs)
-		for _, s := range filtered {
-			if s.Name() == "plan" {
-				t.Fatal("plan should be skipped when tasks exist")
-			}
-		}
-	})
-
-	t.Run("keeps plan when no tasks", func(t *testing.T) {
-		rs := &runstore.RunState{
-			Tasks: []runstore.Task{},
 		}
 		filtered := filterStagesForResume(allStages, rs)
 		found := false
@@ -83,7 +71,7 @@ func TestFilterStagesForResume(t *testing.T) {
 			}
 		}
 		if !found {
-			t.Fatal("plan should be kept when no tasks exist")
+			t.Fatal("plan should be kept on resume for replan cycles")
 		}
 	})
 
@@ -165,7 +153,7 @@ func TestExecSpec_ResumeLoadsExistingRunState(t *testing.T) {
 	}
 }
 
-func TestExecSpec_ResumeSkipsInitCompilePlan(t *testing.T) {
+func TestExecSpec_ResumeSkipsInitCompile(t *testing.T) {
 	tmp := t.TempDir()
 
 	// Create a prior run with tasks and worktree
@@ -205,8 +193,8 @@ func TestExecSpec_ResumeSkipsInitCompilePlan(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	// init, compile, plan should all be skipped
-	for _, skipped := range []string{"init", "compile", "plan"} {
+	// init and compile should be skipped; plan, execute, validate should run
+	for _, skipped := range []string{"init", "compile"} {
 		for _, ran := range order {
 			if ran == skipped {
 				t.Errorf("stage %s should have been skipped on resume", skipped)
@@ -214,8 +202,7 @@ func TestExecSpec_ResumeSkipsInitCompilePlan(t *testing.T) {
 		}
 	}
 
-	// execute and validate should have run
-	want := []string{"execute", "validate"}
+	want := []string{"plan", "execute", "validate"}
 	if len(order) != len(want) {
 		t.Fatalf("expected %d stages, got %d: %v", len(want), len(order), order)
 	}
