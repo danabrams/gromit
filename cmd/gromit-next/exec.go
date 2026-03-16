@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/danabrams/gromit/internal/claude"
 	"github.com/danabrams/gromit/internal/next/execpolicy"
@@ -68,6 +69,33 @@ func filterStagesForDryRun(stages []specloop.Stage, dryRun bool) []specloop.Stag
 	return filtered
 }
 
+// filterStagesForResume removes stages that are unnecessary when resuming
+// a prior run. Init is skipped if a worktree already exists, compile is
+// always skipped (spec packet was written in the prior run), and plan is
+// skipped if tasks already exist.
+func filterStagesForResume(stages []specloop.Stage, rs *runstore.RunState) []specloop.Stage {
+	var filtered []specloop.Stage
+	for _, s := range stages {
+		switch s.Name() {
+		case "init":
+			// Skip if worktree already exists
+			if rs.WorktreePath != "" {
+				continue
+			}
+		case "compile":
+			// Skip — spec packet already written in prior run
+			continue
+		case "plan":
+			// Skip if tasks already exist from prior run
+			if len(rs.Tasks) > 0 {
+				continue
+			}
+		}
+		filtered = append(filtered, s)
+	}
+	return filtered
+}
+
 // StageProvider builds the ordered set of stages for an exec spec run.
 // Implementations wire real or test dependencies into each stage.
 // The Budget parameter is the single shared instance that tracks cost and time
@@ -84,6 +112,7 @@ type execSpecRun struct {
 	projectID     string
 	policyPath    string
 	dryRun        bool
+	resumeRunID   string
 	storeDir      string
 	stageProvider StageProvider
 	policy        *execpolicy.Policy // pre-loaded policy; skips re-load in run()
@@ -110,9 +139,30 @@ func (e *execSpecRun) run(ctx context.Context) (string, error) {
 		return "", fmt.Errorf("invalid policy: %w", err)
 	}
 
-	// 2. Create run state
+	// 2. Create or load run state
 	store := runstore.NewStore(e.storeDir)
-	rs := runstore.NewRunState(specIDFromPath(e.specPath), e.projectID)
+	var rs *runstore.RunState
+	if e.resumeRunID != "" {
+		var err error
+		rs, err = store.Get(e.resumeRunID)
+		if err != nil {
+			return "", fmt.Errorf("load run for resume: %w", err)
+		}
+		// Reset terminal state so the pipeline can re-run
+		rs.Status = runstore.StatusRunning
+		rs.TerminalReason = ""
+		rs.EndedAt = time.Time{}
+		// Reset per-cycle gate flags
+		rs.FinalValidationPassed = false
+		rs.FinalReviewPassed = false
+		rs.FinalAcceptancePassed = false
+		rs.ReviewFindings = nil
+		rs.AcceptanceResults = nil
+		// Increment cycle for the resumed run
+		rs.Cycle++
+	} else {
+		rs = runstore.NewRunState(specIDFromPath(e.specPath), e.projectID)
+	}
 
 	// 3. Create a single shared Budget instance. This same instance is passed
 	// to both the SpecLoop (for cycle counting and hard budget checks between
@@ -131,8 +181,11 @@ func (e *execSpecRun) run(ctx context.Context) (string, error) {
 		return "", err
 	}
 
-	// 5. Filter for dry-run
+	// 5. Filter for dry-run or resume
 	stages = filterStagesForDryRun(stages, e.dryRun)
+	if e.resumeRunID != "" {
+		stages = filterStagesForResume(stages, rs)
+	}
 	loop := specloop.NewSpecLoop(stages, specloop.SpecLoopConfig{
 		Budget:      budget,
 		ReplanStage: "plan",
@@ -173,6 +226,7 @@ func newExecSpecCmdWithProvider(provider StageProvider) *cobra.Command {
 				policyPath = filepath.Join(root.ProjectCell(projectID), "policy", "execution.json")
 			}
 			dryRun, _ := cmd.Flags().GetBool("dry-run")
+			resumeRunID, _ := cmd.Flags().GetString("resume")
 			storeDir, _ := cmd.Flags().GetString("store-dir")
 			if storeDir == "" {
 				storeDir = ".gromit-next"
@@ -216,6 +270,7 @@ func newExecSpecCmdWithProvider(provider StageProvider) *cobra.Command {
 				projectID:     projectID,
 				policyPath:    policyPath,
 				dryRun:        dryRun,
+				resumeRunID:   resumeRunID,
 				storeDir:      storeDir,
 				stageProvider: p,
 				policy:        &policy,
@@ -233,6 +288,7 @@ func newExecSpecCmdWithProvider(provider StageProvider) *cobra.Command {
 	cmd.Flags().String("project", "", "Project name")
 	cmd.Flags().String("policy", "", "Path to execution policy JSON file")
 	cmd.Flags().Bool("dry-run", false, "Compile plan but do not execute")
+	cmd.Flags().String("resume", "", "Resume a previous run by run ID")
 	cmd.Flags().String("store-dir", "", "Override store directory (for testing)")
 	_ = cmd.MarkFlagRequired("spec")
 	_ = cmd.MarkFlagRequired("project")
