@@ -74,6 +74,19 @@ func buildRealTaskRunner(t *testing.T) TaskRunner {
 	return NewProviderTaskRunner(llmadapter.ContractInvoker(t), "")
 }
 
+func TestContract_ProviderTaskRunner_Claude(t *testing.T) {
+	if os.Getenv("GROMIT_LLM_CONTRACT") != "1" {
+		t.Skip("set GROMIT_LLM_CONTRACT=1 to run contract tests")
+	}
+	runner := buildRealTaskRunnerClaude(t)
+	RunTaskRunnerContract(t, runner)
+}
+
+func buildRealTaskRunnerClaude(t *testing.T) TaskRunner {
+	t.Helper()
+	return NewProviderTaskRunner(llmadapter.ContractClaudeInvoker(t), "")
+}
+
 func TestContract_ProviderTaskRunner_Codex(t *testing.T) {
 	if os.Getenv("GROMIT_LLM_CONTRACT") != "1" {
 		t.Skip("set GROMIT_LLM_CONTRACT=1 to run contract tests")

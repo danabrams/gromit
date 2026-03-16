@@ -1,9 +1,49 @@
 # Manual Test Plan — Spec 0002a/0002c/0002d End-to-End
 
 ## Status
-- **Current phase:** Spec 0002c — Scenario 2 COMPLETE
-- **Spec 0002b:** ALL 11 SCENARIOS COMPLETE (including Scenario 7 E2E — see below)
-- **Spec 0002c Scenario 2 COMPLETE** — Adapter Wiring Verification ✓
+- **Current phase:** Spec 0002c/0002d — parallel verification complete; cost bug found and fixed; 4 scenarios deferred
+- **Spec 0002b:** ALL 11 SCENARIOS COMPLETE
+- **Date:** 2026-03-16
+
+### 0002c/0002d Scenario Summary
+
+| # | Name | Status | Notes |
+|---|------|--------|-------|
+| 3 | Claude Contracts | PASS ✓ | All 4 `TestContract.*Claude` tests pass; bug fixed: `ParseSeverity` now accepts LLM aliases (`high`→error, `medium`→warning, `low`→suggestion) |
+| 4 | Cost Callback | PASS ✓ | plan=$0.044, execute=$0.151, review=$0.041, accept=$0.131 (run-8fa7505010d7a4ac) |
+| 5 | Timeout Enforcement | DEFERRED | `TestInvoke_TimeoutEnforcement` not yet written |
+| 6 | FallbackAdapter Unit Tests | PASS ✓ | 15/15 tests |
+| 7 | Router Phase Preferences | DEFERRED | Requires codex for execute phase |
+| 8 | Codex Contracts | DEFERRED | `TestContract.*Codex` not yet written |
+| 9 | Routing Config Validation | DEFERRED | `Validate()` exists + unit-tested but not wired into `exec.go` |
+| 10 | Single-Provider Mode | PASS ✓ | All 16 invocations `provider="claude"`, no panics |
+| 10b | Cost Budget Exceeded | PASS ✓ | 8/8 unit tests in `specloop/budget_test.go` |
+| 11 | ExtractJSON Robustness | PASS ✓ | 16/16 tests |
+| 12 | Review+Accept with LLM | PASS ✓ | Substantive review.md, 6 criteria pass, cost_usd > 0 for all phases |
+
+### Bug Found and Fixed: cost_usd=0 for plan/review/accept (commit fd5d1985d)
+
+- **Symptom:** Scenarios 4 and 12 — plan/review/accept invocations had `cost_usd=0`; only execute non-zero
+- **Root cause:** `LLMAdapter.Invoke()` called `provider.Run()` which uses `-p` (print mode, no `--output-format stream-json`). Claude CLI only emits cost/token metadata in stream-json format.
+- **Fix:** `Invoke()` now calls `provider.StreamRun(ctx, prompt, tier, io.Discard, nil, nil)` — same approach as `InvokeInDir()` using `StreamRunInDir()`. `result.Output` is still plain LLM text (the JSON stream parser extracts it from result events).
+- **RED test:** `TestInvoke_UsesStreamRun_ForCostCapture` — mock returns cost=0 from Run, cost=0.05 from StreamRun; asserts OnInvocation receives CostUSD > 0
+- **Verified:** run-8fa7505010d7a4ac (`ready_for_review`) — all 4 LLM phases show non-zero cost
+
+### Bug Found and Fixed: WorkDir = os.Getwd() instead of project repo (commit b476b6f65)
+
+- **Symptom:** Running `exec spec` from any directory other than the project repo caused validation/format checks to run against that directory (e.g. gromit source tree), not the project being worked on
+- **Root cause:** `exec.go` used `workDir, _ := os.Getwd()` unconditionally
+- **Fix:** `resolveWorkDir(projectID, root)` — looks up `cell.RepoPath` via `projectcell.FSStore` when project ID is given; falls back to `os.Getwd()` only when cell not found. `workspace.Root` now resolved unconditionally so it's in scope for both policy path and workDir.
+- **RED tests:** `TestResolveWorkDir_UsesProjectRepoPath`, `TestResolveWorkDir_FallsBackToGetwd_WhenNoProject`, `TestResolveWorkDir_FallsBackToGetwd_WhenProjectNotFound` in `exec_test.go`
+- **800 tests pass** after fix
+
+### Deferred Scenario Next Steps
+- **Scenario 5:** Write `TestInvoke_TimeoutEnforcement` — timeout cancels context after configured duration
+- **Scenario 7:** Run with `plan=claude, execute=codex, review=claude, accept=claude` routing policy; check per-phase provider in metrics.json
+- **Scenario 8:** Write `TestContract_ProviderPlanAgent_Codex`, `TestContract_ProviderReviewAgent_Codex`, etc. in respective packages
+- **Scenario 9:** Wire `execpolicy.Validate()` into `exec.go` before run starts; 3 unit tests (`TestPolicy_Validate_Routing*`) already cover the logic
+
+**Spec 0002c Scenario 2 COMPLETE** — Adapter Wiring Verification ✓
   - Approach: TDD first — scenario tests written RED, bugs found and fixed, E2E contract confirmed
   - New feature: `exec show` brief now shows `Invocations: N` (reads metrics.json) ✓
   - Bug fixed: `InvocationRecord.Phase` contained tier name ("high"/"medium") instead of stage name ("plan"/"execute"/etc.)
@@ -35,8 +75,6 @@
 - **Scenario 7 COMPLETE** — Acceptance Unclear Exhausts Budget ✓
   - Scenario tests: 6 tests (exec show, exec show --full, exec list) — all passing
   - E2E contract: contracts/scenario-07-acceptance-unclear-exhausts-budget.yaml — PASS
-- **Next:** **Spec 0002c Scenario 3** (Contract Tests Against Claude)
-- **Date:** 2026-03-15
 
 ## Context
 Running the manual test plan from `docs/plans/2026-03-13-spec-0002c-0002d-manual-test-plan.md` to validate the spec 0002a execution loop end-to-end with real Claude CLI invocations.

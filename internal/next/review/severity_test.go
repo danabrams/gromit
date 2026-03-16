@@ -84,6 +84,32 @@ func TestParseSeverity_CriticalAlias(t *testing.T) {
 	}
 }
 
+func TestParseSeverity_LLMAliases(t *testing.T) {
+	// LLMs sometimes return severity values outside the canonical set.
+	// These common aliases must be accepted and mapped to the nearest canonical severity.
+	cases := []struct {
+		input string
+		want  Severity
+	}{
+		{"high", SeverityError},
+		{"HIGH", SeverityError},
+		{"medium", SeverityWarning},
+		{"MEDIUM", SeverityWarning},
+		{"low", SeveritySuggestion},
+		{"LOW", SeveritySuggestion},
+	}
+	for _, tc := range cases {
+		sev, err := ParseSeverity(tc.input)
+		if err != nil {
+			t.Errorf("ParseSeverity(%q) error: %v", tc.input, err)
+			continue
+		}
+		if sev != tc.want {
+			t.Errorf("ParseSeverity(%q) = %v, want %v", tc.input, sev, tc.want)
+		}
+	}
+}
+
 func TestParseSeverity_Invalid(t *testing.T) {
 	_, err := ParseSeverity("bogus")
 	if err == nil {

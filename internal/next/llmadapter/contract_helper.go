@@ -11,25 +11,28 @@ import (
 	"github.com/danabrams/gromit/internal/provider"
 )
 
-// ContractInvoker creates an Invoker backed by a real Claude provider for contract tests.
+// ContractClaudeInvoker creates an Invoker backed by a real Claude provider for contract tests.
 // It uses the cheapest tier (haiku) with a 2-minute timeout.
-func ContractInvoker(t *testing.T) Invoker {
+func ContractClaudeInvoker(t *testing.T) Invoker {
 	t.Helper()
 	client, err := claude.NewClient("claude", []string{"--dangerously-skip-permissions"}, 120)
 	if err != nil {
 		t.Fatalf("failed to create claude client: %v", err)
 	}
-	// NOTE: These model version strings need periodic updates as new model
-	// versions are released by Anthropic.
 	prov := provider.NewClaudeProvider(client, map[string]string{
-		"low":    "claude-haiku-4-5-20251001",
-		"medium": "claude-sonnet-4-5-20250514",
-		"high":   "claude-sonnet-4-5-20250514",
+		"low":    "haiku",
+		"medium": "sonnet",
+		"high":   "sonnet",
 	})
 	return New(prov, Config{
 		Tier:    "low",
 		Timeout: 2 * time.Minute,
 	})
+}
+
+// ContractInvoker is an alias for ContractClaudeInvoker for backwards compatibility.
+func ContractInvoker(t *testing.T) Invoker {
+	return ContractClaudeInvoker(t)
 }
 
 // ContractCodexInvoker creates an Invoker backed by a real Codex provider for contract tests.

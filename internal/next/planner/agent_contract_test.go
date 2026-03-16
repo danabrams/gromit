@@ -68,6 +68,19 @@ func buildRealPlanAgent(t *testing.T) Agent {
 	return NewProviderPlanAgent(llmadapter.ContractInvoker(t), "sonnet")
 }
 
+func TestContract_ProviderPlanAgent_Claude(t *testing.T) {
+	if os.Getenv("GROMIT_LLM_CONTRACT") != "1" {
+		t.Skip("set GROMIT_LLM_CONTRACT=1 to run contract tests")
+	}
+	agent := buildRealPlanAgentClaude(t)
+	RunPlanAgentContract(t, agent)
+}
+
+func buildRealPlanAgentClaude(t *testing.T) Agent {
+	t.Helper()
+	return NewProviderPlanAgent(llmadapter.ContractClaudeInvoker(t), "sonnet")
+}
+
 func TestContract_ProviderPlanAgent_Codex(t *testing.T) {
 	if os.Getenv("GROMIT_LLM_CONTRACT") != "1" {
 		t.Skip("set GROMIT_LLM_CONTRACT=1 to run contract tests")

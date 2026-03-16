@@ -40,11 +40,11 @@ func (s Severity) String() string {
 func ParseSeverity(s string) (Severity, error) {
 	s = strings.ToLower(s)
 	switch s {
-	case "error", "critical": // "critical" is the spec-defined alias for "error"
+	case "error", "critical", "high": // "critical"/"high" are common aliases for error
 		return SeverityError, nil
-	case "warning":
+	case "warning", "medium": // "medium" is a common LLM alias for warning
 		return SeverityWarning, nil
-	case "suggestion":
+	case "suggestion", "low": // "low" is a common LLM alias for suggestion
 		return SeveritySuggestion, nil
 	case "info":
 		return SeverityInfo, nil

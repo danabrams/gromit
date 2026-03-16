@@ -79,6 +79,19 @@ func buildRealReviewAgent(t *testing.T) ReviewAgent {
 	return NewProviderReviewAgent(llmadapter.ContractInvoker(t))
 }
 
+func TestContract_ProviderReviewAgent_Claude(t *testing.T) {
+	if os.Getenv("GROMIT_LLM_CONTRACT") != "1" {
+		t.Skip("set GROMIT_LLM_CONTRACT=1 to run contract tests")
+	}
+	agent := buildRealReviewAgentClaude(t)
+	RunReviewAgentContract(t, agent)
+}
+
+func buildRealReviewAgentClaude(t *testing.T) ReviewAgent {
+	t.Helper()
+	return NewProviderReviewAgent(llmadapter.ContractClaudeInvoker(t))
+}
+
 func TestContract_ProviderReviewAgent_Codex(t *testing.T) {
 	if os.Getenv("GROMIT_LLM_CONTRACT") != "1" {
 		t.Skip("set GROMIT_LLM_CONTRACT=1 to run contract tests")
