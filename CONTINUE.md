@@ -1,8 +1,23 @@
 # Manual Test Plan — Spec 0002a/0002c/0002d End-to-End
 
 ## Status
-- **Current phase:** Spec 0002c — Scenario 1 COMPLETE
+- **Current phase:** Spec 0002c — Scenario 2 COMPLETE
 - **Spec 0002b:** ALL 11 SCENARIOS COMPLETE (including Scenario 7 E2E — see below)
+- **Spec 0002c Scenario 2 COMPLETE** — Adapter Wiring Verification ✓
+  - Approach: TDD first — scenario tests written RED, bugs found and fixed, E2E contract confirmed
+  - New feature: `exec show` brief now shows `Invocations: N` (reads metrics.json) ✓
+  - Bug fixed: `InvocationRecord.Phase` contained tier name ("high"/"medium") instead of stage name ("plan"/"execute"/etc.)
+    - Root cause: `fireCallbacks` was called with `a.cfg.Tier` as phase argument
+    - Fix: added `Phase string` to `llmadapter.Config`; wired through `FallbackAdapter.resolvePrimary()`
+    - RED test: `TestInvoke_OnInvocation_PhaseIsStageNotTier` in `adapter_test.go`
+  - Bug fixed: fixture reset deleted committed broad refactor files (abs.go etc.), leaving dirty working tree
+    - Review flagged deletions as spec violations → replan loop → cycles_exhausted
+    - Fix: only remove files not tracked in git HEAD in contract fixture_reset
+  - Scenario tests: `TestScenario_ExecShow_AdapterWiring_InvocationCountShown`, `TestScenario_ExecShow_Full_AdapterWiring_OnlyLLMPhasesInMetrics` — passing
+  - E2E contract: `contracts/scenario-23-adapter-wiring-verification.yaml` — PASS (~2m18s, real Claude)
+  - Contract run ID: run-2b4c175e999c26b9 — status: `ready_for_review`, cost: ~$0.18
+  - Manual verification run ID: run-940ce8c7e5a45dca — status: `ready_for_review`, 15 invocations
+  - Phases in metrics.json: plan (2), execute (3), review (4), accept (6) — no validate/compile ✓
 - **Spec 0002c Scenario 1 COMPLETE** — Provider Identification in Invocation Records ✓
   - Approach: TDD first — scenario test written RED, implementation made it GREEN, E2E contract confirmed
   - Feature: `Provider string` field added to `InvocationRecord` (runstore + evidence), populated via `LLMAdapter.ProviderName()`
@@ -20,7 +35,7 @@
 - **Scenario 7 COMPLETE** — Acceptance Unclear Exhausts Budget ✓
   - Scenario tests: 6 tests (exec show, exec show --full, exec list) — all passing
   - E2E contract: contracts/scenario-07-acceptance-unclear-exhausts-budget.yaml — PASS
-- **Next:** **Spec 0002c Scenario 2** (Adapter Wiring Verification)
+- **Next:** **Spec 0002c Scenario 3** (Contract Tests Against Claude)
 - **Date:** 2026-03-15
 
 ## Context
