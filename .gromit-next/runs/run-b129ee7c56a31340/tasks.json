@@ -1,0 +1,103 @@
+[
+  {
+    "task_id": "t-001",
+    "objective": "Add Subtract function to calc/calc.go",
+    "status": "failed",
+    "attempts": 2,
+    "expected_touched_area": [
+      "calc/calc.go"
+    ],
+    "proof_checks": [
+      "grep -q 'func Subtract' calc/calc.go",
+      "go vet ./...",
+      "gofmt -l . | diff - /dev/null"
+    ],
+    "files_changed": [],
+    "tokens_used": 599,
+    "duration_ms": 15636,
+    "model_tier": "",
+    "cycle": 1,
+    "kind": "original",
+    "spec_constraints": "## Out-of-Scope\n- No changes to the Add function\n- No new packages\n\n## Architectural Constraints\n- All code stays in the `calc` package"
+  },
+  {
+    "task_id": "t-002",
+    "objective": "Add tests for Subtract in calc/calc_test.go",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [
+      "calc/calc_test.go"
+    ],
+    "proof_checks": [
+      "grep -q 'TestSubtract' calc/calc_test.go",
+      "grep -q 'Subtract(5, 3)' calc/calc_test.go",
+      "grep -q 'Subtract(0, 0)' calc/calc_test.go",
+      "grep -q 'Subtract(3, 5)' calc/calc_test.go",
+      "go test ./calc/..."
+    ],
+    "files_changed": [],
+    "tokens_used": 352,
+    "duration_ms": 10646,
+    "model_tier": "",
+    "cycle": 1,
+    "kind": "original",
+    "spec_constraints": "## Out-of-Scope\n- No changes to the Add function\n- No new packages\n\n## Architectural Constraints\n- All code stays in the `calc` package"
+  },
+  {
+    "task_id": "t-003",
+    "objective": "Add Subtract(a, b int) int function to calc/calc.go and add tests covering all three acceptance criteria (Subtract(5,3)==2, Subtract(0,0)==0, Subtract(3,5)==-2) to calc/calc_test.go. Addresses review:spec_alignment:error:calc/calc.go:0 (missing implementation), review:spec_alignment:error:calc/calc_test.go:0 (missing tests), and review:spec_alignment:error:calc/calc.go:0 (unverifiable acceptance criteria).",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [
+      "calc/calc.go",
+      "calc/calc_test.go"
+    ],
+    "proof_checks": [
+      "grep -q 'func Subtract(a, b int) int' calc/calc.go",
+      "grep -q 'Subtract' calc/calc_test.go",
+      "grep -q 'TestSubtract' calc/calc_test.go",
+      "go test ./calc/...",
+      "go vet ./...",
+      "test -z \"$(gofmt -l calc/calc.go calc/calc_test.go)\""
+    ],
+    "files_changed": [],
+    "tokens_used": 423,
+    "duration_ms": 9333,
+    "model_tier": "",
+    "cycle": 2,
+    "kind": "fix",
+    "parent_cycle": 1,
+    "failures_addressed": [
+      "review:spec_alignment:error:calc/calc.go:0 — The spec requires adding `Subtract(a, b int) int` to `calc/calc.go`, but no changes to this file appear anywhere in the diff.",
+      "review:spec_alignment:error:calc/calc_test.go:0 — The spec requires tests for Subtract in `calc/calc_test.go` covering all three acceptance criteria.",
+      "review:spec_alignment:error:calc/calc.go:0 — Acceptance criteria 1–3 cannot be verified because the implementation is absent from the diff."
+    ],
+    "spec_constraints": "## Out-of-Scope\n- No changes to the Add function\n- No new packages\n\n## Architectural Constraints\n- All code stays in the `calc` package"
+  },
+  {
+    "task_id": "t-004",
+    "objective": "Restore the Add function to calc/calc.go. The spec states the calculator package has Add; calc.go currently only contains Subtract. Restoring Add ensures the package matches its described state and satisfies 'all existing tests continue to pass'.",
+    "status": "pending",
+    "attempts": 0,
+    "expected_touched_area": [
+      "calc/calc.go"
+    ],
+    "proof_checks": [
+      "grep -q 'func Add' calc/calc.go",
+      "go test ./calc/...",
+      "go vet ./calc/...",
+      "gofmt -l calc/calc.go | diff /dev/null -"
+    ],
+    "files_changed": [],
+    "tokens_used": 0,
+    "duration_ms": 0,
+    "model_tier": "",
+    "cycle": 3,
+    "kind": "fix",
+    "parent_cycle": 2,
+    "failures_addressed": [
+      "always-run check \"unit-tests\" failed"
+    ],
+    "spec_constraints": "## Out-of-Scope\n- No changes to the Add function\n- No new packages\n\n## Architectural Constraints\n- All code stays in the `calc` package"
+  }
+]

@@ -1,0 +1,3 @@
+{"type":"blocked_worktree_cleaned","timestamp":"2026-03-16T16:03:12.934417-04:00","prior_run_id":"run-5cc1eb81f20ab346","worktree_path":"/var/folders/qd/qyx62km142b7lpv0868gpwgw0000gn/T/gromit-wt-1139455181"}
+{"type":"run_started","timestamp":"2026-03-16T16:03:13.180691-04:00","spec_id":"0002e-scenario-contract-verification","project_id":"gromit"}
+{"type":"terminal_state","timestamp":"2026-03-16T16:08:13.203068-04:00","status":"blocked"}

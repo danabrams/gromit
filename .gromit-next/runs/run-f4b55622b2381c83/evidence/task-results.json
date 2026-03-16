@@ -1,0 +1,127 @@
+[
+  {
+    "task_id": "t-001",
+    "objective": "Add Subtract function to calc/calc.go",
+    "status": "failed",
+    "attempts": 2,
+    "expected_touched_area": [
+      "calc/calc.go"
+    ],
+    "proof_checks": [
+      "grep -q 'func Subtract(a, b int) int' calc/calc.go",
+      "go vet ./...",
+      "gofmt -l . | diff - /dev/null"
+    ],
+    "files_changed": [],
+    "tokens_used": 1073,
+    "duration_ms": 27115,
+    "model_tier": "",
+    "cycle": 1,
+    "kind": "original",
+    "spec_constraints": "## Out-of-Scope\n- No changes to the Add function\n- No new packages\n\n## Architectural Constraints\n- All code stays in the `calc` package"
+  },
+  {
+    "task_id": "t-002",
+    "objective": "Add tests for Subtract in calc/calc_test.go covering positive result, zero, and negative result cases",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [
+      "calc/calc_test.go"
+    ],
+    "proof_checks": [
+      "grep -q 'TestSubtract' calc/calc_test.go",
+      "grep -q 'Subtract(5, 3)' calc/calc_test.go",
+      "grep -q 'Subtract(0, 0)' calc/calc_test.go",
+      "grep -q 'Subtract(3, 5)' calc/calc_test.go",
+      "go test ./calc/..."
+    ],
+    "files_changed": [
+      "calc/calc_test.go"
+    ],
+    "tokens_used": 487,
+    "duration_ms": 13754,
+    "model_tier": "",
+    "cycle": 1,
+    "kind": "original",
+    "spec_constraints": "## Out-of-Scope\n- No changes to the Add function\n- No new packages\n\n## Architectural Constraints\n- All code stays in the `calc` package"
+  },
+  {
+    "task_id": "t-003",
+    "objective": "Ensure calc/calc.go contains the Subtract(a, b int) int function satisfying all three acceptance criteria. Addresses review:spec_alignment:error:calc/calc.go:1.",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [
+      "calc/calc.go"
+    ],
+    "proof_checks": [
+      "grep -q 'func Subtract(a, b int) int' calc/calc.go",
+      "go vet ./calc/...",
+      "go test ./calc/..."
+    ],
+    "files_changed": [],
+    "tokens_used": 311,
+    "duration_ms": 9290,
+    "model_tier": "",
+    "cycle": 2,
+    "kind": "fix",
+    "parent_cycle": 1,
+    "failures_addressed": [
+      "review:spec_alignment:error:calc/calc.go:1"
+    ],
+    "spec_constraints": "## Out-of-Scope\n- No changes to the Add function\n- No new packages\n\n## Architectural Constraints\n- All code stays in the `calc` package"
+  },
+  {
+    "task_id": "t-004",
+    "objective": "Ensure calc/calc_test.go contains TestSubtract covering Subtract(5,3)=2, Subtract(0,0)=0, Subtract(3,5)=-2. Addresses review:spec_alignment:error:calc/calc_test.go:1.",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [
+      "calc/calc_test.go"
+    ],
+    "proof_checks": [
+      "grep -q 'TestSubtract' calc/calc_test.go",
+      "grep -q 'Subtract(5, 3)' calc/calc_test.go",
+      "grep -q 'Subtract(0, 0)' calc/calc_test.go",
+      "grep -q 'Subtract(3, 5)' calc/calc_test.go",
+      "go test ./calc/..."
+    ],
+    "files_changed": [],
+    "tokens_used": 381,
+    "duration_ms": 11222,
+    "model_tier": "",
+    "cycle": 2,
+    "kind": "fix",
+    "parent_cycle": 1,
+    "failures_addressed": [
+      "review:spec_alignment:error:calc/calc_test.go:1"
+    ],
+    "spec_constraints": "## Out-of-Scope\n- No changes to the Add function\n- No new packages\n\n## Architectural Constraints\n- All code stays in the `calc` package"
+  },
+  {
+    "task_id": "t-005",
+    "objective": "Add required Subtract test cases to calc/calc_test.go covering all three acceptance criteria (Subtract(5,3)=2, Subtract(0,0)=0, Subtract(3,5)=-2). Addresses: review:code_quality:error:calc/calc_test.go:1",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [
+      "calc/calc_test.go"
+    ],
+    "proof_checks": [
+      "grep -q 'TestSubtract' calc/calc_test.go",
+      "grep -q 'Subtract(5, 3)' calc/calc_test.go",
+      "grep -q 'Subtract(0, 0)' calc/calc_test.go",
+      "grep -q 'Subtract(3, 5)' calc/calc_test.go",
+      "go test ./calc/..."
+    ],
+    "files_changed": [],
+    "tokens_used": 336,
+    "duration_ms": 11011,
+    "model_tier": "",
+    "cycle": 3,
+    "kind": "fix",
+    "parent_cycle": 2,
+    "failures_addressed": [
+      "review:code_quality:error:calc/calc_test.go:1"
+    ],
+    "spec_constraints": "## Out-of-Scope\n- No changes to the Add function\n- No new packages\n\n## Architectural Constraints\n- All code stays in the `calc` package"
+  }
+]

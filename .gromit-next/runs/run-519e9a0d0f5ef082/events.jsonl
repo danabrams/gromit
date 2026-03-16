@@ -1,0 +1,29 @@
+{"type":"run_started","timestamp":"2026-03-15T20:44:19.871998-04:00","spec_id":"add-subtract","project_id":"fixture-calc"}
+{"type":"task_started","timestamp":"2026-03-15T20:44:23.945187-04:00","task_id":"t-001","cycle":1}
+{"type":"task_validation_result","timestamp":"2026-03-15T20:44:46.680721-04:00","task_id":"t-001","passed":false}
+{"type":"task_validation_result","timestamp":"2026-03-15T20:45:05.750349-04:00","task_id":"t-001","passed":false}
+{"type":"task_failed","timestamp":"2026-03-15T20:45:05.750419-04:00","task_id":"t-001","reason":"task execution failed"}
+{"type":"task_started","timestamp":"2026-03-15T20:45:05.750471-04:00","task_id":"t-002","cycle":1}
+{"type":"task_validation_result","timestamp":"2026-03-15T20:45:17.426618-04:00","task_id":"t-002","passed":true}
+{"type":"task_completed","timestamp":"2026-03-15T20:45:17.426704-04:00","task_id":"t-002","tokens_used":382,"duration_ms":11425}
+{"type":"review_result","timestamp":"2026-03-15T20:48:01.234631-04:00","total_findings":12,"blocking_findings":9,"findings_by_severity":{"error":3,"info":1,"suggestion":2,"warning":6},"facets_reviewed":["code_quality","spec_alignment"]}
+{"type":"replan_triggered","timestamp":"2026-03-15T20:48:01.235133-04:00","reason":"review:spec_alignment:error:calc/calc.go:0 — The `Subtract(a, b int) int` function is absent from the diff. This is the primary in-scope deliverable and is required by all three acceptance criteria (AC1–AC3). The file does not appear anywhere in the diff. (suggested fix: Add to calc/calc.go:\n\nfunc Subtract(a, b int) int {\n\treturn a - b\n})","source":"review"}
+{"type":"task_started","timestamp":"2026-03-15T20:48:28.481902-04:00","task_id":"t-003","cycle":2}
+{"type":"task_validation_result","timestamp":"2026-03-15T20:48:36.827679-04:00","task_id":"t-003","passed":true}
+{"type":"task_completed","timestamp":"2026-03-15T20:48:36.827809-04:00","task_id":"t-003","tokens_used":328,"duration_ms":8089}
+{"type":"task_started","timestamp":"2026-03-15T20:48:36.827846-04:00","task_id":"t-004","cycle":2}
+{"type":"task_validation_result","timestamp":"2026-03-15T20:48:46.566576-04:00","task_id":"t-004","passed":false}
+{"type":"task_validation_result","timestamp":"2026-03-15T20:48:59.597983-04:00","task_id":"t-004","passed":true}
+{"type":"task_completed","timestamp":"2026-03-15T20:48:59.598063-04:00","task_id":"t-004","tokens_used":455,"duration_ms":12896}
+{"type":"review_result","timestamp":"2026-03-15T20:51:27.534563-04:00","total_findings":25,"blocking_findings":18,"findings_by_severity":{"error":6,"info":2,"suggestion":5,"warning":12},"facets_reviewed":["code_quality","spec_alignment"]}
+{"type":"replan_triggered","timestamp":"2026-03-15T20:51:27.535547-04:00","reason":"review:spec_alignment:error:calc/calc.go:0 — The `Subtract(a, b int) int` function is absent from the diff. This is the primary in-scope deliverable required by all three acceptance criteria (AC1–AC3). While `?? calc/` appears as untracked in git status, no changes to this file are present in the diff and spec compliance cannot be verified. (suggested fix: Add `func Subtract(a, b int) int { return a - b }` to calc/calc.go and include the file in a git commit.)","source":"review"}
+{"type":"task_started","timestamp":"2026-03-15T20:51:55.882857-04:00","task_id":"t-005","cycle":3}
+{"type":"task_validation_result","timestamp":"2026-03-15T20:52:07.757038-04:00","task_id":"t-005","passed":true}
+{"type":"task_completed","timestamp":"2026-03-15T20:52:07.757124-04:00","task_id":"t-005","tokens_used":301,"duration_ms":11613}
+{"type":"task_started","timestamp":"2026-03-15T20:52:07.757158-04:00","task_id":"t-006","cycle":3}
+{"type":"task_validation_result","timestamp":"2026-03-15T20:52:18.285344-04:00","task_id":"t-006","passed":true}
+{"type":"task_completed","timestamp":"2026-03-15T20:52:18.285442-04:00","task_id":"t-006","tokens_used":300,"duration_ms":10212}
+{"type":"review_result","timestamp":"2026-03-15T20:53:22.446247-04:00","total_findings":25,"blocking_findings":14,"findings_by_severity":{"error":6,"info":1,"suggestion":6,"warning":12},"facets_reviewed":["code_quality","spec_alignment"]}
+{"type":"replan_triggered","timestamp":"2026-03-15T20:53:22.447328-04:00","reason":"review:spec_alignment:error:calc/calc_test.go:0 — No tests for Subtract are present in the diff. The spec requires tests in calc/calc_test.go covering AC1 (Subtract(5,3)==2), AC2 (Subtract(0,0)==0), and AC3 (Subtract(3,5)==-2). (suggested fix: Add table-driven or individual test cases for Subtract covering the three acceptance criteria.)","source":"review"}
+{"type":"acceptance_result","timestamp":"2026-03-15T20:55:37.550108-04:00","total_criteria":6,"pass_count":2,"fail_count":2,"unclear_count":2}
+{"type":"terminal_state","timestamp":"2026-03-15T20:55:37.550231-04:00","status":"needs_human","reason":"cycles_exhausted"}

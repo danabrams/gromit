@@ -4,10 +4,13 @@ GOLANGCI_LINT_VERSION := $(shell cat .golangci-version)
 
 build:
 	go build -o gromit ./cmd/gromit
+	go build -o gromit-next ./cmd/gromit-next
 	go install ./cmd/gromit
+	go install ./cmd/gromit-next
 
 install:
 	go install ./cmd/gromit
+	go install ./cmd/gromit-next
 
 install-skill: build
 	./gromit install-skill

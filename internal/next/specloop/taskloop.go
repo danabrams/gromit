@@ -113,6 +113,9 @@ func RunTaskLoop(ctx context.Context, tasks []runstore.Task, runner TaskRunner, 
 			BaseEvent: runstore.BaseEvent{Type: "task_started", Timestamp: time.Now()},
 			TaskID:    entry.task.TaskID,
 			Cycle:     cfg.Cycle,
+			TaskIndex: i + 1,
+			TaskTotal: len(queue),
+			Objective: entry.task.Objective,
 		})
 
 		// Create per-task context with timeout if configured

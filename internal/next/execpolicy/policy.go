@@ -61,11 +61,14 @@ type Budgets struct {
 	MaxRunCostUSD            float64 `json:"max_run_cost_usd"`
 }
 
-// Models defines which model tier to use for each role.
+// Models defines which model tier to use for each role, plus the mapping
+// from tier names to concrete model names and optional reasoning effort.
 type Models struct {
-	Planner   string `json:"planner"`
-	Executor  string `json:"executor"`
-	Evaluator string `json:"evaluator"`
+	Planner         string            `json:"planner"`
+	Executor        string            `json:"executor"`
+	Evaluator       string            `json:"evaluator"`
+	TierModels      map[string]string `json:"tier_models,omitempty"`      // tier name -> model name (e.g., "high": "opus")
+	ReasoningEffort map[string]string `json:"reasoning_effort,omitempty"` // tier name -> effort level (e.g., "high": "high", "low": "low")
 }
 
 // DefaultPolicy returns a Policy with sensible production defaults.
@@ -84,7 +87,16 @@ func DefaultPolicy() Policy {
 			MaxRunDurationSeconds:    3600,
 			MaxRunCostUSD:            50.0,
 		},
-		Models: Models{Planner: "high", Executor: "medium", Evaluator: "high"},
+		Models: Models{
+			Planner:   "high",
+			Executor:  "medium",
+			Evaluator: "high",
+			TierModels: map[string]string{
+				"low":    "haiku",
+				"medium": "sonnet",
+				"high":   "opus",
+			},
+		},
 		Review: ReviewConfig{
 			Facets:           []string{"spec_alignment", "code_quality"},
 			Tiers:            map[string]string{"spec_alignment": "high", "code_quality": "medium"},
@@ -218,6 +230,12 @@ func (p *Policy) NormalizeNilFields() {
 	}
 	if p.Review.Tiers == nil {
 		p.Review.Tiers = map[string]string{}
+	}
+	if p.Models.TierModels == nil {
+		p.Models.TierModels = map[string]string{}
+	}
+	if p.Models.ReasoningEffort == nil {
+		p.Models.ReasoningEffort = map[string]string{}
 	}
 	p.Routing.NormalizeNilFields()
 }

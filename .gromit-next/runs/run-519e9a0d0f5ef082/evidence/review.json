@@ -1,0 +1,256 @@
+{
+  "code_quality": [
+    {
+      "facet": "code_quality",
+      "severity": "error",
+      "file": "calc/calc.go",
+      "line": 0,
+      "description": "The `Subtract(a, b int) int` function is absent from the diff. This is the primary in-scope deliverable required by all three acceptance criteria (AC1–AC3). The file appears as `?? calc/` (untracked) in git status, but no changes to calc/calc.go appear anywhere in the diff and spec compliance cannot be verified.",
+      "suggested_fix": "Add `func Subtract(a, b int) int { return a - b }` to calc/calc.go and commit the file so it appears in the diff.",
+      "cycle": 3,
+      "disposition": "new"
+    },
+    {
+      "facet": "code_quality",
+      "severity": "error",
+      "file": "calc/calc_test.go",
+      "line": 0,
+      "description": "No tests for Subtract are present in the diff. The spec explicitly requires tests in calc/calc_test.go covering AC1 (Subtract(5,3)==2), AC2 (Subtract(0,0)==0), and AC3 (Subtract(3,5)==-2).",
+      "suggested_fix": "Add table-driven or individual test cases for the three acceptance criteria to calc/calc_test.go and commit the file.",
+      "cycle": 3,
+      "disposition": "new"
+    },
+    {
+      "facet": "code_quality",
+      "severity": "error",
+      "file": "internal/next/specloop/stages/evidence.go",
+      "line": 60,
+      "description": "`effectiveStatus` checks `allDone \u0026\u0026 gates` before returning `ready_for_review`, but `FinalizeStage` (updated in this same diff) checks only the three gate booleans. A run with a failed task from an earlier fix cycle that passes all three gates will be labeled `ready_for_review` by FinalizeStage but `needs_human` in summary.md and review.md written by EvidenceStage.",
+      "suggested_fix": "Remove the `allDone` check from `effectiveStatus` to match FinalizeStage: `if rs.FinalValidationPassed \u0026\u0026 rs.FinalReviewPassed \u0026\u0026 rs.FinalAcceptancePassed { return runstore.StatusReadyForReview }`",
+      "cycle": 3,
+      "disposition": "new"
+    },
+    {
+      "facet": "code_quality",
+      "severity": "warning",
+      "file": "CONTINUE.md",
+      "line": 0,
+      "description": "The diff contains 1500+ lines of changes to CONTINUE.md, cmd/gromit-next/, internal/next/, contracts/, e2e/, and docs/ — none of which are in-scope for this spec. The Architectural Constraint states all code must stay in the `calc` package.",
+      "suggested_fix": "No action for this spec. These changes belong to a separate branch or commit that should not be bundled with the add-subtract spec implementation.",
+      "cycle": 3,
+      "disposition": "new"
+    },
+    {
+      "facet": "code_quality",
+      "severity": "warning",
+      "file": "internal/next/specloop/taskloop.go",
+      "line": 218,
+      "description": "The structural `*_test.go` coverage check (iterate `ExpectedTouchedArea`, match `_test.go` suffix, downgrade `ir.Pass`) is copy-pasted in two places: the initial inspect path and the repair retry path. Any future logic change must be applied in both places.",
+      "suggested_fix": "Extract to a helper: `func structuralTestFileCoverage(ir InspectResult, task runstore.Task, filesChanged []string) InspectResult` and call it from both paths.",
+      "cycle": 3,
+      "disposition": "new"
+    },
+    {
+      "facet": "code_quality",
+      "severity": "warning",
+      "file": "internal/next/runstore/types.go",
+      "line": 112,
+      "description": "`runstore.InvocationRecord` and `evidence.InvocationRecord` are duplicate struct definitions with identical fields. Every new field (e.g. `Provider` added in this diff) requires manual updates in both structs and a corresponding line in the field-by-field conversion loop in evidence.go.",
+      "suggested_fix": "Use `runstore.InvocationRecord` as the canonical type in the evidence bundle, importing it from runstore. The import-cycle concern that motivated duplication can be resolved by moving `evidence.InvocationRecord` into runstore (as was done for this struct) and deleting the duplicate.",
+      "cycle": 3,
+      "disposition": "new"
+    },
+    {
+      "facet": "code_quality",
+      "severity": "warning",
+      "file": "internal/next/specloop/stages/plan.go",
+      "line": 240,
+      "description": "`filterForbiddenFixTasks` detects the test-file constraint by scanning for natural-language substrings (\"test file\" + \"do not modify\" / \"must not be modified\" / \"not modify\"). Differently phrased constraints are silently missed; task objectives containing those words could produce false positives.",
+      "suggested_fix": "Encode the constraint detection as a typed flag on `RunState` (e.g. `ForbidTestFileModification bool`) set during compile from a structured spec field, and key the filter off that flag rather than substring matching.",
+      "cycle": 3,
+      "disposition": "new"
+    },
+    {
+      "facet": "code_quality",
+      "severity": "warning",
+      "file": "internal/next/specloop/taskloop.go",
+      "line": 347,
+      "description": "`maxTaskIDInQueue` (taskloop.go, operates on `[]taskEntry`, returns `int`) and `maxTaskID` (plan.go, operates on `[]runstore.Task`, returns `string`) are near-identical functions. Any change to the `t-NNN` ID format must be applied in both places.",
+      "suggested_fix": "Consolidate into a single package-level helper `parseTaskIDNum(id string) (int, bool)` in a shared file (e.g. taskid.go) and use it from both call sites.",
+      "cycle": 3,
+      "disposition": "new"
+    },
+    {
+      "facet": "code_quality",
+      "severity": "warning",
+      "file": "e2e/runner.go",
+      "line": 0,
+      "description": "Hardcoded absolute paths `/Users/dabrams/gromit` and `/tmp/gromit-fixtures` make the e2e suite non-portable; it cannot run in CI or on any other machine.",
+      "suggested_fix": "Read paths from environment variables (`GROMIT_REPO_ROOT`, `GROMIT_FIXTURE_BASE`) with documented defaults, and set them in the test helper or a Makefile target.",
+      "cycle": 3,
+      "disposition": "new"
+    },
+    {
+      "facet": "code_quality",
+      "severity": "suggestion",
+      "file": "internal/next/specloop/budget.go",
+      "line": 45,
+      "description": "`AddInvocation` is mutex-protected but `AddCost` is not, creating an asymmetric thread-safety contract. While current sequential stage execution makes this safe in practice, the inconsistency makes `Budget`'s concurrency guarantees unclear to future maintainers.",
+      "suggested_fix": "Either protect `AddCost` with the same mutex, or add a doc comment to `AddCost` explicitly stating it is not goroutine-safe and must only be called from a single goroutine.",
+      "cycle": 3,
+      "disposition": "new"
+    },
+    {
+      "facet": "code_quality",
+      "severity": "suggestion",
+      "file": "internal/next/specloop/taskloop.go",
+      "line": 122,
+      "description": "Two `//nolint:errcheck` directives on the baseline and drain calls to `cfg.DetectFilesChanged` appear without explanatory comments. Readers cannot determine whether ignoring the error is intentional or an oversight.",
+      "suggested_fix": "Add inline comments: `//nolint:errcheck // baseline call: error means no snapshot; delta call will also fail and return empty, which is safe`",
+      "cycle": 3,
+      "disposition": "new"
+    },
+    {
+      "facet": "code_quality",
+      "severity": "suggestion",
+      "file": "internal/next/specloop/taskloop.go",
+      "line": 335,
+      "description": "`renumberSubTasks` is a misleading name — the function stamps new IDs onto freshly decomposed sub-tasks starting at a given offset, not renumbers existing tasks in-place. Callers reading the name expect mutation of existing IDs.",
+      "suggested_fix": "Rename to `assignSubTaskIDs(subTasks []runstore.Task, startAt int) []runstore.Task` to make the allocation semantics clear.",
+      "cycle": 3,
+      "disposition": "new"
+    },
+    {
+      "facet": "code_quality",
+      "severity": "info",
+      "file": "internal/next/execpolicy/policy.go",
+      "line": 27,
+      "description": "The comment block before `NormalizeNilFields` mixes a CLAUDE.md cross-reference note (`// See CLAUDE.md nil-field normalization...`) with the exported godoc summary line. godoc renders everything before the first blank line as the public API summary, so the internal design note pollutes package documentation.",
+      "suggested_fix": "Move the `// See CLAUDE.md...` note after the godoc summary line, separated by a blank line, or remove it from the exported symbol's comment entirely.",
+      "cycle": 3,
+      "disposition": "new"
+    }
+  ],
+  "spec_alignment": [
+    {
+      "facet": "spec_alignment",
+      "severity": "error",
+      "file": "calc/calc.go",
+      "line": 0,
+      "description": "The `Subtract(a, b int) int` function is absent from the diff. This is the primary in-scope deliverable required by all three acceptance criteria (AC1–AC3). No changes to calc/calc.go appear anywhere in the diff.",
+      "suggested_fix": "Add `func Subtract(a, b int) int { return a - b }` to calc/calc.go.",
+      "cycle": 3,
+      "disposition": "pre-existing"
+    },
+    {
+      "facet": "spec_alignment",
+      "severity": "error",
+      "file": "calc/calc_test.go",
+      "line": 0,
+      "description": "No tests for Subtract are present in the diff. The spec requires tests in calc/calc_test.go covering AC1 (Subtract(5,3)==2), AC2 (Subtract(0,0)==0), and AC3 (Subtract(3,5)==-2).",
+      "suggested_fix": "Add table-driven or individual test cases for Subtract covering the three acceptance criteria.",
+      "cycle": 3,
+      "disposition": "new"
+    },
+    {
+      "facet": "spec_alignment",
+      "severity": "warning",
+      "file": "CONTINUE.md",
+      "line": 0,
+      "description": "1500+ lines of changes span CONTINUE.md, cmd/gromit-next/, internal/next/, contracts/, e2e/, and docs/ — none of which are in-scope. The Architectural Constraint states all code must stay in the `calc` package.",
+      "suggested_fix": "Restrict changes to calc/calc.go and calc/calc_test.go as required by the spec.",
+      "cycle": 3,
+      "disposition": "pre-existing"
+    },
+    {
+      "facet": "spec_alignment",
+      "severity": "error",
+      "file": "internal/next/specloop/stages/evidence.go",
+      "line": 60,
+      "description": "effectiveStatus still checks `allDone \u0026\u0026 gates` before returning ready_for_review, but FinalizeStage was updated in this same diff to check only the three gate booleans (removing the allDone check). A run with a failed task from an earlier cycle that passes all three gates will be labeled ready_for_review by FinalizeStage but needs_human in summary.md and review.md written by EvidenceStage.",
+      "suggested_fix": "Remove the allDone check from effectiveStatus so it mirrors FinalizeStage: `if rs.FinalValidationPassed \u0026\u0026 rs.FinalReviewPassed \u0026\u0026 rs.FinalAcceptancePassed { return runstore.StatusReadyForReview }`.",
+      "cycle": 3,
+      "disposition": "new"
+    },
+    {
+      "facet": "spec_alignment",
+      "severity": "warning",
+      "file": "internal/next/specloop/taskloop.go",
+      "line": 218,
+      "description": "The structural *_test.go coverage check (iterate ExpectedTouchedArea, match _test.go suffix, downgrade ir.Pass) is copy-pasted in both the initial inspect path and the repair retry path. Any future logic change must be applied in both places.",
+      "suggested_fix": "Extract the check into a helper function e.g. `applyTestFileCoverageCheck(ir InspectResult, task runstore.Task, filesChanged []string) InspectResult` and call it from both paths.",
+      "cycle": 3,
+      "disposition": "new"
+    },
+    {
+      "facet": "spec_alignment",
+      "severity": "warning",
+      "file": "internal/next/runstore/types.go",
+      "line": 112,
+      "description": "runstore.InvocationRecord and evidence.InvocationRecord are duplicate struct definitions with identical fields. Every new field (e.g. Provider added in this diff) requires manual updates in both structs and a corresponding line in the field-by-field conversion loop in evidence.go.",
+      "suggested_fix": "Embed runstore.InvocationRecord in evidence.InvocationRecord or make evidence.InvocationRecord a type alias so there is a single source of truth.",
+      "cycle": 3,
+      "disposition": "pre-existing"
+    },
+    {
+      "facet": "spec_alignment",
+      "severity": "warning",
+      "file": "internal/next/specloop/stages/plan.go",
+      "line": 240,
+      "description": "filterForbiddenFixTasks detects the test-file constraint by scanning for natural-language substrings (\"test file\", \"do not modify\", \"must not be modified\", \"not modify\"). Differently phrased constraints are silently missed; task objectives containing those words could produce false positives.",
+      "suggested_fix": "Consider a more structured approach: parse Out-of-Scope bullet points into a list of file glob patterns during compile stage and store them as structured data rather than raw text.",
+      "cycle": 3,
+      "disposition": "new"
+    },
+    {
+      "facet": "spec_alignment",
+      "severity": "warning",
+      "file": "internal/next/specloop/taskloop.go",
+      "line": 347,
+      "description": "maxTaskIDInQueue in taskloop.go (operates on []taskEntry, returns int) and maxTaskID in plan.go (operates on []runstore.Task, returns string) are near-identical functions. Any change to the \"t-NNN\" ID format must be applied in both places.",
+      "suggested_fix": "Consolidate into a single shared helper in the specloop package that both callers use.",
+      "cycle": 3,
+      "disposition": "new"
+    },
+    {
+      "facet": "spec_alignment",
+      "severity": "warning",
+      "file": "e2e/runner.go",
+      "line": 0,
+      "description": "Hardcoded absolute paths /Users/dabrams/gromit and /tmp/gromit-fixtures appear throughout the e2e harness (also in harness_test.go). The test suite will not run on any other machine or in CI.",
+      "suggested_fix": "Replace hardcoded paths with environment variables (e.g. GROMIT_REPO_ROOT, GROMIT_FIXTURE_BASE) with sensible defaults derived from the test binary's location.",
+      "cycle": 3,
+      "disposition": "pre-existing"
+    },
+    {
+      "facet": "spec_alignment",
+      "severity": "suggestion",
+      "file": "internal/next/specloop/taskloop.go",
+      "line": 122,
+      "description": "Two //nolint:errcheck directives appear on the baseline and drain calls to cfg.DetectFilesChanged without any comment explaining why the error is safe to ignore. Future readers cannot tell whether this is intentional or an oversight.",
+      "suggested_fix": "Add inline comments: `//nolint:errcheck // baseline snapshot; error means no delta tracking for this task, which is safe`.",
+      "cycle": 3,
+      "disposition": "pre-existing"
+    },
+    {
+      "facet": "spec_alignment",
+      "severity": "suggestion",
+      "file": "internal/next/specloop/taskloop.go",
+      "line": 355,
+      "description": "renumberSubTasks is a misleading name — the function stamps new sequential IDs onto freshly decomposed sub-tasks starting at a given offset, not renumbers existing tasks in-place.",
+      "suggested_fix": "Rename to assignSubTaskIDs or numberSubTasksFrom to better reflect that these are new ID assignments for injected tasks.",
+      "cycle": 3,
+      "disposition": "new"
+    },
+    {
+      "facet": "spec_alignment",
+      "severity": "suggestion",
+      "file": "internal/next/specloop/budget.go",
+      "line": 45,
+      "description": "AddInvocation is mutex-protected but AddCost is not, creating an asymmetric thread-safety contract on Budget. While current sequential stage execution makes this safe in practice, the inconsistency makes Budget's concurrency guarantees unclear to future maintainers.",
+      "suggested_fix": "Either protect AddCost with the same mutex, or document clearly that AddCost is not goroutine-safe and must only be called from the stage execution goroutine.",
+      "cycle": 3,
+      "disposition": "new"
+    }
+  ]
+}

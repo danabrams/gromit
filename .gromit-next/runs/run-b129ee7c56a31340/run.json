@@ -1,0 +1,169 @@
+{
+  "run_id": "run-b129ee7c56a31340",
+  "spec_id": "add-subtract",
+  "project_id": "fixture-calc",
+  "status": "needs_human",
+  "cycle": 3,
+  "started_at": "2026-03-15T20:44:27.630328-04:00",
+  "ended_at": "2026-03-15T20:51:30.853472-04:00",
+  "tasks": [
+    {
+      "task_id": "t-001",
+      "objective": "Add Subtract function to calc/calc.go",
+      "status": "failed",
+      "attempts": 2,
+      "expected_touched_area": [
+        "calc/calc.go"
+      ],
+      "proof_checks": [
+        "grep -q 'func Subtract' calc/calc.go",
+        "go vet ./...",
+        "gofmt -l . | diff - /dev/null"
+      ],
+      "files_changed": [],
+      "tokens_used": 599,
+      "duration_ms": 15636,
+      "model_tier": "",
+      "cycle": 1,
+      "kind": "original",
+      "spec_constraints": "## Out-of-Scope\n- No changes to the Add function\n- No new packages\n\n## Architectural Constraints\n- All code stays in the `calc` package"
+    },
+    {
+      "task_id": "t-002",
+      "objective": "Add tests for Subtract in calc/calc_test.go",
+      "status": "done",
+      "attempts": 1,
+      "expected_touched_area": [
+        "calc/calc_test.go"
+      ],
+      "proof_checks": [
+        "grep -q 'TestSubtract' calc/calc_test.go",
+        "grep -q 'Subtract(5, 3)' calc/calc_test.go",
+        "grep -q 'Subtract(0, 0)' calc/calc_test.go",
+        "grep -q 'Subtract(3, 5)' calc/calc_test.go",
+        "go test ./calc/..."
+      ],
+      "files_changed": [],
+      "tokens_used": 352,
+      "duration_ms": 10646,
+      "model_tier": "",
+      "cycle": 1,
+      "kind": "original",
+      "spec_constraints": "## Out-of-Scope\n- No changes to the Add function\n- No new packages\n\n## Architectural Constraints\n- All code stays in the `calc` package"
+    },
+    {
+      "task_id": "t-003",
+      "objective": "Add Subtract(a, b int) int function to calc/calc.go and add tests covering all three acceptance criteria (Subtract(5,3)==2, Subtract(0,0)==0, Subtract(3,5)==-2) to calc/calc_test.go. Addresses review:spec_alignment:error:calc/calc.go:0 (missing implementation), review:spec_alignment:error:calc/calc_test.go:0 (missing tests), and review:spec_alignment:error:calc/calc.go:0 (unverifiable acceptance criteria).",
+      "status": "done",
+      "attempts": 1,
+      "expected_touched_area": [
+        "calc/calc.go",
+        "calc/calc_test.go"
+      ],
+      "proof_checks": [
+        "grep -q 'func Subtract(a, b int) int' calc/calc.go",
+        "grep -q 'Subtract' calc/calc_test.go",
+        "grep -q 'TestSubtract' calc/calc_test.go",
+        "go test ./calc/...",
+        "go vet ./...",
+        "test -z \"$(gofmt -l calc/calc.go calc/calc_test.go)\""
+      ],
+      "files_changed": [],
+      "tokens_used": 423,
+      "duration_ms": 9333,
+      "model_tier": "",
+      "cycle": 2,
+      "kind": "fix",
+      "parent_cycle": 1,
+      "failures_addressed": [
+        "review:spec_alignment:error:calc/calc.go:0 — The spec requires adding `Subtract(a, b int) int` to `calc/calc.go`, but no changes to this file appear anywhere in the diff.",
+        "review:spec_alignment:error:calc/calc_test.go:0 — The spec requires tests for Subtract in `calc/calc_test.go` covering all three acceptance criteria.",
+        "review:spec_alignment:error:calc/calc.go:0 — Acceptance criteria 1–3 cannot be verified because the implementation is absent from the diff."
+      ],
+      "spec_constraints": "## Out-of-Scope\n- No changes to the Add function\n- No new packages\n\n## Architectural Constraints\n- All code stays in the `calc` package"
+    },
+    {
+      "task_id": "t-004",
+      "objective": "Restore the Add function to calc/calc.go. The spec states the calculator package has Add; calc.go currently only contains Subtract. Restoring Add ensures the package matches its described state and satisfies 'all existing tests continue to pass'.",
+      "status": "done",
+      "attempts": 1,
+      "expected_touched_area": [
+        "calc/calc.go"
+      ],
+      "proof_checks": [
+        "grep -q 'func Add' calc/calc.go",
+        "go test ./calc/...",
+        "go vet ./calc/...",
+        "gofmt -l calc/calc.go | diff /dev/null -"
+      ],
+      "files_changed": [
+        ".gromit-next/runs/run-f4b55622b2381c83/events.jsonl",
+        ".gromit-next/runs/run-f4b55622b2381c83/evidence/review.json"
+      ],
+      "tokens_used": 394,
+      "duration_ms": 10321,
+      "model_tier": "",
+      "cycle": 3,
+      "kind": "fix",
+      "parent_cycle": 2,
+      "failures_addressed": [
+        "always-run check \"unit-tests\" failed"
+      ],
+      "spec_constraints": "## Out-of-Scope\n- No changes to the Add function\n- No new packages\n\n## Architectural Constraints\n- All code stays in the `calc` package"
+    }
+  ],
+  "worktree_path": "/var/folders/qd/qyx62km142b7lpv0868gpwgw0000gn/T/gromit-noop-worktree-1337845979",
+  "blocker_summary": "review:spec_alignment:warning:internal/next/specloop/stages/plan.go:15 — `maxTaskID(tasks []runstore.Task)` in plan.go and `maxTaskIDInQueue(queue []taskEntry)` in taskloop.go implement identical t-NNN parsing logic. This duplication will diverge silently if the ID format changes. (suggested fix: Extract a shared `parseTaskIDNum(id string) (int, bool)` helper in the specloop package and call it from both sites.)",
+  "accumulated_cost": 0.28531785,
+  "terminal_reason": "cycles_exhausted",
+  "final_validation_passed": true,
+  "final_review_passed": false,
+  "final_acceptance_passed": false,
+  "replan_context": [
+    "review:code_quality:error:calc/calc.go:0 — Subtract function is absent from the diff. The spec requires adding `Subtract(a, b int) int` to calc/calc.go. The calc/ directory appears as `?? calc/` in git status — untracked and unchanged. (suggested fix: Add `func Subtract(a, b int) int { return a - b }` to calc/calc.go and commit the file.)",
+    "review:code_quality:error:calc/calc_test.go:0 — Tests for Subtract are absent. The spec requires tests covering Subtract(5,3)==2, Subtract(0,0)==0, and Subtract(3,5)==-2 in calc/calc_test.go. No changes to this file appear in the diff. (suggested fix: Add table-driven or individual test cases for all three acceptance criteria to calc/calc_test.go.)",
+    "review:code_quality:warning:internal/next/specloop/stages/evidence.go:44 — effectiveStatus diverges from FinalizeStage.Run. effectiveStatus requires allDone (every task.Status == \"done\") AND all three gates to return ready_for_review, but FinalizeStage was simplified in this diff to check only the three gates. A run with a failed task from an earlier cycle but all gates passing will be finalized as ready_for_review by FinalizeStage yet show needs_human in every evidence file written by EvidenceStage. (suggested fix: Remove the allDone loop from effectiveStatus and mirror FinalizeStage's logic: return ready_for_review when FinalValidationPassed \u0026\u0026 FinalReviewPassed \u0026\u0026 FinalAcceptancePassed, regardless of individual task statuses.)",
+    "review:code_quality:warning:internal/next/specloop/stages/plan.go:14 — maxTaskID in plan.go duplicates maxTaskIDInQueue in taskloop.go. Both parse t-NNN suffixes; any format change must be made in two places. (suggested fix: Extract a shared parseTaskIDNum helper into the specloop package and call it from both sites.)",
+    "review:code_quality:warning:internal/next/specloop/taskloop.go:122 — The baseline capture call to DetectFilesChanged silently discards its error with //nolint:errcheck. If the call fails the baseline is never captured; the second (delta) call will also treat itself as a baseline capture (since baseline remains nil), silently returning empty and missing all file changes for that task. (suggested fix: Return the error from the baseline call or, if baseline capture fails, mark the detector as disabled for this task iteration and fall back to runner-reported FilesChanged.)",
+    "review:code_quality:warning:internal/next/specloop/files_changed.go:55 — hashAllFiles always returns a nil error — every error path inside the function handles the failure locally and continues. The caller's `if err != nil` branch is dead code, and the error return type on the function signature is misleading. (suggested fix: Change the signature to `func hashAllFiles(absDir string) map[string]string` and remove the dead error check at the call site.)",
+    "review:spec_alignment:warning:internal/next/specloop/stages/evidence.go:44 — `effectiveStatus` checks both task statuses (allDone loop) AND the three gate booleans to determine ready_for_review, but `FinalizeStage.Run` was simplified in this diff to check only the three gates (removing the allDone requirement). A run with failed tasks from earlier cycles that passes all three gates will be finalized as ready_for_review by FinalizeStage, but effectiveStatus will return needs_human — causing review.md and summary.md to disagree with the actual final status. (suggested fix: Remove the allDone check from effectiveStatus to match FinalizeStage's gate-only logic: `if rs.FinalValidationPassed \u0026\u0026 rs.FinalReviewPassed \u0026\u0026 rs.FinalAcceptancePassed { return ready_for_review }`.)",
+    "review:spec_alignment:warning:internal/next/specloop/taskloop.go:122 — Error from the DetectFilesChanged baseline call is silently suppressed with `//nolint:errcheck`. If the baseline capture fails, the subsequent delta call will compare against a nil map, potentially reporting spurious file changes or missing real ones. (suggested fix: Log or propagate the baseline error rather than silencing it; at minimum fall back to the runner's own FilesChanged on baseline failure.)",
+    "review:spec_alignment:warning:internal/next/specloop/stages/plan.go:15 — `maxTaskID(tasks []runstore.Task)` in plan.go and `maxTaskIDInQueue(queue []taskEntry)` in taskloop.go implement identical t-NNN parsing logic. This duplication will diverge silently if the ID format changes. (suggested fix: Extract a shared `parseTaskIDNum(id string) (int, bool)` helper in the specloop package and call it from both sites.)"
+  ],
+  "last_validation_result": "pass=true",
+  "last_final_validation": {
+    "pass": true,
+    "always_run": {
+      "results": [
+        {
+          "name": "unit-tests",
+          "pass": true,
+          "output": "ok  \tgithub.com/danabrams/gromit\t(cached)\nok  \tgithub.com/danabrams/gromit/calc\t(cached)\nok  \tgithub.com/danabrams/gromit/cmd/gromit\t5.396s\nok  \tgithub.com/danabrams/gromit/cmd/gromit-next\t(cached)\n?   \tgithub.com/danabrams/gromit/cmd/test_e2e_live_packages\t[no test files]\n?   \tgithub.com/danabrams/gromit/e2e\t[no test files]\nok  \tgithub.com/danabrams/gromit/internal/agent\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/analytics\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/analyzer\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/backlog\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/bead\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/benchmark\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/claude\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/config\t(cached)\n?   \tgithub.com/danabrams/gromit/internal/conversation\t[no test files]\nok  \tgithub.com/danabrams/gromit/internal/coverage\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/events\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/events/cli\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/events/eventtest\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/events/status\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/events/stream\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/events/tmux\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/experiment\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/failurephase\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/frontmatter\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/integrationqueue\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/jsonutil\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/learnings\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/logger\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/next\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/next/acceptor\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/next/architecture\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/next/artifact\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/next/contextpkt\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/next/doctrine\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/next/enrich\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/next/evidence\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/next/execpolicy\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/next/executor\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/next/extract\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/next/fact\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/next/guide\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/next/infer\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/next/inspect\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/next/llmadapter\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/next/planner\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/next/projectcell\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/next/provenance\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/next/review\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/next/runstore\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/next/sourcemap\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/next/specloop\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/next/specloop/stages\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/next/testutil\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/next/validation\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/next/validator\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/next/workspace\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/pipeline\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/pipeline/epilogue\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/pipeline/execute\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/pipeline/prepare\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/pipeline/qualitygate/regression\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/pipeline/qualitygate/wiring\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/pipeline/review\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/pipeline/validate\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/procutil\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/prompt\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/provider\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/queue\t(cached)\n?   \tgithub.com/danabrams/gromit/internal/readiness\t[no test files]\nok  \tgithub.com/danabrams/gromit/internal/retro\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/review\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/runbook\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/runner\t(cached)\n?   \tgithub.com/danabrams/gromit/internal/runner/acceptance\t[no test files]\nok  \tgithub.com/danabrams/gromit/internal/runner/andon\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/runner/display\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/runner/escalation\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/runner/execution\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/runner/methodology\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/runner/pipeline/midreview\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/runner/policy\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/runner/readinessadapterllm\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/runner/reviewpkg\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/runner/runtypes\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/runner/specbranch\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/runner/specmerge\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/runner/util\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/runner/validation\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/scope\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/specflow\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/specgate\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/state\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/testpkg\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/tracker\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/tracker/trackertest\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/v2\t(cached)\n?   \tgithub.com/danabrams/gromit/internal/v2/adapter\t[no test files]\nok  \tgithub.com/danabrams/gromit/internal/v2/adapter/git\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/v2/adapter/llm\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/v2/adapter/presenter\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/v2/adapter/tasktracker\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/v2/dep\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/v2/event\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/v2/generation\t(cached)\n?   \tgithub.com/danabrams/gromit/internal/v2/llmtypes\t[no test files]\nok  \tgithub.com/danabrams/gromit/internal/v2/loop\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/v2/pipeline\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/v2/presentation\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/v2/prompt\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/v2/remediation\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/v2/review\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/v2/routing\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/v2/spec\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/v2/stage\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/v2/stage/accept\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/v2/stage/build\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/v2/stage/decompose\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/v2/stage/epilogue\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/v2/stage/gate\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/v2/stage/names\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/v2/stage/plan\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/v2/stage/present\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/v2/stage/review\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/v2/stage/triage\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/v2/stage/validate\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/v2/testutil\t(cached)\n?   \tgithub.com/danabrams/gromit/internal/v2/trackertypes\t[no test files]\nok  \tgithub.com/danabrams/gromit/internal/validate\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/visionmetrics\t(cached)\nok  \tgithub.com/danabrams/gromit/internal/worktree\t(cached)\nok  \tgithub.com/danabrams/gromit/scripts\t(cached)\n?   \tgithub.com/danabrams/gromit/scripts/add_parallel\t[no test files]\n?   \tgithub.com/danabrams/gromit/skills\t[no test files]\nok  \tgithub.com/danabrams/gromit/test/codexenv\t(cached)\n?   \tgithub.com/danabrams/gromit/test/contracts\t[no test files]\nok  \tgithub.com/danabrams/gromit/test/docs\t(cached)\nok  \tgithub.com/danabrams/gromit/test/fixtures\t(cached)\nok  \tgithub.com/danabrams/gromit/test/helpers\t(cached)\nok  \tgithub.com/danabrams/gromit/test/repohygiene\t(cached)\nok  \tgithub.com/danabrams/gromit/test/testutil\t(cached)\nok  \tgithub.com/danabrams/gromit/test/toolcalls\t(cached)\n",
+          "duration": 6172834709,
+          "type": "test"
+        }
+      ]
+    },
+    "project_checks": {
+      "results": null
+    }
+  },
+  "review_findings": [
+    "review:code_quality:error:calc/calc.go:0 — Subtract function is absent from the diff. The spec requires adding `Subtract(a, b int) int` to calc/calc.go. The calc/ directory appears as `?? calc/` in git status — untracked and unchanged. (suggested fix: Add `func Subtract(a, b int) int { return a - b }` to calc/calc.go and commit the file.)",
+    "review:code_quality:error:calc/calc_test.go:0 — Tests for Subtract are absent. The spec requires tests covering Subtract(5,3)==2, Subtract(0,0)==0, and Subtract(3,5)==-2 in calc/calc_test.go. No changes to this file appear in the diff. (suggested fix: Add table-driven or individual test cases for all three acceptance criteria to calc/calc_test.go.)",
+    "review:code_quality:warning:internal/next/specloop/stages/evidence.go:44 — effectiveStatus diverges from FinalizeStage.Run. effectiveStatus requires allDone (every task.Status == \"done\") AND all three gates to return ready_for_review, but FinalizeStage was simplified in this diff to check only the three gates. A run with a failed task from an earlier cycle but all gates passing will be finalized as ready_for_review by FinalizeStage yet show needs_human in every evidence file written by EvidenceStage. (suggested fix: Remove the allDone loop from effectiveStatus and mirror FinalizeStage's logic: return ready_for_review when FinalValidationPassed \u0026\u0026 FinalReviewPassed \u0026\u0026 FinalAcceptancePassed, regardless of individual task statuses.)",
+    "review:code_quality:warning:internal/next/specloop/stages/plan.go:14 — maxTaskID in plan.go duplicates maxTaskIDInQueue in taskloop.go. Both parse t-NNN suffixes; any format change must be made in two places. (suggested fix: Extract a shared parseTaskIDNum helper into the specloop package and call it from both sites.)",
+    "review:code_quality:warning:internal/next/specloop/taskloop.go:122 — The baseline capture call to DetectFilesChanged silently discards its error with //nolint:errcheck. If the call fails the baseline is never captured; the second (delta) call will also treat itself as a baseline capture (since baseline remains nil), silently returning empty and missing all file changes for that task. (suggested fix: Return the error from the baseline call or, if baseline capture fails, mark the detector as disabled for this task iteration and fall back to runner-reported FilesChanged.)",
+    "review:code_quality:warning:internal/next/specloop/files_changed.go:55 — hashAllFiles always returns a nil error — every error path inside the function handles the failure locally and continues. The caller's `if err != nil` branch is dead code, and the error return type on the function signature is misleading. (suggested fix: Change the signature to `func hashAllFiles(absDir string) map[string]string` and remove the dead error check at the call site.)",
+    "review:spec_alignment:warning:internal/next/specloop/stages/evidence.go:44 — `effectiveStatus` checks both task statuses (allDone loop) AND the three gate booleans to determine ready_for_review, but `FinalizeStage.Run` was simplified in this diff to check only the three gates (removing the allDone requirement). A run with failed tasks from earlier cycles that passes all three gates will be finalized as ready_for_review by FinalizeStage, but effectiveStatus will return needs_human — causing review.md and summary.md to disagree with the actual final status. (suggested fix: Remove the allDone check from effectiveStatus to match FinalizeStage's gate-only logic: `if rs.FinalValidationPassed \u0026\u0026 rs.FinalReviewPassed \u0026\u0026 rs.FinalAcceptancePassed { return ready_for_review }`.)",
+    "review:spec_alignment:warning:internal/next/specloop/taskloop.go:122 — Error from the DetectFilesChanged baseline call is silently suppressed with `//nolint:errcheck`. If the baseline capture fails, the subsequent delta call will compare against a nil map, potentially reporting spurious file changes or missing real ones. (suggested fix: Log or propagate the baseline error rather than silencing it; at minimum fall back to the runner's own FilesChanged on baseline failure.)",
+    "review:spec_alignment:warning:internal/next/specloop/stages/plan.go:15 — `maxTaskID(tasks []runstore.Task)` in plan.go and `maxTaskIDInQueue(queue []taskEntry)` in taskloop.go implement identical t-NNN parsing logic. This duplication will diverge silently if the ID format changes. (suggested fix: Extract a shared `parseTaskIDNum(id string) (int, bool)` helper in the specloop package and call it from both sites.)"
+  ],
+  "acceptance_results": [
+    "acceptance:fail: `calc.Subtract(5, 3)` returns `2` — The review findings explicitly state 'Subtract function is absent from the diff. The spec requires adding `Subtract(a, b int) int` to calc/calc.go. The calc/ directory appears as `?? calc/` in git status — untracked and unchanged.' Task t-001 (which was responsible for implementing Subtract) failed. The function was never implemented, so the criterion cannot be satisfied. (implement missing behavior)",
+    "acceptance:unclear: `calc.Subtract(0, 0)` returns `0` — The evidence is contradictory. The review findings explicitly state 'Subtract function is absent from the diff' and 'Tests for Subtract are absent', and task t-001 failed. However, validation result is pass=true (go test ./... passed). The calc/ directory appears as untracked ('?? calc/') in git status, which could mean Subtract was written to disk but not committed, leaving validation passing but no committed proof of the correct return value. No test directly asserting `calc.Subtract(0, 0) == 0` is visible in the diff or task results. (add tests or evidence to prove/disprove)",
+    "acceptance:fail: `calc.Subtract(3, 5)` returns `-2` — Task t-001 failed, and the review findings explicitly state that 'Subtract function is absent from the diff. The spec requires adding `Subtract(a, b int) int` to calc/calc.go. The calc/ directory appears as `?? calc/` in git status — untracked and unchanged.' The Subtract function was not implemented in the fixture repository. (implement missing behavior)"
+  ],
+  "total_replans": 3,
+  "spec_constraints": "## Out-of-Scope\n- No changes to the Add function\n- No new packages\n\n## Architectural Constraints\n- All code stays in the `calc` package"
+}

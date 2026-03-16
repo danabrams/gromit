@@ -1,0 +1,166 @@
+{
+  "code_quality": [
+    {
+      "facet": "code_quality",
+      "severity": "error",
+      "file": "internal/next/specloop/stages/validate.go",
+      "line": 90,
+      "description": "FinalValidationResultEvent emits Passed: result.Pass (shell-only), but the stage now returns ReplanFrom when contracts fail even if result.Pass is true. Any observer reading this event will see Passed:true for a cycle that is actually replanning due to contract failures.",
+      "suggested_fix": "Determine the combined pass state before emitting the event. Compute a local `overallPass := result.Pass \u0026\u0026 len(failures) == 0` after all failures are collected, then emit `Passed: overallPass`. Alternatively, move the event emission after the combined pass check, emitting it only on the Continue path, to avoid the race between shell-result and contract-result.",
+      "cycle": 3,
+      "disposition": "new"
+    },
+    {
+      "facet": "code_quality",
+      "severity": "warning",
+      "file": "internal/next/specloop/stages/validate.go",
+      "line": 53,
+      "description": "rs.LastValidationResult is set to fmt.Sprintf(\"pass=%v\", result.Pass) — shell-only — before contract failures are evaluated. If contracts fail but shell passes, the stored summary says \"pass=true\" while the stage returns ReplanFrom. EvidenceStage or any other downstream reader will misread the run outcome.",
+      "suggested_fix": "Set rs.LastValidationResult after all failures (contract + shell) are collected and the combined pass decision is known. Or include contract failure count in the summary: e.g., fmt.Sprintf(\"pass=%v contractFailures=%d\", result.Pass \u0026\u0026 len(contractFailures)==0, len(contractFailures)).",
+      "cycle": 3,
+      "disposition": "new"
+    },
+    {
+      "facet": "code_quality",
+      "severity": "warning",
+      "file": "cmd/gromit-next/stage_provider.go",
+      "line": 123,
+      "description": "The contract writer adapter uses policy.Models.Evaluator as its tier, but the spec (spec 0002e §Architecture) states WriteContracts must use Sonnet / P1, which corresponds to policy.Models.Planner. The comment 'Sonnet / P1 tier via evaluator tier' asserts they are equivalent, but nothing in the policy schema enforces this — Evaluator could be configured as Haiku or Opus.",
+      "suggested_fix": "Use policy.Models.Planner (not policy.Models.Evaluator) for both the adapter Config.Tier and the fallback tier argument, matching the spec's P1 requirement. Update the comment accordingly.",
+      "cycle": 3,
+      "disposition": "new"
+    },
+    {
+      "facet": "code_quality",
+      "severity": "warning",
+      "file": "internal/next/specloop/stages/validate.go",
+      "line": 61,
+      "description": "The filename \"scenario-contracts.yaml\" is a raw string literal with no corresponding package-level constant. The WriteContracts stage will independently hardcode the same string. Two places in separate packages owning the same magic string is a maintenance hazard — a rename in one place silently breaks the other.",
+      "suggested_fix": "Define a package-level (or cross-package) constant, e.g. const ContractFileName = \"scenario-contracts.yaml\" in internal/next/contract/, and import it in both validate.go and the WriteContracts stage.",
+      "cycle": 3,
+      "disposition": "new"
+    },
+    {
+      "facet": "code_quality",
+      "severity": "warning",
+      "file": "internal/next/specloop/stages/validate.go",
+      "line": 54,
+      "description": "ValidateStage.Run() performs direct file I/O (os.Stat, os.ReadFile) and YAML unmarshaling (yaml.Unmarshal) inline. This adds two new import dependencies (\"os\", \"gopkg.in/yaml.v3\") to a stage that previously had none, and couples the orchestration layer to file-parsing concerns. The ContractEvaluator interface was designed as an injection point; the file loading should live at that boundary.",
+      "suggested_fix": "Either (a) change ContractEvaluator.Evaluate to accept the contract file path instead of a parsed *ScenarioContract, letting the evaluator implementation handle loading/parsing; or (b) introduce a small unexported helper loadContractFile(path string) (*contract.ScenarioContract, error) to isolate the I/O so the Run method body stays at the orchestration level.",
+      "cycle": 3,
+      "disposition": "new"
+    },
+    {
+      "facet": "code_quality",
+      "severity": "suggestion",
+      "file": "internal/next/specloop/stages/validate_test.go",
+      "line": 73,
+      "description": "The local variable in writeContractFile is named yaml, shadowing the yaml package name. The test file doesn't currently import the yaml package, so there is no compile-time collision, but the name will mislead readers and will cause a shadow error if a yaml import is ever added.",
+      "suggested_fix": "Rename the variable to contractYAML or yamlContent: e.g., contractYAML := `scenarios:\\n  ...`",
+      "cycle": 3,
+      "disposition": "new"
+    },
+    {
+      "facet": "code_quality",
+      "severity": "suggestion",
+      "file": "internal/next/specloop/stages/validate.go",
+      "line": 30,
+      "description": "ValidateStageConfig.Evaluator has type ContractEvaluator but a generic field name Evaluator. In the same struct there is also an implicit association with FinalValidator (the stage's primary validator). The ambiguity will grow if a second evaluator type is ever added.",
+      "suggested_fix": "Rename the field to ContractEvaluator to match the interface name and make the field's purpose self-documenting: ValidateStageConfig.ContractEvaluator ContractEvaluator.",
+      "cycle": 3,
+      "disposition": "new"
+    },
+    {
+      "facet": "code_quality",
+      "severity": "info",
+      "file": "cmd/gromit/migration_compat_command_surface_test.go",
+      "line": 48,
+      "description": "resolveProjectPath(\"t\", ...) passes the string literal \"t\" as the caller argument. The function signature is (caller string, relativePath string) and the caller parameter is not used in the function body (it calls getProjectRootFromCaller(3) which uses the runtime call stack). The string \"t\" looks like an accidental placeholder for a *testing.T receiver; it is harmless but confusing.",
+      "suggested_fix": "Pass a descriptive caller label (e.g., \"migration_compat_test\") or remove the caller parameter from resolveProjectPath if it is truly unused.",
+      "cycle": 3,
+      "disposition": "new"
+    }
+  ],
+  "spec_alignment": [
+    {
+      "facet": "spec_alignment",
+      "severity": "error",
+      "file": "internal/next/specloop/stages/write_contracts.go",
+      "line": 0,
+      "description": "File does not exist. The diff references `stages.NewWriteContractsStage`, `stages.ContractWriter`, and `stages.WriteContractsStageConfig` in stage_provider.go, but no file in the stages package defines these. The code will not compile. Missing: WriteContractsStage struct and Run method, ContractWriter interface, WriteContractsStageConfig type, NewWriteContractsStage constructor, idempotency check (rs.ContractsWritten), budget check before LLM invocation, 3-attempt retry logic, vocabulary validation, event emission (contracts_written / contracts_blocked), empty-scenarios no-op path, rs.ContractsWritten = true on success.",
+      "suggested_fix": "Create internal/next/specloop/stages/write_contracts.go implementing the ContractWriter interface, WriteContractsStageConfig, and WriteContractsStage with all behaviours specified in the Architecture section: idempotency via rs.ContractsWritten, single-batch LLM invocation, vocabulary validation with 2 retries (3 total attempts), budget check before invocation, event emission, and early return on empty scenarios.",
+      "cycle": 3,
+      "disposition": "new"
+    },
+    {
+      "facet": "spec_alignment",
+      "severity": "error",
+      "file": "internal/next/contract/",
+      "line": 0,
+      "description": "The internal/next/contract/ package does not exist in the codebase, yet it is imported by both validate.go (line 6) and stage_provider.go (line 11). The code will not compile. Missing: SpecScenario type, ScenarioContract type, ScenarioAssertions type, ContractAssertion type, FileContainsAssertion type, ContractFailure type, ParseScenarios function, NewFileSystemEvaluator constructor (all five assertion evaluators: file_exists, file_contains, file_not_modified, file_not_exists, file_not_contains), NewLLMContractWriter constructor. The SpecScenario type and ParseScenarios function must be exported for reuse by spec 0002f (AC17).",
+      "suggested_fix": "Create the internal/next/contract/ package with all types defined in the spec's Key types section. Implement FileSystemEvaluator.Evaluate checking each assertion type using strings.Contains for file_contains/file_not_contains and git diff --name-only HEAD for file_not_modified. Implement LLMContractWriter.WriteContracts wrapping the llmadapter. Implement ParseScenarios to match ### Scenario: headers extracting Given/When/Then/Notes blocks, skipping scenarios missing When or Then.",
+      "cycle": 3,
+      "disposition": "new"
+    },
+    {
+      "facet": "spec_alignment",
+      "severity": "warning",
+      "file": "internal/next/specloop/stages/validate.go",
+      "line": 54,
+      "description": "Contract evaluation block reads and parses scenario-contracts.yaml directly with yaml.Unmarshal rather than delegating file I/O to the ContractEvaluator. The spec defines ContractEvaluator.Evaluate(ctx, *ScenarioContract, workDir) — the caller is responsible for locating and loading the file, but the evaluator only receives an already-parsed ScenarioContract. This split is correct per the spec, however the file I/O (os.Stat, os.ReadFile, yaml.Unmarshal) inside ValidateStage.Run makes the stage harder to unit-test for file-read errors. Not a correctness defect but note that tests for YAML parse errors within Validate are absent.",
+      "suggested_fix": "Add a unit test covering the case where scenario-contracts.yaml exists but contains invalid YAML — verify that ValidateStage.Run returns an error (not silently continues). This exercises the yaml.Unmarshal error path introduced at validate.go:67.",
+      "cycle": 3,
+      "disposition": "new"
+    },
+    {
+      "facet": "spec_alignment",
+      "severity": "warning",
+      "file": "cmd/gromit-next/stage_provider.go",
+      "line": 121,
+      "description": "Contract writer adapter is constructed with policy.Models.Evaluator tier (currently maps to 'high' → 'sonnet') with the comment 'Sonnet / P1 tier via evaluator tier'. The spec requires Sonnet (P1) for WriteContracts (AC15). This happens to be correct because policy.Models.Evaluator = 'high' → 'sonnet' per the current execpolicy mapping, but the tier selection is implicit. If the Evaluator tier is ever changed (e.g., upgraded to Opus for acceptance evaluation), the contract writer would silently change model without any indication in the code.",
+      "suggested_fix": "Use policy.Models.Planner (also 'high' → 'sonnet') for the contract adapter, since WriteContracts is a translation task analogous to planning — or add an explicit Models.ContractWriter field in execpolicy.Models initialized to 'high'. Add a comment explaining why this tier is intentional, not inherited from evaluator semantics.",
+      "cycle": 3,
+      "disposition": "new"
+    },
+    {
+      "facet": "spec_alignment",
+      "severity": "warning",
+      "file": "internal/next/specloop/stages/validate_test.go",
+      "line": 143,
+      "description": "The new Validate tests cover: contract failure, combined contract+shell failure, missing contract file, contracts pass/shell fail, and nil evaluator. Missing test: what happens when the contract file exists but contains invalid YAML (yaml.Unmarshal returns error). The spec requires that if the file exists but is unparseable, Validate returns an error — this path is exercised by the validate.go code but has no corresponding test.",
+      "suggested_fix": "Add TestValidate_MalformedContractFile: write a scenario-contracts.yaml containing invalid YAML bytes to the temp dir, run the stage, and assert that Run returns a non-nil error (not a ReplanFrom action).",
+      "cycle": 3,
+      "disposition": "new"
+    },
+    {
+      "facet": "spec_alignment",
+      "severity": "info",
+      "file": "internal/next/runstore/types.go",
+      "line": 39,
+      "description": "ContractsWritten bool field is added after FinalAcceptancePassed (AC8 compliant). Verified via specloop.go that the per-cycle reset block (lines 46-50) resets only FinalValidationPassed, FinalReviewPassed, FinalAcceptancePassed, ReviewFindings, and AcceptanceResults — ContractsWritten is correctly absent from the reset block, satisfying AC14.",
+      "suggested_fix": "No change needed. Add an inline comment on the field in types.go: '// ContractsWritten must NOT be added to the per-cycle reset block in specloop.go — it intentionally persists across replan cycles.' This matches the explicit warning in the spec.",
+      "cycle": 3,
+      "disposition": "new"
+    },
+    {
+      "facet": "spec_alignment",
+      "severity": "info",
+      "file": "internal/next/runstore/events.go",
+      "line": 138,
+      "description": "ContractsWrittenEvent and ContractsBlockedEvent types are defined and registered in unmarshalEvent. The ContractsWrittenEvent has ScenarioCount int field matching the spec requirement for contracts_written event 'with scenario count' (AC18). Correct.",
+      "suggested_fix": "No change needed for events.go itself, but note that the stage emitting these events (WriteContractsStage) is not yet implemented — confirm event emission is wired when the stage is created.",
+      "cycle": 3,
+      "disposition": "new"
+    },
+    {
+      "facet": "spec_alignment",
+      "severity": "info",
+      "file": "cmd/gromit-next/stage_provider.go",
+      "line": 266,
+      "description": "WriteContracts stage is inserted at the correct pipeline position (after planStage, before executeStage), satisfying AC13. The dryRunStages map in exec.go does not include 'write_contracts', satisfying the spec requirement that dry-run stops after Plan. Both conditions are correct.",
+      "suggested_fix": "No change needed.",
+      "cycle": 3,
+      "disposition": "new"
+    }
+  ]
+}

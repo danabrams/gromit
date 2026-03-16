@@ -1,0 +1,19 @@
+{
+  "always_run": [
+    {"name": "unit-tests", "command": "go test ./...", "type": "test"},
+    {"name": "format", "command": "gofmt -l .", "type": "lint"},
+    {"name": "vet", "command": "go vet ./...", "type": "lint"}
+  ],
+  "budgets": {
+    "max_spec_cycles": 3,
+    "max_task_retries": 1,
+    "max_redecomposition_passes": 1,
+    "max_task_duration_seconds": 300,
+    "max_run_duration_seconds": 3600,
+    "max_run_cost_usd": 50.0
+  },
+  "models": {
+    "planner": "high",
+    "executor": "medium"
+  }
+}

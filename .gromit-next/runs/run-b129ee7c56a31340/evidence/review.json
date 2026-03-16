@@ -1,0 +1,176 @@
+{
+  "code_quality": [
+    {
+      "facet": "code_quality",
+      "severity": "error",
+      "file": "calc/calc.go",
+      "line": 0,
+      "description": "Subtract function is absent from the diff. The spec requires adding `Subtract(a, b int) int` to calc/calc.go. The calc/ directory appears as `?? calc/` in git status — untracked and unchanged.",
+      "suggested_fix": "Add `func Subtract(a, b int) int { return a - b }` to calc/calc.go and commit the file.",
+      "cycle": 3,
+      "disposition": "new"
+    },
+    {
+      "facet": "code_quality",
+      "severity": "error",
+      "file": "calc/calc_test.go",
+      "line": 0,
+      "description": "Tests for Subtract are absent. The spec requires tests covering Subtract(5,3)==2, Subtract(0,0)==0, and Subtract(3,5)==-2 in calc/calc_test.go. No changes to this file appear in the diff.",
+      "suggested_fix": "Add table-driven or individual test cases for all three acceptance criteria to calc/calc_test.go.",
+      "cycle": 3,
+      "disposition": "new"
+    },
+    {
+      "facet": "code_quality",
+      "severity": "warning",
+      "file": "internal/next/specloop/stages/evidence.go",
+      "line": 44,
+      "description": "effectiveStatus diverges from FinalizeStage.Run. effectiveStatus requires allDone (every task.Status == \"done\") AND all three gates to return ready_for_review, but FinalizeStage was simplified in this diff to check only the three gates. A run with a failed task from an earlier cycle but all gates passing will be finalized as ready_for_review by FinalizeStage yet show needs_human in every evidence file written by EvidenceStage.",
+      "suggested_fix": "Remove the allDone loop from effectiveStatus and mirror FinalizeStage's logic: return ready_for_review when FinalValidationPassed \u0026\u0026 FinalReviewPassed \u0026\u0026 FinalAcceptancePassed, regardless of individual task statuses.",
+      "cycle": 3,
+      "disposition": "new"
+    },
+    {
+      "facet": "code_quality",
+      "severity": "warning",
+      "file": "internal/next/specloop/stages/plan.go",
+      "line": 14,
+      "description": "maxTaskID in plan.go duplicates maxTaskIDInQueue in taskloop.go. Both parse t-NNN suffixes; any format change must be made in two places.",
+      "suggested_fix": "Extract a shared parseTaskIDNum helper into the specloop package and call it from both sites.",
+      "cycle": 3,
+      "disposition": "new"
+    },
+    {
+      "facet": "code_quality",
+      "severity": "warning",
+      "file": "internal/next/specloop/taskloop.go",
+      "line": 122,
+      "description": "The baseline capture call to DetectFilesChanged silently discards its error with //nolint:errcheck. If the call fails the baseline is never captured; the second (delta) call will also treat itself as a baseline capture (since baseline remains nil), silently returning empty and missing all file changes for that task.",
+      "suggested_fix": "Return the error from the baseline call or, if baseline capture fails, mark the detector as disabled for this task iteration and fall back to runner-reported FilesChanged.",
+      "cycle": 3,
+      "disposition": "new"
+    },
+    {
+      "facet": "code_quality",
+      "severity": "warning",
+      "file": "internal/next/specloop/files_changed.go",
+      "line": 55,
+      "description": "hashAllFiles always returns a nil error — every error path inside the function handles the failure locally and continues. The caller's `if err != nil` branch is dead code, and the error return type on the function signature is misleading.",
+      "suggested_fix": "Change the signature to `func hashAllFiles(absDir string) map[string]string` and remove the dead error check at the call site.",
+      "cycle": 3,
+      "disposition": "new"
+    },
+    {
+      "facet": "code_quality",
+      "severity": "suggestion",
+      "file": "internal/next/specloop/stages/plan.go",
+      "line": 281,
+      "description": "filterForbiddenFixTasks detects the test-file constraint by matching natural-language substrings (\"test file\", \"do not modify\", \"must not be modified\"). This will miss paraphrases, false-positive on unrelated text, and silently fail to enforce other constraint types despite the generic function name.",
+      "suggested_fix": "Either scope the function name to its actual behaviour (filterTestFileTasks) or replace substring matching with a structured constraint representation populated during CompileStage.",
+      "cycle": 3,
+      "disposition": "new"
+    },
+    {
+      "facet": "code_quality",
+      "severity": "suggestion",
+      "file": "internal/next/specloop/files_changed.go",
+      "line": 30,
+      "description": "The stateful two-call semantics of the GitFilesChanged closure (first call captures baseline, second call returns delta, then resets) are non-obvious. Any caller that adds an extra invocation or skips one silently corrupts state; the taskloop already uses //nolint:errcheck to suppress baseline calls, signalling that the interface is awkward.",
+      "suggested_fix": "Consider splitting into two explicit methods — Snapshot() and Delta() — or pass a context/token from the first call to the second to make the pairing explicit and detectable at compile time.",
+      "cycle": 3,
+      "disposition": "new"
+    }
+  ],
+  "spec_alignment": [
+    {
+      "facet": "spec_alignment",
+      "severity": "error",
+      "file": "calc/calc.go",
+      "line": 0,
+      "description": "The spec requires adding `Subtract(a, b int) int` to `calc/calc.go`, but no changes to this file appear anywhere in the diff. The `calc/` directory shows as untracked (`?? calc/`) in git status, meaning no implementation was committed.",
+      "suggested_fix": "Add `func Subtract(a, b int) int { return a - b }` to calc/calc.go and commit the file.",
+      "cycle": 3,
+      "disposition": "pre-existing"
+    },
+    {
+      "facet": "spec_alignment",
+      "severity": "error",
+      "file": "calc/calc_test.go",
+      "line": 0,
+      "description": "The spec requires tests for Subtract in `calc/calc_test.go` covering all three acceptance criteria: Subtract(5,3)==2, Subtract(0,0)==0, Subtract(3,5)==-2. No changes to this file appear in the diff.",
+      "suggested_fix": "Add table-driven or individual test cases in calc/calc_test.go verifying all three acceptance criteria.",
+      "cycle": 3,
+      "disposition": "pre-existing"
+    },
+    {
+      "facet": "spec_alignment",
+      "severity": "error",
+      "file": "calc/calc.go",
+      "line": 0,
+      "description": "Acceptance criteria 1–3 cannot be verified because the implementation is absent from the diff. `calc.Subtract(5, 3)`, `calc.Subtract(0, 0)`, and `calc.Subtract(3, 5)` are untestable without the function.",
+      "suggested_fix": "Implement Subtract and its tests before marking the spec complete.",
+      "cycle": 3,
+      "disposition": "pre-existing"
+    },
+    {
+      "facet": "spec_alignment",
+      "severity": "warning",
+      "file": "CONTINUE.md",
+      "line": 1,
+      "description": "The diff replaces the entire CONTINUE.md (1506 lines added) with content unrelated to the add-subtract spec. While this file is internal project state and not part of the spec deliverables, the replacement wipes the prior worktree context without completing the actual in-scope work.",
+      "suggested_fix": "Complete the calc/calc.go and calc/calc_test.go changes before updating CONTINUE.md to reflect completion.",
+      "cycle": 3,
+      "disposition": "pre-existing"
+    },
+    {
+      "facet": "spec_alignment",
+      "severity": "warning",
+      "file": "internal/next/specloop/stages/evidence.go",
+      "line": 44,
+      "description": "`effectiveStatus` checks both task statuses (allDone loop) AND the three gate booleans to determine ready_for_review, but `FinalizeStage.Run` was simplified in this diff to check only the three gates (removing the allDone requirement). A run with failed tasks from earlier cycles that passes all three gates will be finalized as ready_for_review by FinalizeStage, but effectiveStatus will return needs_human — causing review.md and summary.md to disagree with the actual final status.",
+      "suggested_fix": "Remove the allDone check from effectiveStatus to match FinalizeStage's gate-only logic: `if rs.FinalValidationPassed \u0026\u0026 rs.FinalReviewPassed \u0026\u0026 rs.FinalAcceptancePassed { return ready_for_review }`.",
+      "cycle": 3,
+      "disposition": "new"
+    },
+    {
+      "facet": "spec_alignment",
+      "severity": "warning",
+      "file": "internal/next/specloop/taskloop.go",
+      "line": 122,
+      "description": "Error from the DetectFilesChanged baseline call is silently suppressed with `//nolint:errcheck`. If the baseline capture fails, the subsequent delta call will compare against a nil map, potentially reporting spurious file changes or missing real ones.",
+      "suggested_fix": "Log or propagate the baseline error rather than silencing it; at minimum fall back to the runner's own FilesChanged on baseline failure.",
+      "cycle": 3,
+      "disposition": "new"
+    },
+    {
+      "facet": "spec_alignment",
+      "severity": "warning",
+      "file": "internal/next/specloop/stages/plan.go",
+      "line": 15,
+      "description": "`maxTaskID(tasks []runstore.Task)` in plan.go and `maxTaskIDInQueue(queue []taskEntry)` in taskloop.go implement identical t-NNN parsing logic. This duplication will diverge silently if the ID format changes.",
+      "suggested_fix": "Extract a shared `parseTaskIDNum(id string) (int, bool)` helper in the specloop package and call it from both sites.",
+      "cycle": 3,
+      "disposition": "new"
+    },
+    {
+      "facet": "spec_alignment",
+      "severity": "suggestion",
+      "file": "internal/next/specloop/stages/plan.go",
+      "line": 275,
+      "description": "`filterForbiddenFixTasks` detects test-file constraints by matching natural-language substrings (\"test file\", \"do not modify\", \"must not be modified\"). This heuristic will miss paraphrases and false-positive on unrelated constraint text. The function is also only invoked for this one constraint pattern despite its generic name.",
+      "suggested_fix": "Either scope the function name to `filterForbiddenTestFileTasks` to make the heuristic's limited scope explicit, or replace the string-matching with a structured constraint representation populated at compile time.",
+      "cycle": 3,
+      "disposition": "new"
+    },
+    {
+      "facet": "spec_alignment",
+      "severity": "suggestion",
+      "file": "internal/next/specloop/files_changed.go",
+      "line": 36,
+      "description": "The stateful two-call semantics of the GitFilesChanged closure (first call = capture baseline, second call = compute delta, then reset) are non-obvious and fragile. Any call-site change that adds an extra invocation or skips one will silently corrupt the state. The taskloop already uses `//nolint:errcheck` comments to suppress baseline calls, indicating the interface is awkward.",
+      "suggested_fix": "Consider splitting into explicit `Snapshot()` and `Delta(snapshot)` calls, or wrapping the closure in a named type with `Before()` and `After()` methods to make the two-phase protocol visible at the call site.",
+      "cycle": 3,
+      "disposition": "new"
+    }
+  ]
+}

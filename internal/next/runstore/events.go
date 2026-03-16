@@ -65,6 +65,9 @@ type TaskStartedEvent struct {
 	TaskID    string `json:"task_id"`
 	Cycle     int    `json:"cycle"`
 	ModelTier string `json:"model_tier,omitempty"`
+	TaskIndex int    `json:"task_index,omitempty"` // 1-based index in queue
+	TaskTotal int    `json:"task_total,omitempty"` // total tasks in queue
+	Objective string `json:"objective,omitempty"`  // task description
 }
 
 type TaskValidationResultEvent struct {

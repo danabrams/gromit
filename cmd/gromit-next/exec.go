@@ -197,11 +197,11 @@ func newExecSpecCmdWithProvider(provider StageProvider) *cobra.Command {
 				if err != nil {
 					return fmt.Errorf("create claude client: %w", err)
 				}
-				claudeProv := providerPkg.NewClaudeProvider(claudeClient, map[string]string{
-					"low":    "haiku",
-					"medium": "sonnet",
-					"high":   "sonnet",
-				})
+				tierModels := policy.Models.TierModels
+				if len(tierModels) == 0 {
+					tierModels = map[string]string{"low": "haiku", "medium": "sonnet", "high": "opus"}
+				}
+				claudeProv := providerPkg.NewClaudeProvider(claudeClient, tierModels)
 				p = NewRealStageProvider(RealStageProviderConfig{
 					WorkDir:        workDir,
 					StoreDir:       storeDir,

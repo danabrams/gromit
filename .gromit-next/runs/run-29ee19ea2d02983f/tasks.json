@@ -1,0 +1,373 @@
+[
+  {
+    "task_id": "t-001",
+    "objective": "Create internal/next/contract/types.go with all exported core types: SpecScenario{Name, Given, When, Then, Notes string}, ScenarioContract{Scenarios []ScenarioAssertions}, ScenarioAssertions{Name string, Assertions []ContractAssertion}, ContractAssertion{FileExists string, FileContains *FileContainsAssertion, FileNotModified string, FileNotExists string, FileNotContains *FileContainsAssertion} with yaml omitempty tags, FileContainsAssertion{Path, Pattern string}, ContractFailure{ScenarioName, AssertionType, Details string}. Package is 'contract'. Include a package doc comment.",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [
+      "internal/next/contract/types.go"
+    ],
+    "proof_checks": [
+      "grep -q 'type SpecScenario struct' internal/next/contract/types.go",
+      "grep -q 'type ContractAssertion struct' internal/next/contract/types.go",
+      "grep -q 'FileNotContains.*FileContainsAssertion' internal/next/contract/types.go",
+      "grep -q 'FileNotExists.*string' internal/next/contract/types.go",
+      "grep -q 'type ContractFailure struct' internal/next/contract/types.go",
+      "grep -q 'yaml:\"file_not_modified,omitempty\"' internal/next/contract/types.go",
+      "go build ./internal/next/contract/"
+    ],
+    "files_changed": [
+      "internal/next/contract/types.go"
+    ],
+    "tokens_used": 965,
+    "duration_ms": 28190,
+    "model_tier": "",
+    "cycle": 1,
+    "kind": "original"
+  },
+  {
+    "task_id": "t-002",
+    "objective": "Create internal/next/contract/parse.go with exported func ParseScenarios(content string) []SpecScenario. Parse spec markdown by scanning for lines beginning with '### Scenario:' to find scenario boundaries. For each scenario block, extract: Name from the header (strip '### Scenario: ' prefix), and Given/When/Then/Notes blocks by matching '**Given:**', '**When:**', '**Then:**', '**Notes:**' labels (collect text until next label or next '### Scenario:' header). Skip scenarios missing BOTH When and Then (log warning to stderr). Given and Notes are optional. Return only valid scenarios.",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [
+      "internal/next/contract/parse.go"
+    ],
+    "proof_checks": [
+      "grep -q 'func ParseScenarios' internal/next/contract/parse.go",
+      "grep -q 'Scenario:' internal/next/contract/parse.go",
+      "grep -q 'When\\|Then' internal/next/contract/parse.go",
+      "go build ./internal/next/contract/"
+    ],
+    "files_changed": [
+      "internal/next/contract/parse.go"
+    ],
+    "tokens_used": 1412,
+    "duration_ms": 31302,
+    "model_tier": "",
+    "cycle": 1,
+    "kind": "original"
+  },
+  {
+    "task_id": "t-003",
+    "objective": "Create internal/next/contract/parse_test.go with TestParseScenarios tests covering: (1) happy path — 2 valid scenarios with all blocks, correct Name/Given/When/Then/Notes extracted; (2) empty input returns empty slice; (3) scenario missing both When and Then is excluded from result; (4) scenario with When but no Then is excluded; (5) scenario with Then but no When is excluded; (6) Notes block optional — scenario included without it; (7) Given block optional — scenario included without it; (8) mix of valid and invalid scenarios — only valid ones returned.",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [
+      "internal/next/contract/parse_test.go"
+    ],
+    "proof_checks": [
+      "grep -q 'TestParseScenarios' internal/next/contract/parse_test.go",
+      "grep -q 'empty\\|Empty' internal/next/contract/parse_test.go",
+      "grep -q 'skip\\|Skip\\|missing\\|Missing\\|excluded\\|invalid' internal/next/contract/parse_test.go",
+      "go test ./internal/next/contract/ -count=1 -run TestParseScenarios"
+    ],
+    "files_changed": [
+      "internal/next/contract/parse.go",
+      "internal/next/contract/parse_test.go"
+    ],
+    "tokens_used": 5460,
+    "duration_ms": 104118,
+    "model_tier": "",
+    "cycle": 1,
+    "kind": "original"
+  },
+  {
+    "task_id": "t-004",
+    "objective": "Create internal/next/contract/evaluator.go with: (1) a GitRunner interface or func type for running 'git diff --name-only HEAD -- \u003cpath\u003e' so the evaluator is testable without a real git repo; (2) FileSystemEvaluator struct with workDir string and a gitRunner func; (3) NewFileSystemEvaluator(workDir string) constructor using real git execution; (4) Evaluate(ctx context.Context, contract *ScenarioContract, workDir string) ([]ContractFailure, error) method: for each scenario's assertions, evaluate all 5 types — file_exists (os.Stat), file_contains (os.ReadFile + strings.Contains), file_not_modified (git diff --name-only HEAD -- \u003cpath\u003e, empty output means unmodified), file_not_exists (os.Stat negated), file_not_contains (os.ReadFile + !strings.Contains). Check ALL assertions per scenario (no short-circuit). Each ContractAssertion must have exactly one field set; zero or multiple fields set returns an error. Paths are joined with workDir.",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [
+      "internal/next/contract/evaluator.go"
+    ],
+    "proof_checks": [
+      "grep -q 'type FileSystemEvaluator struct' internal/next/contract/evaluator.go",
+      "grep -q 'func.*Evaluate' internal/next/contract/evaluator.go",
+      "grep -q 'FileNotModified' internal/next/contract/evaluator.go",
+      "grep -q 'FileNotContains' internal/next/contract/evaluator.go",
+      "grep -q 'strings.Contains' internal/next/contract/evaluator.go",
+      "grep -q 'git.*diff\\|git diff' internal/next/contract/evaluator.go",
+      "go build ./internal/next/contract/"
+    ],
+    "files_changed": [
+      "internal/next/contract/evaluator.go"
+    ],
+    "tokens_used": 2051,
+    "duration_ms": 35613,
+    "model_tier": "",
+    "cycle": 1,
+    "kind": "original"
+  },
+  {
+    "task_id": "t-005",
+    "objective": "Create internal/next/contract/evaluator_test.go with tests for FileSystemEvaluator. Use a real temp directory (t.TempDir()) for filesystem assertions. Mock the git runner via a constructor parameter or function field. Tests: (1) TestEvaluate_FileExists_Pass and _Fail; (2) TestEvaluate_FileContains_Pass and _Fail with correct failure message format 'contract:\u003cname\u003e — file_contains failed: ...'; (3) TestEvaluate_FileNotExists_Pass and _Fail; (4) TestEvaluate_FileNotContains_Pass and _Fail; (5) TestEvaluate_FileNotModified_Pass (mock git returns empty) and _Fail (mock git returns filename); (6) TestEvaluate_EmptyAssertions returns no failures; (7) TestEvaluate_MultipleAssertionsPartialFailure: 2 assertions, one passes, one fails — both evaluated, only failure returned; (8) ContractFailure format uses em-dash separator: 'contract:\u003cscenario-name\u003e — \u003cassertion-type\u003e failed: \u003cdetails\u003e'.",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [
+      "internal/next/contract/evaluator_test.go"
+    ],
+    "proof_checks": [
+      "grep -q 'TestEvaluate_FileExists\\|TestEvaluate_File' internal/next/contract/evaluator_test.go",
+      "grep -q 'TestEvaluate_FileNotModified' internal/next/contract/evaluator_test.go",
+      "grep -q 'TestEvaluate_MultipleAssertions\\|PartialFailure' internal/next/contract/evaluator_test.go",
+      "grep -q 'contract:.*—.*failed' internal/next/contract/evaluator_test.go",
+      "go test ./internal/next/contract/ -count=1"
+    ],
+    "files_changed": [
+      "internal/next/contract/evaluator_test.go"
+    ],
+    "tokens_used": 7459,
+    "duration_ms": 134865,
+    "model_tier": "",
+    "cycle": 1,
+    "kind": "original"
+  },
+  {
+    "task_id": "t-006",
+    "objective": "Add ContractsWritten bool field with json tag 'contracts_written' to the RunState struct in internal/next/runstore/types.go. Place it logically near other stage-completion flags (e.g., near FinalValidationPassed). Do NOT add it to any per-cycle reset logic. Confirm internal/next/specloop/specloop.go does NOT reset ContractsWritten — read the file and verify the cycle-reset block (around line 42-50) does not reference ContractsWritten.",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [
+      "internal/next/runstore/types.go"
+    ],
+    "proof_checks": [
+      "grep -q 'ContractsWritten.*bool' internal/next/runstore/types.go",
+      "grep -q 'contracts_written' internal/next/runstore/types.go",
+      "go build ./internal/next/runstore/",
+      "! grep -q 'ContractsWritten' internal/next/specloop/specloop.go"
+    ],
+    "files_changed": [
+      "internal/next/runstore/types.go"
+    ],
+    "tokens_used": 993,
+    "duration_ms": 30121,
+    "model_tier": "",
+    "cycle": 1,
+    "kind": "original"
+  },
+  {
+    "task_id": "t-007",
+    "objective": "Add ContractsWrittenEvent and ContractsBlockedEvent types to internal/next/runstore/events.go following the existing pattern. ContractsWrittenEvent embeds BaseEvent and has ScenarioCount int json:'scenario_count'. ContractsBlockedEvent embeds BaseEvent and has Reason string json:'reason'. Register both in the unmarshalEvent switch with type strings 'contracts_written' and 'contracts_blocked'. The BaseEvent Type field should be set to the correct string in each event.",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [
+      "internal/next/runstore/events.go"
+    ],
+    "proof_checks": [
+      "grep -q 'type ContractsWrittenEvent struct' internal/next/runstore/events.go",
+      "grep -q 'type ContractsBlockedEvent struct' internal/next/runstore/events.go",
+      "grep -q 'contracts_written' internal/next/runstore/events.go",
+      "grep -q 'contracts_blocked' internal/next/runstore/events.go",
+      "go build ./internal/next/runstore/"
+    ],
+    "files_changed": [
+      "internal/next/runstore/events.go"
+    ],
+    "tokens_used": 886,
+    "duration_ms": 16938,
+    "model_tier": "",
+    "cycle": 1,
+    "kind": "original"
+  },
+  {
+    "task_id": "t-008",
+    "objective": "Create internal/next/specloop/stages/write_contracts.go implementing the WriteContracts stage. Include: (1) ContractWriter interface: WriteContracts(ctx context.Context, scenarios []contract.SpecScenario, specPacket string) (*contract.ScenarioContract, error); (2) WriteContractsStageConfig struct: Store runstore.Store, SpecPath string, EvidenceDir string; (3) WriteContractsStage struct with contractWriter ContractWriter, cfg WriteContractsStageConfig, eventLog *runstore.EventLog, budget interface with HardBudgetExceeded() bool; (4) NewWriteContractsStage constructor; (5) Name() returns 'write_contracts'; (6) Run(ctx, rs) logic: if rs.ContractsWritten return Continue; read spec file at cfg.SpecPath, call contract.ParseScenarios; if no scenarios return Continue; if budget exhausted return Blocked; attempt LLM invocation up to 3 times (max 2 retries): on each attempt call contractWriter.WriteContracts, validate YAML parseability and vocabulary (each ContractAssertion has exactly 1 field set using known keys), retry on failure passing error context; after 3 failures emit contracts_blocked event and return Blocked; on success: marshal to YAML, write to cfg.EvidenceDir/scenario-contracts.yaml, set rs.ContractsWritten=true, emit contracts_written event with scenario count, return Continue. Model tier: Sonnet (P1).",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [
+      "internal/next/specloop/stages/write_contracts.go"
+    ],
+    "proof_checks": [
+      "grep -q 'type ContractWriter interface' internal/next/specloop/stages/write_contracts.go",
+      "grep -q 'type WriteContractsStageConfig struct' internal/next/specloop/stages/write_contracts.go",
+      "grep -q 'ContractsWritten' internal/next/specloop/stages/write_contracts.go",
+      "grep -q 'contracts_written\\|ContractsWrittenEvent' internal/next/specloop/stages/write_contracts.go",
+      "grep -q 'contracts_blocked\\|ContractsBlockedEvent' internal/next/specloop/stages/write_contracts.go",
+      "grep -q 'scenario-contracts.yaml' internal/next/specloop/stages/write_contracts.go",
+      "grep -q 'EvidenceDir' internal/next/specloop/stages/write_contracts.go",
+      "go build ./internal/next/specloop/stages/"
+    ],
+    "files_changed": [
+      "internal/next/specloop/stages/write_contracts.go"
+    ],
+    "tokens_used": 4607,
+    "duration_ms": 137420,
+    "model_tier": "",
+    "cycle": 1,
+    "kind": "original"
+  },
+  {
+    "task_id": "t-009",
+    "objective": "Create internal/next/specloop/stages/write_contracts_test.go with unit tests using a mock ContractWriter. Tests: (1) TestWriteContracts_HappyPath: valid scenarios in spec, writer returns valid contract, file written to EvidenceDir, rs.ContractsWritten=true, contracts_written event emitted with correct scenario count; (2) TestWriteContracts_Idempotent: rs.ContractsWritten=true on entry → immediate Continue, contractWriter never called; (3) TestWriteContracts_NoScenarios: spec file has no '### Scenario:' sections → Continue, no file written, writer never called; (4) TestWriteContracts_InvalidYAML: writer returns non-YAML string 3 times → Blocked, contracts_blocked event emitted; (5) TestWriteContracts_UnknownVocabularyKey: writer returns valid YAML with unknown assertion key (e.g., 'status: completed') 3 times → Blocked; (6) TestWriteContracts_BudgetExhausted: budget exhausted before invocation → Blocked immediately, writer not called. Use t.TempDir() for EvidenceDir.",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [
+      "internal/next/specloop/stages/write_contracts_test.go"
+    ],
+    "proof_checks": [
+      "grep -q 'TestWriteContracts_HappyPath' internal/next/specloop/stages/write_contracts_test.go",
+      "grep -q 'TestWriteContracts_Idempotent' internal/next/specloop/stages/write_contracts_test.go",
+      "grep -q 'TestWriteContracts_NoScenarios\\|TestWriteContracts_Empty' internal/next/specloop/stages/write_contracts_test.go",
+      "grep -q 'TestWriteContracts_InvalidYAML' internal/next/specloop/stages/write_contracts_test.go",
+      "grep -q 'TestWriteContracts_BudgetExhausted' internal/next/specloop/stages/write_contracts_test.go",
+      "go test ./internal/next/specloop/stages/ -count=1 -run TestWriteContracts"
+    ],
+    "files_changed": [
+      "internal/next/specloop/stages/write_contracts_test.go"
+    ],
+    "tokens_used": 4918,
+    "duration_ms": 86688,
+    "model_tier": "",
+    "cycle": 1,
+    "kind": "original"
+  },
+  {
+    "task_id": "t-010",
+    "objective": "Extend internal/next/specloop/stages/validate.go: (1) Add ContractEvaluator interface: Evaluate(ctx context.Context, contract *contract.ScenarioContract, workDir string) ([]contract.ContractFailure, error); (2) Add EvidenceDir string and Evaluator ContractEvaluator fields to ValidateStageConfig; (3) Update ValidateStage struct to store cfg including new fields; (4) In Run(): if cfg.Evaluator != nil and cfg.EvidenceDir != empty, check for scenario-contracts.yaml in EvidenceDir — if file does not exist, skip silently (not a failure); if file exists, parse YAML into ScenarioContract, call Evaluator.Evaluate(ctx, contract, workDir), convert each ContractFailure to failure string using format 'contract:\u003cScenarioName\u003e — \u003cAssertionType\u003e failed: \u003cDetails\u003e' and append to failures slice; run shell checks afterward regardless; combine all failures before deciding next action. Import internal/next/contract package for types.",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [
+      "internal/next/specloop/stages/validate.go"
+    ],
+    "proof_checks": [
+      "grep -q 'type ContractEvaluator interface' internal/next/specloop/stages/validate.go",
+      "grep -q 'EvidenceDir.*string' internal/next/specloop/stages/validate.go",
+      "grep -q 'scenario-contracts.yaml' internal/next/specloop/stages/validate.go",
+      "grep -q 'contract:' internal/next/specloop/stages/validate.go",
+      "grep -q 'internal/next/contract' internal/next/specloop/stages/validate.go",
+      "go build ./internal/next/specloop/stages/"
+    ],
+    "files_changed": [
+      "internal/next/specloop/stages/validate.go"
+    ],
+    "tokens_used": 4859,
+    "duration_ms": 86845,
+    "model_tier": "",
+    "cycle": 1,
+    "kind": "original"
+  },
+  {
+    "task_id": "t-011",
+    "objective": "Extend internal/next/specloop/stages/validate_test.go with contract evaluation tests using a mock ContractEvaluator. Tests: (1) TestValidate_ContractFailure: mock evaluator returns one ContractFailure, result is ReplanFrom with failure string matching 'contract:\u003cname\u003e — \u003ctype\u003e failed: \u003cdetails\u003e'; (2) TestValidate_ContractAndShellBothFail: mock evaluator returns a failure AND shell validator fails — both failures appear in the replan context; (3) TestValidate_ContractFileMissing: EvidenceDir set but no scenario-contracts.yaml file present — no failure, evaluator not called; (4) TestValidate_ContractPassShellFail: contracts pass but shell validator fails — replan context contains only shell failure; (5) TestValidate_NilEvaluator: Evaluator field nil in config — no contract check, existing behavior unchanged. Use t.TempDir() for EvidenceDir when contract file present.",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [
+      "internal/next/specloop/stages/validate_test.go"
+    ],
+    "proof_checks": [
+      "grep -q 'TestValidate_ContractFailure' internal/next/specloop/stages/validate_test.go",
+      "grep -q 'TestValidate_ContractFileMissing\\|ContractMissing\\|MissingFile' internal/next/specloop/stages/validate_test.go",
+      "grep -q 'TestValidate_NilEvaluator\\|NilEvaluator' internal/next/specloop/stages/validate_test.go",
+      "grep -q 'contract:.*—.*failed' internal/next/specloop/stages/validate_test.go",
+      "go test ./internal/next/specloop/stages/ -count=1 -run TestValidate"
+    ],
+    "files_changed": [
+      "internal/next/specloop/stages/validate_test.go"
+    ],
+    "tokens_used": 6686,
+    "duration_ms": 102006,
+    "model_tier": "",
+    "cycle": 1,
+    "kind": "original"
+  },
+  {
+    "task_id": "t-012",
+    "objective": "Create internal/next/contract/llm_writer.go with an LLM-backed ContractWriter implementation. The struct (e.g., LLMContractWriter) takes an llmadapter.LLMAdapter, formats a prompt instructing the LLM to translate the provided SpecScenarios and spec packet into a ScenarioContract YAML using only the valid vocabulary (file_exists, file_contains, file_not_modified, file_not_exists, file_not_contains), and parses the LLM response as YAML into *ScenarioContract. On error context retry, include the previous error in the prompt. Uses Sonnet (P1) tier. Then update cmd/gromit-next/stage_provider.go: (1) add noopContractWriter struct implementing ContractWriter with WriteContracts returning empty ScenarioContract; (2) construct writeContractsStage in BuildStages after planStage and before executeStage, using LLMContractWriter when provider available else noopContractWriter, passing store, cfg.SpecPath, and evidenceDir; (3) update validateStage construction to pass EvidenceDir and Evaluator (contract.NewFileSystemEvaluator(workDir)) in ValidateStageConfig. Import internal/next/contract package.",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [
+      "internal/next/contract/llm_writer.go",
+      "cmd/gromit-next/stage_provider.go"
+    ],
+    "proof_checks": [
+      "grep -q 'LLMContractWriter\\|llmContractWriter' internal/next/contract/llm_writer.go",
+      "grep -q 'noopContractWriter' cmd/gromit-next/stage_provider.go",
+      "grep -q 'writeContractsStage\\|WriteContractsStage' cmd/gromit-next/stage_provider.go",
+      "grep -q 'EvidenceDir.*evidenceDir' cmd/gromit-next/stage_provider.go",
+      "grep -q 'internal/next/contract' cmd/gromit-next/stage_provider.go",
+      "go build ./cmd/gromit-next/",
+      "go vet ./..."
+    ],
+    "files_changed": [
+      "cmd/gromit-next/stage_provider.go",
+      "internal/next/contract/llm_writer.go"
+    ],
+    "tokens_used": 12050,
+    "duration_ms": 336063,
+    "model_tier": "",
+    "cycle": 1,
+    "kind": "original"
+  },
+  {
+    "task_id": "t-013",
+    "objective": "Create internal/next/specloop/contract_integration_test.go with //go:build integration tag in the specloop package. Tests exercise the WriteContracts → Validate pipeline using the scenarioStage pattern from existing integration tests (no real LLM). (1) TestIntegration_ContractFailureTriggersReplan: build a pipeline with a writeContracts scenarioStage that sets rs.ContractsWritten=true and writes a scenario-contracts.yaml with a file_contains assertion to a temp EvidenceDir, an execute scenarioStage that is a no-op (file never created), a ValidateStage with a real FileSystemEvaluator pointing at a temp workdir — Validate fails with 'contract:...' failure, replan triggered, second cycle WriteContracts is no-op (ContractsWritten=true), execute creates the file, Validate passes; (2) TestIntegration_ContractsPreservedAcrossReplan: on replan cycle, writeContracts stage never re-runs (ContractsWritten flag preserved), pipeline completes; (3) TestIntegration_NoContractFileSkipped: no scenario-contracts.yaml in EvidenceDir, ValidateStage with Evaluator skips silently, pipeline continues. Run with go test -tags integration.",
+    "status": "failed",
+    "attempts": 2,
+    "expected_touched_area": [
+      "internal/next/specloop/contract_integration_test.go"
+    ],
+    "proof_checks": [
+      "grep -q 'go:build integration' internal/next/specloop/contract_integration_test.go",
+      "grep -q 'TestIntegration_ContractFailureTriggersReplan' internal/next/specloop/contract_integration_test.go",
+      "grep -q 'TestIntegration_ContractsPreservedAcrossReplan' internal/next/specloop/contract_integration_test.go",
+      "grep -q 'TestIntegration_NoContractFileSkipped' internal/next/specloop/contract_integration_test.go",
+      "go test -tags integration ./internal/next/specloop/ -count=1 -run TestIntegration_Contract",
+      "go test ./... -count=1"
+    ],
+    "files_changed": [],
+    "tokens_used": 6128,
+    "duration_ms": 183641,
+    "model_tier": "",
+    "cycle": 1,
+    "kind": "original"
+  },
+  {
+    "task_id": "t-014",
+    "objective": "Fix TestRunSpecTestEnvRestoresWorkingDirectory to handle macOS symlink path resolution. The test fails because os.Getwd() after os.Chdir() returns the canonical /private/var/folders/... path while originalWD holds the symlinked /var/folders/... path. Resolve both paths via filepath.EvalSymlinks before comparing in the test at cmd/gromit/run_spec_flag_test.go:116-121.",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [
+      "cmd/gromit/run_spec_flag_test.go"
+    ],
+    "proof_checks": [
+      "grep -q 'EvalSymlinks' cmd/gromit/run_spec_flag_test.go",
+      "go test ./cmd/gromit/ -count=1 -run TestRunSpecTestEnvRestoresWorkingDirectory"
+    ],
+    "files_changed": [
+      "cmd/gromit/run_spec_flag_test.go"
+    ],
+    "tokens_used": 973,
+    "duration_ms": 18584,
+    "model_tier": "",
+    "cycle": 2,
+    "kind": "fix",
+    "parent_cycle": 1,
+    "failures_addressed": [
+      "always-run check \"unit-tests\" failed: --- FAIL: TestRunSpecTestEnvRestoresWorkingDirectory (0.00s)"
+    ]
+  },
+  {
+    "task_id": "t-015",
+    "objective": "Fix TestDebugCompatibilityDiagnostics_CommandSurfaceSupportsLegacyAndExplicitConfig: replace relative fixture path with resolveProjectPath to prevent CWD-contamination from t.Chdir() in concurrent tests",
+    "status": "pending",
+    "attempts": 0,
+    "expected_touched_area": [
+      "cmd/gromit/migration_compat_command_surface_test.go"
+    ],
+    "proof_checks": [
+      "grep -q 'resolveProjectPath' cmd/gromit/migration_compat_command_surface_test.go",
+      "grep -v 'filepath.Join(\"..\", \"..\"' cmd/gromit/migration_compat_command_surface_test.go || true",
+      "go test ./cmd/gromit/ -run TestDebugCompatibilityDiagnostics_CommandSurfaceSupportsLegacyAndExplicitConfig -count=1"
+    ],
+    "files_changed": [],
+    "tokens_used": 0,
+    "duration_ms": 0,
+    "model_tier": "",
+    "cycle": 3,
+    "kind": "fix",
+    "parent_cycle": 2,
+    "failures_addressed": [
+      "always-run check \"unit-tests\" failed: FAIL github.com/danabrams/gromit/cmd/gromit"
+    ]
+  }
+]

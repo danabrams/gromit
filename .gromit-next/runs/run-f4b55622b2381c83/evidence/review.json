@@ -1,0 +1,286 @@
+{
+  "code_quality": [
+    {
+      "facet": "code_quality",
+      "severity": "error",
+      "file": "calc/calc.go",
+      "line": 1,
+      "description": "The primary in-scope requirement — adding `Subtract(a, b int) int` to `calc/calc.go` — is entirely absent from the diff. The spec requires this function to satisfy three acceptance criteria: Subtract(5,3)=2, Subtract(0,0)=0, Subtract(3,5)=-2.",
+      "suggested_fix": "Add `func Subtract(a, b int) int { return a - b }` to calc/calc.go.",
+      "cycle": 2,
+      "disposition": "pre-existing"
+    },
+    {
+      "facet": "code_quality",
+      "severity": "error",
+      "file": "calc/calc_test.go",
+      "line": 1,
+      "description": "Tests for the Subtract function are not present in the diff. The spec explicitly requires `calc/calc_test.go` to cover all three acceptance criteria.",
+      "suggested_fix": "Add test cases for Subtract(5,3)=2, Subtract(0,0)=0, and Subtract(3,5)=-2 in calc/calc_test.go.",
+      "cycle": 2,
+      "disposition": "new"
+    },
+    {
+      "facet": "code_quality",
+      "severity": "warning",
+      "file": "cmd/gromit-next/exec.go",
+      "line": 1,
+      "description": "This file (and the ~40 other changed files in cmd/gromit-next/, internal/next/, contracts/, e2e/, docs/) are entirely out-of-scope for this spec. The spec's In-Scope section is limited to calc/calc.go and calc/calc_test.go, and the Architectural Constraints state 'All code stays in the `calc` package'.",
+      "suggested_fix": "Revert all changes outside of calc/calc.go and calc/calc_test.go.",
+      "cycle": 2,
+      "disposition": "pre-existing"
+    },
+    {
+      "facet": "code_quality",
+      "severity": "info",
+      "file": "CONTINUE.md",
+      "line": 1,
+      "description": "CONTINUE.md was substantially rewritten to track the broader spec 0002a/0002c/0002d test plan execution state. While not a code correctness issue, this change is out-of-scope for the add-subtract spec.",
+      "suggested_fix": "No action required for spec compliance.",
+      "cycle": 2,
+      "disposition": "new"
+    },
+    {
+      "facet": "code_quality",
+      "severity": "warning",
+      "file": "internal/next/specloop/stages/plan.go",
+      "line": 1,
+      "description": "maxTaskID in plan.go and maxTaskIDInQueue in taskloop.go are duplicate logic: both iterate over t-NNN identifiers, parse the numeric suffix, and return the maximum. The only difference is the input type ([]runstore.Task vs []taskEntry).",
+      "suggested_fix": "Extract a shared helper that accepts []string of task IDs and call it from both sites.",
+      "cycle": 2,
+      "disposition": "new"
+    },
+    {
+      "facet": "code_quality",
+      "severity": "warning",
+      "file": "internal/next/specloop/stages/evidence.go",
+      "line": 1,
+      "description": "runstore.InvocationRecord and evidence.InvocationRecord are structurally identical structs. The evidence stage manually copies every field between them in a loop. Adding a new field to one requires updating both the struct definition and the copy loop.",
+      "suggested_fix": "Consolidate to a single InvocationRecord type, or eliminate evidence.InvocationRecord and use runstore.InvocationRecord directly.",
+      "cycle": 2,
+      "disposition": "new"
+    },
+    {
+      "facet": "code_quality",
+      "severity": "warning",
+      "file": "e2e/harness_test.go",
+      "line": 10,
+      "description": "contractsDir and fixtureBase are hardcoded absolute paths (/Users/dabrams/gromit/contracts, /tmp/gromit-fixtures). This prevents the e2e suite from running on any machine other than the author's.",
+      "suggested_fix": "Derive contractsDir from the test binary's location or a GROMIT_ROOT env var; make fixtureBase configurable via GROMIT_FIXTURE_BASE.",
+      "cycle": 2,
+      "disposition": "pre-existing"
+    },
+    {
+      "facet": "code_quality",
+      "severity": "warning",
+      "file": "e2e/runner.go",
+      "line": 1,
+      "description": "BuildBinary hardcodes cmd.Dir = \"/Users/dabrams/gromit\". Same portability problem as the test constants.",
+      "suggested_fix": "Use runtime.Caller(0) or os.Executable() to determine the repo root dynamically.",
+      "cycle": 2,
+      "disposition": "pre-existing"
+    },
+    {
+      "facet": "code_quality",
+      "severity": "warning",
+      "file": "internal/next/specloop/stages/plan.go",
+      "line": 1,
+      "description": "filterForbiddenFixTasks uses heuristic substring matching on spec constraint text to detect test-file restrictions. A spec phrased differently (e.g. 'existing tests shall remain unmodified') silently bypasses enforcement.",
+      "suggested_fix": "Use a structured constraint representation (e.g. a ForbiddenFilePatterns []string field on RunState) rather than free-text heuristics.",
+      "cycle": 2,
+      "disposition": "new"
+    },
+    {
+      "facet": "code_quality",
+      "severity": "suggestion",
+      "file": "internal/next/specloop/taskloop.go",
+      "line": 1,
+      "description": "The baseline DetectFilesChanged call before RunTask is silenced with //nolint:errcheck and the returned []string{} is discarded. The two-call stateful contract of the closure is invisible at the call site; a reader cannot tell this is intentionally a side-effecting baseline capture.",
+      "suggested_fix": "Add a named wrapper or comment block that makes the two-call protocol explicit, e.g. `captureFileBaseline(cfg, workDir)` for the first call.",
+      "cycle": 2,
+      "disposition": "new"
+    },
+    {
+      "facet": "code_quality",
+      "severity": "suggestion",
+      "file": "internal/next/specloop/taskloop.go",
+      "line": 1,
+      "description": "RunTaskLoop handles budget checks, baseline capture, task execution, error recovery, delta computation, NeedsSplit heuristic promotion, decomposition renumbering, structural test-file coverage checks, repair loops with their own structural checks, and result emission — too many distinct responsibilities for one function.",
+      "suggested_fix": "Extract distinct phases into named helpers: runSingleTask, applyInspection, handleNeedsSplit.",
+      "cycle": 2,
+      "disposition": "new"
+    },
+    {
+      "facet": "code_quality",
+      "severity": "suggestion",
+      "file": "cmd/gromit-next/stage_provider.go",
+      "line": 1,
+      "description": "PlannerDecomposer.Decompose builds the spec packet from the task objective alone. The decomposer planner has no visibility into the original spec requirements, acceptance criteria, or constraints, so sub-tasks generated by decomposition may contradict spec-level rules inherited by the parent task.",
+      "suggested_fix": "Pass rs.SpecConstraints and the spec packet string to PlannerDecomposer and include them in the decomposition PlanRequest.",
+      "cycle": 2,
+      "disposition": "new"
+    },
+    {
+      "facet": "code_quality",
+      "severity": "info",
+      "file": "internal/next/execpolicy/policy.go",
+      "line": 1,
+      "description": "The comment block '// See CLAUDE.md nil-field normalization visibility convention: // exported — cross-package boundary type' is placed before NormalizeNilFields as a floating remark rather than as documentation for the method.",
+      "suggested_fix": "Move it to be a proper godoc comment on the method, or remove it and rely on CLAUDE.md alone.",
+      "cycle": 2,
+      "disposition": "new"
+    },
+    {
+      "facet": "code_quality",
+      "severity": "warning",
+      "file": "internal/next/specloop/stages/evidence.go",
+      "line": 1,
+      "description": "effectiveStatus still uses `allDone \u0026\u0026 FinalValidationPassed \u0026\u0026 FinalReviewPassed \u0026\u0026 FinalAcceptancePassed` to derive ready_for_review, but FinalizeStage.Run was updated in this same diff to check only the three gate booleans (removing the allDone requirement). These two status-derivation paths are now inconsistent: a run where all three gates pass but some tasks have status 'failed' (the exact scenario validated by the new TestFinalizeStage_AllGatesPassedWithFailedTask_ReadyForReview test) will be finalized as ready_for_review by FinalizeStage but rendered as needs_human in effectiveStatus, causing summary.md and review.md to show the wrong terminal state.",
+      "suggested_fix": "Remove the allDone loop from effectiveStatus, mirroring the updated FinalizeStage logic: `if rs.FinalValidationPassed \u0026\u0026 rs.FinalReviewPassed \u0026\u0026 rs.FinalAcceptancePassed { return StatusReadyForReview }`",
+      "cycle": 2,
+      "disposition": "new"
+    },
+    {
+      "facet": "code_quality",
+      "severity": "warning",
+      "file": "internal/next/specloop/taskloop.go",
+      "line": 1,
+      "description": "The structural test-file coverage check — verifying every *_test.go in expected_touched_area appears in result.FilesChanged — is copy-pasted verbatim in two places inside RunTaskLoop: once after initial inspection and again after each repair retry. The two identical ~15-line blocks share no helper function.",
+      "suggested_fix": "Extract the check into a named helper: `func applyTestFileCoverageCheck(ir *InspectResult, task runstore.Task, filesChanged []string)`, then call it from both sites.",
+      "cycle": 2,
+      "disposition": "new"
+    }
+  ],
+  "spec_alignment": [
+    {
+      "facet": "spec_alignment",
+      "severity": "error",
+      "file": "calc/calc.go",
+      "line": 0,
+      "description": "The primary in-scope requirement — adding `Subtract(a, b int) int` to `calc/calc.go` — is entirely absent from the diff. The spec requires this function to satisfy three acceptance criteria: Subtract(5,3)=2, Subtract(0,0)=0, Subtract(3,5)=-2.",
+      "suggested_fix": "Add `func Subtract(a, b int) int { return a - b }` to calc/calc.go.",
+      "cycle": 2,
+      "disposition": "pre-existing"
+    },
+    {
+      "facet": "spec_alignment",
+      "severity": "error",
+      "file": "calc/calc_test.go",
+      "line": 0,
+      "description": "Tests for the Subtract function are not present in the diff. The spec explicitly requires `calc/calc_test.go` to cover the three acceptance criteria: Subtract(5,3), Subtract(0,0), and Subtract(3,5).",
+      "suggested_fix": "Add TestSubtract with table-driven or individual cases for Subtract(5,3)=2, Subtract(0,0)=0, Subtract(3,5)=-2.",
+      "cycle": 2,
+      "disposition": "pre-existing"
+    },
+    {
+      "facet": "spec_alignment",
+      "severity": "warning",
+      "file": "cmd/gromit-next/exec.go",
+      "line": 0,
+      "description": "This file (and ~40 other changed files in cmd/gromit-next/, internal/next/, contracts/, e2e/, docs/) are entirely out-of-scope for this spec. The spec's In-Scope section is limited to calc/calc.go and calc/calc_test.go, and the Architectural Constraints state 'All code stays in the `calc` package'. The diff contains extensive changes to gromit execution infrastructure, adapter wiring, planner, runstore, specloop, and e2e harness — including two new contracts (scenario-22, scenario-23) and their e2e test functions.",
+      "suggested_fix": "Revert all changes outside calc/calc.go and calc/calc_test.go before submitting for review against this spec.",
+      "cycle": 2,
+      "disposition": "new"
+    },
+    {
+      "facet": "spec_alignment",
+      "severity": "info",
+      "file": "CONTINUE.md",
+      "line": 0,
+      "description": "CONTINUE.md was substantially rewritten (from 44 lines to 1550 lines) to track the broader spec 0002a/0002c/0002d test plan state. This is out-of-scope for the add-subtract spec and may confuse reviewers evaluating spec compliance.",
+      "suggested_fix": "No action required for spec compliance, but the file should not be included in the add-subtract review.",
+      "cycle": 2,
+      "disposition": "new"
+    },
+    {
+      "facet": "spec_alignment",
+      "severity": "warning",
+      "file": "internal/next/specloop/stages/plan.go",
+      "line": 0,
+      "description": "maxTaskID (in plan.go) and maxTaskIDInQueue (in taskloop.go) are duplicate logic: both iterate over t-NNN identifiers, parse the numeric suffix, and return the maximum. The only difference is input type ([]runstore.Task vs []taskEntry).",
+      "suggested_fix": "Extract a shared helper that accepts the numeric suffix extraction logic, or make maxTaskID accept a generic slice via a small adaptor.",
+      "cycle": 2,
+      "disposition": "new"
+    },
+    {
+      "facet": "spec_alignment",
+      "severity": "warning",
+      "file": "internal/next/specloop/stages/evidence.go",
+      "line": 0,
+      "description": "runstore.InvocationRecord and evidence.InvocationRecord are structurally identical structs. The evidence stage manually copies every field between them in a loop. This is fragile: adding a new field to one requires updating the other and the copy loop.",
+      "suggested_fix": "Consolidate to a single canonical InvocationRecord type (likely in runstore, since it is the lower-level package) and have evidence import it directly.",
+      "cycle": 2,
+      "disposition": "pre-existing"
+    },
+    {
+      "facet": "spec_alignment",
+      "severity": "warning",
+      "file": "e2e/harness_test.go",
+      "line": 0,
+      "description": "contractsDir and fixtureBase are hardcoded absolute paths (/Users/dabrams/gromit/contracts, /tmp/gromit-fixtures). This prevents the e2e suite from running on any machine other than the author's.",
+      "suggested_fix": "Derive contractsDir from the module root at runtime (e.g. using `runtime.Caller` or an environment variable) and allow fixtureBase to be overridden via GROMIT_FIXTURE_BASE.",
+      "cycle": 2,
+      "disposition": "pre-existing"
+    },
+    {
+      "facet": "spec_alignment",
+      "severity": "warning",
+      "file": "e2e/runner.go",
+      "line": 0,
+      "description": "BuildBinary hardcodes cmd.Dir = \"/Users/dabrams/gromit\". Same portability problem as the test constants in harness_test.go.",
+      "suggested_fix": "Derive the repo root dynamically (e.g. walk up from the test file's directory or use an environment variable).",
+      "cycle": 2,
+      "disposition": "new"
+    },
+    {
+      "facet": "spec_alignment",
+      "severity": "warning",
+      "file": "internal/next/specloop/stages/plan.go",
+      "line": 0,
+      "description": "filterForbiddenFixTasks uses heuristic substring matching on spec constraint text (\"test file\" + \"do not modify\" / \"must not be modified\" / \"not modify\") to decide whether to filter tasks. A spec that phrases the constraint differently (e.g. \"existing tests shall remain unmodified\") silently bypasses enforcement.",
+      "suggested_fix": "Consider a structured constraint representation (a parsed list of forbidden file globs) rather than free-text heuristics, or at least expand the phrase list and add a test for alternative phrasings.",
+      "cycle": 2,
+      "disposition": "pre-existing"
+    },
+    {
+      "facet": "spec_alignment",
+      "severity": "suggestion",
+      "file": "internal/next/specloop/taskloop.go",
+      "line": 0,
+      "description": "The baseline DetectFilesChanged call before RunTask is silenced with //nolint:errcheck and the returned []string{} is discarded. The two-call stateful contract of the closure is invisible at the call site; a reader cannot tell this is intentionally a side-effecting baseline capture.",
+      "suggested_fix": "Add an inline comment explaining the stateful closure contract: `// First call: captures baseline; return value intentionally discarded.`",
+      "cycle": 2,
+      "disposition": "new"
+    },
+    {
+      "facet": "spec_alignment",
+      "severity": "suggestion",
+      "file": "internal/next/specloop/taskloop.go",
+      "line": 0,
+      "description": "RunTaskLoop has grown to handle: budget checks, baseline capture, task execution, error recovery, delta computation, NeedsSplit heuristic promotion, decomposition renumbering, structural test-file coverage checks, repair loops with their own structural checks, and result emission. The function is doing too many distinct things and will be difficult to reason about or extend.",
+      "suggested_fix": "Extract at least two helpers: one for the inspect-and-repair sub-loop and one for the needs_split/decomposition path. This keeps the main loop focused on sequencing.",
+      "cycle": 2,
+      "disposition": "new"
+    },
+    {
+      "facet": "spec_alignment",
+      "severity": "suggestion",
+      "file": "cmd/gromit-next/stage_provider.go",
+      "line": 0,
+      "description": "PlannerDecomposer.Decompose builds the spec packet from the task objective alone: \"Decompose this task into smaller sub-tasks:\\n\\n\" + task.Objective. The decomposer planner has no visibility into the original spec requirements, acceptance criteria, or constraints, so sub-tasks may contradict spec-level rules inherited by the parent.",
+      "suggested_fix": "Pass rs.SpecConstraints (and ideally the original spec packet) into PlannerDecomposer so the decomposition prompt includes hard constraints.",
+      "cycle": 2,
+      "disposition": "new"
+    },
+    {
+      "facet": "spec_alignment",
+      "severity": "info",
+      "file": "internal/next/execpolicy/policy.go",
+      "line": 0,
+      "description": "The comment block \"// See CLAUDE.md nil-field normalization visibility convention: // exported — cross-package boundary type\" is placed before the NormalizeNilFields method but reads as a floating remark rather than method documentation.",
+      "suggested_fix": "Move the convention comment to immediately precede the method signature line, or fold it into a proper godoc comment on the method.",
+      "cycle": 2,
+      "disposition": "new"
+    }
+  ]
+}
