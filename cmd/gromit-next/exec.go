@@ -86,20 +86,25 @@ type execSpecRun struct {
 	dryRun        bool
 	storeDir      string
 	stageProvider StageProvider
+	policy        *execpolicy.Policy // pre-loaded policy; skips re-load in run()
 }
 
 // run executes the spec pipeline and returns the formatted result string.
 func (e *execSpecRun) run(ctx context.Context) (string, error) {
-	// 1. Load execution policy
+	// 1. Load execution policy (skip if pre-loaded by caller)
 	var policy execpolicy.Policy
-	var err error
-	if e.policyPath != "" {
-		policy, err = execpolicy.LoadPolicy(e.policyPath)
+	if e.policy != nil {
+		policy = *e.policy
 	} else {
-		policy = execpolicy.DefaultPolicy()
-	}
-	if err != nil {
-		return "", fmt.Errorf("load policy: %w", err)
+		var err error
+		if e.policyPath != "" {
+			policy, err = execpolicy.LoadPolicy(e.policyPath)
+		} else {
+			policy = execpolicy.DefaultPolicy()
+		}
+		if err != nil {
+			return "", fmt.Errorf("load policy: %w", err)
+		}
 	}
 	if err := policy.Validate(); err != nil {
 		return "", fmt.Errorf("invalid policy: %w", err)
@@ -173,10 +178,22 @@ func newExecSpecCmdWithProvider(provider StageProvider) *cobra.Command {
 				storeDir = ".gromit-next"
 			}
 
+			// Load policy early so budget values are available for client config.
+			var policy execpolicy.Policy
+			if policyPath != "" {
+				var pErr error
+				policy, pErr = execpolicy.LoadPolicy(policyPath)
+				if pErr != nil {
+					return fmt.Errorf("load policy: %w", pErr)
+				}
+			} else {
+				policy = execpolicy.DefaultPolicy()
+			}
+
 			p := provider
 			if p == nil {
 				workDir := resolveWorkDir(projectID, root)
-				claudeClient, err := claude.NewClient("claude", []string{"--dangerously-skip-permissions"}, 300)
+				claudeClient, err := claude.NewClient("claude", []string{"--dangerously-skip-permissions"}, policy.Budgets.MaxTaskDurationSeconds)
 				if err != nil {
 					return fmt.Errorf("create claude client: %w", err)
 				}
@@ -201,6 +218,7 @@ func newExecSpecCmdWithProvider(provider StageProvider) *cobra.Command {
 				dryRun:        dryRun,
 				storeDir:      storeDir,
 				stageProvider: p,
+				policy:        &policy,
 			}
 
 			output, err := r.run(cmd.Context())

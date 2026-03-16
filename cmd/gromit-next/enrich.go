@@ -10,6 +10,7 @@ import (
 	"github.com/danabrams/gromit/internal/claude"
 	"github.com/danabrams/gromit/internal/next/artifact"
 	"github.com/danabrams/gromit/internal/next/enrich"
+	"github.com/danabrams/gromit/internal/next/execpolicy"
 	"github.com/danabrams/gromit/internal/next/extract"
 	"github.com/danabrams/gromit/internal/next/fact"
 	"github.com/danabrams/gromit/internal/next/infer"
@@ -233,11 +234,10 @@ func sourcemapToFacts(sm sourcemap.SourceMap) []fact.Fact {
 	return facts
 }
 
-// Default binary names and timeout for LLM providers.
+// Default binary names for LLM providers.
 const (
-	defaultClaudeBinary  = "claude"
-	defaultCodexBinary   = "codex"
-	defaultClaudeTimeout = 300 // seconds
+	defaultClaudeBinary = "claude"
+	defaultCodexBinary  = "codex"
 )
 
 // buildEnrichProvider constructs a provider.Provider for the enrichment run
@@ -245,7 +245,8 @@ const (
 func buildEnrichProvider(cfg enrich.Config) (provider.Provider, error) {
 	switch cfg.Provider {
 	case "claude":
-		client, err := claude.NewClient(defaultClaudeBinary, nil, defaultClaudeTimeout)
+		defaultPolicy := execpolicy.DefaultPolicy()
+		client, err := claude.NewClient(defaultClaudeBinary, nil, defaultPolicy.Budgets.MaxTaskDurationSeconds)
 		if err != nil {
 			return nil, fmt.Errorf("create claude client: %w", err)
 		}
