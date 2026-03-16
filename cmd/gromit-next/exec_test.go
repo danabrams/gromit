@@ -12,8 +12,10 @@ import (
 	"time"
 
 	"github.com/danabrams/gromit/internal/next/execpolicy"
+	"github.com/danabrams/gromit/internal/next/projectcell"
 	"github.com/danabrams/gromit/internal/next/runstore"
 	"github.com/danabrams/gromit/internal/next/specloop"
+	"github.com/danabrams/gromit/internal/next/workspace"
 )
 
 func TestExecCmd_RequiresSpecFlag(t *testing.T) {
@@ -455,6 +457,60 @@ func TestExecSpec_NoDryRun_RunsAllStages(t *testing.T) {
 		if !recorders[name].ran {
 			t.Errorf("expected %s stage to run when dry-run is false", name)
 		}
+	}
+}
+
+// TestResolveWorkDir_UsesProjectRepoPath verifies that when a project ID is given
+// and a cell exists, resolveWorkDir returns the cell's RepoPath — not os.Getwd().
+//
+// RED: resolveWorkDir does not exist yet; exec.go uses os.Getwd() unconditionally.
+// GREEN after: resolveWorkDir looks up cell.RepoPath when projectID is set.
+func TestResolveWorkDir_UsesProjectRepoPath(t *testing.T) {
+	wsRoot := t.TempDir()
+
+	// Create a fake git repo directory for the project.
+	repoDir := filepath.Join(t.TempDir(), "my-repo")
+	if err := os.MkdirAll(filepath.Join(repoDir, ".git"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Register the project in the cell store.
+	store := projectcell.NewFSStore(filepath.Join(wsRoot, "projects"))
+	if _, err := store.Create("my-project", repoDir); err != nil {
+		t.Fatalf("create cell: %v", err)
+	}
+
+	root := workspace.Root(wsRoot)
+	got := resolveWorkDir("my-project", root)
+	if got != repoDir {
+		t.Errorf("resolveWorkDir = %q, want project RepoPath %q", got, repoDir)
+	}
+}
+
+// TestResolveWorkDir_FallsBackToGetwd_WhenNoProject verifies that when no
+// project ID is given, resolveWorkDir returns the current working directory.
+func TestResolveWorkDir_FallsBackToGetwd_WhenNoProject(t *testing.T) {
+	wsRoot := t.TempDir()
+	root := workspace.Root(wsRoot)
+
+	cwd, _ := os.Getwd()
+	got := resolveWorkDir("", root)
+	if got != cwd {
+		t.Errorf("resolveWorkDir = %q, want cwd %q", got, cwd)
+	}
+}
+
+// TestResolveWorkDir_FallsBackToGetwd_WhenProjectNotFound verifies that when
+// the project ID is set but the cell doesn't exist, resolveWorkDir falls back
+// to os.Getwd() rather than returning an empty string or erroring.
+func TestResolveWorkDir_FallsBackToGetwd_WhenProjectNotFound(t *testing.T) {
+	wsRoot := t.TempDir() // empty — no projects registered
+	root := workspace.Root(wsRoot)
+
+	cwd, _ := os.Getwd()
+	got := resolveWorkDir("nonexistent-project", root)
+	if got != cwd {
+		t.Errorf("resolveWorkDir = %q, want cwd %q", got, cwd)
 	}
 }
 

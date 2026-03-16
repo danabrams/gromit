@@ -9,12 +9,28 @@ import (
 
 	"github.com/danabrams/gromit/internal/claude"
 	"github.com/danabrams/gromit/internal/next/execpolicy"
+	"github.com/danabrams/gromit/internal/next/projectcell"
 	"github.com/danabrams/gromit/internal/next/runstore"
 	"github.com/danabrams/gromit/internal/next/specloop"
 	"github.com/danabrams/gromit/internal/next/workspace"
 	providerPkg "github.com/danabrams/gromit/internal/provider"
 	"github.com/spf13/cobra"
 )
+
+// resolveWorkDir returns the working directory for a spec execution.
+// When projectID is set and the project cell exists, it returns cell.RepoPath
+// so the executor always runs in the project's repo regardless of CWD.
+// Falls back to os.Getwd() when projectID is empty or the cell is not found.
+func resolveWorkDir(projectID string, root workspace.Root) string {
+	if projectID != "" {
+		store := projectcell.NewFSStore(root.ProjectsDir())
+		if cell, err := store.Get(projectID); err == nil && cell.RepoPath != "" {
+			return cell.RepoPath
+		}
+	}
+	cwd, _ := os.Getwd()
+	return cwd
+}
 
 var execCmd = &cobra.Command{
 	Use:   "exec",
@@ -143,12 +159,10 @@ func newExecSpecCmdWithProvider(provider StageProvider) *cobra.Command {
 			specPath, _ := cmd.Flags().GetString("spec")
 			projectID, _ := cmd.Flags().GetString("project")
 			policyPath, _ := cmd.Flags().GetString("policy")
-			if policyPath == "" {
-				resolver := workspace.NewEnvResolver()
-				root, err := resolver.Resolve()
-				if err == nil {
-					policyPath = filepath.Join(root.ProjectCell(projectID), "policy", "execution.json")
-				}
+			resolver := workspace.NewEnvResolver()
+			root, _ := resolver.Resolve()
+			if policyPath == "" && root != "" {
+				policyPath = filepath.Join(root.ProjectCell(projectID), "policy", "execution.json")
 			}
 			dryRun, _ := cmd.Flags().GetBool("dry-run")
 			storeDir, _ := cmd.Flags().GetString("store-dir")
@@ -158,7 +172,7 @@ func newExecSpecCmdWithProvider(provider StageProvider) *cobra.Command {
 
 			p := provider
 			if p == nil {
-				workDir, _ := os.Getwd()
+				workDir := resolveWorkDir(projectID, root)
 				claudeClient, err := claude.NewClient("claude", []string{"--dangerously-skip-permissions"}, 300)
 				if err != nil {
 					return fmt.Errorf("create claude client: %w", err)
