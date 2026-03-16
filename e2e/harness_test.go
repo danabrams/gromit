@@ -4,6 +4,10 @@ package e2e_test
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+	"sync"
 	"testing"
 
 	"github.com/danabrams/gromit/e2e"
@@ -144,3 +148,140 @@ func TestE2E_Scenario23_AdapterWiringVerification(t *testing.T) {
 	e2e.SetBinaryPath(e2e.BuildBinary(t))
 	e2e.RunNamedContract(t, 23, contractsDir, fixtureBase)
 }
+
+func TestE2E_Scenario24_RouterPhasePreferences(t *testing.T) {
+	e2e.SetBinaryPath(e2e.BuildBinary(t))
+	e2e.RunNamedContract(t, 24, contractsDir, fixtureBase)
+}
+
+func TestE2E_Scenario06_TaskRepair(t *testing.T) {
+	e2e.SetBinaryPath(e2e.BuildBinary(t))
+	e2e.RunNamedContract(t, 6, contractsDir, fixtureBase)
+}
+
+func TestE2E_Scenario07_TaskSplit(t *testing.T) {
+	e2e.SetBinaryPath(e2e.BuildBinary(t))
+	e2e.RunContractByFile(t, contractsDir, "scenario-07-task-split.yaml", fixtureBase)
+}
+
+func TestE2E_Scenario08_MultiProjectIsolation(t *testing.T) {
+	e2e.RequireE2E(t)
+	binary := e2e.BuildBinary(t)
+	e2e.SetBinaryPath(binary)
+
+	// Calc contract: add-subtract.md on fixture-calc
+	calcContract := e2e.Contract{
+		Name:     "Scenario 8 calc — Multi-Project Isolation",
+		Scenario: 8,
+		Spec:     "specs/add-subtract.md",
+		Fixture:  "fixture-calc",
+		Policy:   "policies/fixture-calc-execution.json",
+		StoreDir: ".gromit-next",
+		FixtureReset: e2e.FixtureReset{
+			GitFiles: []e2e.GitFileRestore{
+				{Commit: "7f6de76", Files: []string{"calc/calc.go", "calc/calc_test.go"}},
+			},
+			RemoveFiles: []string{"calc/divide_test.go", "calc/divide_edge_test.go", "calc/divide_exact_test.go"},
+		},
+		Assertions: []e2e.Assertion{
+			{Status: "ready_for_review"},
+			{FinalValidationPassed: boolPtr(true)},
+			{CostUSDGt: float64Ptr(0)},
+			{EndedAtSet: boolPtr(true)},
+			{FilesChangedNonempty: boolPtr(true)},
+			{AnyTaskFilesChangedContains: "calc/calc.go"},
+			{FileContains: &e2e.FileContainsAssertion{Path: "calc/calc.go", Pattern: "func Subtract"}},
+			{EventsContainType: "task_validation_result"},
+			{ExecShowFullNotContains: "running"},
+			{ExecListContains: "ready_for_review"},
+		},
+	}
+
+	// Greeter contract: add-farewell.md on fixture-greeter
+	greeterContract := e2e.Contract{
+		Name:         "Scenario 8 greeter — Multi-Project Isolation",
+		Scenario:     8,
+		Spec:         "add-farewell.md",
+		Fixture:      "fixture-greeter",
+		Policy:       "policies/fixture-greeter-execution.json",
+		StoreDir:     ".gromit-next",
+		FixtureReset: e2e.FixtureReset{},
+		Assertions: []e2e.Assertion{
+			{Status: "ready_for_review"},
+			{FinalValidationPassed: boolPtr(true)},
+			{CostUSDGt: float64Ptr(0)},
+			{EndedAtSet: boolPtr(true)},
+			{FilesChangedNonempty: boolPtr(true)},
+			{EventsContainType: "task_validation_result"},
+			{ExecShowFullNotContains: "running"},
+			{ExecListContains: "ready_for_review"},
+		},
+	}
+
+	// Run both concurrently.
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	go func() {
+		defer wg.Done()
+		e2e.RunContract(t, calcContract, binary, fixtureBase)
+	}()
+
+	go func() {
+		defer wg.Done()
+		e2e.RunContract(t, greeterContract, binary, fixtureBase)
+	}()
+
+	wg.Wait()
+
+	// Cross-contamination checks: scan evidence files in each store dir
+	// and ensure each run's evidence does not reference the other project.
+	calcStoreDir := filepath.Join(fixtureBase, "fixture-calc", ".gromit-next")
+	greeterStoreDir := filepath.Join(fixtureBase, "fixture-greeter", ".gromit-next")
+
+	checkDirNotContains(t, "calc evidence", calcStoreDir, []string{"farewell", "greeter"})
+	checkDirNotContains(t, "greeter evidence", greeterStoreDir, []string{"subtract", "calculator"})
+}
+
+// checkDirNotContains walks dir and fails the test if any file contains any of
+// the forbidden strings.
+func checkDirNotContains(t *testing.T, label, dir string, forbidden []string) {
+	t.Helper()
+	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+		if err != nil || info.IsDir() {
+			return nil
+		}
+		data, readErr := os.ReadFile(path)
+		if readErr != nil {
+			return nil
+		}
+		content := strings.ToLower(string(data))
+		for _, word := range forbidden {
+			if strings.Contains(content, strings.ToLower(word)) {
+				t.Errorf("cross-contamination: %s file %s contains %q", label, path, word)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Errorf("cross-contamination walk %s: %v", label, err)
+	}
+}
+
+func TestE2E_Scenario12_BroadRefactor(t *testing.T) {
+	e2e.SetBinaryPath(e2e.BuildBinary(t))
+	e2e.RunNamedContract(t, 12, contractsDir, fixtureBase)
+}
+
+func TestE2E_Scenario25_CostCallback(t *testing.T) {
+	e2e.SetBinaryPath(e2e.BuildBinary(t))
+	e2e.RunNamedContract(t, 25, contractsDir, fixtureBase)
+}
+
+func TestE2E_Scenario26_SingleProviderMode(t *testing.T) {
+	e2e.SetBinaryPath(e2e.BuildBinary(t))
+	e2e.RunNamedContract(t, 26, contractsDir, fixtureBase)
+}
+
+func boolPtr(b bool) *bool          { return &b }
+func float64Ptr(f float64) *float64 { return &f }

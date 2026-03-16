@@ -1,0 +1,40 @@
+name: "Scenario 25 — Cost Callback Verification (0002c Scenario 4)"
+scenario: 25
+spec: specs/add-subtract.md
+fixture: fixture-calc
+policy: policies/fixture-calc-execution.json
+store_dir: .gromit-next
+
+# Verifies that all LLM phases (plan, execute, review, accept) accumulate cost
+# in metrics.json — cost_usd > 0 and invocations >= 4 confirm the callbacks fired.
+fixture_reset:
+  git_files:
+    - commit: "7f6de76"
+      files: [calc/calc.go, calc/calc_test.go]
+  remove_files:
+    - calc/divide_test.go
+    - calc/divide_edge_test.go
+    - calc/divide_exact_test.go
+  add_files: []
+
+inline_policy: ""
+extra_flags: []
+
+assertions:
+  # Run state
+  - status: ready_for_review
+  - final_validation_passed: true
+  - cost_usd_gt: 0
+  - ended_at_set: true
+
+  # Invocations: plan + execute + review + accept = at least 4
+  - invocations_count_gte: 4
+
+  # Phase coverage: each LLM-backed stage recorded an invocation
+  - exec_show_full_contains: '"phase": "plan"'
+  - exec_show_full_contains: '"phase": "execute"'
+  - exec_show_full_contains: '"phase": "review"'
+  - exec_show_full_contains: '"phase": "accept"'
+
+  # Cost must be non-zero on the run (proves cost callbacks fired)
+  - exec_show_not_contains: "Cost:    $0.0000"

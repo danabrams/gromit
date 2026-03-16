@@ -1,0 +1,49 @@
+name: "Scenario 12 — Broad Refactor (multi-file, cycles exhausted)"
+scenario: 12
+spec: specs/broad-refactor.md
+fixture: fixture-calc
+policy: policies/fixture-calc-execution.json
+store_dir: .gromit-next
+
+# broad-refactor.md creates Division, Modulo, Power, Abs + tests + doc.go
+# noopGitOps doesn't stage new files → review sees false errors → cycles exhaust
+fixture_reset:
+  git_files:
+    - commit: "7f6de76"
+      files: [calc/calc.go, calc/calc_test.go]
+  remove_files:
+    - calc/divide_test.go
+    - calc/divide_edge_test.go
+    - calc/divide_exact_test.go
+    - calc/abs.go
+    - calc/abs_test.go
+    - calc/division.go
+    - calc/division_test.go
+    - calc/doc.go
+    - calc/modulo.go
+    - calc/modulo_test.go
+    - calc/power.go
+    - calc/power_test.go
+  add_files:
+    - src: /tmp/gromit-fixtures/specs/broad-refactor.md
+      dst: specs/broad-refactor.md
+
+inline_policy: ""
+extra_flags: []
+
+assertions:
+  # Run state — noopGitOps causes false review errors; cycles exhaust
+  - status_one_of: [needs_human, ready_for_review]
+  - terminal_reason: cycles_exhausted
+  - cost_usd_gt: 0
+  - ended_at_set: true
+  - replans_gte: 1
+
+  # Evidence files — at least one LLM invocation occurred
+  - invocations_count_gte: 1
+
+  # Task assertions — new files were written
+  - files_changed_nonempty: true
+
+  # CLI output assertions
+  - exec_show_contains: "Cycles:"

@@ -780,9 +780,10 @@ func TestIntegration_ReviewFixCycle_EvolvingFindings_BudgetExhausted_NeedsHuman(
 		t.Errorf("review should run 3 times (once per cycle), got %d", reviewStage.callCount)
 	}
 
-	// Accept should never have run — review always returned ReplanFrom
-	if acceptStage.callCount != 0 {
-		t.Errorf("accept should never run when review always replans, got %d calls", acceptStage.callCount)
+	// Accept should run exactly once — at cycles_exhausted to capture acceptance.json,
+	// even though review short-circuited before accept in every normal cycle.
+	if acceptStage.callCount != 1 {
+		t.Errorf("accept should run once (at cycles_exhausted), got %d calls", acceptStage.callCount)
 	}
 
 	// BlockerSummary should contain the last finding from the final cycle's replan context
@@ -847,8 +848,10 @@ func TestIntegration_AcceptanceFail_BudgetExhausted_NeedsHuman(t *testing.T) {
 	if rs.TerminalReason != "cycles_exhausted" {
 		t.Errorf("want terminal_reason %q, got %q", "cycles_exhausted", rs.TerminalReason)
 	}
-	if acceptStage.callCount != 2 {
-		t.Errorf("accept should run twice (once per cycle), got %d", acceptStage.callCount)
+	// Accept runs once per cycle (2 cycles) plus once more at cycles_exhausted to
+	// capture acceptance.json even though the run terminated early.
+	if acceptStage.callCount != 3 {
+		t.Errorf("accept should run 3 times (once per cycle + once at cycles_exhausted), got %d", acceptStage.callCount)
 	}
 	if rs.FinalAcceptancePassed {
 		t.Error("FinalAcceptancePassed should be false when acceptance always fails")

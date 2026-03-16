@@ -2,7 +2,9 @@ package provider
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"io"
 	"strings"
 	"testing"
 )
@@ -440,5 +442,88 @@ func TestProcessCodexStreamEmitsWarningWhenInputTokensExceed3M(t *testing.T) {
 	}
 	if !foundWarning {
 		t.Errorf("no warning event emitted for input tokens > 3M, events: %v", capturedEvents)
+	}
+}
+
+// TestCodexProviderFallbackCost_ComputesFromTokensWhenNoCostInStream verifies that
+// when Codex emits tokens but no total_cost_usd (as happens with ChatGPT accounts),
+// the provider falls back to computing cost from token counts × configured rates.
+func TestCodexProviderFallbackCost_ComputesFromTokensWhenNoCostInStream(t *testing.T) {
+	t.Parallel()
+	// Emit tokens but no total_cost_usd — mirrors real Codex ChatGPT account output:
+	// {"type":"turn.completed","usage":{"input_tokens":9349,"cached_input_tokens":6912,"output_tokens":72}}
+	mockBinary := newTestBinary(t, `cat > /dev/null
+echo '{"type":"item.completed","item":{"type":"agent_message","text":"ok"}}'
+echo '{"type":"turn.completed","usage":{"input_tokens":1000000,"cached_input_tokens":0,"output_tokens":500000}}'
+exit 0`)
+	cp := NewCodexProvider(mockBinary, []string{}, map[string]string{TierLow: "gpt-5.4"})
+	// gpt-5.4: $2.00/1M input, $8.00/1M output → 1M input + 500K output = $2.00 + $4.00 = $6.00
+	cp.SetModelPricing(map[string]ModelPricing{
+		"gpt-5.4": {InputCostPerMillion: 2.00, OutputCostPerMillion: 8.00},
+	})
+
+	result, err := cp.StreamRun(context.Background(), "test", TierLow, io.Discard, nil, nil)
+	if err != nil {
+		t.Fatalf("StreamRun error: %v", err)
+	}
+	if result == nil {
+		t.Fatal("result is nil")
+	}
+	if result.InputTokens != 1000000 {
+		t.Errorf("InputTokens = %d, want 1000000", result.InputTokens)
+	}
+	if result.OutputTokens != 500000 {
+		t.Errorf("OutputTokens = %d, want 500000", result.OutputTokens)
+	}
+	const wantCost = 6.00 // $2.00 + $4.00
+	if result.CostUSD != wantCost {
+		t.Errorf("CostUSD = %f, want %f (computed from tokens × rates)", result.CostUSD, wantCost)
+	}
+}
+
+// TestCodexProviderFallbackCost_ZeroWhenNoPricingConfigured verifies that when no
+// model pricing is configured, CostUSD remains 0 (no panics or guesses).
+func TestCodexProviderFallbackCost_ZeroWhenNoPricingConfigured(t *testing.T) {
+	t.Parallel()
+	mockBinary := newTestBinary(t, `cat > /dev/null
+echo '{"type":"item.completed","item":{"type":"agent_message","text":"ok"}}'
+echo '{"type":"turn.completed","usage":{"input_tokens":1000,"output_tokens":300}}'
+exit 0`)
+	cp := NewCodexProvider(mockBinary, []string{}, map[string]string{TierLow: "gpt-5.4"})
+	// No SetModelPricing call — pricing is unconfigured.
+
+	result, err := cp.StreamRun(context.Background(), "test", TierLow, io.Discard, nil, nil)
+	if err != nil {
+		t.Fatalf("StreamRun error: %v", err)
+	}
+	if result == nil {
+		t.Fatal("result is nil")
+	}
+	if result.CostUSD != 0 {
+		t.Errorf("CostUSD = %f, want 0 when no pricing configured", result.CostUSD)
+	}
+}
+
+// TestCodexProviderFallbackCost_StreamCostTakesPrecedence verifies that when Codex
+// DOES emit total_cost_usd, that value is used rather than the token-based fallback.
+func TestCodexProviderFallbackCost_StreamCostTakesPrecedence(t *testing.T) {
+	t.Parallel()
+	// Emit both tokens AND cost — the stream cost should win.
+	mockBinary := newTestBinary(t, `cat > /dev/null
+echo '{"type":"item.completed","item":{"type":"agent_message","text":"ok"}}'
+echo '{"type":"turn.completed","usage":{"input_tokens":1000000,"output_tokens":500000,"total_cost_usd":1.23}}'
+exit 0`)
+	cp := NewCodexProvider(mockBinary, []string{}, map[string]string{TierLow: "gpt-5.4"})
+	cp.SetModelPricing(map[string]ModelPricing{
+		"gpt-5.4": {InputCostPerMillion: 2.00, OutputCostPerMillion: 8.00},
+	})
+
+	result, err := cp.StreamRun(context.Background(), "test", TierLow, io.Discard, nil, nil)
+	if err != nil {
+		t.Fatalf("StreamRun error: %v", err)
+	}
+	// Stream reported $1.23; token-based fallback would give $6.00. Stream wins.
+	if result.CostUSD != 1.23 {
+		t.Errorf("CostUSD = %f, want 1.23 (stream value takes precedence)", result.CostUSD)
 	}
 }

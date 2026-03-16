@@ -1,0 +1,106 @@
+name: "Scenario 24 — Router Phase Preferences"
+scenario: 24
+spec: specs/add-subtract.md
+fixture: fixture-calc
+store_dir: .gromit-next
+
+# Routing policy: plan and review via Claude, execute via Codex.
+# This verifies that per-phase provider preferences in RoutingConfig
+# cause the correct provider to be selected for each stage (0002d).
+inline_policy: |
+  {
+    "always_run": [
+      {"name": "unit-tests", "command": "go test ./...", "type": "test"},
+      {"name": "format",     "command": "gofmt -l .",    "type": "lint"},
+      {"name": "vet",        "command": "go vet ./...",  "type": "lint"}
+    ],
+    "budgets": {
+      "max_spec_cycles": 3,
+      "max_task_retries": 1,
+      "max_redecomposition_passes": 1,
+      "max_task_duration_seconds": 300,
+      "max_run_duration_seconds": 3600,
+      "max_run_cost_usd": 50.0
+    },
+    "models": {
+      "planner":   "high",
+      "executor":  "medium",
+      "evaluator": "medium"
+    },
+    "routing": {
+      "preferences": {
+        "plan":    "claude",
+        "execute": "codex",
+        "review":  "claude",
+        "accept":  "claude"
+      },
+      "ratio": {"claude": 60, "codex": 40},
+      "cooldown_seconds": 300
+    }
+  }
+
+fixture_reset:
+  git_files:
+    - commit: "7f6de76"
+      files: [calc/calc.go, calc/calc_test.go]
+  remove_files:
+    - calc/divide_test.go
+    - calc/divide_edge_test.go
+    - calc/divide_exact_test.go
+    - calc/abs.go
+    - calc/abs_test.go
+    - calc/division.go
+    - calc/division_test.go
+    - calc/doc.go
+    - calc/modulo.go
+    - calc/modulo_test.go
+    - calc/power.go
+    - calc/power_test.go
+  add_files: []
+
+assertions:
+  # Run state
+  - status: ready_for_review
+  - final_validation_passed: true
+  - cost_usd_gt: 0
+  - ended_at_set: true
+
+  # Invocation count: at least plan + execute + review + accept = 4
+  - invocations_count_gte: 4
+
+  # Phase preferences: Codex must appear (execute phase routed to Codex).
+  # If routing is not applied, all invocations use Claude and this fails.
+  - exec_show_full_contains: '"provider": "codex"'
+
+  # Claude must also appear (plan, review, accept phases).
+  - exec_show_full_contains: '"provider": "claude"'
+
+  # Phase coverage: all LLM-backed stages recorded invocations.
+  - exec_show_full_contains: '"phase": "plan"'
+  - exec_show_full_contains: '"phase": "execute"'
+  - exec_show_full_contains: '"phase": "review"'
+  - exec_show_full_contains: '"phase": "accept"'
+
+  # Validate and compile are shell-based — no LLM invocations expected.
+  - exec_show_full_not_contains: '"phase": "validate"'
+  - exec_show_full_not_contains: '"phase": "compile"'
+
+  # Provider field must be non-empty on every invocation.
+  - exec_show_full_not_contains: '"provider": ""'
+
+  # Evidence files
+  - acceptance_all_pass: true
+  - validation_pass: true
+
+  # Task assertions
+  - all_tasks_attempted: true
+  - files_changed_nonempty: true
+  - any_task_files_changed_contains: calc/calc.go
+
+  # Filesystem: Subtract was implemented.
+  - file_contains:
+      path: calc/calc.go
+      pattern: "func Subtract"
+
+  # CLI output sanity
+  - exec_show_not_contains: "Cost:    $0.0000"

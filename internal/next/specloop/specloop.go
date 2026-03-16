@@ -101,7 +101,11 @@ func (sl *SpecLoop) Run(ctx context.Context, rs *runstore.RunState) error {
 					rs.BlockerSummary = action.Context.Failures[0]
 				}
 				rs.EndedAt = time.Now()
-				sl.runAccept(ctx, rs)
+				// Only call runAccept if accept hasn't already run as the current
+				// stage — avoids double-executing accept when it returns NeedsHuman.
+				if stage.Name() != "accept" {
+					sl.runAccept(ctx, rs)
+				}
 				sl.emitTerminal(rs)
 				sl.runEvidence(ctx, rs)
 				return nil

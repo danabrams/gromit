@@ -1,0 +1,75 @@
+name: "Scenario 26 — Single-Provider Mode (0002c Scenario 10)"
+scenario: 26
+spec: specs/add-subtract.md
+fixture: fixture-calc
+store_dir: .gromit-next
+
+# Verifies that Claude-only routing (ratio: {claude: 100}) completes a full run
+# without errors. All invocations must use the "claude" provider.
+inline_policy: |
+  {
+    "always_run": [
+      {"name": "unit-tests", "command": "go test ./...", "type": "test"},
+      {"name": "format",     "command": "gofmt -l .",    "type": "lint"},
+      {"name": "vet",        "command": "go vet ./...",  "type": "lint"}
+    ],
+    "budgets": {
+      "max_spec_cycles": 3,
+      "max_task_retries": 1,
+      "max_redecomposition_passes": 1,
+      "max_task_duration_seconds": 300,
+      "max_run_duration_seconds": 3600,
+      "max_run_cost_usd": 50.0
+    },
+    "models": {
+      "planner":   "high",
+      "executor":  "medium",
+      "evaluator": "high"
+    },
+    "review": {
+      "facets": ["spec_alignment", "code_quality"],
+      "replan_threshold": "warning"
+    },
+    "routing": {
+      "preferences": {
+        "plan":    "claude",
+        "execute": "claude",
+        "review":  "claude",
+        "accept":  "claude"
+      },
+      "ratio": {"claude": 100},
+      "cooldown_seconds": 300
+    }
+  }
+
+fixture_reset:
+  git_files:
+    - commit: "7f6de76"
+      files: [calc/calc.go, calc/calc_test.go]
+  remove_files:
+    - calc/divide_test.go
+    - calc/divide_edge_test.go
+    - calc/divide_exact_test.go
+  add_files: []
+
+extra_flags: []
+
+assertions:
+  # Run state
+  - status: ready_for_review
+  - final_validation_passed: true
+  - cost_usd_gt: 0
+  - ended_at_set: true
+
+  # Invocations: plan + execute + review + accept = at least 4
+  - invocations_count_gte: 4
+
+  # All invocations must use Claude — no Codex provider present
+  - exec_show_full_contains: '"provider": "claude"'
+  - exec_show_full_not_contains: '"provider": "codex"'
+
+  # Provider field must be non-empty on every invocation
+  - exec_show_full_not_contains: '"provider": ""'
+
+  # Cost must be non-zero
+  - exec_show_not_contains: "Cost:    $0.0000"

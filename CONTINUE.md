@@ -1,7 +1,7 @@
 # Manual Test Plan — Spec 0002a/0002c/0002d End-to-End
 
 ## Status
-- **Current phase:** Spec 0002c/0002d — parallel verification complete; 2 scenarios deferred (7, 8 require Codex)
+- **Current phase:** Spec 0002c/0002d — ALL scenarios complete (7 and 8 now PASS with Codex)
 - **Spec 0002b:** ALL 11 SCENARIOS COMPLETE
 - **Date:** 2026-03-16
 
@@ -13,8 +13,8 @@
 | 4 | Cost Callback | PASS ✓ | plan=$0.044, execute=$0.151, review=$0.041, accept=$0.131 (run-8fa7505010d7a4ac) |
 | 5 | Timeout Enforcement | PASS ✓ | `TestInvoke_TimeoutEnforcement` + `TestScenario_ExecSpec_TimeoutEnforcement_ContextReachesStages` — context deadline propagates through exec→specloop→stage; adapter Config.Timeout enforced |
 | 6 | FallbackAdapter Unit Tests | PASS ✓ | 15/15 tests |
-| 7 | Router Phase Preferences | DEFERRED | Requires codex for execute phase |
-| 8 | Codex Contracts | DEFERRED | `TestContract.*Codex` not yet written |
+| 7 | Router Phase Preferences | PASS ✓ | E2E contract (scenario-24) + `contracts/scenario-24-router-phase-preferences.yaml`; codex for execute, claude for plan/review/accept |
+| 8 | Codex Contracts | PASS ✓ | 12/12 `TestContract.*Codex` tests pass; low=gpt-5.1-codex-mini, med/high=gpt-5.4; token-based cost fallback (no stream cost_usd); `turn.failed` handling |
 | 9 | Routing Config Validation | PASS ✓ | `policy.Validate()` wired in `exec.go`; `TestScenario_ExecSpec_InvalidRoutingRatio_ReturnsError` — invalid ratio (sum≠100) returns "invalid policy" error before BuildStages |
 | 10 | Single-Provider Mode | PASS ✓ | All 16 invocations `provider="claude"`, no panics |
 | 10b | Cost Budget Exceeded | PASS ✓ | 8/8 unit tests in `specloop/budget_test.go` |
@@ -1474,33 +1474,31 @@ go test ./internal/next/llmadapter/ -run TestFallbackAdapter -v -count=1
 
 ### Scenario 0002d-7 — Router Phase Preferences
 
-**Status:** NOT YET RUN
+**Status:** PASS ✓ (2026-03-16)
 
 **Purpose**: Per-phase provider preferences in `RoutingConfig` cause the correct provider for each stage.
 
 **Source**: `docs/plans/2026-03-13-spec-0002c-0002d-manual-test-plan.md` §Scenario 7
 
-**Requires**: `codex` binary. If unavailable, mark DEGRADED PASS and re-run with Codex.
+**E2E Contract**: `contracts/scenario-24-router-phase-preferences.yaml` (scenario 24, `TestE2E_Scenario24_RouterPhasePreferences`)
 
 **Pass/Fail Checklist**:
-- [ ] plan invocations → `provider: "claude"`
-- [ ] execute invocations → `provider: "codex"`
-- [ ] review invocations → `provider: "claude"`
-- [ ] accept invocations → `provider: "claude"`
-- [ ] No validate/compile LLM invocations
-- [ ] Terminal state: `ready_for_review`
+- [x] plan invocations → `provider: "claude"`
+- [x] execute invocations → `provider: "codex"`
+- [x] review invocations → `provider: "claude"`
+- [x] accept invocations → `provider: "claude"`
+- [x] No validate/compile LLM invocations
+- [x] Terminal state: `ready_for_review`
 
 ---
 
 ### Scenario 0002d-8 — Contract Tests Against Codex
 
-**Status:** NOT YET RUN
+**Status:** PASS ✓ (2026-03-16)
 
 **Purpose**: All contract test suites pass against real Codex provider.
 
 **Source**: `docs/plans/2026-03-13-spec-0002c-0002d-manual-test-plan.md` §Scenario 8
-
-**Requires**: `codex` binary.
 
 **Command**:
 ```bash
@@ -1508,11 +1506,22 @@ GROMIT_LLM_CONTRACT=1 go test ./internal/next/... \
   -run 'TestContract.*Codex' -v -count=1 -timeout 300s
 ```
 
+**Fixes applied**:
+- `internal/next/llmadapter/contract_helper.go`: Model config: `low=gpt-5.1-codex-mini`, `medium=gpt-5.4`, `high=gpt-5.4`; reasoning effort: `low=high`, `medium=medium`, `high=high`; pricing configured for fallback cost calculation (see below)
+- `internal/provider/codex_stream.go`: Added `turn.failed` event handling — surfaces error info instead of silently returning empty output
+
+**Cost tracking fix** (2026-03-16):
+- Codex (ChatGPT accounts) does not emit `total_cost_usd` in JSONL stream — `turn.completed` only has token counts
+- Added `ModelPricing` struct + `SetModelPricing()` to `CodexProvider`; fallback: `inputTokens/1M × inputRate + outputTokens/1M × outputRate`
+- Stream cost takes precedence if non-zero; fallback fires only when stream cost is 0
+- Pricing: `gpt-5.1-codex-mini` = $0.25/$2.00 per 1M, `gpt-5.4` = $2.50/$15.00 per 1M
+- Added `Cost != 0` assertion to `RunPlanAgentContract`; 3 new unit tests in `codex_cost_tracking_test.go`
+
 **Pass/Fail Checklist**:
-- [ ] `TestContract_ProviderPlanAgent_Codex` — all subtests PASS
-- [ ] `TestContract_ProviderReviewAgent_Codex` — all subtests PASS
-- [ ] `TestContract_ProviderAcceptAgent_Codex` — all subtests PASS
-- [ ] `TestContract_ProviderTaskRunner_Codex` — all subtests PASS
+- [x] `TestContract_ProviderPlanAgent_Codex` — all subtests PASS (incl. Cost != 0)
+- [x] `TestContract_ProviderReviewAgent_Codex` — all subtests PASS
+- [x] `TestContract_ProviderAcceptAgent_Codex` — all subtests PASS
+- [x] `TestContract_ProviderTaskRunner_Codex` — all subtests PASS
 
 ---
 

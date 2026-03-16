@@ -52,6 +52,9 @@ func RunPlanAgentContract(t *testing.T, agent Agent) {
 		if result.TokensOut == 0 {
 			t.Error("expected non-zero TokensOut")
 		}
+		if result.Cost == 0 {
+			t.Error("expected non-zero Cost (check provider pricing config)")
+		}
 	})
 }
 

@@ -338,7 +338,7 @@ func processCodexStream(reader io.Reader, output io.Writer, handler EventHandler
 				emitHighInputTokenWarningIfNeeded(handler, resultUsage)
 			}
 
-		case "turn.completed":
+		case "turn.completed", "turn.failed":
 			mergedUsage, turnUsage := mergeCodexEventUsage(usage, event)
 			if turnUsage != nil {
 				usage = mergedUsage

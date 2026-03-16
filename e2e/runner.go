@@ -259,6 +259,29 @@ func RunNamedContract(t *testing.T, scenario int, contractsDir, fixtureBase stri
 	RunContract(t, c, e2eBinaryPath, fixtureBase)
 }
 
+// LoadContractByFile loads a single contract YAML file by filename from contractsDir.
+func LoadContractByFile(t *testing.T, contractsDir, filename string) Contract {
+	t.Helper()
+	path := filepath.Join(contractsDir, filename)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read contract file %s: %v", path, err)
+	}
+	var c Contract
+	if err := yaml.Unmarshal(data, &c); err != nil {
+		t.Fatalf("parse contract %s: %v", path, err)
+	}
+	return c
+}
+
+// RunContractByFile loads a specific YAML file by filename and runs it.
+func RunContractByFile(t *testing.T, contractsDir, filename, fixtureBase string) {
+	t.Helper()
+	RequireE2E(t)
+	c := LoadContractByFile(t, contractsDir, filename)
+	RunContract(t, c, e2eBinaryPath, fixtureBase)
+}
+
 // --- Assertion evaluation ---
 
 // evaluateAssertions checks all assertions in the contract against the scenario result.

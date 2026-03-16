@@ -22,6 +22,13 @@ const (
 
 var codexKillDescendantsOnCancelFn = procutil.KillDescendantsOnCancel
 
+// ModelPricing holds per-million-token USD rates for a specific model.
+// Used as a fallback when the provider does not emit total_cost_usd in the stream.
+type ModelPricing struct {
+	InputCostPerMillion  float64 // USD per 1M input tokens
+	OutputCostPerMillion float64 // USD per 1M output tokens
+}
+
 // CodexProvider wraps the Codex CLI and implements the Provider interface
 type CodexProvider struct {
 	binaryPath           string
@@ -29,6 +36,7 @@ type CodexProvider struct {
 	tierToModel          map[string]string
 	tierToReasoning      map[string]string
 	tierToMaxInputTokens map[string]int
+	modelPricing         map[string]ModelPricing
 	sleepFn              func(context.Context, time.Duration) error
 	cacheAdapter         CacheAdapter
 }
@@ -99,6 +107,37 @@ func (cp *CodexProvider) SetReasoningEffort(tierToReasoning map[string]string) {
 		}
 		cp.tierToReasoning[key] = val
 	}
+}
+
+// SetModelPricing configures per-model token pricing for cost fallback.
+// When Codex does not emit total_cost_usd in its stream (e.g. ChatGPT accounts),
+// CostUSD is computed as: inputTokens/1M × InputCostPerMillion + outputTokens/1M × OutputCostPerMillion.
+// If the model is not in the map, CostUSD remains 0.
+func (cp *CodexProvider) SetModelPricing(pricing map[string]ModelPricing) {
+	if cp == nil {
+		return
+	}
+	cp.modelPricing = make(map[string]ModelPricing, len(pricing))
+	for model, p := range pricing {
+		cp.modelPricing[model] = p
+	}
+}
+
+// computeCostUSD returns cost from stream usage. If total_cost_usd is zero but
+// tokens are present and model pricing is configured, falls back to token × rate.
+func (cp *CodexProvider) computeCostUSD(usage *codexUsage, model string) float64 {
+	if c := usageCost(usage); c > 0 {
+		return c
+	}
+	if usage == nil || cp == nil || len(cp.modelPricing) == 0 {
+		return 0
+	}
+	p, ok := cp.modelPricing[model]
+	if !ok {
+		return 0
+	}
+	return float64(usage.InputTokens)/1_000_000*p.InputCostPerMillion +
+		float64(usage.OutputTokens)/1_000_000*p.OutputCostPerMillion
 }
 
 // SetMaxInputTokens configures per-tier maximum input token thresholds.
@@ -269,7 +308,7 @@ func (cp *CodexProvider) streamRunOnce(ctx context.Context, prompt string, tier 
 			Duration:          duration,
 			Model:             model,
 			ReasoningEffort:   reasoningEffort,
-			CostUSD:           usageCost(usage),
+			CostUSD:           cp.computeCostUSD(usage, model),
 			InputTokens:       usageInputTokens(usage),
 			CachedInputTokens: usageCachedInputTokens(usage),
 			OutputTokens:      usageOutputTokens(usage),
@@ -294,7 +333,7 @@ func (cp *CodexProvider) streamRunOnce(ctx context.Context, prompt string, tier 
 			Duration:          duration,
 			Model:             model,
 			ReasoningEffort:   reasoningEffort,
-			CostUSD:           usageCost(usage),
+			CostUSD:           cp.computeCostUSD(usage, model),
 			InputTokens:       usageInputTokens(usage),
 			CachedInputTokens: usageCachedInputTokens(usage),
 			OutputTokens:      usageOutputTokens(usage),
@@ -316,7 +355,7 @@ func (cp *CodexProvider) streamRunOnce(ctx context.Context, prompt string, tier 
 		Duration:          duration,
 		Model:             model,
 		ReasoningEffort:   reasoningEffort,
-		CostUSD:           usageCost(usage),
+		CostUSD:           cp.computeCostUSD(usage, model),
 		InputTokens:       usageInputTokens(usage),
 		CachedInputTokens: usageCachedInputTokens(usage),
 		OutputTokens:      usageOutputTokens(usage),
@@ -404,7 +443,7 @@ func (cp *CodexProvider) runOnce(ctx context.Context, prompt, model string, args
 		Duration:          duration,
 		Model:             model,
 		ReasoningEffort:   reasoningEffort,
-		CostUSD:           usageCost(usage),
+		CostUSD:           cp.computeCostUSD(usage, model),
 		InputTokens:       usageInputTokens(usage),
 		CachedInputTokens: usageCachedInputTokens(usage),
 		OutputTokens:      usageOutputTokens(usage),
