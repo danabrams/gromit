@@ -1,7 +1,7 @@
 # Manual Test Plan — Spec 0002a/0002c/0002d End-to-End
 
 ## Status
-- **Current phase:** Spec 0002c/0002d — parallel verification complete; cost bug found and fixed; 4 scenarios deferred
+- **Current phase:** Spec 0002c/0002d — parallel verification complete; 2 scenarios deferred (7, 8 require Codex)
 - **Spec 0002b:** ALL 11 SCENARIOS COMPLETE
 - **Date:** 2026-03-16
 
@@ -11,11 +11,11 @@
 |---|------|--------|-------|
 | 3 | Claude Contracts | PASS ✓ | All 4 `TestContract.*Claude` tests pass; bug fixed: `ParseSeverity` now accepts LLM aliases (`high`→error, `medium`→warning, `low`→suggestion) |
 | 4 | Cost Callback | PASS ✓ | plan=$0.044, execute=$0.151, review=$0.041, accept=$0.131 (run-8fa7505010d7a4ac) |
-| 5 | Timeout Enforcement | DEFERRED | `TestInvoke_TimeoutEnforcement` not yet written |
+| 5 | Timeout Enforcement | PASS ✓ | `TestInvoke_TimeoutEnforcement` + `TestScenario_ExecSpec_TimeoutEnforcement_ContextReachesStages` — context deadline propagates through exec→specloop→stage; adapter Config.Timeout enforced |
 | 6 | FallbackAdapter Unit Tests | PASS ✓ | 15/15 tests |
 | 7 | Router Phase Preferences | DEFERRED | Requires codex for execute phase |
 | 8 | Codex Contracts | DEFERRED | `TestContract.*Codex` not yet written |
-| 9 | Routing Config Validation | DEFERRED | `Validate()` exists + unit-tested but not wired into `exec.go` |
+| 9 | Routing Config Validation | PASS ✓ | `policy.Validate()` wired in `exec.go`; `TestScenario_ExecSpec_InvalidRoutingRatio_ReturnsError` — invalid ratio (sum≠100) returns "invalid policy" error before BuildStages |
 | 10 | Single-Provider Mode | PASS ✓ | All 16 invocations `provider="claude"`, no panics |
 | 10b | Cost Budget Exceeded | PASS ✓ | 8/8 unit tests in `specloop/budget_test.go` |
 | 11 | ExtractJSON Robustness | PASS ✓ | 16/16 tests |

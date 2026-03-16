@@ -101,6 +101,9 @@ func (e *execSpecRun) run(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("load policy: %w", err)
 	}
+	if err := policy.Validate(); err != nil {
+		return "", fmt.Errorf("invalid policy: %w", err)
+	}
 
 	// 2. Create run state
 	store := runstore.NewStore(e.storeDir)

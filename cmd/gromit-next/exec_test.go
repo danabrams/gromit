@@ -245,6 +245,103 @@ func TestExecSpec_SpecIDIsNormalized(t *testing.T) {
 	}
 }
 
+// --- Scenario 9: Routing Config Validation ---
+
+// TestScenario_ExecSpec_InvalidRoutingRatio_RejectsBeforeRun is the Scenario 9
+// (0002c/0002d) evidence test. It verifies that exec spec rejects a policy whose
+// routing.ratio values do not sum to 100 before starting a run.
+//
+// RED: exec.go does not call policy.Validate() — command succeeds even with an
+// invalid ratio. GREEN after: run() calls policy.Validate() and returns an error
+// if validation fails, so no run state is created.
+func TestScenario_ExecSpec_InvalidRoutingRatio_RejectsBeforeRun(t *testing.T) {
+	dir := t.TempDir()
+
+	// Write a policy whose routing.ratio sums to 90, not 100.
+	badPolicy := `{
+		"always_run": [{"name": "unit-tests", "command": "go test ./...", "type": "test"}],
+		"budgets": {
+			"max_spec_cycles": 3, "max_task_retries": 1, "max_redecomposition_passes": 1,
+			"max_task_duration_seconds": 300, "max_run_duration_seconds": 3600, "max_run_cost_usd": 50.0
+		},
+		"models": {"planner": "high", "executor": "medium", "evaluator": "high"},
+		"review": {"facets": ["spec_alignment"], "tiers": {"spec_alignment": "high"}, "replan_threshold": "warning"},
+		"routing": {"preferences": {"plan": "any"}, "ratio": {"claude": 70, "codex": 20}, "cooldown_seconds": 300}
+	}`
+	policyPath := filepath.Join(dir, "bad-policy.json")
+	if err := os.WriteFile(policyPath, []byte(badPolicy), 0o644); err != nil {
+		t.Fatalf("write policy: %v", err)
+	}
+
+	storeDir := filepath.Join(dir, "store")
+	if err := os.MkdirAll(storeDir, 0o755); err != nil {
+		t.Fatalf("mkdir store: %v", err)
+	}
+
+	provider := &testStageProvider{stages: []specloop.Stage{}}
+	cmd := newExecSpecCmdWithProvider(provider)
+	cmd.SetArgs([]string{
+		"--spec", "test-spec.md",
+		"--project", "fixture-calc",
+		"--policy", policyPath,
+		"--store-dir", storeDir,
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected error for routing.ratio not summing to 100, got nil")
+	}
+	if !strings.Contains(err.Error(), "ratio") && !strings.Contains(err.Error(), "100") {
+		t.Errorf("expected error mentioning ratio/100, got: %v", err)
+	}
+
+	// No run should be created — validation must fire before run state is saved.
+	store := runstore.NewStore(storeDir)
+	runs, _ := store.List("fixture-calc")
+	if len(runs) > 0 {
+		t.Errorf("expected no runs created for invalid policy, got %d", len(runs))
+	}
+}
+
+// TestScenario_ExecSpec_ValidRoutingRatio_Accepts verifies that a policy with
+// routing.ratio summing to exactly 100 is accepted without error.
+func TestScenario_ExecSpec_ValidRoutingRatio_Accepts(t *testing.T) {
+	dir := t.TempDir()
+
+	goodPolicy := `{
+		"always_run": [{"name": "unit-tests", "command": "go test ./...", "type": "test"}],
+		"budgets": {
+			"max_spec_cycles": 3, "max_task_retries": 1, "max_redecomposition_passes": 1,
+			"max_task_duration_seconds": 300, "max_run_duration_seconds": 3600, "max_run_cost_usd": 50.0
+		},
+		"models": {"planner": "high", "executor": "medium", "evaluator": "high"},
+		"review": {"facets": ["spec_alignment"], "tiers": {"spec_alignment": "high"}, "replan_threshold": "warning"},
+		"routing": {"preferences": {"plan": "any"}, "ratio": {"claude": 60, "codex": 40}, "cooldown_seconds": 300}
+	}`
+	policyPath := filepath.Join(dir, "good-policy.json")
+	if err := os.WriteFile(policyPath, []byte(goodPolicy), 0o644); err != nil {
+		t.Fatalf("write policy: %v", err)
+	}
+
+	storeDir := filepath.Join(dir, "store")
+	if err := os.MkdirAll(storeDir, 0o755); err != nil {
+		t.Fatalf("mkdir store: %v", err)
+	}
+
+	provider := &testStageProvider{stages: []specloop.Stage{}}
+	cmd := newExecSpecCmdWithProvider(provider)
+	cmd.SetArgs([]string{
+		"--spec", "test-spec.md",
+		"--project", "fixture-calc",
+		"--policy", policyPath,
+		"--store-dir", storeDir,
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("unexpected error for valid routing policy: %v", err)
+	}
+}
+
 // --- Task 44: exec show tests ---
 
 func TestExecShowCmd_RequiresRunID(t *testing.T) {
@@ -1930,4 +2027,131 @@ func TestScenario_ExecShow_Full_AdapterWiring_OnlyLLMPhasesInMetrics(t *testing.
 			t.Errorf("phase %q should not appear in LLM invocation records (uses non-LLM adapter), got:\n%s", phase, output)
 		}
 	}
+}
+
+// TestScenario_ExecSpec_TimeoutEnforcement_ContextReachesStages is the Scenario 5
+// (0002c/0002d) scenario-level evidence test for Timeout Enforcement.
+//
+// It verifies that context deadlines propagate through the exec spec pipeline
+// to individual stages. This is the same mechanism used by task-level timeouts:
+// taskloop creates a context.WithTimeout from MaxTaskDurationSeconds and passes
+// it into each InvokeInDir/InvokeStream call. Here we verify the outer exec
+// layer correctly threads the context from r.run(ctx) → SpecLoop.Run(ctx) →
+// stage.Run(ctx, rs), so a cancelled context terminates the run promptly.
+func TestScenario_ExecSpec_TimeoutEnforcement_ContextReachesStages(t *testing.T) {
+	blockingStage := &contextBlockingStage{name: "execute"}
+	provider := &testStageProvider{stages: []specloop.Stage{blockingStage}}
+
+	// 50ms deadline simulates a short per-task timeout. The blocking stage
+	// waits for ctx.Done(), so the run should complete in ≈50ms, not 5s.
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+
+	r := &execSpecRun{
+		specPath:      "test-spec.md",
+		projectID:     "test-proj",
+		storeDir:      t.TempDir(),
+		stageProvider: provider,
+	}
+
+	start := time.Now()
+	_, _ = r.run(ctx)
+	elapsed := time.Since(start)
+
+	// Run must complete within 10× the deadline — not hanging.
+	if elapsed > 500*time.Millisecond {
+		t.Errorf("run took %v with 50ms timeout — context not propagated through pipeline", elapsed)
+	}
+	// Stage must have received a context with a deadline set.
+	if !blockingStage.receivedDeadline {
+		t.Error("stage never received a context with a deadline — timeout cannot enforce")
+	}
+}
+
+// contextBlockingStage blocks until context is done or 5 seconds (whichever
+// first), recording whether it received a context with a deadline. Used to
+// verify context propagation through exec spec.
+type contextBlockingStage struct {
+	name             string
+	receivedDeadline bool
+}
+
+func (s *contextBlockingStage) Name() string { return s.name }
+func (s *contextBlockingStage) Run(ctx context.Context, _ *runstore.RunState) (specloop.NextAction, error) {
+	_, s.receivedDeadline = ctx.Deadline()
+	select {
+	case <-ctx.Done():
+		return specloop.NextAction{}, ctx.Err()
+	case <-time.After(5 * time.Second):
+		return specloop.NextAction{Kind: specloop.Continue}, nil
+	}
+}
+
+// TestScenario_ExecSpec_InvalidRoutingRatio_ReturnsError is the Scenario 9
+// (0002c/0002d) evidence test for Routing Config Validation.
+//
+// It verifies that exec spec validates the policy before starting any stages:
+// when routing.ratio values don't sum to 100, the run fails immediately with
+// a descriptive error and no run state is created.
+func TestScenario_ExecSpec_InvalidRoutingRatio_ReturnsError(t *testing.T) {
+	tmp := t.TempDir()
+
+	// Seed: write a policy JSON with invalid routing ratio (sums to 70, not 100)
+	policyPath := filepath.Join(tmp, "invalid-routing.json")
+	policyJSON := `{
+		"always_run": [{"name": "unit-tests", "command": "go test ./...", "type": "test"}],
+		"budgets": {
+			"max_spec_cycles": 3,
+			"max_task_duration_seconds": 300,
+			"max_run_duration_seconds": 3600,
+			"max_run_cost_usd": 50.0
+		},
+		"models": {"planner": "high", "executor": "medium", "evaluator": "high"},
+		"review": {"facets": ["spec_alignment"], "replan_threshold": "warning"},
+		"routing": {"ratio": {"claude": 60, "codex": 10}}
+	}`
+	if err := os.WriteFile(policyPath, []byte(policyJSON), 0o644); err != nil {
+		t.Fatalf("write policy: %v", err)
+	}
+
+	// Track whether BuildStages is called — it must not be if validation fails early.
+	var buildCalled bool
+	stageProvider := &countingStageProvider{onBuild: func() { buildCalled = true }}
+
+	// Invoke: run exec spec with the invalid policy.
+	storeDir := filepath.Join(tmp, "store")
+	r := &execSpecRun{
+		specPath:      "test-spec.md",
+		projectID:     "test-proj",
+		policyPath:    policyPath,
+		storeDir:      storeDir,
+		stageProvider: stageProvider,
+	}
+	_, err := r.run(context.Background())
+
+	// Assert: error returned before any stages are built.
+	if err == nil {
+		t.Fatal("expected error for invalid policy routing ratio, got nil")
+	}
+	if !strings.Contains(err.Error(), "invalid policy") {
+		t.Errorf("expected 'invalid policy' in error, got: %v", err)
+	}
+	if !strings.Contains(err.Error(), "sum to 100") {
+		t.Errorf("expected ratio-sum error in message, got: %v", err)
+	}
+	if buildCalled {
+		t.Error("BuildStages must not be called when policy validation fails")
+	}
+}
+
+// countingStageProvider calls onBuild when BuildStages is invoked.
+type countingStageProvider struct {
+	onBuild func()
+}
+
+func (c *countingStageProvider) BuildStages(_ execpolicy.Policy, _ *runstore.RunState, _ *specloop.Budget, _ *runstore.EventLog) ([]specloop.Stage, error) {
+	if c.onBuild != nil {
+		c.onBuild()
+	}
+	return nil, nil
 }

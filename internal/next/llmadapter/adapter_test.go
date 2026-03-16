@@ -376,6 +376,33 @@ func TestInvokeStream_Timeout_ResultIsNil(t *testing.T) {
 	}
 }
 
+// TestInvoke_TimeoutEnforcement is the Scenario 5 (0002c/0002d) evidence test.
+// It verifies that Config.Timeout is enforced as a hard per-invocation deadline:
+// when the provider takes longer than the configured timeout, the call returns
+// context.DeadlineExceeded and a nil result, and the adapter does not hang.
+func TestInvoke_TimeoutEnforcement(t *testing.T) {
+	const timeout = 50 * time.Millisecond
+	slowProv := &slowMockProvider{delay: 5 * time.Second, result: &provider.Result{Output: "should not arrive"}}
+	adapter := New(slowProv, Config{Tier: "medium", Timeout: timeout})
+
+	start := time.Now()
+	result, err := adapter.Invoke(context.Background(), "prompt")
+	elapsed := time.Since(start)
+
+	// Deadline must be exceeded — not some other error.
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("expected context.DeadlineExceeded, got %v", err)
+	}
+	// Result must be nil so callers don't process partial data.
+	if result != nil {
+		t.Errorf("expected nil result on timeout, got %+v", result)
+	}
+	// Adapter must not hang — completion within 10× the configured timeout.
+	if elapsed > 10*timeout {
+		t.Errorf("adapter took %v to time out (timeout=%v) — may be hanging", elapsed, timeout)
+	}
+}
+
 func TestProviderAware_DelegatesInvokeAndReturnsProvider(t *testing.T) {
 	mp := &mockProvider{
 		name:      "test",
