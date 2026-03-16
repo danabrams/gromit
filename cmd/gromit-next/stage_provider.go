@@ -128,7 +128,12 @@ func (p *RealStageProvider) BuildStages(policy execpolicy.Policy, rs *runstore.R
 			llmadapter.Config{Tier: policy.Models.Executor, OnInvocation: invocationCallback},
 			policy.Models.Executor,
 		)
-		taskRunner = specloop.NewProviderTaskRunner(execAdapter, p.cfg.WorkDir)
+		taskRunner = specloop.NewProviderTaskRunner(execAdapter, func() string {
+			if rs.WorktreePath != "" {
+				return rs.WorktreePath
+			}
+			return p.cfg.WorkDir
+		})
 
 		finalVal = validator.NewShellValidator(validator.NewRunner())
 
@@ -190,7 +195,12 @@ func (p *RealStageProvider) BuildStages(policy execpolicy.Policy, rs *runstore.R
 	executeStage := stages.NewExecuteStage(taskRunner, stages.ExecuteStageConfig{
 		MaxRetries:             policy.Budgets.MaxTaskRetries,
 		MaxRedecompositions:    policy.Budgets.MaxRedecompositionPasses,
-		Inspector:              specloop.NewShellTaskInspector(p.cfg.WorkDir),
+		Inspector: specloop.NewShellTaskInspector(func() string {
+			if rs.WorktreePath != "" {
+				return rs.WorktreePath
+			}
+			return p.cfg.WorkDir
+		}),
 		Decomposer:             decomposer,
 		GitOps:                 &shellGitOps{},
 		WorkDir:                p.cfg.WorkDir,

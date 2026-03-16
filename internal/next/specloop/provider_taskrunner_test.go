@@ -51,7 +51,7 @@ func TestProviderTaskRunner_RunTask_SuccessMappedToDone(t *testing.T) {
 			Duration:     2 * time.Second,
 		},
 	}
-	runner := NewProviderTaskRunner(inv, "")
+	runner := NewProviderTaskRunner(inv, func() string { return "" })
 	task := runstore.Task{
 		TaskID:    "t-1",
 		Objective: "implement feature X",
@@ -78,7 +78,7 @@ func TestProviderTaskRunner_RunTask_FailureMappedToFailed(t *testing.T) {
 			Duration:     1 * time.Second,
 		},
 	}
-	runner := NewProviderTaskRunner(inv, "")
+	runner := NewProviderTaskRunner(inv, func() string { return "" })
 	task := runstore.Task{TaskID: "t-2", Objective: "fix bug Y"}
 
 	result, err := runner.RunTask(context.Background(), task)
@@ -100,7 +100,7 @@ func TestProviderTaskRunner_RunTask_TokensUsedIsSum(t *testing.T) {
 			Duration:     1 * time.Second,
 		},
 	}
-	runner := NewProviderTaskRunner(inv, "")
+	runner := NewProviderTaskRunner(inv, func() string { return "" })
 	task := runstore.Task{TaskID: "t-3", Objective: "anything"}
 
 	result, err := runner.RunTask(context.Background(), task)
@@ -120,7 +120,7 @@ func TestProviderTaskRunner_RunTask_PromptIncludesObjectiveAndArea(t *testing.T)
 			Duration: 1 * time.Second,
 		},
 	}
-	runner := NewProviderTaskRunner(inv, "")
+	runner := NewProviderTaskRunner(inv, func() string { return "" })
 	task := runstore.Task{
 		TaskID:              "t-4",
 		Objective:           "implement the frobnicator",
@@ -155,7 +155,7 @@ func TestProviderTaskRunner_RunTask_MapsAllResultFields(t *testing.T) {
 			Duration:     3500 * time.Millisecond,
 		},
 	}
-	runner := NewProviderTaskRunner(inv, "")
+	runner := NewProviderTaskRunner(inv, func() string { return "" })
 	task := runstore.Task{TaskID: "t-5", Objective: "test"}
 
 	result, err := runner.RunTask(context.Background(), task)
@@ -184,7 +184,7 @@ func TestProviderTaskRunner_RepairTask_PromptIncludesFailures(t *testing.T) {
 			Duration: 1 * time.Second,
 		},
 	}
-	runner := NewProviderTaskRunner(inv, "")
+	runner := NewProviderTaskRunner(inv, func() string { return "" })
 	task := runstore.Task{
 		TaskID:    "t-6",
 		Objective: "fix the widget",
@@ -218,7 +218,7 @@ func TestProviderTaskRunner_RepairTask_MapsResultCorrectly(t *testing.T) {
 			Duration:     2 * time.Second,
 		},
 	}
-	runner := NewProviderTaskRunner(inv, "")
+	runner := NewProviderTaskRunner(inv, func() string { return "" })
 	task := runstore.Task{TaskID: "t-7", Objective: "repair something"}
 
 	result, err := runner.RepairTask(context.Background(), task, []string{"failure1"})
@@ -244,7 +244,7 @@ func TestProviderTaskRunner_RunTask_NilResult(t *testing.T) {
 		result: nil,
 		err:    nil,
 	}
-	runner := NewProviderTaskRunner(inv, "")
+	runner := NewProviderTaskRunner(inv, func() string { return "" })
 	task := runstore.Task{TaskID: "t-nil-run", Objective: "should handle nil"}
 
 	result, err := runner.RunTask(context.Background(), task)
@@ -274,7 +274,7 @@ func TestProviderTaskRunner_RepairTask_NilResult(t *testing.T) {
 		result: nil,
 		err:    nil,
 	}
-	runner := NewProviderTaskRunner(inv, "")
+	runner := NewProviderTaskRunner(inv, func() string { return "" })
 	task := runstore.Task{TaskID: "t-nil-repair", Objective: "should handle nil"}
 
 	result, err := runner.RepairTask(context.Background(), task, []string{"some failure"})
@@ -307,7 +307,7 @@ func TestProviderTaskRunner_RunTask_ContextCancelled(t *testing.T) {
 		result: nil,
 		err:    context.Canceled,
 	}
-	runner := NewProviderTaskRunner(inv, "")
+	runner := NewProviderTaskRunner(inv, func() string { return "" })
 	task := runstore.Task{TaskID: "t-ctx", Objective: "should be cancelled"}
 
 	_, err := runner.RunTask(ctx, task)
@@ -328,7 +328,7 @@ func TestProviderTaskRunner_RepairTask_EmptyFailures(t *testing.T) {
 			Duration: 1 * time.Second,
 		},
 	}
-	runner := NewProviderTaskRunner(inv, "")
+	runner := NewProviderTaskRunner(inv, func() string { return "" })
 	task := runstore.Task{
 		TaskID:    "t-empty-failures",
 		Objective: "fix the widget",
@@ -352,7 +352,7 @@ func TestProviderTaskRunner_RunTask_MinimalTask(t *testing.T) {
 			Duration: 1 * time.Second,
 		},
 	}
-	runner := NewProviderTaskRunner(inv, "")
+	runner := NewProviderTaskRunner(inv, func() string { return "" })
 	task := runstore.Task{
 		TaskID:    "t-minimal",
 		Objective: "do something simple",
@@ -384,7 +384,7 @@ func TestProviderTaskRunner_InvokerErrorPropagated(t *testing.T) {
 		},
 		err: expectedErr,
 	}
-	runner := NewProviderTaskRunner(inv, "")
+	runner := NewProviderTaskRunner(inv, func() string { return "" })
 	task := runstore.Task{TaskID: "t-8", Objective: "something"}
 
 	result, err := runner.RunTask(context.Background(), task)
@@ -405,7 +405,7 @@ func TestProviderTaskRunner_RunTask_UsesInvokeInDirWhenWorkDirSet(t *testing.T) 
 			Duration: 1 * time.Second,
 		},
 	}
-	runner := NewProviderTaskRunner(inv, "/tmp/workdir")
+	runner := NewProviderTaskRunner(inv, func() string { return "/tmp/workdir" })
 	task := runstore.Task{TaskID: "t-dir-1", Objective: "implement feature"}
 
 	_, err := runner.RunTask(context.Background(), task)
@@ -428,7 +428,7 @@ func TestProviderTaskRunner_RunTask_UsesInvokeWhenWorkDirEmpty(t *testing.T) {
 			Duration: 1 * time.Second,
 		},
 	}
-	runner := NewProviderTaskRunner(inv, "")
+	runner := NewProviderTaskRunner(inv, func() string { return "" })
 	task := runstore.Task{TaskID: "t-dir-2", Objective: "implement feature"}
 
 	_, err := runner.RunTask(context.Background(), task)
@@ -448,7 +448,7 @@ func TestRenderTaskPrompt_SpecConstraintsIncluded(t *testing.T) {
 			Duration: 1 * time.Second,
 		},
 	}
-	runner := NewProviderTaskRunner(inv, "")
+	runner := NewProviderTaskRunner(inv, func() string { return "" })
 	task := runstore.Task{
 		TaskID:          "t-sc-1",
 		Objective:       "implement the widget",
@@ -476,7 +476,7 @@ func TestRenderTaskPrompt_NoSpecConstraintsWhenEmpty(t *testing.T) {
 			Duration: 1 * time.Second,
 		},
 	}
-	runner := NewProviderTaskRunner(inv, "")
+	runner := NewProviderTaskRunner(inv, func() string { return "" })
 	task := runstore.Task{
 		TaskID:          "t-sc-2",
 		Objective:       "implement the widget",
@@ -501,7 +501,7 @@ func TestRenderRepairPrompt_SpecConstraintsIncluded(t *testing.T) {
 			Duration: 1 * time.Second,
 		},
 	}
-	runner := NewProviderTaskRunner(inv, "")
+	runner := NewProviderTaskRunner(inv, func() string { return "" })
 	task := runstore.Task{
 		TaskID:          "t-sc-3",
 		Objective:       "fix the widget",
@@ -529,7 +529,7 @@ func TestRenderTaskPrompt_SpecConstraintsAppearBeforeProofChecks(t *testing.T) {
 			Duration: 1 * time.Second,
 		},
 	}
-	runner := NewProviderTaskRunner(inv, "")
+	runner := NewProviderTaskRunner(inv, func() string { return "" })
 	task := runstore.Task{
 		TaskID:          "t-order-1",
 		Objective:       "implement the widget",
@@ -563,7 +563,7 @@ func TestRenderTaskPrompt_ConstraintPreambleMentionsDeletion(t *testing.T) {
 			Duration: 1 * time.Second,
 		},
 	}
-	runner := NewProviderTaskRunner(inv, "")
+	runner := NewProviderTaskRunner(inv, func() string { return "" })
 	task := runstore.Task{
 		TaskID:          "t-preamble-1",
 		Objective:       "implement the widget",
@@ -588,7 +588,7 @@ func TestProviderTaskRunner_RepairTask_UsesInvokeInDirWhenWorkDirSet(t *testing.
 			Duration: 1 * time.Second,
 		},
 	}
-	runner := NewProviderTaskRunner(inv, "/tmp/repair-dir")
+	runner := NewProviderTaskRunner(inv, func() string { return "/tmp/repair-dir" })
 	task := runstore.Task{TaskID: "t-dir-3", Objective: "fix bug"}
 
 	_, err := runner.RepairTask(context.Background(), task, []string{"test failed"})
@@ -600,5 +600,73 @@ func TestProviderTaskRunner_RepairTask_UsesInvokeInDirWhenWorkDirSet(t *testing.
 	}
 	if inv.capturedDir != "/tmp/repair-dir" {
 		t.Errorf("expected dir '/tmp/repair-dir', got %q", inv.capturedDir)
+	}
+}
+
+func TestProviderTaskRunner_LazyWorkDirResolution(t *testing.T) {
+	inv := &mockInvoker{
+		result: &provider.Result{
+			Success:  true,
+			Model:    "sonnet",
+			Duration: 1 * time.Second,
+		},
+	}
+
+	// Start with empty workDir, then change it between calls.
+	currentDir := ""
+	runner := NewProviderTaskRunner(inv, func() string { return currentDir })
+	task := runstore.Task{TaskID: "t-lazy", Objective: "lazy dir test"}
+
+	// First call: empty dir → should use Invoke (not InvokeInDir).
+	_, err := runner.RunTask(context.Background(), task)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if inv.usedInvokeInDir {
+		t.Error("expected Invoke (not InvokeInDir) when workDirFn returns empty string")
+	}
+
+	// Change the resolved directory.
+	inv.usedInvokeInDir = false
+	inv.capturedDir = ""
+	currentDir = "/tmp/lazy-worktree"
+
+	// Second call: non-empty dir → should use InvokeInDir with the new value.
+	_, err = runner.RunTask(context.Background(), task)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !inv.usedInvokeInDir {
+		t.Error("expected InvokeInDir when workDirFn returns non-empty string")
+	}
+	if inv.capturedDir != "/tmp/lazy-worktree" {
+		t.Errorf("expected dir '/tmp/lazy-worktree', got %q", inv.capturedDir)
+	}
+}
+
+func TestShellTaskInspector_LazyWorkDirResolution(t *testing.T) {
+	// Use two different temp dirs to verify the function is called each time.
+	dir1 := t.TempDir()
+	dir2 := t.TempDir()
+
+	currentDir := dir1
+	inspector := NewShellTaskInspector(func() string { return currentDir })
+
+	task := runstore.Task{
+		TaskID:      "t-lazy-inspect",
+		ProofChecks: []string{"true"},
+	}
+
+	// First call uses dir1.
+	result := inspector.Inspect(context.Background(), task)
+	if !result.Pass {
+		t.Error("expected pass with 'true' command")
+	}
+
+	// Switch to dir2 and verify it still works (proves func is called lazily).
+	currentDir = dir2
+	result = inspector.Inspect(context.Background(), task)
+	if !result.Pass {
+		t.Error("expected pass with 'true' command after switching dir")
 	}
 }

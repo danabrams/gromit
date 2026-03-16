@@ -15,21 +15,24 @@ var _ TaskRunner = (*ProviderTaskRunner)(nil)
 
 // ProviderTaskRunner executes tasks by invoking an LLM via llmadapter.Invoker.
 type ProviderTaskRunner struct {
-	invoker llmadapter.Invoker
-	workDir string
+	invoker   llmadapter.Invoker
+	workDirFn func() string
 }
 
 // NewProviderTaskRunner creates a ProviderTaskRunner backed by the given invoker.
-// If workDir is non-empty, InvokeInDir is used instead of Invoke so the LLM
-// process runs in the specified directory.
-func NewProviderTaskRunner(invoker llmadapter.Invoker, workDir string) *ProviderTaskRunner {
-	return &ProviderTaskRunner{invoker: invoker, workDir: workDir}
+// workDirFn is called at invoke time to resolve the working directory; if it
+// returns a non-empty string, InvokeInDir is used instead of Invoke so the LLM
+// process runs in the specified directory. Lazy resolution allows the directory
+// to be set after construction (e.g. by an init stage that creates a worktree).
+func NewProviderTaskRunner(invoker llmadapter.Invoker, workDirFn func() string) *ProviderTaskRunner {
+	return &ProviderTaskRunner{invoker: invoker, workDirFn: workDirFn}
 }
 
-// invoke calls InvokeInDir when workDir is set, otherwise calls Invoke.
+// invoke calls InvokeInDir when workDirFn returns a non-empty string, otherwise calls Invoke.
 func (r *ProviderTaskRunner) invoke(ctx context.Context, prompt string) (*provider.Result, error) {
-	if r.workDir != "" {
-		return r.invoker.InvokeInDir(ctx, prompt, r.workDir)
+	dir := r.workDirFn()
+	if dir != "" {
+		return r.invoker.InvokeInDir(ctx, prompt, dir)
 	}
 	return r.invoker.Invoke(ctx, prompt)
 }

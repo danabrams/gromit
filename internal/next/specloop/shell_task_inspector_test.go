@@ -8,7 +8,8 @@ import (
 )
 
 func TestShellTaskInspector_NoProofChecks(t *testing.T) {
-	inspector := NewShellTaskInspector(t.TempDir())
+	dir := t.TempDir()
+	inspector := NewShellTaskInspector(func() string { return dir })
 	task := runstore.Task{TaskID: "t1", ProofChecks: []string{}}
 
 	result := inspector.Inspect(context.Background(), task)
@@ -22,7 +23,8 @@ func TestShellTaskInspector_NoProofChecks(t *testing.T) {
 }
 
 func TestShellTaskInspector_NilProofChecks(t *testing.T) {
-	inspector := NewShellTaskInspector(t.TempDir())
+	dir := t.TempDir()
+	inspector := NewShellTaskInspector(func() string { return dir })
 	task := runstore.Task{TaskID: "t1", ProofChecks: nil}
 
 	result := inspector.Inspect(context.Background(), task)
@@ -33,7 +35,8 @@ func TestShellTaskInspector_NilProofChecks(t *testing.T) {
 }
 
 func TestShellTaskInspector_AllCheckPass(t *testing.T) {
-	inspector := NewShellTaskInspector(t.TempDir())
+	dir := t.TempDir()
+	inspector := NewShellTaskInspector(func() string { return dir })
 	task := runstore.Task{
 		TaskID:      "t1",
 		ProofChecks: []string{"true", "true"},
@@ -50,7 +53,8 @@ func TestShellTaskInspector_AllCheckPass(t *testing.T) {
 }
 
 func TestShellTaskInspector_SomeChecksFail(t *testing.T) {
-	inspector := NewShellTaskInspector(t.TempDir())
+	dir := t.TempDir()
+	inspector := NewShellTaskInspector(func() string { return dir })
 	task := runstore.Task{
 		TaskID:      "t1",
 		ProofChecks: []string{"true", "false"},
@@ -67,7 +71,8 @@ func TestShellTaskInspector_SomeChecksFail(t *testing.T) {
 }
 
 func TestShellTaskInspector_AllChecksFail(t *testing.T) {
-	inspector := NewShellTaskInspector(t.TempDir())
+	dir := t.TempDir()
+	inspector := NewShellTaskInspector(func() string { return dir })
 	task := runstore.Task{
 		TaskID:      "t1",
 		ProofChecks: []string{"false", "false"},
@@ -85,5 +90,5 @@ func TestShellTaskInspector_AllChecksFail(t *testing.T) {
 
 func TestShellTaskInspector_SatisfiesInterface(t *testing.T) {
 	// Compile-time check: *ShellTaskInspector must satisfy TaskInspector.
-	var _ TaskInspector = NewShellTaskInspector("/tmp")
+	var _ TaskInspector = NewShellTaskInspector(func() string { return "/tmp" })
 }

@@ -71,7 +71,7 @@ func TestContract_ProviderTaskRunner(t *testing.T) {
 
 func buildRealTaskRunner(t *testing.T) TaskRunner {
 	t.Helper()
-	return NewProviderTaskRunner(llmadapter.ContractInvoker(t), "")
+	return NewProviderTaskRunner(llmadapter.ContractInvoker(t), func() string { return "" })
 }
 
 func TestContract_ProviderTaskRunner_Claude(t *testing.T) {
@@ -84,7 +84,7 @@ func TestContract_ProviderTaskRunner_Claude(t *testing.T) {
 
 func buildRealTaskRunnerClaude(t *testing.T) TaskRunner {
 	t.Helper()
-	return NewProviderTaskRunner(llmadapter.ContractClaudeInvoker(t), "")
+	return NewProviderTaskRunner(llmadapter.ContractClaudeInvoker(t), func() string { return "" })
 }
 
 func TestContract_ProviderTaskRunner_Codex(t *testing.T) {
@@ -97,5 +97,5 @@ func TestContract_ProviderTaskRunner_Codex(t *testing.T) {
 
 func buildRealTaskRunnerCodex(t *testing.T) TaskRunner {
 	t.Helper()
-	return NewProviderTaskRunner(llmadapter.ContractCodexInvoker(t), "")
+	return NewProviderTaskRunner(llmadapter.ContractCodexInvoker(t), func() string { return "" })
 }

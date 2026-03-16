@@ -10,12 +10,15 @@ import (
 
 // ShellTaskInspector implements TaskInspector by running proof checks via shell commands.
 type ShellTaskInspector struct {
-	workDir string
+	workDirFn func() string
 }
 
-// NewShellTaskInspector creates a ShellTaskInspector that runs proof checks in workDir.
-func NewShellTaskInspector(workDir string) *ShellTaskInspector {
-	return &ShellTaskInspector{workDir: workDir}
+// NewShellTaskInspector creates a ShellTaskInspector that runs proof checks in
+// the directory returned by workDirFn. The function is called at inspect time,
+// enabling lazy resolution of the working directory (e.g. after a worktree is
+// created by the init stage).
+func NewShellTaskInspector(workDirFn func() string) *ShellTaskInspector {
+	return &ShellTaskInspector{workDirFn: workDirFn}
 }
 
 // Inspect runs the task's proof checks and returns whether they all passed.
@@ -25,7 +28,7 @@ func (s *ShellTaskInspector) Inspect(ctx context.Context, task runstore.Task) In
 		return InspectResult{Pass: true}
 	}
 
-	results, err := validator.NewRunner().RunTargeted(ctx, task.ProofChecks, s.workDir)
+	results, err := validator.NewRunner().RunTargeted(ctx, task.ProofChecks, s.workDirFn())
 	if err != nil {
 		return InspectResult{Pass: false, Failures: []string{err.Error()}}
 	}
