@@ -56,6 +56,10 @@ func pendingTasks(tasks []runstore.Task) []runstore.Task {
 
 // Run executes all pending tasks via the task loop.
 func (s *ExecuteStage) Run(ctx context.Context, rs *runstore.RunState) (specloop.NextAction, error) {
+	workDir := s.cfg.WorkDir
+	if rs.WorktreePath != "" {
+		workDir = rs.WorktreePath
+	}
 	results, err := specloop.RunTaskLoop(ctx, pendingTasks(rs.Tasks), s.runner, specloop.TaskLoopConfig{
 		MaxRetries:             s.cfg.MaxRetries,
 		Inspector:              s.cfg.Inspector,
@@ -63,7 +67,7 @@ func (s *ExecuteStage) Run(ctx context.Context, rs *runstore.RunState) (specloop
 		Decomposer:             s.cfg.Decomposer,
 		GitOps:                 s.cfg.GitOps,
 		Budget:                 s.cfg.Budget,
-		WorkDir:                s.cfg.WorkDir,
+		WorkDir:                workDir,
 		MaxTaskDurationSeconds: s.cfg.MaxTaskDurationSeconds,
 		EventLog:               s.cfg.EventLog,
 		Cycle:                  rs.Cycle,

@@ -39,7 +39,11 @@ func (s *ValidateStage) Name() string { return "validate" }
 
 // Run executes final validation.
 func (s *ValidateStage) Run(ctx context.Context, rs *runstore.RunState) (specloop.NextAction, error) {
-	result, err := s.validator.RunFinal(ctx, s.cfg.AlwaysRun, s.cfg.ProjectChecks, s.cfg.WorkDir)
+	workDir := s.cfg.WorkDir
+	if rs.WorktreePath != "" {
+		workDir = rs.WorktreePath
+	}
+	result, err := s.validator.RunFinal(ctx, s.cfg.AlwaysRun, s.cfg.ProjectChecks, workDir)
 	if err != nil {
 		return specloop.NextAction{}, fmt.Errorf("final validation: %w", err)
 	}

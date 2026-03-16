@@ -377,22 +377,18 @@ func (n *noopDiffProvider) Diff(_ string) (string, error) {
 }
 
 // lazyDiffProvider resolves WorkDir at call time from RunState.WorktreePath,
-// falling back to the original WorkDir. Currently the executor runs in the
-// original WorkDir (noopGitOps copies files but doesn't redirect execution),
-// so we prefer fallbackDir until real git worktree support redirects execution
-// into WorktreePath.
+// falling back to the original WorkDir. WorktreePath is preferred because
+// execution happens in the worktree when one is provisioned.
 type lazyDiffProvider struct {
 	rs          *runstore.RunState
 	fallbackDir string
 }
 
 func (l *lazyDiffProvider) Diff(baseBranch string) (string, error) {
-	// Prefer fallbackDir (where the executor actually runs) over WorktreePath
-	// (the noopGitOps copy that never gets modified). When real git worktrees
-	// are wired and execution happens in WorktreePath, swap priority here.
-	dir := l.fallbackDir
+	// Prefer WorktreePath (where execution happens) over fallbackDir.
+	dir := l.rs.WorktreePath
 	if dir == "" {
-		dir = l.rs.WorktreePath
+		dir = l.fallbackDir
 	}
 	return (&review.GitDiffProvider{WorkDir: dir}).Diff(baseBranch)
 }
