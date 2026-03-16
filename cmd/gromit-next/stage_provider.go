@@ -79,7 +79,7 @@ func (p *RealStageProvider) BuildStages(policy execpolicy.Policy, rs *runstore.R
 
 	store := runstore.NewStore(p.cfg.StoreDir)
 
-	gitOps := &noopGitOps{workDir: p.cfg.WorkDir}
+	gitOps := &realGitOps{}
 
 	initStage := stages.NewInitStage(stages.InitStageConfig{
 		SpecPath:   p.cfg.SpecPath,

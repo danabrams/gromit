@@ -784,6 +784,19 @@ func (m *mockPlanCreatorForDecompose) CreatePlan(_ context.Context, _ planner.Pl
 func TestBuildStages_InitStage_EmitsBlockedWorktreeCleanedEvent(t *testing.T) {
 	storeDir := t.TempDir()
 	workDir := t.TempDir()
+
+	// realGitOps needs workDir to be a git repo for worktree operations.
+	for _, args := range [][]string{
+		{"init"},
+		{"commit", "--allow-empty", "-m", "init"},
+	} {
+		cmd := exec.Command("git", append([]string{"-C", workDir}, args...)...)
+		cmd.Env = append(os.Environ(), "GIT_AUTHOR_NAME=test", "GIT_AUTHOR_EMAIL=test@test", "GIT_COMMITTER_NAME=test", "GIT_COMMITTER_EMAIL=test@test")
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %s: %v", args, out, err)
+		}
+	}
+
 	store := runstore.NewStore(storeDir)
 
 	// Seed a prior blocked run for the same spec/project with a worktree.
@@ -833,6 +846,12 @@ func TestBuildStages_InitStage_EmitsBlockedWorktreeCleanedEvent(t *testing.T) {
 			}
 			break
 		}
+	}
+
+	// Clean up the worktree created by InitStage (realGitOps creates a real git worktree).
+	if rs.WorktreePath != "" {
+		gitOps := &realGitOps{}
+		_ = gitOps.RemoveWorktree(rs.WorktreePath)
 	}
 
 	// The blocked_worktree_cleaned event must be in the event log.
