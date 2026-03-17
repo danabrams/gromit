@@ -69,7 +69,7 @@ func buildPrompt(category EnrichmentCategory, observed []fact.Fact, input Enrich
 	// File tree context — summarize by directory for large repos
 	if len(input.FileTree) > 0 {
 		fmt.Fprintf(&b, "## File Tree\n\n")
-		if len(input.FileTree) <= 200 {
+		if len(input.FileTree) <= 1000 {
 			// Small enough to list every file
 			for _, f := range input.FileTree {
 				fmt.Fprintf(&b, "- %s\n", f)
