@@ -79,13 +79,14 @@ func (s *Store) List(projectID string) ([]*RunState, error) {
 // ResetForNewCycle resets per-cycle gate fields on rs.
 // Fields that persist across replan cycles (e.g. ContractsWritten, ReplanContext,
 // AccumulatedCost, TotalReplans) are intentionally NOT reset here.
+// ScenarioTestsWritten and FailureHistory are NOT reset — they persist across cycles.
 func ResetForNewCycle(rs *RunState) {
 	rs.FinalValidationPassed = false
 	rs.FinalReviewPassed = false
 	rs.FinalAcceptancePassed = false
 	rs.ReviewFindings = []string{}
 	rs.AcceptanceResults = []string{}
-	// ContractsWritten is NOT reset — contracts are written once and persist across cycles.
+	// ContractsWritten, ScenarioTestsWritten, and FailureHistory are NOT reset — they persist across cycles.
 }
 
 // RunDir returns the directory path for a given run ID.

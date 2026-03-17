@@ -156,6 +156,22 @@ type ContractScenarioSkippedEvent struct {
 	Reason string `json:"reason"`
 }
 
+type ScenarioTestWrittenEvent struct {
+	BaseEvent
+	ScenarioName string `json:"scenario_name"`
+	TestFile     string `json:"test_file"`
+}
+
+type ScenarioTestsCompleteEvent struct {
+	BaseEvent
+	ScenarioCount int `json:"scenario_count"`
+}
+
+type ScenarioTestsBlockedEvent struct {
+	BaseEvent
+	Reason string `json:"reason"`
+}
+
 type TerminalStateEvent struct {
 	BaseEvent
 	Status string `json:"status"`
@@ -303,6 +319,15 @@ func unmarshalEvent(data []byte) (TypedEvent, error) {
 		ev = &e
 	case "contract_scenario_skipped":
 		var e ContractScenarioSkippedEvent
+		ev = &e
+	case "scenario_tests_written":
+		var e ScenarioTestWrittenEvent
+		ev = &e
+	case "scenario_tests_complete":
+		var e ScenarioTestsCompleteEvent
+		ev = &e
+	case "scenario_tests_blocked":
+		var e ScenarioTestsBlockedEvent
 		ev = &e
 	default:
 		return nil, fmt.Errorf("unknown event type: %s", peek.Type)

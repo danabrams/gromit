@@ -1,0 +1,17 @@
+{
+  "run_id": "run-53377bd2d196d13b",
+  "spec_id": "0002f-scenario-test-writing",
+  "project_id": "gromit",
+  "status": "blocked",
+  "cycle": 1,
+  "started_at": "2026-03-17T13:10:37.39356-04:00",
+  "ended_at": "2026-03-17T13:10:37.405683-04:00",
+  "tasks": [],
+  "blocker_summary": "clean blocked worktrees: remove worktree /var/folders/qd/qyx62km142b7lpv0868gpwgw0000gn/T/gromit-wt-2457856116: unlinkat /var/folders/qd/qyx62km142b7lpv0868gpwgw0000gn/T/gromit-wt-2457856116/internal/runner/.gromit/tmp/go-mod-cache/gopkg.in/yaml.v3@v3.0.1/decode_test.go: permission denied",
+  "accumulated_cost": 0,
+  "final_validation_passed": false,
+  "final_review_passed": false,
+  "final_acceptance_passed": false,
+  "total_replans": 0,
+  "contracts_written": false
+}

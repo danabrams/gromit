@@ -75,6 +75,8 @@ func (s *ValidateStage) Run(ctx context.Context, rs *runstore.RunState) (specloo
 	}
 
 	// Run shell checks regardless of contract results.
+	// Scenario test failures are detected via the always-run 'go test ./...' check
+	// and reported through the standard go test output format.
 	result, err := s.validator.RunFinal(ctx, s.cfg.AlwaysRun, s.cfg.ProjectChecks, workDir)
 	if err != nil {
 		return specloop.NextAction{}, fmt.Errorf("final validation: %w", err)

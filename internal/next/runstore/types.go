@@ -45,6 +45,8 @@ type RunState struct {
 	SpecConstraints       string                 `json:"spec_constraints,omitempty"`
 	Resumed               bool                   `json:"resumed,omitempty"`
 	ContractsWritten      bool                   `json:"contracts_written"`
+	ScenarioTestsWritten  bool                   `json:"scenario_tests_written"`
+	FailureHistory        map[string]int         `json:"failure_history,omitempty"`
 }
 
 // See CLAUDE.md nil-field normalization visibility convention:
@@ -62,6 +64,9 @@ func (rs *RunState) NormalizeNilFields() {
 	}
 	if rs.AcceptanceResults == nil {
 		rs.AcceptanceResults = []string{}
+	}
+	if rs.FailureHistory == nil {
+		rs.FailureHistory = map[string]int{}
 	}
 	for i := range rs.Tasks {
 		rs.Tasks[i].NormalizeNilFields()

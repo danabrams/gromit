@@ -36,7 +36,7 @@ func TestRealStageProvider_BuildStages_ReturnsStages(t *testing.T) {
 		t.Fatal("expected at least one stage, got 0")
 	}
 
-	expectedNames := []string{"init", "compile", "plan", "write_contracts", "execute", "validate", "review", "accept", "evidence", "finalize"}
+	expectedNames := []string{"init", "compile", "plan", "write_contracts", "execute", "write_scenario_tests", "validate", "review", "accept", "evidence", "finalize"}
 	if len(stages) != len(expectedNames) {
 		t.Fatalf("expected %d stages, got %d", len(expectedNames), len(stages))
 	}
@@ -155,8 +155,8 @@ func TestRealStageProvider_BuildStages_DefaultTierUsesModelsEvaluator(t *testing
 		t.Fatalf("BuildStages: %v", err)
 	}
 	// Verify we got the expected stages (sanity check).
-	if len(stages) != 10 {
-		t.Fatalf("expected 10 stages, got %d", len(stages))
+	if len(stages) != 11 {
+		t.Fatalf("expected 11 stages, got %d", len(stages))
 	}
 }
 
@@ -452,7 +452,7 @@ func TestRealStageProvider_BuildStages_WithProvider_ReturnsRealAdapters(t *testi
 		t.Fatalf("BuildStages returned error: %v", err)
 	}
 
-	expectedNames := []string{"init", "compile", "plan", "write_contracts", "execute", "validate", "review", "accept", "evidence", "finalize"}
+	expectedNames := []string{"init", "compile", "plan", "write_contracts", "execute", "write_scenario_tests", "validate", "review", "accept", "evidence", "finalize"}
 	if len(stages) != len(expectedNames) {
 		t.Fatalf("expected %d stages, got %d", len(expectedNames), len(stages))
 	}
@@ -478,8 +478,8 @@ func TestRealStageProvider_BuildStages_WithProvider_NilProviderFallsBackToNoops(
 	if err != nil {
 		t.Fatalf("BuildStages returned error: %v", err)
 	}
-	if len(stages) != 10 {
-		t.Fatalf("expected 10 stages, got %d", len(stages))
+	if len(stages) != 11 {
+		t.Fatalf("expected 11 stages, got %d", len(stages))
 	}
 }
 
@@ -550,8 +550,8 @@ func TestBuildStages_WithClaudeProvider_UsesFallbackAdapter(t *testing.T) {
 	if err != nil {
 		t.Fatalf("BuildStages returned error: %v", err)
 	}
-	if len(stages) != 10 {
-		t.Fatalf("expected 10 stages, got %d", len(stages))
+	if len(stages) != 11 {
+		t.Fatalf("expected 11 stages, got %d", len(stages))
 	}
 }
 
@@ -898,8 +898,39 @@ func TestIntegration_BuildStages_FallbackAdapter_RouterWiring(t *testing.T) {
 	if len(stages) == 0 {
 		t.Fatal("expected at least one stage from BuildStages")
 	}
-	// Verify 10 stages are returned (same as before — multi-provider doesn't change stage count)
-	if len(stages) != 10 {
-		t.Fatalf("expected 10 stages, got %d", len(stages))
+	// Verify 11 stages are returned (same as before — multi-provider doesn't change stage count)
+	if len(stages) != 11 {
+		t.Fatalf("expected 11 stages, got %d", len(stages))
+	}
+}
+
+func TestBuildStages_WriteScenarioTestsStageWired(t *testing.T) {
+	// Verify that the write_scenario_tests stage is properly wired with scenarioTestWriter.
+	// The stage provider builds a scenarioTestWriter (either LLM-based ScenarioTestWriter
+	// or noop) and wires it into the write_scenario_tests stage.
+	policy := execpolicy.DefaultPolicy()
+	rs := runstore.NewRunState("test-spec", "test-project")
+
+	sp := NewRealStageProvider(RealStageProviderConfig{
+		WorkDir:  t.TempDir(),
+		StoreDir: t.TempDir(),
+		SpecPath: "test-spec.md",
+	})
+
+	stages, err := sp.BuildStages(policy, rs, specloop.NewBudget(policy.Budgets), nil)
+	if err != nil {
+		t.Fatalf("BuildStages: %v", err)
+	}
+
+	// Verify write_scenario_tests stage exists in the pipeline
+	var found bool
+	for _, s := range stages {
+		if s.Name() == "write_scenario_tests" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatal("expected write_scenario_tests stage not found in BuildStages output")
 	}
 }

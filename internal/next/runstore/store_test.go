@@ -114,3 +114,42 @@ func TestStore_ReadTaskArtifact_NotFound(t *testing.T) {
 		t.Fatal("expected error for missing artifact")
 	}
 }
+
+func TestResetForNewCycle(t *testing.T) {
+	rs := NewRunState("spec-1", "proj-1")
+	rs.FinalValidationPassed = true
+	rs.FinalReviewPassed = true
+	rs.FinalAcceptancePassed = true
+	rs.ReviewFindings = []string{"finding-1"}
+	rs.AcceptanceResults = []string{"result-1"}
+	rs.ScenarioTestsWritten = true
+	rs.FailureHistory = map[string]int{"error1": 1, "error2": 2}
+
+	ResetForNewCycle(rs)
+
+	if rs.FinalValidationPassed {
+		t.Fatal("FinalValidationPassed should be reset to false")
+	}
+	if rs.FinalReviewPassed {
+		t.Fatal("FinalReviewPassed should be reset to false")
+	}
+	if rs.FinalAcceptancePassed {
+		t.Fatal("FinalAcceptancePassed should be reset to false")
+	}
+	if len(rs.ReviewFindings) != 0 {
+		t.Fatal("ReviewFindings should be reset to empty slice")
+	}
+	if len(rs.AcceptanceResults) != 0 {
+		t.Fatal("AcceptanceResults should be reset to empty slice")
+	}
+	// ScenarioTestsWritten and FailureHistory should NOT be reset
+	if !rs.ScenarioTestsWritten {
+		t.Fatal("ScenarioTestsWritten should NOT be reset")
+	}
+	if len(rs.FailureHistory) != 2 {
+		t.Fatal("FailureHistory should NOT be reset")
+	}
+	if rs.FailureHistory["error1"] != 1 || rs.FailureHistory["error2"] != 2 {
+		t.Fatal("FailureHistory values should remain unchanged")
+	}
+}

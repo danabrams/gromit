@@ -2,6 +2,8 @@ package specloop
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/danabrams/gromit/internal/next/runstore"
@@ -127,7 +129,56 @@ func (sl *SpecLoop) Run(ctx context.Context, rs *runstore.RunState) error {
 
 		// Thread failure context into RunState for PlanStage to read on replan
 		if replanContext != nil {
-			rs.ReplanContext = replanContext.Failures
+			// Extract failure keys from both test and contract failures
+			testKeys := ExtractTestFailureKeys(replanContext.Failures)
+			contractKeys := ExtractContractFailureKeys(replanContext.Failures)
+
+			// Merge key sets
+			mergedKeys := make([]string, 0, len(testKeys)+len(contractKeys))
+			mergedKeys = append(mergedKeys, testKeys...)
+			mergedKeys = append(mergedKeys, contractKeys...)
+
+			// Initialize FailureHistory if nil
+			if rs.FailureHistory == nil {
+				rs.FailureHistory = make(map[string]int)
+			}
+
+			// Update failure history with current cycle's failures
+			UpdateFailureHistory(rs.FailureHistory, mergedKeys)
+
+			// Annotate failures with persistent-failure hints for consecutive cycles
+			// that may indicate a bad test specification rather than an implementation bug
+			var annotated []string
+			for _, failure := range replanContext.Failures {
+				annotated = append(annotated, failure)
+
+				var key string
+				var found bool
+
+				// Check if this is a test failure
+				if strings.HasPrefix(failure, "--- FAIL: ") {
+					parts := strings.Fields(strings.TrimPrefix(failure, "--- FAIL: "))
+					if len(parts) > 0 {
+						key = parts[0]
+						found = true
+					}
+				} else if strings.HasPrefix(failure, "contract:") {
+					// Check if this is a contract failure
+					parts := strings.Split(failure, " — ")
+					if len(parts) > 0 {
+						key = strings.TrimSpace(parts[0])
+						found = true
+					}
+				}
+
+				// If we found a key and it has met or exceeded the threshold, add a hint
+				if found && rs.FailureHistory[key] >= 2 {
+					hint := fmt.Sprintf("persistent-failure: %s has failed %d consecutive cycles — may indicate a bad test specification rather than an implementation bug",
+						key, rs.FailureHistory[key])
+					annotated = append(annotated, hint)
+				}
+			}
+			rs.ReplanContext = annotated
 		}
 
 		// Emit replan_triggered event
@@ -161,6 +212,16 @@ func (sl *SpecLoop) Run(ctx context.Context, rs *runstore.RunState) error {
 		sl.runEvidence(ctx, rs)
 	}
 	return nil
+}
+
+// extractFailureKeys extracts and merges both test and contract failure keys.
+func extractFailureKeys(failures []string) []string {
+	testKeys := ExtractTestFailureKeys(failures)
+	contractKeys := ExtractContractFailureKeys(failures)
+	merged := make([]string, 0, len(testKeys)+len(contractKeys))
+	merged = append(merged, testKeys...)
+	merged = append(merged, contractKeys...)
+	return merged
 }
 
 // emitEvent appends an event to the log if configured.

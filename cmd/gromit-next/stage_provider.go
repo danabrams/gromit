@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"log"
 	"os"
 	"os/exec"
 	"time"
@@ -96,14 +97,15 @@ func (p *RealStageProvider) BuildStages(policy execpolicy.Policy, rs *runstore.R
 	}
 
 	var (
-		compiler       stages.SpecCompiler
-		planCreator    stages.PlanCreator
-		taskRunner     specloop.TaskRunner
-		finalVal       stages.FinalValidator
-		reviewRunner   stages.ReviewRunner
-		acceptEval     stages.AcceptEvaluator
-		contractWriter contract.ContractWriter
-		diffProv       review.DiffProvider = &noopDiffProvider{}
+		compiler           stages.SpecCompiler
+		planCreator        stages.PlanCreator
+		taskRunner         specloop.TaskRunner
+		finalVal           stages.FinalValidator
+		reviewRunner       stages.ReviewRunner
+		acceptEval         stages.AcceptEvaluator
+		contractWriter     contract.ContractWriter
+		scenarioTestWriter contract.ScenarioTestWriter
+		diffProv           review.DiffProvider = &noopDiffProvider{}
 	)
 
 	if p.claudeProvider != nil {
@@ -169,6 +171,28 @@ func (p *RealStageProvider) BuildStages(policy execpolicy.Policy, rs *runstore.R
 		)
 		contractWriter = contract.NewLLMContractWriter(contractAdapter)
 
+		// Scenario test writer with FallbackAdapter (Sonnet/Planner tier).
+		scenarioTestAdapter := llmadapter.NewFallbackAdapter(
+			router, "scenario_tests",
+			llmadapter.Config{Tier: policy.Models.Planner, OnCost: costCallback, OnInvocation: invocationCallback},
+			policy.Models.Planner,
+		)
+
+		// Read scenario test patterns from docs/scenario-tests.md
+		scenarioTestPatterns := ""
+		patternsPath := "docs/scenario-tests.md"
+		patternsContent, err := os.ReadFile(patternsPath)
+		if err != nil && !os.IsNotExist(err) {
+			return nil, fmt.Errorf("read scenario test patterns: %w", err)
+		}
+		if err == nil {
+			scenarioTestPatterns = string(patternsContent)
+		} else {
+			log.Printf("warning: scenario test patterns file not found at %s, proceeding without pattern guidance", patternsPath)
+		}
+
+		scenarioTestWriter = contract.NewLLMScenarioTestWriter(scenarioTestAdapter, scenarioTestPatterns)
+
 		diffProv = &lazyDiffProvider{rs: rs, fallbackDir: p.cfg.WorkDir}
 
 		// TODO: Wire real SpecCompilerAdapter here (blocked on ArtifactStore, cell resolution, level selection).
@@ -183,6 +207,7 @@ func (p *RealStageProvider) BuildStages(policy execpolicy.Policy, rs *runstore.R
 		reviewRunner = &noopReviewRunner{}
 		acceptEval = &noopAcceptEvaluator{}
 		contractWriter = &noopContractWriter{}
+		scenarioTestWriter = &noopScenarioTestWriter{}
 	}
 
 	compileStage := stages.NewCompileStage(compiler, store, nil)
@@ -222,6 +247,13 @@ func (p *RealStageProvider) BuildStages(policy execpolicy.Policy, rs *runstore.R
 	})
 
 	evidenceDir := store.RunEvidenceDir(rs.RunID)
+
+	writeScenarioTestsStage := stages.NewWriteScenarioTestsStage(scenarioTestWriter, stages.WriteScenarioTestsStageConfig{
+		SpecPath:    p.cfg.SpecPath,
+		EvidenceDir: evidenceDir,
+		Store:       store,
+		WorkDir:     p.cfg.WorkDir,
+	}, budget, eventLog)
 
 	contractEvaluator := &contract.DefaultContractEvaluator{}
 
@@ -269,6 +301,7 @@ func (p *RealStageProvider) BuildStages(policy execpolicy.Policy, rs *runstore.R
 		planStage,
 		writeContractsStage,
 		executeStage,
+		writeScenarioTestsStage,
 		validateStage,
 		reviewStage,
 		acceptStage,
@@ -441,4 +474,11 @@ type noopContractWriter struct{}
 
 func (n *noopContractWriter) WriteContracts(_ context.Context, _ []contract.SpecScenario, _ string) (*contract.ScenarioContract, error) {
 	return nil, nil
+}
+
+// noopScenarioTestWriter satisfies contract.ScenarioTestWriter with a no-op.
+type noopScenarioTestWriter struct{}
+
+func (n *noopScenarioTestWriter) WriteScenarioTest(_ context.Context, _ contract.SpecScenario, _ []string, _ string, _ string) (string, error) {
+	return "", nil
 }

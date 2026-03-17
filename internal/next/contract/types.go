@@ -1,5 +1,7 @@
 package contract
 
+import "context"
+
 // SpecScenario represents a single scenario parsed from the spec's Scenarios section.
 // Extracted from spec markdown by matching "### Scenario:" headers and Given/When/Then blocks.
 type SpecScenario struct {
@@ -43,4 +45,20 @@ type ContractFailure struct {
 	ScenarioName  string // e.g., "subtract-works"
 	AssertionType string // e.g., "file_contains"
 	Details       string // Human-readable failure description
+}
+
+// ScenarioTestWriter writes test files for scenarios.
+type ScenarioTestWriter interface {
+	WriteScenarioTest(ctx context.Context, scenario SpecScenario, implFiles []string, workDir string, compileErrors string) (testFilePath string, err error)
+}
+
+// ScenarioTestManifest holds the list of scenario test files written.
+type ScenarioTestManifest struct {
+	Scenarios []ScenarioTestEntry `json:"scenarios"`
+}
+
+// ScenarioTestEntry represents a single scenario test file in the manifest.
+type ScenarioTestEntry struct {
+	Name     string `json:"name"`
+	TestFile string `json:"test_file"`
 }
