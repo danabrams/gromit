@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/danabrams/gromit/internal/next/acceptor"
+	"github.com/danabrams/gromit/internal/next/contract"
 	"github.com/danabrams/gromit/internal/next/execpolicy"
 	"github.com/danabrams/gromit/internal/next/llmadapter"
 	"github.com/danabrams/gromit/internal/next/planner"
@@ -95,13 +96,14 @@ func (p *RealStageProvider) BuildStages(policy execpolicy.Policy, rs *runstore.R
 	}
 
 	var (
-		compiler     stages.SpecCompiler
-		planCreator  stages.PlanCreator
-		taskRunner   specloop.TaskRunner
-		finalVal     stages.FinalValidator
-		reviewRunner stages.ReviewRunner
-		acceptEval   stages.AcceptEvaluator
-		diffProv     review.DiffProvider = &noopDiffProvider{}
+		compiler       stages.SpecCompiler
+		planCreator    stages.PlanCreator
+		taskRunner     specloop.TaskRunner
+		finalVal       stages.FinalValidator
+		reviewRunner   stages.ReviewRunner
+		acceptEval     stages.AcceptEvaluator
+		contractWriter contract.ContractWriter
+		diffProv       review.DiffProvider = &noopDiffProvider{}
 	)
 
 	if p.claudeProvider != nil {
@@ -159,6 +161,14 @@ func (p *RealStageProvider) BuildStages(policy execpolicy.Policy, rs *runstore.R
 		acceptAgent := acceptor.NewProviderAcceptAgent(acceptAdapter)
 		acceptEval = acceptor.NewEvaluator(acceptAgent)
 
+		// Contract writer with FallbackAdapter (Sonnet/Planner tier).
+		contractAdapter := llmadapter.NewFallbackAdapter(
+			router, "contracts",
+			llmadapter.Config{Tier: policy.Models.Planner, OnCost: costCallback, OnInvocation: invocationCallback},
+			policy.Models.Planner,
+		)
+		contractWriter = contract.NewLLMContractWriter(contractAdapter)
+
 		diffProv = &lazyDiffProvider{rs: rs, fallbackDir: p.cfg.WorkDir}
 
 		// TODO: Wire real SpecCompilerAdapter here (blocked on ArtifactStore, cell resolution, level selection).
@@ -172,6 +182,7 @@ func (p *RealStageProvider) BuildStages(policy execpolicy.Policy, rs *runstore.R
 		finalVal = &noopValidator{}
 		reviewRunner = &noopReviewRunner{}
 		acceptEval = &noopAcceptEvaluator{}
+		contractWriter = &noopContractWriter{}
 	}
 
 	compileStage := stages.NewCompileStage(compiler, store, nil)
@@ -210,12 +221,21 @@ func (p *RealStageProvider) BuildStages(policy execpolicy.Policy, rs *runstore.R
 		EventLog:               eventLog,
 	})
 
-	validateStage := stages.NewValidateStage(finalVal, stages.ValidateStageConfig{
-		AlwaysRun: alwaysRun,
-		WorkDir:   p.cfg.WorkDir,
-	}, nil)
-
 	evidenceDir := store.RunEvidenceDir(rs.RunID)
+
+	contractEvaluator := &contract.DefaultContractEvaluator{}
+
+	writeContractsStage := stages.NewWriteContractsStage(contractWriter, stages.WriteContractsStageConfig{
+		SpecPath:    p.cfg.SpecPath,
+		EvidenceDir: evidenceDir,
+		Store:       store,
+	}, budget, eventLog)
+
+	validateStage := stages.NewValidateStage(finalVal, stages.ValidateStageConfig{
+		AlwaysRun:   alwaysRun,
+		WorkDir:     p.cfg.WorkDir,
+		EvidenceDir: evidenceDir,
+	}, nil, contractEvaluator)
 
 	reviewStage := stages.NewReviewStage(reviewRunner, stages.ReviewStageConfig{
 		SpecContent:  string(specContent),
@@ -247,6 +267,7 @@ func (p *RealStageProvider) BuildStages(policy execpolicy.Policy, rs *runstore.R
 		initStage,
 		compileStage,
 		planStage,
+		writeContractsStage,
 		executeStage,
 		validateStage,
 		reviewStage,
@@ -413,4 +434,11 @@ func (n *noopAcceptEvaluator) Evaluate(_ context.Context, _ acceptor.EvaluateInp
 	r := acceptor.AcceptanceResult{AllPass: true}
 	r.NormalizeNilFields()
 	return r, nil
+}
+
+// noopContractWriter satisfies contract.ContractWriter with a no-op.
+type noopContractWriter struct{}
+
+func (n *noopContractWriter) WriteContracts(_ context.Context, _ []contract.SpecScenario, _ string) (*contract.ScenarioContract, error) {
+	return nil, nil
 }

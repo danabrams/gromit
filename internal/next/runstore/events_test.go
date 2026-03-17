@@ -239,6 +239,82 @@ func TestUnmarshalEvent_BlockedWorktreeCleaned(t *testing.T) {
 	}
 }
 
+func TestContractsWrittenEvent_JSON(t *testing.T) {
+	evt := ContractsWrittenEvent{
+		BaseEvent:     BaseEvent{Type: "contracts_written", Timestamp: time.Now()},
+		ScenarioCount: 5,
+	}
+
+	data, err := json.Marshal(evt)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+
+	var got map[string]interface{}
+	if err := json.Unmarshal(data, &got); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if got["type"] != "contracts_written" {
+		t.Errorf("type = %v, want contracts_written", got["type"])
+	}
+	if got["scenario_count"] != float64(5) {
+		t.Errorf("scenario_count = %v, want 5", got["scenario_count"])
+	}
+}
+
+func TestContractsBlockedEvent_JSON(t *testing.T) {
+	evt := ContractsBlockedEvent{
+		BaseEvent: BaseEvent{Type: "contracts_blocked", Timestamp: time.Now()},
+		Reason:    "spec not ready",
+	}
+
+	data, err := json.Marshal(evt)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+
+	var got map[string]interface{}
+	if err := json.Unmarshal(data, &got); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if got["type"] != "contracts_blocked" {
+		t.Errorf("type = %v, want contracts_blocked", got["type"])
+	}
+	if got["reason"] != "spec not ready" {
+		t.Errorf("reason = %v, want 'spec not ready'", got["reason"])
+	}
+}
+
+func TestUnmarshalEvent_ContractsWritten(t *testing.T) {
+	jsonStr := `{"type":"contracts_written","timestamp":"2026-03-16T00:00:00Z","scenario_count":3}`
+	evt, err := unmarshalEvent([]byte(jsonStr))
+	if err != nil {
+		t.Fatalf("unmarshalEvent: %v", err)
+	}
+	cw, ok := evt.(*ContractsWrittenEvent)
+	if !ok {
+		t.Fatalf("expected *ContractsWrittenEvent, got %T", evt)
+	}
+	if cw.ScenarioCount != 3 {
+		t.Errorf("ScenarioCount = %d, want 3", cw.ScenarioCount)
+	}
+}
+
+func TestUnmarshalEvent_ContractsBlocked(t *testing.T) {
+	jsonStr := `{"type":"contracts_blocked","timestamp":"2026-03-16T00:00:00Z","reason":"no scenarios"}`
+	evt, err := unmarshalEvent([]byte(jsonStr))
+	if err != nil {
+		t.Fatalf("unmarshalEvent: %v", err)
+	}
+	cb, ok := evt.(*ContractsBlockedEvent)
+	if !ok {
+		t.Fatalf("expected *ContractsBlockedEvent, got %T", evt)
+	}
+	if cb.Reason != "no scenarios" {
+		t.Errorf("Reason = %q, want 'no scenarios'", cb.Reason)
+	}
+}
+
 func TestEvents_ReadAll_EmptyFile(t *testing.T) {
 	dir := t.TempDir()
 	el := NewEventLog(filepath.Join(dir, "events.jsonl"))

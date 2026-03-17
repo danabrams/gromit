@@ -109,6 +109,12 @@ func TestResumeContract_ResumedRunReusesWorktree(t *testing.T) {
 				},
 			},
 			&stageRecorderFunc{
+				name: "write_contracts",
+				fn: func(rs *runstore.RunState) {
+					stagesRun = append(stagesRun, "write_contracts")
+				},
+			},
+			&stageRecorderFunc{
 				name: "execute",
 				fn: func(rs *runstore.RunState) {
 					stagesRun = append(stagesRun, "execute")
@@ -136,10 +142,14 @@ func TestResumeContract_ResumedRunReusesWorktree(t *testing.T) {
 		t.Errorf("expected worktree %q, got %q", "/tmp/original-worktree", capturedWT)
 	}
 
-	// init stage must NOT have run (filtered out because worktree exists)
+	// init and compile must NOT have run (filtered out on resume)
+	// write_contracts should run (relies on ContractsWritten flag for idempotency)
 	for _, name := range stagesRun {
 		if name == "init" {
-			t.Error("init stage should not run on resume when worktree exists")
+			t.Error("init stage should not run on resume")
+		}
+		if name == "compile" {
+			t.Error("compile stage should not run on resume")
 		}
 	}
 }
@@ -221,16 +231,16 @@ func TestResumeContract_ResumedRunIncludesPlanStage(t *testing.T) {
 	provider := &testStageProvider{
 		stages: []specloop.Stage{
 			&stageRecorderFunc{
-				name: "init",
-				fn:   func(_ *runstore.RunState) { stagesRun = append(stagesRun, "init") },
-			},
-			&stageRecorderFunc{
 				name: "compile",
 				fn:   func(_ *runstore.RunState) { stagesRun = append(stagesRun, "compile") },
 			},
 			&stageRecorderFunc{
 				name: "plan",
 				fn:   func(_ *runstore.RunState) { stagesRun = append(stagesRun, "plan") },
+			},
+			&stageRecorderFunc{
+				name: "write_contracts",
+				fn:   func(_ *runstore.RunState) { stagesRun = append(stagesRun, "write_contracts") },
 			},
 			&stageRecorderFunc{
 				name: "execute",
@@ -261,6 +271,14 @@ func TestResumeContract_ResumedRunIncludesPlanStage(t *testing.T) {
 	}
 	if !planRan {
 		t.Error("plan stage should be included on resume (needed for replan cycles)")
+	}
+
+	// compile must not have run (filtered out on resume)
+	// write_contracts should run (relies on ContractsWritten flag for idempotency)
+	for _, name := range stagesRun {
+		if name == "compile" {
+			t.Error("compile should not run on resume")
+		}
 	}
 }
 
@@ -371,9 +389,7 @@ func TestResumeScenario_HumanSaysKeepGoing(t *testing.T) {
 			},
 			&stageRecorderFunc{
 				name: "validate",
-				fn: func(rs *runstore.RunState) {
-					// Simulate: validation fails, triggering replan
-				},
+				fn:   func(_ *runstore.RunState) {},
 			},
 		},
 	}

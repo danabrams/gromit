@@ -1,0 +1,71 @@
+You are translating Given/When/Then acceptance scenarios into declarative filesystem assertions.
+
+{{- if .SpecPacket}}
+
+## Spec
+
+{{.SpecPacket}}
+{{- end}}
+
+## Scenarios to translate
+
+{{range .Scenarios -}}
+### Scenario: {{.Name}}
+{{- if .Given}}
+**Given:** {{.Given}}
+{{- end}}
+{{- if .When}}
+**When:** {{.When}}
+{{- end}}
+{{- if .Then}}
+**Then:** {{.Then}}
+{{- end}}
+{{- if .Notes}}
+**Notes:** {{.Notes}}
+{{- end}}
+
+{{end}}
+## Instructions
+
+Translate each scenario's Then clause (and Given/When context) into concrete filesystem assertions.
+Use only these five assertion types — one per assertion object:
+
+1. **file_exists**: A file must exist.
+   `file_exists: path/to/file`
+
+2. **file_not_exists**: A file must not exist.
+   `file_not_exists: path/to/file`
+
+3. **file_contains**: A file must contain a literal substring.
+   `file_contains:`
+   `  path: path/to/file`
+   `  pattern: literal substring`
+
+4. **file_not_contains**: A file must NOT contain a literal substring.
+   `file_not_contains:`
+   `  path: path/to/file`
+   `  pattern: literal substring`
+
+5. **file_not_modified**: A file must be unmodified relative to HEAD (git diff must be empty).
+   `file_not_modified: path/to/file`
+
+Rules:
+- Each assertion object must have EXACTLY ONE field set.
+- Use relative paths from the project root.
+- Prefer specific assertions (file_contains) over general ones (file_exists) where the Then clause specifies content.
+- Do not invent assertions not derivable from the Given/When/Then text.
+
+Respond with ONLY a YAML block in this exact structure:
+
+```yaml
+scenarios:
+  - name: <scenario-name>
+    assertions:
+      - file_exists: path/to/file
+      - file_contains:
+          path: path/to/file
+          pattern: expected content
+  - name: <another-scenario>
+    assertions:
+      - file_exists: path/to/another/file
+```

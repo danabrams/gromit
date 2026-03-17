@@ -141,6 +141,21 @@ type BlockedWorktreeCleanedEvent struct {
 	WorktreePath string `json:"worktree_path"`
 }
 
+type ContractsWrittenEvent struct {
+	BaseEvent
+	ScenarioCount int `json:"scenario_count"`
+}
+
+type ContractsBlockedEvent struct {
+	BaseEvent
+	Reason string `json:"reason"`
+}
+
+type ContractScenarioSkippedEvent struct {
+	BaseEvent
+	Reason string `json:"reason"`
+}
+
 type TerminalStateEvent struct {
 	BaseEvent
 	Status string `json:"status"`
@@ -279,6 +294,15 @@ func unmarshalEvent(data []byte) (TypedEvent, error) {
 		ev = &e
 	case "terminal_state":
 		var e TerminalStateEvent
+		ev = &e
+	case "contracts_written":
+		var e ContractsWrittenEvent
+		ev = &e
+	case "contracts_blocked":
+		var e ContractsBlockedEvent
+		ev = &e
+	case "contract_scenario_skipped":
+		var e ContractScenarioSkippedEvent
 		ev = &e
 	default:
 		return nil, fmt.Errorf("unknown event type: %s", peek.Type)

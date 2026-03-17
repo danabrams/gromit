@@ -1,0 +1,105 @@
+package contract
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+)
+
+// ContractEvaluator abstracts contract assertion evaluation for testability.
+type ContractEvaluator interface {
+	Evaluate(ctx context.Context, contract *ScenarioContract, workDir string) ([]ContractFailure, error)
+}
+
+// DefaultContractEvaluator is the default implementation of ContractEvaluator.
+type DefaultContractEvaluator struct{}
+
+// Evaluate checks every assertion in contract against workDir and returns all failures.
+// All assertions are checked — no short-circuit on first failure.
+// A nil contract returns empty failures.
+func (e *DefaultContractEvaluator) Evaluate(_ context.Context, contract *ScenarioContract, workDir string) ([]ContractFailure, error) {
+	if contract == nil {
+		return nil, nil
+	}
+	var failures []ContractFailure
+	for _, scenario := range contract.Scenarios {
+		for _, a := range scenario.Assertions {
+			if f := e.check(scenario.Name, a, workDir); f != nil {
+				failures = append(failures, *f)
+			}
+		}
+	}
+	return failures, nil
+}
+
+func (e *DefaultContractEvaluator) check(scenarioName string, a ContractAssertion, workDir string) *ContractFailure {
+	fail := func(assertionType, detail string) *ContractFailure {
+		return &ContractFailure{
+			ScenarioName:  scenarioName,
+			AssertionType: assertionType,
+			Details:       detail,
+		}
+	}
+
+	switch {
+	case a.FileExists != "":
+		path := filepath.Join(workDir, a.FileExists)
+		if _, err := os.Stat(path); err != nil {
+			return fail("file_exists", fmt.Sprintf("file %q does not exist", a.FileExists))
+		}
+
+	case a.FileNotExists != "":
+		path := filepath.Join(workDir, a.FileNotExists)
+		_, err := os.Stat(path)
+		if err == nil {
+			return fail("file_not_exists", fmt.Sprintf("file %q exists but should not", a.FileNotExists))
+		}
+		if !errors.Is(err, os.ErrNotExist) {
+			return fail("file_not_exists", fmt.Sprintf("cannot stat %q: %v", a.FileNotExists, err))
+		}
+
+	case a.FileContains != nil:
+		path := filepath.Join(workDir, a.FileContains.Path)
+		content, err := os.ReadFile(path)
+		if err != nil {
+			return fail("file_contains", fmt.Sprintf("cannot read %q: %v", a.FileContains.Path, err))
+		}
+		if !strings.Contains(string(content), a.FileContains.Pattern) {
+			return fail("file_contains", fmt.Sprintf("pattern %q not found in %q", a.FileContains.Pattern, a.FileContains.Path))
+		}
+
+	case a.FileNotContains != nil:
+		path := filepath.Join(workDir, a.FileNotContains.Path)
+		content, err := os.ReadFile(path)
+		if err != nil {
+			// Nonexistent file trivially does not contain the pattern.
+			if errors.Is(err, os.ErrNotExist) {
+				return nil
+			}
+			return fail("file_not_contains", fmt.Sprintf("cannot read %q: %v", a.FileNotContains.Path, err))
+		}
+		if strings.Contains(string(content), a.FileNotContains.Pattern) {
+			return fail("file_not_contains", fmt.Sprintf("pattern %q found in %q but should not be", a.FileNotContains.Pattern, a.FileNotContains.Path))
+		}
+
+	case a.FileNotModified != "":
+		cmd := exec.Command("git", "diff", "--name-only", "HEAD", "--", a.FileNotModified)
+		cmd.Dir = workDir
+		out, err := cmd.Output()
+		if err != nil {
+			return fail("file_not_modified", fmt.Sprintf("git diff failed for %q: %v", a.FileNotModified, err))
+		}
+		if strings.TrimSpace(string(out)) != "" {
+			return fail("file_not_modified", fmt.Sprintf("file %q has been modified", a.FileNotModified))
+		}
+
+	default:
+		return fail("invalid_assertion", "assertion has no fields set")
+	}
+
+	return nil
+}

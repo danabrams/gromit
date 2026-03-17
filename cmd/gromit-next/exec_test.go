@@ -629,6 +629,43 @@ func TestFilterStagesForDryRun_ExcludesReviewAndAccept(t *testing.T) {
 	}
 }
 
+// TestFilterStagesForResume_SkipsCompile verifies that compile is skipped
+// when resuming a run (it has already been completed in the prior run).
+func TestFilterStagesForResume_SkipsCompile(t *testing.T) {
+	allNames := []string{"init", "compile", "plan", "write_contracts", "execute", "validate", "review", "accept", "evidence", "finalize"}
+	var allStages []specloop.Stage
+	for _, name := range allNames {
+		allStages = append(allStages, &stageRecorder{name: name})
+	}
+
+	filtered := filterStagesForResume(allStages, "")
+
+	for _, s := range filtered {
+		if s.Name() == "compile" {
+			t.Errorf("resume should skip %q stage (already done in prior run)", s.Name())
+		}
+	}
+	wantCount := len(allNames) - 1 // only compile skipped
+	if len(filtered) != wantCount {
+		t.Errorf("expected %d stages after resume filter, got %d", wantCount, len(filtered))
+	}
+}
+
+// TestFilterStagesForResume_KeepsOtherStages verifies that all other stages are kept.
+func TestFilterStagesForResume_KeepsOtherStages(t *testing.T) {
+	allNames := []string{"init", "plan", "execute", "validate", "review", "accept", "evidence", "finalize"}
+	var allStages []specloop.Stage
+	for _, name := range allNames {
+		allStages = append(allStages, &stageRecorder{name: name})
+	}
+
+	filtered := filterStagesForResume(allStages, "")
+
+	if len(filtered) != len(allNames) {
+		t.Errorf("expected all %d stages kept (compile not in input to skip), got %d", len(allNames), len(filtered))
+	}
+}
+
 // Test that exec show returns a friendly error for an unknown run ID.
 func TestExecShowCmd_UnknownRunID_FriendlyError(t *testing.T) {
 	tmp := t.TempDir()

@@ -13,45 +13,14 @@ import (
 )
 
 func TestFilterStagesForResume(t *testing.T) {
-	allNames := []string{"init", "compile", "plan", "execute", "validate", "review", "accept", "evidence"}
+	allNames := []string{"init", "compile", "plan", "write_contracts", "execute", "validate", "review", "accept", "evidence"}
 	var allStages []specloop.Stage
 	for _, name := range allNames {
 		allStages = append(allStages, &stageRecorder{name: name})
 	}
 
-	t.Run("skips init when worktree exists", func(t *testing.T) {
-		rs := &runstore.RunState{
-			WorktreePath: "/tmp/wt",
-			Tasks:        []runstore.Task{{TaskID: "t1", Status: "done"}},
-		}
-		filtered := filterStagesForResume(allStages, rs)
-		for _, s := range filtered {
-			if s.Name() == "init" {
-				t.Fatal("init should be skipped when WorktreePath is set")
-			}
-		}
-	})
-
-	t.Run("keeps init when no worktree", func(t *testing.T) {
-		rs := &runstore.RunState{
-			WorktreePath: "",
-			Tasks:        []runstore.Task{{TaskID: "t1", Status: "done"}},
-		}
-		filtered := filterStagesForResume(allStages, rs)
-		found := false
-		for _, s := range filtered {
-			if s.Name() == "init" {
-				found = true
-			}
-		}
-		if !found {
-			t.Fatal("init should be kept when WorktreePath is empty")
-		}
-	})
-
 	t.Run("always skips compile", func(t *testing.T) {
-		rs := &runstore.RunState{}
-		filtered := filterStagesForResume(allStages, rs)
+		filtered := filterStagesForResume(allStages, "")
 		for _, s := range filtered {
 			if s.Name() == "compile" {
 				t.Fatal("compile should always be skipped on resume")
@@ -59,11 +28,43 @@ func TestFilterStagesForResume(t *testing.T) {
 		}
 	})
 
-	t.Run("keeps plan in stage list for replan jumps", func(t *testing.T) {
-		rs := &runstore.RunState{
-			Tasks: []runstore.Task{{TaskID: "t1", Status: "done"}},
+	t.Run("keeps write_contracts (runs idempotently via ContractsWritten flag)", func(t *testing.T) {
+		filtered := filterStagesForResume(allStages, "")
+		found := false
+		for _, s := range filtered {
+			if s.Name() == "write_contracts" {
+				found = true
+			}
 		}
-		filtered := filterStagesForResume(allStages, rs)
+		if !found {
+			t.Fatal("write_contracts should be kept (relies on ContractsWritten flag for idempotency)")
+		}
+	})
+
+	t.Run("keeps init when no WorktreePath", func(t *testing.T) {
+		filtered := filterStagesForResume(allStages, "")
+		found := false
+		for _, s := range filtered {
+			if s.Name() == "init" {
+				found = true
+			}
+		}
+		if !found {
+			t.Fatal("init should be kept on resume when no WorktreePath is set")
+		}
+	})
+
+	t.Run("init should be skipped when WorktreePath is set", func(t *testing.T) {
+		filtered := filterStagesForResume(allStages, "/tmp/existing-worktree")
+		for _, s := range filtered {
+			if s.Name() == "init" {
+				t.Fatal("init should be skipped when WorktreePath is set")
+			}
+		}
+	})
+
+	t.Run("keeps plan in stage list for replan jumps", func(t *testing.T) {
+		filtered := filterStagesForResume(allStages, "")
 		found := false
 		for _, s := range filtered {
 			if s.Name() == "plan" {
@@ -76,11 +77,7 @@ func TestFilterStagesForResume(t *testing.T) {
 	})
 
 	t.Run("keeps execute validate review accept evidence", func(t *testing.T) {
-		rs := &runstore.RunState{
-			WorktreePath: "/tmp/wt",
-			Tasks:        []runstore.Task{{TaskID: "t1"}},
-		}
-		filtered := filterStagesForResume(allStages, rs)
+		filtered := filterStagesForResume(allStages, "")
 		names := make(map[string]bool)
 		for _, s := range filtered {
 			names[s.Name()] = true
@@ -117,6 +114,7 @@ func TestExecSpec_ResumeLoadsExistingRunState(t *testing.T) {
 			&stageRecorder{name: "init", orderPtr: &order},
 			&stageRecorder{name: "compile", orderPtr: &order},
 			&stageRecorder{name: "plan", orderPtr: &order},
+			&stageRecorder{name: "write_contracts", orderPtr: &order},
 			&stageRecorder{name: "execute", orderPtr: &order},
 			&stageRecorder{name: "validate", orderPtr: &order},
 		},
@@ -153,7 +151,7 @@ func TestExecSpec_ResumeLoadsExistingRunState(t *testing.T) {
 	}
 }
 
-func TestExecSpec_ResumeSkipsInitCompile(t *testing.T) {
+func TestExecSpec_ResumeSkipsCompile(t *testing.T) {
 	tmp := t.TempDir()
 
 	// Create a prior run with tasks and worktree
@@ -175,6 +173,7 @@ func TestExecSpec_ResumeSkipsInitCompile(t *testing.T) {
 			&stageRecorder{name: "init", orderPtr: &order},
 			&stageRecorder{name: "compile", orderPtr: &order},
 			&stageRecorder{name: "plan", orderPtr: &order},
+			&stageRecorder{name: "write_contracts", orderPtr: &order},
 			&stageRecorder{name: "execute", orderPtr: &order},
 			&stageRecorder{name: "validate", orderPtr: &order},
 		},
@@ -193,8 +192,8 @@ func TestExecSpec_ResumeSkipsInitCompile(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	// init and compile should be skipped
-	for _, skipped := range []string{"init", "compile"} {
+	// compile and init should be skipped (WorktreePath is set)
+	for _, skipped := range []string{"compile", "init"} {
 		for _, ran := range order {
 			if ran == skipped {
 				t.Errorf("stage %s should have been skipped on resume", skipped)
@@ -202,8 +201,8 @@ func TestExecSpec_ResumeSkipsInitCompile(t *testing.T) {
 		}
 	}
 
-	// plan, execute, validate should run (plan no-ops when tasks exist)
-	want := []string{"plan", "execute", "validate"}
+	// plan, write_contracts, execute, validate should run (init skipped because WorktreePath is set)
+	want := []string{"plan", "write_contracts", "execute", "validate"}
 	if len(order) != len(want) {
 		t.Fatalf("expected %d stages, got %d: %v", len(want), len(order), order)
 	}
@@ -282,18 +281,6 @@ func TestExecSpec_ResumeResetsGateFlags(t *testing.T) {
 	}
 	if capturedRS.TerminalReason != "" {
 		t.Errorf("TerminalReason should be empty, got %s", capturedRS.TerminalReason)
-	}
-	if capturedRS.Cycle != 3 {
-		// Prior cycle was 2, resume increments to 3, then SpecLoop sets it to cycle+1
-		// Actually SpecLoop sets rs.Cycle = cycle + 1 where cycle starts at 0,
-		// so SpecLoop overwrites it. Let's just check the pre-loop state.
-		// The stage captures it after SpecLoop sets Cycle = 1.
-		// So we need to verify the increment happened before SpecLoop.
-		// Actually, SpecLoop sets rs.Cycle = cycle + 1 at the top of the for loop.
-		// cycle starts at 0, so rs.Cycle = 1 after that assignment.
-		// Our resume set it to 3 but SpecLoop overwrites with 1.
-		// This is expected behavior - check that it was incremented before the loop,
-		// but SpecLoop controls it from there.
 	}
 	if !capturedRS.EndedAt.IsZero() {
 		t.Errorf("EndedAt should be zero, got %v", capturedRS.EndedAt)

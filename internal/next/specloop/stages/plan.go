@@ -73,10 +73,9 @@ func (s *PlanStage) Name() string { return "plan" }
 // Run executes the plan stage.
 func (s *PlanStage) Run(ctx context.Context, rs *runstore.RunState) (specloop.NextAction, error) {
 	isFixCycle := rs.Cycle > 1 && len(rs.ReplanContext) > 0
-
-	// Skip planning when this is a resumed run with existing tasks and no
-	// replan context. The Resumed flag is set by exec.go when --resume is used.
 	if rs.Resumed && len(rs.Tasks) > 0 && !isFixCycle {
+		// Resumed run with existing tasks: skip planning on the first cycle so
+		// execution continues from where it left off without overwriting tasks.
 		return specloop.NextAction{Kind: specloop.Continue}, nil
 	}
 

@@ -678,6 +678,33 @@ func TestSpecLoop_ReviewReplan_RunsAcceptOnExhaustion(t *testing.T) {
 	}
 }
 
+func TestContractsWritten_PersistedAcrossReplanCycles(t *testing.T) {
+	// ContractsWritten must NOT be reset in the per-cycle reset block (specloop.go:46).
+	// WriteContracts sets it on cycle 1; on replan cycles it must still be true
+	// so that WriteContracts can short-circuit as a no-op.
+	rs := runstore.NewRunState("test-spec", "test-project")
+	rs.ContractsWritten = true
+
+	var snapContractsWritten bool
+
+	captureStage := &mockStage{
+		name: "plan",
+		runFn: func(_ context.Context, rs *runstore.RunState) (NextAction, error) {
+			snapContractsWritten = rs.ContractsWritten
+			return NextAction{Kind: Continue}, nil
+		},
+	}
+
+	budget := NewBudget(execpolicy.Budgets{MaxSpecCycles: 1, MaxTaskDurationSeconds: 300, MaxRunDurationSeconds: 3600, MaxRunCostUSD: 50.0})
+	loop := NewSpecLoop([]Stage{captureStage}, SpecLoopConfig{Budget: budget})
+
+	loop.Run(context.Background(), rs)
+
+	if !snapContractsWritten {
+		t.Error("ContractsWritten should NOT be reset at cycle start — it must persist across replan cycles")
+	}
+}
+
 func TestSpecLoop_CycleExhaustion_SetsBlockerSummaryFromReplanContext(t *testing.T) {
 	budget := NewBudget(execpolicy.Budgets{MaxSpecCycles: 1, MaxRunCostUSD: 99})
 

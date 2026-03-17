@@ -39,15 +39,9 @@ func (sl *SpecLoop) Run(ctx context.Context, rs *runstore.RunState) error {
 	for cycle := 0; cycle < maxCycles; cycle++ {
 		rs.Cycle = cycle + 1
 
-		// Reset gate booleans and review/acceptance fields at cycle start.
-		// NOTE: ReplanContext is NOT reset here — it is set at the end of the
-		// previous cycle (after replan is triggered) and consumed by PlanStage
-		// at the start of this cycle to determine isFixCycle.
-		rs.FinalValidationPassed = false
-		rs.FinalReviewPassed = false
-		rs.FinalAcceptancePassed = false
-		rs.ReviewFindings = []string{}
-		rs.AcceptanceResults = []string{}
+		// Reset per-cycle gate fields. ReplanContext and ContractsWritten are
+		// intentionally preserved — see runstore.ResetForNewCycle for the full list.
+		runstore.ResetForNewCycle(rs)
 
 		startIdx := 0
 		if cycle > 0 && sl.config.ReplanStage != "" {

@@ -54,6 +54,27 @@ var dryRunStages = map[string]bool{
 	"plan":    true,
 }
 
+// filterStagesForResume returns stages with compile removed,
+// since that stage has already been completed in the prior run.
+// When worktreePath is non-empty, init is also skipped because the worktree
+// already exists from the prior run.
+// Other stages run idempotently based on their corresponding completion flags.
+func filterStagesForResume(stages []specloop.Stage, worktreePath string) []specloop.Stage {
+	var filtered []specloop.Stage
+	for _, s := range stages {
+		switch s.Name() {
+		case "compile":
+			continue
+		case "init":
+			if worktreePath != "" {
+				continue
+			}
+		}
+		filtered = append(filtered, s)
+	}
+	return filtered
+}
+
 // filterStagesForDryRun returns only the dry-run stages when dryRun is true,
 // or all stages when dryRun is false.
 func filterStagesForDryRun(stages []specloop.Stage, dryRun bool) []specloop.Stage {
@@ -65,26 +86,6 @@ func filterStagesForDryRun(stages []specloop.Stage, dryRun bool) []specloop.Stag
 		if dryRunStages[s.Name()] {
 			filtered = append(filtered, s)
 		}
-	}
-	return filtered
-}
-
-// filterStagesForResume removes stages that are unnecessary when resuming
-// a prior run. Init is skipped if a worktree already exists, compile is
-// always skipped. Plan is kept in the list (specloop needs it for replan
-// jumps) but will no-op when tasks exist and it's not a fix cycle.
-func filterStagesForResume(stages []specloop.Stage, rs *runstore.RunState) []specloop.Stage {
-	var filtered []specloop.Stage
-	for _, s := range stages {
-		switch s.Name() {
-		case "init":
-			if rs.WorktreePath != "" {
-				continue
-			}
-		case "compile":
-			continue
-		}
-		filtered = append(filtered, s)
 	}
 	return filtered
 }
@@ -160,7 +161,11 @@ func (e *execSpecRun) run(ctx context.Context) (string, error) {
 		rs = runstore.NewRunState(specIDFromPath(e.specPath), e.projectID)
 	}
 
-	// 3. Create a single shared Budget instance.
+	// 3. Create a single shared Budget instance. This same instance is passed
+	// to both the SpecLoop (for cycle counting and hard budget checks between
+	// stages) and to ExecuteStage (for per-task cost accumulation). Using one
+	// instance ensures cost tracked during task execution is visible to the
+	// SpecLoop's budget gate.
 	// On resume, override MaxSpecCycles with the requested cycle count.
 	if e.resumeRunID != "" && e.resumeCycles > 0 {
 		policy.Budgets.MaxSpecCycles = e.resumeCycles
@@ -180,7 +185,7 @@ func (e *execSpecRun) run(ctx context.Context) (string, error) {
 	// 5. Filter for dry-run or resume
 	stages = filterStagesForDryRun(stages, e.dryRun)
 	if e.resumeRunID != "" {
-		stages = filterStagesForResume(stages, rs)
+		stages = filterStagesForResume(stages, rs.WorktreePath)
 	}
 	loop := specloop.NewSpecLoop(stages, specloop.SpecLoopConfig{
 		Budget:      budget,
