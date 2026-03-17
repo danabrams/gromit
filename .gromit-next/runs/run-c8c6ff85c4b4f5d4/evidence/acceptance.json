@@ -1,0 +1,211 @@
+{
+  "results": [
+    {
+      "criterion": "A WriteScenarioTests stage runs after Execute and before Validate, producing Go test files in the worktree",
+      "status": "pass",
+      "rationale": "The diff clearly shows: (1) NewWriteScenarioTestsStage is created in stage_provider.go, (2) it is inserted into the stage slice between executeStage and validateStage, (3) the stage name is 'write_scenario_tests', (4) tests verify the order [execute, write_scenario_tests, validate], (5) the stage implementation in write_scenario_tests.go calls WriteScenarioTest which writes Go test files to the workDir. Validation passed.",
+      "evidence_refs": [
+        "cmd/gromit-next/stage_provider.go",
+        "internal/next/specloop/stages/write_scenario_tests.go",
+        "internal/next/contract/llm_scenario_writer.go",
+        "cmd/gromit-next/stage_provider_test.go"
+      ]
+    },
+    {
+      "criterion": "The WriteScenarioTests stage follows the Seed/Invoke/Assert pattern from `docs/scenario-tests.md`",
+      "status": "unclear",
+      "rationale": "The implementation reads `docs/scenario-tests.md` at construction time and passes its content verbatim into the LLM prompt under 'Scenario Test Patterns and Guidelines'. However, the content of `docs/scenario-tests.md` is not present in the evidence, so it cannot be confirmed that the LLM is actually being instructed with a Seed/Invoke/Assert pattern. Additionally, none of the generated or example test files in the diff (e.g., in `llm_scenario_writer_test.go`) demonstrate the Seed/Invoke/Assert structure explicitly. The mechanism for passing the doc exists, but whether the resulting tests conform to the pattern is unverifiable from this evidence alone.",
+      "evidence_refs": [
+        "internal/next/contract/llm_scenario_writer.go",
+        "internal/next/contract/llm_scenario_writer_test.go",
+        "cmd/gromit-next/stage_provider.go"
+      ]
+    },
+    {
+      "criterion": "Scenarios are processed one at a time during scenario test writing",
+      "status": "pass",
+      "rationale": "The WriteScenarioTestsStage.Run method iterates over scenarios with a for loop, processing each scenario individually: calling WriteScenarioTest, running compile check, and appending to the manifest before moving to the next scenario. This is a sequential one-at-a-time pattern with per-scenario manifest updates and budget checks between iterations.",
+      "evidence_refs": [
+        "internal/next/specloop/stages/write_scenario_tests.go:196-265"
+      ]
+    },
+    {
+      "criterion": "Each scenario test compiles before the stage moves to the next scenario; up to two self-repair attempts on compile failure",
+      "status": "pass",
+      "rationale": "The implementation in write_scenario_tests.go has a self-repair loop with `const maxRepairAttempts = 2` and a `for repairAttempt := 0; repairAttempt \u003c= maxRepairAttempts; repairAttempt++` loop. After each WriteScenarioTest call, it runs `compileChecker` on the package directory. On success it breaks; on failure it stores compile errors in `compileErrors` to pass to the next attempt. After exhausting all attempts (repairAttempt == maxRepairAttempts), it returns Blocked. This provides exactly 2 self-repair attempts (attempts 1 and 2 after the initial write). Tests like TestWriteScenarioTests_CompileFailureSelfRepair and TestWriteScenarioTests_CompileFailureExhausted verify both the success and exhaustion paths.",
+      "evidence_refs": [
+        "internal/next/specloop/stages/write_scenario_tests.go",
+        "internal/next/specloop/stages/write_scenario_tests_test.go"
+      ]
+    },
+    {
+      "criterion": "Scenario test failures detected by the Validate stage's always-run `go test` check trigger replan via the existing `replan_from` mechanism",
+      "status": "pass",
+      "rationale": "The pipeline places WriteScenarioTestsStage immediately before ValidateStage (stage_provider.go lines 286-287). Scenario test files are written to workDir by WriteScenarioTestsStage, then ValidateStage's always-run `go test` check runs in that same workDir and picks up those files. In specloop.go, the Replan action handler explicitly reads from `rs.LastFinalValidation.AlwaysRun.Results` to extract test failure keys for failure history tracking — confirming the always-run `go test` output flows through the existing replan_from mechanism. When validate returns Replan, `replan=true` and `replanSource=stage.Name()` are set, triggering the replan_from path. The ScenarioTestsWritten flag persists across replan cycles (confirmed by store.go comment and store_test.go), so scenario test files survive replans and continue to be checked by validate on subsequent cycles.",
+      "evidence_refs": [
+        "cmd/gromit-next/stage_provider.go",
+        "internal/next/specloop/specloop.go",
+        "internal/next/runstore/store.go",
+        "internal/next/runstore/store_test.go",
+        "internal/next/specloop/stages/write_scenario_tests.go"
+      ]
+    },
+    {
+      "criterion": "On replan cycles, WriteScenarioTests is a no-op when its RunState flag (`ScenarioTestsWritten`) is true — fix tasks target the implementation, not the tests. WriteScenarioTests sets `rs.ScenarioTestsWritten = true` only when all scenarios succeed.",
+      "status": "pass",
+      "rationale": "The implementation in `write_scenario_tests.go` clearly shows: (1) idempotency guard at the top of `Run()` that returns `Continue` immediately when `rs.ScenarioTestsWritten` is true without calling the writer, (2) `rs.ScenarioTestsWritten = true` is only set after all scenarios are successfully processed (after the scenario loop completes), (3) `ResetForNewCycle` explicitly does NOT reset `ScenarioTestsWritten` (confirmed by comment and test `TestResetForNewCycle`), meaning the flag persists across replan cycles. Tests `TestWriteScenarioTests_IdempotencyGuard` and `TestResetForNewCycle` directly verify these behaviors.",
+      "evidence_refs": [
+        "internal/next/specloop/stages/write_scenario_tests.go",
+        "internal/next/specloop/stages/write_scenario_tests_test.go",
+        "internal/next/runstore/store.go",
+        "internal/next/runstore/store_test.go",
+        "internal/next/runstore/types.go"
+      ]
+    },
+    {
+      "criterion": "If WriteScenarioTests produces tests that don't compile after two self-repair attempts, the stage returns `blocked`. Tests for previously completed scenarios remain in the worktree but `ScenarioTestsWritten` is not set.",
+      "status": "pass",
+      "rationale": "The implementation in `write_scenario_tests.go` has a self-repair loop with `maxRepairAttempts = 2` that iterates `repairAttempt` from 0 to 2 inclusive (3 total write attempts = initial + 2 repairs). When `repairAttempt == maxRepairAttempts`, it returns `specloop.Blocked` without setting `rs.ScenarioTestsWritten`. The manifest is updated incrementally per scenario via `AppendScenario`, so previously compiled scenarios remain on disk and in the manifest. The test `TestWriteScenarioTests_CompileFailureExhausted` explicitly verifies: Blocked is returned, `ScenarioTestsWritten` is false, and a `scenario_tests_blocked` event is emitted.",
+      "evidence_refs": [
+        "internal/next/specloop/stages/write_scenario_tests.go",
+        "internal/next/specloop/stages/write_scenario_tests_test.go"
+      ]
+    },
+    {
+      "criterion": "If the spec has no Scenarios section or it is empty, WriteScenarioTests is a no-op (returns `Continue`)",
+      "status": "pass",
+      "rationale": "In write_scenario_tests.go, after parsing scenarios with contract.ParseScenarios(), the code explicitly checks `if len(scenarios) == 0 { return specloop.NextAction{Kind: specloop.Continue}, nil }`. This is directly tested by TestWriteScenarioTests_NoScenarios which writes a spec with no scenarios section and verifies Continue is returned with 0 writer calls and ScenarioTestsWritten remains false.",
+      "evidence_refs": [
+        "internal/next/specloop/stages/write_scenario_tests.go",
+        "internal/next/specloop/stages/write_scenario_tests_test.go"
+      ]
+    },
+    {
+      "criterion": "The WriteScenarioTests stage uses an injected `ScenarioTestWriter` interface matching the existing `PlanCreator`/`ReviewRunner` pattern for testability",
+      "status": "pass",
+      "rationale": "The `ScenarioTestWriter` interface is defined in `internal/next/contract/types.go`. `WriteScenarioTestsStage` accepts it via constructor injection in `NewWriteScenarioTestsStage(writer contract.ScenarioTestWriter, ...)`, stored as `writer contract.ScenarioTestWriter`. In `stage_provider.go`, a `scenarioTestWriter contract.ScenarioTestWriter` variable is declared alongside `planCreator` and `reviewRunner`, wired to either `contract.NewLLMScenarioTestWriter(...)` or `\u0026noopScenarioTestWriter{}` — exactly matching the PlanCreator/ReviewRunner pattern. Tests use `fakeScenarioTestWriter`, `mockScenarioTestWriter`, etc. as test doubles.",
+      "evidence_refs": [
+        "internal/next/contract/types.go",
+        "internal/next/specloop/stages/write_scenario_tests.go",
+        "cmd/gromit-next/stage_provider.go",
+        "internal/next/specloop/stages/write_scenario_tests_test.go"
+      ]
+    },
+    {
+      "criterion": "`BuildStages` in `cmd/gromit-next/stage_provider.go` is updated to include WriteScenarioTests in the correct pipeline position",
+      "status": "pass",
+      "rationale": "The diff shows `writeScenarioTestsStage` added to the pipeline slice between `executeStage` and `validateStage` (line 286). Tests confirm the expected order: `[\"init\", \"compile\", \"plan\", \"write_contracts\", \"execute\", \"write_scenario_tests\", \"validate\", \"review\", \"accept\", \"evidence\", \"finalize\"]`.",
+      "evidence_refs": [
+        "cmd/gromit-next/stage_provider.go",
+        "cmd/gromit-next/stage_provider_test.go"
+      ]
+    },
+    {
+      "criterion": "`ScenarioTestsWritten` RunState flag is NOT reset in the per-cycle reset block in `specloop.go`",
+      "status": "pass",
+      "rationale": "The diff shows `ResetForNewCycle` in `store.go` was updated with a comment explicitly listing `ScenarioTestsWritten` as a field that persists across replan cycles. The function does not reset `rs.ScenarioTestsWritten`. Additionally, `store_test.go` has a new `TestResetForNewCycle` test that sets `rs.ScenarioTestsWritten = true`, calls `ResetForNewCycle`, and asserts `rs.ScenarioTestsWritten` remains true.",
+      "evidence_refs": [
+        "internal/next/runstore/store.go",
+        "internal/next/runstore/store_test.go"
+      ]
+    },
+    {
+      "criterion": "WriteScenarioTests uses Sonnet (P1) model tier",
+      "status": "pass",
+      "rationale": "In stage_provider.go, the scenarioTestAdapter is created with `llmadapter.Config{Tier: policy.Models.Planner, ...}` and `policy.Models.Planner` as the tier argument to NewFallbackAdapter. The Planner tier corresponds to P1/Sonnet in the model tier hierarchy. The comment also explicitly states '// Scenario test writer with FallbackAdapter (Sonnet/Planner tier).'",
+      "evidence_refs": [
+        "cmd/gromit-next/stage_provider.go"
+      ]
+    },
+    {
+      "criterion": "All existing pipeline tests continue to pass",
+      "status": "pass",
+      "rationale": "The validation results show pass=true. The test files were updated to reflect the new stage count (10→11 stages) and the new 'write_scenario_tests' stage in the expected stage names array. The diff shows consistent updates across all affected test assertions in stage_provider_test.go.",
+      "evidence_refs": [
+        "cmd/gromit-next/stage_provider_test.go",
+        "validation.json (pass=true)"
+      ]
+    },
+    {
+      "criterion": "WriteScenarioTests emits events: `scenario_tests_written` per scenario, `scenario_tests_complete` on full success, `scenario_tests_blocked` on failure",
+      "status": "pass",
+      "rationale": "The implementation in write_scenario_tests.go clearly emits all three required events: (1) `scenario_tests_written` per scenario after each successful test file write, (2) `scenario_tests_complete` after all scenarios complete successfully, and (3) `scenario_tests_blocked` on budget exhaustion, writer errors, and compile failures. The event types are defined in runstore/events.go with proper structs and unmarshal support. Tests in write_scenario_tests_test.go verify these event emissions (TestWriteScenarioTestsStage_EventEmissionsFullFlow, TestWriteScenarioTestsStage_BudgetExceeded, TestWriteScenarioTests_CompileFailureExhausted). Validation passes.",
+      "evidence_refs": [
+        "internal/next/specloop/stages/write_scenario_tests.go",
+        "internal/next/runstore/events.go",
+        "internal/next/specloop/stages/write_scenario_tests_test.go"
+      ]
+    },
+    {
+      "criterion": "WriteScenarioTests checks remaining budget between scenario iterations and returns `blocked` if budget is exhausted mid-stage",
+      "status": "pass",
+      "rationale": "The implementation in write_scenario_tests.go has a budget check inside the scenario loop (before each scenario iteration) that returns Blocked with a failure context when budget is exceeded mid-stage. The test TestWriteScenarioTests_BudgetExhausted specifically validates this behavior by setting up two scenarios and exhausting the budget partway through.",
+      "evidence_refs": [
+        "internal/next/specloop/stages/write_scenario_tests.go",
+        "internal/next/specloop/stages/write_scenario_tests_test.go"
+      ]
+    },
+    {
+      "criterion": "WriteScenarioTests records a manifest of written test file paths in the evidence directory as `scenario-test-manifest.json`",
+      "status": "pass",
+      "rationale": "The implementation in `write_scenario_tests.go` defines `manifestFileName = \"scenario-test-manifest.json\"`, writes the manifest to `filepath.Join(s.cfg.EvidenceDir, manifestFileName)`, and appends each scenario's test file path incrementally via `AppendScenario`. The test `TestWriteScenarioTestsStage_ManifestWrittenToEvidenceDir` explicitly verifies the manifest is written to the evidence directory with correct content.",
+      "evidence_refs": [
+        "internal/next/specloop/stages/write_scenario_tests.go",
+        "internal/next/specloop/stages/write_scenario_tests_test.go"
+      ]
+    },
+    {
+      "criterion": "On retry when `ScenarioTestsWritten` is false, WriteScenarioTests skips scenarios whose test files already exist and compile, avoiding redundant LLM invocations",
+      "status": "fail",
+      "rationale": "The implementation in `write_scenario_tests.go` only checks whether a scenario name appears in the partial manifest (`writtenScenarios[scenario.Name]`). It does NOT verify that the corresponding test file still exists on disk or that it compiles. The review findings explicitly flag this at line 163/195: 'The re-run skip logic only checks whether a scenario name appears in the partial manifest... but does not verify that the corresponding test file actually exists on disk or still compiles.' The criterion requires both existence AND compilation checks before skipping, but neither is implemented.",
+      "evidence_refs": [
+        "internal/next/specloop/stages/write_scenario_tests.go:163",
+        "internal/next/specloop/stages/write_scenario_tests.go:195",
+        "review:spec_alignment:warning:internal/next/specloop/stages/write_scenario_tests.go:163"
+      ]
+    },
+    {
+      "criterion": "Persistent failure tracking uses `FailureHistory` on RunState (keyed by test function name or `contract:\u003cscenario-name\u003e`) to count consecutive cycle failures; threshold of 2+ triggers the diagnostic hint",
+      "status": "pass",
+      "rationale": "All required pieces are implemented: `FailureHistory map[string]int` is added to RunState in types.go; `ExtractTestFailureKeys` parses '--- FAIL: TestName' lines for test function name keys; `ExtractContractFailureKeys` handles 'contract:' prefixed strings; `UpdateFailureHistory` increments counts for keys still failing and resets to 0 for keys that resolved; `PersistentFailureHints` is called with threshold 2 in specloop.go and appends hints to replanContext.Failures. The review notes the hint message format diverges from the spec wording, but the criterion only requires that the hint is triggered at threshold 2+, which is satisfied.",
+      "evidence_refs": [
+        "internal/next/runstore/types.go",
+        "internal/next/specloop/failure_history.go",
+        "internal/next/specloop/specloop.go",
+        "internal/next/specloop/failure_history_test.go"
+      ]
+    },
+    {
+      "criterion": "When the same contract or scenario test failures persist across 2+ consecutive replan cycles, failure context includes a `persistent-failure` diagnostic hint",
+      "status": "pass",
+      "rationale": "The implementation in specloop.go integrates failure history tracking on replan: it extracts test failure keys (from LastFinalValidation output) and contract failure keys (from replanContext.Failures), calls UpdateFailureHistory, then calls PersistentFailureHints(rs.FailureHistory, 2) with threshold=2, and appends the resulting hints to replanContext.Failures. The hints contain the 'persistent-failure' label. FailureHistory persists across cycles (not reset by ResetForNewCycle). The review notes the hint wording differs from a spec-prescribed exact format, but the criterion only requires that failure context includes a 'persistent-failure' diagnostic hint — which it does.",
+      "evidence_refs": [
+        "internal/next/specloop/specloop.go",
+        "internal/next/specloop/failure_history.go",
+        "internal/next/runstore/types.go",
+        "internal/next/runstore/store.go",
+        "internal/next/specloop/failure_history_test.go"
+      ]
+    },
+    {
+      "criterion": "Each scenario gets its own dedicated test file — no shared test files between scenarios",
+      "status": "pass",
+      "rationale": "The LLMScenarioTestWriter.writeTestFile creates a unique filename per scenario using the sanitized scenario name (e.g., `add-works_test.go`). The WriteScenarioTestsStage loops through scenarios individually, calling WriteScenarioTest once per scenario and tracking each in a per-scenario manifest entry. TestWriteScenarioTests_SeparateFiles explicitly asserts that two scenarios produce different test file paths.",
+      "evidence_refs": [
+        "internal/next/contract/llm_scenario_writer.go",
+        "internal/next/specloop/stages/write_scenario_tests.go",
+        "internal/next/specloop/stages/write_scenario_tests_test.go"
+      ]
+    },
+    {
+      "criterion": "Compilation is checked via `go test -c -o /dev/null ./\u003cpackage-path\u003e` (not `go build`, which skips `_test.go` files)",
+      "status": "pass",
+      "rationale": "The WriteScenarioTestsStage sets a default compileChecker that runs `go test -c -o /dev/null .` (not `go build`), which includes `_test.go` files in compilation. The command uses `exec.Command(\"go\", \"test\", \"-c\", \"-o\", \"/dev/null\", \".\")` with `cmd.Dir = pkgPath`.",
+      "evidence_refs": [
+        "internal/next/specloop/stages/write_scenario_tests.go:149-156"
+      ]
+    }
+  ],
+  "all_pass": false,
+  "has_fail_or_unclear": true
+}

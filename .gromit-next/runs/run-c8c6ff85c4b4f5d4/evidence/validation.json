@@ -1,0 +1,24 @@
+{
+  "pass": true,
+  "always_run": {
+    "results": [
+      {
+        "name": "unit-tests",
+        "pass": true,
+        "output": "?   \texample.com/cmd/gromit-next\t[no test files]\n?   \texample.com/internal/next/contract\t[no test files]\n?   \texample.com/internal/next/llmadapter\t[no test files]\n?   \texample.com/internal/next/runstore\t[no test files]\nok  \texample.com/internal/next/specloop\t(cached)\nok  \texample.com/internal/next/specloop/stages\t(cached)\n",
+        "duration": 89650375,
+        "type": "test"
+      },
+      {
+        "name": "vet",
+        "pass": true,
+        "output": "",
+        "duration": 56429208,
+        "type": "lint"
+      }
+    ]
+  },
+  "project_checks": {
+    "results": null
+  }
+}

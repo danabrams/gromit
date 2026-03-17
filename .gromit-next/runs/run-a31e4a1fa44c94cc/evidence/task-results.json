@@ -1,0 +1,1610 @@
+[
+  {
+    "task_id": "t-001",
+    "objective": "Create the contract package with core types: SpecScenario, ScenarioContract, ScenarioAssertions, ContractAssertion, FileContainsAssertion, ContractFailure. All types must have proper YAML struct tags. ContractAssertion uses single-key map pattern (exactly one field set). SpecScenario and ParseScenarios must be exported for reuse by spec 0002f. Add ContractWriter and ContractEvaluator interfaces in this package.",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [
+      "internal/next/contract/types.go"
+    ],
+    "proof_checks": [
+      "go vet ./internal/next/contract/...",
+      "grep -q 'type SpecScenario struct' internal/next/contract/types.go",
+      "grep -q 'type ScenarioContract struct' internal/next/contract/types.go",
+      "grep -q 'type ContractAssertion struct' internal/next/contract/types.go",
+      "grep -q 'type ContractFailure struct' internal/next/contract/types.go",
+      "grep -q 'type ContractWriter interface' internal/next/contract/types.go",
+      "grep -q 'type ContractEvaluator interface' internal/next/contract/types.go",
+      "grep -q 'FileNotExists' internal/next/contract/types.go",
+      "grep -q 'FileNotContains' internal/next/contract/types.go"
+    ],
+    "files_changed": [
+      "internal/next/contract/evaluator.go",
+      "internal/next/contract/types.go"
+    ],
+    "tokens_used": 1960,
+    "duration_ms": 32917,
+    "model_tier": "",
+    "cycle": 1,
+    "kind": "original"
+  },
+  {
+    "task_id": "t-002",
+    "objective": "Implement ParseScenarios function that parses spec markdown to extract scenarios. Match '### Scenario:' headers. Extract Given/When/Then/Notes blocks as raw text. Skip scenarios missing When or Then with a warning log. Given and Notes are optional. Export the function for reuse by spec 0002f.",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [
+      "internal/next/contract/parse.go",
+      "internal/next/contract/parse_test.go"
+    ],
+    "proof_checks": [
+      "go test ./internal/next/contract/ -count=1 -run TestParse",
+      "grep -q 'func ParseScenarios' internal/next/contract/parse.go",
+      "grep -q 'TestParse' internal/next/contract/parse_test.go"
+    ],
+    "files_changed": [],
+    "tokens_used": 672,
+    "duration_ms": 15262,
+    "model_tier": "",
+    "cycle": 1,
+    "kind": "original"
+  },
+  {
+    "task_id": "t-003",
+    "objective": "Implement ValidateContract function that checks a ScenarioContract against the known assertion vocabulary. Each ContractAssertion must have exactly one field set. Unknown keys (zero fields set or multiple fields set) are vocabulary violations. Return a list of validation error strings. Also implement ParseContractYAML that strips markdown code fences from raw LLM output and unmarshals YAML into ScenarioContract. Fix the review finding: doc comment must use plain English, no backtick-escaping artifacts.",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [
+      "internal/next/contract/validate.go",
+      "internal/next/contract/validate_test.go"
+    ],
+    "proof_checks": [
+      "go test ./internal/next/contract/ -count=1 -run TestValidate",
+      "grep -q 'func ValidateContract' internal/next/contract/validate.go",
+      "grep -q 'func ParseContractYAML' internal/next/contract/validate.go",
+      "grep -q 'TestValidate' internal/next/contract/validate_test.go"
+    ],
+    "files_changed": [
+      "internal/next/contract/validate.go",
+      "internal/next/contract/validate_test.go",
+      "internal/next/contract/writer.go"
+    ],
+    "tokens_used": 9512,
+    "duration_ms": 138525,
+    "model_tier": "",
+    "cycle": 1,
+    "kind": "original"
+  },
+  {
+    "task_id": "t-004",
+    "objective": "Implement DefaultContractEvaluator with Evaluate method that checks all 5 assertion types against the filesystem: file_exists (os.Stat), file_contains (strings.Contains), file_not_modified (git diff --name-only HEAD -- \u003cpath\u003e), file_not_exists (!os.Stat), file_not_contains (!strings.Contains). All assertions per scenario are checked (no short-circuit). Failures use format 'contract:\u003cscenario-name\u003e — \u003cassertion-type\u003e failed: \u003cdetails\u003e'. Missing contract file (nil contract) returns empty failures. Use pointer receiver for consistency.",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [
+      "internal/next/contract/evaluator.go",
+      "internal/next/contract/evaluator_test.go"
+    ],
+    "proof_checks": [
+      "go test ./internal/next/contract/ -count=1 -run TestEvaluator",
+      "grep -q 'func.*DefaultContractEvaluator.*Evaluate' internal/next/contract/evaluator.go",
+      "grep -q 'file_exists' internal/next/contract/evaluator.go",
+      "grep -q 'file_not_modified' internal/next/contract/evaluator.go",
+      "grep -q 'file_not_contains' internal/next/contract/evaluator.go",
+      "grep -q 'TestEvaluator' internal/next/contract/evaluator_test.go"
+    ],
+    "files_changed": [
+      "internal/next/contract/evaluator.go",
+      "internal/next/contract/evaluator_test.go"
+    ],
+    "tokens_used": 3389,
+    "duration_ms": 59259,
+    "model_tier": "",
+    "cycle": 1,
+    "kind": "original"
+  },
+  {
+    "task_id": "t-005",
+    "objective": "Create the contract writer prompt template. Address review finding: use //go:embed with a separate .txt file instead of awkward backtick escaping via string concatenation. The prompt instructs the LLM to translate scenarios into the 5-assertion vocabulary (file_exists, file_contains, file_not_modified, file_not_exists, file_not_contains) and output YAML matching the ScenarioContract schema.",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [
+      "internal/next/contract/prompt.go",
+      "internal/next/contract/prompt.txt"
+    ],
+    "proof_checks": [
+      "go vet ./internal/next/contract/...",
+      "grep -q 'go:embed' internal/next/contract/prompt.go",
+      "test -f internal/next/contract/prompt.txt"
+    ],
+    "files_changed": [
+      "internal/next/contract/prompt.go",
+      "internal/next/contract/prompt.txt"
+    ],
+    "tokens_used": 1640,
+    "duration_ms": 28328,
+    "model_tier": "",
+    "cycle": 1,
+    "kind": "original"
+  },
+  {
+    "task_id": "t-006",
+    "objective": "Implement LLMContractWriter that satisfies the ContractWriter interface. Takes an LLM adapter and tier. Renders the prompt template with scenarios and spec packet, invokes the LLM, returns the raw response. Uses Sonnet (P1) model tier. Also create a noopContractWriter for use when no LLM provider is configured.",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [
+      "internal/next/contract/writer.go",
+      "internal/next/contract/writer_test.go"
+    ],
+    "proof_checks": [
+      "go test ./internal/next/contract/ -count=1 -run TestWriter",
+      "grep -q 'LLMContractWriter' internal/next/contract/writer.go",
+      "grep -q 'WriteContracts' internal/next/contract/writer.go",
+      "grep -q 'TestWriter' internal/next/contract/writer_test.go"
+    ],
+    "files_changed": [
+      "cmd/gromit-next/stage_provider.go",
+      "internal/next/contract/writer.go",
+      "internal/next/contract/writer_test.go"
+    ],
+    "tokens_used": 10869,
+    "duration_ms": 192479,
+    "model_tier": "",
+    "cycle": 1,
+    "kind": "original"
+  },
+  {
+    "task_id": "t-007",
+    "objective": "Add ContractsWritten bool field to RunState in runstore/types.go with json tag 'contracts_written'. Do NOT add it to the per-cycle reset block in specloop.go (it must persist across replan cycles). Add new event types ContractsWrittenEvent (with ScenarioCount int) and ContractsBlockedEvent (with Reason string) to events.go. Register both in the unmarshalEvent switch.",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [
+      "internal/next/runstore/types.go",
+      "internal/next/runstore/events.go"
+    ],
+    "proof_checks": [
+      "go vet ./internal/next/runstore/...",
+      "grep -q 'ContractsWritten' internal/next/runstore/types.go",
+      "grep -q 'contracts_written' internal/next/runstore/types.go",
+      "grep -q 'ContractsWrittenEvent' internal/next/runstore/events.go",
+      "grep -q 'ContractsBlockedEvent' internal/next/runstore/events.go",
+      "grep -q 'contracts_written' internal/next/runstore/events.go",
+      "grep -q 'contracts_blocked' internal/next/runstore/events.go",
+      "! grep -q 'ContractsWritten' internal/next/specloop/specloop.go"
+    ],
+    "files_changed": [],
+    "tokens_used": 1033,
+    "duration_ms": 21299,
+    "model_tier": "",
+    "cycle": 1,
+    "kind": "original"
+  },
+  {
+    "task_id": "t-008",
+    "objective": "Implement WriteContractsStage in stages/write_contracts.go. Config struct: WriteContractsStageConfig with SpecPath, EvidenceDir, Budget (*specloop.Budget). Constructor takes ContractWriter interface, store (*runstore.Store), config, and eventLog. Stage name: 'write_contracts'. Run logic: (1) check rs.ContractsWritten idempotency flag — if true return Continue, (2) read spec file and parse scenarios — if none return Continue, (3) check budget before LLM invocation — if exhausted return Blocked, (4) read spec-packet.md from store, (5) invoke ContractWriter, (6) parse and validate response with retry loop (max 3 attempts total: 1 initial + 2 retries). Address review findings: construct fresh request each iteration preserving original specBytes; clear lastErr at top of each loop iteration; wrap error context in code fence when appending to retry prompt. (7) Write scenario-contracts.yaml to EvidenceDir, (8) set rs.ContractsWritten = true, (9) emit contracts_written event. On terminal failure: emit contracts_blocked, return Blocked.",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [
+      "internal/next/specloop/stages/write_contracts.go",
+      "internal/next/specloop/stages/write_contracts_test.go"
+    ],
+    "proof_checks": [
+      "go test ./internal/next/specloop/stages/ -count=1 -run TestWriteContracts",
+      "grep -q 'WriteContractsStage' internal/next/specloop/stages/write_contracts.go",
+      "grep -q 'write_contracts' internal/next/specloop/stages/write_contracts.go",
+      "grep -q 'ContractsWritten' internal/next/specloop/stages/write_contracts.go",
+      "grep -q 'contracts_written' internal/next/specloop/stages/write_contracts.go",
+      "grep -q 'contracts_blocked' internal/next/specloop/stages/write_contracts.go",
+      "grep -q 'TestWriteContracts' internal/next/specloop/stages/write_contracts_test.go",
+      "grep -q 'TestWriteContracts_IdempotentOnReplan' internal/next/specloop/stages/write_contracts_test.go",
+      "grep -q 'TestWriteContracts_NoScenarios' internal/next/specloop/stages/write_contracts_test.go",
+      "grep -q 'TestWriteContracts_BudgetExhausted' internal/next/specloop/stages/write_contracts_test.go",
+      "grep -q 'TestWriteContracts_InvalidYAMLRetries' internal/next/specloop/stages/write_contracts_test.go",
+      "grep -q 'TestWriteContracts_VocabularyViolation' internal/next/specloop/stages/write_contracts_test.go"
+    ],
+    "files_changed": [
+      "internal/next/specloop/stages/write_contracts.go",
+      "internal/next/specloop/stages/write_contracts_test.go"
+    ],
+    "tokens_used": 14282,
+    "duration_ms": 236796,
+    "model_tier": "",
+    "cycle": 1,
+    "kind": "original"
+  },
+  {
+    "task_id": "t-009",
+    "objective": "Extend ValidateStage to check contract assertions. Add EvidenceDir string field to ValidateStageConfig. Add ContractEvaluator interface (same signature as contract.ContractEvaluator) to stages package — do not import contract package's interface (avoid dead code). Add contractEval field to ValidateStage struct. Update NewValidateStage constructor to accept optional ContractEvaluator. In Run method: (1) if contractEval is set and EvidenceDir is set, attempt to load scenario-contracts.yaml — if file missing skip silently, (2) evaluate contracts against workDir, (3) collect contract failures into the failures slice, (4) then run existing shell validation checks regardless of contract results, (5) combine all failures. Contract failures use format 'contract:\u003cscenario-name\u003e — \u003cassertion-type\u003e failed: \u003cdetails\u003e'. Update existing tests to pass with the new constructor signature.",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [
+      "internal/next/specloop/stages/validate.go",
+      "internal/next/specloop/stages/validate_test.go"
+    ],
+    "proof_checks": [
+      "go test ./internal/next/specloop/stages/ -count=1 -run TestValidate",
+      "grep -q 'ContractEvaluator' internal/next/specloop/stages/validate.go",
+      "grep -q 'EvidenceDir' internal/next/specloop/stages/validate.go",
+      "grep -q 'scenario-contracts.yaml' internal/next/specloop/stages/validate.go",
+      "grep -q 'TestValidateStage_ContractFailures' internal/next/specloop/stages/validate_test.go",
+      "grep -q 'TestValidateStage_MissingContractFile' internal/next/specloop/stages/validate_test.go",
+      "grep -q 'TestValidateStage_ContractAndShellFailures' internal/next/specloop/stages/validate_test.go"
+    ],
+    "files_changed": [
+      "internal/next/specloop/stages/validate_test.go"
+    ],
+    "tokens_used": 1761,
+    "duration_ms": 31835,
+    "model_tier": "",
+    "cycle": 1,
+    "kind": "original"
+  },
+  {
+    "task_id": "t-010",
+    "objective": "Wire WriteContracts into the pipeline in stage_provider.go. (1) Create LLM adapter for ContractWriter using FallbackAdapter with Sonnet tier, cost and invocation callbacks. (2) Construct WriteContractsStageConfig with SpecPath, EvidenceDir, and Budget (fix the review finding: Budget must be wired as 'Budget: budget'). (3) Insert writeContractsStage between planStage and executeStage in the returned slice. (4) Create noopContractWriter in stage_provider.go for the no-provider fallback path. (5) Wire ContractEvaluator into ValidateStage constructor using contract.DefaultContractEvaluator. (6) Update ValidateStageConfig to include EvidenceDir. (7) Do NOT add 'write_contracts' to dryRunStages in exec.go. (8) Add 'write_contracts' to filterStagesForResume skip list (same as compile — contracts written in prior run).",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [
+      "cmd/gromit-next/stage_provider.go",
+      "cmd/gromit-next/exec.go"
+    ],
+    "proof_checks": [
+      "go vet ./cmd/gromit-next/...",
+      "grep -q 'writeContractsStage' cmd/gromit-next/stage_provider.go",
+      "grep -q 'noopContractWriter' cmd/gromit-next/stage_provider.go",
+      "grep -q 'Budget:.*budget' cmd/gromit-next/stage_provider.go",
+      "grep -q 'ContractEvaluator' cmd/gromit-next/stage_provider.go",
+      "grep -q 'EvidenceDir' cmd/gromit-next/stage_provider.go",
+      "! grep -q 'write_contracts' cmd/gromit-next/exec.go | head -1 || grep -q 'write_contracts' cmd/gromit-next/exec.go \u0026\u0026 grep -q 'filterStagesForResume' cmd/gromit-next/exec.go"
+    ],
+    "files_changed": [
+      "cmd/gromit-next/exec.go",
+      "cmd/gromit-next/exec_test.go"
+    ],
+    "tokens_used": 6802,
+    "duration_ms": 136912,
+    "model_tier": "",
+    "cycle": 1,
+    "kind": "original"
+  },
+  {
+    "task_id": "t-011",
+    "objective": "Add integration test that exercises the Plan → WriteContracts → Execute → Validate pipeline flow with contract replan. Test scenario: (1) WriteContracts produces a contract with a file_contains assertion, (2) Execute creates the file but without the expected content, (3) Validate detects the contract failure and returns ReplanFrom, (4) On replan cycle, WriteContracts is a no-op (idempotency), (5) Fix execution satisfies the contract. Also test: spec with no scenarios flows through without contract file, and contract file missing at validate time is handled gracefully.",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [
+      "internal/next/specloop/stages/write_contracts_integration_test.go"
+    ],
+    "proof_checks": [
+      "go test ./internal/next/specloop/stages/ -count=1 -run TestIntegration_WriteContracts",
+      "grep -q 'TestIntegration_WriteContracts' internal/next/specloop/stages/write_contracts_integration_test.go"
+    ],
+    "files_changed": [
+      "internal/next/specloop/stages/write_contracts_integration_test.go"
+    ],
+    "tokens_used": 18348,
+    "duration_ms": 296762,
+    "model_tier": "",
+    "cycle": 1,
+    "kind": "original"
+  },
+  {
+    "task_id": "t-012",
+    "objective": "Run full test suite to verify no regressions. Fix any compilation errors or test failures introduced by the changes. Ensure all existing pipeline tests, stage tests, and integration tests continue to pass. Verify go vet passes on all packages.",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [
+      "internal/next/contract/types.go",
+      "internal/next/contract/evaluator.go",
+      "cmd/gromit-next/stage_provider.go"
+    ],
+    "proof_checks": [
+      "go test ./... -count=1",
+      "go vet ./..."
+    ],
+    "files_changed": [],
+    "tokens_used": 291,
+    "duration_ms": 38019,
+    "model_tier": "",
+    "cycle": 1,
+    "kind": "original"
+  },
+  {
+    "task_id": "t-013",
+    "objective": "Restore Resumed field in RunState alongside ContractsWritten. The diff replaced Resumed with ContractsWritten — both must coexist. Add ContractsWritten as a new field without removing Resumed. Addresses: review:spec_alignment:error:internal/next/runstore/types.go:46",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [
+      "internal/next/runstore/types.go"
+    ],
+    "proof_checks": [
+      "grep -q 'Resumed.*bool' internal/next/runstore/types.go",
+      "grep -q 'ContractsWritten.*bool' internal/next/runstore/types.go",
+      "go vet ./internal/next/runstore/..."
+    ],
+    "files_changed": [
+      "internal/next/runstore/types.go"
+    ],
+    "tokens_used": 604,
+    "duration_ms": 22964,
+    "model_tier": "",
+    "cycle": 2,
+    "kind": "fix",
+    "parent_cycle": 1,
+    "failures_addressed": [
+      "review:spec_alignment:error:internal/next/runstore/types.go:46"
+    ]
+  },
+  {
+    "task_id": "t-014",
+    "objective": "Restore all resume functionality in exec.go: --resume and --cycles CLI flags, resumeRunID and resumeCycles fields on execSpecRun, run state loading from prior run, gate flag resets, cycle increment, and budget override logic. Only ADD contract-related changes (write_contracts in filterStagesForResume skip list, WriteContracts stage wiring). Do not remove any existing resume code. Addresses: review:spec_alignment:error:cmd/gromit-next/exec.go:105, review:spec_alignment:warning:cmd/gromit-next/exec.go:56, review:code_quality:error:cmd/gromit-next/exec.go:56",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [
+      "cmd/gromit-next/exec.go"
+    ],
+    "proof_checks": [
+      "grep -q 'resume' cmd/gromit-next/exec.go",
+      "grep -q 'cycles' cmd/gromit-next/exec.go",
+      "grep -q 'resumeRunID' cmd/gromit-next/exec.go",
+      "grep -q 'resumeCycles' cmd/gromit-next/exec.go",
+      "grep -q 'filterStagesForResume' cmd/gromit-next/exec.go",
+      "go vet ./cmd/gromit-next/..."
+    ],
+    "files_changed": [
+      "cmd/gromit-next/exec.go"
+    ],
+    "tokens_used": 6965,
+    "duration_ms": 140623,
+    "model_tier": "",
+    "cycle": 2,
+    "kind": "fix",
+    "parent_cycle": 1,
+    "failures_addressed": [
+      "review:spec_alignment:error:cmd/gromit-next/exec.go:105",
+      "review:spec_alignment:warning:cmd/gromit-next/exec.go:56",
+      "review:code_quality:error:cmd/gromit-next/exec.go:56"
+    ]
+  },
+  {
+    "task_id": "t-015",
+    "objective": "Restore resume_test.go and resume_contract_test.go in cmd/gromit-next/. These files contain tests for spec-0002a resume functionality and must not be deleted by spec-0002e. Update them as needed to account for the new write_contracts stage in the pipeline (e.g., stage count assertions may need incrementing). Addresses: review:spec_alignment:error:cmd/gromit-next/resume_contract_test.go:1, review:spec_alignment:error:cmd/gromit-next/resume_test.go:1",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [
+      "cmd/gromit-next/resume_test.go",
+      "cmd/gromit-next/resume_contract_test.go"
+    ],
+    "proof_checks": [
+      "test -f cmd/gromit-next/resume_test.go",
+      "test -f cmd/gromit-next/resume_contract_test.go",
+      "grep -q 'TestFilterStagesForResume' cmd/gromit-next/resume_test.go",
+      "grep -q 'TestResumeContract' cmd/gromit-next/resume_contract_test.go",
+      "grep -q 'TestResumeScenario' cmd/gromit-next/resume_contract_test.go",
+      "go test ./cmd/gromit-next/ -count=1 -run 'TestResume|TestFilterStages'"
+    ],
+    "files_changed": [
+      "cmd/gromit-next/resume_contract_test.go",
+      "cmd/gromit-next/resume_test.go"
+    ],
+    "tokens_used": 14531,
+    "duration_ms": 188072,
+    "model_tier": "",
+    "cycle": 2,
+    "kind": "fix",
+    "parent_cycle": 1,
+    "failures_addressed": [
+      "review:spec_alignment:error:cmd/gromit-next/resume_contract_test.go:1",
+      "review:spec_alignment:error:cmd/gromit-next/resume_test.go:1"
+    ]
+  },
+  {
+    "task_id": "t-016",
+    "objective": "Restore resume skip logic in PlanStage.Run(). When rs.Resumed is true, len(rs.Tasks) \u003e 0, and the cycle is not a fix cycle, PlanStage should return Continue (no-op) to skip planning on the first resumed cycle. This was removed by the spec-0002e diff but is required by spec-0002a. Addresses: review:spec_alignment:error:internal/next/specloop/stages/plan.go:75",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [
+      "internal/next/specloop/stages/plan.go"
+    ],
+    "proof_checks": [
+      "grep -q 'Resumed' internal/next/specloop/stages/plan.go",
+      "go test ./internal/next/specloop/stages/ -count=1 -run TestPlan"
+    ],
+    "files_changed": [
+      "internal/next/specloop/stages/plan.go"
+    ],
+    "tokens_used": 1303,
+    "duration_ms": 29051,
+    "model_tier": "",
+    "cycle": 2,
+    "kind": "fix",
+    "parent_cycle": 1,
+    "failures_addressed": [
+      "review:spec_alignment:error:internal/next/specloop/stages/plan.go:75"
+    ]
+  },
+  {
+    "task_id": "t-017",
+    "objective": "Consolidate ContractWriter interface to a single definition. Remove the duplicate interface from internal/next/contract/types.go (or align it with the stages version). The canonical interface should be in the stages package (injected into WriteContractsStage per spec). Also fix the return type to use pointer (*ScenarioContract, error) to match the spec signature. Addresses: review:spec_alignment:warning:internal/next/contract/types.go:50 (both findings)",
+    "status": "decomposed",
+    "attempts": 1,
+    "expected_touched_area": [
+      "internal/next/contract/types.go",
+      "internal/next/contract/writer.go",
+      "internal/next/specloop/stages/write_contracts.go"
+    ],
+    "proof_checks": [
+      "go vet ./internal/next/contract/...",
+      "go vet ./internal/next/specloop/stages/...",
+      "go build ./..."
+    ],
+    "files_changed": [],
+    "tokens_used": 0,
+    "duration_ms": 0,
+    "model_tier": "",
+    "cycle": 2,
+    "kind": "fix",
+    "parent_cycle": 1,
+    "failures_addressed": [
+      "review:spec_alignment:warning:internal/next/contract/types.go:50"
+    ]
+  },
+  {
+    "task_id": "t-018",
+    "objective": "Fix retry context in WriteContractsStage to use a separate field in WriteContractsRequest for error context instead of appending to SpecContent. Add a RetryContext or ErrorContext field to WriteContractsRequest and use it for retry error information, keeping SpecContent clean. Addresses: review:spec_alignment:warning:internal/next/specloop/stages/write_contracts.go:141",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [
+      "internal/next/specloop/stages/write_contracts.go",
+      "internal/next/specloop/stages/write_contracts_test.go"
+    ],
+    "proof_checks": [
+      "grep -q 'RetryContext\\|ErrorContext' internal/next/specloop/stages/write_contracts.go",
+      "go test ./internal/next/specloop/stages/ -count=1 -run TestWriteContracts"
+    ],
+    "files_changed": [
+      "internal/next/specloop/stages/write_contracts.go",
+      "internal/next/specloop/stages/write_contracts_test.go"
+    ],
+    "tokens_used": 5871,
+    "duration_ms": 77186,
+    "model_tier": "",
+    "cycle": 2,
+    "kind": "fix",
+    "parent_cycle": 1,
+    "failures_addressed": [
+      "review:spec_alignment:warning:internal/next/specloop/stages/write_contracts.go:141"
+    ]
+  },
+  {
+    "task_id": "t-019",
+    "objective": "Fix code quality issues: (1) Remove trailing blank lines at end of internal/next/contract/writer.go. (2) Remove dead lastSpec field from fakeContractWriter in write_contracts_test.go and its assignment. (3) Rename noopContractWriter in stage_provider.go to noopStageContractWriter to avoid naming collision with contract package's noop. Addresses: review:code_quality:warning:internal/next/contract/writer.go:58, review:code_quality:warning:internal/next/specloop/stages/write_contracts_test.go:28, review:code_quality:warning:cmd/gromit-next/stage_provider.go:440",
+    "status": "failed",
+    "attempts": 1,
+    "expected_touched_area": [
+      "internal/next/contract/writer.go",
+      "internal/next/specloop/stages/write_contracts_test.go",
+      "cmd/gromit-next/stage_provider.go"
+    ],
+    "proof_checks": [
+      "! tail -1 internal/next/contract/writer.go | grep -q '^$'",
+      "! grep -q 'lastSpec' internal/next/specloop/stages/write_contracts_test.go",
+      "grep -q 'noopStageContractWriter' cmd/gromit-next/stage_provider.go",
+      "go build ./...",
+      "go vet ./..."
+    ],
+    "files_changed": [
+      "cmd/gromit-next/stage_provider.go",
+      "internal/next/contract/writer.go",
+      "internal/next/specloop/stages/write_contracts_test.go"
+    ],
+    "tokens_used": 1863,
+    "duration_ms": 34194,
+    "model_tier": "",
+    "cycle": 2,
+    "kind": "fix",
+    "parent_cycle": 1,
+    "failures_addressed": [
+      "review:code_quality:warning:internal/next/contract/writer.go:58",
+      "review:spec_alignment:warning:internal/next/contract/writer.go:56",
+      "review:code_quality:warning:internal/next/specloop/stages/write_contracts_test.go:28",
+      "review:code_quality:warning:cmd/gromit-next/stage_provider.go:440"
+    ]
+  },
+  {
+    "task_id": "t-020",
+    "objective": "",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [],
+    "proof_checks": [],
+    "files_changed": [
+      "internal/next/contract/types.go",
+      "internal/next/contract/types_test.go",
+      "internal/next/contract/writer.go"
+    ],
+    "tokens_used": 3648,
+    "duration_ms": 57792,
+    "model_tier": "",
+    "cycle": 2,
+    "kind": "decomposed"
+  },
+  {
+    "task_id": "t-021",
+    "objective": "",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [],
+    "proof_checks": [],
+    "files_changed": [
+      "cmd/gromit-next/stage_provider.go",
+      "internal/next/contract/llm_writer.go",
+      "internal/next/contract/llm_writer_test.go",
+      "internal/next/contract/writer.go"
+    ],
+    "tokens_used": 18832,
+    "duration_ms": 322408,
+    "model_tier": "",
+    "cycle": 2,
+    "kind": "decomposed"
+  },
+  {
+    "task_id": "t-022",
+    "objective": "",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [],
+    "proof_checks": [],
+    "files_changed": [
+      "internal/next/specloop/stages/write_contracts.go",
+      "internal/next/specloop/stages/write_contracts_test.go"
+    ],
+    "tokens_used": 10498,
+    "duration_ms": 169395,
+    "model_tier": "",
+    "cycle": 2,
+    "kind": "decomposed"
+  },
+  {
+    "task_id": "t-023",
+    "objective": "",
+    "status": "done",
+    "attempts": 2,
+    "expected_touched_area": [],
+    "proof_checks": [],
+    "files_changed": [],
+    "tokens_used": 1627,
+    "duration_ms": 35355,
+    "model_tier": "",
+    "cycle": 2,
+    "kind": "decomposed"
+  },
+  {
+    "task_id": "t-024",
+    "objective": "",
+    "status": "failed",
+    "attempts": 1,
+    "expected_touched_area": [],
+    "proof_checks": [],
+    "files_changed": [
+      "internal/next/runstore/store.go",
+      "internal/next/specloop/contract_integration_test.go",
+      "internal/next/specloop/specloop.go"
+    ],
+    "tokens_used": 6472,
+    "duration_ms": 112970,
+    "model_tier": "",
+    "cycle": 2,
+    "kind": "decomposed"
+  },
+  {
+    "task_id": "t-025",
+    "objective": "",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [],
+    "proof_checks": [],
+    "files_changed": [
+      "internal/next/contract/writer.go",
+      "internal/next/contract/writer_test.go"
+    ],
+    "tokens_used": 6542,
+    "duration_ms": 106422,
+    "model_tier": "",
+    "cycle": 2,
+    "kind": "decomposed"
+  },
+  {
+    "task_id": "t-026",
+    "objective": "Fix RetryContext silently dropped by providerContractWriterAdapter. The adapter must pass req.RetryContext to the LLM writer. Add a retryContext parameter to LLMContractWriter.WriteContracts and prepend it to the prompt inside the writer. Addresses: review:code_quality:error:cmd/gromit-next/stage_provider.go:453",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [
+      "internal/next/contract/llm_writer.go",
+      "internal/next/contract/llm_writer_test.go",
+      "internal/next/contract/prompt.go",
+      "cmd/gromit-next/stage_provider.go"
+    ],
+    "proof_checks": [
+      "cd /var/folders/qd/qyx62km142b7lpv0868gpwgw0000gn/T/gromit-wt-3931313280 \u0026\u0026 grep -q 'RetryContext\\|retryContext' internal/next/contract/llm_writer.go",
+      "cd /var/folders/qd/qyx62km142b7lpv0868gpwgw0000gn/T/gromit-wt-3931313280 \u0026\u0026 grep -q 'req.RetryContext' cmd/gromit-next/stage_provider.go",
+      "cd /var/folders/qd/qyx62km142b7lpv0868gpwgw0000gn/T/gromit-wt-3931313280 \u0026\u0026 grep -q 'TestLLMContractWriter.*Retry' internal/next/contract/llm_writer_test.go",
+      "cd /var/folders/qd/qyx62km142b7lpv0868gpwgw0000gn/T/gromit-wt-3931313280 \u0026\u0026 go test ./internal/next/contract/ -count=1 -run TestLLMContractWriter",
+      "cd /var/folders/qd/qyx62km142b7lpv0868gpwgw0000gn/T/gromit-wt-3931313280 \u0026\u0026 go vet ./internal/next/contract/ ./cmd/gromit-next/"
+    ],
+    "files_changed": [
+      "cmd/gromit-next/stage_provider.go",
+      "internal/next/contract/llm_writer.go",
+      "internal/next/contract/llm_writer_test.go",
+      "internal/next/contract/writer_test.go"
+    ],
+    "tokens_used": 7651,
+    "duration_ms": 112210,
+    "model_tier": "",
+    "cycle": 3,
+    "kind": "fix",
+    "parent_cycle": 2,
+    "failures_addressed": [
+      "review:code_quality:error:cmd/gromit-next/stage_provider.go:453 — RetryContext is silently dropped by providerContractWriterAdapter"
+    ]
+  },
+  {
+    "task_id": "t-027",
+    "objective": "Delete empty internal/next/contract/writer.go (contains only package declaration, no types or functions). Also delete internal/next/contract/writer_test.go which contains duplicate tests already covered by llm_writer_test.go (TestWriterWriteContracts_* duplicates TestLLMContractWriter_*). Addresses: review:code_quality:warning:writer.go:1 empty file, review:code_quality:warning:writer_test.go:1 duplicate tests",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [
+      "internal/next/contract/writer.go",
+      "internal/next/contract/writer_test.go"
+    ],
+    "proof_checks": [
+      "cd /var/folders/qd/qyx62km142b7lpv0868gpwgw0000gn/T/gromit-wt-3931313280 \u0026\u0026 test ! -f internal/next/contract/writer.go",
+      "cd /var/folders/qd/qyx62km142b7lpv0868gpwgw0000gn/T/gromit-wt-3931313280 \u0026\u0026 test ! -f internal/next/contract/writer_test.go",
+      "cd /var/folders/qd/qyx62km142b7lpv0868gpwgw0000gn/T/gromit-wt-3931313280 \u0026\u0026 go test ./internal/next/contract/ -count=1",
+      "cd /var/folders/qd/qyx62km142b7lpv0868gpwgw0000gn/T/gromit-wt-3931313280 \u0026\u0026 go vet ./internal/next/contract/"
+    ],
+    "files_changed": [
+      "internal/next/contract/llm_writer_test.go",
+      "internal/next/contract/parse_test.go",
+      "internal/next/contract/writer.go",
+      "internal/next/contract/writer_test.go"
+    ],
+    "tokens_used": 4505,
+    "duration_ms": 72880,
+    "model_tier": "",
+    "cycle": 3,
+    "kind": "fix",
+    "parent_cycle": 2,
+    "failures_addressed": [
+      "review:code_quality:warning:internal/next/contract/writer.go:1 — Empty file",
+      "review:code_quality:warning:internal/next/contract/writer_test.go:1 — Duplicate test coverage"
+    ]
+  },
+  {
+    "task_id": "t-028",
+    "objective": "Restore omitempty on the Resumed field json tag in runstore/types.go. Change `json:\"resumed\"` back to `json:\"resumed,omitempty\"` to match the main branch and avoid unrelated serialization behavior changes. Addresses: review:code_quality:warning:types.go:46",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [
+      "internal/next/runstore/types.go"
+    ],
+    "proof_checks": [
+      "cd /var/folders/qd/qyx62km142b7lpv0868gpwgw0000gn/T/gromit-wt-3931313280 \u0026\u0026 grep -q 'resumed,omitempty' internal/next/runstore/types.go",
+      "cd /var/folders/qd/qyx62km142b7lpv0868gpwgw0000gn/T/gromit-wt-3931313280 \u0026\u0026 go vet ./internal/next/runstore/"
+    ],
+    "files_changed": [
+      "internal/next/runstore/types.go"
+    ],
+    "tokens_used": 501,
+    "duration_ms": 12944,
+    "model_tier": "",
+    "cycle": 3,
+    "kind": "fix",
+    "parent_cycle": 2,
+    "failures_addressed": [
+      "review:code_quality:warning:internal/next/runstore/types.go:46 — Resumed field omitempty removal"
+    ]
+  },
+  {
+    "task_id": "t-029",
+    "objective": "Remove unnecessary variable alias in plan.go. Replace `isFixCycleEarly` on line 75 with `isFixCycle` directly, and remove the redundant `isFixCycle := isFixCycleEarly` assignment on line 88. Addresses: review:code_quality:warning:plan.go:75",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [
+      "internal/next/specloop/stages/plan.go"
+    ],
+    "proof_checks": [
+      "cd /var/folders/qd/qyx62km142b7lpv0868gpwgw0000gn/T/gromit-wt-3931313280 \u0026\u0026 ! grep -q 'isFixCycleEarly' internal/next/specloop/stages/plan.go",
+      "cd /var/folders/qd/qyx62km142b7lpv0868gpwgw0000gn/T/gromit-wt-3931313280 \u0026\u0026 grep -q 'isFixCycle := rs.Cycle \u003e 1' internal/next/specloop/stages/plan.go",
+      "cd /var/folders/qd/qyx62km142b7lpv0868gpwgw0000gn/T/gromit-wt-3931313280 \u0026\u0026 go test ./internal/next/specloop/stages/ -count=1 -run TestPlan",
+      "cd /var/folders/qd/qyx62km142b7lpv0868gpwgw0000gn/T/gromit-wt-3931313280 \u0026\u0026 go vet ./internal/next/specloop/stages/"
+    ],
+    "files_changed": [
+      "internal/next/specloop/stages/plan.go"
+    ],
+    "tokens_used": 795,
+    "duration_ms": 18106,
+    "model_tier": "",
+    "cycle": 3,
+    "kind": "fix",
+    "parent_cycle": 2,
+    "failures_addressed": [
+      "review:code_quality:warning:internal/next/specloop/stages/plan.go:75 — Unnecessary variable alias"
+    ]
+  },
+  {
+    "task_id": "t-030",
+    "objective": "Replace log.Printf in ParseScenarios with returning skipped scenario names alongside the parsed result. Change ParseScenarios to return ([]SpecScenario, []string, error) where the second return value is the list of skipped scenario names with reasons. Callers can log these as appropriate. Addresses: review:code_quality:warning:parse.go:51",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [
+      "internal/next/contract/parse.go",
+      "internal/next/contract/parse_test.go",
+      "internal/next/specloop/stages/write_contracts.go"
+    ],
+    "proof_checks": [
+      "cd /var/folders/qd/qyx62km142b7lpv0868gpwgw0000gn/T/gromit-wt-3931313280 \u0026\u0026 ! grep -q 'log.Printf' internal/next/contract/parse.go",
+      "cd /var/folders/qd/qyx62km142b7lpv0868gpwgw0000gn/T/gromit-wt-3931313280 \u0026\u0026 grep -q 'skipped' internal/next/contract/parse.go",
+      "cd /var/folders/qd/qyx62km142b7lpv0868gpwgw0000gn/T/gromit-wt-3931313280 \u0026\u0026 grep -q 'TestParseScenarios.*Skip\\|Skipped\\|skipped' internal/next/contract/parse_test.go",
+      "cd /var/folders/qd/qyx62km142b7lpv0868gpwgw0000gn/T/gromit-wt-3931313280 \u0026\u0026 go test ./internal/next/contract/ -count=1 -run TestParseScenarios",
+      "cd /var/folders/qd/qyx62km142b7lpv0868gpwgw0000gn/T/gromit-wt-3931313280 \u0026\u0026 go test ./internal/next/specloop/stages/ -count=1 -run TestWriteContracts",
+      "cd /var/folders/qd/qyx62km142b7lpv0868gpwgw0000gn/T/gromit-wt-3931313280 \u0026\u0026 go vet ./internal/next/contract/ ./internal/next/specloop/stages/"
+    ],
+    "files_changed": [
+      "internal/next/contract/parse.go",
+      "internal/next/contract/parse_test.go",
+      "internal/next/specloop/stages/write_contracts.go"
+    ],
+    "tokens_used": 5315,
+    "duration_ms": 83164,
+    "model_tier": "",
+    "cycle": 3,
+    "kind": "fix",
+    "parent_cycle": 2,
+    "failures_addressed": [
+      "review:code_quality:warning:internal/next/contract/parse.go:51 — Uses log.Printf for skipped scenarios"
+    ]
+  },
+  {
+    "task_id": "t-031",
+    "objective": "Restore conditional init-skip logic in filterStagesForResume. The worktree version simplified this to always skip init, but main branch conditionally skips init only when rs.WorktreePath is set. Restore the RunState parameter and conditional init skip, or add write_contracts to the existing main-branch logic. Addresses: review:spec_alignment:warning:exec.go:61",
+    "status": "decomposed",
+    "attempts": 1,
+    "expected_touched_area": [
+      "cmd/gromit-next/exec.go"
+    ],
+    "proof_checks": [
+      "cd /var/folders/qd/qyx62km142b7lpv0868gpwgw0000gn/T/gromit-wt-3931313280 \u0026\u0026 grep -q 'WorktreePath' cmd/gromit-next/exec.go",
+      "cd /var/folders/qd/qyx62km142b7lpv0868gpwgw0000gn/T/gromit-wt-3931313280 \u0026\u0026 grep -q 'RunState' cmd/gromit-next/exec.go",
+      "cd /var/folders/qd/qyx62km142b7lpv0868gpwgw0000gn/T/gromit-wt-3931313280 \u0026\u0026 go vet ./cmd/gromit-next/"
+    ],
+    "files_changed": [],
+    "tokens_used": 0,
+    "duration_ms": 0,
+    "model_tier": "",
+    "cycle": 3,
+    "kind": "fix",
+    "parent_cycle": 2,
+    "failures_addressed": [
+      "review:spec_alignment:warning:cmd/gromit-next/exec.go:61 — Resume behavior change: init no longer conditionally skipped"
+    ]
+  },
+  {
+    "task_id": "t-032",
+    "objective": "Reset validationErrors at the top of each retry iteration in WriteContractsStage.Run to prevent stale errors from a prior attempt leaking into the terminal failure check. Add `validationErrors = nil` at the start of the for loop body. Addresses: review:spec_alignment:warning:write_contracts.go:138",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [
+      "internal/next/specloop/stages/write_contracts.go",
+      "internal/next/specloop/stages/write_contracts_test.go"
+    ],
+    "proof_checks": [
+      "cd /var/folders/qd/qyx62km142b7lpv0868gpwgw0000gn/T/gromit-wt-3931313280 \u0026\u0026 grep -q 'validationErrors = nil' internal/next/specloop/stages/write_contracts.go",
+      "cd /var/folders/qd/qyx62km142b7lpv0868gpwgw0000gn/T/gromit-wt-3931313280 \u0026\u0026 grep -q 'TestWriteContracts.*Stale\\|stale\\|Reset' internal/next/specloop/stages/write_contracts_test.go",
+      "cd /var/folders/qd/qyx62km142b7lpv0868gpwgw0000gn/T/gromit-wt-3931313280 \u0026\u0026 go test ./internal/next/specloop/stages/ -count=1 -run TestWriteContracts",
+      "cd /var/folders/qd/qyx62km142b7lpv0868gpwgw0000gn/T/gromit-wt-3931313280 \u0026\u0026 go vet ./internal/next/specloop/stages/"
+    ],
+    "files_changed": [
+      "internal/next/specloop/stages/write_contracts.go",
+      "internal/next/specloop/stages/write_contracts_test.go"
+    ],
+    "tokens_used": 7282,
+    "duration_ms": 125574,
+    "model_tier": "",
+    "cycle": 3,
+    "kind": "fix",
+    "parent_cycle": 2,
+    "failures_addressed": [
+      "review:spec_alignment:warning:internal/next/specloop/stages/write_contracts.go:138 — Stale validationErrors across retry iterations"
+    ]
+  },
+  {
+    "task_id": "t-033",
+    "objective": "",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [],
+    "proof_checks": [],
+    "files_changed": [
+      "cmd/gromit-next/exec.go"
+    ],
+    "tokens_used": 4768,
+    "duration_ms": 102454,
+    "model_tier": "",
+    "cycle": 3,
+    "kind": "decomposed"
+  },
+  {
+    "task_id": "t-034",
+    "objective": "",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [],
+    "proof_checks": [],
+    "files_changed": [],
+    "tokens_used": 580,
+    "duration_ms": 13883,
+    "model_tier": "",
+    "cycle": 3,
+    "kind": "decomposed"
+  },
+  {
+    "task_id": "t-035",
+    "objective": "",
+    "status": "failed",
+    "attempts": 1,
+    "expected_touched_area": [],
+    "proof_checks": [],
+    "files_changed": [
+      "cmd/gromit-next/exec.go",
+      "cmd/gromit-next/exec_test.go",
+      "cmd/gromit-next/resume_test.go"
+    ],
+    "tokens_used": 9882,
+    "duration_ms": 151799,
+    "model_tier": "",
+    "cycle": 3,
+    "kind": "decomposed"
+  },
+  {
+    "task_id": "t-036",
+    "objective": "Align LLMContractWriter to implement stages.ContractWriter interface directly (accepting WriteContractsRequest), eliminating the providerContractWriterAdapter indirection in stage_provider.go. Addresses review findings on llm_writer.go:28 and write_contracts.go:28 — the LLM adapter should implement the interface directly per the PlanCreator/ReviewRunner pattern.",
+    "status": "decomposed",
+    "attempts": 1,
+    "expected_touched_area": [
+      "internal/next/contract/llm_writer.go",
+      "cmd/gromit-next/stage_provider.go"
+    ],
+    "proof_checks": [
+      "go build ./...",
+      "go vet ./...",
+      "! grep -q 'providerContractWriterAdapter' cmd/gromit-next/stage_provider.go",
+      "grep -q 'WriteContractsRequest' internal/next/contract/llm_writer.go",
+      "go test ./internal/next/contract/ -count=1",
+      "go test ./cmd/gromit-next/ -count=1",
+      "go test ./internal/next/specloop/stages/ -count=1"
+    ],
+    "files_changed": [],
+    "tokens_used": 0,
+    "duration_ms": 0,
+    "model_tier": "",
+    "cycle": 2,
+    "kind": "fix",
+    "parent_cycle": 1,
+    "failures_addressed": [
+      "review:spec_alignment:warning:internal/next/contract/llm_writer.go:28",
+      "review:spec_alignment:warning:internal/next/specloop/stages/write_contracts.go:28"
+    ]
+  },
+  {
+    "task_id": "t-037",
+    "objective": "Move Store field into WriteContractsStageConfig to match the spec's explicit type definition. Update NewWriteContractsStage constructor and any callers accordingly. Addresses review finding on write_contracts.go:51.",
+    "status": "failed",
+    "attempts": 1,
+    "expected_touched_area": [
+      "internal/next/specloop/stages/write_contracts.go",
+      "internal/next/specloop/stages/write_contracts_test.go",
+      "cmd/gromit-next/stage_provider.go"
+    ],
+    "proof_checks": [
+      "go build ./...",
+      "go vet ./...",
+      "grep -q 'Store.*runstore.Store' internal/next/specloop/stages/write_contracts.go",
+      "grep -q 'Store' internal/next/specloop/stages/write_contracts_test.go",
+      "go test ./internal/next/specloop/stages/ -count=1 -run TestWriteContracts",
+      "go test ./cmd/gromit-next/ -count=1",
+      "go test ./... -count=1"
+    ],
+    "files_changed": [
+      "cmd/gromit-next/stage_provider.go",
+      "internal/next/specloop/contract_integration_test.go",
+      "internal/next/specloop/stages/write_contracts.go",
+      "internal/next/specloop/stages/write_contracts_integration_test.go",
+      "internal/next/specloop/stages/write_contracts_test.go"
+    ],
+    "tokens_used": 15577,
+    "duration_ms": 217999,
+    "model_tier": "",
+    "cycle": 2,
+    "kind": "fix",
+    "parent_cycle": 1,
+    "failures_addressed": [
+      "review:spec_alignment:warning:internal/next/specloop/stages/write_contracts.go:51"
+    ]
+  },
+  {
+    "task_id": "t-038",
+    "objective": "",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [],
+    "proof_checks": [],
+    "files_changed": [],
+    "tokens_used": 1443,
+    "duration_ms": 16706,
+    "model_tier": "",
+    "cycle": 2,
+    "kind": "decomposed"
+  },
+  {
+    "task_id": "t-039",
+    "objective": "",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [],
+    "proof_checks": [],
+    "files_changed": [],
+    "tokens_used": 3513,
+    "duration_ms": 23381,
+    "model_tier": "",
+    "cycle": 2,
+    "kind": "decomposed"
+  },
+  {
+    "task_id": "t-040",
+    "objective": "",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [],
+    "proof_checks": [],
+    "files_changed": [],
+    "tokens_used": 1677,
+    "duration_ms": 18258,
+    "model_tier": "",
+    "cycle": 2,
+    "kind": "decomposed"
+  },
+  {
+    "task_id": "t-041",
+    "objective": "",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [],
+    "proof_checks": [],
+    "files_changed": [],
+    "tokens_used": 2217,
+    "duration_ms": 20805,
+    "model_tier": "",
+    "cycle": 2,
+    "kind": "decomposed"
+  },
+  {
+    "task_id": "t-042",
+    "objective": "",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [],
+    "proof_checks": [],
+    "files_changed": [],
+    "tokens_used": 2358,
+    "duration_ms": 25569,
+    "model_tier": "",
+    "cycle": 2,
+    "kind": "decomposed"
+  },
+  {
+    "task_id": "t-043",
+    "objective": "Document intentional deviations from spec in ContractWriter and ContractEvaluator interface definitions. Add comments to both interfaces in stages/write_contracts.go and stages/validate.go explaining: (1) ContractWriter uses a WriteContractsRequest struct instead of the spec's 3-parameter signature because the request struct provides cleaner retry semantics (RetryContext field) and bundles SpecContent for the LLM prompt — this is an intentional deviation from the spec's Stage interfaces section. (2) Both ContractWriter and ContractEvaluator are defined in the stages package (not internal/next/contract/) to follow the established pattern where all stage injection interfaces (PlanCreator, ReviewRunner, AcceptEvaluator, FinalValidator, SpecCompiler) live in the stages package. Addresses review findings: interface signature deviation and package placement deviation.",
+    "status": "done",
+    "attempts": 2,
+    "expected_touched_area": [
+      "internal/next/specloop/stages/write_contracts.go",
+      "internal/next/specloop/stages/validate.go"
+    ],
+    "proof_checks": [
+      "grep -q 'intentional deviation' internal/next/specloop/stages/write_contracts.go",
+      "grep -q 'retry semantics' internal/next/specloop/stages/write_contracts.go",
+      "grep -q 'stages package' internal/next/specloop/stages/write_contracts.go",
+      "grep -q 'stages package' internal/next/specloop/stages/validate.go",
+      "go vet ./internal/next/specloop/stages/...",
+      "go test ./internal/next/specloop/stages/ -count=1"
+    ],
+    "files_changed": [],
+    "tokens_used": 5212,
+    "duration_ms": 47601,
+    "model_tier": "",
+    "cycle": 3,
+    "kind": "fix",
+    "parent_cycle": 2,
+    "failures_addressed": [
+      "review:code_quality:warning:internal/next/specloop/stages/write_contracts.go:22 — ContractWriter interface uses WriteContractsRequest struct instead of the spec-defined explicit parameters",
+      "review:spec_alignment:warning:internal/next/specloop/stages/write_contracts.go:19 — ContractWriter interface signature deviates from spec",
+      "review:spec_alignment:warning:internal/next/specloop/stages/write_contracts.go:19 — ContractWriter interface is defined in the stages package rather than internal/next/contract/ as specified"
+    ]
+  },
+  {
+    "task_id": "t-044",
+    "objective": "Remove custom `min` function from llm_writer_test.go — Go 1.26 has a built-in `min`. Addresses review:code_quality:warning:internal/next/contract/llm_writer_test.go:215",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [
+      "internal/next/contract/llm_writer_test.go"
+    ],
+    "proof_checks": [
+      "cd /var/folders/qd/qyx62km142b7lpv0868gpwgw0000gn/T/gromit-wt-3931313280 \u0026\u0026 grep -c 'func min' internal/next/contract/llm_writer_test.go | grep -q '^0$'",
+      "cd /var/folders/qd/qyx62km142b7lpv0868gpwgw0000gn/T/gromit-wt-3931313280 \u0026\u0026 go test ./internal/next/contract/ -count=1 -run TestLLMWriter"
+    ],
+    "files_changed": [
+      "internal/next/contract/llm_writer_test.go"
+    ],
+    "tokens_used": 2179,
+    "duration_ms": 32028,
+    "model_tier": "",
+    "cycle": 2,
+    "kind": "fix",
+    "parent_cycle": 1,
+    "failures_addressed": [
+      "review:code_quality:warning:internal/next/contract/llm_writer_test.go:215"
+    ]
+  },
+  {
+    "task_id": "t-045",
+    "objective": "Add default case to the `check` switch in evaluator.go that returns a failure for zero-value assertions with no fields set. Addresses review:code_quality:warning:internal/next/contract/evaluator.go:46",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [
+      "internal/next/contract/evaluator.go",
+      "internal/next/contract/evaluator_test.go"
+    ],
+    "proof_checks": [
+      "cd /var/folders/qd/qyx62km142b7lpv0868gpwgw0000gn/T/gromit-wt-3931313280 \u0026\u0026 grep -q 'default:' internal/next/contract/evaluator.go",
+      "cd /var/folders/qd/qyx62km142b7lpv0868gpwgw0000gn/T/gromit-wt-3931313280 \u0026\u0026 grep -q 'no fields set' internal/next/contract/evaluator.go",
+      "cd /var/folders/qd/qyx62km142b7lpv0868gpwgw0000gn/T/gromit-wt-3931313280 \u0026\u0026 grep -q 'TestEvaluate.*ZeroValue\\|TestEvaluate.*NoFields\\|zero.value\\|no_fields' internal/next/contract/evaluator_test.go",
+      "cd /var/folders/qd/qyx62km142b7lpv0868gpwgw0000gn/T/gromit-wt-3931313280 \u0026\u0026 go test ./internal/next/contract/ -count=1"
+    ],
+    "files_changed": [
+      "internal/next/contract/evaluator.go",
+      "internal/next/contract/evaluator_test.go"
+    ],
+    "tokens_used": 4649,
+    "duration_ms": 45440,
+    "model_tier": "",
+    "cycle": 2,
+    "kind": "fix",
+    "parent_cycle": 1,
+    "failures_addressed": [
+      "review:code_quality:warning:internal/next/contract/evaluator.go:46"
+    ]
+  },
+  {
+    "task_id": "t-046",
+    "objective": "Replace inline yaml.Unmarshal in validate.go with contract.ParseContractYAML to unify contract YAML parsing. Addresses review:code_quality:warning:internal/next/specloop/stages/validate.go:72",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [
+      "internal/next/specloop/stages/validate.go"
+    ],
+    "proof_checks": [
+      "cd /var/folders/qd/qyx62km142b7lpv0868gpwgw0000gn/T/gromit-wt-3931313280 \u0026\u0026 grep -q 'ParseContractYAML' internal/next/specloop/stages/validate.go",
+      "cd /var/folders/qd/qyx62km142b7lpv0868gpwgw0000gn/T/gromit-wt-3931313280 \u0026\u0026 ! grep -q 'yaml.Unmarshal' internal/next/specloop/stages/validate.go",
+      "cd /var/folders/qd/qyx62km142b7lpv0868gpwgw0000gn/T/gromit-wt-3931313280 \u0026\u0026 go test ./internal/next/specloop/stages/ -count=1 -run TestValidate"
+    ],
+    "files_changed": [
+      "internal/next/specloop/stages/validate.go"
+    ],
+    "tokens_used": 7759,
+    "duration_ms": 77118,
+    "model_tier": "",
+    "cycle": 2,
+    "kind": "fix",
+    "parent_cycle": 1,
+    "failures_addressed": [
+      "review:code_quality:warning:internal/next/specloop/stages/validate.go:72"
+    ]
+  },
+  {
+    "task_id": "t-047",
+    "objective": "Fix noopContractWriter to return ScenarioContract with empty Scenarios slice instead of nil, matching nil-field normalization convention. Addresses review:code_quality:warning:cmd/gromit-next/stage_provider.go:439",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [
+      "cmd/gromit-next/stage_provider.go"
+    ],
+    "proof_checks": [
+      "cd /var/folders/qd/qyx62km142b7lpv0868gpwgw0000gn/T/gromit-wt-3931313280 \u0026\u0026 grep -q 'Scenarios.*ScenarioAssertions{}\\|Scenarios.*\\[\\]' cmd/gromit-next/stage_provider.go",
+      "cd /var/folders/qd/qyx62km142b7lpv0868gpwgw0000gn/T/gromit-wt-3931313280 \u0026\u0026 go vet ./cmd/gromit-next/"
+    ],
+    "files_changed": [
+      "cmd/gromit-next/stage_provider.go"
+    ],
+    "tokens_used": 2046,
+    "duration_ms": 26828,
+    "model_tier": "",
+    "cycle": 2,
+    "kind": "fix",
+    "parent_cycle": 1,
+    "failures_addressed": [
+      "review:code_quality:warning:cmd/gromit-next/stage_provider.go:439"
+    ]
+  },
+  {
+    "task_id": "t-048",
+    "objective": "Remove write_contracts from filterStagesForResume — rely on ContractsWritten flag for idempotency as the spec requires. Addresses review:spec_alignment:error:cmd/gromit-next/exec.go:57",
+    "status": "decomposed",
+    "attempts": 1,
+    "expected_touched_area": [
+      "cmd/gromit-next/exec.go"
+    ],
+    "proof_checks": [
+      "cd /var/folders/qd/qyx62km142b7lpv0868gpwgw0000gn/T/gromit-wt-3931313280 \u0026\u0026 ! grep -q 'write_contracts' cmd/gromit-next/exec.go",
+      "cd /var/folders/qd/qyx62km142b7lpv0868gpwgw0000gn/T/gromit-wt-3931313280 \u0026\u0026 go vet ./cmd/gromit-next/",
+      "cd /var/folders/qd/qyx62km142b7lpv0868gpwgw0000gn/T/gromit-wt-3931313280 \u0026\u0026 go test ./cmd/gromit-next/ -count=1 2\u003e/dev/null || true"
+    ],
+    "files_changed": [],
+    "tokens_used": 0,
+    "duration_ms": 0,
+    "model_tier": "",
+    "cycle": 2,
+    "kind": "fix",
+    "parent_cycle": 1,
+    "failures_addressed": [
+      "review:spec_alignment:error:cmd/gromit-next/exec.go:57"
+    ]
+  },
+  {
+    "task_id": "t-049",
+    "objective": "Move ContractEvaluator and ContractWriter interfaces from stages package to internal/next/contract/ per spec architecture. Update stages package to import from contract. Also update the fakeContractWriter in write_contracts_integration_test.go to use pointer type for result field. Addresses review:spec_alignment:warning on validate.go:20, write_contracts.go:1, and write_contracts_integration_test.go:28",
+    "status": "failed",
+    "attempts": 1,
+    "expected_touched_area": [
+      "internal/next/contract/",
+      "internal/next/specloop/stages/validate.go",
+      "internal/next/specloop/stages/write_contracts.go",
+      "internal/next/specloop/stages/write_contracts_test.go",
+      "internal/next/specloop/stages/write_contracts_integration_test.go",
+      "cmd/gromit-next/stage_provider.go"
+    ],
+    "proof_checks": [
+      "cd /var/folders/qd/qyx62km142b7lpv0868gpwgw0000gn/T/gromit-wt-3931313280 \u0026\u0026 grep -q 'type ContractEvaluator interface' internal/next/contract/evaluator.go",
+      "cd /var/folders/qd/qyx62km142b7lpv0868gpwgw0000gn/T/gromit-wt-3931313280 \u0026\u0026 grep -q 'type ContractWriter interface' internal/next/contract/llm_writer.go",
+      "cd /var/folders/qd/qyx62km142b7lpv0868gpwgw0000gn/T/gromit-wt-3931313280 \u0026\u0026 ! grep -q 'type ContractEvaluator interface' internal/next/specloop/stages/validate.go",
+      "cd /var/folders/qd/qyx62km142b7lpv0868gpwgw0000gn/T/gromit-wt-3931313280 \u0026\u0026 ! grep -q 'type ContractWriter interface' internal/next/specloop/stages/write_contracts.go",
+      "cd /var/folders/qd/qyx62km142b7lpv0868gpwgw0000gn/T/gromit-wt-3931313280 \u0026\u0026 grep 'result' internal/next/specloop/stages/write_contracts_integration_test.go | grep -q '\\*contract.ScenarioContract'",
+      "cd /var/folders/qd/qyx62km142b7lpv0868gpwgw0000gn/T/gromit-wt-3931313280 \u0026\u0026 go build ./...",
+      "cd /var/folders/qd/qyx62km142b7lpv0868gpwgw0000gn/T/gromit-wt-3931313280 \u0026\u0026 go test ./internal/next/contract/ -count=1",
+      "cd /var/folders/qd/qyx62km142b7lpv0868gpwgw0000gn/T/gromit-wt-3931313280 \u0026\u0026 go test ./internal/next/specloop/stages/ -count=1",
+      "cd /var/folders/qd/qyx62km142b7lpv0868gpwgw0000gn/T/gromit-wt-3931313280 \u0026\u0026 go test ./internal/next/specloop/ -count=1"
+    ],
+    "files_changed": [
+      "cmd/gromit-next/stage_provider.go",
+      "internal/next/contract/evaluator.go",
+      "internal/next/contract/llm_writer.go",
+      "internal/next/specloop/stages/validate.go",
+      "internal/next/specloop/stages/write_contracts.go",
+      "internal/next/specloop/stages/write_contracts_integration_test.go",
+      "internal/next/specloop/stages/write_contracts_test.go"
+    ],
+    "tokens_used": 13427,
+    "duration_ms": 114383,
+    "model_tier": "",
+    "cycle": 2,
+    "kind": "fix",
+    "parent_cycle": 1,
+    "failures_addressed": [
+      "review:spec_alignment:warning:internal/next/specloop/stages/validate.go:20",
+      "review:spec_alignment:warning:internal/next/specloop/stages/write_contracts.go:1",
+      "review:spec_alignment:warning:internal/next/specloop/stages/write_contracts_integration_test.go:28"
+    ]
+  },
+  {
+    "task_id": "t-050",
+    "objective": "Reorder validate.go so FinalValidationPassed is set only after ALL failures (contract + shell) are collected, per spec requirement. Addresses review:spec_alignment:warning:internal/next/specloop/stages/validate.go:104",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [
+      "internal/next/specloop/stages/validate.go"
+    ],
+    "proof_checks": [
+      "cd /var/folders/qd/qyx62km142b7lpv0868gpwgw0000gn/T/gromit-wt-3931313280 \u0026\u0026 go test ./internal/next/specloop/stages/ -count=1 -run TestValidate",
+      "cd /var/folders/qd/qyx62km142b7lpv0868gpwgw0000gn/T/gromit-wt-3931313280 \u0026\u0026 go vet ./internal/next/specloop/stages/"
+    ],
+    "files_changed": [
+      "internal/next/specloop/stages/validate.go"
+    ],
+    "tokens_used": 4354,
+    "duration_ms": 41792,
+    "model_tier": "",
+    "cycle": 2,
+    "kind": "fix",
+    "parent_cycle": 1,
+    "failures_addressed": [
+      "review:spec_alignment:warning:internal/next/specloop/stages/validate.go:104"
+    ]
+  },
+  {
+    "task_id": "t-051",
+    "objective": "",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [],
+    "proof_checks": [],
+    "files_changed": [],
+    "tokens_used": 2412,
+    "duration_ms": 24150,
+    "model_tier": "",
+    "cycle": 2,
+    "kind": "decomposed"
+  },
+  {
+    "task_id": "t-052",
+    "objective": "",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [],
+    "proof_checks": [],
+    "files_changed": [],
+    "tokens_used": 1704,
+    "duration_ms": 17523,
+    "model_tier": "",
+    "cycle": 2,
+    "kind": "decomposed"
+  },
+  {
+    "task_id": "t-053",
+    "objective": "Fix file_not_exists error handling in evaluator.go to distinguish 'file exists' from unexpected OS errors (e.g., permission denied). Currently `!errors.Is(err, os.ErrNotExist)` treats any non-ErrNotExist error as 'file exists', producing misleading messages. Change to: if err == nil → fail (file exists); else if !errors.Is(err, os.ErrNotExist) → fail with 'cannot stat' error; else → pass. Addresses review:code_quality:warning:internal/next/contract/evaluator.go:58.",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [
+      "internal/next/contract/evaluator.go",
+      "internal/next/contract/evaluator_test.go"
+    ],
+    "proof_checks": [
+      "grep -q 'cannot stat' internal/next/contract/evaluator.go",
+      "grep -q 'os.ErrNotExist' internal/next/contract/evaluator.go",
+      "grep -qE 'err == nil|err != nil' internal/next/contract/evaluator.go",
+      "grep -q 'permission\\|cannot stat\\|unexpected.*error' internal/next/contract/evaluator_test.go",
+      "go test ./internal/next/contract/ -count=1 -run TestEvaluate",
+      "go vet ./internal/next/contract/"
+    ],
+    "files_changed": [
+      "internal/next/contract/evaluator.go",
+      "internal/next/contract/evaluator_test.go"
+    ],
+    "tokens_used": 5318,
+    "duration_ms": 48810,
+    "model_tier": "",
+    "cycle": 3,
+    "kind": "fix",
+    "parent_cycle": 2,
+    "failures_addressed": [
+      "review:code_quality:warning:internal/next/contract/evaluator.go:58 — file_not_exists misleading error on non-ErrNotExist OS errors"
+    ]
+  },
+  {
+    "task_id": "t-054",
+    "objective": "Align ContractWriter interface with spec-defined signature or document the intentional deviation. The spec defines `WriteContracts(ctx context.Context, scenarios []SpecScenario, specPacket string) (*ScenarioContract, error)` but the implementation uses a WriteContractsRequest struct. Either: (a) change the interface to match the spec signature directly, removing the request struct, or (b) add a comment on the interface explaining why the struct approach is preferred (e.g., extensibility for RetryContext). Option (a) is preferred for spec compliance (AC12). Addresses review:spec_alignment:warning:internal/next/contract/llm_writer.go:17.",
+    "status": "decomposed",
+    "attempts": 1,
+    "expected_touched_area": [
+      "internal/next/contract/llm_writer.go",
+      "internal/next/contract/llm_writer_test.go",
+      "internal/next/specloop/stages/write_contracts.go",
+      "cmd/gromit-next/stage_provider.go"
+    ],
+    "proof_checks": [
+      "grep -q 'WriteContracts(ctx context.Context, scenarios \\[\\]SpecScenario, specPacket string)' internal/next/contract/llm_writer.go || grep -q 'intentional deviation\\|extensibility\\|request struct' internal/next/contract/llm_writer.go",
+      "go test ./internal/next/contract/ -count=1",
+      "go test ./internal/next/specloop/stages/ -count=1 -run TestWriteContracts",
+      "go vet ./internal/next/contract/",
+      "go vet ./cmd/gromit-next/"
+    ],
+    "files_changed": [],
+    "tokens_used": 0,
+    "duration_ms": 0,
+    "model_tier": "",
+    "cycle": 3,
+    "kind": "fix",
+    "parent_cycle": 2,
+    "failures_addressed": [
+      "review:spec_alignment:warning:internal/next/contract/llm_writer.go:17 — ContractWriter interface uses request struct instead of spec-defined signature"
+    ]
+  },
+  {
+    "task_id": "t-055",
+    "objective": "",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [],
+    "proof_checks": [],
+    "files_changed": [
+      "internal/next/contract/types.go"
+    ],
+    "tokens_used": 3942,
+    "duration_ms": 29651,
+    "model_tier": "",
+    "cycle": 3,
+    "kind": "decomposed"
+  },
+  {
+    "task_id": "t-056",
+    "objective": "",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [],
+    "proof_checks": [],
+    "files_changed": [
+      "internal/next/specloop/contract_integration_test.go"
+    ],
+    "tokens_used": 2781,
+    "duration_ms": 28382,
+    "model_tier": "",
+    "cycle": 3,
+    "kind": "decomposed"
+  },
+  {
+    "task_id": "t-057",
+    "objective": "",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [],
+    "proof_checks": [],
+    "files_changed": [],
+    "tokens_used": 1125,
+    "duration_ms": 14967,
+    "model_tier": "",
+    "cycle": 3,
+    "kind": "decomposed"
+  },
+  {
+    "task_id": "t-058",
+    "objective": "Fix commandSourceDir() in delegation_boundary_test.go to use runtime.Caller(0) for absolute path resolution instead of fragile relative path guessing. The current implementation tries 'cmd/gromit' and '.' as candidates, which breaks in worktree contexts where the working directory may not match expectations. Replace with filepath.Dir of the caller's source file path to reliably locate the cmd/gromit directory regardless of execution context. Add 'runtime' to the import block.",
+    "status": "done",
+    "attempts": 2,
+    "expected_touched_area": [
+      "cmd/gromit/delegation_boundary_test.go"
+    ],
+    "proof_checks": [
+      "grep -q 'runtime.Caller' cmd/gromit/delegation_boundary_test.go",
+      "go test ./cmd/gromit/ -run TestCmdSmoke_AcceptanceTestsEnforceThinWrapperDelegation -count=1 -v",
+      "go test ./... -count=1",
+      "go vet ./..."
+    ],
+    "files_changed": [],
+    "tokens_used": 2278,
+    "duration_ms": 51618,
+    "model_tier": "",
+    "cycle": 2,
+    "kind": "fix",
+    "parent_cycle": 1,
+    "failures_addressed": [
+      "always-run check \"unit-tests\" failed: TestCmdSmoke_AcceptanceTestsEnforceThinWrapperDelegation — parse init.go: open init.go: no such file or directory"
+    ]
+  },
+  {
+    "task_id": "t-059",
+    "objective": "Fix typo in test function name: rename TestWriteContracts_NoScenariosReturnsContiue to TestWriteContracts_NoScenariosReturnsContinue (addresses review:code_quality:warning:write_contracts_test.go:124)",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [
+      "internal/next/specloop/stages/write_contracts_test.go"
+    ],
+    "proof_checks": [
+      "grep -q 'TestWriteContracts_NoScenariosReturnsContinue' internal/next/specloop/stages/write_contracts_test.go",
+      "! grep -q 'TestWriteContracts_NoScenariosReturnsContiue' internal/next/specloop/stages/write_contracts_test.go",
+      "go test ./internal/next/specloop/stages/ -count=1 -run TestWriteContracts_NoScenariosReturnsContinue"
+    ],
+    "files_changed": [
+      "internal/next/specloop/stages/write_contracts_test.go"
+    ],
+    "tokens_used": 1832,
+    "duration_ms": 20687,
+    "model_tier": "",
+    "cycle": 3,
+    "kind": "fix",
+    "parent_cycle": 2,
+    "failures_addressed": [
+      "review:code_quality:warning:internal/next/specloop/stages/write_contracts_test.go:124"
+    ]
+  },
+  {
+    "task_id": "t-060",
+    "objective": "Replace log.Printf for skipped scenarios with a structured event emission via eventLog (e.g. 'contracts_scenario_skipped') or record skipped scenario names in the NextAction context, consistent with how other stages report warnings (addresses review:code_quality:warning:write_contracts.go:76)",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [
+      "internal/next/specloop/stages/write_contracts.go",
+      "internal/next/specloop/stages/write_contracts_test.go"
+    ],
+    "proof_checks": [
+      "! grep -q 'log.Printf' internal/next/specloop/stages/write_contracts.go",
+      "grep -q 'scenario_skipped\\|contracts_scenario_skipped\\|skipped' internal/next/specloop/stages/write_contracts.go",
+      "grep -q 'Skipped\\|skipped\\|scenario_skipped' internal/next/specloop/stages/write_contracts_test.go",
+      "go test ./internal/next/specloop/stages/ -count=1 -run TestWriteContracts"
+    ],
+    "files_changed": [
+      "internal/next/runstore/events.go",
+      "internal/next/specloop/stages/write_contracts.go",
+      "internal/next/specloop/stages/write_contracts_test.go"
+    ],
+    "tokens_used": 7181,
+    "duration_ms": 81208,
+    "model_tier": "",
+    "cycle": 3,
+    "kind": "fix",
+    "parent_cycle": 2,
+    "failures_addressed": [
+      "review:code_quality:warning:internal/next/specloop/stages/write_contracts.go:76"
+    ]
+  },
+  {
+    "task_id": "t-061",
+    "objective": "Restore 'init' stage in TestResumeContract_ResumedRunReusesWorktree stage list alongside 'compile' and 'write_contracts', and assert that both 'init' and 'compile' are skipped on resume when WorktreePath is set (addresses review:spec_alignment:warning:resume_contract_test.go:97)",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [
+      "cmd/gromit-next/resume_contract_test.go"
+    ],
+    "proof_checks": [
+      "grep -q 'init' cmd/gromit-next/resume_contract_test.go",
+      "grep -q 'compile' cmd/gromit-next/resume_contract_test.go",
+      "grep -q 'write_contracts' cmd/gromit-next/resume_contract_test.go",
+      "go test ./cmd/gromit-next/ -count=1 -run TestResumeContract_ResumedRunReusesWorktree"
+    ],
+    "files_changed": [
+      "cmd/gromit-next/resume_contract_test.go"
+    ],
+    "tokens_used": 3254,
+    "duration_ms": 29874,
+    "model_tier": "",
+    "cycle": 3,
+    "kind": "fix",
+    "parent_cycle": 2,
+    "failures_addressed": [
+      "review:spec_alignment:warning:cmd/gromit-next/resume_contract_test.go:97"
+    ]
+  },
+  {
+    "task_id": "t-062",
+    "objective": "Fix validationSummary in validate.go to use fmt.Sprintf(\"pass=%v\", finalPassed) instead of empty string, ensuring rs.LastValidationResult reflects actual validation status (addresses review:spec_alignment:warning:validate.go:53)",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [
+      "internal/next/specloop/stages/validate.go"
+    ],
+    "proof_checks": [
+      "grep -q 'fmt.Sprintf.*pass.*finalPassed\\|fmt.Sprintf.*pass.*result.Pass' internal/next/specloop/stages/validate.go",
+      "! grep -q 'var validationSummary string' internal/next/specloop/stages/validate.go",
+      "go test ./internal/next/specloop/stages/ -count=1 -run TestValidate"
+    ],
+    "files_changed": [
+      "internal/next/specloop/stages/validate.go"
+    ],
+    "tokens_used": 3401,
+    "duration_ms": 31793,
+    "model_tier": "",
+    "cycle": 3,
+    "kind": "fix",
+    "parent_cycle": 2,
+    "failures_addressed": [
+      "review:spec_alignment:warning:internal/next/specloop/stages/validate.go:53"
+    ]
+  },
+  {
+    "task_id": "t-063",
+    "objective": "Remove Budget field from WriteContractsStageConfig and inject it via the NewWriteContractsStage constructor instead, matching the spec-defined type (Store, SpecPath, EvidenceDir only). Update the constructor signature to accept budget as a separate parameter. Update stage_provider.go to pass budget as a constructor argument rather than a config field. Addresses review finding: WriteContractsStageConfig has a Budget field not present in the spec-defined type.",
+    "status": "failed",
+    "attempts": 2,
+    "expected_touched_area": [
+      "internal/next/specloop/stages/write_contracts.go",
+      "cmd/gromit-next/stage_provider.go"
+    ],
+    "proof_checks": [
+      "grep -q 'type WriteContractsStageConfig struct' internal/next/specloop/stages/write_contracts.go",
+      "! grep -q 'Budget.*Budget' internal/next/specloop/stages/write_contracts.go | grep -q 'WriteContractsStageConfig' internal/next/specloop/stages/write_contracts.go || sh -c 'grep -A5 \"type WriteContractsStageConfig struct\" internal/next/specloop/stages/write_contracts.go | grep -v Budget'",
+      "sh -c 'fields=$(sed -n \"/type WriteContractsStageConfig struct/,/^}/p\" internal/next/specloop/stages/write_contracts.go | grep -v \"^type\\|^}\" | wc -l); [ \"$fields\" -eq 3 ]'",
+      "go build ./internal/next/specloop/stages/",
+      "go build ./cmd/gromit-next/",
+      "go test ./internal/next/specloop/stages/ -count=1 -run TestWriteContracts"
+    ],
+    "files_changed": [],
+    "tokens_used": 3424,
+    "duration_ms": 37481,
+    "model_tier": "",
+    "cycle": 2,
+    "kind": "fix",
+    "parent_cycle": 1,
+    "failures_addressed": [
+      "review:spec_alignment:warning:internal/next/specloop/stages/write_contracts.go:18 — WriteContractsStageConfig has a Budget *specloop.Budget field not present in the spec-defined type."
+    ]
+  },
+  {
+    "task_id": "t-064",
+    "objective": "Fix misleading comment in TestIntegration_ContractFailureTriggersReplan. The test uses ReplanStage: 'validate' which bypasses write_contracts entirely — the comment 'write_contracts not re-run on replan' implies ContractsWritten guards it, but in reality write_contracts is skipped because replan jumps past it. Update the comment to accurately state the reason. Also add a new integration test variant (TestIntegration_WriteContractsIdempotentOnReplanFromPlan) that uses ReplanStage: 'write_contracts' or 'plan' to actually exercise AC8 (ContractsWritten=true causes no-op on replan). Addresses review finding about misleading test comment and incomplete AC8 coverage in integration tests.",
+    "status": "done",
+    "attempts": 2,
+    "expected_touched_area": [
+      "internal/next/specloop/contract_integration_test.go"
+    ],
+    "proof_checks": [
+      "grep -q 'ReplanStage.*bypasses\\|ReplanStage.*skips' internal/next/specloop/contract_integration_test.go",
+      "grep -q 'TestIntegration_WriteContractsIdempotentOnReplanFromPlan\\|TestIntegration_WriteContracts.*Replan.*Plan' internal/next/specloop/contract_integration_test.go",
+      "go test -tags integration ./internal/next/specloop/ -count=1 -run TestIntegration_Contract"
+    ],
+    "files_changed": [],
+    "tokens_used": 5560,
+    "duration_ms": 51217,
+    "model_tier": "",
+    "cycle": 2,
+    "kind": "fix",
+    "parent_cycle": 1,
+    "failures_addressed": [
+      "review:spec_alignment:warning:internal/next/specloop/contract_integration_test.go:303 — TestIntegration_ContractFailureTriggersReplan uses ReplanStage: \"validate\", which causes the replan cycle to jump directly to validate, bypassing write_contracts entirely."
+    ]
+  },
+  {
+    "task_id": "t-065",
+    "objective": "Replace \\u2014 Unicode escape with literal em-dash character in validate.go contract failure format string (addresses review:code_quality:warning:internal/next/specloop/stages/validate.go:67). Change `\"contract:%s \\u2014 %s failed: %s\"` to `\"contract:%s — %s failed: %s\"` so the format visually matches the spec.",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [
+      "internal/next/specloop/stages/validate.go"
+    ],
+    "proof_checks": [
+      "grep -q 'contract:%s — %s failed: %s' internal/next/specloop/stages/validate.go",
+      "! grep -q 'u2014' internal/next/specloop/stages/validate.go",
+      "go vet ./internal/next/specloop/stages/...",
+      "go test ./internal/next/specloop/stages/ -count=1 -run TestValidate"
+    ],
+    "files_changed": [
+      "internal/next/specloop/stages/validate.go"
+    ],
+    "tokens_used": 2355,
+    "duration_ms": 33638,
+    "model_tier": "",
+    "cycle": 3,
+    "kind": "fix",
+    "parent_cycle": 2,
+    "failures_addressed": [
+      "review:code_quality:warning:internal/next/specloop/stages/validate.go:67"
+    ]
+  },
+  {
+    "task_id": "t-066",
+    "objective": "Rename TestIntegration_ContractFailureTriggersReplan to TestIntegration_ContractFailureTriggersReplan_ReplanStageBypassesWriteContracts and add clarifying comment (addresses review:spec_alignment:warning at line 291 and review:code_quality:warning at line 182). The comment must state: 'Note: write_contracts is not re-run because ReplanStage=validate bypasses it in stage ordering, not because ContractsWritten=true. See TestIntegration_WriteContractsIdempotentOnReplan for AC8 coverage.'",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [
+      "internal/next/specloop/contract_integration_test.go"
+    ],
+    "proof_checks": [
+      "grep -q 'TestIntegration_ContractFailureTriggersReplan_ReplanStageBypassesWriteContracts' internal/next/specloop/contract_integration_test.go",
+      "grep -q 'ReplanStage=validate bypasses it in stage ordering' internal/next/specloop/contract_integration_test.go",
+      "grep -q 'See TestIntegration_WriteContractsIdempotentOnReplan for AC8 coverage' internal/next/specloop/contract_integration_test.go",
+      "! grep -q '^func TestIntegration_ContractFailureTriggersReplan(' internal/next/specloop/contract_integration_test.go",
+      "go vet ./internal/next/specloop/...",
+      "go test ./internal/next/specloop/ -count=1 -run TestIntegration_ContractFailure"
+    ],
+    "files_changed": [
+      "internal/next/specloop/contract_integration_test.go"
+    ],
+    "tokens_used": 4217,
+    "duration_ms": 51570,
+    "model_tier": "",
+    "cycle": 3,
+    "kind": "fix",
+    "parent_cycle": 2,
+    "failures_addressed": [
+      "review:spec_alignment:warning:internal/next/specloop/contract_integration_test.go:291",
+      "review:code_quality:warning:internal/next/specloop/contract_integration_test.go:182"
+    ]
+  }
+]

@@ -1,0 +1,1532 @@
+[
+  {
+    "task_id": "t-001",
+    "objective": "Add ScenarioTestsWritten and FailureHistory fields to RunState in internal/next/runstore/types.go. Update NormalizeNilFields to initialize FailureHistory map when nil.",
+    "status": "failed",
+    "attempts": 2,
+    "expected_touched_area": [
+      "internal/next/runstore/types.go"
+    ],
+    "proof_checks": [
+      "grep -q 'ScenarioTestsWritten bool' internal/next/runstore/types.go",
+      "grep -q 'FailureHistory map\\[string\\]int' internal/next/runstore/types.go",
+      "grep -q 'scenario_tests_written' internal/next/runstore/types.go",
+      "grep -q 'failure_history' internal/next/runstore/types.go",
+      "grep -q 'FailureHistory' internal/next/runstore/types.go",
+      "go vet ./internal/next/runstore/..."
+    ],
+    "files_changed": [],
+    "tokens_used": 3411,
+    "duration_ms": 46036,
+    "model_tier": "",
+    "cycle": 1,
+    "kind": "original"
+  },
+  {
+    "task_id": "t-002",
+    "objective": "Ensure ScenarioTestsWritten and FailureHistory are NOT reset in ResetForNewCycle in internal/next/runstore/store.go. Add a unit test verifying these fields persist across cycle resets.",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [
+      "internal/next/runstore/store.go",
+      "internal/next/runstore/store_test.go"
+    ],
+    "proof_checks": [
+      "go test ./internal/next/runstore/ -count=1 -run TestResetForNewCycle",
+      "grep -q 'ScenarioTestsWritten' internal/next/runstore/store_test.go",
+      "grep -q 'FailureHistory' internal/next/runstore/store_test.go"
+    ],
+    "files_changed": [
+      "internal/next/runstore/store_test.go"
+    ],
+    "tokens_used": 2989,
+    "duration_ms": 34041,
+    "model_tier": "",
+    "cycle": 1,
+    "kind": "original"
+  },
+  {
+    "task_id": "t-003",
+    "objective": "Add scenario test event types to internal/next/runstore/events.go: ScenarioTestWrittenEvent (per scenario), ScenarioTestsCompleteEvent, ScenarioTestsBlockedEvent. Register them in the event unmarshaling registry.",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [
+      "internal/next/runstore/events.go"
+    ],
+    "proof_checks": [
+      "grep -q 'scenario_tests_written' internal/next/runstore/events.go",
+      "grep -q 'scenario_tests_complete' internal/next/runstore/events.go",
+      "grep -q 'scenario_tests_blocked' internal/next/runstore/events.go",
+      "grep -q 'ScenarioTestWrittenEvent' internal/next/runstore/events.go",
+      "grep -q 'ScenarioTestsCompleteEvent' internal/next/runstore/events.go",
+      "grep -q 'ScenarioTestsBlockedEvent' internal/next/runstore/events.go",
+      "go vet ./internal/next/runstore/..."
+    ],
+    "files_changed": [
+      "internal/next/runstore/events.go"
+    ],
+    "tokens_used": 2511,
+    "duration_ms": 26695,
+    "model_tier": "",
+    "cycle": 1,
+    "kind": "original"
+  },
+  {
+    "task_id": "t-004",
+    "objective": "Define the ScenarioTestWriter interface in internal/next/specloop/stages/ (or a suitable shared location). The interface has a single method: WriteScenarioTest(ctx, scenario SpecScenario, implFiles []string, workDir string, compileErrors string) (testFilePath string, err error).",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [
+      "internal/next/specloop/stages/write_scenario_tests.go"
+    ],
+    "proof_checks": [
+      "grep -q 'ScenarioTestWriter' internal/next/specloop/stages/write_scenario_tests.go",
+      "grep -q 'WriteScenarioTest' internal/next/specloop/stages/write_scenario_tests.go",
+      "go vet ./internal/next/specloop/stages/..."
+    ],
+    "files_changed": [
+      "internal/next/specloop/stages/write_scenario_tests.go"
+    ],
+    "tokens_used": 3270,
+    "duration_ms": 35301,
+    "model_tier": "",
+    "cycle": 1,
+    "kind": "original"
+  },
+  {
+    "task_id": "t-005",
+    "objective": "Define the ScenarioTestManifest struct and helper functions for reading/writing scenario-test-manifest.json (JSON with scenarios array containing name and test_file fields). Include incremental append logic.",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [
+      "internal/next/specloop/stages/write_scenario_tests.go"
+    ],
+    "proof_checks": [
+      "grep -q 'ScenarioTestManifest' internal/next/specloop/stages/write_scenario_tests.go",
+      "grep -q 'scenario-test-manifest.json' internal/next/specloop/stages/write_scenario_tests.go",
+      "go vet ./internal/next/specloop/stages/..."
+    ],
+    "files_changed": [
+      "internal/next/specloop/stages/write_scenario_tests.go",
+      "internal/next/specloop/stages/write_scenario_tests_test.go"
+    ],
+    "tokens_used": 7205,
+    "duration_ms": 81813,
+    "model_tier": "",
+    "cycle": 1,
+    "kind": "original"
+  },
+  {
+    "task_id": "t-006",
+    "objective": "Implement the WriteScenarioTestsStage struct and constructor. Fields: writer ScenarioTestWriter, specPath, evidenceDir, store, budget, eventLog. Constructor follows the pattern of NewWriteContractsStage. Implement Name() returning 'write_scenario_tests'.",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [
+      "internal/next/specloop/stages/write_scenario_tests.go"
+    ],
+    "proof_checks": [
+      "grep -q 'WriteScenarioTestsStage' internal/next/specloop/stages/write_scenario_tests.go",
+      "grep -q 'NewWriteScenarioTestsStage' internal/next/specloop/stages/write_scenario_tests.go",
+      "grep -q 'write_scenario_tests' internal/next/specloop/stages/write_scenario_tests.go",
+      "go vet ./internal/next/specloop/stages/..."
+    ],
+    "files_changed": [
+      "internal/next/specloop/stages/write_scenario_tests.go"
+    ],
+    "tokens_used": 4097,
+    "duration_ms": 37823,
+    "model_tier": "",
+    "cycle": 1,
+    "kind": "original"
+  },
+  {
+    "task_id": "t-007",
+    "objective": "Implement the Run() method for WriteScenarioTestsStage. Core logic: (1) check rs.ScenarioTestsWritten idempotency flag, (2) parse scenarios from spec, (3) collect implFiles from rs.Tasks where Status=='done', (4) load partial manifest for retry skip logic, (5) iterate scenarios one at a time — for each: check budget, skip if manifest shows existing compiled test, call WriteScenarioTest, verify compilation via 'go test -c -o /dev/null ./\u003cpkg\u003e', self-repair up to 2 times on compile failure, update manifest incrementally, emit scenario_tests_written event. (6) On full success set rs.ScenarioTestsWritten=true and emit scenario_tests_complete. (7) On failure emit scenario_tests_blocked and return Blocked.",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [
+      "internal/next/specloop/stages/write_scenario_tests.go"
+    ],
+    "proof_checks": [
+      "grep -q 'ScenarioTestsWritten' internal/next/specloop/stages/write_scenario_tests.go",
+      "grep -q 'go test -c' internal/next/specloop/stages/write_scenario_tests.go",
+      "grep -q 'scenario_tests_complete' internal/next/specloop/stages/write_scenario_tests.go",
+      "grep -q 'scenario_tests_blocked' internal/next/specloop/stages/write_scenario_tests.go",
+      "grep -q 'self-repair\\|compileErrors\\|compile' internal/next/specloop/stages/write_scenario_tests.go",
+      "go vet ./internal/next/specloop/stages/..."
+    ],
+    "files_changed": [
+      "internal/next/specloop/stages/write_scenario_tests.go",
+      "internal/next/specloop/stages/write_scenario_tests_test.go"
+    ],
+    "tokens_used": 32977,
+    "duration_ms": 332485,
+    "model_tier": "",
+    "cycle": 1,
+    "kind": "original"
+  },
+  {
+    "task_id": "t-008",
+    "objective": "Write unit tests for WriteScenarioTestsStage covering: (1) no-op when ScenarioTestsWritten is true, (2) no-op when spec has no scenarios, (3) happy path with mocked ScenarioTestWriter producing test files, (4) compile failure triggers self-repair up to 2 retries, (5) blocked after self-repair exhaustion, (6) budget exhaustion mid-stage, (7) partial manifest skip logic on retry, (8) event emissions for each case, (9) manifest written to evidence dir.",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [
+      "internal/next/specloop/stages/write_scenario_tests_test.go"
+    ],
+    "proof_checks": [
+      "grep -q 'TestWriteScenarioTests' internal/next/specloop/stages/write_scenario_tests_test.go",
+      "grep -q 'ScenarioTestsWritten' internal/next/specloop/stages/write_scenario_tests_test.go",
+      "grep -q 'scenario_tests_blocked\\|Blocked' internal/next/specloop/stages/write_scenario_tests_test.go",
+      "grep -q 'budget\\|Budget' internal/next/specloop/stages/write_scenario_tests_test.go",
+      "grep -q 'manifest\\|Manifest' internal/next/specloop/stages/write_scenario_tests_test.go",
+      "go test ./internal/next/specloop/stages/ -count=1 -run TestWriteScenarioTests"
+    ],
+    "files_changed": [
+      "internal/next/specloop/stages/write_scenario_tests_test.go"
+    ],
+    "tokens_used": 20846,
+    "duration_ms": 179326,
+    "model_tier": "",
+    "cycle": 1,
+    "kind": "original"
+  },
+  {
+    "task_id": "t-009",
+    "objective": "Implement FailureHistory helper functions in internal/next/specloop/specloop.go (exported for testing): (1) ExtractTestFailureKeys(output string) []string — extracts test function names from '--- FAIL: TestName' lines, (2) ExtractContractFailureKeys(failures []string) []string — extracts 'contract:\u003cname\u003e' by splitting on ' — ', (3) UpdateFailureHistory(history map[string]int, currentKeys []string) — increments present keys, resets absent keys to zero, (4) FormatPersistentFailureHints(history map[string]int, threshold int) []string — returns diagnostic hint strings for keys \u003e= threshold.",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [
+      "internal/next/specloop/failure_history.go"
+    ],
+    "proof_checks": [
+      "grep -q 'ExtractTestFailureKeys' internal/next/specloop/failure_history.go",
+      "grep -q 'ExtractContractFailureKeys' internal/next/specloop/failure_history.go",
+      "grep -q 'UpdateFailureHistory' internal/next/specloop/failure_history.go",
+      "grep -q 'FormatPersistentFailureHints' internal/next/specloop/failure_history.go",
+      "grep -q 'persistent-failure' internal/next/specloop/failure_history.go",
+      "go vet ./internal/next/specloop/..."
+    ],
+    "files_changed": [
+      "internal/next/specloop/failure_history.go",
+      "internal/next/specloop/failure_history_test.go"
+    ],
+    "tokens_used": 8349,
+    "duration_ms": 88163,
+    "model_tier": "",
+    "cycle": 1,
+    "kind": "original"
+  },
+  {
+    "task_id": "t-010",
+    "objective": "Write unit tests for FailureHistory helpers: (1) ExtractTestFailureKeys parses standard go test output with multiple FAIL lines, (2) ExtractContractFailureKeys parses contract failure format, (3) UpdateFailureHistory increments matching keys and resets resolved ones, (4) FormatPersistentFailureHints returns hints only for keys at or above threshold, (5) edge cases: empty input, malformed lines.",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [
+      "internal/next/specloop/failure_history_test.go"
+    ],
+    "proof_checks": [
+      "grep -q 'TestExtractTestFailureKeys' internal/next/specloop/failure_history_test.go",
+      "grep -q 'TestExtractContractFailureKeys' internal/next/specloop/failure_history_test.go",
+      "grep -q 'TestUpdateFailureHistory' internal/next/specloop/failure_history_test.go",
+      "grep -q 'TestFormatPersistentFailureHints' internal/next/specloop/failure_history_test.go",
+      "go test ./internal/next/specloop/ -count=1 -run TestExtract"
+    ],
+    "files_changed": [],
+    "tokens_used": 1815,
+    "duration_ms": 29866,
+    "model_tier": "",
+    "cycle": 1,
+    "kind": "original"
+  },
+  {
+    "task_id": "t-011",
+    "objective": "Integrate FailureHistory into the specloop replan path in specloop.go. After Validate returns ReplanFrom failures: (1) extract failure keys from the failure context (both test and contract), (2) call UpdateFailureHistory on rs.FailureHistory, (3) call FormatPersistentFailureHints and append any hints to the failure context before passing to the planner.",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [
+      "internal/next/specloop/specloop.go"
+    ],
+    "proof_checks": [
+      "grep -q 'FailureHistory' internal/next/specloop/specloop.go",
+      "grep -q 'UpdateFailureHistory\\|ExtractTestFailureKeys\\|FormatPersistentFailureHints' internal/next/specloop/specloop.go",
+      "go vet ./internal/next/specloop/..."
+    ],
+    "files_changed": [
+      "internal/next/specloop/specloop.go"
+    ],
+    "tokens_used": 9080,
+    "duration_ms": 114547,
+    "model_tier": "",
+    "cycle": 1,
+    "kind": "original"
+  },
+  {
+    "task_id": "t-012",
+    "objective": "Add a noopScenarioTestWriter to cmd/gromit-next/stage_provider.go following the existing noop pattern. It should return an empty testFilePath and nil error. Wire WriteScenarioTestsStage into BuildStages at the correct pipeline position (after execute, before validate). Create an LLM adapter for ScenarioTestWriter that uses the claude provider with P1/Sonnet model tier, following the pattern of existing LLM adapters. Wire docs/scenario-tests.md content at adapter construction time.",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [
+      "cmd/gromit-next/stage_provider.go"
+    ],
+    "proof_checks": [
+      "grep -q 'noopScenarioTestWriter' cmd/gromit-next/stage_provider.go",
+      "grep -q 'writeScenarioTestsStage' cmd/gromit-next/stage_provider.go",
+      "grep -q 'WriteScenarioTest' cmd/gromit-next/stage_provider.go",
+      "grep -q 'scenario-tests.md\\|scenarioTestPatterns\\|scenarioTestsDoc' cmd/gromit-next/stage_provider.go",
+      "go vet ./cmd/gromit-next/..."
+    ],
+    "files_changed": [
+      "cmd/gromit-next/stage_provider.go",
+      "internal/next/specloop/stages/llm_scenario_test_writer.go"
+    ],
+    "tokens_used": 13590,
+    "duration_ms": 130348,
+    "model_tier": "",
+    "cycle": 1,
+    "kind": "original"
+  },
+  {
+    "task_id": "t-013",
+    "objective": "Write integration tests in internal/next/specloop/ verifying: (1) full pipeline with WriteScenarioTests in correct position (Plan→WriteContracts→Execute→WriteScenarioTests→Validate), (2) replan cycle preserves scenario tests (ScenarioTestsWritten flag prevents regeneration), (3) persistent failure tracking increments across cycles and generates diagnostic hints at threshold, (4) partial completion retry skips already-compiled scenarios.",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [
+      "internal/next/specloop/specloop_scenario_test.go"
+    ],
+    "proof_checks": [
+      "grep -q 'TestIntegration.*Scenario' internal/next/specloop/specloop_scenario_test.go",
+      "grep -q 'ScenarioTestsWritten' internal/next/specloop/specloop_scenario_test.go",
+      "grep -q 'FailureHistory' internal/next/specloop/specloop_scenario_test.go",
+      "grep -q 'persistent-failure' internal/next/specloop/specloop_scenario_test.go",
+      "go test ./internal/next/specloop/ -count=1 -run TestIntegration"
+    ],
+    "files_changed": [
+      "internal/next/specloop/specloop_scenario_test.go"
+    ],
+    "tokens_used": 23470,
+    "duration_ms": 250181,
+    "model_tier": "",
+    "cycle": 1,
+    "kind": "original"
+  },
+  {
+    "task_id": "t-014",
+    "objective": "Run full test suite (go test ./... -count=1) and go vet ./... to verify all existing tests still pass and no regressions were introduced. Fix any compilation errors or test failures.",
+    "status": "failed",
+    "attempts": 2,
+    "expected_touched_area": [
+      "internal/next/specloop/stages/write_scenario_tests.go"
+    ],
+    "proof_checks": [
+      "go vet ./...",
+      "go test ./... -count=1"
+    ],
+    "files_changed": [],
+    "tokens_used": 858,
+    "duration_ms": 43103,
+    "model_tier": "",
+    "cycle": 1,
+    "kind": "original"
+  },
+  {
+    "task_id": "t-015",
+    "objective": "Add FailureHistory and ScenarioTestsWritten fields to RunState in internal/next/runstore/types.go. Add FailureHistory map[string]int json:\"failure_history,omitempty\" and ScenarioTestsWritten bool json:\"scenario_tests_written\" to the RunState struct. Update NormalizeNilFields to initialize FailureHistory if nil. Fixes contract failure: pattern 'FailureHistory map[string]int' not found in types.go.",
+    "status": "failed",
+    "attempts": 2,
+    "expected_touched_area": [
+      "internal/next/runstore/types.go"
+    ],
+    "proof_checks": [
+      "grep -q 'FailureHistory map\\[string\\]int' internal/next/runstore/types.go",
+      "grep -q 'ScenarioTestsWritten' internal/next/runstore/types.go",
+      "go vet ./internal/next/runstore/..."
+    ],
+    "files_changed": [],
+    "tokens_used": 1364,
+    "duration_ms": 19994,
+    "model_tier": "",
+    "cycle": 2,
+    "kind": "fix",
+    "parent_cycle": 1,
+    "failures_addressed": [
+      "contract:Persistent failures trigger diagnostic hint — file_contains failed: pattern \"FailureHistory map[string]int\" not found in \"internal/next/runstore/types.go\""
+    ]
+  },
+  {
+    "task_id": "t-016",
+    "objective": "Add persistent failure tracking helper functions and wiring in internal/next/specloop/specloop.go. Implement: (1) ExtractTestFailureKeys(output string) []string — extracts test function names from '--- FAIL: TestName' lines, (2) ExtractContractFailureKeys(failures []string) []string — extracts 'contract:\u003cname\u003e' keys by splitting on ' — ', (3) UpdateFailureHistory(history map[string]int, currentKeys []string) — increments counts for current keys and resets absent keys to zero, (4) AnnotateWithPersistentHints(failures []string, history map[string]int) []string — for keys with count \u003e= 2, appends a diagnostic hint containing 'persistent-failure', 'consecutive cycles', and 'bad test specification'. Wire UpdateFailureHistory and AnnotateWithPersistentHints into the replan path (where ReplanFrom is handled) so that rs.FailureHistory is updated and diagnostic hints are appended to replan context. Fixes contract failures about 'persistent-failure', 'consecutive cycles', and 'bad test specification' not found in specloop.go.",
+    "status": "failed",
+    "attempts": 2,
+    "expected_touched_area": [
+      "internal/next/specloop/specloop.go",
+      "internal/next/specloop/specloop_test.go"
+    ],
+    "proof_checks": [
+      "grep -q 'persistent-failure' internal/next/specloop/specloop.go",
+      "grep -q 'consecutive cycles' internal/next/specloop/specloop.go",
+      "grep -q 'bad test specification' internal/next/specloop/specloop.go",
+      "grep -q 'FailureHistory' internal/next/specloop/specloop.go",
+      "grep -q 'ExtractTestFailureKeys\\|ExtractContractFailureKeys\\|UpdateFailureHistory' internal/next/specloop/specloop.go",
+      "grep -q 'TestExtract\\|TestUpdate\\|TestAnnotate' internal/next/specloop/specloop_test.go",
+      "go test ./internal/next/specloop/ -count=1 -run 'TestExtract|TestUpdate|TestAnnotate'",
+      "go vet ./internal/next/specloop/..."
+    ],
+    "files_changed": [],
+    "tokens_used": 5421,
+    "duration_ms": 76057,
+    "model_tier": "",
+    "cycle": 2,
+    "kind": "fix",
+    "parent_cycle": 1,
+    "failures_addressed": [
+      "contract:Persistent failures trigger diagnostic hint — file_contains failed: pattern \"persistent-failure\" not found in \"internal/next/specloop/specloop.go\"",
+      "contract:Persistent failures trigger diagnostic hint — file_contains failed: pattern \"consecutive cycles\" not found in \"internal/next/specloop/specloop.go\"",
+      "contract:Persistent failures trigger diagnostic hint — file_contains failed: pattern \"bad test specification\" not found in \"internal/next/specloop/specloop.go\""
+    ]
+  },
+  {
+    "task_id": "t-017",
+    "objective": "Add ScenarioTestsWritten bool and FailureHistory map[string]int fields to RunState in internal/next/runstore/types.go. Add FailureHistory to NormalizeNilFields (nil→empty map). Update ResetForNewCycle comment in store.go to mention ScenarioTestsWritten and FailureHistory are NOT reset. Add three new event types to events.go: ScenarioTestsWrittenEvent (with ScenarioName, TestFile string fields), ScenarioTestsCompleteEvent (with ScenarioCount int), ScenarioTestsBlockedEvent (with Reason string). Register all three in unmarshalEvent switch as 'scenario_tests_written', 'scenario_tests_complete', 'scenario_tests_blocked'. Addresses: all tasks failed — RunState fields and event types are prerequisites for all other work.",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [
+      "internal/next/runstore/types.go",
+      "internal/next/runstore/store.go",
+      "internal/next/runstore/events.go"
+    ],
+    "proof_checks": [
+      "grep -q 'ScenarioTestsWritten' internal/next/runstore/types.go",
+      "grep -q 'FailureHistory' internal/next/runstore/types.go",
+      "grep -q 'ScenarioTestsWrittenEvent' internal/next/runstore/events.go",
+      "grep -q 'ScenarioTestsCompleteEvent' internal/next/runstore/events.go",
+      "grep -q 'ScenarioTestsBlockedEvent' internal/next/runstore/events.go",
+      "grep -q 'scenario_tests_written' internal/next/runstore/events.go",
+      "grep -q 'scenario_tests_complete' internal/next/runstore/events.go",
+      "grep -q 'scenario_tests_blocked' internal/next/runstore/events.go",
+      "grep -q 'ScenarioTestsWritten' internal/next/runstore/store.go",
+      "go vet ./internal/next/runstore/..."
+    ],
+    "files_changed": [
+      "internal/next/runstore/events.go",
+      "internal/next/runstore/store.go"
+    ],
+    "tokens_used": 6799,
+    "duration_ms": 66966,
+    "model_tier": "",
+    "cycle": 3,
+    "kind": "fix",
+    "parent_cycle": 2,
+    "failures_addressed": [
+      "all tasks failed"
+    ]
+  },
+  {
+    "task_id": "t-018",
+    "objective": "Define the ScenarioTestWriter interface and implement WriteScenarioTestsStage. Create internal/next/specloop/stages/write_scenario_tests.go containing: (1) ScenarioTestWriter interface with WriteScenarioTest(ctx, scenario SpecScenario, implFiles []string, workDir string, compileErrors string) (testFilePath string, err error), (2) ScenarioTestManifest and ScenarioTestManifestEntry types for JSON manifest, (3) WriteScenarioTestsStageConfig struct with SpecPath, EvidenceDir, Store, WorkDir fields, (4) WriteScenarioTestsStage struct with writer ScenarioTestWriter, cfg, budget *specloop.Budget, eventLog *runstore.EventLog, compileChecker func(packagePath string, workDir string) (string, error), (5) Full Run method implementing: idempotency guard (rs.ScenarioTestsWritten), parse scenarios from spec, empty scenarios no-op, read partial manifest for skip logic, one-at-a-time scenario processing with compile check via 'go test -c -o /dev/null ./\u003cpkg\u003e', up to 2 self-repair retries per scenario, incremental manifest writes after each success, budget check between iterations, event emission (scenario_tests_written per scenario, scenario_tests_complete on full success, scenario_tests_blocked on failure), collect impl files from rs.Tasks where Status=='done' as deduplicated union of FilesChanged. The compileChecker is a function field (not an interface) defaulting to running 'go test -c -o /dev/null' via os/exec — this allows test injection. Addresses: all tasks failed — core stage implementation.",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [
+      "internal/next/specloop/stages/write_scenario_tests.go"
+    ],
+    "proof_checks": [
+      "grep -q 'ScenarioTestWriter' internal/next/specloop/stages/write_scenario_tests.go",
+      "grep -q 'WriteScenarioTestsStage' internal/next/specloop/stages/write_scenario_tests.go",
+      "grep -q 'ScenarioTestManifest' internal/next/specloop/stages/write_scenario_tests.go",
+      "grep -q 'func.*Name.*write_scenario_tests' internal/next/specloop/stages/write_scenario_tests.go",
+      "grep -q 'ScenarioTestsWritten' internal/next/specloop/stages/write_scenario_tests.go",
+      "grep -q 'compileChecker' internal/next/specloop/stages/write_scenario_tests.go",
+      "go vet ./internal/next/specloop/stages/..."
+    ],
+    "files_changed": [
+      "internal/next/specloop/stages/write_scenario_tests.go",
+      "internal/next/specloop/stages/write_scenario_tests_test.go"
+    ],
+    "tokens_used": 15554,
+    "duration_ms": 108453,
+    "model_tier": "",
+    "cycle": 3,
+    "kind": "fix",
+    "parent_cycle": 2,
+    "failures_addressed": [
+      "all tasks failed"
+    ]
+  },
+  {
+    "task_id": "t-019",
+    "objective": "Implement FailureHistory helper functions in internal/next/specloop/failure_history.go. Create exported functions: (1) ExtractTestFailureKeys(output string) []string — extracts test function names from '--- FAIL: TestFunctionName' lines in go test output using regexp, (2) ExtractContractFailureKeys(failures []string) []string — extracts 'contract:\u003cname\u003e' keys by splitting on ' — ' and taking the first segment, (3) UpdateFailureHistory(history map[string]int, currentKeys []string) map[string]int — increments count for present keys, resets absent keys to zero, (4) PersistentFailureHints(history map[string]int, threshold int) []string — returns diagnostic hint strings for keys with count \u003e= threshold. Write unit tests in internal/next/specloop/failure_history_test.go covering: multiple FAIL lines extraction, contract key extraction, increment/reset behavior, threshold hint generation, empty inputs. Addresses: all tasks failed — FailureHistory helpers for persistent failure tracking.",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [
+      "internal/next/specloop/failure_history.go",
+      "internal/next/specloop/failure_history_test.go"
+    ],
+    "proof_checks": [
+      "grep -q 'ExtractTestFailureKeys' internal/next/specloop/failure_history.go",
+      "grep -q 'ExtractContractFailureKeys' internal/next/specloop/failure_history.go",
+      "grep -q 'UpdateFailureHistory' internal/next/specloop/failure_history.go",
+      "grep -q 'PersistentFailureHints' internal/next/specloop/failure_history.go",
+      "grep -q 'TestExtractTestFailureKeys' internal/next/specloop/failure_history_test.go",
+      "grep -q 'TestUpdateFailureHistory' internal/next/specloop/failure_history_test.go",
+      "grep -q 'TestPersistentFailureHints' internal/next/specloop/failure_history_test.go",
+      "go test ./internal/next/specloop/ -run TestExtract -count=1",
+      "go test ./internal/next/specloop/ -run TestUpdateFailureHistory -count=1",
+      "go test ./internal/next/specloop/ -run TestPersistentFailureHints -count=1"
+    ],
+    "files_changed": [
+      "internal/next/specloop/failure_history.go",
+      "internal/next/specloop/failure_history_test.go",
+      "internal/next/specloop/specloop.go"
+    ],
+    "tokens_used": 9097,
+    "duration_ms": 97844,
+    "model_tier": "",
+    "cycle": 3,
+    "kind": "fix",
+    "parent_cycle": 2,
+    "failures_addressed": [
+      "all tasks failed"
+    ]
+  },
+  {
+    "task_id": "t-020",
+    "objective": "Integrate FailureHistory into the specloop replan path. In internal/next/specloop/specloop.go, after a ReplanFrom action is received and before threading failure context into RunState: (1) extract failure keys using ExtractTestFailureKeys on joined replanContext.Failures and ExtractContractFailureKeys on replanContext.Failures, (2) call UpdateFailureHistory(rs.FailureHistory, allKeys) and assign result back to rs.FailureHistory, (3) call PersistentFailureHints(rs.FailureHistory, 2) and append any hints to replanContext.Failures before setting rs.ReplanContext. Addresses: all tasks failed — wires FailureHistory into replan cycle for persistent failure diagnostics.",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [
+      "internal/next/specloop/specloop.go"
+    ],
+    "proof_checks": [
+      "grep -q 'UpdateFailureHistory' internal/next/specloop/specloop.go",
+      "grep -q 'PersistentFailureHints' internal/next/specloop/specloop.go",
+      "grep -q 'ExtractTestFailureKeys\\|ExtractContractFailureKeys' internal/next/specloop/specloop.go",
+      "go vet ./internal/next/specloop/..."
+    ],
+    "files_changed": [],
+    "tokens_used": 2591,
+    "duration_ms": 28243,
+    "model_tier": "",
+    "cycle": 3,
+    "kind": "fix",
+    "parent_cycle": 2,
+    "failures_addressed": [
+      "all tasks failed"
+    ]
+  },
+  {
+    "task_id": "t-021",
+    "objective": "Wire WriteScenarioTestsStage into the pipeline in cmd/gromit-next/stage_provider.go. (1) Add ScenarioTestWriter variable alongside other LLM-dependent variables (contractWriter, etc.), (2) When claudeProvider != nil, create a scenarioTestAdapter using llmadapter.NewFallbackAdapter with router, 'scenario_tests', policy.Models.Planner tier (Sonnet/P1), costCallback, invocationCallback — then create a concrete LLM adapter that implements ScenarioTestWriter (create internal/next/contract/llm_scenario_writer.go with LLMScenarioTestWriter struct wrapping the adapter), (3) When claudeProvider is nil, use a noopScenarioTestWriter, (4) Create writeScenarioTestsStage using NewWriteScenarioTestsStage and insert it between executeStage and validateStage in the returned stages slice. The noopScenarioTestWriter returns empty string and nil error. Also create internal/next/contract/llm_scenario_writer.go implementing ScenarioTestWriter — it takes the LLM adapter, renders a prompt with scenario + implFiles + compileErrors context, invokes the adapter, writes the response to a temp file, and returns the file path. The prompt should include docs/scenario-tests.md content (read at construction time, following ReviewStage pattern). Addresses: all tasks failed — pipeline wiring.",
+    "status": "decomposed",
+    "attempts": 1,
+    "expected_touched_area": [
+      "cmd/gromit-next/stage_provider.go",
+      "internal/next/contract/llm_scenario_writer.go"
+    ],
+    "proof_checks": [
+      "grep -q 'writeScenarioTestsStage' cmd/gromit-next/stage_provider.go",
+      "grep -q 'noopScenarioTestWriter' cmd/gromit-next/stage_provider.go",
+      "grep -q 'LLMScenarioTestWriter' internal/next/contract/llm_scenario_writer.go",
+      "grep -q 'WriteScenarioTest' internal/next/contract/llm_scenario_writer.go",
+      "go vet ./cmd/gromit-next/...",
+      "go vet ./internal/next/contract/..."
+    ],
+    "files_changed": [],
+    "tokens_used": 0,
+    "duration_ms": 0,
+    "model_tier": "",
+    "cycle": 3,
+    "kind": "fix",
+    "parent_cycle": 2,
+    "failures_addressed": [
+      "all tasks failed"
+    ]
+  },
+  {
+    "task_id": "t-022",
+    "objective": "Write comprehensive unit tests for WriteScenarioTestsStage in internal/next/specloop/stages/write_scenario_tests_test.go. Use mock ScenarioTestWriter and injected compileChecker. Tests must cover: (1) TestWriteScenarioTests_IdempotencyGuard — returns Continue when ScenarioTestsWritten is true, (2) TestWriteScenarioTests_NoScenarios — returns Continue for empty scenarios, (3) TestWriteScenarioTests_HappyPath — two scenarios both compile, sets flag, emits events, writes manifest, (4) TestWriteScenarioTests_CompileFailureSelfRepair — first compile fails, retry succeeds, (5) TestWriteScenarioTests_CompileFailureExhausted — 3 attempts fail, returns Blocked, flag NOT set, (6) TestWriteScenarioTests_BudgetExhausted — budget exceeded mid-iteration, returns Blocked, (7) TestWriteScenarioTests_PartialManifestSkip — manifest exists with scenario 1, stage skips scenario 1 and only processes scenario 2, (8) TestWriteScenarioTests_StageName — verifies Name() returns 'write_scenario_tests', (9) TestWriteScenarioTests_SeparateFiles — two scenarios in same package get separate files. Addresses: all tasks failed — test coverage for the stage.",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [
+      "internal/next/specloop/stages/write_scenario_tests_test.go"
+    ],
+    "proof_checks": [
+      "grep -q 'TestWriteScenarioTests_IdempotencyGuard' internal/next/specloop/stages/write_scenario_tests_test.go",
+      "grep -q 'TestWriteScenarioTests_NoScenarios' internal/next/specloop/stages/write_scenario_tests_test.go",
+      "grep -q 'TestWriteScenarioTests_HappyPath' internal/next/specloop/stages/write_scenario_tests_test.go",
+      "grep -q 'TestWriteScenarioTests_CompileFailureSelfRepair' internal/next/specloop/stages/write_scenario_tests_test.go",
+      "grep -q 'TestWriteScenarioTests_CompileFailureExhausted' internal/next/specloop/stages/write_scenario_tests_test.go",
+      "grep -q 'TestWriteScenarioTests_BudgetExhausted' internal/next/specloop/stages/write_scenario_tests_test.go",
+      "grep -q 'TestWriteScenarioTests_PartialManifestSkip' internal/next/specloop/stages/write_scenario_tests_test.go",
+      "grep -q 'TestWriteScenarioTests_StageName' internal/next/specloop/stages/write_scenario_tests_test.go",
+      "go test ./internal/next/specloop/stages/ -run TestWriteScenarioTests -count=1"
+    ],
+    "files_changed": [
+      "internal/next/specloop/stages/write_scenario_tests_test.go"
+    ],
+    "tokens_used": 25570,
+    "duration_ms": 205392,
+    "model_tier": "",
+    "cycle": 3,
+    "kind": "fix",
+    "parent_cycle": 2,
+    "failures_addressed": [
+      "all tasks failed"
+    ]
+  },
+  {
+    "task_id": "t-023",
+    "objective": "Run the full test suite and fix any compilation or test failures. Verify: (1) go vet ./... passes, (2) go test ./... -count=1 passes, (3) all new tests pass. Fix any issues found — compilation errors, import cycles, missing methods, etc. This is a catch-all integration verification task. Addresses: all tasks failed — ensures all changes compile and pass together.",
+    "status": "failed",
+    "attempts": 2,
+    "expected_touched_area": [
+      "internal/next/specloop/stages/write_scenario_tests.go",
+      "internal/next/specloop/failure_history.go",
+      "internal/next/runstore/types.go",
+      "cmd/gromit-next/stage_provider.go"
+    ],
+    "proof_checks": [
+      "go vet ./...",
+      "go test ./internal/next/runstore/ -count=1",
+      "go test ./internal/next/specloop/ -count=1",
+      "go test ./internal/next/specloop/stages/ -count=1",
+      "go test ./internal/next/contract/ -count=1",
+      "go test ./cmd/gromit-next/ -count=1",
+      "go test ./... -count=1"
+    ],
+    "files_changed": [],
+    "tokens_used": 3534,
+    "duration_ms": 75359,
+    "model_tier": "",
+    "cycle": 3,
+    "kind": "fix",
+    "parent_cycle": 2,
+    "failures_addressed": [
+      "all tasks failed"
+    ]
+  },
+  {
+    "task_id": "t-024",
+    "objective": "",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [],
+    "proof_checks": [],
+    "files_changed": [
+      "internal/next/contract/scenario_test_writer.go"
+    ],
+    "tokens_used": 2097,
+    "duration_ms": 24222,
+    "model_tier": "",
+    "cycle": 3,
+    "kind": "decomposed"
+  },
+  {
+    "task_id": "t-025",
+    "objective": "",
+    "status": "done",
+    "attempts": 2,
+    "expected_touched_area": [],
+    "proof_checks": [],
+    "files_changed": [],
+    "tokens_used": 5087,
+    "duration_ms": 47964,
+    "model_tier": "",
+    "cycle": 3,
+    "kind": "decomposed"
+  },
+  {
+    "task_id": "t-026",
+    "objective": "",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [],
+    "proof_checks": [],
+    "files_changed": [],
+    "tokens_used": 1922,
+    "duration_ms": 29558,
+    "model_tier": "",
+    "cycle": 3,
+    "kind": "decomposed"
+  },
+  {
+    "task_id": "t-027",
+    "objective": "",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [],
+    "proof_checks": [],
+    "files_changed": [],
+    "tokens_used": 1509,
+    "duration_ms": 16506,
+    "model_tier": "",
+    "cycle": 3,
+    "kind": "decomposed"
+  },
+  {
+    "task_id": "t-028",
+    "objective": "Add FailureHistory map[string]int and ScenarioTestsWritten bool fields to RunState in internal/next/runstore/types.go, and normalize FailureHistory in NormalizeNilFields(). Fixes contract:Persistent failures trigger diagnostic hint — FailureHistory field missing from RunState.",
+    "status": "failed",
+    "attempts": 2,
+    "expected_touched_area": [
+      "internal/next/runstore/types.go"
+    ],
+    "proof_checks": [
+      "grep -q 'FailureHistory map\\[string\\]int' internal/next/runstore/types.go",
+      "grep -q 'ScenarioTestsWritten bool' internal/next/runstore/types.go",
+      "grep -q 'FailureHistory' internal/next/runstore/types.go",
+      "go vet ./internal/next/runstore/...",
+      "go test ./internal/next/runstore/... -count=1"
+    ],
+    "files_changed": [],
+    "tokens_used": 1895,
+    "duration_ms": 24782,
+    "model_tier": "",
+    "cycle": 4,
+    "kind": "fix",
+    "parent_cycle": 3,
+    "failures_addressed": [
+      "contract:Persistent failures trigger diagnostic hint — file_contains failed: pattern \"FailureHistory map[string]int\" not found in \"internal/next/runstore/types.go\""
+    ]
+  },
+  {
+    "task_id": "t-029",
+    "objective": "Fix TestRunSpecTestEnvRestoresWorkingDirectory in cmd/gromit/run_spec_flag_test.go to resolve symlinks before comparing working directories, fixing the /var/folders vs /private/var/folders mismatch on macOS. Use filepath.EvalSymlinks on both originalWD and currentWD before comparison.",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [
+      "cmd/gromit/run_spec_flag_test.go"
+    ],
+    "proof_checks": [
+      "grep -q 'EvalSymlinks' cmd/gromit/run_spec_flag_test.go",
+      "go vet ./cmd/gromit/...",
+      "go test ./cmd/gromit/ -count=1 -run TestRunSpecTestEnvRestoresWorkingDirectory -timeout 30s"
+    ],
+    "files_changed": [
+      "cmd/gromit/run_spec_flag_test.go"
+    ],
+    "tokens_used": 2521,
+    "duration_ms": 27427,
+    "model_tier": "",
+    "cycle": 4,
+    "kind": "fix",
+    "parent_cycle": 3,
+    "failures_addressed": [
+      "always-run check \"unit-tests\" failed: TestRunSpecTestEnvRestoresWorkingDirectory"
+    ]
+  },
+  {
+    "task_id": "t-030",
+    "objective": "Add FailureHistory map[string]int field to RunState struct in internal/next/runstore/types.go, and add ScenarioTestsWritten bool field if missing. Update NormalizeNilFields to initialize FailureHistory to empty map when nil. Addresses: contract:Persistent failures trigger diagnostic hint — file_contains failed: pattern \"FailureHistory map[string]int\" not found in \"internal/next/runstore/types.go\"",
+    "status": "failed",
+    "attempts": 2,
+    "expected_touched_area": [
+      "internal/next/runstore/types.go"
+    ],
+    "proof_checks": [
+      "grep -q 'FailureHistory map\\[string\\]int' internal/next/runstore/types.go",
+      "grep -q 'ScenarioTestsWritten bool' internal/next/runstore/types.go",
+      "grep -q 'FailureHistory' internal/next/runstore/types.go",
+      "go vet ./internal/next/runstore/...",
+      "go build ./internal/next/runstore/..."
+    ],
+    "files_changed": [],
+    "tokens_used": 2192,
+    "duration_ms": 45184,
+    "model_tier": "",
+    "cycle": 5,
+    "kind": "fix",
+    "parent_cycle": 4,
+    "failures_addressed": [
+      "contract:Persistent failures trigger diagnostic hint — file_contains failed: pattern \"FailureHistory map[string]int\" not found in \"internal/next/runstore/types.go\""
+    ]
+  },
+  {
+    "task_id": "t-031",
+    "objective": "Add ScenarioTestsWritten and FailureHistory fields to RunState in types.go, update NormalizeNilFields to handle FailureHistory map, and ensure ResetForNewCycle does NOT reset these fields. Addresses: 'all tasks failed' — RunState foundation required by all other tasks.",
+    "status": "failed",
+    "attempts": 2,
+    "expected_touched_area": [
+      "internal/next/runstore/types.go",
+      "internal/next/runstore/store.go"
+    ],
+    "proof_checks": [
+      "grep -q 'ScenarioTestsWritten bool' internal/next/runstore/types.go",
+      "grep -q 'FailureHistory map\\[string\\]int' internal/next/runstore/types.go",
+      "grep -q 'scenario_tests_written' internal/next/runstore/types.go",
+      "grep -q 'failure_history' internal/next/runstore/types.go",
+      "grep -q 'FailureHistory' internal/next/runstore/store.go",
+      "go vet ./internal/next/runstore/..."
+    ],
+    "files_changed": [],
+    "tokens_used": 3038,
+    "duration_ms": 32411,
+    "model_tier": "",
+    "cycle": 6,
+    "kind": "fix",
+    "parent_cycle": 5,
+    "failures_addressed": [
+      "all tasks failed"
+    ]
+  },
+  {
+    "task_id": "t-032",
+    "objective": "Add scenario test event types (ScenarioTestWrittenEvent, ScenarioTestsCompleteEvent, ScenarioTestsBlockedEvent) to events.go following the existing ContractsWrittenEvent/ContractsBlockedEvent pattern. Addresses: 'all tasks failed' — events needed by WriteScenarioTestsStage.",
+    "status": "decomposed",
+    "attempts": 1,
+    "expected_touched_area": [
+      "internal/next/runstore/events.go"
+    ],
+    "proof_checks": [
+      "grep -q 'ScenarioTestWrittenEvent' internal/next/runstore/events.go",
+      "grep -q 'ScenarioTestsCompleteEvent' internal/next/runstore/events.go",
+      "grep -q 'ScenarioTestsBlockedEvent' internal/next/runstore/events.go",
+      "grep -q 'scenario_tests_written' internal/next/runstore/events.go",
+      "grep -q 'scenario_tests_complete' internal/next/runstore/events.go",
+      "grep -q 'scenario_tests_blocked' internal/next/runstore/events.go",
+      "go vet ./internal/next/runstore/..."
+    ],
+    "files_changed": [],
+    "tokens_used": 0,
+    "duration_ms": 0,
+    "model_tier": "",
+    "cycle": 6,
+    "kind": "fix",
+    "parent_cycle": 5,
+    "failures_addressed": [
+      "all tasks failed"
+    ]
+  },
+  {
+    "task_id": "t-033",
+    "objective": "Add ScenarioTestWriter interface to internal/next/contract/ package with WriteScenarioTest method signature matching the spec. Addresses: 'all tasks failed' — interface required by stage and stage_provider.",
+    "status": "failed",
+    "attempts": 1,
+    "expected_touched_area": [
+      "internal/next/contract/types.go"
+    ],
+    "proof_checks": [
+      "grep -q 'ScenarioTestWriter interface' internal/next/contract/types.go",
+      "grep -q 'WriteScenarioTest' internal/next/contract/types.go",
+      "go vet ./internal/next/contract/..."
+    ],
+    "files_changed": [
+      "cmd/gromit-next/stage_provider.go",
+      "internal/next/contract/scenario_test_writer.go",
+      "internal/next/contract/types.go",
+      "internal/next/specloop/stages/write_scenario_tests.go"
+    ],
+    "tokens_used": 7744,
+    "duration_ms": 93442,
+    "model_tier": "",
+    "cycle": 6,
+    "kind": "fix",
+    "parent_cycle": 5,
+    "failures_addressed": [
+      "all tasks failed"
+    ]
+  },
+  {
+    "task_id": "t-034",
+    "objective": "Implement WriteScenarioTestsStage in internal/next/specloop/stages/write_scenario_tests.go with all behaviors: idempotency check (ScenarioTestsWritten flag), empty-scenarios no-op, one-at-a-time processing, compilation check via 'go test -c -o /dev/null', self-repair loop (3 attempts), manifest writing/reading for partial retry, budget checking between iterations, event emission, and partial completion handling. Addresses: 'all tasks failed' — core stage implementation.",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [
+      "internal/next/specloop/stages/write_scenario_tests.go"
+    ],
+    "proof_checks": [
+      "grep -q 'WriteScenarioTestsStage' internal/next/specloop/stages/write_scenario_tests.go",
+      "grep -q 'ScenarioTestsWritten' internal/next/specloop/stages/write_scenario_tests.go",
+      "grep -q 'scenario-test-manifest.json' internal/next/specloop/stages/write_scenario_tests.go",
+      "grep -q 'go test -c' internal/next/specloop/stages/write_scenario_tests.go",
+      "grep -q 'scenario_tests_written' internal/next/specloop/stages/write_scenario_tests.go",
+      "grep -q 'scenario_tests_complete' internal/next/specloop/stages/write_scenario_tests.go",
+      "grep -q 'scenario_tests_blocked' internal/next/specloop/stages/write_scenario_tests.go",
+      "go vet ./internal/next/specloop/stages/..."
+    ],
+    "files_changed": [
+      "internal/next/specloop/specloop_scenario_test.go"
+    ],
+    "tokens_used": 5833,
+    "duration_ms": 81972,
+    "model_tier": "",
+    "cycle": 6,
+    "kind": "fix",
+    "parent_cycle": 5,
+    "failures_addressed": [
+      "all tasks failed"
+    ]
+  },
+  {
+    "task_id": "t-035",
+    "objective": "Write unit tests for WriteScenarioTestsStage covering: idempotency (flag already set), empty scenarios no-op, happy path (all scenarios compile), self-repair on compile failure, self-repair exhaustion returns blocked, partial retry skips existing compiled tests, budget exhaustion mid-stage, event emission, and manifest writing. Follow write_contracts_test.go patterns with fake ScenarioTestWriter. Addresses: 'all tasks failed' — test coverage for stage.",
+    "status": "done",
+    "attempts": 2,
+    "expected_touched_area": [
+      "internal/next/specloop/stages/write_scenario_tests_test.go"
+    ],
+    "proof_checks": [
+      "grep -q 'TestWriteScenarioTests' internal/next/specloop/stages/write_scenario_tests_test.go",
+      "grep -q 'fakeScenarioTestWriter' internal/next/specloop/stages/write_scenario_tests_test.go",
+      "grep -q 'ScenarioTestsWritten' internal/next/specloop/stages/write_scenario_tests_test.go",
+      "grep -q 'scenario-test-manifest.json' internal/next/specloop/stages/write_scenario_tests_test.go",
+      "go test ./internal/next/specloop/stages/ -count=1 -run TestWriteScenarioTests -v"
+    ],
+    "files_changed": [],
+    "tokens_used": 11107,
+    "duration_ms": 110831,
+    "model_tier": "",
+    "cycle": 6,
+    "kind": "fix",
+    "parent_cycle": 5,
+    "failures_addressed": [
+      "all tasks failed"
+    ]
+  },
+  {
+    "task_id": "t-036",
+    "objective": "Add exported failure history helper functions to specloop.go: ExtractTestFailureKeys (parses '--- FAIL: TestName' from go test output), ExtractContractFailureKeys (extracts 'contract:\u003cname\u003e' prefix by splitting on ' — '), and UpdateFailureHistory (increments present keys, resets absent keys). Wire UpdateFailureHistory into the replan path so FailureHistory is updated before replan context is built, and append persistent-failure diagnostic hint when count \u003e= 2. Addresses: 'all tasks failed' — persistent failure tracking.",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [
+      "internal/next/specloop/specloop.go"
+    ],
+    "proof_checks": [
+      "grep -q 'ExtractTestFailureKeys' internal/next/specloop/specloop.go",
+      "grep -q 'ExtractContractFailureKeys' internal/next/specloop/specloop.go",
+      "grep -q 'UpdateFailureHistory' internal/next/specloop/specloop.go",
+      "grep -q 'persistent-failure' internal/next/specloop/specloop.go",
+      "go vet ./internal/next/specloop/..."
+    ],
+    "files_changed": [],
+    "tokens_used": 4911,
+    "duration_ms": 57225,
+    "model_tier": "",
+    "cycle": 6,
+    "kind": "fix",
+    "parent_cycle": 5,
+    "failures_addressed": [
+      "all tasks failed"
+    ]
+  },
+  {
+    "task_id": "t-037",
+    "objective": "Write unit tests for failure history helpers: ExtractTestFailureKeys extracts test names from go test output, ExtractContractFailureKeys extracts contract keys, UpdateFailureHistory increments/resets correctly, and persistent-failure hint is appended at threshold \u003e= 2. Addresses: 'all tasks failed' — test coverage for failure tracking.",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [
+      "internal/next/specloop/failure_history_test.go"
+    ],
+    "proof_checks": [
+      "grep -q 'TestExtractTestFailureKeys' internal/next/specloop/failure_history_test.go",
+      "grep -q 'TestExtractContractFailureKeys' internal/next/specloop/failure_history_test.go",
+      "grep -q 'TestUpdateFailureHistory' internal/next/specloop/failure_history_test.go",
+      "grep -q 'persistent-failure' internal/next/specloop/failure_history_test.go",
+      "go test ./internal/next/specloop/ -count=1 -run 'TestExtract|TestUpdateFailure' -v"
+    ],
+    "files_changed": [],
+    "tokens_used": 2313,
+    "duration_ms": 24113,
+    "model_tier": "",
+    "cycle": 6,
+    "kind": "fix",
+    "parent_cycle": 5,
+    "failures_addressed": [
+      "all tasks failed"
+    ]
+  },
+  {
+    "task_id": "t-038",
+    "objective": "Wire WriteScenarioTestsStage into stage_provider.go: create LLM adapter implementing ScenarioTestWriter using FallbackAdapter pattern with P1/Sonnet model tier, add noopScenarioTestWriter for testing, instantiate WriteScenarioTestsStage in BuildStages, and insert it between executeStage and validateStage in the stage slice. Addresses: 'all tasks failed' — pipeline wiring.",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [
+      "cmd/gromit-next/stage_provider.go"
+    ],
+    "proof_checks": [
+      "grep -q 'writeScenarioTestsStage' cmd/gromit-next/stage_provider.go",
+      "grep -q 'noopScenarioTestWriter' cmd/gromit-next/stage_provider.go",
+      "grep -q 'ScenarioTestWriter' cmd/gromit-next/stage_provider.go",
+      "grep -q 'WriteScenarioTestsStage' cmd/gromit-next/stage_provider.go",
+      "go vet ./cmd/gromit-next/...",
+      "go build ./cmd/gromit-next/..."
+    ],
+    "files_changed": [],
+    "tokens_used": 5900,
+    "duration_ms": 66698,
+    "model_tier": "",
+    "cycle": 6,
+    "kind": "fix",
+    "parent_cycle": 5,
+    "failures_addressed": [
+      "all tasks failed"
+    ]
+  },
+  {
+    "task_id": "t-039",
+    "objective": "Run full validation suite (go test ./... -count=1 and go vet ./...) and fix any compilation errors or test failures across all touched packages. Addresses: 'all tasks failed' — ensure all existing tests continue to pass per AC 13.",
+    "status": "failed",
+    "attempts": 1,
+    "expected_touched_area": [
+      "internal/next/runstore/types.go",
+      "internal/next/specloop/stages/write_scenario_tests.go",
+      "internal/next/specloop/specloop.go",
+      "cmd/gromit-next/stage_provider.go"
+    ],
+    "proof_checks": [
+      "go vet ./...",
+      "go test ./... -count=1"
+    ],
+    "files_changed": [
+      "cmd/gromit-next/stage_provider.go",
+      "internal/next/contract/evaluator_test.go",
+      "internal/next/contract/llm_scenario_writer.go",
+      "internal/next/contract/validate_test.go",
+      "internal/next/extract/filetree.go",
+      "internal/next/specloop/specloop.go",
+      "internal/next/specloop/specloop_scenario_test.go",
+      "internal/next/specloop/stages/write_contracts_test.go",
+      "internal/next/specloop/stages/write_scenario_tests.go"
+    ],
+    "tokens_used": 10650,
+    "duration_ms": 264842,
+    "model_tier": "",
+    "cycle": 6,
+    "kind": "fix",
+    "parent_cycle": 5,
+    "failures_addressed": [
+      "all tasks failed"
+    ]
+  },
+  {
+    "task_id": "t-040",
+    "objective": "",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [],
+    "proof_checks": [],
+    "files_changed": [
+      "internal/next/runstore/events.go"
+    ],
+    "tokens_used": 4532,
+    "duration_ms": 51851,
+    "model_tier": "",
+    "cycle": 6,
+    "kind": "decomposed"
+  },
+  {
+    "task_id": "t-041",
+    "objective": "",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [],
+    "proof_checks": [],
+    "files_changed": [
+      "internal/next/runstore/events.go"
+    ],
+    "tokens_used": 2425,
+    "duration_ms": 37799,
+    "model_tier": "",
+    "cycle": 6,
+    "kind": "decomposed"
+  },
+  {
+    "task_id": "t-042",
+    "objective": "",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [],
+    "proof_checks": [],
+    "files_changed": [
+      "internal/next/runstore/events_test.go"
+    ],
+    "tokens_used": 3396,
+    "duration_ms": 29514,
+    "model_tier": "",
+    "cycle": 6,
+    "kind": "decomposed"
+  },
+  {
+    "task_id": "t-043",
+    "objective": "",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [],
+    "proof_checks": [],
+    "files_changed": [
+      "internal/next/runstore/events_test.go"
+    ],
+    "tokens_used": 3361,
+    "duration_ms": 32199,
+    "model_tier": "",
+    "cycle": 6,
+    "kind": "decomposed"
+  },
+  {
+    "task_id": "t-044",
+    "objective": "",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [],
+    "proof_checks": [],
+    "files_changed": [
+      "internal/next/runstore/events_test.go"
+    ],
+    "tokens_used": 3935,
+    "duration_ms": 35885,
+    "model_tier": "",
+    "cycle": 6,
+    "kind": "decomposed"
+  },
+  {
+    "task_id": "t-045",
+    "objective": "",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [],
+    "proof_checks": [],
+    "files_changed": [],
+    "tokens_used": 649,
+    "duration_ms": 8140,
+    "model_tier": "",
+    "cycle": 6,
+    "kind": "decomposed"
+  },
+  {
+    "task_id": "t-046",
+    "objective": "Add FailureHistory field to RunState in internal/next/runstore/types.go. The contract check requires `FailureHistory map[string]int` to be present. Also add ScenarioTestsWritten bool field if not already present. These fields exist in the worktree copy but not in the main repo's types.go. Addresses: contract failure for FailureHistory pattern.",
+    "status": "done",
+    "attempts": 2,
+    "expected_touched_area": [
+      "internal/next/runstore/types.go"
+    ],
+    "proof_checks": [
+      "grep -q 'FailureHistory map\\[string\\]int' internal/next/runstore/types.go",
+      "grep -q 'ScenarioTestsWritten' internal/next/runstore/types.go"
+    ],
+    "files_changed": [],
+    "tokens_used": 3047,
+    "duration_ms": 38872,
+    "model_tier": "",
+    "cycle": 7,
+    "kind": "fix",
+    "parent_cycle": 6,
+    "failures_addressed": [
+      "contract:Persistent failures trigger diagnostic hint — file_contains failed: pattern \"FailureHistory map[string]int\" not found in \"internal/next/runstore/types.go\""
+    ]
+  },
+  {
+    "task_id": "t-047",
+    "objective": "Fix event type definitions in internal/next/runstore/events.go to match stage code expectations. (1) Rename ScenarioTestWrittenEvent to ScenarioTestsWrittenEvent and add ScenarioName/TestFile fields (replacing TestCount). (2) Add ScenarioCount field to ScenarioTestsCompleteEvent (replacing or supplementing TestCount/PassCount). The stage at write_scenario_tests.go:283 uses `runstore.ScenarioTestsWrittenEvent{ScenarioName, TestFile}` and at :297 uses `ScenarioTestsCompleteEvent{ScenarioCount}`. Update event registration in RegisterEvents if applicable. Update any existing tests referencing the old type names/fields. Addresses: build failures for undefined ScenarioTestsWrittenEvent and unknown field ScenarioCount.",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [
+      "internal/next/runstore/events.go",
+      "internal/next/runstore/events_test.go"
+    ],
+    "proof_checks": [
+      "grep -q 'ScenarioTestsWrittenEvent' internal/next/runstore/events.go",
+      "grep -q 'ScenarioName' internal/next/runstore/events.go",
+      "grep -q 'TestFile' internal/next/runstore/events.go",
+      "grep -q 'ScenarioCount' internal/next/runstore/events.go",
+      "grep -q 'ScenarioTestsWrittenEvent' internal/next/runstore/events_test.go",
+      "go vet ./internal/next/runstore/...",
+      "go test ./internal/next/runstore/... -count=1"
+    ],
+    "files_changed": [
+      "internal/next/runstore/events.go",
+      "internal/next/runstore/events_test.go"
+    ],
+    "tokens_used": 8234,
+    "duration_ms": 60839,
+    "model_tier": "",
+    "cycle": 7,
+    "kind": "fix",
+    "parent_cycle": 6,
+    "failures_addressed": [
+      "always-run check \"unit-tests\" failed: undefined: runstore.ScenarioTestsWrittenEvent; unknown field ScenarioCount in struct literal of type runstore.ScenarioTestsCompleteEvent",
+      "always-run check \"vet\" failed: undefined: runstore.ScenarioTestsWrittenEvent; unknown field ScenarioCount in struct literal of type runstore.ScenarioTestsCompleteEvent"
+    ]
+  },
+  {
+    "task_id": "t-048",
+    "objective": "Fix broken `contains` helper in write_scenario_tests_test.go (line 1063). Replace the logically broken expression `len(s) \u003e 0 \u0026\u0026 len(substr) \u003e 0 \u0026\u0026 (s == substr || len(s) \u003e 0)` with `strings.Contains(s, substr)`. Add `strings` import if not already present. Addresses: review:code_quality:error and review:spec_alignment:error on write_scenario_tests_test.go:1062-1063.",
+    "status": "failed",
+    "attempts": 2,
+    "expected_touched_area": [
+      "internal/next/specloop/stages/write_scenario_tests_test.go"
+    ],
+    "proof_checks": [
+      "grep -q 'strings.Contains(s, substr)' internal/next/specloop/stages/write_scenario_tests_test.go",
+      "grep -qv 's == substr || len(s) \u003e 0' internal/next/specloop/stages/write_scenario_tests_test.go",
+      "go vet ./internal/next/specloop/stages/",
+      "go test ./internal/next/specloop/stages/ -count=1 -run TestWriteScenarioTests"
+    ],
+    "files_changed": [],
+    "tokens_used": 3142,
+    "duration_ms": 40950,
+    "model_tier": "",
+    "cycle": 8,
+    "kind": "fix",
+    "parent_cycle": 7,
+    "failures_addressed": [
+      "review:code_quality:error:internal/next/specloop/stages/write_scenario_tests_test.go:1063 — Broken contains helper",
+      "review:spec_alignment:error:internal/next/specloop/stages/write_scenario_tests_test.go:1062 — Broken contains helper"
+    ]
+  },
+  {
+    "task_id": "t-049",
+    "objective": "Fix command injection in write_scenario_tests.go (line 120). Replace `exec.Command(\"sh\", \"-c\", fmt.Sprintf(\"cd %s \u0026\u0026 go test -c -o /dev/null .\", pkgPath))` with `exec.Command(\"go\", \"test\", \"-c\", \"-o\", \"/dev/null\", \".\")` setting `cmd.Dir = pkgPath`. This eliminates shell interpolation of pkgPath. Addresses: review:code_quality:error on write_scenario_tests.go:120.",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [
+      "internal/next/specloop/stages/write_scenario_tests.go"
+    ],
+    "proof_checks": [
+      "grep -q 'exec.Command(\"go\", \"test\", \"-c\", \"-o\"' internal/next/specloop/stages/write_scenario_tests.go",
+      "grep -qv 'sh.*-c.*cd.*go test' internal/next/specloop/stages/write_scenario_tests.go",
+      "go vet ./internal/next/specloop/stages/",
+      "go test ./internal/next/specloop/stages/ -count=1 -run TestWriteScenarioTests"
+    ],
+    "files_changed": [
+      "internal/next/specloop/stages/write_scenario_tests.go"
+    ],
+    "tokens_used": 2641,
+    "duration_ms": 35281,
+    "model_tier": "",
+    "cycle": 8,
+    "kind": "fix",
+    "parent_cycle": 7,
+    "failures_addressed": [
+      "review:code_quality:error:internal/next/specloop/stages/write_scenario_tests.go:120 — Command injection via pkgPath"
+    ]
+  },
+  {
+    "task_id": "t-050",
+    "objective": "Fix mockScenarioTestWriter in specloop_scenario_test.go (line 363). Change `scenario interface{}` parameter to `scenario contract.SpecScenario` so it actually satisfies the `contract.ScenarioTestWriter` interface. Add the contract package import. Addresses: review:code_quality:error on specloop_scenario_test.go:363.",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [
+      "internal/next/specloop/specloop_scenario_test.go"
+    ],
+    "proof_checks": [
+      "grep -q 'scenario contract.SpecScenario' internal/next/specloop/specloop_scenario_test.go",
+      "grep -qv 'scenario interface{}' internal/next/specloop/specloop_scenario_test.go",
+      "go vet ./internal/next/specloop/",
+      "go test -tags integration ./internal/next/specloop/ -count=1 -run TestIntegration"
+    ],
+    "files_changed": [
+      "internal/next/specloop/specloop_scenario_test.go"
+    ],
+    "tokens_used": 2544,
+    "duration_ms": 28601,
+    "model_tier": "",
+    "cycle": 8,
+    "kind": "fix",
+    "parent_cycle": 7,
+    "failures_addressed": [
+      "review:code_quality:error:internal/next/specloop/specloop_scenario_test.go:363 — mockScenarioTestWriter uses interface{} instead of contract.SpecScenario"
+    ]
+  },
+  {
+    "task_id": "t-051",
+    "objective": "Fix ExtractTestFailureKeys in failure_history.go (line 15-17). After TrimPrefix, split on whitespace using `strings.Fields()` and take only the first field to strip the `(1.23s)` duration suffix from go test output. This ensures the key is just `TestFoo`, not `TestFoo (1.23s)`. Addresses: review:code_quality:error and review:spec_alignment:error on failure_history.go:15-17.",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [
+      "internal/next/specloop/failure_history.go",
+      "internal/next/specloop/failure_history_test.go"
+    ],
+    "proof_checks": [
+      "grep -q 'strings.Fields' internal/next/specloop/failure_history.go",
+      "grep -q 'FAIL: TestFoo (0.00s)' internal/next/specloop/failure_history_test.go",
+      "go vet ./internal/next/specloop/",
+      "go test ./internal/next/specloop/ -count=1 -run TestExtractTestFailureKeys"
+    ],
+    "files_changed": [
+      "internal/next/specloop/failure_history.go",
+      "internal/next/specloop/failure_history_test.go"
+    ],
+    "tokens_used": 3218,
+    "duration_ms": 27450,
+    "model_tier": "",
+    "cycle": 8,
+    "kind": "fix",
+    "parent_cycle": 7,
+    "failures_addressed": [
+      "review:code_quality:error:internal/next/specloop/failure_history.go:15 — ExtractTestFailureKeys does not strip duration suffix",
+      "review:spec_alignment:error:internal/next/specloop/failure_history.go:17 — ExtractTestFailureKeys does not strip duration suffix"
+    ]
+  },
+  {
+    "task_id": "t-052",
+    "objective": "Fix ExtractContractFailureKeys in failure_history.go (line 35). Stop stripping the `contract:` prefix — return the full `contract:\u003cscenario-name\u003e` key as the spec requires. Remove the `strings.TrimPrefix(contractPart, \"contract:\")` call and append `contractPart` directly. Update any tests that assert the old (prefix-stripped) key format. Addresses: review:spec_alignment:error on failure_history.go:35.",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [
+      "internal/next/specloop/failure_history.go",
+      "internal/next/specloop/failure_history_test.go"
+    ],
+    "proof_checks": [
+      "grep -qv 'TrimPrefix(contractPart, \"contract:\")' internal/next/specloop/failure_history.go",
+      "grep -q 'contract:' internal/next/specloop/failure_history_test.go",
+      "go vet ./internal/next/specloop/",
+      "go test ./internal/next/specloop/ -count=1 -run TestExtractContractFailureKeys"
+    ],
+    "files_changed": [
+      "internal/next/specloop/failure_history.go",
+      "internal/next/specloop/failure_history_test.go"
+    ],
+    "tokens_used": 5540,
+    "duration_ms": 63572,
+    "model_tier": "",
+    "cycle": 8,
+    "kind": "fix",
+    "parent_cycle": 7,
+    "failures_addressed": [
+      "review:spec_alignment:error:internal/next/specloop/failure_history.go:35 — ExtractContractFailureKeys strips contract: prefix, violating spec key format"
+    ]
+  },
+  {
+    "task_id": "t-053",
+    "objective": "Fix WorkDir being set to evidenceDir in write_scenario_tests.go (line 104) and stage_provider.go. Add a separate `workDir` parameter to `NewWriteScenarioTestsStage` (distinct from evidenceDir) so test files are written to the actual worktree, not the evidence directory. In `stage_provider.go`, pass `p.cfg.WorkDir` as the worktree path. The manifest should still be written to evidenceDir. Update `WriteScenarioTestsStageConfig.WorkDir` to hold the actual code directory. Update all call sites (including tests) to pass the new parameter. Addresses: review:spec_alignment:error on write_scenario_tests.go:104.",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [
+      "internal/next/specloop/stages/write_scenario_tests.go",
+      "internal/next/specloop/stages/write_scenario_tests_test.go",
+      "cmd/gromit-next/stage_provider.go"
+    ],
+    "proof_checks": [
+      "grep -q 'WorkDir' internal/next/specloop/stages/write_scenario_tests.go",
+      "grep -q 'p.cfg.WorkDir' cmd/gromit-next/stage_provider.go",
+      "grep -qv 'WorkDir:.*evidenceDir' internal/next/specloop/stages/write_scenario_tests.go",
+      "grep -q 'workDir' internal/next/specloop/stages/write_scenario_tests_test.go",
+      "go vet ./internal/next/specloop/stages/ ./cmd/gromit-next/",
+      "go test ./internal/next/specloop/stages/ -count=1 -run TestWriteScenarioTests"
+    ],
+    "files_changed": [
+      "cmd/gromit-next/stage_provider.go",
+      "internal/next/specloop/stages/write_scenario_tests.go",
+      "internal/next/specloop/stages/write_scenario_tests_test.go"
+    ],
+    "tokens_used": 9195,
+    "duration_ms": 99164,
+    "model_tier": "",
+    "cycle": 8,
+    "kind": "fix",
+    "parent_cycle": 7,
+    "failures_addressed": [
+      "review:spec_alignment:error:internal/next/specloop/stages/write_scenario_tests.go:104 — WorkDir set to evidenceDir instead of worktree path"
+    ]
+  },
+  {
+    "task_id": "t-054",
+    "objective": "Add ScenarioTestsWritten and FailureHistory fields to RunState in internal/next/runstore/types.go. Add ScenarioTestsWritten (bool, json:\"scenario_tests_written\") and FailureHistory (map[string]int, json:\"failure_history,omitempty\") to the RunState struct. Update NormalizeNilFields to initialize FailureHistory to empty map if nil. Do NOT add ScenarioTestsWritten or FailureHistory to ResetForNewCycle in store.go — both persist across replan cycles. Addresses: contract failures referencing missing ScenarioTestsWritten and FailureHistory in runstore/types.go.",
+    "status": "pending",
+    "attempts": 0,
+    "expected_touched_area": [
+      "internal/next/runstore/types.go",
+      "internal/next/runstore/store.go"
+    ],
+    "proof_checks": [
+      "grep -q 'ScenarioTestsWritten' internal/next/runstore/types.go",
+      "grep -q 'FailureHistory' internal/next/runstore/types.go",
+      "grep -q 'scenario_tests_written' internal/next/runstore/types.go",
+      "grep -q 'failure_history' internal/next/runstore/types.go",
+      "go vet ./internal/next/runstore/..."
+    ],
+    "files_changed": [],
+    "tokens_used": 0,
+    "duration_ms": 0,
+    "model_tier": "",
+    "cycle": 2,
+    "kind": "fix",
+    "parent_cycle": 1,
+    "failures_addressed": [
+      "contract:Happy path — scenario tests pass — file_contains failed: cannot read \"internal/next/runstore/types.go\"",
+      "contract:Scenario test fails, triggers replan — file_contains failed: cannot read \"internal/next/runstore/types.go\"",
+      "contract:Persistent failures trigger diagnostic hint — file_contains failed: cannot read \"internal/next/runstore/types.go\""
+    ]
+  },
+  {
+    "task_id": "t-055",
+    "objective": "Add scenario test event types to internal/next/runstore/events.go. Add three event types: ScenarioTestWrittenEvent (type: \"scenario_tests_written\", ScenarioName string, TestFile string), ScenarioTestsCompleteEvent (type: \"scenario_tests_complete\", ScenarioCount int), ScenarioTestsBlockedEvent (type: \"scenario_tests_blocked\", Reason string). Register all three in the unmarshalEvent switch. Addresses: event emission requirements from multiple contract scenarios.",
+    "status": "pending",
+    "attempts": 0,
+    "expected_touched_area": [
+      "internal/next/runstore/events.go"
+    ],
+    "proof_checks": [
+      "grep -q 'ScenarioTestWrittenEvent' internal/next/runstore/events.go",
+      "grep -q 'ScenarioTestsCompleteEvent' internal/next/runstore/events.go",
+      "grep -q 'ScenarioTestsBlockedEvent' internal/next/runstore/events.go",
+      "grep -q 'scenario_tests_written' internal/next/runstore/events.go",
+      "grep -q 'scenario_tests_complete' internal/next/runstore/events.go",
+      "grep -q 'scenario_tests_blocked' internal/next/runstore/events.go",
+      "go vet ./internal/next/runstore/..."
+    ],
+    "files_changed": [],
+    "tokens_used": 0,
+    "duration_ms": 0,
+    "model_tier": "",
+    "cycle": 2,
+    "kind": "fix",
+    "parent_cycle": 1,
+    "failures_addressed": [
+      "contract:Happy path — scenario tests pass — file_contains failed: cannot read \"internal/next/specloop/stages/write_scenario_tests.go\""
+    ]
+  },
+  {
+    "task_id": "t-056",
+    "objective": "Create the ScenarioTestWriter interface and WriteScenarioTestsStage in internal/next/specloop/stages/write_scenario_tests.go. This is the core implementation file. Define: (1) ScenarioTestWriter interface with WriteScenarioTest(ctx, scenario SpecScenario, implFiles []string, workDir string, compileErrors string) (testFilePath string, err error). (2) ScenarioTestManifest struct with Scenarios []ScenarioTestEntry (json serializable) where ScenarioTestEntry has Name and TestFile fields. (3) WriteScenarioTestsStageConfig struct with SpecPath, EvidenceDir, Store, WorkDir fields. (4) WriteScenarioTestsStage struct with writer, cfg, budget, eventLog fields. (5) NewWriteScenarioTestsStage constructor. (6) Name() returns \"write_scenario_tests\". (7) Run() method implementing: idempotency check (rs.ScenarioTestsWritten → Continue), parse scenarios from spec, no-op on empty scenarios, collect implFiles from rs.Tasks with Status==\"done\" (deduplicated union of FilesChanged), load partial manifest from EvidenceDir if exists, for each scenario: check if already in manifest and file exists and compiles → skip; otherwise budget check, call writer.WriteScenarioTest with empty compileErrors, check compilation via 'go test -c -o /dev/null ./\u003cpackage-path\u003e', on failure retry up to 2 times with compile errors, on terminal failure return Blocked and emit scenario_tests_blocked event, on success update manifest incrementally and emit scenario_tests_written event. After all scenarios: set rs.ScenarioTestsWritten=true, emit scenario_tests_complete event, return Continue. Compilation check uses exec.Command(\"go\", \"test\", \"-c\", \"-o\", \"/dev/null\", \"./\"+packagePath) with workDir. Package path derived from filepath.Dir of testFilePath relative to workDir. Addresses: ALL contract failures about missing write_scenario_tests.go.",
+    "status": "pending",
+    "attempts": 0,
+    "expected_touched_area": [
+      "internal/next/specloop/stages/write_scenario_tests.go"
+    ],
+    "proof_checks": [
+      "test -f internal/next/specloop/stages/write_scenario_tests.go",
+      "grep -q 'ScenarioTestWriter' internal/next/specloop/stages/write_scenario_tests.go",
+      "grep -q 'WriteScenarioTestsStage' internal/next/specloop/stages/write_scenario_tests.go",
+      "grep -q 'write_scenario_tests' internal/next/specloop/stages/write_scenario_tests.go",
+      "grep -q 'ScenarioTestsWritten' internal/next/specloop/stages/write_scenario_tests.go",
+      "grep -q 'scenario-test-manifest.json' internal/next/specloop/stages/write_scenario_tests.go",
+      "grep -q 'go test -c' internal/next/specloop/stages/write_scenario_tests.go",
+      "grep -q 'budget' internal/next/specloop/stages/write_scenario_tests.go",
+      "grep -q 'compileErrors' internal/next/specloop/stages/write_scenario_tests.go",
+      "grep -q 'scenario_tests_written' internal/next/specloop/stages/write_scenario_tests.go",
+      "grep -q 'scenario_tests_complete' internal/next/specloop/stages/write_scenario_tests.go",
+      "grep -q 'scenario_tests_blocked' internal/next/specloop/stages/write_scenario_tests.go",
+      "go vet ./internal/next/specloop/stages/..."
+    ],
+    "files_changed": [],
+    "tokens_used": 0,
+    "duration_ms": 0,
+    "model_tier": "",
+    "cycle": 2,
+    "kind": "fix",
+    "parent_cycle": 1,
+    "failures_addressed": [
+      "contract:Happy path — scenario tests pass — file_exists failed: file \"internal/next/specloop/stages/write_scenario_tests.go\" does not exist",
+      "contract:Happy path — scenario tests pass — file_contains failed: cannot read \"internal/next/specloop/stages/write_scenario_tests.go\"",
+      "contract:Scenario test doesn't compile, self-repair succeeds — file_contains failed: cannot read \"internal/next/specloop/stages/write_scenario_tests.go\"",
+      "contract:Scenario test doesn't compile, self-repair fails — file_contains failed: cannot read \"internal/next/specloop/stages/write_scenario_tests.go\"",
+      "contract:Replan preserves scenario tests — file_contains failed: cannot read \"internal/next/specloop/stages/write_scenario_tests.go\"",
+      "contract:WriteScenarioTests re-runs after partial failure — file_contains failed: cannot read \"internal/next/specloop/stages/write_scenario_tests.go\"",
+      "contract:Budget exhausted during scenario test writing — file_contains failed: cannot read \"internal/next/specloop/stages/write_scenario_tests.go\"",
+      "contract:Scenario test manifest is recorded — file_contains failed: cannot read \"internal/next/specloop/stages/write_scenario_tests.go\"",
+      "contract:Two scenarios testing the same package get separate files — file_contains failed: cannot read \"internal/next/specloop/stages/write_scenario_tests.go\""
+    ]
+  },
+  {
+    "task_id": "t-057",
+    "objective": "Add FailureHistory helper functions to internal/next/specloop/specloop.go. Add exported helper functions for persistent failure tracking: (1) ExtractTestFailureKeys(output string) []string — extracts test function names from '--- FAIL: TestName' lines in go test output. (2) ExtractContractFailureKeys(failures []string) []string — extracts 'contract:\u003cname\u003e' keys by splitting on ' — ' and taking first segment. (3) UpdateFailureHistory(history map[string]int, currentKeys []string) map[string]int — increments count for keys present, resets to zero for keys not present, returns updated map. (4) AnnotateWithPersistentHints(failures []string, history map[string]int, threshold int) []string — for any failure whose key has history[key] \u003e= threshold, appends 'persistent-failure: \u003ckey\u003e has failed N consecutive cycles — may indicate a bad test specification rather than an implementation bug'. Call UpdateFailureHistory and AnnotateWithPersistentHints in the replan handler block (after replanContext is set but before emitting replan event), using rs.FailureHistory. Addresses: contract failures about missing FailureHistory logic in specloop.go.",
+    "status": "pending",
+    "attempts": 0,
+    "expected_touched_area": [
+      "internal/next/specloop/specloop.go"
+    ],
+    "proof_checks": [
+      "grep -q 'ExtractTestFailureKeys' internal/next/specloop/specloop.go",
+      "grep -q 'ExtractContractFailureKeys' internal/next/specloop/specloop.go",
+      "grep -q 'UpdateFailureHistory' internal/next/specloop/specloop.go",
+      "grep -q 'AnnotateWithPersistentHints' internal/next/specloop/specloop.go",
+      "grep -q 'FailureHistory' internal/next/specloop/specloop.go",
+      "grep -q 'persistent-failure' internal/next/specloop/specloop.go",
+      "go vet ./internal/next/specloop/..."
+    ],
+    "files_changed": [],
+    "tokens_used": 0,
+    "duration_ms": 0,
+    "model_tier": "",
+    "cycle": 2,
+    "kind": "fix",
+    "parent_cycle": 1,
+    "failures_addressed": [
+      "contract:Scenario test fails, triggers replan — file_contains failed: cannot read \"internal/next/specloop/specloop.go\"",
+      "contract:Persistent failures trigger diagnostic hint — file_contains failed: cannot read \"internal/next/specloop/specloop.go\""
+    ]
+  },
+  {
+    "task_id": "t-058",
+    "objective": "Wire WriteScenarioTestsStage into BuildStages in cmd/gromit-next/stage_provider.go. (1) Add noopScenarioTestWriter struct that implements ScenarioTestWriter (returns empty string and nil error). (2) In the claudeProvider != nil block, create an LLM adapter for scenario test writing using policy.Models.Planner tier (P1/Sonnet), and instantiate a real ScenarioTestWriter. (3) In the fallback block, use noopScenarioTestWriter. (4) Create writeScenarioTestsStage using NewWriteScenarioTestsStage with config including WorkDir (resolved from rs.WorktreePath or p.cfg.WorkDir), SpecPath, EvidenceDir, Store. (5) Insert writeScenarioTestsStage into the returned stages slice after executeStage and before validateStage: [...writeContractsStage, executeStage, writeScenarioTestsStage, validateStage...]. Addresses: contract failures about missing stage wiring in stage_provider.go.",
+    "status": "pending",
+    "attempts": 0,
+    "expected_touched_area": [
+      "cmd/gromit-next/stage_provider.go"
+    ],
+    "proof_checks": [
+      "grep -q 'writeScenarioTestsStage' cmd/gromit-next/stage_provider.go",
+      "grep -q 'noopScenarioTestWriter' cmd/gromit-next/stage_provider.go",
+      "grep -q 'WriteScenarioTestsStage' cmd/gromit-next/stage_provider.go",
+      "go vet ./cmd/gromit-next/..."
+    ],
+    "files_changed": [],
+    "tokens_used": 0,
+    "duration_ms": 0,
+    "model_tier": "",
+    "cycle": 2,
+    "kind": "fix",
+    "parent_cycle": 1,
+    "failures_addressed": [
+      "contract:Happy path — scenario tests pass — file_contains failed: cannot read \"cmd/gromit-next/stage_provider.go\""
+    ]
+  },
+  {
+    "task_id": "t-059",
+    "objective": "Create LLM adapter for ScenarioTestWriter interface. Create internal/next/contract/scenario_test_writer.go with: (1) LLMScenarioTestWriter struct implementing stages.ScenarioTestWriter, holding an llmadapter.Invoker. (2) NewLLMScenarioTestWriter constructor. (3) WriteScenarioTest method that builds a prompt from the scenario (Given/When/Then), implementation file paths, and compile errors (if retrying), invokes the LLM, and writes the returned test code to the workDir. The prompt should instruct the LLM to follow Seed/Invoke/Assert pattern, write a single test function per scenario, and place the test in the same package as the code under test. Returns the test file path. Addresses: wiring the real LLM adapter in stage_provider.go for scenario test writing.",
+    "status": "pending",
+    "attempts": 0,
+    "expected_touched_area": [
+      "internal/next/contract/scenario_test_writer.go"
+    ],
+    "proof_checks": [
+      "grep -q 'LLMScenarioTestWriter' internal/next/contract/scenario_test_writer.go",
+      "grep -q 'WriteScenarioTest' internal/next/contract/scenario_test_writer.go",
+      "grep -q 'ScenarioTestWriter' internal/next/contract/scenario_test_writer.go",
+      "go vet ./internal/next/contract/..."
+    ],
+    "files_changed": [],
+    "tokens_used": 0,
+    "duration_ms": 0,
+    "model_tier": "",
+    "cycle": 2,
+    "kind": "fix",
+    "parent_cycle": 1,
+    "failures_addressed": [
+      "contract:Happy path — scenario tests pass — file_contains failed: cannot read \"internal/next/specloop/stages/write_scenario_tests.go\""
+    ]
+  },
+  {
+    "task_id": "t-060",
+    "objective": "Write unit tests for WriteScenarioTestsStage in internal/next/specloop/stages/write_scenario_tests_test.go. Tests should use a mock ScenarioTestWriter implementation. Cover: (1) TestWriteScenarioTests_Idempotency — ScenarioTestsWritten=true returns Continue without calling writer. (2) TestWriteScenarioTests_EmptyScenarios — spec with no scenarios returns Continue. (3) TestWriteScenarioTests_HappyPath — 2 scenarios, writer returns valid paths, compilation succeeds, manifest written, flag set. (4) TestWriteScenarioTests_CompileFailureSelfRepair — first call fails compilation, second succeeds. (5) TestWriteScenarioTests_CompileFailureBlocked — all 3 attempts fail, returns Blocked, flag NOT set. (6) TestWriteScenarioTests_BudgetExhausted — budget exceeded between scenarios returns Blocked. (7) TestWriteScenarioTests_PartialManifestResume — manifest exists with scenario 1 done, only scenario 2 is written. Also write unit tests for FailureHistory helpers in internal/next/specloop/failure_history_test.go: TestExtractTestFailureKeys, TestExtractContractFailureKeys, TestUpdateFailureHistory, TestAnnotateWithPersistentHints. Addresses: always-run test failures (tests must compile and pass).",
+    "status": "pending",
+    "attempts": 0,
+    "expected_touched_area": [
+      "internal/next/specloop/stages/write_scenario_tests_test.go",
+      "internal/next/specloop/failure_history_test.go"
+    ],
+    "proof_checks": [
+      "grep -q 'TestWriteScenarioTests_Idempotency' internal/next/specloop/stages/write_scenario_tests_test.go",
+      "grep -q 'TestWriteScenarioTests_HappyPath' internal/next/specloop/stages/write_scenario_tests_test.go",
+      "grep -q 'TestWriteScenarioTests_CompileFailureSelfRepair' internal/next/specloop/stages/write_scenario_tests_test.go",
+      "grep -q 'TestWriteScenarioTests_CompileFailureBlocked' internal/next/specloop/stages/write_scenario_tests_test.go",
+      "grep -q 'TestWriteScenarioTests_BudgetExhausted' internal/next/specloop/stages/write_scenario_tests_test.go",
+      "grep -q 'TestExtractTestFailureKeys' internal/next/specloop/failure_history_test.go",
+      "grep -q 'TestUpdateFailureHistory' internal/next/specloop/failure_history_test.go",
+      "grep -q 'TestAnnotateWithPersistentHints' internal/next/specloop/failure_history_test.go",
+      "go test ./internal/next/specloop/stages/ -run TestWriteScenarioTests -count=1",
+      "go test ./internal/next/specloop/ -run 'TestExtract|TestUpdate|TestAnnotate' -count=1"
+    ],
+    "files_changed": [],
+    "tokens_used": 0,
+    "duration_ms": 0,
+    "model_tier": "",
+    "cycle": 2,
+    "kind": "fix",
+    "parent_cycle": 1,
+    "failures_addressed": [
+      "always-run check \"unit-tests\" failed: # ./...\npattern ./...: directory prefix . does not contain main module or its selected dependencies\nFAIL\t./... [setup failed]\nFAIL",
+      "always-run check \"vet\" failed: pattern ./...: directory prefix . does not contain main module or its selected dependencies"
+    ]
+  }
+]

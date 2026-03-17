@@ -69,6 +69,7 @@ cmd/gromit/.gromit/benchmarks/results/
 .beads/*.launchd.out.log
 .beads/remotes/
 .worktrees/
+.gromit-next/worktrees/
 
 # Fixture repos (nested git repos for testing)
 test/fixture-repos/

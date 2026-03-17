@@ -1,0 +1,120 @@
+scenarios:
+    - name: Happy path — scenario tests pass
+      assertions:
+        - file_exists: internal/next/specloop/stages/write_scenario_tests.go
+        - file_contains:
+            path: internal/next/specloop/stages/write_scenario_tests.go
+            pattern: ScenarioTestWriter
+        - file_contains:
+            path: internal/next/specloop/stages/write_scenario_tests.go
+            pattern: scenario-test-manifest.json
+        - file_contains:
+            path: internal/next/specloop/stages/write_scenario_tests.go
+            pattern: scenario_tests_written
+        - file_contains:
+            path: internal/next/specloop/stages/write_scenario_tests.go
+            pattern: scenario_tests_complete
+        - file_contains:
+            path: internal/next/runstore/types.go
+            pattern: ScenarioTestsWritten
+        - file_contains:
+            path: cmd/gromit-next/stage_provider.go
+            pattern: writeScenarioTestsStage
+    - name: Scenario test fails, triggers replan
+      assertions:
+        - file_contains:
+            path: internal/next/specloop/specloop.go
+            pattern: FailureHistory
+        - file_contains:
+            path: internal/next/runstore/types.go
+            pattern: FailureHistory
+        - file_contains:
+            path: internal/next/runstore/types.go
+            pattern: failure_history
+    - name: Scenario test doesn't compile, self-repair succeeds
+      assertions:
+        - file_contains:
+            path: internal/next/specloop/stages/write_scenario_tests.go
+            pattern: compileErrors
+        - file_contains:
+            path: internal/next/specloop/stages/write_scenario_tests.go
+            pattern: go test -c
+    - name: Scenario test doesn't compile, self-repair fails
+      assertions:
+        - file_contains:
+            path: internal/next/specloop/stages/write_scenario_tests.go
+            pattern: Blocked
+        - file_contains:
+            path: internal/next/specloop/stages/write_scenario_tests.go
+            pattern: scenario_tests_blocked
+        - file_contains:
+            path: internal/next/specloop/stages/write_scenario_tests.go
+            pattern: ScenarioTestsWritten
+    - name: Replan preserves scenario tests
+      assertions:
+        - file_contains:
+            path: internal/next/specloop/stages/write_scenario_tests.go
+            pattern: ScenarioTestsWritten
+        - file_contains:
+            path: internal/next/specloop/stages/write_scenario_tests.go
+            pattern: Continue
+        - file_not_contains:
+            path: internal/next/specloop/specloop.go
+            pattern: ScenarioTestsWritten
+    - name: WriteScenarioTests re-runs after partial failure
+      assertions:
+        - file_contains:
+            path: internal/next/specloop/stages/write_scenario_tests.go
+            pattern: scenario-test-manifest.json
+        - file_contains:
+            path: internal/next/specloop/stages/write_scenario_tests.go
+            pattern: go test -c
+    - name: Budget exhausted during scenario test writing
+      assertions:
+        - file_contains:
+            path: internal/next/specloop/stages/write_scenario_tests.go
+            pattern: budget
+        - file_contains:
+            path: internal/next/specloop/stages/write_scenario_tests.go
+            pattern: Blocked
+    - name: Persistent failures trigger diagnostic hint
+      assertions:
+        - file_contains:
+            path: internal/next/specloop/specloop.go
+            pattern: persistent-failure
+        - file_contains:
+            path: internal/next/specloop/specloop.go
+            pattern: consecutive cycles
+        - file_contains:
+            path: internal/next/specloop/specloop.go
+            pattern: bad test specification
+        - file_contains:
+            path: internal/next/runstore/types.go
+            pattern: FailureHistory map[string]int
+    - name: Scenario test manifest is recorded
+      assertions:
+        - file_contains:
+            path: internal/next/specloop/stages/write_scenario_tests.go
+            pattern: scenario-test-manifest.json
+        - file_contains:
+            path: internal/next/specloop/stages/write_scenario_tests.go
+            pattern: scenarios
+        - file_contains:
+            path: internal/next/specloop/stages/write_scenario_tests.go
+            pattern: test_file
+    - name: WriteContracts blocked but WriteScenarioTests succeeds (illustrative)
+      assertions:
+        - file_not_contains:
+            path: internal/next/specloop/stages/write_scenario_tests.go
+            pattern: scenario-contracts.yaml
+        - file_not_contains:
+            path: internal/next/specloop/stages/write_scenario_tests.go
+            pattern: ContractsWritten
+    - name: Two scenarios testing the same package get separate files
+      assertions:
+        - file_contains:
+            path: internal/next/specloop/stages/write_scenario_tests.go
+            pattern: go test -c
+        - file_contains:
+            path: internal/next/specloop/stages/write_scenario_tests.go
+            pattern: scenario-test-manifest.json
