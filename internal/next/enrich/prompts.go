@@ -2,6 +2,8 @@ package enrich
 
 import (
 	"fmt"
+	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/danabrams/gromit/internal/next/fact"
@@ -64,11 +66,33 @@ func buildPrompt(category EnrichmentCategory, observed []fact.Fact, input Enrich
 	}
 	fmt.Fprintf(&b, "## Task: %s\n\n%s\n\n", category, desc)
 
-	// File tree context
+	// File tree context — summarize by directory for large repos
 	if len(input.FileTree) > 0 {
 		fmt.Fprintf(&b, "## File Tree\n\n")
-		for _, f := range input.FileTree {
-			fmt.Fprintf(&b, "- %s\n", f)
+		if len(input.FileTree) <= 200 {
+			// Small enough to list every file
+			for _, f := range input.FileTree {
+				fmt.Fprintf(&b, "- %s\n", f)
+			}
+		} else {
+			// Summarize: count files per directory
+			dirCounts := make(map[string]int)
+			for _, f := range input.FileTree {
+				dir := filepath.Dir(f)
+				if dir == "." {
+					dir = "(root)"
+				}
+				dirCounts[dir]++
+			}
+			dirs := make([]string, 0, len(dirCounts))
+			for d := range dirCounts {
+				dirs = append(dirs, d)
+			}
+			sort.Strings(dirs)
+			fmt.Fprintf(&b, "(%d files across %d directories)\n\n", len(input.FileTree), len(dirs))
+			for _, d := range dirs {
+				fmt.Fprintf(&b, "- %s/ (%d files)\n", d, dirCounts[d])
+			}
 		}
 		fmt.Fprintln(&b)
 	}
