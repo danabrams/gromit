@@ -172,6 +172,9 @@ func (s *WriteContractsStage) Run(ctx context.Context, rs *runstore.RunState) (s
 	if err != nil {
 		return specloop.NextAction{}, fmt.Errorf("marshal contracts: %w", err)
 	}
+	if err := os.MkdirAll(s.cfg.EvidenceDir, 0o755); err != nil {
+		return specloop.NextAction{}, fmt.Errorf("create evidence dir: %w", err)
+	}
 	contractPath := filepath.Join(s.cfg.EvidenceDir, "scenario-contracts.yaml")
 	if err := os.WriteFile(contractPath, contractBytes, 0o644); err != nil {
 		return specloop.NextAction{}, fmt.Errorf("write contracts file: %w", err)
