@@ -43,6 +43,7 @@ type RunState struct {
 	AcceptanceResults     []string               `json:"acceptance_results,omitempty"`
 	TotalReplans          int                    `json:"total_replans"`
 	SpecConstraints       string                 `json:"spec_constraints,omitempty"`
+	Resumed               bool                   `json:"resumed,omitempty"`
 }
 
 // See CLAUDE.md nil-field normalization visibility convention:

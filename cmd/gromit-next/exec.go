@@ -71,8 +71,8 @@ func filterStagesForDryRun(stages []specloop.Stage, dryRun bool) []specloop.Stag
 
 // filterStagesForResume removes stages that are unnecessary when resuming
 // a prior run. Init is skipped if a worktree already exists, compile is
-// always skipped (spec packet was written in the prior run). Plan is kept
-// because replan cycles need it.
+// always skipped. Plan is kept in the list (specloop needs it for replan
+// jumps) but will no-op when tasks exist and it's not a fix cycle.
 func filterStagesForResume(stages []specloop.Stage, rs *runstore.RunState) []specloop.Stage {
 	var filtered []specloop.Stage
 	for _, s := range stages {
@@ -142,6 +142,8 @@ func (e *execSpecRun) run(ctx context.Context) (string, error) {
 		if err != nil {
 			return "", fmt.Errorf("load run for resume: %w", err)
 		}
+		// Mark as resumed so stages can skip redundant work
+		rs.Resumed = true
 		// Reset terminal state so the pipeline can re-run
 		rs.Status = runstore.StatusRunning
 		rs.TerminalReason = ""

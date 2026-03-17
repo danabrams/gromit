@@ -59,7 +59,7 @@ func TestFilterStagesForResume(t *testing.T) {
 		}
 	})
 
-	t.Run("keeps plan for replan cycles", func(t *testing.T) {
+	t.Run("keeps plan in stage list for replan jumps", func(t *testing.T) {
 		rs := &runstore.RunState{
 			Tasks: []runstore.Task{{TaskID: "t1", Status: "done"}},
 		}
@@ -71,7 +71,7 @@ func TestFilterStagesForResume(t *testing.T) {
 			}
 		}
 		if !found {
-			t.Fatal("plan should be kept on resume for replan cycles")
+			t.Fatal("plan should be kept in stage list (it no-ops when tasks exist and no replan context)")
 		}
 	})
 
@@ -193,7 +193,7 @@ func TestExecSpec_ResumeSkipsInitCompile(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	// init and compile should be skipped; plan, execute, validate should run
+	// init and compile should be skipped
 	for _, skipped := range []string{"init", "compile"} {
 		for _, ran := range order {
 			if ran == skipped {
@@ -202,6 +202,7 @@ func TestExecSpec_ResumeSkipsInitCompile(t *testing.T) {
 		}
 	}
 
+	// plan, execute, validate should run (plan no-ops when tasks exist)
 	want := []string{"plan", "execute", "validate"}
 	if len(order) != len(want) {
 		t.Fatalf("expected %d stages, got %d: %v", len(want), len(order), order)
