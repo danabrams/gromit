@@ -1,0 +1,18 @@
+{
+  "run_id": "run-497aa3b0518c4638",
+  "spec_id": "0003a-infrastructure-failure-detection",
+  "project_id": "gromit",
+  "status": "blocked",
+  "cycle": 1,
+  "started_at": "2026-03-17T16:54:59.105711-04:00",
+  "ended_at": "2026-03-17T17:02:25.866329-04:00",
+  "tasks": [],
+  "blocker_summary": "create plan: plan generation failed after 2 attempts: no JSON found in agent output",
+  "accumulated_cost": 0,
+  "final_validation_passed": false,
+  "final_review_passed": false,
+  "final_acceptance_passed": false,
+  "total_replans": 0,
+  "contracts_written": false,
+  "scenario_tests_written": false
+}

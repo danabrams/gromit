@@ -899,6 +899,20 @@ func TestWriteScenarioTests_IndependentOfContractArtifacts(t *testing.T) {
 
 func TestWriteScenarioTests_ParseErrorRetried(t *testing.T) {
 	// Parse error on attempt 0 is treated as retryable; attempt 1 succeeds.
+	// Use the actual project directory as WorkDir so that compilation works.
+	currentDir := os.Getenv("PWD")
+	if currentDir == "" {
+		currentDir = "."
+	}
+
+	testDataDir := filepath.Join(currentDir, "internal/next/specloop/stages/testdata/parse-retry")
+	if err := os.MkdirAll(testDataDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		os.RemoveAll(testDataDir)
+	})
+
 	tmp := t.TempDir()
 	rs := makeWriteScenarioTestsRunState(t)
 
@@ -907,19 +921,15 @@ func TestWriteScenarioTests_ParseErrorRetried(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	evidenceDir := filepath.Join(tmp, "evidence")
-	if err := os.MkdirAll(evidenceDir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-
+	evidenceDir := testDataDir
 	testFile1 := filepath.Join(evidenceDir, "scenario_one_test.go")
 	testFile2 := filepath.Join(evidenceDir, "scenario_two_test.go")
 
 	parseErr := fmt.Errorf("parse scenario test response: response missing ===TEST_FILE_PATH=== marker")
 
 	writer := &fakeScenarioTestWriter{
-		failAttempt: 0,
-		failErr:     parseErr,
+		failAttempt:   0,
+		failErr:       parseErr,
 		returnedPaths: []string{testFile1, testFile2},
 		compilableScenarios: map[string]bool{
 			"scenario-one": true,
@@ -930,7 +940,7 @@ func TestWriteScenarioTests_ParseErrorRetried(t *testing.T) {
 	cfg := WriteScenarioTestsStageConfig{
 		SpecPath:    specPath,
 		EvidenceDir: evidenceDir,
-		WorkDir:     tmp,
+		WorkDir:     currentDir,
 	}
 	stage := NewWriteScenarioTestsStage(writer, cfg, nil, nil)
 

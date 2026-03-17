@@ -1538,7 +1538,6 @@
       ]
     }
   ],
-  "worktree_path": "/var/folders/qd/qyx62km142b7lpv0868gpwgw0000gn/T/gromit-wt-2457856116",
   "blocker_summary": "review diff: git add -A: fatal: not a git repository (or any of the parent directories): .git\n: exit status 128",
   "accumulated_cost": 9.0468014,
   "final_validation_passed": true,

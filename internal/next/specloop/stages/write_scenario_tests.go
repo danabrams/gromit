@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/danabrams/gromit/internal/next/contract"
@@ -151,6 +152,13 @@ func (s *WriteScenarioTestsStage) Run(ctx context.Context, rs *runstore.RunState
 		for attempt := 0; attempt <= maxRetries; attempt++ {
 			testFilePath, writeErr = s.writer.WriteScenarioTest(ctx, scenario, implFiles, s.cfg.WorkDir, compileErrors)
 			if writeErr != nil {
+				errMsg := writeErr.Error()
+				// Parse errors are retryable — treat like compile errors so the LLM
+				// gets feedback about the format and can correct itself.
+				if strings.Contains(errMsg, "parse scenario test response:") && attempt < maxRetries {
+					compileErrors = "Prior format error (fix your output format):\n" + errMsg + "\n\n" + compileErrors
+					continue
+				}
 				blockedReason = fmt.Sprintf("scenario test writer error for %q: %v", scenario.Name, writeErr)
 				break
 			}
