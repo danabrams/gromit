@@ -440,6 +440,103 @@ func TestEvaluator_MultipleScenarios(t *testing.T) {
 	}
 }
 
+func TestEvaluator_FileContains_WhitespaceNormalized_Pass(t *testing.T) {
+	dir := t.TempDir()
+	// File has tab-separated fields (like gofmt output)
+	os.WriteFile(filepath.Join(dir, "types.go"), []byte("type State struct {\n\tScenarioTestsWritten\tbool\n}"), 0644)
+
+	ev := &DefaultContractEvaluator{}
+	contract := ScenarioContract{
+		Scenarios: []ScenarioAssertions{{
+			Name: "s",
+			Assertions: []ContractAssertion{
+				{FileContains: &FileContainsAssertion{Path: "types.go", Pattern: "ScenarioTestsWritten bool"}},
+			},
+		}},
+	}
+	failures, err := ev.Evaluate(context.Background(), &contract, dir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(failures) != 0 {
+		t.Errorf("expected no failures (whitespace-normalized match), got %v", failures)
+	}
+}
+
+func TestEvaluator_FileContains_WhitespaceNormalized_TabsAndSpaces(t *testing.T) {
+	dir := t.TempDir()
+	// File has mixed tabs and spaces
+	os.WriteFile(filepath.Join(dir, "mixed.go"), []byte("func  \t doThing(a \t\t int,  b   string)"), 0644)
+
+	ev := &DefaultContractEvaluator{}
+	contract := ScenarioContract{
+		Scenarios: []ScenarioAssertions{{
+			Name: "s",
+			Assertions: []ContractAssertion{
+				{FileContains: &FileContainsAssertion{Path: "mixed.go", Pattern: "doThing(a int, b string)"}},
+			},
+		}},
+	}
+	failures, err := ev.Evaluate(context.Background(), &contract, dir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(failures) != 0 {
+		t.Errorf("expected no failures (whitespace-normalized match with mixed tabs/spaces), got %v", failures)
+	}
+}
+
+func TestEvaluator_FileNotContains_WhitespaceNormalized_Fail(t *testing.T) {
+	dir := t.TempDir()
+	// File has tab-separated fields (like gofmt output)
+	os.WriteFile(filepath.Join(dir, "types.go"), []byte("type State struct {\n\tScenarioTestsWritten\tbool\n}"), 0644)
+
+	ev := &DefaultContractEvaluator{}
+	contract := ScenarioContract{
+		Scenarios: []ScenarioAssertions{{
+			Name: "s",
+			Assertions: []ContractAssertion{
+				{FileNotContains: &FileContainsAssertion{Path: "types.go", Pattern: "ScenarioTestsWritten bool"}},
+			},
+		}},
+	}
+	failures, err := ev.Evaluate(context.Background(), &contract, dir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(failures) != 1 {
+		t.Fatalf("expected 1 failure (whitespace-normalized match should detect pattern), got %d: %v", len(failures), failures)
+	}
+	if failures[0].AssertionType != "file_not_contains" {
+		t.Errorf("wrong assertion type: %s", failures[0].AssertionType)
+	}
+}
+
+func TestEvaluator_FileContains_WhitespaceNormalized_StillFailsWhenAbsent(t *testing.T) {
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "types.go"), []byte("type State struct {\n\tFooBar\tint\n}"), 0644)
+
+	ev := &DefaultContractEvaluator{}
+	contract := ScenarioContract{
+		Scenarios: []ScenarioAssertions{{
+			Name: "s",
+			Assertions: []ContractAssertion{
+				{FileContains: &FileContainsAssertion{Path: "types.go", Pattern: "BazQux string"}},
+			},
+		}},
+	}
+	failures, err := ev.Evaluate(context.Background(), &contract, dir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(failures) != 1 {
+		t.Fatalf("expected 1 failure (pattern truly absent), got %d: %v", len(failures), failures)
+	}
+	if failures[0].AssertionType != "file_contains" {
+		t.Errorf("wrong assertion type: %s", failures[0].AssertionType)
+	}
+}
+
 func TestEvaluator_ZeroValueAssertion(t *testing.T) {
 	dir := t.TempDir()
 	ev := &DefaultContractEvaluator{}

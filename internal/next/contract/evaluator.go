@@ -7,8 +7,19 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 )
+
+var wsRun = regexp.MustCompile(`\s+`)
+
+// containsNormalized collapses all runs of whitespace in both content and
+// pattern to a single space, then checks strings.Contains.
+func containsNormalized(content, pattern string) bool {
+	normContent := wsRun.ReplaceAllString(content, " ")
+	normPattern := wsRun.ReplaceAllString(pattern, " ")
+	return strings.Contains(normContent, normPattern)
+}
 
 // ContractEvaluator abstracts contract assertion evaluation for testability.
 type ContractEvaluator interface {
@@ -68,7 +79,7 @@ func (e *DefaultContractEvaluator) check(scenarioName string, a ContractAssertio
 		if err != nil {
 			return fail("file_contains", fmt.Sprintf("cannot read %q: %v", a.FileContains.Path, err))
 		}
-		if !strings.Contains(string(content), a.FileContains.Pattern) {
+		if !strings.Contains(string(content), a.FileContains.Pattern) && !containsNormalized(string(content), a.FileContains.Pattern) {
 			return fail("file_contains", fmt.Sprintf("pattern %q not found in %q", a.FileContains.Pattern, a.FileContains.Path))
 		}
 
@@ -82,7 +93,7 @@ func (e *DefaultContractEvaluator) check(scenarioName string, a ContractAssertio
 			}
 			return fail("file_not_contains", fmt.Sprintf("cannot read %q: %v", a.FileNotContains.Path, err))
 		}
-		if strings.Contains(string(content), a.FileNotContains.Pattern) {
+		if strings.Contains(string(content), a.FileNotContains.Pattern) || containsNormalized(string(content), a.FileNotContains.Pattern) {
 			return fail("file_not_contains", fmt.Sprintf("pattern %q found in %q but should not be", a.FileNotContains.Pattern, a.FileNotContains.Path))
 		}
 
