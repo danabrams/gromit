@@ -19,10 +19,11 @@ type fileInfo struct {
 
 // skipDirs lists directory names that should be skipped during the walk.
 var skipDirs = map[string]bool{
-	".git":         true,
-	"node_modules": true,
-	"vendor":       true,
-	".worktrees":   true,
+	".git":          true,
+	".gromit-next":  true,
+	"node_modules":  true,
+	"vendor":        true,
+	".worktrees":    true,
 }
 
 // FileTreeExtractor walks a repository and emits one Observed fact per file.
@@ -91,6 +92,8 @@ func countLines(path string) (int, error) {
 
 	count := 0
 	scanner := bufio.NewScanner(f)
+	// Increase buffer to 1MB to handle files with long lines (e.g., minified JSON).
+	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
 	for scanner.Scan() {
 		count++
 	}
