@@ -107,8 +107,12 @@ func buildPrompt(category EnrichmentCategory, observed []fact.Fact, input Enrich
 		fmt.Fprintf(&b, "## Doctrine\n\n%s\n\n", input.Doctrine)
 	}
 
-	// Source map context
-	if input.SourceMap != "" {
+	// Source map context — only include when small enough to fit in prompt.
+	// The raw sourcemap JSON for large repos (thousands of entries) can exceed
+	// LLM context limits.  The file tree section already provides structural
+	// coverage, and observed facts carry per-file detail, so skipping the
+	// source map for large repos loses very little signal.
+	if input.SourceMap != "" && len(input.SourceMap) <= 50_000 {
 		fmt.Fprintf(&b, "## Source Map\n\n%s\n\n", input.SourceMap)
 	}
 
@@ -122,11 +126,18 @@ func buildPrompt(category EnrichmentCategory, observed []fact.Fact, input Enrich
 		fmt.Fprintf(&b, "## Validation Commands\n\n%s\n\n", input.Validation)
 	}
 
-	// Observed facts
+	// Observed facts — cap to avoid exceeding context limits.
 	if len(observed) > 0 {
 		fmt.Fprintf(&b, "## Observed Facts\n\n")
-		for _, f := range observed {
-			fmt.Fprintf(&b, "- [%s] %s (source: %s)\n", f.ID, f.Content, f.Source)
+		if len(observed) <= 500 {
+			for _, f := range observed {
+				fmt.Fprintf(&b, "- [%s] %s (source: %s)\n", f.ID, f.Content, f.Source)
+			}
+		} else {
+			fmt.Fprintf(&b, "(%d observed facts — showing first 500)\n\n", len(observed))
+			for _, f := range observed[:500] {
+				fmt.Fprintf(&b, "- [%s] %s (source: %s)\n", f.ID, f.Content, f.Source)
+			}
 		}
 		fmt.Fprintln(&b)
 	}
