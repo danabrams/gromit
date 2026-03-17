@@ -56,5 +56,52 @@ func extractJSON(raw string) string {
 		return trimmed
 	}
 
+	// Fallback: scan for first '{' and extract a balanced JSON object.
+	if obj := extractBalancedObject(raw); obj != "" {
+		return obj
+	}
+
+	return ""
+}
+
+// extractBalancedObject finds the first '{' in s and extracts a balanced JSON
+// object by counting braces, correctly skipping braces inside quoted strings.
+func extractBalancedObject(s string) string {
+	start := strings.IndexByte(s, '{')
+	if start < 0 {
+		return ""
+	}
+
+	depth := 0
+	inString := false
+	escaped := false
+
+	for i := start; i < len(s); i++ {
+		c := s[i]
+		if escaped {
+			escaped = false
+			continue
+		}
+		if c == '\\' && inString {
+			escaped = true
+			continue
+		}
+		if c == '"' {
+			inString = !inString
+			continue
+		}
+		if inString {
+			continue
+		}
+		if c == '{' {
+			depth++
+		} else if c == '}' {
+			depth--
+			if depth == 0 {
+				return s[start : i+1]
+			}
+		}
+	}
+
 	return ""
 }
