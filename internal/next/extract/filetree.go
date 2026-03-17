@@ -20,6 +20,7 @@ type fileInfo struct {
 // skipDirs lists directory names that should be skipped during the walk.
 var skipDirs = map[string]bool{
 	".git":          true,
+	".gromit":       true,
 	".gromit-next":  true,
 	"node_modules":  true,
 	"vendor":        true,
