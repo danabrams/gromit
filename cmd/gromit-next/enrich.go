@@ -246,7 +246,7 @@ func buildEnrichProvider(cfg enrich.Config) (provider.Provider, error) {
 	switch cfg.Provider {
 	case "claude":
 		defaultPolicy := execpolicy.DefaultPolicy()
-		client, err := claude.NewClient(defaultClaudeBinary, nil, defaultPolicy.Budgets.MaxTaskDurationSeconds)
+		client, err := claude.NewClient(defaultClaudeBinary, []string{"--dangerously-skip-permissions"}, defaultPolicy.Budgets.MaxTaskDurationSeconds)
 		if err != nil {
 			return nil, fmt.Errorf("create claude client: %w", err)
 		}
