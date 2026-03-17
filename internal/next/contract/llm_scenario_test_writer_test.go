@@ -220,3 +220,76 @@ Verify the expected outcomes using assertions.
 		t.Error("patterns content 'Assert' not found in prompt")
 	}
 }
+
+// TestParseScenarioTestResponse_StrictMarkers verifies existing strict parsing still works.
+func TestParseScenarioTestResponse_StrictMarkers(t *testing.T) {
+	response := "===TEST_FILE_PATH===\ninternal/pkg/foo_test.go\n===TEST_FILE_CONTENT===\npackage pkg\n===END_TEST_FILE==="
+	path, content, err := parseScenarioTestResponse(response)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if path != "internal/pkg/foo_test.go" {
+		t.Errorf("expected path %q, got %q", "internal/pkg/foo_test.go", path)
+	}
+	if content != "package pkg" {
+		t.Errorf("expected content %q, got %q", "package pkg", content)
+	}
+}
+
+// TestParseScenarioTestResponse_FenceWithPathBefore verifies fallback extracts path
+// from a line ending in .go immediately before the ```go fence.
+func TestParseScenarioTestResponse_FenceWithPathBefore(t *testing.T) {
+	response := "Here is the test file:\n\ninternal/pkg/foo_test.go\n```go\npackage pkg\n\nfunc TestFoo(t *testing.T) {}\n```\n"
+	path, content, err := parseScenarioTestResponse(response)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if path != "internal/pkg/foo_test.go" {
+		t.Errorf("expected path %q, got %q", "internal/pkg/foo_test.go", path)
+	}
+	if !strings.Contains(content, "package pkg") {
+		t.Errorf("expected content to contain 'package pkg', got %q", content)
+	}
+}
+
+// TestParseScenarioTestResponse_FenceWithPathComment verifies fallback extracts path
+// from a // path comment at the top of the ```go fence body.
+func TestParseScenarioTestResponse_FenceWithPathComment(t *testing.T) {
+	response := "```go\n// internal/pkg/foo_test.go\npackage pkg\n\nfunc TestFoo(t *testing.T) {}\n```\n"
+	path, content, err := parseScenarioTestResponse(response)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if path != "internal/pkg/foo_test.go" {
+		t.Errorf("expected path %q, got %q", "internal/pkg/foo_test.go", path)
+	}
+	if !strings.Contains(content, "package pkg") {
+		t.Errorf("expected content to contain 'package pkg', got %q", content)
+	}
+}
+
+// TestParseScenarioTestResponse_FenceNoPath verifies fallback returns the original
+// strict-parse error when no path can be found anywhere.
+func TestParseScenarioTestResponse_FenceNoPath(t *testing.T) {
+	response := "```go\npackage pkg\n\nfunc TestFoo(t *testing.T) {}\n```\n"
+	_, _, err := parseScenarioTestResponse(response)
+	if err == nil {
+		t.Fatal("expected error when no path found, got nil")
+	}
+	if !strings.Contains(err.Error(), "===TEST_FILE_PATH===") {
+		t.Errorf("expected original strict-parse error, got: %v", err)
+	}
+}
+
+// TestParseScenarioTestResponse_NoFenceNoMarkers verifies original error is returned
+// when neither markers nor a fence are present.
+func TestParseScenarioTestResponse_NoFenceNoMarkers(t *testing.T) {
+	response := "Here is some prose with no code block or markers."
+	_, _, err := parseScenarioTestResponse(response)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "===TEST_FILE_PATH===") {
+		t.Errorf("expected original strict-parse error, got: %v", err)
+	}
+}
