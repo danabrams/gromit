@@ -153,6 +153,10 @@ func (w *LLMScenarioTestWriter) buildPrompt(scenario SpecScenario, implFilesCont
 func parseScenarioTestResponse(response string) (string, string, error) {
 	pathStart := strings.Index(response, "===TEST_FILE_PATH===")
 	if pathStart == -1 {
+		// Strict parse failed — try fuzzy fallback before giving up.
+		if path, content, ok := parseFenceResponse(response); ok {
+			return path, content, nil
+		}
 		return "", "", fmt.Errorf("response missing ===TEST_FILE_PATH=== marker")
 	}
 
@@ -170,11 +174,9 @@ func parseScenarioTestResponse(response string) (string, string, error) {
 		return "", "", fmt.Errorf("invalid marker order in response")
 	}
 
-	// Extract test file path (between first and second marker).
 	pathContent := response[pathStart+len("===TEST_FILE_PATH===") : contentStart]
 	testFilePath := strings.TrimSpace(pathContent)
 
-	// Extract test file content (between second and third marker).
 	contentContent := response[contentStart+len("===TEST_FILE_CONTENT===") : endMarker]
 	testContent := strings.TrimSpace(contentContent)
 
@@ -186,4 +188,58 @@ func parseScenarioTestResponse(response string) (string, string, error) {
 	}
 
 	return testFilePath, testContent, nil
+}
+
+// parseFenceResponse attempts to extract a test file path and content from a markdown
+// ```go fence when the LLM did not use the === markers.
+//
+// Path extraction order:
+//  1. The line immediately before the ```go fence, if it ends in ".go"
+//  2. The first line of the fence body if it is a // comment ending in ".go"
+//
+// Returns ("", "", false) if no fence or no path is found.
+func parseFenceResponse(response string) (path, content string, ok bool) {
+	// Find the opening ```go fence.
+	fenceOpen := strings.Index(response, "```go")
+	if fenceOpen == -1 {
+		return "", "", false
+	}
+
+	// Find the closing ``` after the opening fence.
+	afterOpen := fenceOpen + len("```go")
+	fenceClose := strings.Index(response[afterOpen:], "```")
+	if fenceClose == -1 {
+		return "", "", false
+	}
+	fenceClose += afterOpen
+
+	// Extract fence body.
+	body := strings.TrimSpace(response[afterOpen:fenceClose])
+	if body == "" {
+		return "", "", false
+	}
+
+	// Strategy 1: look for a .go path on the line immediately before the fence.
+	beforeFence := strings.TrimRight(response[:fenceOpen], " \t\n\r")
+	if lastNewline := strings.LastIndex(beforeFence, "\n"); lastNewline >= 0 {
+		candidate := strings.TrimSpace(beforeFence[lastNewline+1:])
+		if strings.HasSuffix(candidate, ".go") {
+			return candidate, body, true
+		}
+	}
+
+	// Strategy 2: look for a // comment path at the top of the fence body.
+	firstLine := body
+	if nl := strings.Index(body, "\n"); nl >= 0 {
+		firstLine = body[:nl]
+		body = strings.TrimSpace(body[nl+1:])
+	}
+	if strings.HasPrefix(firstLine, "//") {
+		candidate := strings.TrimSpace(strings.TrimPrefix(firstLine, "//"))
+		if strings.HasSuffix(candidate, ".go") {
+			return candidate, body, true
+		}
+	}
+
+	return "", "", false
 }
