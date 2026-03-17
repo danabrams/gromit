@@ -4,11 +4,29 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/danabrams/gromit/internal/next/fact"
 	"github.com/danabrams/gromit/internal/provider"
 )
+
+// extractJSONArray finds the first JSON array in the string, handling prose
+// wrapping that LLMs commonly add around structured output.
+func extractJSONArray(s string) string {
+	// Try the raw string first.
+	s = strings.TrimSpace(s)
+	if len(s) > 0 && s[0] == '[' {
+		return s
+	}
+	// Look for first '[' and last ']'.
+	start := strings.Index(s, "[")
+	end := strings.LastIndex(s, "]")
+	if start >= 0 && end > start {
+		return s[start : end+1]
+	}
+	return s
+}
 
 // EnrichResult holds the output of a single category enrichment pass.
 type EnrichResult struct {
@@ -80,8 +98,10 @@ func (e *LLMEnricher) Enrich(ctx context.Context, category EnrichmentCategory, o
 		}, fmt.Errorf("provider run: %w", err)
 	}
 
+	// Extract JSON array from the response — Claude may wrap it in prose.
+	jsonStr := extractJSONArray(res.Output)
 	var raw []llmFact
-	if err := json.Unmarshal([]byte(res.Output), &raw); err != nil {
+	if err := json.Unmarshal([]byte(jsonStr), &raw); err != nil {
 		return EnrichResult{
 			Category:     category,
 			Success:      false,
