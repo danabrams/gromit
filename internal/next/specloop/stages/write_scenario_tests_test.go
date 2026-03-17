@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/next/contract"
@@ -17,7 +18,8 @@ import (
 // fakeScenarioTestWriter is a test double for the ScenarioTestWriter interface.
 type fakeScenarioTestWriter struct {
 	calls               int
-	failAttempt         int // -1 means never fail, N means fail on attempt N (0-indexed)
+	failAttempt         int   // -1 means never fail, N means fail on attempt N (0-indexed)
+	failErr             error // error to return on failAttempt; nil means use generic error
 	returnedPaths       []string
 	returnedPathIndex   int
 	compilableScenarios map[string]bool // scenarios that will compile
@@ -34,6 +36,9 @@ func (m *fakeScenarioTestWriter) WriteScenarioTest(
 
 	// Check if this attempt should fail
 	if m.failAttempt >= 0 && m.calls == m.failAttempt {
+		if m.failErr != nil {
+			return "", m.failErr
+		}
 		return "", fmt.Errorf("mock writer simulated error on attempt %d", m.calls)
 	}
 
@@ -889,6 +894,60 @@ func TestWriteScenarioTests_IndependentOfContractArtifacts(t *testing.T) {
 	}
 	if action.Kind != specloop.Continue {
 		t.Fatalf("expected Continue without contract artifacts, got %v", action.Kind)
+	}
+}
+
+func TestWriteScenarioTests_ParseErrorRetried(t *testing.T) {
+	// Parse error on attempt 0 is treated as retryable; attempt 1 succeeds.
+	tmp := t.TempDir()
+	rs := makeWriteScenarioTestsRunState(t)
+
+	specPath := filepath.Join(tmp, "spec.md")
+	if err := os.WriteFile(specPath, []byte(specWithTwoScenarios), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	evidenceDir := filepath.Join(tmp, "evidence")
+	if err := os.MkdirAll(evidenceDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	testFile1 := filepath.Join(evidenceDir, "scenario_one_test.go")
+	testFile2 := filepath.Join(evidenceDir, "scenario_two_test.go")
+
+	parseErr := fmt.Errorf("parse scenario test response: response missing ===TEST_FILE_PATH=== marker")
+
+	writer := &fakeScenarioTestWriter{
+		failAttempt: 0,
+		failErr:     parseErr,
+		returnedPaths: []string{testFile1, testFile2},
+		compilableScenarios: map[string]bool{
+			"scenario-one": true,
+			"scenario-two": true,
+		},
+	}
+
+	cfg := WriteScenarioTestsStageConfig{
+		SpecPath:    specPath,
+		EvidenceDir: evidenceDir,
+		WorkDir:     tmp,
+	}
+	stage := NewWriteScenarioTestsStage(writer, cfg, nil, nil)
+
+	action, err := stage.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if action.Kind == specloop.Blocked {
+		failures := ""
+		if action.Context != nil {
+			failures = strings.Join(action.Context.Failures, "; ")
+		}
+		t.Fatalf("expected Continue after parse-error retry, got Blocked: %s", failures)
+	}
+	// writer should have been called at least twice (fail then succeed for scenario-one)
+	if writer.calls < 2 {
+		t.Fatalf("expected at least 2 writer calls, got %d", writer.calls)
 	}
 }
 
