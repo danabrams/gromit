@@ -2,8 +2,6 @@ package main
 
 import (
 	"bytes"
-	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,95 +10,6 @@ import (
 
 	"github.com/danabrams/gromit/internal/next/runstore"
 )
-
-// pickSpec presents a numbered list of actionable specs (status "ready" or
-// "ready_for_review") and returns the full path to the user's selection.
-// branchResolver maps a worktree path to its git branch name.
-//
-// This stub satisfies the compiler so the scenario test is RED on behavior,
-// not on missing symbol. Remove it once the real pickSpec is implemented.
-func pickSpec(
-	projectID string,
-	specsDir string,
-	store *runstore.Store,
-	branchResolver func(string) string,
-	in io.Reader,
-	out io.Writer,
-) (string, error) {
-	// Discover specs
-	specs, err := DiscoverSpecs(specsDir)
-	if err != nil {
-		return "", err
-	}
-
-	// Load runs for this project
-	runs, err := store.List(projectID)
-	if err != nil {
-		return "", err
-	}
-	runValues := make([]runstore.RunState, len(runs))
-	for i, r := range runs {
-		runValues[i] = *r
-	}
-
-	// Build list of actionable specs (ready or ready_for_review)
-	type specEntry struct {
-		name   string
-		status string
-		run    *runstore.RunState // most recent run, if any
-	}
-	var actionable []specEntry
-	for _, spec := range specs {
-		var specRuns []runstore.RunState
-		for _, r := range runValues {
-			if r.SpecID == spec {
-				specRuns = append(specRuns, r)
-			}
-		}
-		status := DeriveSpecStatus(spec, specRuns)
-		if status != "ready" && status != "ready_for_review" {
-			continue
-		}
-		var latest *runstore.RunState
-		for i, r := range specRuns {
-			if latest == nil || r.StartedAt.After(latest.StartedAt) {
-				latest = &specRuns[i]
-			}
-		}
-		actionable = append(actionable, specEntry{name: spec, status: status, run: latest})
-	}
-
-	// Display numbered list
-	for i, e := range actionable {
-		line := fmt.Sprintf("%d. %s", i+1, e.name)
-		if e.status == "ready_for_review" && e.run != nil {
-			branch := ""
-			if e.run.WorktreePath != "" && branchResolver != nil {
-				branch = branchResolver(e.run.WorktreePath)
-			}
-			line += " * (ready_for_review)"
-			if e.run.WorktreePath != "" {
-				line += fmt.Sprintf("\n   worktree: %s", e.run.WorktreePath)
-			}
-			if branch != "" {
-				line += fmt.Sprintf("\n   branch:   %s", branch)
-			}
-		}
-		fmt.Fprintln(out, line)
-	}
-
-	// Read selection
-	var choice int
-	if _, err := fmt.Fscan(in, &choice); err != nil {
-		return "", fmt.Errorf("read selection: %w", err)
-	}
-	if choice < 1 || choice > len(actionable) {
-		return "", fmt.Errorf("selection %d out of range [1, %d]", choice, len(actionable))
-	}
-
-	selected := actionable[choice-1]
-	return filepath.Join(specsDir, selected.name+".md"), nil
-}
 
 // TestScenario_SpecPickerWithMixedStatuses verifies that pickSpec filters specs
 // to only those with derived status "ready" or "ready_for_review", displays them

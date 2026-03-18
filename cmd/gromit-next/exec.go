@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -178,6 +179,11 @@ func (e *execSpecRun) run(ctx context.Context) (string, error) {
 	eventLogPath := filepath.Join(store.RunDir(rs.RunID), "events.jsonl")
 	eventLog := runstore.NewEventLog(eventLogPath)
 
+	// 3c. Write the start banner
+	if e.out != nil {
+		fmt.Fprintf(e.out, "Run ID: %s\nEvents: %s\n\n", rs.RunID, eventLogPath)
+	}
+
 	// 4. Build stages via provider, passing the shared budget and event log
 	stages, err := e.stageProvider.BuildStages(policy, rs, budget, eventLog)
 	if err != nil {
@@ -211,6 +217,193 @@ func (e *execSpecRun) run(ctx context.Context) (string, error) {
 // newExecSpecCmd creates the `exec spec` command. Exported for testing.
 func newExecSpecCmd() *cobra.Command {
 	return newExecSpecCmdWithProvider(nil)
+}
+
+// branchResolverFunc resolves the git branch for a spec by running git symbolic-ref.
+func branchResolverFunc(repoPath string) string {
+	cmd := exec.Command("git", "-C", repoPath, "symbolic-ref", "--short", "HEAD")
+	out, err := cmd.Output()
+	if err != nil {
+		return "unknown"
+	}
+	return strings.TrimSpace(string(out))
+}
+
+// pickSpec discovers specs, derives their status, filters to ready/ready_for_review,
+// prompts the user to select one, and returns the full path to the selected spec.
+func pickSpec(project, specsDir string, store *runstore.Store, branchResolver func(worktreePath string) string, in io.Reader, out io.Writer) (string, error) {
+	// Discover all specs
+	specs, err := DiscoverSpecs(specsDir)
+	if err != nil {
+		return "", err
+	}
+
+	// List runs for this project
+	runs, err := store.List(project)
+	if err != nil {
+		return "", err
+	}
+
+	// Convert []*RunState to []RunState for DeriveSpecStatusFromContent
+	runValues := make([]runstore.RunState, len(runs))
+	for i, r := range runs {
+		runValues[i] = *r
+	}
+
+	// Filter specs to those with status ready or ready_for_review
+	type specInfo struct {
+		name     string
+		status   string
+		runs     []runstore.RunState
+		lastRun  *runstore.RunState
+	}
+
+	var availableSpecs []specInfo
+
+	for _, spec := range specs {
+		// Filter runs for this spec
+		var specRuns []runstore.RunState
+		for _, r := range runValues {
+			if r.SpecID == spec {
+				specRuns = append(specRuns, r)
+			}
+		}
+
+		// Read spec content to derive status
+		content, _ := os.ReadFile(filepath.Join(specsDir, spec+".md"))
+		status := DeriveSpecStatusFromContent(spec, specRuns, string(content))
+
+		// Filter to ready or ready_for_review
+		if status != "ready" && status != "ready_for_review" {
+			continue
+		}
+
+		// Find the most recent run for this spec
+		var lastRun *runstore.RunState
+		if len(specRuns) > 0 {
+			latest := specRuns[0]
+			for i := 1; i < len(specRuns); i++ {
+				if specRuns[i].StartedAt.After(latest.StartedAt) {
+					latest = specRuns[i]
+				}
+			}
+			lastRun = &latest
+		}
+
+		availableSpecs = append(availableSpecs, specInfo{
+			name:    spec,
+			status:  status,
+			runs:    specRuns,
+			lastRun: lastRun,
+		})
+	}
+
+	// Check if any specs are available
+	if len(availableSpecs) == 0 {
+		fmt.Fprintf(out, "no specs available to run\n")
+		return "", nil
+	}
+
+	// Print numbered list of available specs
+	for i, spec := range availableSpecs {
+		num := i + 1
+		fmt.Fprintf(out, "%d. %s\n", num, spec.name)
+
+		if spec.status == "ready_for_review" {
+			fmt.Fprintf(out, "   * (ready_for_review)\n")
+			if spec.lastRun != nil {
+				if spec.lastRun.WorktreePath != "" {
+					fmt.Fprintf(out, "   worktree: %s\n", spec.lastRun.WorktreePath)
+				}
+				branch := branchResolver(spec.lastRun.WorktreePath)
+				if branch != "" && branch != "unknown" {
+					fmt.Fprintf(out, "   branch: %s\n", branch)
+				}
+			}
+		}
+	}
+
+	// Read selection from stdin
+	var choice int
+	if _, err := fmt.Fscan(in, &choice); err != nil {
+		return "", fmt.Errorf("read selection: %w", err)
+	}
+
+	if choice < 1 || choice > len(availableSpecs) {
+		return "", fmt.Errorf("selection out of range: %d", choice)
+	}
+
+	selectedSpec := availableSpecs[choice-1].name
+	return filepath.Join(specsDir, selectedSpec+".md"), nil
+}
+
+// statusLabel returns a human-readable label for a run status,
+// mapping StatusNeedsHuman to "needs_attention".
+func statusLabel(status string) string {
+	switch status {
+	case runstore.StatusRunning:
+		return "running"
+	case runstore.StatusReadyForReview:
+		return "ready_for_review"
+	case runstore.StatusNeedsHuman:
+		return "needs_attention"
+	default:
+		return status
+	}
+}
+
+// pickRun lists runs for a project, filters to resumable statuses,
+// prompts the user to select one, and returns the RunID.
+func pickRun(project string, store *runstore.Store, in io.Reader, out io.Writer) (string, error) {
+	// List all runs for this project
+	runs, err := store.List(project)
+	if err != nil {
+		return "", err
+	}
+
+	// Filter to resumable statuses
+	resumable := []runstore.RunState{}
+	for _, r := range runs {
+		switch r.Status {
+		case runstore.StatusRunning, runstore.StatusNeedsHuman, runstore.StatusBlocked, runstore.StatusReadyForReview:
+			resumable = append(resumable, *r)
+		}
+	}
+
+	// Check if any runs are available
+	if len(resumable) == 0 {
+		fmt.Fprintf(out, "no runs available to resume\n")
+		return "", fmt.Errorf("no runs available to resume")
+	}
+
+	// Sort by StartedAt descending (most recent first)
+	for i := 0; i < len(resumable); i++ {
+		for j := i + 1; j < len(resumable); j++ {
+			if resumable[j].StartedAt.After(resumable[i].StartedAt) {
+				resumable[i], resumable[j] = resumable[j], resumable[i]
+			}
+		}
+	}
+
+	// Print numbered list with spec ID, status label, and timestamp
+	for i, run := range resumable {
+		num := i + 1
+		label := statusLabel(run.Status)
+		timestamp := run.StartedAt.Format("2006-01-02 15:04:05")
+		fmt.Fprintf(out, "%d. %s [%s] %s\n", num, run.SpecID, label, timestamp)
+	}
+
+	// Read selection from stdin
+	var choice int
+	if _, err := fmt.Fscan(in, &choice); err != nil {
+		return "", fmt.Errorf("read selection: %w", err)
+	}
+
+	if choice < 1 || choice > len(resumable) {
+		return "", fmt.Errorf("selection out of range: %d", choice)
+	}
+
+	return resumable[choice-1].RunID, nil
 }
 
 // newExecSpecCmdWithProvider creates the `exec spec` command with an explicit

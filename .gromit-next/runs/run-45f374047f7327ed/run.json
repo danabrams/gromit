@@ -5,7 +5,7 @@
   "status": "blocked",
   "cycle": 1,
   "started_at": "2026-03-18T15:43:10.057203-04:00",
-  "ended_at": "2026-03-18T16:18:27.889677-04:00",
+  "ended_at": "2026-03-18T16:52:47.182184-04:00",
   "tasks": [
     {
       "task_id": "t-001",
@@ -288,6 +288,7 @@
   "final_review_passed": false,
   "final_acceptance_passed": false,
   "total_replans": 0,
+  "resumed": true,
   "contracts_written": true,
   "scenario_tests_written": false
 }

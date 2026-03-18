@@ -1,84 +1,13 @@
 package main
 
 import (
-	"bufio"
 	"bytes"
-	"fmt"
-	"io"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/danabrams/gromit/internal/next/runstore"
 )
-
-// pickRun lists runs for a project, filters to resumable statuses,
-// prompts the user to select one, and returns the RunID.
-//
-// This stub satisfies the compiler so the scenario test is RED on behavior,
-// not on missing symbol. Remove it once the real pickRun is implemented.
-func pickRun(project string, store *runstore.Store, in io.Reader, out io.Writer) (string, error) {
-	runs, err := store.List(project)
-	if err != nil {
-		return "", err
-	}
-
-	resumable := []runstore.RunState{}
-	for _, r := range runs {
-		switch r.Status {
-		case runstore.StatusRunning, runstore.StatusNeedsHuman, runstore.StatusBlocked, runstore.StatusReadyForReview:
-			resumable = append(resumable, *r)
-		}
-	}
-
-	if len(resumable) == 0 {
-		fmt.Fprintf(out, "no runs available to resume\n")
-		return "", fmt.Errorf("no runs available to resume")
-	}
-
-	// Sort by StartedAt descending (most recent first)
-	for i := 0; i < len(resumable); i++ {
-		for j := i + 1; j < len(resumable); j++ {
-			if resumable[j].StartedAt.After(resumable[i].StartedAt) {
-				resumable[i], resumable[j] = resumable[j], resumable[i]
-			}
-		}
-	}
-
-	for i, run := range resumable {
-		var label string
-		switch run.Status {
-		case runstore.StatusRunning:
-			label = "running"
-		case runstore.StatusReadyForReview:
-			label = "ready_for_review"
-		case runstore.StatusNeedsHuman, runstore.StatusBlocked:
-			label = "needs_attention"
-		default:
-			label = run.Status
-		}
-		timestamp := run.StartedAt.Format("2006-01-02 15:04:05")
-		fmt.Fprintf(out, "%d. %s [%s] %s\n", i+1, run.SpecID, label, timestamp)
-	}
-
-	scanner := bufio.NewScanner(in)
-	fmt.Fprintf(out, "\nEnter run number: ")
-	if !scanner.Scan() {
-		return "", fmt.Errorf("failed to read input")
-	}
-
-	selection := strings.TrimSpace(scanner.Text())
-	num, err := strconv.Atoi(selection)
-	if err != nil {
-		return "", fmt.Errorf("invalid selection: %q", selection)
-	}
-	if num < 1 || num > len(resumable) {
-		return "", fmt.Errorf("selection out of range: %d", num)
-	}
-
-	return resumable[num-1].RunID, nil
-}
 
 // TestScenario_ResumePicker verifies that pickRun filters out completed runs,
 // sorts by StartedAt descending, displays human-readable status labels, and
