@@ -141,6 +141,13 @@ type BlockedWorktreeCleanedEvent struct {
 	WorktreePath string `json:"worktree_path"`
 }
 
+type WorktreeRecoveryEvent struct {
+	BaseEvent
+	HealthCheckFailure string `json:"health_check_failure"`
+	RecoverySucceeded  bool   `json:"recovery_succeeded"`
+	NewWorktreePath    string `json:"new_worktree_path"`
+}
+
 type ContractsWrittenEvent struct {
 	BaseEvent
 	ScenarioCount int `json:"scenario_count"`
@@ -307,6 +314,9 @@ func unmarshalEvent(data []byte) (TypedEvent, error) {
 		ev = &e
 	case "blocked_worktree_cleaned":
 		var e BlockedWorktreeCleanedEvent
+		ev = &e
+	case "worktree_recovery":
+		var e WorktreeRecoveryEvent
 		ev = &e
 	case "terminal_state":
 		var e TerminalStateEvent

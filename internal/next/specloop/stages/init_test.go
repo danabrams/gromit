@@ -157,12 +157,15 @@ func TestInitStage_SkipsDifferentSpecBlockedWorktrees(t *testing.T) {
 }
 
 type fakeGitOps struct {
-	createdBranch string
-	worktreePath  string
-	removedPath   string
-	removedPaths  []string
-	createErr     error
-	removeErr     error
+	createdBranch     string
+	worktreePath      string
+	removedPath       string
+	removedPaths      []string
+	createErr         error
+	removeErr         error
+	recoverBranch     string
+	recoverWorktreePath string
+	recoverErr        error
 }
 
 func (f *fakeGitOps) CreateWorktree(repoDir, branch string) (string, error) {
@@ -178,6 +181,12 @@ func (f *fakeGitOps) RemoveWorktree(path string) error {
 	}
 	// Actually remove the directory so os.Stat checks pass
 	return os.RemoveAll(path)
+}
+
+func (f *fakeGitOps) RecoverWorktree(repoDir, branch string) (string, error) {
+	f.recoverBranch = branch
+	f.recoverWorktreePath = f.worktreePath
+	return f.worktreePath, f.recoverErr
 }
 
 // TestInitStage_CleansBlockedWorktrees_EventWrittenToRunDir verifies that

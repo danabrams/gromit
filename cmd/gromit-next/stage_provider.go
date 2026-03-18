@@ -24,6 +24,7 @@ import (
 // RealStageProviderConfig holds paths and options for building real stages.
 type RealStageProviderConfig struct {
 	WorkDir        string
+	RepoDir        string // root of the git repo; falls back to WorkDir when empty
 	StoreDir       string
 	SpecPath       string
 	PolicyPath     string
@@ -263,11 +264,17 @@ func (p *RealStageProvider) BuildStages(policy execpolicy.Policy, rs *runstore.R
 		Store:       store,
 	}, budget, eventLog)
 
+	repoDir := p.cfg.RepoDir
+	if repoDir == "" {
+		repoDir = p.cfg.WorkDir
+	}
+
 	validateStage := stages.NewValidateStage(finalVal, stages.ValidateStageConfig{
 		AlwaysRun:   alwaysRun,
 		WorkDir:     p.cfg.WorkDir,
 		EvidenceDir: evidenceDir,
-	}, nil, contractEvaluator)
+		RepoDir:     repoDir,
+	}, eventLog, contractEvaluator, gitOps)
 
 	reviewStage := stages.NewReviewStage(reviewRunner, stages.ReviewStageConfig{
 		SpecContent:  string(specContent),

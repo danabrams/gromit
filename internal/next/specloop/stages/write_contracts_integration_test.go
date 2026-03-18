@@ -141,7 +141,7 @@ func TestIntegration_WriteContracts_FullPipelineWithReplan(t *testing.T) {
 	validateStage := NewValidateStage(passingValidator(), ValidateStageConfig{
 		WorkDir:     tmp,
 		EvidenceDir: evidenceDir,
-	}, nil, evaluator)
+	}, nil, evaluator, nil)
 
 	loop := specloop.NewSpecLoop(
 		[]specloop.Stage{writeContractsStage, executeStage, validateStage, finalizeStage()},
@@ -201,7 +201,7 @@ func TestIntegration_WriteContracts_NoScenariosNoContractFile(t *testing.T) {
 	validateStage := NewValidateStage(passingValidator(), ValidateStageConfig{
 		WorkDir:     tmp,
 		EvidenceDir: evidenceDir,
-	}, nil, evaluator)
+	}, nil, evaluator, nil)
 
 	loop := specloop.NewSpecLoop(
 		[]specloop.Stage{writeContractsStage, validateStage, finalizeStage()},
@@ -256,7 +256,7 @@ func TestIntegration_WriteContracts_MissingContractFileGraceful(t *testing.T) {
 	validateStage := NewValidateStage(passingValidator(), ValidateStageConfig{
 		WorkDir:     tmp,
 		EvidenceDir: evidenceDir, // dir exists but scenario-contracts.yaml is absent
-	}, nil, evaluator)
+	}, nil, evaluator, nil)
 
 	loop := specloop.NewSpecLoop(
 		[]specloop.Stage{validateStage, finalizeStage()},

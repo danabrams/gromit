@@ -46,7 +46,7 @@ func TestValidateStage_AllPass_Continue(t *testing.T) {
 		},
 	}
 
-	stage := NewValidateStage(v, ValidateStageConfig{WorkDir: "/tmp/work"}, nil, nil)
+	stage := NewValidateStage(v, ValidateStageConfig{WorkDir: "/tmp/work"}, nil, nil, nil)
 
 	if stage.Name() != "validate" {
 		t.Fatalf("expected name 'validate', got %q", stage.Name())
@@ -78,7 +78,7 @@ func TestValidateStage_Failure_ReplanFrom(t *testing.T) {
 		},
 	}
 
-	stage := NewValidateStage(v, ValidateStageConfig{WorkDir: "/tmp/work"}, nil, nil)
+	stage := NewValidateStage(v, ValidateStageConfig{WorkDir: "/tmp/work"}, nil, nil, nil)
 
 	rs := runstore.NewRunState("spec-001", "proj-001")
 	rs.Cycle = 1
@@ -117,7 +117,7 @@ func TestValidateStage_MissingContractFile(t *testing.T) {
 	stage := NewValidateStage(v, ValidateStageConfig{
 		WorkDir:     "/tmp/work",
 		EvidenceDir: dir, // dir exists but contains no scenario-contracts.yaml
-	}, nil, evaluator)
+	}, nil, evaluator, nil)
 
 	rs := runstore.NewRunState("spec-001", "proj-001")
 	action, err := stage.Run(context.Background(), rs)
@@ -160,7 +160,7 @@ func TestValidateStage_ContractFailures(t *testing.T) {
 	stage := NewValidateStage(v, ValidateStageConfig{
 		WorkDir:     "/tmp/work",
 		EvidenceDir: dir,
-	}, nil, evaluator)
+	}, nil, evaluator, nil)
 
 	rs := runstore.NewRunState("spec-001", "proj-001")
 	action, err := stage.Run(context.Background(), rs)
@@ -214,7 +214,7 @@ func TestValidateStage_ContractAndShellFailures(t *testing.T) {
 	stage := NewValidateStage(v, ValidateStageConfig{
 		WorkDir:     "/tmp/work",
 		EvidenceDir: dir,
-	}, nil, evaluator)
+	}, nil, evaluator, nil)
 
 	rs := runstore.NewRunState("spec-001", "proj-001")
 	action, err := stage.Run(context.Background(), rs)

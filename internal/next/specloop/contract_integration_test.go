@@ -184,11 +184,7 @@ func TestIntegration_ContractHappyPath(t *testing.T) {
 			Store:       env.store,
 		}, nil, nil)
 
-	validateStage := stages.NewValidateStage(passValidator(),
-		stages.ValidateStageConfig{
-			WorkDir:     env.tmp,
-			EvidenceDir: env.evidenceDir,
-		}, nil, evaluator)
+	validateStage := stages.NewValidateStage(passValidator(), stages.ValidateStageConfig{WorkDir: env.tmp, EvidenceDir: env.evidenceDir}, nil, evaluator, nil)
 
 	loop := specloop.NewSpecLoop(
 		[]specloop.Stage{writeContractsStage, validateStage, readyForReviewStage()},
@@ -253,11 +249,7 @@ func TestIntegration_ContractFailureTriggersReplan_ReplanStageBypassesWriteContr
 			Store:       env.store,
 		}, nil, nil)
 
-	validateStage := stages.NewValidateStage(passValidator(),
-		stages.ValidateStageConfig{
-			WorkDir:     env.tmp,
-			EvidenceDir: env.evidenceDir,
-		}, nil, evaluator)
+	validateStage := stages.NewValidateStage(passValidator(), stages.ValidateStageConfig{WorkDir: env.tmp, EvidenceDir: env.evidenceDir}, nil, evaluator, nil)
 
 	// ReplanStage: "validate" causes replan to skip write_contracts entirely because the replan
 	// stage sequence resumes at the validate stage, bypassing write_contracts. This demonstrates
@@ -445,11 +437,7 @@ func TestIntegration_NoScenariosWriteContractsNoOp(t *testing.T) {
 			Store:       env.store,
 		}, nil, nil)
 
-	validateStage := stages.NewValidateStage(passValidator(),
-		stages.ValidateStageConfig{
-			WorkDir:     env.tmp,
-			EvidenceDir: env.evidenceDir,
-		}, nil, evaluator)
+	validateStage := stages.NewValidateStage(passValidator(), stages.ValidateStageConfig{WorkDir: env.tmp, EvidenceDir: env.evidenceDir}, nil, evaluator, nil)
 
 	loop := specloop.NewSpecLoop(
 		[]specloop.Stage{writeContractsStage, validateStage, readyForReviewStage()},
@@ -500,11 +488,7 @@ func TestIntegration_MissingContractFileSkippedSilently(t *testing.T) {
 	}
 
 	// ValidateStage with EvidenceDir set, but no scenario-contracts.yaml written.
-	validateStage := stages.NewValidateStage(passValidator(),
-		stages.ValidateStageConfig{
-			WorkDir:     env.tmp,
-			EvidenceDir: env.evidenceDir, // dir exists but contains no contract file
-		}, nil, evaluator)
+	validateStage := stages.NewValidateStage(passValidator(), stages.ValidateStageConfig{WorkDir: env.tmp, EvidenceDir: env.evidenceDir}, nil, evaluator, nil)
 
 	loop := specloop.NewSpecLoop(
 		[]specloop.Stage{validateStage, readyForReviewStage()},

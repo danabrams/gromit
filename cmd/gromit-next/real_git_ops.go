@@ -39,6 +39,32 @@ func (r *realGitOps) CreateWorktree(repoDir, branch string) (string, error) {
 	return tmp, nil
 }
 
+// RecoverWorktree creates a git worktree for an existing branch.
+// It uses os.MkdirTemp to generate a unique path, removes the directory
+// (git worktree add requires the target not to exist), then runs
+// git worktree add <path> <branch> (without -b flag, since the branch exists).
+func (r *realGitOps) RecoverWorktree(repoDir, branch string) (string, error) {
+	wtBase := filepath.Join(repoDir, ".gromit-next", "worktrees")
+	if err := os.MkdirAll(wtBase, 0o755); err != nil {
+		return "", fmt.Errorf("create worktree base dir: %w", err)
+	}
+	tmp, err := os.MkdirTemp(wtBase, "wt-*")
+	if err != nil {
+		return "", fmt.Errorf("mkdirtemp: %w", err)
+	}
+	// git worktree add needs the target directory to not exist
+	if err := os.Remove(tmp); err != nil {
+		return "", fmt.Errorf("remove temp dir: %w", err)
+	}
+
+	cmd := exec.Command("git", "-C", repoDir, "worktree", "add", tmp, branch)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("git worktree add: %w\n%s", err, out)
+	}
+	return tmp, nil
+}
+
 // forceRemoveAll removes a directory tree, first making all entries writable.
 // This handles Go module cache files which are read-only by default.
 func forceRemoveAll(path string) error {

@@ -101,7 +101,7 @@ func TestScenario_HappyPath_ContractsPass(t *testing.T) {
 	validateStage := NewValidateStage(passingValidator(), ValidateStageConfig{
 		WorkDir:     tmp,
 		EvidenceDir: evidenceDir,
-	}, nil, evaluator)
+	}, nil, evaluator, nil)
 
 	// Run WriteContracts.
 	action, err := writeStage.Run(context.Background(), rs)
@@ -177,7 +177,7 @@ func TestScenario_ContractFailure_TriggersReplan(t *testing.T) {
 	validateStage := NewValidateStage(passingValidator(), ValidateStageConfig{
 		WorkDir:     tmp,
 		EvidenceDir: evidenceDir,
-	}, nil, evaluator)
+	}, nil, evaluator, nil)
 
 	action, err := validateStage.Run(context.Background(), rs)
 	if err != nil {
@@ -340,7 +340,7 @@ func TestScenario_ContractFileMissingAtValidateTime(t *testing.T) {
 	validateStage := NewValidateStage(passingValidator(), ValidateStageConfig{
 		WorkDir:     tmp,
 		EvidenceDir: evidenceDir,
-	}, nil, evaluator)
+	}, nil, evaluator, nil)
 
 	action, err := validateStage.Run(context.Background(), rs)
 	if err != nil {
@@ -444,7 +444,7 @@ func TestScenario_MultipleAssertionsPartialFailure(t *testing.T) {
 	validateStage := NewValidateStage(passingValidator(), ValidateStageConfig{
 		WorkDir:     tmp,
 		EvidenceDir: evidenceDir,
-	}, nil, evaluator)
+	}, nil, evaluator, nil)
 
 	action, err := validateStage.Run(context.Background(), rs)
 	if err != nil {
