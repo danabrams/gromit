@@ -23,10 +23,15 @@ type GitDiffProvider struct {
 func (g *GitDiffProvider) Diff(baseBranch string) (string, error) {
 	// Stage all changes (including new files) so they appear in the diff.
 	// The worktree is ephemeral, so staging has no side effects on the main repo.
-	addCmd := exec.Command("git", "add", "-A", "--", ".", ":!.gromit-next")
+	addCmd := exec.Command("git", "add", "--", ".", ":!.gromit-next")
 	addCmd.Dir = g.WorkDir
 	if out, err := addCmd.CombinedOutput(); err != nil {
-		return "", fmt.Errorf("git add -A: %s: %w", string(out), err)
+		// git add exits non-zero when it encounters .gitignore'd paths even
+		// with a pathspec exclusion. Ignore the error when the only issue is
+		// ignored files — the exclusion already prevents staging them.
+		if !strings.Contains(string(out), "ignored by one of your .gitignore") {
+			return "", fmt.Errorf("git add: %s: %w", string(out), err)
+		}
 	}
 
 	cmd := exec.Command("git", "diff", "--cached", baseBranch)

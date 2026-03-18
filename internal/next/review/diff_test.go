@@ -303,6 +303,90 @@ func TestGitDiffProvider_ModifiedAndNewFilesBothVisible(t *testing.T) {
 	}
 }
 
+// TestGitDiffProvider_GitignoredDirDoesNotBlockDiff verifies that a .gitignore'd
+// directory in the worktree does not cause Diff to fail.
+func TestGitDiffProvider_GitignoredDirDoesNotBlockDiff(t *testing.T) {
+	repoDir := t.TempDir()
+	worktreeDir := t.TempDir()
+
+	gitEnv := append(os.Environ(),
+		"GIT_CONFIG_NOSYSTEM=1",
+		"GIT_AUTHOR_NAME=Test",
+		"GIT_AUTHOR_EMAIL=test@test.com",
+		"GIT_COMMITTER_NAME=Test",
+		"GIT_COMMITTER_EMAIL=test@test.com",
+	)
+
+	run := func(dir string, args ...string) {
+		t.Helper()
+		cmd := exec.Command(args[0], args[1:]...)
+		cmd.Dir = dir
+		cmd.Env = gitEnv
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("%v failed: %v\n%s", args, err, out)
+		}
+	}
+
+	runOutput := func(dir string, args ...string) string {
+		t.Helper()
+		cmd := exec.Command(args[0], args[1:]...)
+		cmd.Dir = dir
+		cmd.Env = gitEnv
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("%v failed: %v\n%s", args, err, out)
+		}
+		return strings.TrimSpace(string(out))
+	}
+
+	// Initialize repo with a .gitignore that excludes .gromit-next/.
+	run(repoDir, "git", "init")
+	if err := os.WriteFile(repoDir+"/.gitignore", []byte(".gromit-next/\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(repoDir+"/main.go", []byte("package main\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	run(repoDir, "git", "add", ".")
+	run(repoDir, "git", "commit", "-m", "initial")
+
+	baseBranch := runOutput(repoDir, "git", "branch", "--show-current")
+
+	// Create worktree.
+	run(repoDir, "git", "worktree", "add", "-b", "feature/ignored-dir", worktreeDir)
+	t.Cleanup(func() {
+		_ = exec.Command("git", "worktree", "remove", "--force", worktreeDir).Run()
+	})
+
+	// Create .gromit-next/ directory with files (this is gitignored).
+	ignoredDir := worktreeDir + "/.gromit-next/runs"
+	if err := os.MkdirAll(ignoredDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(ignoredDir+"/run.json", []byte(`{"status":"running"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Also make a real tracked change.
+	if err := os.WriteFile(worktreeDir+"/main.go", []byte("package main\n\nfunc Hello() {}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Diff should succeed despite the gitignored directory.
+	provider := &GitDiffProvider{WorkDir: worktreeDir}
+	diff, err := provider.Diff(baseBranch)
+	if err != nil {
+		t.Fatalf("Diff should not fail with gitignored dir present: %v", err)
+	}
+	if !strings.Contains(diff, "func Hello()") {
+		t.Errorf("diff should contain tracked changes, got:\n%s", diff)
+	}
+	if strings.Contains(diff, ".gromit-next") {
+		t.Errorf("diff should not contain gitignored files, got:\n%s", diff)
+	}
+}
+
 // TestGitDiffProvider_EmptyWorktreeNoDiff verifies that a worktree with no
 // changes produces an empty diff.
 func TestGitDiffProvider_EmptyWorktreeNoDiff(t *testing.T) {
