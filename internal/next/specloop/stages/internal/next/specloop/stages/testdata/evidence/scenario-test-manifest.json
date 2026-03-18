@@ -1,8 +1,0 @@
-{
-  "scenarios": [
-    {
-      "name": "scenario-one",
-      "test_file": "/Users/dabrams/gromit/internal/next/specloop/stages/internal/next/specloop/stages/testdata/evidence/scenario_one_test.go"
-    }
-  ]
-}
