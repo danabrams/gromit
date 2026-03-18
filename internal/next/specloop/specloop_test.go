@@ -895,10 +895,10 @@ func TestSpecLoop_UpdatesLineageOnReplan(t *testing.T) {
 				// Cycle 1: mark a task as failed
 				rs.Tasks = []runstore.Task{
 					{
-						TaskID:      "t-001",
-						Status:      "failed",
-						Objective:   "implement feature",
-						ModelTier:   "medium",
+						TaskID:    "t-001",
+						Status:    "failed",
+						Objective: "implement feature",
+						ModelTier: "medium",
 					},
 				}
 				return NextAction{
@@ -965,10 +965,10 @@ func TestSpecLoop_AppendsPriorAttemptErrorsToReplanContext(t *testing.T) {
 				// Cycle 1: mark task as failed
 				rs.Tasks = []runstore.Task{
 					{
-						TaskID:      "t-001",
-						Status:      "failed",
-						Objective:   "implement feature",
-						ModelTier:   "medium",
+						TaskID:    "t-001",
+						Status:    "failed",
+						Objective: "implement feature",
+						ModelTier: "medium",
 					},
 				}
 				return NextAction{
@@ -1037,10 +1037,10 @@ func TestSpecLoop_LineageTrackingWithResolveLineageRoot(t *testing.T) {
 				// Cycle 1: Initial task fails
 				rs.Tasks = []runstore.Task{
 					{
-						TaskID:      "root-task",
-						Status:      "failed",
-						Objective:   "implement feature",
-						ModelTier:   "medium",
+						TaskID:    "root-task",
+						Status:    "failed",
+						Objective: "implement feature",
+						ModelTier: "medium",
 					},
 				}
 				return NextAction{
@@ -1054,17 +1054,17 @@ func TestSpecLoop_LineageTrackingWithResolveLineageRoot(t *testing.T) {
 				// Both original root task and fix task appear in Tasks
 				rs.Tasks = []runstore.Task{
 					{
-						TaskID:      "root-task",
-						Status:      "failed",
-						Objective:   "implement feature",
-						ModelTier:   "medium",
+						TaskID:    "root-task",
+						Status:    "failed",
+						Objective: "implement feature",
+						ModelTier: "medium",
 					},
 					{
-						TaskID:      "fix-task-1",
-						Status:      "done",
-						Objective:   "fix: implement feature",
-						ModelTier:   "medium",
-						Fixes: "root-task",
+						TaskID:    "fix-task-1",
+						Status:    "done",
+						Objective: "fix: implement feature",
+						ModelTier: "medium",
+						Fixes:     "root-task",
 					},
 				}
 				return NextAction{Kind: Continue}, nil
@@ -1140,10 +1140,10 @@ func TestSpecLoop_ModelEscalationAppliedOnReplan(t *testing.T) {
 				// Cycle 1: Task fails
 				rs.Tasks = []runstore.Task{
 					{
-						TaskID:      "t-001",
-						Status:      "failed",
-						Objective:   "implement feature",
-						ModelTier:   "medium",
+						TaskID:    "t-001",
+						Status:    "failed",
+						Objective: "implement feature",
+						ModelTier: "medium",
 					},
 				}
 				return NextAction{
@@ -1157,17 +1157,17 @@ func TestSpecLoop_ModelEscalationAppliedOnReplan(t *testing.T) {
 				// At this point, lineage from cycle 1 has ConsecutiveFails=1
 				rs.Tasks = []runstore.Task{
 					{
-						TaskID:      "t-001",
-						Status:      "failed",
-						Objective:   "implement feature",
-						ModelTier:   "medium",
+						TaskID:    "t-001",
+						Status:    "failed",
+						Objective: "implement feature",
+						ModelTier: "medium",
 					},
 					{
-						TaskID:      "t-002",
-						Status:      "done",
-						Objective:   "fix t-001",
-						ModelTier:   "high", // Will be escalated by execute stage
-						Fixes: "t-001",
+						TaskID:    "t-002",
+						Status:    "done",
+						Objective: "fix t-001",
+						ModelTier: "high", // Will be escalated by execute stage
+						Fixes:     "t-001",
 					},
 				}
 				// Return ReplanFrom again to trigger UpdateTaskLineage
@@ -1182,24 +1182,24 @@ func TestSpecLoop_ModelEscalationAppliedOnReplan(t *testing.T) {
 				// At this point, lineage from cycle 2 has ConsecutiveFails=2
 				rs.Tasks = []runstore.Task{
 					{
-						TaskID:      "t-001",
-						Status:      "failed",
-						Objective:   "implement feature",
-						ModelTier:   "medium",
+						TaskID:    "t-001",
+						Status:    "failed",
+						Objective: "implement feature",
+						ModelTier: "medium",
 					},
 					{
-						TaskID:      "t-002",
-						Status:      "failed",
-						Objective:   "fix t-001",
-						ModelTier:   "high",
-						Fixes: "t-001",
+						TaskID:    "t-002",
+						Status:    "failed",
+						Objective: "fix t-001",
+						ModelTier: "high",
+						Fixes:     "t-001",
 					},
 					{
-						TaskID:      "t-003",
-						Status:      "done",
-						Objective:   "fix t-001 again",
-						ModelTier:   "high", // Escalated because t-001 has ConsecutiveFails >= 2
-						Fixes: "t-001",
+						TaskID:    "t-003",
+						Status:    "done",
+						Objective: "fix t-001 again",
+						ModelTier: "high", // Escalated because t-001 has ConsecutiveFails >= 2
+						Fixes:     "t-001",
 					},
 				}
 				return NextAction{Kind: Continue}, nil
@@ -1269,10 +1269,10 @@ func TestSpecLoop_NoEscalationBelowThreshold(t *testing.T) {
 				// Cycle 1: Task fails once
 				rs.Tasks = []runstore.Task{
 					{
-						TaskID:      "t-001",
-						Status:      "failed",
-						Objective:   "implement feature",
-						ModelTier:   "medium",
+						TaskID:    "t-001",
+						Status:    "failed",
+						Objective: "implement feature",
+						ModelTier: "medium",
 					},
 				}
 				return NextAction{
@@ -1286,17 +1286,17 @@ func TestSpecLoop_NoEscalationBelowThreshold(t *testing.T) {
 				// Lineage from cycle 1 has ConsecutiveFails=1
 				rs.Tasks = []runstore.Task{
 					{
-						TaskID:      "t-001",
-						Status:      "failed",
-						Objective:   "implement feature",
-						ModelTier:   "medium",
+						TaskID:    "t-001",
+						Status:    "failed",
+						Objective: "implement feature",
+						ModelTier: "medium",
 					},
 					{
-						TaskID:      "t-002",
-						Status:      "done",
-						Objective:   "fix t-001",
-						ModelTier:   "medium", // Should NOT be escalated (1 < 5)
-						Fixes: "t-001",
+						TaskID:    "t-002",
+						Status:    "done",
+						Objective: "fix t-001",
+						ModelTier: "medium", // Should NOT be escalated (1 < 5)
+						Fixes:     "t-001",
 					},
 				}
 				return NextAction{Kind: Continue}, nil

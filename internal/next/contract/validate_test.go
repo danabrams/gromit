@@ -90,8 +90,8 @@ func TestValidateContract_MixedValidAndInvalid(t *testing.T) {
 				Name: "s1",
 				Assertions: []ContractAssertion{
 					{FileExists: "ok.go"}, // valid
-					{},                   // zero fields — invalid
-					{FileNotExists: "x"}, // valid
+					{},                    // zero fields — invalid
+					{FileNotExists: "x"},  // valid
 				},
 			},
 			{
@@ -184,9 +184,9 @@ func TestValidateContract_RuntimeArtifacts_BareFilenames(t *testing.T) {
 
 func TestValidateContract_RuntimeArtifacts_WithGromitNextPrefix(t *testing.T) {
 	tests := []struct {
-		name            string
-		prefixedPath    string
-		assertionField  string
+		name           string
+		prefixedPath   string
+		assertionField string
 	}{
 		{
 			name:           "run.json with .gromit-next prefix in file_exists",

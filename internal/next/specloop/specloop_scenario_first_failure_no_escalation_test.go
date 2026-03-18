@@ -100,7 +100,7 @@ func TestScenario_FirstFailure_NoEscalation(t *testing.T) {
 	// ShouldEscalateModel should return false for an original task with no fixes
 	fixTask := &runstore.Task{
 		TaskID: "t-002",
-		Fixes: "t-001",
+		Fixes:  "t-001",
 	}
 	if ShouldEscalateModel(fixTask, rs.TaskLineage, escalationCfg.ModelEscalationThreshold) {
 		t.Error("ShouldEscalateModel should return false: ConsecutiveFails(1) < threshold(3)")
@@ -109,7 +109,7 @@ func TestScenario_FirstFailure_NoEscalation(t *testing.T) {
 	// Original task with no Fixes should also not escalate
 	origTask := &runstore.Task{
 		TaskID: "t-001",
-		Fixes: "",
+		Fixes:  "",
 	}
 	if ShouldEscalateModel(origTask, rs.TaskLineage, escalationCfg.ModelEscalationThreshold) {
 		t.Error("ShouldEscalateModel should return false for task with no Fixes")

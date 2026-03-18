@@ -398,9 +398,9 @@ func TestEvaluator_MultipleAssertions_PartialFailure_NoShortCircuit(t *testing.T
 		Scenarios: []ScenarioAssertions{{
 			Name: "s",
 			Assertions: []ContractAssertion{
-				{FileExists: "exists.txt"},    // pass
-				{FileExists: "missing1.txt"},  // fail
-				{FileExists: "missing2.txt"},  // fail — must still be checked
+				{FileExists: "exists.txt"},   // pass
+				{FileExists: "missing1.txt"}, // fail
+				{FileExists: "missing2.txt"}, // fail — must still be checked
 			},
 		}},
 	}
@@ -777,7 +777,7 @@ func TestEvaluator_FileNotContains_RegexPattern_Pass(t *testing.T) {
 	}
 }
 
-func TestEvaluator_FileNotContains_RegexPattern_Fail(t *testing.T) {
+func TestEvaluator_FileNotContains_RegexPattern_Fail_ChainIDs(t *testing.T) {
 	dir := t.TempDir()
 	os.WriteFile(filepath.Join(dir, "types.go"), []byte("type State struct {\n\tChainIDs []string\n}"), 0644)
 

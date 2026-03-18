@@ -33,7 +33,7 @@ func TestResolveLineageRoot(t *testing.T) {
 		{
 			name: "chain resolution - follow single chain",
 			taskLineage: map[string]runstore.TaskLineageEntry{
-				"task-1":  {ChainIDs: []string{"root-task"}},
+				"task-1":    {ChainIDs: []string{"root-task"}},
 				"root-task": {ChainIDs: []string{}},
 			},
 			taskID:   "task-1",
@@ -260,15 +260,14 @@ func TestUpdateTaskLineage(t *testing.T) {
 	}
 }
 
-
 // TestAppendPriorAttemptErrors tests error appending below/at thresholds and formatting.
 func TestAppendPriorAttemptErrors(t *testing.T) {
 	tests := []struct {
-		name                   string
-		taskLineage            map[string]runstore.TaskLineageEntry
-		errorContextThreshold  int
-		expectedCount          int
-		checkFunc              func(*testing.T, []string)
+		name                  string
+		taskLineage           map[string]runstore.TaskLineageEntry
+		errorContextThreshold int
+		expectedCount         int
+		checkFunc             func(*testing.T, []string)
 	}{
 		{
 			name: "below threshold - no errors appended",
@@ -471,11 +470,11 @@ func TestAppendPriorAttemptErrors(t *testing.T) {
 // TestShouldEscalateModel tests escalation logic below and at thresholds.
 func TestShouldEscalateModel(t *testing.T) {
 	tests := []struct {
-		name                      string
-		task                      *runstore.Task
-		taskLineage               map[string]runstore.TaskLineageEntry
-		modelEscalationThreshold  int
-		expected                  bool
+		name                     string
+		task                     *runstore.Task
+		taskLineage              map[string]runstore.TaskLineageEntry
+		modelEscalationThreshold int
+		expected                 bool
 	}{
 		{
 			name: "no Fixes field",

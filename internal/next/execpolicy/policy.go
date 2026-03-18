@@ -16,12 +16,12 @@ type EscalationConfig struct {
 // Policy defines execution policy configuration: always-run checks, budgets,
 // model tier config, and review settings.
 type Policy struct {
-	AlwaysRun   []Check           `json:"always_run"`
-	Budgets     Budgets           `json:"budgets"`
-	Models      Models            `json:"models"`
-	Review      ReviewConfig      `json:"review"`
-	Routing     RoutingConfig     `json:"routing"`
-	Escalation EscalationConfig  `json:"escalation"`
+	AlwaysRun  []Check          `json:"always_run"`
+	Budgets    Budgets          `json:"budgets"`
+	Models     Models           `json:"models"`
+	Review     ReviewConfig     `json:"review"`
+	Routing    RoutingConfig    `json:"routing"`
+	Escalation EscalationConfig `json:"escalation"`
 }
 
 // RoutingConfig defines multi-provider routing preferences.

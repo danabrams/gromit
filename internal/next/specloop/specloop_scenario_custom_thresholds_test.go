@@ -68,7 +68,7 @@ func TestScenario_CustomThresholds_ModelEscalationAtThreshold2(t *testing.T) {
 	}
 	task := &runstore.Task{
 		TaskID:    "t-002",
-		Fixes: "t-001",
+		Fixes:     "t-001",
 		ModelTier: "medium",
 	}
 
@@ -92,7 +92,7 @@ func TestScenario_CustomThresholds_NoModelEscalationAtDefault(t *testing.T) {
 	}
 	task := &runstore.Task{
 		TaskID:    "t-002",
-		Fixes: "t-001",
+		Fixes:     "t-001",
 		ModelTier: "medium",
 	}
 
@@ -137,9 +137,9 @@ func TestScenario_CustomThresholds_FullLoopIntegration(t *testing.T) {
 				// Cycle 1: t-001 fails
 				rs.Tasks = []runstore.Task{
 					{
-						TaskID:    "t-001",
-						Status:    "failed",
-						
+						TaskID: "t-001",
+						Status: "failed",
+
 						Objective: "implement calculator",
 						ModelTier: "medium",
 					},
@@ -151,12 +151,12 @@ func TestScenario_CustomThresholds_FullLoopIntegration(t *testing.T) {
 			case 2:
 				// Cycle 2: fix task t-002 also fails
 				rs.Tasks = append(rs.Tasks, runstore.Task{
-					TaskID:    "t-002",
-					Status:    "failed",
-					
+					TaskID: "t-002",
+					Status: "failed",
+
 					Objective: "fix calculator",
 					ModelTier: "medium",
-					Fixes: "t-001",
+					Fixes:     "t-001",
 				})
 				return NextAction{
 					Kind:    ReplanFrom,
@@ -271,7 +271,7 @@ func TestScenario_CustomThresholds_SecondFailureTriggersModelEscalation(t *testi
 	// Invoke: check escalation for a new fix task with threshold=2
 	fixTask := &runstore.Task{
 		TaskID:    "t-002",
-		Fixes: "t-001",
+		Fixes:     "t-001",
 		ModelTier: "medium",
 	}
 

@@ -245,8 +245,8 @@ func TestExecuteStage_EscalatesModelWhenFixingFailedTask(t *testing.T) {
 			TaskID:    "t-002",
 			Status:    "pending",
 			Objective: "fix t-001",
-			Fixes:     "t-001", // This task is fixing t-001
-			ModelTier: "medium",           // Initially medium
+			Fixes:     "t-001",  // This task is fixing t-001
+			ModelTier: "medium", // Initially medium
 		},
 	}
 

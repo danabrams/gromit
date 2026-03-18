@@ -1033,4 +1033,3 @@ type callbackContractWriter struct {
 func (c *callbackContractWriter) WriteContracts(ctx context.Context, scenarios []contract.SpecScenario, specPacket string) (*contract.ScenarioContract, error) {
 	return c.fn(ctx, scenarios, specPacket)
 }
-

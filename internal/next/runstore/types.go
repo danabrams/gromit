@@ -39,32 +39,32 @@ func (tle *TaskLineageEntry) NormalizeNilFields() {
 
 // RunState represents the full state of an execution run.
 type RunState struct {
-	RunID                 string                `json:"run_id"`
-	SpecID                string                `json:"spec_id"`
-	ProjectID             string                `json:"project_id"`
-	Status                string                `json:"status"`
-	Cycle                 int                   `json:"cycle"`
-	StartedAt             time.Time             `json:"started_at"`
-	EndedAt               time.Time             `json:"ended_at,omitempty"`
-	Tasks                 []Task                `json:"tasks"`
-	WorktreePath          string                `json:"worktree_path,omitempty"`
-	BlockerSummary        string                `json:"blocker_summary,omitempty"`
-	AccumulatedCost       float64               `json:"accumulated_cost"`
-	TerminalReason        string                `json:"terminal_reason,omitempty"`
-	FinalValidationPassed bool                  `json:"final_validation_passed"`
-	FinalReviewPassed     bool                  `json:"final_review_passed"`
-	FinalAcceptancePassed bool                  `json:"final_acceptance_passed"`
-	ReplanContext         []string              `json:"replan_context,omitempty"`
-	LastValidationResult  *string               `json:"last_validation_result,omitempty"`
-	LastFinalValidation   *validator.FinalResult `json:"last_final_validation,omitempty"`
-	ReviewFindings        []string              `json:"review_findings,omitempty"`
-	AcceptanceResults     []string              `json:"acceptance_results,omitempty"`
-	TotalReplans          int                   `json:"total_replans"`
-	SpecConstraints       string                `json:"spec_constraints,omitempty"`
-	Resumed               bool                  `json:"resumed,omitempty"`
-	ContractsWritten      bool                  `json:"contracts_written"`
-	ScenarioTestsWritten  bool                  `json:"scenario_tests_written"`
-	FailureHistory        map[string]int        `json:"failure_history,omitempty"`
+	RunID                 string                      `json:"run_id"`
+	SpecID                string                      `json:"spec_id"`
+	ProjectID             string                      `json:"project_id"`
+	Status                string                      `json:"status"`
+	Cycle                 int                         `json:"cycle"`
+	StartedAt             time.Time                   `json:"started_at"`
+	EndedAt               time.Time                   `json:"ended_at,omitempty"`
+	Tasks                 []Task                      `json:"tasks"`
+	WorktreePath          string                      `json:"worktree_path,omitempty"`
+	BlockerSummary        string                      `json:"blocker_summary,omitempty"`
+	AccumulatedCost       float64                     `json:"accumulated_cost"`
+	TerminalReason        string                      `json:"terminal_reason,omitempty"`
+	FinalValidationPassed bool                        `json:"final_validation_passed"`
+	FinalReviewPassed     bool                        `json:"final_review_passed"`
+	FinalAcceptancePassed bool                        `json:"final_acceptance_passed"`
+	ReplanContext         []string                    `json:"replan_context,omitempty"`
+	LastValidationResult  *string                     `json:"last_validation_result,omitempty"`
+	LastFinalValidation   *validator.FinalResult      `json:"last_final_validation,omitempty"`
+	ReviewFindings        []string                    `json:"review_findings,omitempty"`
+	AcceptanceResults     []string                    `json:"acceptance_results,omitempty"`
+	TotalReplans          int                         `json:"total_replans"`
+	SpecConstraints       string                      `json:"spec_constraints,omitempty"`
+	Resumed               bool                        `json:"resumed,omitempty"`
+	ContractsWritten      bool                        `json:"contracts_written"`
+	ScenarioTestsWritten  bool                        `json:"scenario_tests_written"`
+	FailureHistory        map[string]int              `json:"failure_history,omitempty"`
 	TaskLineage           map[string]TaskLineageEntry `json:"task_lineage,omitempty"`
 }
 

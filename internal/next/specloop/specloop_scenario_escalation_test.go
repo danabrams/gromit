@@ -116,7 +116,7 @@ func TestScenario_ThirdFailureTriggersModelEscalation(t *testing.T) {
 	nextFixTask := &runstore.Task{
 		TaskID:    "t-035",
 		Objective: "fix t-001: rewrite handler from scratch",
-		Fixes: "t-001",
+		Fixes:     "t-001",
 		ModelTier: "medium",
 	}
 
