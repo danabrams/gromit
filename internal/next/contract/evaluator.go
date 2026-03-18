@@ -21,6 +21,24 @@ func containsNormalized(content, pattern string) bool {
 	return strings.Contains(normContent, normPattern)
 }
 
+// matchesPattern reports whether content matches pattern using three strategies
+// in order: literal strings.Contains, normalized-whitespace containsNormalized,
+// and finally regexp.MatchString. If the pattern is not a valid regex the regex
+// step is skipped silently — no error is returned.
+func matchesPattern(content, pattern string) bool {
+	if strings.Contains(content, pattern) {
+		return true
+	}
+	if containsNormalized(content, pattern) {
+		return true
+	}
+	re, err := regexp.Compile(pattern)
+	if err != nil {
+		return false
+	}
+	return re.MatchString(content)
+}
+
 // ContractEvaluator abstracts contract assertion evaluation for testability.
 type ContractEvaluator interface {
 	Evaluate(ctx context.Context, contract *ScenarioContract, workDir string) ([]ContractFailure, error)
@@ -79,7 +97,7 @@ func (e *DefaultContractEvaluator) check(scenarioName string, a ContractAssertio
 		if err != nil {
 			return fail("file_contains", fmt.Sprintf("cannot read %q: %v", a.FileContains.Path, err))
 		}
-		if !strings.Contains(string(content), a.FileContains.Pattern) && !containsNormalized(string(content), a.FileContains.Pattern) {
+		if !matchesPattern(string(content), a.FileContains.Pattern) {
 			return fail("file_contains", fmt.Sprintf("pattern %q not found in %q", a.FileContains.Pattern, a.FileContains.Path))
 		}
 
@@ -93,7 +111,7 @@ func (e *DefaultContractEvaluator) check(scenarioName string, a ContractAssertio
 			}
 			return fail("file_not_contains", fmt.Sprintf("cannot read %q: %v", a.FileNotContains.Path, err))
 		}
-		if strings.Contains(string(content), a.FileNotContains.Pattern) || containsNormalized(string(content), a.FileNotContains.Pattern) {
+		if matchesPattern(string(content), a.FileNotContains.Pattern) {
 			return fail("file_not_contains", fmt.Sprintf("pattern %q found in %q but should not be", a.FileNotContains.Pattern, a.FileNotContains.Path))
 		}
 

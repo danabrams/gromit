@@ -537,6 +537,127 @@ func TestEvaluator_FileContains_WhitespaceNormalized_StillFailsWhenAbsent(t *tes
 	}
 }
 
+// --- Regex fallback tests (RED phase) ---
+
+func TestEvaluator_FileContains_RegexPattern_ChainIDs(t *testing.T) {
+	dir := t.TempDir()
+	// Simulate gofmt-style field declaration with extra whitespace
+	content := "type Config struct {\n\tChainIDs        []string `json:\"chain_ids\"`\n}"
+	os.WriteFile(filepath.Join(dir, "config.go"), []byte(content), 0644)
+
+	ev := &DefaultContractEvaluator{}
+	contract := ScenarioContract{
+		Scenarios: []ScenarioAssertions{{
+			Name: "s",
+			Assertions: []ContractAssertion{
+				{FileContains: &FileContainsAssertion{Path: "config.go", Pattern: `ChainIDs.*\[\]string`}},
+			},
+		}},
+	}
+	failures, err := ev.Evaluate(context.Background(), &contract, dir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(failures) != 0 {
+		t.Errorf("expected regex pattern to match, got failures: %v", failures)
+	}
+}
+
+func TestEvaluator_FileContains_RegexPattern_FuncSignature(t *testing.T) {
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "foo.go"), []byte("package foo\n\nfunc NewFoo(bar string) *Foo {\n\treturn nil\n}\n"), 0644)
+
+	ev := &DefaultContractEvaluator{}
+	contract := ScenarioContract{
+		Scenarios: []ScenarioAssertions{{
+			Name: "s",
+			Assertions: []ContractAssertion{
+				{FileContains: &FileContainsAssertion{Path: "foo.go", Pattern: `func \w+\(`}},
+			},
+		}},
+	}
+	failures, err := ev.Evaluate(context.Background(), &contract, dir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(failures) != 0 {
+		t.Errorf("expected regex pattern to match func signature, got failures: %v", failures)
+	}
+}
+
+func TestEvaluator_FileNotContains_RegexPattern_Fail(t *testing.T) {
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "notes.txt"), []byte("TODO: urgent fix needed here"), 0644)
+
+	ev := &DefaultContractEvaluator{}
+	contract := ScenarioContract{
+		Scenarios: []ScenarioAssertions{{
+			Name: "s",
+			Assertions: []ContractAssertion{
+				{FileNotContains: &FileContainsAssertion{Path: "notes.txt", Pattern: `TODO.*urgent`}},
+			},
+		}},
+	}
+	failures, err := ev.Evaluate(context.Background(), &contract, dir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(failures) != 1 {
+		t.Fatalf("expected 1 failure (regex matched TODO.*urgent), got %d: %v", len(failures), failures)
+	}
+	if failures[0].AssertionType != "file_not_contains" {
+		t.Errorf("wrong assertion type: %s", failures[0].AssertionType)
+	}
+}
+
+func TestEvaluator_FileContains_InvalidRegex_FallsBackToLiteral(t *testing.T) {
+	dir := t.TempDir()
+	// The literal pattern "[unclosed" appears verbatim in the file
+	os.WriteFile(filepath.Join(dir, "a.txt"), []byte("some [unclosed bracket"), 0644)
+
+	ev := &DefaultContractEvaluator{}
+	contract := ScenarioContract{
+		Scenarios: []ScenarioAssertions{{
+			Name: "s",
+			Assertions: []ContractAssertion{
+				{FileContains: &FileContainsAssertion{Path: "a.txt", Pattern: "[unclosed"}},
+			},
+		}},
+	}
+	// Must not panic; invalid regex falls back to literal match which succeeds
+	failures, err := ev.Evaluate(context.Background(), &contract, dir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(failures) != 0 {
+		t.Errorf("expected literal fallback to match, got failures: %v", failures)
+	}
+}
+
+func TestEvaluator_FileContains_LiteralPatternStillWorks(t *testing.T) {
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "a.txt"), []byte("hello world"), 0644)
+
+	ev := &DefaultContractEvaluator{}
+	contract := ScenarioContract{
+		Scenarios: []ScenarioAssertions{{
+			Name: "s",
+			Assertions: []ContractAssertion{
+				{FileContains: &FileContainsAssertion{Path: "a.txt", Pattern: "hello"}},
+			},
+		}},
+	}
+	failures, err := ev.Evaluate(context.Background(), &contract, dir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(failures) != 0 {
+		t.Errorf("expected literal pattern to still work, got failures: %v", failures)
+	}
+}
+
+// --- End regex fallback tests ---
+
 func TestEvaluator_ZeroValueAssertion(t *testing.T) {
 	dir := t.TempDir()
 	ev := &DefaultContractEvaluator{}
