@@ -1,0 +1,127 @@
+scenarios:
+  - name: first-failure-no-escalation
+    assertions:
+      - file_exists: internal/next/runstore/types.go
+      - file_contains:
+          path: internal/next/runstore/types.go
+          pattern: "type TaskLineageEntry struct"
+      - file_contains:
+          path: internal/next/runstore/types.go
+          pattern: "ConsecutiveFails"
+      - file_contains:
+          path: internal/next/specloop/lineage.go
+          pattern: "func resolveLineageRoot"
+      - file_contains:
+          path: internal/next/specloop/specloop.go
+          pattern: "UpdateTaskLineage"
+
+  - name: second-failure-triggers-error-context
+    assertions:
+      - file_contains:
+          path: internal/next/specloop/lineage.go
+          pattern: "AppendPriorAttemptErrors"
+      - file_contains:
+          path: internal/next/specloop/lineage.go
+          pattern: "prior-attempt-error:"
+      - file_contains:
+          path: internal/next/specloop/specloop.go
+          pattern: "AppendPriorAttemptErrors"
+
+  - name: third-failure-triggers-model-escalation
+    assertions:
+      - file_contains:
+          path: internal/next/specloop/lineage.go
+          pattern: "func ShouldEscalateModel"
+      - file_contains:
+          path: internal/next/specloop/lineage.go
+          pattern: "modelEscalationThreshold"
+      - file_contains:
+          path: internal/next/execpolicy/policy.go
+          pattern: "type EscalationConfig struct"
+
+  - name: fix-task-succeeds-lineage-resets
+    assertions:
+      - file_contains:
+          path: internal/next/specloop/lineage.go
+          pattern: "ConsecutiveFails = 0"
+      - file_contains:
+          path: internal/next/runstore/types.go
+          pattern: "LastError"
+      - file_contains:
+          path: internal/next/specloop/lineage.go
+          pattern: "UpdateTaskLineage"
+
+  - name: fix-task-without-fixes-field
+    assertions:
+      - file_contains:
+          path: internal/next/planner/types.go
+          pattern: "Fixes.*string"
+      - file_contains:
+          path: internal/next/planner/types.go
+          pattern: "type TaskDef struct"
+      - file_contains:
+          path: internal/next/runstore/types.go
+          pattern: "Fixes.*string"
+
+  - name: lineage-chain-resolution-depth-gt-2
+    assertions:
+      - file_contains:
+          path: internal/next/specloop/lineage.go
+          pattern: "func resolveLineageRoot"
+      - file_contains:
+          path: internal/next/specloop/lineage.go
+          pattern: "ChainIDs"
+      - file_contains:
+          path: internal/next/runstore/types.go
+          pattern: "ChainIDs"
+
+  - name: cycle-in-fixes-chain
+    assertions:
+      - file_contains:
+          path: internal/next/specloop/lineage.go
+          pattern: "maxDepth"
+      - file_contains:
+          path: internal/next/specloop/lineage.go
+          pattern: "func resolveLineageRoot"
+      - file_contains:
+          path: internal/next/specloop/lineage.go
+          pattern: "depth <"
+
+  - name: custom-thresholds-via-execution-policy
+    assertions:
+      - file_contains:
+          path: internal/next/execpolicy/policy.go
+          pattern: "type EscalationConfig struct"
+      - file_contains:
+          path: internal/next/execpolicy/policy.go
+          pattern: "ErrorContextThreshold"
+      - file_contains:
+          path: internal/next/execpolicy/policy.go
+          pattern: "ModelEscalationThreshold"
+      - file_contains:
+          path: internal/next/execpolicy/policy.go
+          pattern: "Escalation EscalationConfig"
+
+  - name: default-thresholds-when-policy-omits-escalation
+    assertions:
+      - file_contains:
+          path: internal/next/execpolicy/policy.go
+          pattern: "DefaultPolicy"
+      - file_contains:
+          path: internal/next/execpolicy/policy.go
+          pattern: "ErrorContextThreshold:    2"
+      - file_contains:
+          path: internal/next/execpolicy/policy.go
+          pattern: "ModelEscalationThreshold: 3"
+
+  - name: last-error-truncated-for-long-output
+    assertions:
+      - file_contains:
+          path: internal/next/specloop/lineage.go
+          pattern: "2000"
+      - file_contains:
+          path: internal/next/specloop/lineage.go
+          pattern: "LastError"
+      - file_contains:
+          path: internal/next/runstore/types.go
+          pattern: "LastError"

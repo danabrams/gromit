@@ -12,6 +12,7 @@ import (
 	"github.com/danabrams/gromit/internal/next/execpolicy"
 	"github.com/danabrams/gromit/internal/next/runstore"
 	"github.com/danabrams/gromit/internal/next/specloop"
+	"gopkg.in/yaml.v3"
 )
 
 // fakeContractWriter is a test double for the ContractWriter interface.
@@ -909,6 +910,118 @@ func TestWriteContracts_StaleValidationErrorsResetEachIteration(t *testing.T) {
 	}
 	if strings.Contains(reason, "validation failed") {
 		t.Errorf("blocked reason must not mention stale validation error, got: %q", reason)
+	}
+}
+
+// TestWriteContracts_RevalidateExistingContract verifies that when ContractsWritten is true
+// but the existing contract file contains invalid assertions (referencing runtime artifacts),
+// the stage revalidates the contract, resets ContractsWritten to false, and proceeds with
+// regeneration using the writer.
+func TestWriteContracts_RevalidateExistingContract(t *testing.T) {
+	// Seed: RunState with ContractsWritten=true and an existing contract file
+	// that contains an invalid assertion (references run.json, a runtime artifact).
+	tmp := t.TempDir()
+	store := runstore.NewStore(tmp)
+	rs := makeWriteContractsRunState(t, store)
+	rs.ContractsWritten = true
+
+	specPath := filepath.Join(tmp, "spec.md")
+	if err := os.WriteFile(specPath, []byte(specWithScenarios), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	runDir := store.RunDir(rs.RunID)
+	if err := os.WriteFile(filepath.Join(runDir, "spec-packet.md"), []byte("packet"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	evidenceDir := filepath.Join(tmp, "evidence")
+	if err := os.MkdirAll(evidenceDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Write an existing contract file with an invalid assertion (run.json is a runtime artifact)
+	invalidContract := contract.ScenarioContract{
+		Scenarios: []contract.ScenarioAssertions{
+			{
+				Name: "add-works",
+				Assertions: []contract.ContractAssertion{
+					{FileContains: &contract.FileContainsAssertion{Path: "run.json", Pattern: "some pattern"}},
+				},
+			},
+		},
+	}
+	contractPath := filepath.Join(evidenceDir, "scenario-contracts.yaml")
+	invalidBytes, _ := yaml.Marshal(invalidContract)
+	if err := os.WriteFile(contractPath, invalidBytes, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Writer will be called with a valid contract to replace the invalid one
+	validContract := contract.ScenarioContract{
+		Scenarios: []contract.ScenarioAssertions{
+			{
+				Name: "add-works",
+				Assertions: []contract.ContractAssertion{
+					{FileExists: "calc/calc.go"},
+				},
+			},
+		},
+	}
+
+	writerCalls := 0
+	writer := &callbackContractWriter{
+		fn: func(_ context.Context, _ []contract.SpecScenario, specPacket string) (*contract.ScenarioContract, error) {
+			writerCalls++
+			// Verify that specPacket contains the prior validation error
+			if !strings.Contains(specPacket, "run.json") {
+				t.Errorf("specPacket should include validation error mentioning run.json, got: %s", specPacket)
+			}
+			return &validContract, nil
+		},
+	}
+
+	cfg := WriteContractsStageConfig{
+		SpecPath:    specPath,
+		EvidenceDir: evidenceDir,
+		Store:       store,
+	}
+	stage := NewWriteContractsStage(writer, cfg, nil, nil)
+
+	// Invoke: Stage should detect invalid contract, reset ContractsWritten, and regenerate
+	action, err := stage.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Assert: stage proceeds (doesn't skip due to idempotency)
+	if action.Kind != specloop.Continue {
+		t.Fatalf("expected Continue after revalidation, got %v", action.Kind)
+	}
+
+	// Assert: writer was called (regeneration happened)
+	if writerCalls == 0 {
+		t.Fatal("expected writer to be called for contract regeneration")
+	}
+
+	// Assert: contract file was rewritten with valid contract
+	data, err := os.ReadFile(contractPath)
+	if err != nil {
+		t.Fatalf("scenario-contracts.yaml not written: %v", err)
+	}
+	var regeneratedContract contract.ScenarioContract
+	if err := yaml.Unmarshal(data, &regeneratedContract); err != nil {
+		t.Fatalf("failed to parse regenerated contract: %v", err)
+	}
+
+	// Verify the new contract is valid (no run.json references)
+	validationErrs := contract.ValidateContract(regeneratedContract)
+	if len(validationErrs) > 0 {
+		t.Fatalf("regenerated contract should be valid, got errors: %v", validationErrs)
+	}
+
+	// Assert: ContractsWritten is still true after successful regeneration
+	if !rs.ContractsWritten {
+		t.Fatal("expected ContractsWritten=true after successful regeneration")
 	}
 }
 

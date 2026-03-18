@@ -197,6 +197,7 @@ func (s *PlanStage) Run(ctx context.Context, rs *runstore.RunState) (specloop.Ne
 			Status:              "pending",
 			ExpectedTouchedArea: td.ExpectedTouchedArea,
 			ProofChecks:         td.ProofChecks,
+			Fixes:               td.Fixes,
 			Kind:                kind,
 			Cycle:               rs.Cycle,
 			SpecConstraints:     rs.SpecConstraints,

@@ -138,3 +138,64 @@ func TestRunState_NormalizeNilFields_ReviewAndAcceptanceSlices(t *testing.T) {
 		t.Errorf("AcceptanceResults should be empty, got %d", len(rs.AcceptanceResults))
 	}
 }
+
+func TestTaskLineageEntry_ChainIDsCanBeSet(t *testing.T) {
+	entry := &TaskLineageEntry{
+		ChainIDs: []string{"chain-1"},
+	}
+	if len(entry.ChainIDs) != 1 {
+		t.Errorf("TaskLineageEntry.ChainIDs should be settable, got %d items", len(entry.ChainIDs))
+	}
+}
+
+func TestRunState_TaskLineageMap_Initialized(t *testing.T) {
+	rs := &RunState{}
+	rs.NormalizeNilFields()
+	if rs.TaskLineage == nil {
+		t.Error("TaskLineage map should be initialized in NormalizeNilFields")
+	}
+}
+
+func TestTask_HasFixesField(t *testing.T) {
+	tk := &Task{
+		TaskID: "task-1",
+		Fixes:  "fix-1",
+	}
+	if tk.Fixes != "fix-1" {
+		t.Errorf("Task.Fixes should be set to 'fix-1', got %q", tk.Fixes)
+	}
+}
+
+// TestTask_HasConsecutiveFailsField and TestTask_HasLastErrorField are removed:
+// ConsecutiveFails and LastError are no longer on Task — they are stored exclusively
+// in TaskLineage (rs.TaskLineage) which is the authoritative store.
+
+func TestNormalizeNilFields_TaskLineage(t *testing.T) {
+	rs := &RunState{}
+	rs.NormalizeNilFields()
+	if rs.TaskLineage == nil {
+		t.Fatal("TaskLineage should be initialized")
+	}
+}
+
+func TestRunState_NormalizeNilFields_DoesNotPreCreateLineageEntries(t *testing.T) {
+	// NormalizeNilFields should NOT proactively create TaskLineage entries for tasks.
+	// Lineage entries are created lazily in UpdateTaskLineage only when a task actually fails.
+	rs := &RunState{
+		Tasks: []Task{
+			{TaskID: "task-1"},
+			{TaskID: "task-2"},
+		},
+	}
+	rs.NormalizeNilFields()
+
+	if rs.TaskLineage == nil {
+		t.Fatal("TaskLineage map should be initialized (as empty map)")
+	}
+	// Entries should NOT have been pre-created for tasks that haven't failed
+	for _, task := range rs.Tasks {
+		if _, exists := rs.TaskLineage[task.TaskID]; exists {
+			t.Errorf("TaskLineage should NOT have pre-created entry for task %s (lazy creation only)", task.TaskID)
+		}
+	}
+}

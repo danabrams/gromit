@@ -683,3 +683,180 @@ func TestEvaluator_ZeroValueAssertion(t *testing.T) {
 		t.Errorf("expected 'no fields set' in details, got: %s", failures[0].Details)
 	}
 }
+
+func TestEvaluator_FileContains_RegexPattern_Pass(t *testing.T) {
+	dir := t.TempDir()
+	// File with struct field definitions similar to those in the codebase
+	os.WriteFile(filepath.Join(dir, "types.go"), []byte("type State struct {\n\tChainIDs []string\n}"), 0644)
+
+	ev := &DefaultContractEvaluator{}
+	contract := ScenarioContract{
+		Scenarios: []ScenarioAssertions{{
+			Name: "s",
+			Assertions: []ContractAssertion{
+				{FileContains: &FileContainsAssertion{Path: "types.go", Pattern: "ChainIDs.*\\[\\]string"}},
+			},
+		}},
+	}
+	failures, err := ev.Evaluate(context.Background(), &contract, dir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(failures) != 0 {
+		t.Errorf("expected no failures for regex pattern match, got %v", failures)
+	}
+}
+
+func TestEvaluator_FileContains_RegexWithEscapedChars_Pass(t *testing.T) {
+	dir := t.TempDir()
+	// File with function call containing len()
+	os.WriteFile(filepath.Join(dir, "logic.go"), []byte("if len(e.LastError) > 2000 { e.LastError = e.LastError[:2000] }"), 0644)
+
+	ev := &DefaultContractEvaluator{}
+	contract := ScenarioContract{
+		Scenarios: []ScenarioAssertions{{
+			Name: "s",
+			Assertions: []ContractAssertion{
+				{FileContains: &FileContainsAssertion{Path: "logic.go", Pattern: "len\\(.*LastError.*\\) > 2000"}},
+			},
+		}},
+	}
+	failures, err := ev.Evaluate(context.Background(), &contract, dir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(failures) != 0 {
+		t.Errorf("expected no failures for regex with escaped chars, got %v", failures)
+	}
+}
+
+func TestEvaluator_FileContains_RegexPattern_Fail(t *testing.T) {
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "types.go"), []byte("type State struct {\n\tOtherField bool\n}"), 0644)
+
+	ev := &DefaultContractEvaluator{}
+	contract := ScenarioContract{
+		Scenarios: []ScenarioAssertions{{
+			Name: "s",
+			Assertions: []ContractAssertion{
+				{FileContains: &FileContainsAssertion{Path: "types.go", Pattern: "ChainIDs.*\\[\\]string"}},
+			},
+		}},
+	}
+	failures, err := ev.Evaluate(context.Background(), &contract, dir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(failures) != 1 {
+		t.Fatalf("expected 1 failure for missing regex pattern, got %v", failures)
+	}
+	if failures[0].AssertionType != "file_contains" {
+		t.Errorf("wrong assertion type: %s", failures[0].AssertionType)
+	}
+}
+
+func TestEvaluator_FileNotContains_RegexPattern_Pass(t *testing.T) {
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "types.go"), []byte("type State struct {\n\tOtherField bool\n}"), 0644)
+
+	ev := &DefaultContractEvaluator{}
+	contract := ScenarioContract{
+		Scenarios: []ScenarioAssertions{{
+			Name: "s",
+			Assertions: []ContractAssertion{
+				{FileNotContains: &FileContainsAssertion{Path: "types.go", Pattern: "ChainIDs.*\\[\\]string"}},
+			},
+		}},
+	}
+	failures, err := ev.Evaluate(context.Background(), &contract, dir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(failures) != 0 {
+		t.Errorf("expected no failures (pattern should not be found), got %v", failures)
+	}
+}
+
+func TestEvaluator_FileNotContains_RegexPattern_Fail(t *testing.T) {
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "types.go"), []byte("type State struct {\n\tChainIDs []string\n}"), 0644)
+
+	ev := &DefaultContractEvaluator{}
+	contract := ScenarioContract{
+		Scenarios: []ScenarioAssertions{{
+			Name: "s",
+			Assertions: []ContractAssertion{
+				{FileNotContains: &FileContainsAssertion{Path: "types.go", Pattern: "ChainIDs.*\\[\\]string"}},
+			},
+		}},
+	}
+	failures, err := ev.Evaluate(context.Background(), &contract, dir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(failures) != 1 {
+		t.Fatalf("expected 1 failure (regex pattern found but should not be), got %v", failures)
+	}
+	if failures[0].AssertionType != "file_not_contains" {
+		t.Errorf("wrong assertion type: %s", failures[0].AssertionType)
+	}
+}
+
+func TestEvaluator_FileContains_ActualPatternsFromSpec(t *testing.T) {
+	dir := t.TempDir()
+
+	// Create files with actual struct definitions matching the spec patterns
+	os.WriteFile(filepath.Join(dir, "runstore_types.go"), []byte(`
+type State struct {
+	ChainIDs []string
+	ConsecutiveFails int
+	LastError string
+}
+`), 0644)
+
+	os.WriteFile(filepath.Join(dir, "planner_types.go"), []byte(`
+type Task struct {
+	Fixes []string
+}
+`), 0644)
+
+	os.WriteFile(filepath.Join(dir, "execpolicy_policy.go"), []byte(`
+type Policy struct {
+	ErrorContextThreshold int
+	ModelEscalationThreshold int
+	Escalation EscalationConfig
+}
+`), 0644)
+
+	os.WriteFile(filepath.Join(dir, "lineage.go"), []byte(`
+if len(entry.LastError) > 2000 {
+	entry.LastError = entry.LastError[:2000]
+}
+`), 0644)
+
+	ev := &DefaultContractEvaluator{}
+	contract := ScenarioContract{
+		Scenarios: []ScenarioAssertions{{
+			Name: "spec-patterns",
+			Assertions: []ContractAssertion{
+				{FileContains: &FileContainsAssertion{Path: "runstore_types.go", Pattern: "ChainIDs.*\\[\\]string"}},
+				{FileContains: &FileContainsAssertion{Path: "runstore_types.go", Pattern: "ConsecutiveFails.*int"}},
+				{FileContains: &FileContainsAssertion{Path: "runstore_types.go", Pattern: "LastError.*string"}},
+				{FileContains: &FileContainsAssertion{Path: "planner_types.go", Pattern: "Fixes.*\\[\\]string"}},
+				{FileContains: &FileContainsAssertion{Path: "execpolicy_policy.go", Pattern: "ErrorContextThreshold.*int"}},
+				{FileContains: &FileContainsAssertion{Path: "execpolicy_policy.go", Pattern: "ModelEscalationThreshold.*int"}},
+				{FileContains: &FileContainsAssertion{Path: "execpolicy_policy.go", Pattern: "Escalation.*EscalationConfig"}},
+				{FileContains: &FileContainsAssertion{Path: "lineage.go", Pattern: "len\\(.*LastError.*\\) > 2000"}},
+				{FileContains: &FileContainsAssertion{Path: "lineage.go", Pattern: "LastError.*\\[:\\d+\\]"}},
+			},
+		}},
+	}
+
+	failures, err := ev.Evaluate(context.Background(), &contract, dir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(failures) != 0 {
+		t.Errorf("expected no failures for spec patterns, got %d failures: %v", len(failures), failures)
+	}
+}

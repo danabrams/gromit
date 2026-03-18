@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/danabrams/gromit/internal/next/execpolicy"
 	"github.com/danabrams/gromit/internal/next/runstore"
 )
 
@@ -12,6 +13,7 @@ type SpecLoopConfig struct {
 	Budget      *Budget
 	ReplanStage string
 	EventLog    *runstore.EventLog
+	Escalation  execpolicy.EscalationConfig
 }
 
 // SpecLoop runs a pipeline of stages in order, supporting cycles and replanning.
@@ -25,7 +27,16 @@ type SpecLoop struct {
 }
 
 // NewSpecLoop creates a new SpecLoop with the given stages and config.
+// Zero-valued escalation thresholds are replaced with safe defaults to prevent
+// immediate escalation (ModelEscalationThreshold=0) or per-failure error spam
+// (ErrorContextThreshold=0).
 func NewSpecLoop(stages []Stage, cfg SpecLoopConfig) *SpecLoop {
+	if cfg.Escalation.ErrorContextThreshold == 0 {
+		cfg.Escalation.ErrorContextThreshold = 2
+	}
+	if cfg.Escalation.ModelEscalationThreshold == 0 {
+		cfg.Escalation.ModelEscalationThreshold = 3
+	}
 	return &SpecLoop{stages: stages, config: cfg}
 }
 
@@ -125,6 +136,28 @@ func (sl *SpecLoop) Run(ctx context.Context, rs *runstore.RunState) error {
 			return nil
 		}
 
+		// Update task lineage based on failed tasks and prior attempt errors
+		if replanContext != nil {
+			// Initialize TaskLineage if nil
+			if rs.TaskLineage == nil {
+				rs.TaskLineage = make(map[string]runstore.TaskLineageEntry)
+			}
+
+			// Extract failed task IDs from current tasks
+			failedTaskIDs := []string{}
+			for _, task := range rs.Tasks {
+				if task.Status == "failed" {
+					failedTaskIDs = append(failedTaskIDs, task.TaskID)
+				}
+			}
+
+			// Update lineage with failure information: resolveLineageRoot traces
+			// task chains, increments ConsecutiveFails, and stores LastError.
+			// Model escalation will be applied in the execute stage using
+			// ModelEscalationThreshold from the escalation config.
+			UpdateTaskLineage(rs.TaskLineage, rs.Tasks, failedTaskIDs)
+		}
+
 		// Thread failure context into RunState for PlanStage to read on replan
 		if replanContext != nil {
 			// Initialize FailureHistory if nil
@@ -139,6 +172,11 @@ func (sl *SpecLoop) Run(ctx context.Context, rs *runstore.RunState) error {
 			// that may indicate a bad test specification rather than an implementation bug
 			annotated := AnnotateWithPersistentHints(replanContext.Failures, rs.FailureHistory, 2)
 			rs.ReplanContext = DeduplicateFailures(annotated)
+
+			// Append prior-attempt-error strings to replan context for planner to see.
+			// Format: "prior-attempt-error: <task-id>: <error-message>"
+			// Must happen AFTER rs.ReplanContext assignment to avoid overwriting.
+			AppendPriorAttemptErrors(&rs.ReplanContext, rs.TaskLineage, sl.config.Escalation.ErrorContextThreshold)
 		}
 
 		// Emit replan_triggered event

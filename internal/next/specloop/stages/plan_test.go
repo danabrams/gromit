@@ -271,6 +271,78 @@ func TestPlanStage_FixCycle_TasksAreAppended(t *testing.T) {
 	}
 }
 
+func TestPlanStage_FixCycle_FixesCopiedToTasks(t *testing.T) {
+	tmp := t.TempDir()
+	store := runstore.NewStore(tmp)
+	rs := runstore.NewRunState("spec-001", "proj-001")
+	rs.Cycle = 2
+	rs.ReplanContext = []string{"test failure in pkg/foo"}
+	// Pre-populate with cycle 1 tasks
+	rs.Tasks = []runstore.Task{
+		{TaskID: "t-001", Status: "done", Cycle: 1, Kind: "original"},
+	}
+	runDir := store.RunDir(rs.RunID)
+	os.MkdirAll(runDir, 0o755)
+	os.WriteFile(filepath.Join(runDir, "spec-packet.md"), []byte("spec content"), 0o644)
+
+	fixPlan := planner.Plan{
+		SpecID: "spec-001",
+		Cycle:  2,
+		Kind:   "fix",
+		Tasks: []planner.TaskDef{
+			{
+				TaskID:              "t-002",
+				Objective:           "Fix the failure",
+				ExpectedTouchedArea: []string{"pkg/foo"},
+				ProofChecks:         []string{"go test ./pkg/foo/..."},
+				ParentCycle:         1,
+				FailuresAddressed:   []string{"test failure in pkg/foo"},
+				Fixes:               "issue-001, issue-002",
+			},
+			{
+				TaskID:              "t-003",
+				Objective:           "Additional fix",
+				ExpectedTouchedArea: []string{"pkg/bar"},
+				ProofChecks:         []string{"go test ./pkg/bar/..."},
+				ParentCycle:         1,
+				FailuresAddressed:   []string{"test failure in pkg/foo"},
+				Fixes:               "issue-003",
+			},
+		},
+	}
+
+	ffp := &fakeFixPlanner{plans: []planner.Plan{fixPlan}}
+	fp := &fakePlanner{plans: []planner.Plan{validPlan()}}
+	stage := NewPlanStage(fp, store, nil)
+	stage.SetFixPlanner(ffp)
+
+	action, err := stage.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if action.Kind != specloop.Continue {
+		t.Fatalf("expected Continue, got %v", action.Kind)
+	}
+	// Should have 3 tasks: 1 original + 2 fix appended
+	if len(rs.Tasks) != 3 {
+		t.Fatalf("expected 3 tasks (1 original + 2 fix), got %d", len(rs.Tasks))
+	}
+
+	// Verify Fixes are copied to first fix task (t-002)
+	if rs.Tasks[1].Fixes == "issue-001, issue-002" {
+		// Verified: Fixes matches expected value
+	} else {
+		t.Fatalf("task t-002: expected Fixes 'issue-001, issue-002', got %q", rs.Tasks[1].Fixes)
+	}
+
+	// Verify Fixes are copied to second fix task (t-003)
+	if rs.Tasks[2].Fixes == "issue-003" {
+		// Verified: Fixes matches expected value
+	} else {
+		t.Fatalf("task t-003: expected Fixes 'issue-003', got %q", rs.Tasks[2].Fixes)
+	}
+}
+
 func TestPlanStage_SpecConstraintsCopiedToTasks(t *testing.T) {
 	tmp := t.TempDir()
 	store := runstore.NewStore(tmp)
@@ -298,6 +370,66 @@ func TestPlanStage_SpecConstraintsCopiedToTasks(t *testing.T) {
 			t.Fatalf("task %q: expected SpecConstraints %q, got %q",
 				task.TaskID, rs.SpecConstraints, task.SpecConstraints)
 		}
+	}
+}
+
+func TestPlanStage_FixesCopiedToTasks(t *testing.T) {
+	tmp := t.TempDir()
+	store := runstore.NewStore(tmp)
+	rs := runstore.NewRunState("spec-001", "proj-001")
+	runDir := store.RunDir(rs.RunID)
+	os.MkdirAll(runDir, 0o755)
+	os.WriteFile(filepath.Join(runDir, "spec-packet.md"), []byte("spec content"), 0o644)
+
+	// Create a plan with tasks that have Fixes populated
+	planWithFixes := planner.Plan{
+		SpecID: "spec-001",
+		Cycle:  1,
+		Kind:   "original",
+		Tasks: []planner.TaskDef{
+			{
+				TaskID:              "t-001",
+				Objective:           "Do something",
+				ExpectedTouchedArea: []string{"pkg/foo"},
+				ProofChecks:         []string{"go test ./pkg/foo/..."},
+				Fixes:               "issue-123, issue-456",
+			},
+			{
+				TaskID:              "t-002",
+				Objective:           "Do another thing",
+				ExpectedTouchedArea: []string{"pkg/bar"},
+				ProofChecks:         []string{"go test ./pkg/bar/..."},
+				Fixes:               "issue-789",
+			},
+		},
+	}
+
+	fp := &fakePlanner{plans: []planner.Plan{planWithFixes}}
+	stage := NewPlanStage(fp, store, nil)
+
+	action, err := stage.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if action.Kind != specloop.Continue {
+		t.Fatalf("expected Continue, got %v", action.Kind)
+	}
+	if len(rs.Tasks) != 2 {
+		t.Fatalf("expected 2 tasks, got %d", len(rs.Tasks))
+	}
+
+	// Verify Fixes are copied to first task
+	if rs.Tasks[0].Fixes == "issue-123, issue-456" {
+		// Verified: Fixes matches expected value
+	} else {
+		t.Fatalf("task t-001: expected Fixes 'issue-123, issue-456', got %q", rs.Tasks[0].Fixes)
+	}
+
+	// Verify Fixes are copied to second task
+	if rs.Tasks[1].Fixes == "issue-789" {
+		// Verified: Fixes matches expected value
+	} else {
+		t.Fatalf("task t-002: expected Fixes 'issue-789', got %q", rs.Tasks[1].Fixes)
 	}
 }
 

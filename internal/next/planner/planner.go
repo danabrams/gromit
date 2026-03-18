@@ -219,6 +219,7 @@ func buildFixPlanPrompt(req FixPlanRequest) string {
 	b.WriteString("For each `*_test.go` file listed in `expected_touched_area`, you MUST include at least one proof check that verifies new content exists in that test file — for example `grep -q 'TestFoo_Bar' path/to/foo_test.go` or `grep -q 'expectedFunction' path/to/foo_test.go`. Do NOT rely solely on `go test ./...`; it passes even when no new tests were added.\n")
 	b.WriteString("  - parent_cycle: integer (the cycle being fixed)\n")
 	b.WriteString("  - failures_addressed: array of strings (subset of failures this task fixes)\n")
+	b.WriteString("  - fixes: string (optional) the task_id of the failed task this fix task addresses (e.g. \"t-001\"). Include this when your fix directly addresses a specific prior task's failure.\n")
 	return b.String()
 }
 

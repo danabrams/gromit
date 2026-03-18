@@ -7,14 +7,21 @@ import (
 	"os"
 )
 
+// EscalationConfig defines escalation thresholds for error handling and model selection.
+type EscalationConfig struct {
+	ErrorContextThreshold    int `json:"error_context_threshold"`
+	ModelEscalationThreshold int `json:"model_escalation_threshold"`
+}
+
 // Policy defines execution policy configuration: always-run checks, budgets,
 // model tier config, and review settings.
 type Policy struct {
-	AlwaysRun []Check       `json:"always_run"`
-	Budgets   Budgets       `json:"budgets"`
-	Models    Models        `json:"models"`
-	Review    ReviewConfig  `json:"review"`
-	Routing   RoutingConfig `json:"routing"`
+	AlwaysRun   []Check           `json:"always_run"`
+	Budgets     Budgets           `json:"budgets"`
+	Models      Models            `json:"models"`
+	Review      ReviewConfig      `json:"review"`
+	Routing     RoutingConfig     `json:"routing"`
+	Escalation EscalationConfig  `json:"escalation"`
 }
 
 // RoutingConfig defines multi-provider routing preferences.
@@ -108,6 +115,10 @@ func DefaultPolicy() Policy {
 			Preferences:     map[string]string{"plan": "any", "execute": "any", "review": "any", "accept": "any"},
 			Ratio:           map[string]int{"claude": 100},
 			CooldownSeconds: 300,
+		},
+		Escalation: EscalationConfig{
+			ErrorContextThreshold:    2,
+			ModelEscalationThreshold: 3,
 		},
 	}
 }

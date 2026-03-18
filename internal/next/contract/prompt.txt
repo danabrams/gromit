@@ -54,6 +54,7 @@ Rules:
 - Use relative paths from the project root.
 - Prefer specific assertions (file_contains) over general ones (file_exists) where the Then clause specifies content.
 - Do not invent assertions not derivable from the Given/When/Then text.
+- **Only assert against implementation source files (Go files in internal/, cmd/, etc.).** Do NOT reference runtime artifact paths (run.json, execution-policy.json, tasks.json, events.jsonl, spec-packet.md, spec.md) — these files live in the run store, not the project source tree where the contract evaluator resolves paths.
 
 Respond with ONLY a YAML block in this exact structure:
 

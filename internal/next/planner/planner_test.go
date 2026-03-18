@@ -324,3 +324,17 @@ func TestPlanner_CreateFixPlan_RetryFeedsBackValidationError(t *testing.T) {
 		t.Fatal("second prompt should contain prior-plan validation error")
 	}
 }
+
+func TestBuildFixPlanPrompt_InstructsAboutFixesField(t *testing.T) {
+	prompt := buildFixPlanPrompt(FixPlanRequest{
+		OriginalPlan: Plan{SpecID: "s1", Cycle: 1},
+		Failures:     []string{"compilation error in main.go"},
+		Cycle:        2,
+	})
+	if !strings.Contains(prompt, "fixes") {
+		t.Fatal("buildFixPlanPrompt must mention the 'fixes' field")
+	}
+	if !strings.Contains(prompt, "failed task") {
+		t.Fatal("buildFixPlanPrompt must reference 'failed task' when describing the fixes field")
+	}
+}

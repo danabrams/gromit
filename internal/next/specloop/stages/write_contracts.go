@@ -25,8 +25,8 @@ type WriteContractsStageConfig struct {
 }
 
 // WriteContractsStage translates spec scenarios into declarative contract assertions
-// before implementation begins. It is a no-op (idempotent) if ContractsWritten is
-// already true on the RunState. Uses Sonnet (P1) model tier.
+// before implementation begins. It is idempotent when contracts are already written.
+// Uses Sonnet (P1) model tier.
 type WriteContractsStage struct {
 	writer   contract.ContractWriter
 	cfg      WriteContractsStageConfig
@@ -54,9 +54,36 @@ func (s *WriteContractsStage) Run(ctx context.Context, rs *runstore.RunState) (s
 		return specloop.NextAction{}, fmt.Errorf("write_contracts: EvidenceDir is required but empty")
 	}
 
-	// Idempotency: if contracts are already written (e.g. on replan cycle), skip.
+	contractPath := filepath.Join(s.cfg.EvidenceDir, "scenario-contracts.yaml")
+
+	// existingValidationErrors holds validation errors from an existing invalid contract,
+	// to be injected into specPacket for retry context. nil means no prior read was done
+	// (file didn't exist or was not yet checked).
+	var existingValidationErrors []string
+
+	// Before idempotency check: revalidate existing contract if it exists.
+	// If the contract is invalid (e.g., references runtime artifacts),
+	// reset the flag and proceed with regeneration.
 	if rs.ContractsWritten {
-		return specloop.NextAction{Kind: specloop.Continue}, nil
+		if contractBytes, err := os.ReadFile(contractPath); err == nil {
+			// Contract file exists; parse and validate it.
+			var existing contract.ScenarioContract
+			if err := yaml.Unmarshal(contractBytes, &existing); err == nil {
+				errs := contract.ValidateContract(existing)
+				if len(errs) == 0 {
+					// Contract is valid; maintain idempotency and skip.
+					return specloop.NextAction{Kind: specloop.Continue}, nil
+				}
+				// Contract is invalid; store errors for injection into specPacket below.
+				existingValidationErrors = errs
+			}
+			// Contract file is invalid or unreadable/unparseable; fall through to regenerate.
+		} else {
+			// No contract file found but flag is set; just skip (file may have been cleaned up).
+			return specloop.NextAction{Kind: specloop.Continue}, nil
+		}
+		// Reset flag to proceed with regeneration.
+		rs.ContractsWritten = false
 	}
 
 	// Read raw spec markdown to parse scenarios.
@@ -110,6 +137,12 @@ func (s *WriteContractsStage) Run(ctx context.Context, rs *runstore.RunState) (s
 	}
 
 	specPacket := string(specPacketBytes)
+
+	// Inject validation errors from existing invalid contract into specPacket for retry context.
+	// existingValidationErrors is populated during the revalidation phase above.
+	if len(existingValidationErrors) > 0 {
+		specPacket = "# Prior Contract Validation Errors\n" + strings.Join(existingValidationErrors, "\n") + "\n\n" + specPacket
+	}
 
 	// Retry loop: up to 3 total attempts (1 initial + 2 retries).
 	const maxAttempts = 3
@@ -175,7 +208,6 @@ func (s *WriteContractsStage) Run(ctx context.Context, rs *runstore.RunState) (s
 	if err := os.MkdirAll(s.cfg.EvidenceDir, 0o755); err != nil {
 		return specloop.NextAction{}, fmt.Errorf("create evidence dir: %w", err)
 	}
-	contractPath := filepath.Join(s.cfg.EvidenceDir, "scenario-contracts.yaml")
 	if err := os.WriteFile(contractPath, contractBytes, 0o644); err != nil {
 		return specloop.NextAction{}, fmt.Errorf("write contracts file: %w", err)
 	}

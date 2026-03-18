@@ -18,6 +18,7 @@ type TaskDef struct {
 	ProofChecks         []string `json:"proof_checks"`
 	ParentCycle         int      `json:"parent_cycle,omitempty"`
 	FailuresAddressed   []string `json:"failures_addressed,omitempty"`
+	Fixes               string   `json:"fixes,omitempty"`
 }
 
 // TaskByID returns the task with the given ID and true, or a zero TaskDef and false.

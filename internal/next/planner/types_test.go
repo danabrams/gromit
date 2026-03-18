@@ -41,3 +41,10 @@ func TestTaskDef_NormalizeNilFields(t *testing.T) {
 		t.Fatal("FailuresAddressed should be non-nil after normalize")
 	}
 }
+
+func TestTaskDef_Fixes(t *testing.T) {
+	td := TaskDef{TaskID: "t-001", Objective: "test", Fixes: "fix-001"}
+	if td.Fixes != "fix-001" {
+		t.Fatal("Fixes field should be populated")
+	}
+}

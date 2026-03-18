@@ -3,6 +3,7 @@ package stages
 import (
 	"context"
 
+	"github.com/danabrams/gromit/internal/next/execpolicy"
 	"github.com/danabrams/gromit/internal/next/runstore"
 	"github.com/danabrams/gromit/internal/next/specloop"
 )
@@ -19,6 +20,7 @@ type ExecuteStageConfig struct {
 	MaxTaskDurationSeconds int
 	EventLog               *runstore.EventLog
 	DetectFilesChanged     specloop.FilesChangedFunc // optional; populates TaskResult.FilesChanged
+	Escalation             execpolicy.EscalationConfig
 }
 
 // ExecuteStage runs the task loop on all tasks in the run state.
@@ -60,7 +62,23 @@ func (s *ExecuteStage) Run(ctx context.Context, rs *runstore.RunState) (specloop
 	if rs.WorktreePath != "" {
 		workDir = rs.WorktreePath
 	}
-	results, err := specloop.RunTaskLoop(ctx, pendingTasks(rs.Tasks), s.runner, specloop.TaskLoopConfig{
+
+	// Apply model escalation to pending tasks based on their lineage
+	tasksToRun := pendingTasks(rs.Tasks)
+	for i := range tasksToRun {
+		if specloop.ShouldEscalateModel(&tasksToRun[i], rs.TaskLineage, s.cfg.Escalation.ModelEscalationThreshold) {
+			tasksToRun[i].ModelTier = "high"
+			// Also update the original task in rs.Tasks
+			for j := range rs.Tasks {
+				if rs.Tasks[j].TaskID == tasksToRun[i].TaskID {
+					rs.Tasks[j].ModelTier = "high"
+					break
+				}
+			}
+		}
+	}
+
+	results, err := specloop.RunTaskLoop(ctx, tasksToRun, s.runner, specloop.TaskLoopConfig{
 		MaxRetries:             s.cfg.MaxRetries,
 		Inspector:              s.cfg.Inspector,
 		MaxRedecompositions:    s.cfg.MaxRedecompositions,

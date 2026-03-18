@@ -426,3 +426,62 @@ func TestValidate_RejectsEmptyCheckNameAndCommand(t *testing.T) {
 		t.Fatalf("expected Command error for index 1: %v", err)
 	}
 }
+
+func TestDefaultPolicy_HasEscalationConfig(t *testing.T) {
+	p := DefaultPolicy()
+	if p.Escalation.ErrorContextThreshold != 2 {
+		t.Errorf("ErrorContextThreshold = %d, want 2", p.Escalation.ErrorContextThreshold)
+	}
+	if p.Escalation.ModelEscalationThreshold != 3 {
+		t.Errorf("ModelEscalationThreshold = %d, want 3", p.Escalation.ModelEscalationThreshold)
+	}
+}
+
+func TestLoadPolicy_EscalationFromJSON(t *testing.T) {
+	tmpDir := t.TempDir()
+	policyJSON := `{
+		"escalation": {
+			"error_context_threshold": 5,
+			"model_escalation_threshold": 7
+		}
+	}`
+	path := filepath.Join(tmpDir, "policy.json")
+	if err := os.WriteFile(path, []byte(policyJSON), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	p, err := LoadPolicy(path)
+	if err != nil {
+		t.Fatalf("LoadPolicy: %v", err)
+	}
+	if p.Escalation.ErrorContextThreshold != 5 {
+		t.Errorf("ErrorContextThreshold = %d, want 5", p.Escalation.ErrorContextThreshold)
+	}
+	if p.Escalation.ModelEscalationThreshold != 7 {
+		t.Errorf("ModelEscalationThreshold = %d, want 7", p.Escalation.ModelEscalationThreshold)
+	}
+}
+
+func TestLoadPolicy_EscalationDefaultsPreservedOnPartialJSON(t *testing.T) {
+	tmpDir := t.TempDir()
+	policyJSON := `{
+		"budgets": {
+			"max_spec_cycles": 5
+		}
+	}`
+	path := filepath.Join(tmpDir, "policy.json")
+	if err := os.WriteFile(path, []byte(policyJSON), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	p, err := LoadPolicy(path)
+	if err != nil {
+		t.Fatalf("LoadPolicy: %v", err)
+	}
+	if p.Escalation.ErrorContextThreshold != 2 {
+		t.Errorf("ErrorContextThreshold = %d, want 2", p.Escalation.ErrorContextThreshold)
+	}
+	if p.Escalation.ModelEscalationThreshold != 3 {
+		t.Errorf("ModelEscalationThreshold = %d, want 3", p.Escalation.ModelEscalationThreshold)
+	}
+}
