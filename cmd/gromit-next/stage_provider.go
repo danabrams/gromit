@@ -270,9 +270,13 @@ func (p *RealStageProvider) BuildStages(policy execpolicy.Policy, rs *runstore.R
 		repoDir = p.cfg.WorkDir
 	}
 
+	validateWorkDir := p.cfg.WorkDir
+	if rs.WorktreePath != "" {
+		validateWorkDir = rs.WorktreePath
+	}
 	validateStage := stages.NewValidateStage(finalVal, stages.ValidateStageConfig{
 		AlwaysRun:   alwaysRun,
-		WorkDir:     p.cfg.WorkDir,
+		WorkDir:     validateWorkDir,
 		EvidenceDir: evidenceDir,
 		RepoDir:     repoDir,
 	}, eventLog, contractEvaluator, gitOps)
