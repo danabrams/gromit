@@ -46,7 +46,7 @@ func TestScenario_SecondFailureTriggersErrorContextInclusion(t *testing.T) {
 				rs.Tasks = append(rs.Tasks, runstore.Task{
 					TaskID:    "t-015",
 					Status:    "pending",
-					 Fixes: "t-001",
+					Fixes:     "t-001",
 					Objective: "fix t-001 compilation error",
 					ModelTier: "medium",
 				})
@@ -152,7 +152,7 @@ func TestScenario_SecondFailureTriggersErrorContextInclusion(t *testing.T) {
 	// A hypothetical next fix task for t-001 should not be escalated
 	hypotheticalFixTask := &runstore.Task{
 		TaskID:    "t-020",
-		 Fixes: "t-001",
+		Fixes:     "t-001",
 		ModelTier: "medium",
 	}
 	if ShouldEscalateModel(hypotheticalFixTask, rs.TaskLineage, 3) {
@@ -242,7 +242,7 @@ func TestScenario_SecondFailureTriggersErrorContextInclusion_DirectFunctions(t *
 	// error_context_threshold=2 is met, but model_escalation_threshold=3 is NOT
 	nextFixTask := &runstore.Task{
 		TaskID:    "t-020",
-		 Fixes: "t-001",
+		Fixes:     "t-001",
 		ModelTier: "medium",
 	}
 	modelEscalationThreshold := 3
