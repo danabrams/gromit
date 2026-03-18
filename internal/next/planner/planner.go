@@ -156,15 +156,42 @@ func buildFixPlanPrompt(req FixPlanRequest) string {
 		b.WriteString("\n")
 	}
 
-	// Separate review findings from other failures for clarity.
+	// Separate persistent failures, review findings, and other failures for clarity.
+	var persistentFailures []string
 	var reviewFindings []string
 	var otherFailures []string
 	for _, f := range req.Failures {
-		if strings.HasPrefix(f, "review:") {
+		if strings.HasPrefix(f, "persistent-failure:") {
+			persistentFailures = append(persistentFailures, f)
+			// Also add to otherFailures so it appears in the validation section
+			otherFailures = append(otherFailures, f)
+		} else if strings.HasPrefix(f, "review:") {
 			reviewFindings = append(reviewFindings, f)
 		} else {
 			otherFailures = append(otherFailures, f)
 		}
+	}
+
+	if len(persistentFailures) > 0 {
+		b.WriteString("## Persistent Failures — Possible Bad Contracts\n")
+		b.WriteString("The following failures have repeated across multiple consecutive cycles.\n")
+		b.WriteString("This strongly suggests the contract assertion itself is wrong, not the implementation.\n")
+		b.WriteString("\n")
+		b.WriteString("BEFORE creating any implementation fix task for these failures:\n")
+		b.WriteString("1. Find the assertion in scenario-contracts.yaml that corresponds to this failure\n")
+		b.WriteString("2. Verify the pattern actually appears in the target file (run grep manually in your head)\n")
+		b.WriteString("3. If the pattern looks like a regex (contains .*  \\w+  \\[  etc.) but the file uses\n")
+		b.WriteString("   literal Go syntax, the pattern may need to be a literal substring instead\n")
+		b.WriteString("4. Prefer creating a contract fix task (editing scenario-contracts.yaml) unless you\n")
+		b.WriteString("   have high confidence the implementation is wrong\n")
+		b.WriteString("\n")
+		b.WriteString("Persistent failures:\n")
+		for _, f := range persistentFailures {
+			b.WriteString("- ")
+			b.WriteString(f)
+			b.WriteString("\n")
+		}
+		b.WriteString("\n")
 	}
 
 	if len(reviewFindings) > 0 {

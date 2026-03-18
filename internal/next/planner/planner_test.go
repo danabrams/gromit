@@ -338,3 +338,189 @@ func TestBuildFixPlanPrompt_InstructsAboutFixesField(t *testing.T) {
 		t.Fatal("buildFixPlanPrompt must reference 'failed task' when describing the fixes field")
 	}
 }
+
+func TestBuildFixPlanPrompt_PersistentFailures_RendersAuditSection(t *testing.T) {
+	prompt := buildFixPlanPrompt(FixPlanRequest{
+		OriginalPlan: Plan{SpecID: "s1", Cycle: 1},
+		Failures: []string{
+			"persistent-failure: TestFoo has failed 2 consecutive cycles — may indicate a bad test specification",
+		},
+		Cycle: 2,
+	})
+	if !strings.Contains(prompt, "## Persistent Failures — Possible Bad Contracts") {
+		t.Fatal("buildFixPlanPrompt must include persistent failures audit section when present")
+	}
+	if !strings.Contains(prompt, "persistent-failure: TestFoo has failed 2 consecutive cycles") {
+		t.Fatal("persistent failure hint must appear in the audit section")
+	}
+}
+
+func TestBuildFixPlanPrompt_PersistentFailures_AppearsBeforeValidationSection(t *testing.T) {
+	prompt := buildFixPlanPrompt(FixPlanRequest{
+		OriginalPlan: Plan{SpecID: "s1", Cycle: 1},
+		Failures: []string{
+			"persistent-failure: TestFoo has failed 2 consecutive cycles — may indicate a bad test specification",
+			"compilation error in main.go",
+		},
+		Cycle: 2,
+	})
+	persistentIdx := strings.Index(prompt, "## Persistent Failures — Possible Bad Contracts")
+	validationIdx := strings.Index(prompt, "## Validation Failures to Fix")
+	if persistentIdx < 0 {
+		t.Fatal("persistent failures section must be present")
+	}
+	if validationIdx < 0 {
+		t.Fatal("validation failures section must be present")
+	}
+	if persistentIdx > validationIdx {
+		t.Fatal("persistent failures section must appear before validation failures section")
+	}
+}
+
+func TestBuildFixPlanPrompt_PersistentFailures_AlsoAppearsInValidationSection(t *testing.T) {
+	prompt := buildFixPlanPrompt(FixPlanRequest{
+		OriginalPlan: Plan{SpecID: "s1", Cycle: 1},
+		Failures: []string{
+			"persistent-failure: TestFoo has failed 2 consecutive cycles — may indicate a bad test specification",
+		},
+		Cycle: 2,
+	})
+	// Count occurrences of the persistent failure hint
+	persistentHint := "persistent-failure: TestFoo has failed 2 consecutive cycles"
+	count := strings.Count(prompt, persistentHint)
+	if count < 2 {
+		t.Fatalf("persistent failure hint must appear at least twice (audit section and validation section), got %d", count)
+	}
+}
+
+func TestBuildFixPlanPrompt_NoPersistentFailures_NoSection(t *testing.T) {
+	prompt := buildFixPlanPrompt(FixPlanRequest{
+		OriginalPlan: Plan{SpecID: "s1", Cycle: 1},
+		Failures:     []string{"compilation error in main.go"},
+		Cycle:        2,
+	})
+	if strings.Contains(prompt, "## Persistent Failures — Possible Bad Contracts") {
+		t.Fatal("persistent failures section must not appear when there are no persistent failures")
+	}
+}
+
+func TestBuildFixPlanPrompt_MultiplePersistentFailures_MixedWithNonPersistent(t *testing.T) {
+	prompt := buildFixPlanPrompt(FixPlanRequest{
+		OriginalPlan: Plan{SpecID: "s1", Cycle: 1},
+		Failures: []string{
+			"persistent-failure: TestFoo has failed 2 consecutive cycles — may indicate a bad test specification",
+			"lint error in package.go",
+			"persistent-failure: TestBar has failed 3 consecutive cycles — may indicate a bad test specification",
+			"compilation error in main.go",
+		},
+		Cycle: 2,
+	})
+	// Check persistent failures section exists
+	if !strings.Contains(prompt, "## Persistent Failures — Possible Bad Contracts") {
+		t.Fatal("persistent failures section must be present")
+	}
+	// Check both persistent failures appear in their section
+	if !strings.Contains(prompt, "persistent-failure: TestFoo has failed 2 consecutive cycles") {
+		t.Fatal("first persistent failure must appear in audit section")
+	}
+	if !strings.Contains(prompt, "persistent-failure: TestBar has failed 3 consecutive cycles") {
+		t.Fatal("second persistent failure must appear in audit section")
+	}
+	// Check validation section still exists
+	if !strings.Contains(prompt, "## Validation Failures to Fix") {
+		t.Fatal("validation failures section must be present")
+	}
+	// Check non-persistent failures appear in validation section
+	if !strings.Contains(prompt, "lint error in package.go") {
+		t.Fatal("non-persistent failure must appear in validation section")
+	}
+	if !strings.Contains(prompt, "compilation error in main.go") {
+		t.Fatal("non-persistent failure must appear in validation section")
+	}
+}
+
+func TestBuildFixPlanPrompt_PersistentFailureHint_WithoutCorrespondingContractFailure(t *testing.T) {
+	prompt := buildFixPlanPrompt(FixPlanRequest{
+		OriginalPlan: Plan{SpecID: "s1", Cycle: 1},
+		Failures: []string{
+			"persistent-failure: contract:scenario-contracts.yaml scenario-name has failed 2 consecutive cycles — may indicate a bad test specification",
+		},
+		Cycle: 2,
+	})
+	// Persistent failures section must exist even without corresponding contract failure
+	if !strings.Contains(prompt, "## Persistent Failures — Possible Bad Contracts") {
+		t.Fatal("persistent failures section must be present even without corresponding contract failure")
+	}
+	// The persistent failure hint must appear in the section
+	if !strings.Contains(prompt, "persistent-failure: contract:scenario-contracts.yaml") {
+		t.Fatal("persistent-failure hint must appear in audit section")
+	}
+}
+
+func TestBuildFixPlanPrompt_EmptyFailures_NoPersistentSection(t *testing.T) {
+	req := FixPlanRequest{
+		Failures: nil,
+	}
+	prompt := buildFixPlanPrompt(req)
+	if strings.Contains(prompt, "## Persistent Failures") {
+		t.Error("empty failures must not render persistent failures section")
+	}
+}
+
+func TestBuildFixPlanPrompt_MultiplePersistentFailures_AcrossDifferentContracts(t *testing.T) {
+	// Test multiple persistent failures across different contracts
+	prompt := buildFixPlanPrompt(FixPlanRequest{
+		OriginalPlan: Plan{SpecID: "s1", Cycle: 1},
+		Failures: []string{
+			`contract:contract-alpha — file_contains failed: pattern "ExpectedType" not found in "types.go"`,
+			`persistent-failure: contract:contract-alpha has failed 2 consecutive cycles — may indicate a bad test specification`,
+			`contract:contract-beta — assertion failed: expected 5 assertions but got 3`,
+			`persistent-failure: contract:contract-beta has failed 3 consecutive cycles — may indicate a bad test specification`,
+			`contract:contract-gamma — timeout after 30s`,
+		},
+		Cycle: 2,
+	})
+
+	// Assert: persistent failures section exists
+	if !strings.Contains(prompt, "## Persistent Failures — Possible Bad Contracts") {
+		t.Fatal("persistent failures section must be present")
+	}
+
+	// Assert: both persistent failures appear in the persistent section
+	if !strings.Contains(prompt, "persistent-failure: contract:contract-alpha has failed 2 consecutive cycles") {
+		t.Fatal("first persistent failure must appear in persistent section")
+	}
+	if !strings.Contains(prompt, "persistent-failure: contract:contract-beta has failed 3 consecutive cycles") {
+		t.Fatal("second persistent failure must appear in persistent section")
+	}
+
+	// Assert: validation failures section exists
+	if !strings.Contains(prompt, "## Validation Failures to Fix") {
+		t.Fatal("validation failures section must be present")
+	}
+
+	// Assert: all three contract failures appear in validation section
+	validationIdx := strings.Index(prompt, "## Validation Failures to Fix")
+	validationSection := prompt[validationIdx:]
+	if !strings.Contains(validationSection, "contract:contract-alpha") {
+		t.Fatal("first contract failure must appear in validation section")
+	}
+	if !strings.Contains(validationSection, "contract:contract-beta") {
+		t.Fatal("second contract failure must appear in validation section")
+	}
+	if !strings.Contains(validationSection, "contract:contract-gamma") {
+		t.Fatal("third contract failure must appear in validation section")
+	}
+
+	// Assert: non-persistent failure (contract-gamma timeout) does not appear in persistent section
+	persistentIdx := strings.Index(prompt, "## Persistent Failures — Possible Bad Contracts")
+	persistentSection := prompt[persistentIdx:validationIdx]
+	if strings.Contains(persistentSection, "contract:contract-gamma") {
+		t.Fatal("non-persistent failure must not appear in persistent section")
+	}
+
+	// Assert: persistent section appears before validation section
+	if persistentIdx > validationIdx {
+		t.Fatal("persistent failures section must appear before validation failures section")
+	}
+}
