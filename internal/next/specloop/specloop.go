@@ -127,22 +127,13 @@ func (sl *SpecLoop) Run(ctx context.Context, rs *runstore.RunState) error {
 
 		// Thread failure context into RunState for PlanStage to read on replan
 		if replanContext != nil {
-			// Extract failure keys from both test and contract failures
-			testKeys := ExtractTestFailureKeys(replanContext.Failures)
-			contractKeys := ExtractContractFailureKeys(replanContext.Failures)
-
-			// Merge key sets
-			mergedKeys := make([]string, 0, len(testKeys)+len(contractKeys))
-			mergedKeys = append(mergedKeys, testKeys...)
-			mergedKeys = append(mergedKeys, contractKeys...)
-
 			// Initialize FailureHistory if nil
 			if rs.FailureHistory == nil {
 				rs.FailureHistory = make(map[string]int)
 			}
 
 			// Update failure history with current cycle's failures
-			UpdateFailureHistory(rs.FailureHistory, mergedKeys)
+			UpdateFailureHistory(rs.FailureHistory, extractFailureKeys(replanContext.Failures))
 
 			// Annotate failures with persistent-failure hints for consecutive cycles
 			// that may indicate a bad test specification rather than an implementation bug
