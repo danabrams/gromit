@@ -45,19 +45,37 @@ anywhere in the directory, the failure propagates as normal.
 
 After the initial `s.contractEvaluator.Evaluate()` call, the validate stage
 runs a correction pass over any `file_contains` failures before propagating
-them. For each failure:
+them. For each failure where `f.AssertionType == "file_contains"`:
 
-1. Extract the failing file path and pattern from the `ContractFailure`
+1. Parse `f.Details` to extract the failing file path and pattern. The
+   evaluator produces Details via `fmt.Sprintf("pattern %q not found in %q",
+   a.FileContains.Pattern, a.FileContains.Path)`, which Go-quotes both values.
+   Use `fmt.Sscanf(f.Details, "pattern %q not found in %q", &pattern, &path)`
+   to correctly unquote and extract pattern X and unquoted path Y. If Sscanf
+   does not parse 2 values (e.g., the failure is a file-read error of the form
+   `"cannot read %q: ..."` rather than a missing-pattern failure), skip
+   correction for that failure and let it propagate as-is. Then find the
+   matching assertion in `sc` (by ScenarioName and `a.FileContains.Path == Y`)
+   to update it in step 3.
 2. Search all `.go` files in `filepath.Join(workDir, filepath.Dir(failingPath))`
-   for the pattern
-3. If found in a sibling file, update that assertion's `path` in the
-   in-memory `ScenarioContract` and rewrite the YAML to disk
-4. Emit a `contract_corrected` event
+   for the pattern using `matchesPattern` (the same three-strategy function
+   from `contract/evaluator.go`: literal `strings.Contains`, normalized
+   whitespace, then regex — so the sibling search uses identical match
+   semantics to the evaluator).
+3. If found in a sibling file, update `assertion.FileContains.Path` in the
+   in-memory `sc` to the full relative path of the sibling file (e.g.
+   `cmd/gromit-next/spec_test.go`), then rewrite the YAML to disk.
+4. Emit a `contract_corrected` event.
 
-After all corrections, re-run `Evaluate()` with the updated contract. The
-second evaluation result is used for the rest of the validate stage logic.
+After all corrections, re-run `Evaluate()` with the updated `sc`. The
+second evaluation result is used for the rest of the validate stage logic,
+including 0003g's loop detection. If the second evaluation finds no contract
+failures, `rs.LastContractFailures` is cleared by 0003g's logic as normal.
 
 ### New event type
+
+Add to `internal/next/runstore/events.go` alongside the other event types,
+and register `"contract_corrected"` in the `unmarshalEvent()` switch:
 
 ```go
 type ContractCorrectedEvent struct {
@@ -95,7 +113,9 @@ The corrected YAML is written back to `scenario-contracts.yaml` in
    pass before re-evaluation
 6. Non-`file_contains` assertion types are not affected
 7. When the corrected contract still has failures after re-evaluation, those
-   failures propagate to replan as normal
+   failures propagate to replan as normal; the second evaluation's failure set
+   is stored in `rs.LastContractFailures` per 0003g logic, so if the same
+   failures persist on the next cycle, 0003g's loop detection will trigger
 8. All existing validate stage tests continue to pass
 
 ## Scenarios
@@ -106,8 +126,9 @@ The corrected YAML is written back to `scenario-contracts.yaml` in
 but does exist in `cmd/gromit-next/spec_test.go`.
 **When:** The validate stage runs and initial evaluation returns a
 `file_contains` failure for that assertion
-**Then:** The contract is updated to point to `spec_test.go`. A
-`contract_corrected` event is emitted with `old_path: "cmd/gromit-next/exec_test.go"`,
+**Then:** The contract is updated to point to `cmd/gromit-next/spec_test.go`
+(full relative path). A `contract_corrected` event is emitted with
+`old_path: "cmd/gromit-next/exec_test.go"`,
 `new_path: "cmd/gromit-next/spec_test.go"`, `pattern: "feature/beta-branch"`.
 The second evaluation finds no failure for that assertion. No replan triggered.
 
@@ -121,7 +142,7 @@ No `contract_corrected` event is emitted.
 
 ### Scenario: multiple assertions corrected in one pass
 **Given:** A contract has 3 failing `file_contains` assertions, all pointing
-to `exec_test.go`, with patterns that exist in `spec_test.go`.
+to `cmd/gromit-next/exec_test.go`, with patterns that exist in `cmd/gromit-next/spec_test.go`.
 **When:** The validate stage runs
 **Then:** All 3 assertions are corrected before re-evaluation. 3
 `contract_corrected` events are emitted. The second evaluation passes for
@@ -132,10 +153,11 @@ all 3. No replan triggered.
 in a sibling file, one where the pattern exists nowhere.
 **When:** The validate stage runs
 **Then:** The correctable assertion is fixed and a `contract_corrected` event
-emitted. The uncorrectable assertion still fails after re-evaluation.
-`ReplanFrom` is returned with only the uncorrectable failure.
+emitted. The uncorrectable assertion still fails after re-evaluation. The
+second evaluation naturally reports only the uncorrectable failure (the
+corrected assertion now passes), so `ReplanFrom` is returned with only that
+one failure in its context.
 
 ## Validation
 - `go test ./internal/next/specloop/stages/... -count=1 -timeout 60s`
-- `go test ./internal/next/runstore/... -count=1 -timeout 60s`
 - `go vet ./...`

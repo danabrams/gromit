@@ -23,7 +23,7 @@ type GitDiffProvider struct {
 func (g *GitDiffProvider) Diff(baseBranch string) (string, error) {
 	// Stage all changes (including new files) so they appear in the diff.
 	// The worktree is ephemeral, so staging has no side effects on the main repo.
-	addCmd := exec.Command("git", "add", "-A")
+	addCmd := exec.Command("git", "add", "-A", "--", ".", ":!.gromit-next")
 	addCmd.Dir = g.WorkDir
 	if out, err := addCmd.CombinedOutput(); err != nil {
 		return "", fmt.Errorf("git add -A: %s: %w", string(out), err)

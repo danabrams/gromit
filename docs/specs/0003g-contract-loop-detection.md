@@ -35,27 +35,30 @@ type RunState struct {
 Added to `NormalizeNilFields()`. NOT reset between cycles (like `TaskLineage` and `ScenarioTestsWritten`) — must survive the cycle boundary to detect consecutive failures.
 
 ### Validate Stage
-In `internal/next/specloop/stages/validate.go`, after collecting `contractFailures`:
+In `internal/next/specloop/stages/validate.go`, after formatting contract failures into strings (but before collecting shell check failures):
 
 ```go
-if len(contractFailures) > 0 && slicesEqual(contractFailures, rs.LastContractFailures) {
+// contractFailureStrs: []string formatted as
+//   fmt.Sprintf("contract:%s — %s failed: %s", f.ScenarioName, f.AssertionType, f.Details)
+// Shell check failures are NOT included here or in LastContractFailures.
+if len(contractFailureStrs) > 0 && slicesEqual(contractFailureStrs, rs.LastContractFailures) {
     return specloop.NextAction{
         Kind: specloop.NeedsHuman,
         Context: &specloop.FailureContext{
-            Failures: append([]string{"repeated contract failures — same failures on consecutive cycles:"}, contractFailures...),
+            Failures: append([]string{"repeated contract failures — same failures on consecutive cycles:"}, contractFailureStrs...),
             Cycle:    rs.Cycle,
         },
     }, nil
 }
-rs.LastContractFailures = contractFailures
+rs.LastContractFailures = contractFailureStrs
 ```
 
-`slicesEqual` is a small unexported helper — same length, same elements in same order. Order is deterministic because contract assertions are evaluated in YAML order.
+`slicesEqual` is a small unexported helper in `validate.go` — same length, same elements in same order. Order is deterministic because contract assertions are evaluated in YAML order.
 
 ## Acceptance Criteria
 1. When the validate stage produces the same non-empty set of contract failure strings on two consecutive cycles, the run transitions to `needs_human` and does not trigger a replan
 2. When contract failures differ between consecutive cycles, the run replans as normal
-3. When contract failures are absent, `LastContractFailures` is set to empty and loop detection does not fire
+3. When contract failures are absent, `LastContractFailures` is set to empty and loop detection does not fire (regardless of whether shell checks pass or fail)
 4. `LastContractFailures` is persisted to `run.json` and survives across cycle boundaries
 5. `LastContractFailures` is NOT reset by the store's cycle-reset logic (alongside `TaskLineage`, `ScenarioTestsWritten`)
 6. The `needs_human` reason message identifies the repeated failures explicitly
