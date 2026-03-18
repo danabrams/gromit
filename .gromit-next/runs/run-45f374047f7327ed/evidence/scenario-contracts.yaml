@@ -37,31 +37,27 @@ scenarios:
             path: cmd/gromit-next/exec.go
             pattern: DeriveSpecStatusFromContent
         - file_contains:
-            path: cmd/gromit-next/exec_test.go
+            path: cmd/gromit-next/spec_test.go
             pattern: alpha
         - file_contains:
-            path: cmd/gromit-next/exec_test.go
+            path: cmd/gromit-next/spec_test.go
             pattern: beta
         - file_contains:
-            path: cmd/gromit-next/exec_test.go
+            path: cmd/gromit-next/spec_test.go
             pattern: StatusReadyForReview
         - file_contains:
-            path: cmd/gromit-next/exec_test.go
-            pattern: feature/foo
+            path: cmd/gromit-next/spec_test.go
+            pattern: feature/beta-branch
         - file_contains:
-            path: cmd/gromit-next/exec_test.go
-            pattern: /tmp/wt
+            path: cmd/gromit-next/spec_test.go
+            pattern: /path/to/worktree/beta
         - file_contains:
-            path: cmd/gromit-next/exec_test.go
+            path: cmd/gromit-next/spec_test.go
             pattern: beta.md
     - name: spec picker — no eligible specs
       assertions:
         - file_contains:
-            path: cmd/gromit-next/exec.go
-            pattern: |
-                no specs available to run
-        - file_contains:
-            path: cmd/gromit-next/exec_test.go
+            path: cmd/gromit-next/exec_scenario_spec_picker_no_eligible_test.go
             pattern: no specs available to run
     - name: resume picker
       assertions:
