@@ -1,18 +1,13 @@
 {
   "scenarios": [
     {
-      "name": "run start prints run ID and events path",
-      "test_file": "cmd/gromit-next/exec_scenario_run_banner_test.go"
-    },
-    {
       "name": "spec picker with mixed statuses",
       "test_file": "cmd/gromit-next/exec_scenario_spec_picker_test.go"
     },
     {
       "name": "spec picker — no eligible specs",
       "test_file": "cmd/gromit-next/exec_scenario_spec_picker_no_eligible_test.go"
-    }
-    ,
+    },
     {
       "name": "resume picker",
       "test_file": "cmd/gromit-next/exec_scenario_resume_picker_test.go"

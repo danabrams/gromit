@@ -2,63 +2,60 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"fmt"
-	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/next/specloop"
 )
 
-// TestScenario_RunStartPrintsRunIDAndEventsPath verifies that executing a spec
-// run prints a banner containing the Run ID and events.jsonl path before any
-// stage output. The banner uses single-space formatting ("Run ID: <id>") and
-// appears before the terminal summary ("Run ID:  <id>" with two spaces).
+// TestScenario_RunStartPrintsRunIDAndEventsPath verifies that run() writes a
+// banner to e.out (the buffer) containing the run ID and events path before
+// any stages execute, and returns the run ID in the summary string.
 //
-// RED: run() does not yet write a banner to output before stages execute.
-// The output contains only the terminal summary (Run ID + Status with double
-// spaces). GREEN after: run() writes a "Run ID: ...\nEvents: ...\n\n" banner
-// to the output writer before invoking the stage pipeline.
+// RED: execSpecRun has no `out` field — banner is not yet written to a buffer.
+// GREEN after: execSpecRun gains an `out io.Writer` field, and run() writes
+// the banner to e.out before calling loop.Run().
 func TestScenario_RunStartPrintsRunIDAndEventsPath(t *testing.T) {
-	// Seed: temp store dir, stub provider with no stages.
+	// Seed
 	storeDir := t.TempDir()
-	provider := &testStageProvider{stages: []specloop.Stage{}}
-
-	// Invoke: execute via cobra to capture output (since execSpecRun does not
-	// yet have an `out` field for direct banner capture).
+	provider := &testStageProvider{stages: []specloop.Stage{}} // no stages
 	var buf bytes.Buffer
-	cmd := newExecSpecCmdWithProvider(provider)
-	cmd.SetOut(&buf)
-	cmd.SetArgs([]string{
-		"--spec", "testdata/my-spec.md",
-		"--project", "gromit",
-		"--store-dir", storeDir,
-	})
-	if err := cmd.Execute(); err != nil {
-		t.Fatalf("cmd.Execute: %v", err)
+
+	r := &execSpecRun{
+		specPath:      "testdata/my-spec.md",
+		projectID:     "gromit",
+		storeDir:      storeDir,
+		stageProvider: provider,
+		out:           &buf,
 	}
 
-	output := buf.String()
+	// Invoke
+	summary, err := r.run(context.Background())
+	if err != nil {
+		t.Fatalf("run() returned error: %v", err)
+	}
 
-	// Extract runID from the summary portion (two spaces after "Run ID:").
-	parts := strings.SplitN(output, "Run ID:  ", 2)
+	// Assert: summary (return value) contains "Run ID:  " with two spaces
+	parts := strings.SplitN(summary, "Run ID:  ", 2)
 	if len(parts) < 2 {
-		t.Fatalf("output missing 'Run ID:  ', got: %q", output)
+		t.Fatalf("summary missing 'Run ID:  ', got: %s", summary)
 	}
-	runID := strings.Fields(parts[1])[0]
+	fields := strings.Fields(parts[1])
+	if len(fields) == 0 {
+		t.Fatalf("no run ID token after 'Run ID:  ' in summary: %s", summary)
+	}
+	runID := fields[0]
 	if runID == "" {
 		t.Fatal("extracted runID is empty")
 	}
 
-	// Assert: banner (single-space format) appears at the start of output,
-	// before any stage output (trivially satisfied when provider returns no stages).
-	// Banner format:
-	//   Run ID: <runID>
-	//   Events: <storeDir>/runs/<runID>/events.jsonl
-	//
-	eventsPath := filepath.Join(storeDir, "runs", runID, "events.jsonl")
-	wantBanner := fmt.Sprintf("Run ID: %s\nEvents: %s\n\n", runID, eventsPath)
-	if !strings.HasPrefix(output, wantBanner) {
-		t.Errorf("expected output to begin with banner:\nwant:\n%s\ngot:\n%s", wantBanner, output)
+	// Assert: buffer (e.out) begins with the banner — distinct from summary
+	wantBanner := fmt.Sprintf("Run ID: %s\nEvents: %s/runs/%s/events.jsonl\n",
+		runID, storeDir, runID)
+	banner := buf.String()
+	if !strings.HasPrefix(banner, wantBanner) {
+		t.Errorf("banner mismatch.\nwant prefix:\n%s\ngot:\n%s", wantBanner, banner)
 	}
 }

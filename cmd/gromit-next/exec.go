@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -111,6 +112,7 @@ type execSpecRun struct {
 	storeDir      string
 	stageProvider StageProvider
 	policy        *execpolicy.Policy // pre-loaded policy; skips re-load in run()
+	out           io.Writer          // banner output; nil means no banner written
 }
 
 // run executes the spec pipeline and returns the formatted result string.

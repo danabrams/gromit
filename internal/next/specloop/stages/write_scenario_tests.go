@@ -334,12 +334,44 @@ func (s *WriteScenarioTestsStage) compileDir() string {
 	return s.cfg.WorkDir
 }
 
+// stageTestFile copies testFilePath into CompileDir (mirroring the WorkDir layout)
+// so that `go test -c` in CompileDir includes the new file. Returns the destination
+// path and a cleanup func; cleanup is a no-op when CompileDir == WorkDir.
+func (s *WriteScenarioTestsStage) stageTestFile(testFilePath string) (string, func()) {
+	if s.cfg.CompileDir == "" || s.cfg.CompileDir == s.cfg.WorkDir {
+		return testFilePath, func() {}
+	}
+	src := testFilePath
+	if !filepath.IsAbs(src) {
+		src = filepath.Join(s.cfg.WorkDir, src)
+	}
+	dst := testFilePath
+	if !filepath.IsAbs(dst) {
+		dst = filepath.Join(s.cfg.CompileDir, dst)
+	}
+	data, err := os.ReadFile(src)
+	if err != nil {
+		return testFilePath, func() {}
+	}
+	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+		return testFilePath, func() {}
+	}
+	if err := os.WriteFile(dst, data, 0o644); err != nil {
+		return testFilePath, func() {}
+	}
+	return dst, func() { os.Remove(dst) }
+}
+
 // compilesSuccessfully checks if a test file compiles by running 'go test -c -o /dev/null ./package-path'.
+// When CompileDir differs from WorkDir, the test file is temporarily copied into CompileDir
+// so it is included in the compilation alongside the worktree's implementation.
 func (s *WriteScenarioTestsStage) compilesSuccessfully(testFilePath string) bool {
 	pkgPath := s.derivePackagePath(testFilePath)
 	if pkgPath == "" {
 		return false
 	}
+	_, cleanup := s.stageTestFile(testFilePath)
+	defer cleanup()
 
 	cmd := exec.Command("go", "test", "-c", "-o", "/dev/null", pkgPath)
 	cmd.Dir = s.compileDir()
@@ -353,6 +385,8 @@ func (s *WriteScenarioTestsStage) getCompileError(testFilePath string) string {
 	if pkgPath == "" {
 		return "could not derive package path from test file"
 	}
+	_, cleanup := s.stageTestFile(testFilePath)
+	defer cleanup()
 
 	cmd := exec.Command("go", "test", "-c", "-o", "/dev/null", pkgPath)
 	cmd.Dir = s.compileDir()
@@ -364,38 +398,27 @@ func (s *WriteScenarioTestsStage) getCompileError(testFilePath string) string {
 }
 
 // derivePackagePath derives the Go package path suitable for use with `go test -c`
-// run inside compileDir(). The test file is written under WorkDir, but if CompileDir
-// is set both trees share the same sub-directory layout, so the relative path is
-// identical in both. When testFilePath is a relative path it is resolved against
-// WorkDir first to obtain an absolute path, then the relative offset is re-expressed
-// from compileDir() (which may differ from WorkDir).
+// run inside compileDir(). WorkDir and CompileDir share the same subdirectory layout
+// (e.g. a git worktree mirrors the main repo), so a relative path like
+// "cmd/gromit-next/foo_test.go" maps to "./cmd/gromit-next" in both trees.
 //
-// Precondition: CompileDir and WorkDir must share the same subdirectory layout
-// (as is the case for git worktrees). Violating this invariant causes this function
-// to return "" which makes compilesSuccessfully return false.
+// Precondition: CompileDir and WorkDir must share the same subdirectory layout.
+// Violating this causes return "" → compilesSuccessfully returns false.
 //
-// Example: testFile = "/worktree/internal/next/contract/foo_test.go",
-//
-//	compileDir = "/worktree"  → "./internal/next/contract"
+// Example: testFile = "internal/next/contract/foo_test.go" → "./internal/next/contract"
+// Example: testFile = "/worktree/cmd/foo_test.go", compileDir="/worktree" → "./cmd"
 func (s *WriteScenarioTestsStage) derivePackagePath(testFilePath string) string {
-	// Ensure testFilePath is absolute, resolving against WorkDir if relative.
 	if !filepath.IsAbs(testFilePath) {
-		testFilePath = filepath.Join(s.cfg.WorkDir, testFilePath)
+		// Relative path: same directory layout in both WorkDir and CompileDir.
+		// Use the directory portion directly — no cross-tree resolution needed.
+		return "./" + filepath.Dir(testFilePath)
 	}
 
-	// Get the directory containing the test file.
-	dir := filepath.Dir(testFilePath)
-
-	// Compute the relative path from compileDir() to the test file's directory.
-	// When CompileDir matches WorkDir (or is empty), this is identical to the old
-	// behaviour. When they differ but share the same sub-directory structure the
-	// resulting relative path is still correct for compilation in compileDir().
+	// Absolute path: compute relative to compileDir().
 	base := s.compileDir()
-	relPath, err := filepath.Rel(base, dir)
+	relPath, err := filepath.Rel(base, filepath.Dir(testFilePath))
 	if err != nil {
 		return ""
 	}
-
-	// Return as a Go package path: "./<relPath>"
 	return "./" + relPath
 }
