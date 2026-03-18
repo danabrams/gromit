@@ -1,0 +1,67 @@
+{
+  "results": [
+    {
+      "criterion": "When `req.Failures` contains one or more `persistent-failure:` prefixed entries, `buildFixPlanPrompt` renders a `## Persistent Failures — Possible Bad Contracts` section before `## Validation Failures to Fix`",
+      "status": "pass",
+      "rationale": "The implementation in planner.go separates persistent-failure: entries into a dedicated slice and renders '## Persistent Failures — Possible Bad Contracts' before '## Validation Failures to Fix'. Multiple tests explicitly verify the ordering (persistentIdx \u003c validationIdx) and the section's presence. Validation passed (pass=true).",
+      "evidence_refs": [
+        "internal/next/planner/planner.go",
+        "internal/next/planner/planner_test.go",
+        "internal/next/planner/planner_scenario_persistent_failure_contract_audit_test.go",
+        "internal/next/planner/planner_scenario_persistent_failure_no_contract_test.go",
+        "internal/next/planner/planner_scenario_multiple_persistent_failures_test.go"
+      ]
+    },
+    {
+      "criterion": "The persistent failures section includes explicit instructions to audit the contract assertion in `scenario-contracts.yaml` before creating implementation fix tasks",
+      "status": "pass",
+      "rationale": "The implementation in planner.go explicitly writes 'BEFORE creating any implementation fix task for these failures:' followed by step 1 'Find the assertion in scenario-contracts.yaml that corresponds to this failure'. This directly satisfies the criterion. Tests confirm this text appears in the prompt.",
+      "evidence_refs": [
+        "internal/next/planner/planner.go",
+        "internal/next/planner/planner_scenario_persistent_failure_contract_audit_test.go"
+      ]
+    },
+    {
+      "criterion": "Persistent failures still appear in `## Validation Failures to Fix` — they are not removed from the main list",
+      "status": "pass",
+      "rationale": "The implementation explicitly adds persistent failures to both `persistentFailures` AND `otherFailures` slices, ensuring they appear in both the dedicated audit section and the `## Validation Failures to Fix` section. Tests verify this: `TestBuildFixPlanPrompt_PersistentFailures_AlsoAppearsInValidationSection` checks count \u003e= 2, and `TestScenario_PersistentFailureHint_WithoutCorrespondingContractFailure` asserts the hint appears in the validation section.",
+      "evidence_refs": [
+        "internal/next/planner/planner.go",
+        "internal/next/planner/planner_test.go",
+        "internal/next/planner/planner_scenario_persistent_failure_no_contract_test.go",
+        "internal/next/planner/planner_scenario_multiple_persistent_failures_test.go"
+      ]
+    },
+    {
+      "criterion": "When `req.Failures` contains no `persistent-failure:` entries, no persistent failures section is rendered and existing behavior is unchanged",
+      "status": "pass",
+      "rationale": "The implementation guards the persistent failures section with `if len(persistentFailures) \u003e 0`, so it only renders when there are entries with the `persistent-failure:` prefix. The test `TestBuildFixPlanPrompt_NoPersistentFailures_NoSection` explicitly verifies that when only ordinary failures are present, the `## Persistent Failures` section does not appear, and `TestScenario_NoPersistentFailures_PromptUnchanged` additionally verifies that all standard sections (Completed Tasks, Validation Failures, Current Diff, Instructions) remain present. Both tests pass.",
+      "evidence_refs": [
+        "internal/next/planner/planner.go",
+        "internal/next/planner/planner_scenario_no_persistent_failures_test.go",
+        "internal/next/planner/planner_test.go"
+      ]
+    },
+    {
+      "criterion": "Non-persistent contract failures and review findings are unaffected by this change",
+      "status": "pass",
+      "rationale": "The diff shows that non-persistent `contract:` failures fall into `otherFailures` (unchanged path) and `review:` prefixed failures still go into `reviewFindings` (unchanged path). Both the review findings section and validation failures section logic are untouched. The test `TestScenario_NoPersistentFailures_PromptUnchanged` explicitly verifies that prompts without `persistent-failure:` entries remain unchanged, and `TestBuildFixPlanPrompt_MultiplePersistentFailures_AcrossDifferentContracts` confirms non-persistent contract failures (e.g., `contract:contract-gamma`) still appear only in the validation section and not the persistent section. Validation pass=true confirms all tests pass.",
+      "evidence_refs": [
+        "internal/next/planner/planner.go",
+        "internal/next/planner/planner_scenario_no_persistent_failures_test.go",
+        "internal/next/planner/planner_test.go"
+      ]
+    },
+    {
+      "criterion": "All existing planner tests continue to pass",
+      "status": "pass",
+      "rationale": "Validation results show pass=true, and the diff shows only additions to planner_test.go (no modifications to existing tests) plus new test files. The existing tests were not changed.",
+      "evidence_refs": [
+        "internal/next/planner/planner_test.go",
+        "internal/next/planner/planner.go"
+      ]
+    }
+  ],
+  "all_pass": true,
+  "has_fail_or_unclear": false
+}

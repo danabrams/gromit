@@ -1,0 +1,142 @@
+[
+  {
+    "task_id": "t-001",
+    "objective": "Write tests for persistent failure extraction in buildFixPlanPrompt: (1) persistent failures render a dedicated '## Persistent Failures — Possible Bad Contracts' section before '## Validation Failures to Fix', (2) persistent failures still appear in otherFailures/validation section, (3) no persistent failures means no section rendered, (4) multiple persistent failures with mixed non-persistent, (5) persistent-failure hint without corresponding contract: failure still renders section",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [
+      "internal/next/planner/planner_test.go"
+    ],
+    "proof_checks": [
+      "grep -q 'TestBuildFixPlanPrompt_PersistentFailures_RendersAuditSection' internal/next/planner/planner_test.go",
+      "grep -q 'TestBuildFixPlanPrompt_NoPersistentFailures_NoSection' internal/next/planner/planner_test.go",
+      "grep -q 'TestBuildFixPlanPrompt_MultiplePersistentFailures_MixedWithNonPersistent' internal/next/planner/planner_test.go",
+      "grep -q 'TestBuildFixPlanPrompt_PersistentFailureHint_WithoutCorrespondingContractFailure' internal/next/planner/planner_test.go",
+      "grep -q 'scenario-contracts.yaml' internal/next/planner/planner_test.go",
+      "go vet ./internal/next/planner/..."
+    ],
+    "files_changed": [
+      "internal/next/planner/planner.go",
+      "internal/next/planner/planner_test.go"
+    ],
+    "tokens_used": 9398,
+    "duration_ms": 78069,
+    "model_tier": "",
+    "cycle": 1,
+    "kind": "original"
+  },
+  {
+    "task_id": "t-002",
+    "objective": "Implement persistent failure extraction in buildFixPlanPrompt: add a third pass to collect persistent-failure: prefixed entries into persistentFailures slice (without removing from otherFailures), then render a '## Persistent Failures — Possible Bad Contracts' section with audit instructions before the '## Validation Failures to Fix' section when persistentFailures is non-empty",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [
+      "internal/next/planner/planner.go"
+    ],
+    "proof_checks": [
+      "go test ./internal/next/planner/... -count=1 -timeout 60s",
+      "go vet ./internal/next/planner/...",
+      "grep -q 'persistentFailures' internal/next/planner/planner.go",
+      "grep -q 'Persistent Failures' internal/next/planner/planner.go",
+      "grep -q 'scenario-contracts.yaml' internal/next/planner/planner.go"
+    ],
+    "files_changed": [
+      "internal/next/planner/planner.go"
+    ],
+    "tokens_used": 3613,
+    "duration_ms": 31647,
+    "model_tier": "",
+    "cycle": 1,
+    "kind": "original"
+  },
+  {
+    "task_id": "t-003",
+    "objective": "Add persistent-failure extraction and dedicated prompt section to buildFixPlanPrompt. After separating review findings from other failures, add a third pass that collects persistent-failure: prefixed entries into a persistentFailures slice (without removing them from otherFailures). When persistentFailures is non-empty, render the '## Persistent Failures — Possible Bad Contracts' section before '## Validation Failures to Fix' with the full audit instructions including the word 'regex' (e.g., 'If the pattern looks like a regex'). Fixes: contract:persistent-failure-triggers-contract-audit-section (pattern 'regex' not found in planner.go).",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [
+      "internal/next/planner/planner.go"
+    ],
+    "proof_checks": [
+      "grep -q 'regex' internal/next/planner/planner.go",
+      "grep -q 'Persistent Failures' internal/next/planner/planner.go",
+      "grep -q 'persistent-failure:' internal/next/planner/planner.go",
+      "go vet ./internal/next/planner/...",
+      "go test ./internal/next/planner/... -count=1 -timeout 60s"
+    ],
+    "files_changed": [
+      "internal/next/planner/planner.go"
+    ],
+    "tokens_used": 6821,
+    "duration_ms": 74586,
+    "model_tier": "",
+    "cycle": 2,
+    "kind": "fix",
+    "parent_cycle": 1,
+    "failures_addressed": [
+      "contract:persistent-failure-triggers-contract-audit-section — file_contains failed: pattern \"regex\" not found in \"internal/next/planner/planner.go\""
+    ]
+  },
+  {
+    "task_id": "t-004",
+    "objective": "Add test case for multiple persistent failures across different contracts in planner_test.go. The test name or description must contain the phrase 'multiple persistent'. It should call buildFixPlanPrompt with three contract failures where two have persistent-failure: hints, and assert: (1) both persistent failures appear in the dedicated section, (2) all three contract failures appear in Validation Failures to Fix, (3) the non-persistent failure does not appear in the persistent section. Fixes: contract:multiple-persistent-failures-across-different-contracts.",
+    "status": "done",
+    "attempts": 1,
+    "expected_touched_area": [
+      "internal/next/planner/planner_test.go"
+    ],
+    "proof_checks": [
+      "grep -q 'multiple persistent' internal/next/planner/planner_test.go",
+      "go test ./internal/next/planner/... -count=1 -timeout 60s -run 'Multiple|multiple'"
+    ],
+    "files_changed": [
+      "internal/next/planner/planner_test.go"
+    ],
+    "tokens_used": 5696,
+    "duration_ms": 51009,
+    "model_tier": "",
+    "cycle": 2,
+    "kind": "fix",
+    "parent_cycle": 1,
+    "failures_addressed": [
+      "contract:multiple-persistent-failures-across-different-contracts — file_contains failed: pattern \"multiple persistent\" not found in \"internal/next/planner/planner_test.go\""
+    ]
+  },
+  {
+    "task_id": "t-005",
+    "objective": "Replace the persistent-failures section intro text and all four audit instruction steps in buildFixPlanPrompt (lines ~174-187) with the exact wording from the spec. Fixes all 7 review findings: intro must say 'The following failures have repeated across multiple consecutive cycles.\\nThis strongly suggests the contract assertion itself is wrong, not the implementation.'; directive must say 'BEFORE creating any implementation fix task for these failures:'; steps 1-4 must match spec verbatim including regex examples and 'Prefer creating a contract fix task' guidance.",
+    "status": "pending",
+    "attempts": 0,
+    "expected_touched_area": [
+      "internal/next/planner/planner.go"
+    ],
+    "proof_checks": [
+      "grep -q 'The following failures have repeated across multiple consecutive cycles.' internal/next/planner/planner.go",
+      "grep -q 'This strongly suggests the contract assertion itself is wrong, not the implementation.' internal/next/planner/planner.go",
+      "grep -q 'BEFORE creating any implementation fix task for these failures:' internal/next/planner/planner.go",
+      "grep -q 'Find the assertion in scenario-contracts.yaml that corresponds to this failure' internal/next/planner/planner.go",
+      "grep -q 'Verify the pattern actually appears in the target file (run grep manually in your head)' internal/next/planner/planner.go",
+      "grep -q 'the pattern may need to be a literal substring instead' internal/next/planner/planner.go",
+      "grep -q 'Prefer creating a contract fix task (editing scenario-contracts.yaml) unless you' internal/next/planner/planner.go",
+      "! grep -q 'escalate to the spec author' internal/next/planner/planner.go",
+      "go vet ./internal/next/planner/...",
+      "go test ./internal/next/planner/... -count=1 -timeout 60s"
+    ],
+    "files_changed": [],
+    "tokens_used": 0,
+    "duration_ms": 0,
+    "model_tier": "",
+    "cycle": 3,
+    "kind": "fix",
+    "parent_cycle": 2,
+    "failures_addressed": [
+      "review:spec_alignment:error:internal/next/planner/planner.go:174 — Intro text deviates from spec.",
+      "review:spec_alignment:error:internal/next/planner/planner.go:180 — Missing \"BEFORE creating any implementation fix task for these failures:\" directive.",
+      "review:spec_alignment:error:internal/next/planner/planner.go:181 — Step 1 guidance deviates from spec.",
+      "review:spec_alignment:error:internal/next/planner/planner.go:182 — Step 2 guidance is entirely different from spec.",
+      "review:spec_alignment:error:internal/next/planner/planner.go:183 — Step 3 guidance is weaker and omits the spec's concrete regex examples.",
+      "review:spec_alignment:error:internal/next/planner/planner.go:184 — Step 4 guidance contradicts the spec's intent.",
+      "review:code_quality:error:internal/next/planner/planner.go:187 — Audit step 4 tells the planner to 'escalate to the spec author' which contradicts the spec."
+    ]
+  }
+]

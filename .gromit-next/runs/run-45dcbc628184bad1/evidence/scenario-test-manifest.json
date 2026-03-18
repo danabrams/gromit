@@ -1,0 +1,20 @@
+{
+  "scenarios": [
+    {
+      "name": "persistent failure triggers contract audit section",
+      "test_file": "internal/next/planner/planner_scenario_persistent_failure_contract_audit_test.go"
+    },
+    {
+      "name": "no persistent failures — prompt unchanged",
+      "test_file": "internal/next/planner/planner_scenario_no_persistent_failures_test.go"
+    },
+    {
+      "name": "multiple persistent failures across different contracts",
+      "test_file": "internal/next/planner/planner_scenario_multiple_persistent_failures_test.go"
+    },
+    {
+      "name": "persistent-failure hint without corresponding contract failure",
+      "test_file": "internal/next/planner/planner_scenario_persistent_failure_no_contract_test.go"
+    }
+  ]
+}
