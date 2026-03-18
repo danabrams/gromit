@@ -961,5 +961,221 @@ func TestWriteScenarioTests_ParseErrorRetried(t *testing.T) {
 	}
 }
 
+// TestWriteScenarioTests_CompileDir_UsedForCompilation verifies that when CompileDir
+// is set, compilation runs in CompileDir rather than WorkDir.
+//
+// The test creates two temp dirs:
+//   - workDir: where the test file is written (simulates the main repo, which lacks the new function)
+//   - compileDir: where compilation runs (simulates the worktree, which has the new function)
+//
+// The fake writer writes a valid compilable test into workDir. The stage must use
+// compileDir for `go test -c`, so the package path derived from the test file location
+// (relative to workDir) is applied inside compileDir. Since both dirs share the same
+// sub-directory layout, deriving the relative path from workDir is valid for compileDir.
+//
+// Because both dirs are temporary and not real Go modules, we piggyback on the actual
+// project tree: workDir = a "stale" subdirectory that has no new function, and
+// compileDir = the real project root (which already compiles). The test file is written
+// into the real project tree under a unique subdir, and we verify that:
+//  1. When CompileDir == "" (fallback), compilation uses WorkDir.
+//  2. When CompileDir is set, compilation uses CompileDir.
+func TestWriteScenarioTests_CompileDir_UsedWhenSet(t *testing.T) {
+	currentDir := os.Getenv("PWD")
+	if currentDir == "" {
+		currentDir = "."
+	}
+
+	const singleScenario = `# Test Spec
+
+## Scenarios
+
+### Scenario: scenario-one
+**Given:** precondition
+**When:** action
+**Then:** outcome
+`
+
+	t.Run("succeeds when CompileDir points to real module", func(t *testing.T) {
+		// compileDir is the real project root — known to compile.
+		compileDir := currentDir
+
+		// workDir is a subdirectory that does NOT form a valid Go module on its own,
+		// so using it as the compile dir would fail. We set it to a temp dir so that
+		// any accidental `go test -c` run in workDir would produce an error.
+		workDir := t.TempDir()
+
+		// Write the test file into a sub-package of compileDir so `go test -c` works.
+		testDataDir := filepath.Join(compileDir, "internal/next/specloop/stages/testdata_compiledir")
+		if err := os.MkdirAll(testDataDir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { os.RemoveAll(testDataDir) })
+
+		testFilePath := filepath.Join(testDataDir, "scenario_compiledir_test.go")
+		testCode := `package stages_test
+
+import "testing"
+
+func TestScenario_compiledir(t *testing.T) {
+	t.Log("compiledir scenario")
+}
+`
+		if err := os.WriteFile(testFilePath, []byte(testCode), 0o644); err != nil {
+			t.Fatal(err)
+		}
+
+		// fakeWriter that returns the pre-written test file path.
+		writer := &fakeScenarioTestWriter{
+			failAttempt:   -1,
+			returnedPaths: []string{testFilePath},
+			compilableScenarios: map[string]bool{
+				"scenario-one": true,
+			},
+		}
+
+		tmp := t.TempDir()
+		specPath := filepath.Join(tmp, "spec.md")
+		if err := os.WriteFile(specPath, []byte(singleScenario), 0o644); err != nil {
+			t.Fatal(err)
+		}
+
+		evidenceDir := filepath.Join(tmp, "evidence")
+		if err := os.MkdirAll(evidenceDir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+
+		rs := makeWriteScenarioTestsRunState(t)
+
+		// The test file path is absolute and lives under compileDir. WorkDir is a plain
+		// tmp dir (not a Go module). With CompileDir set to currentDir, derivePackagePath
+		// will compute the relative path from the test file to CompileDir and run
+		// `go test -c` there — which should succeed.
+		cfg := WriteScenarioTestsStageConfig{
+			SpecPath:    specPath,
+			EvidenceDir: evidenceDir,
+			WorkDir:     workDir,
+			CompileDir:  compileDir,
+		}
+		stage := NewWriteScenarioTestsStage(writer, cfg, nil, nil)
+
+		action, err := stage.Run(context.Background(), rs)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if action.Kind != specloop.Continue {
+			msg := "unknown"
+			if action.Context != nil && len(action.Context.Failures) > 0 {
+				msg = action.Context.Failures[0]
+			}
+			t.Fatalf("expected Continue when CompileDir is set, got %v: %s", action.Kind, msg)
+		}
+		if !rs.ScenarioTestsWritten {
+			t.Fatal("expected ScenarioTestsWritten=true after CompileDir-based success")
+		}
+	})
+
+	t.Run("blocked when CompileDir empty and WorkDir has no module", func(t *testing.T) {
+		// WorkDir is a plain temp dir — not a Go module. CompileDir is empty, so
+		// compilesSuccessfully() falls back to WorkDir. Since WorkDir has no go.mod,
+		// `go test -c` will fail, and the stage must exhaust all retries and return Blocked.
+
+		// Write the test file into a subdirectory of WorkDir (not the real project tree)
+		// so that the package path derivation works relative to WorkDir.
+		workDir := t.TempDir()
+
+		testDataDir := filepath.Join(workDir, "internal/next/specloop/stages/testdata_compiledir_empty")
+		if err := os.MkdirAll(testDataDir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+
+		testFilePath := filepath.Join(testDataDir, "scenario_compiledir_empty_test.go")
+		testCode := `package stages_test
+
+import "testing"
+
+func TestScenario_compiledir_empty(t *testing.T) {
+	t.Log("compiledir empty scenario")
+}
+`
+		if err := os.WriteFile(testFilePath, []byte(testCode), 0o644); err != nil {
+			t.Fatal(err)
+		}
+
+		// fakeWriter returns the same path on every call so all 3 attempts use the
+		// same (syntactically valid but non-compilable-in-workDir) file.
+		writer := &fakeScenarioTestWriter{
+			failAttempt:   -1,
+			returnedPaths: []string{testFilePath, testFilePath, testFilePath},
+			compilableScenarios: map[string]bool{
+				"scenario-one": true,
+			},
+		}
+
+		tmp := t.TempDir()
+		specPath := filepath.Join(tmp, "spec.md")
+		if err := os.WriteFile(specPath, []byte(singleScenario), 0o644); err != nil {
+			t.Fatal(err)
+		}
+
+		evidenceDir := filepath.Join(tmp, "evidence")
+		if err := os.MkdirAll(evidenceDir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+
+		rs := makeWriteScenarioTestsRunState(t)
+
+		// CompileDir is intentionally empty — should fall back to WorkDir (a plain
+		// temp dir with no go.mod), causing compilation to fail every attempt.
+		cfg := WriteScenarioTestsStageConfig{
+			SpecPath:    specPath,
+			EvidenceDir: evidenceDir,
+			WorkDir:     workDir,
+			CompileDir:  "",
+		}
+		stage := NewWriteScenarioTestsStage(writer, cfg, nil, nil)
+
+		action, err := stage.Run(context.Background(), rs)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if action.Kind != specloop.Blocked {
+			t.Fatalf("expected Blocked when CompileDir is empty and WorkDir has no module, got %v", action.Kind)
+		}
+		if rs.ScenarioTestsWritten {
+			t.Fatal("expected ScenarioTestsWritten=false after compilation failure")
+		}
+	})
+}
+
+// TestWriteScenarioTests_CompileDir_FallsBackToWorkDir verifies that when CompileDir
+// is empty, the stage uses WorkDir for compilation (backward-compatible behaviour).
+func TestWriteScenarioTests_CompileDir_FallsBackToWorkDir(t *testing.T) {
+	// compileDir() should return WorkDir when CompileDir is empty.
+	tmp := t.TempDir()
+	cfg := WriteScenarioTestsStageConfig{
+		WorkDir:    tmp,
+		CompileDir: "",
+	}
+	stage := &WriteScenarioTestsStage{cfg: cfg}
+	if got := stage.compileDir(); got != tmp {
+		t.Fatalf("expected compileDir() == WorkDir %q, got %q", tmp, got)
+	}
+}
+
+// TestWriteScenarioTests_CompileDir_ReturnedWhenSet verifies that compileDir()
+// returns CompileDir when it is non-empty.
+func TestWriteScenarioTests_CompileDir_ReturnedWhenSet(t *testing.T) {
+	tmp := t.TempDir()
+	compileDir := "/some/other/path"
+	cfg := WriteScenarioTestsStageConfig{
+		WorkDir:    tmp,
+		CompileDir: compileDir,
+	}
+	stage := &WriteScenarioTestsStage{cfg: cfg}
+	if got := stage.compileDir(); got != compileDir {
+		t.Fatalf("expected compileDir() == %q, got %q", compileDir, got)
+	}
+}
+
 // Verify WriteScenarioTestsStage satisfies the Stage interface
 var _ specloop.Stage = (*WriteScenarioTestsStage)(nil)

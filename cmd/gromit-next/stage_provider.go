@@ -254,6 +254,7 @@ func (p *RealStageProvider) BuildStages(policy execpolicy.Policy, rs *runstore.R
 		EvidenceDir: evidenceDir,
 		Store:       store,
 		WorkDir:     p.cfg.WorkDir,
+		CompileDir:  rs.WorktreePath,
 	}, budget, eventLog)
 
 	contractEvaluator := &contract.DefaultContractEvaluator{}
