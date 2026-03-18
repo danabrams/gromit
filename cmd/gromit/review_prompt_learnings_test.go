@@ -2,17 +2,15 @@ package main
 
 import (
 	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 )
 
 func TestReviewPrompt_LearningsOnlyForViolationsAndNovelPatterns(t *testing.T) {
-	t.Parallel(
+	t.Parallel()
 	// Read the review prompt template
-	)
 
-	templatePath := filepath.Join("..", "..", ".gromit", "templates", "PROMPT_review.md")
+	templatePath := resolveProjectPath("", ".gromit/templates/PROMPT_review.md")
 	content, err := os.ReadFile(templatePath)
 	if err != nil {
 		t.Fatalf("reading PROMPT_review.md: %v", err)

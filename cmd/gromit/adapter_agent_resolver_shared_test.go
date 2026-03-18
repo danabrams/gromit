@@ -2,14 +2,23 @@ package main
 
 import (
 	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
 
+// sourcePathForSharedResolverTests returns the absolute path to a source file in the cmd/gromit package.
+func sourcePathForSharedResolverTests(filename string) string {
+	_, testFile, _, _ := runtime.Caller(1)
+	dir := filepath.Dir(testFile)
+	return filepath.Join(dir, filename)
+}
+
 func TestSharedAgentResolver_UsedInExplore(t *testing.T) {
 	t.Parallel()
 
-	exploreSource, err := os.ReadFile("explore.go")
+	exploreSource, err := os.ReadFile(sourcePathForSharedResolverTests("explore.go"))
 	if err != nil {
 		t.Fatalf("failed to read explore.go: %v", err)
 	}
@@ -32,7 +41,7 @@ func TestSharedAgentResolver_UsedInExplore(t *testing.T) {
 func TestSharedAgentResolver_UsedInRefine(t *testing.T) {
 	t.Parallel()
 
-	refineSource, err := os.ReadFile("refine.go")
+	refineSource, err := os.ReadFile(sourcePathForSharedResolverTests("refine.go"))
 	if err != nil {
 		t.Fatalf("failed to read refine.go: %v", err)
 	}
@@ -55,7 +64,7 @@ func TestSharedAgentResolver_UsedInRefine(t *testing.T) {
 func TestSharedAgentResolver_UsedInReview(t *testing.T) {
 	t.Parallel()
 
-	reviewSource, err := os.ReadFile("review.go")
+	reviewSource, err := os.ReadFile(sourcePathForSharedResolverTests("review.go"))
 	if err != nil {
 		t.Fatalf("failed to read review.go: %v", err)
 	}
@@ -82,7 +91,7 @@ func TestSharedAgentResolver_IntegrationAcrossCommands(t *testing.T) {
 	files := []string{"explore.go", "refine.go", "review.go"}
 	forceNewPipelineDepsFn := "NewPipelineDeps("
 	for _, file := range files {
-		source, err := os.ReadFile(file)
+		source, err := os.ReadFile(sourcePathForSharedResolverTests(file))
 		if err != nil {
 			t.Skipf("Cannot read %s: %v", file, err)
 		}

@@ -2,8 +2,6 @@ package specloop
 
 import (
 	"context"
-	"fmt"
-	"strings"
 	"time"
 
 	"github.com/danabrams/gromit/internal/next/runstore"
@@ -148,37 +146,8 @@ func (sl *SpecLoop) Run(ctx context.Context, rs *runstore.RunState) error {
 
 			// Annotate failures with persistent-failure hints for consecutive cycles
 			// that may indicate a bad test specification rather than an implementation bug
-			var annotated []string
-			for _, failure := range replanContext.Failures {
-				annotated = append(annotated, failure)
-
-				var key string
-				var found bool
-
-				// Check if this is a test failure
-				if strings.HasPrefix(failure, "--- FAIL: ") {
-					parts := strings.Fields(strings.TrimPrefix(failure, "--- FAIL: "))
-					if len(parts) > 0 {
-						key = parts[0]
-						found = true
-					}
-				} else if strings.HasPrefix(failure, "contract:") {
-					// Check if this is a contract failure
-					parts := strings.Split(failure, " — ")
-					if len(parts) > 0 {
-						key = strings.TrimSpace(parts[0])
-						found = true
-					}
-				}
-
-				// If we found a key and it has met or exceeded the threshold, add a hint
-				if found && rs.FailureHistory[key] >= 2 {
-					hint := fmt.Sprintf("persistent-failure: %s has failed %d consecutive cycles — may indicate a bad test specification rather than an implementation bug",
-						key, rs.FailureHistory[key])
-					annotated = append(annotated, hint)
-				}
-			}
-			rs.ReplanContext = annotated
+			annotated := AnnotateWithPersistentHints(replanContext.Failures, rs.FailureHistory, 2)
+			rs.ReplanContext = DeduplicateFailures(annotated)
 		}
 
 		// Emit replan_triggered event

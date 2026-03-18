@@ -2,9 +2,18 @@ package main
 
 import (
 	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
+
+// getTestSourcePath returns the absolute path to a source file in the cmd/gromit package.
+func getTestSourcePath(filename string) string {
+	_, testFile, _, _ := runtime.Caller(1)
+	dir := filepath.Dir(testFile)
+	return filepath.Join(dir, filename)
+}
 
 // TestAdapters_NoBusinessLogicInCLIAdapters verifies that cli_adapters.go only contains
 // type adaptation and bridging, with no orchestration logic like defaults, filtering, or state management.
@@ -12,10 +21,10 @@ import (
 func TestAdapters_NoBusinessLogicInCLIAdapters(t *testing.T) {
 	t.Parallel()
 
-	cliAdaptersPath := "cli_adapters.go"
+	cliAdaptersPath := getTestSourcePath("cli_adapters.go")
 	content, err := os.ReadFile(cliAdaptersPath)
 	if err != nil {
-		t.Fatalf("Failed to read %s: %v", cliAdaptersPath, err)
+		t.Fatalf("Failed to read cli_adapters.go: %v", err)
 	}
 	contentStr := string(content)
 
@@ -52,10 +61,10 @@ func TestAdapters_NoBusinessLogicInCLIAdapters(t *testing.T) {
 func TestAdapters_AllInheritFromAdaptersGo(t *testing.T) {
 	t.Parallel()
 
-	adaptersPath := "adapters.go"
+	adaptersPath := getTestSourcePath("adapters.go")
 	content, err := os.ReadFile(adaptersPath)
 	if err != nil {
-		t.Fatalf("Failed to read %s: %v", adaptersPath, err)
+		t.Fatalf("Failed to read adapters.go: %v", err)
 	}
 	contentStr := string(content)
 
