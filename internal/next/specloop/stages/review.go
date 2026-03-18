@@ -56,14 +56,25 @@ func (s *ReviewStage) Name() string { return "review" }
 
 // Run executes the review and returns Continue or ReplanFrom.
 func (s *ReviewStage) Run(ctx context.Context, rs *runstore.RunState) (specloop.NextAction, error) {
-	// Compute diff at runtime
+	// Compute diff at runtime with graceful degradation on error
 	var diffSummary string
+	var diffUnavailable bool
 	if s.cfg.DiffProvider != nil {
 		d, err := s.cfg.DiffProvider.Diff(s.cfg.BaseBranch)
 		if err != nil {
-			return specloop.NextAction{}, fmt.Errorf("review diff: %w", err)
+			// Graceful degradation: set placeholder, emit event, continue without diff
+			diffSummary = fmt.Sprintf("[diff unavailable: %v]", err)
+			diffUnavailable = true
+			if s.eventLog != nil {
+				s.eventLog.Append(runstore.DiffUnavailableEvent{
+					BaseEvent: runstore.BaseEvent{Type: "diff_unavailable", Timestamp: time.Now()},
+					Reason:    err.Error(),
+					Message:   "Diff provider error during review",
+				})
+			}
+		} else {
+			diffSummary = d
 		}
-		diffSummary = d
 	}
 
 	result, err := s.runner.Run(ctx, review.RunInput{
@@ -139,7 +150,11 @@ func (s *ReviewStage) Run(ctx context.Context, rs *runstore.RunState) (specloop.
 
 	// Write structured review.json via Bundler
 	if s.bundler != nil {
-		if err := s.bundler.WriteReviewFindings(result.FindingsByFacet); err != nil {
+		output := evidence.ReviewFindingsOutput{
+			Findings:        result.FindingsByFacet,
+			DiffUnavailable: diffUnavailable,
+		}
+		if err := s.bundler.WriteReviewFindings(output); err != nil {
 			return specloop.NextAction{}, fmt.Errorf("write review findings: %w", err)
 		}
 	}

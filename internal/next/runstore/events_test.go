@@ -59,6 +59,7 @@ func TestEvents_AllEventTypes(t *testing.T) {
 		BudgetExceededEvent{BaseEvent: BaseEvent{Type: "budget_exceeded", Timestamp: now}, AccumulatedCost: 5.50},
 		BlockedWorktreeCleanedEvent{BaseEvent: BaseEvent{Type: "blocked_worktree_cleaned", Timestamp: now}, PriorRunID: "run-old", WorktreePath: "/old"},
 		TerminalStateEvent{BaseEvent: BaseEvent{Type: "terminal_state", Timestamp: now}, Status: "ready_for_review"},
+		DiffUnavailableEvent{BaseEvent: BaseEvent{Type: "diff_unavailable", Timestamp: time.Now()}, Reason: "test error", Message: "test message"},
 	}
 
 	for _, ev := range allEvents {
@@ -71,8 +72,8 @@ func TestEvents_AllEventTypes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(events) != 16 {
-		t.Fatalf("want 16 events, got %d", len(events))
+	if len(events) != 17 {
+		t.Fatalf("want 17 events, got %d", len(events))
 	}
 	for i, ev := range events {
 		if ev.EventType() != allEvents[i].EventType() {
@@ -325,5 +326,33 @@ func TestEvents_ReadAll_EmptyFile(t *testing.T) {
 	}
 	if len(events) != 0 {
 		t.Fatalf("want 0 events, got %d", len(events))
+	}
+}
+
+func TestDiffUnavailableEvent_RoundTrip(t *testing.T) {
+	evt := DiffUnavailableEvent{
+		BaseEvent: BaseEvent{Type: "diff_unavailable", Timestamp: time.Now()},
+		Reason:    "binary files",
+	}
+
+	data, err := json.Marshal(evt)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+
+	roundTripped, err := unmarshalEvent(data)
+	if err != nil {
+		t.Fatalf("unmarshalEvent: %v", err)
+	}
+
+	due, ok := roundTripped.(*DiffUnavailableEvent)
+	if !ok {
+		t.Fatalf("expected *DiffUnavailableEvent, got %T", roundTripped)
+	}
+	if due.Reason != "binary files" {
+		t.Errorf("Reason = %q, want %q", due.Reason, "binary files")
+	}
+	if due.Type != "diff_unavailable" {
+		t.Errorf("Type = %q, want %q", due.Type, "diff_unavailable")
 	}
 }

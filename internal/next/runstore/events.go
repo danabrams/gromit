@@ -163,6 +163,12 @@ type ContractScenarioSkippedEvent struct {
 	Reason string `json:"reason"`
 }
 
+type DiffUnavailableEvent struct {
+	BaseEvent
+	Reason  string `json:"reason"`
+	Message string `json:"message"`
+}
+
 type ScenarioTestWrittenEvent struct {
 	BaseEvent
 	ScenarioName string `json:"scenario_name"`
@@ -329,6 +335,9 @@ func unmarshalEvent(data []byte) (TypedEvent, error) {
 		ev = &e
 	case "contract_scenario_skipped":
 		var e ContractScenarioSkippedEvent
+		ev = &e
+	case "diff_unavailable":
+		var e DiffUnavailableEvent
 		ev = &e
 	case "scenario_tests_written":
 		var e ScenarioTestWrittenEvent

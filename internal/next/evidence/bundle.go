@@ -138,6 +138,7 @@ type ReviewInput struct {
 	RecommendedAction  string                       `json:"recommended_action"`
 	ReviewFindings     []ReviewFindingSummary       `json:"review_findings,omitempty"`
 	AcceptanceCriteria []AcceptanceCriterionSummary `json:"acceptance_criteria,omitempty"`
+	DiffUnavailable    bool                         `json:"diff_unavailable,omitempty"`
 }
 
 // See CLAUDE.md nil-field normalization visibility convention:
@@ -163,6 +164,10 @@ func (b *Bundler) WriteReview(r ReviewInput) error {
 	md := fmt.Sprintf("# Review Decision Sheet\n\n"+
 		"## Terminal State\n\n%s\n\n",
 		r.TerminalState)
+
+	if r.DiffUnavailable {
+		md = "> **Note:** Diff was unavailable during this review. Findings are based on task results and acceptance criteria only.\n\n" + md
+	}
 
 	if r.BlockerSummary != "" {
 		md += fmt.Sprintf("## Blocker\n\n%s\n\n", r.BlockerSummary)
@@ -212,9 +217,26 @@ func (b *Bundler) WriteReview(r ReviewInput) error {
 	return os.WriteFile(filepath.Join(b.dir, "review.md"), []byte(md), 0o644)
 }
 
-// WriteReviewFindings writes facet-keyed review findings to review.json.
-func (b *Bundler) WriteReviewFindings(findings map[string][]review.Finding) error {
-	return b.writeJSON("review.json", findings)
+// ReviewFindingsOutput wraps findings and metadata for serialization to review.json.
+type ReviewFindingsOutput struct {
+	Findings        map[string][]review.Finding
+	DiffUnavailable bool
+}
+
+// MarshalJSON implements json.Marshaler for ReviewFindingsOutput.
+// It flattens findings into the top-level object alongside diff_unavailable.
+func (r ReviewFindingsOutput) MarshalJSON() ([]byte, error) {
+	out := make(map[string]interface{})
+	out["diff_unavailable"] = r.DiffUnavailable
+	for facet, findings := range r.Findings {
+		out[facet] = findings
+	}
+	return json.Marshal(out)
+}
+
+// WriteReviewFindings writes facet-keyed review findings and diff availability to review.json.
+func (b *Bundler) WriteReviewFindings(output ReviewFindingsOutput) error {
+	return b.writeJSON("review.json", output)
 }
 
 // WriteAcceptanceResults writes structured acceptance results to acceptance.json.

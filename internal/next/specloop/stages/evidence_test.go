@@ -199,3 +199,48 @@ func TestEvidenceStage_MissingFiles_NotEvaluatedSections(t *testing.T) {
 		t.Error("review.md should contain 'Not evaluated' when review.json and acceptance.json are missing")
 	}
 }
+
+func TestEvidenceStage_ReadsReviewJSONWithDiffUnavailable(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := runstore.NewStore(tmpDir)
+	rs := runstore.NewRunState("test-spec", "test-project")
+	store.Save(rs)
+
+	// Write review.json in new format with diff_unavailable at top level
+	evidenceDir := filepath.Join(store.RunDir(rs.RunID), "evidence")
+	os.MkdirAll(evidenceDir, 0o755)
+	reviewData := map[string]interface{}{
+		"diff_unavailable": true,
+		"spec_alignment": []map[string]interface{}{
+			{"facet": "spec_alignment", "severity": "error", "file": "handler.go", "line": 42, "description": "missing validation"},
+		},
+	}
+	data, _ := json.MarshalIndent(reviewData, "", "  ")
+	os.WriteFile(filepath.Join(evidenceDir, "review.json"), data, 0o644)
+
+	stage := NewEvidenceStage(store, EvidenceStageConfig{
+		DiffProvider: &fakeDiffProvider{diff: "test diff"},
+		StartTime:    time.Now(),
+	})
+
+	_, err := stage.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	// review.md should incorporate content from review.json
+	mdData, err := os.ReadFile(filepath.Join(evidenceDir, "review.md"))
+	if err != nil {
+		t.Fatalf("read review.md: %v", err)
+	}
+	content := string(mdData)
+	if !strings.Contains(content, "spec_alignment") {
+		t.Error("review.md should contain review findings from review.json with diff_unavailable")
+	}
+	if !strings.Contains(content, "1 error") {
+		t.Error("review.md should contain aggregated severity counts from review.json with diff_unavailable")
+	}
+	if !strings.Contains(content, "Diff was unavailable") {
+		t.Error("review.md should contain degraded-mode banner when diff_unavailable is true")
+	}
+}

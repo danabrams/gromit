@@ -335,8 +335,75 @@ func TestReviewStage_EmitsEvent(t *testing.T) {
 }
 
 func TestReviewStage_DiffProviderError(t *testing.T) {
-	runner := &mockReviewRunner{
-		result: &review.RunResult{},
+	var capturedInput review.RunInput
+	runner := &capturingReviewRunner{
+		resultFn: func() *review.RunResult {
+			return &review.RunResult{
+				AllFindings:         []review.Finding{},
+				BlockingFindings:    []review.Finding{},
+				HasBlockingFindings: false,
+			}
+		},
+		capture: func(input review.RunInput) {
+			capturedInput = input
+		},
+	}
+
+	eventLog := runstore.NewEventLog(filepath.Join(t.TempDir(), "events.jsonl"))
+	stage := NewReviewStage(runner, ReviewStageConfig{
+		DiffProvider: &fakeDiffProvider{err: errors.New("git not found")},
+	}, eventLog)
+	rs := runstore.NewRunState("test-spec", "test-project")
+	rs.Cycle = 1
+
+	action, err := stage.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("expected graceful degradation (nil error), got: %v", err)
+	}
+	if action.Kind != specloop.Continue {
+		t.Errorf("expected Continue on DiffProvider error, got %v", action.Kind)
+	}
+
+	// Verify placeholder passed to runner
+	if !strings.Contains(capturedInput.DiffSummary, "diff unavailable") {
+		t.Errorf("expected DiffSummary to contain 'diff unavailable', got: %q", capturedInput.DiffSummary)
+	}
+
+	// Verify DiffUnavailableEvent emitted
+	events, err := eventLog.ReadAll()
+	if err != nil {
+		t.Fatalf("ReadAll: %v", err)
+	}
+	var diffUnavailableEvent *runstore.DiffUnavailableEvent
+	for _, ev := range events {
+		if ev.EventType() == "diff_unavailable" {
+			if d, ok := ev.(*runstore.DiffUnavailableEvent); ok {
+				diffUnavailableEvent = d
+				break
+			}
+		}
+	}
+	if diffUnavailableEvent == nil {
+		t.Fatal("expected DiffUnavailableEvent in event log on DiffProvider error")
+	}
+	if !strings.Contains(diffUnavailableEvent.Reason, "git not found") {
+		t.Errorf("expected event Reason to contain error message, got: %q", diffUnavailableEvent.Reason)
+	}
+}
+
+func TestReviewStage_DiffProviderError_GracefulDegradation(t *testing.T) {
+	var capturedInput review.RunInput
+	runner := &capturingReviewRunner{
+		resultFn: func() *review.RunResult {
+			return &review.RunResult{
+				AllFindings:         []review.Finding{},
+				BlockingFindings:    []review.Finding{},
+				HasBlockingFindings: false,
+			}
+		},
+		capture: func(input review.RunInput) {
+			capturedInput = input
+		},
 	}
 
 	stage := NewReviewStage(runner, ReviewStageConfig{
@@ -345,12 +412,91 @@ func TestReviewStage_DiffProviderError(t *testing.T) {
 	rs := runstore.NewRunState("test-spec", "test-project")
 	rs.Cycle = 1
 
-	_, err := stage.Run(context.Background(), rs)
-	if err == nil {
-		t.Fatal("expected error from DiffProvider failure")
+	action, err := stage.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("expected graceful degradation (nil error), got: %v", err)
 	}
-	if !strings.Contains(err.Error(), "review diff") {
-		t.Errorf("expected wrapped error with 'review diff', got: %v", err)
+	if action.Kind != specloop.Continue {
+		t.Errorf("expected Continue, got %v", action.Kind)
+	}
+	if !strings.Contains(capturedInput.DiffSummary, "diff unavailable") {
+		t.Errorf("expected DiffSummary to contain 'diff unavailable', got: %q", capturedInput.DiffSummary)
+	}
+}
+
+func TestReviewStage_DiffProviderError_EmitsDiffUnavailableEvent(t *testing.T) {
+	runner := &mockReviewRunner{
+		result: &review.RunResult{},
+	}
+
+	eventLog := runstore.NewEventLog(filepath.Join(t.TempDir(), "events.jsonl"))
+	stage := NewReviewStage(runner, ReviewStageConfig{
+		DiffProvider: &fakeDiffProvider{err: errors.New("git not found")},
+	}, eventLog)
+	rs := runstore.NewRunState("test-spec", "test-project")
+	rs.Cycle = 1
+
+	_, err := stage.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("expected graceful degradation, got error: %v", err)
+	}
+
+	events, err := eventLog.ReadAll()
+	if err != nil {
+		t.Fatalf("ReadAll: %v", err)
+	}
+	if len(events) == 0 {
+		t.Fatal("expected at least one event")
+	}
+
+	var diffUnavailableEvent *runstore.DiffUnavailableEvent
+	for _, ev := range events {
+		if ev.EventType() == "diff_unavailable" {
+			if d, ok := ev.(*runstore.DiffUnavailableEvent); ok {
+				diffUnavailableEvent = d
+				break
+			}
+		}
+	}
+	if diffUnavailableEvent == nil {
+		t.Fatal("expected DiffUnavailableEvent in event log")
+	}
+	if !strings.Contains(diffUnavailableEvent.Reason, "git not found") {
+		t.Errorf("expected event Reason to contain error message, got: %q", diffUnavailableEvent.Reason)
+	}
+}
+
+func TestReviewStage_DiffProviderError_BlockingFindings_ReplanFrom(t *testing.T) {
+	runner := &mockReviewRunner{
+		result: &review.RunResult{
+			AllFindings: []review.Finding{
+				{Severity: review.SeverityError, File: "handler.go", Description: "missing validation"},
+			},
+			BlockingFindings: []review.Finding{
+				{Severity: review.SeverityError, File: "handler.go", Description: "missing validation"},
+			},
+			HasBlockingFindings: true,
+		},
+	}
+
+	stage := NewReviewStage(runner, ReviewStageConfig{
+		DiffProvider: &fakeDiffProvider{err: errors.New("git not found")},
+	}, nil)
+	rs := runstore.NewRunState("test-spec", "test-project")
+	rs.Cycle = 1
+
+	action, err := stage.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("expected graceful degradation with ReplanFrom, got error: %v", err)
+	}
+	if action.Kind != specloop.ReplanFrom {
+		t.Errorf("expected ReplanFrom (from blocking findings, not diff error), got %v", action.Kind)
+	}
+	if action.Context == nil {
+		t.Fatal("expected FailureContext")
+	}
+	if len(action.Context.Failures) == 0 {
+		t.Error("expected at least one failure message from blocking findings")
 	}
 }
 
@@ -517,5 +663,75 @@ func TestReviewStage_Continue_AllFindingsInReviewFindings(t *testing.T) {
 	// On Continue path, all findings should be stored for evidence
 	if len(rs.ReviewFindings) != 2 {
 		t.Errorf("expected 2 findings in ReviewFindings on Continue path, got %d", len(rs.ReviewFindings))
+	}
+}
+
+func TestReviewStage_DiffUnavailable_BlockingFindings(t *testing.T) {
+	runner := &mockReviewRunner{
+		result: &review.RunResult{
+			AllFindings: []review.Finding{
+				{Severity: review.SeverityError, File: "handler.go", Description: "missing validation"},
+			},
+			BlockingFindings: []review.Finding{
+				{Severity: review.SeverityError, File: "handler.go", Description: "missing validation"},
+			},
+			HasBlockingFindings: true,
+		},
+	}
+
+	stage := NewReviewStage(runner, ReviewStageConfig{
+		DiffProvider: &fakeDiffProvider{err: errors.New("git not found")},
+	}, nil)
+	rs := runstore.NewRunState("test-spec", "test-project")
+	rs.Cycle = 1
+
+	action, err := stage.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("expected graceful degradation with ReplanFrom, got error: %v", err)
+	}
+	if action.Kind != specloop.ReplanFrom {
+		t.Errorf("expected ReplanFrom (from blocking findings, not diff error), got %v", action.Kind)
+	}
+	if action.Context == nil {
+		t.Fatal("expected FailureContext")
+	}
+	if len(action.Context.Failures) == 0 {
+		t.Error("expected at least one failure message from blocking findings")
+	}
+}
+
+func TestReviewStage_DiffUnavailable_NilProvider_NoEvent(t *testing.T) {
+	runner := &mockReviewRunner{
+		result: &review.RunResult{
+			AllFindings:         []review.Finding{},
+			BlockingFindings:    []review.Finding{},
+			HasBlockingFindings: false,
+		},
+	}
+
+	eventLog := runstore.NewEventLog(filepath.Join(t.TempDir(), "events.jsonl"))
+	stage := NewReviewStage(runner, ReviewStageConfig{
+		DiffProvider: nil,
+	}, eventLog)
+	rs := runstore.NewRunState("test-spec", "test-project")
+	rs.Cycle = 1
+
+	action, err := stage.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if action.Kind != specloop.Continue {
+		t.Errorf("expected Continue, got %v", action.Kind)
+	}
+
+	// Verify no DiffUnavailableEvent emitted when DiffProvider is nil
+	events, err := eventLog.ReadAll()
+	if err != nil {
+		t.Fatalf("ReadAll: %v", err)
+	}
+	for _, ev := range events {
+		if ev.EventType() == "diff_unavailable" {
+			t.Fatal("expected no DiffUnavailableEvent when DiffProvider is nil")
+		}
 	}
 }

@@ -1,0 +1,19 @@
+scenarios:
+  - name: DiffProvider is nil, review proceeds with empty diff
+    assertions:
+      # Verify the nil-provider guard is in place
+      - file_contains:
+          path: internal/next/specloop/stages/review.go
+          pattern: if s.cfg.DiffProvider != nil
+      # Verify that diffSummary is properly initialized as empty
+      - file_contains:
+          path: internal/next/specloop/stages/review.go
+          pattern: var diffSummary string
+      # Verify that when DiffProvider is nil, diffSummary remains empty (graceful degradation)
+      - file_contains:
+          path: internal/next/specloop/stages/review.go
+          pattern: DiffSummary.*diffSummary
+      # Verify that review.runner.Run is called with the (possibly empty) diffSummary
+      - file_contains:
+          path: internal/next/specloop/stages/review.go
+          pattern: "s.runner.Run"

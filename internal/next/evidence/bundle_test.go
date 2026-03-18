@@ -257,7 +257,12 @@ func TestBundler_WriteReviewFindings(t *testing.T) {
 		},
 	}
 
-	if err := b.WriteReviewFindings(findings); err != nil {
+	output := ReviewFindingsOutput{
+		Findings:        findings,
+		DiffUnavailable: false,
+	}
+
+	if err := b.WriteReviewFindings(output); err != nil {
 		t.Fatalf("WriteReviewFindings: %v", err)
 	}
 
@@ -266,15 +271,25 @@ func TestBundler_WriteReviewFindings(t *testing.T) {
 		t.Fatalf("read review.json: %v", err)
 	}
 
-	var parsed map[string][]json.RawMessage
+	var parsed map[string]interface{}
 	if err := json.Unmarshal(data, &parsed); err != nil {
-		t.Fatalf("review.json should be a facet-keyed JSON object: %v", err)
+		t.Fatalf("review.json should be a valid JSON object: %v", err)
 	}
-	if len(parsed["spec_alignment"]) != 1 {
-		t.Errorf("expected 1 spec_alignment finding, got %d", len(parsed["spec_alignment"]))
+
+	specAlignmentRaw, ok := parsed["spec_alignment"]
+	if !ok {
+		t.Fatal("spec_alignment should be present")
 	}
-	if len(parsed["code_quality"]) != 1 {
-		t.Errorf("expected 1 code_quality finding, got %d", len(parsed["code_quality"]))
+	if specAlignmentList, ok := specAlignmentRaw.([]interface{}); !ok || len(specAlignmentList) != 1 {
+		t.Errorf("expected 1 spec_alignment finding, got %v", specAlignmentRaw)
+	}
+
+	codeQualityRaw, ok := parsed["code_quality"]
+	if !ok {
+		t.Fatal("code_quality should be present")
+	}
+	if codeQualityList, ok := codeQualityRaw.([]interface{}); !ok || len(codeQualityList) != 1 {
+		t.Errorf("expected 1 code_quality finding, got %v", codeQualityRaw)
 	}
 }
 
@@ -418,8 +433,12 @@ func TestBundler_WriteReviewFindings_EmptyFindings(t *testing.T) {
 
 	// Pass an empty (non-nil) findings map
 	findings := map[string][]review.Finding{}
+	output := ReviewFindingsOutput{
+		Findings:        findings,
+		DiffUnavailable: false,
+	}
 
-	if err := b.WriteReviewFindings(findings); err != nil {
+	if err := b.WriteReviewFindings(output); err != nil {
 		t.Fatalf("WriteReviewFindings: %v", err)
 	}
 
@@ -434,11 +453,118 @@ func TestBundler_WriteReviewFindings_EmptyFindings(t *testing.T) {
 		t.Fatal("empty findings should serialize as valid JSON object, not null")
 	}
 
-	var parsed map[string][]json.RawMessage
+	var parsed map[string]interface{}
 	if err := json.Unmarshal(data, &parsed); err != nil {
 		t.Fatalf("review.json should be valid JSON: %v", err)
 	}
-	if len(parsed) != 0 {
-		t.Errorf("expected empty map, got %d entries", len(parsed))
+
+	// Should have at least diff_unavailable field
+	if _, ok := parsed["diff_unavailable"]; !ok {
+		t.Fatal("diff_unavailable field should be present")
+	}
+
+	// Count facet entries (anything that's not diff_unavailable)
+	facetCount := 0
+	for k := range parsed {
+		if k != "diff_unavailable" {
+			facetCount++
+		}
+	}
+	if facetCount != 0 {
+		t.Errorf("expected 0 facet entries, got %d", facetCount)
+	}
+}
+
+func TestBundler_WriteReviewFindings_WithDiffUnavailable(t *testing.T) {
+	dir := t.TempDir()
+	b := NewBundler(dir)
+	if err := b.Init(); err != nil {
+		t.Fatal(err)
+	}
+
+	findings := map[string][]review.Finding{
+		"spec_alignment": {
+			{Facet: "spec_alignment", Severity: review.SeverityError, File: "handler.go", Line: 42, Description: "missing validation"},
+		},
+	}
+
+	output := ReviewFindingsOutput{
+		Findings:       findings,
+		DiffUnavailable: true,
+	}
+
+	if err := b.WriteReviewFindings(output); err != nil {
+		t.Fatalf("WriteReviewFindings: %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(dir, "review.json"))
+	if err != nil {
+		t.Fatalf("read review.json: %v", err)
+	}
+
+	var parsed map[string]interface{}
+	if err := json.Unmarshal(data, &parsed); err != nil {
+		t.Fatalf("review.json should be valid JSON: %v", err)
+	}
+
+	// Check that diff_unavailable field is present and true
+	if diffUnavailable, ok := parsed["diff_unavailable"]; !ok {
+		t.Fatal("diff_unavailable field should be present in review.json")
+	} else if diffUnavailable != true {
+		t.Errorf("diff_unavailable should be true, got %v", diffUnavailable)
+	}
+
+	// Check that findings are still present
+	if specAlignment, ok := parsed["spec_alignment"]; !ok {
+		t.Fatal("spec_alignment findings should be present in review.json")
+	} else if specAlignmentList, ok := specAlignment.([]interface{}); !ok || len(specAlignmentList) != 1 {
+		t.Errorf("expected 1 spec_alignment finding, got %v", specAlignment)
+	}
+}
+
+func TestBundler_WriteReviewFindings_DiffUnavailableFalse(t *testing.T) {
+	dir := t.TempDir()
+	b := NewBundler(dir)
+	if err := b.Init(); err != nil {
+		t.Fatal(err)
+	}
+
+	findings := map[string][]review.Finding{
+		"code_quality": {
+			{Facet: "code_quality", Severity: review.SeverityWarning, File: "router.go", Line: 10, Description: "long function"},
+		},
+	}
+
+	output := ReviewFindingsOutput{
+		Findings:        findings,
+		DiffUnavailable: false,
+	}
+
+	if err := b.WriteReviewFindings(output); err != nil {
+		t.Fatalf("WriteReviewFindings: %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(dir, "review.json"))
+	if err != nil {
+		t.Fatalf("read review.json: %v", err)
+	}
+
+	var parsed map[string]interface{}
+	if err := json.Unmarshal(data, &parsed); err != nil {
+		t.Fatalf("review.json should be valid JSON: %v", err)
+	}
+
+	// Check that diff_unavailable field is present and false
+	if diffUnavailable, ok := parsed["diff_unavailable"]; !ok {
+		t.Fatal("diff_unavailable field should be present in review.json")
+	} else if diffUnavailable != false {
+		t.Errorf("diff_unavailable should be false, got %v", diffUnavailable)
+	}
+
+	// Check that findings are still present
+	if codeQuality, ok := parsed["code_quality"]; !ok {
+		t.Fatal("code_quality findings should be present in review.json")
+	} else if codeQualityList, ok := codeQuality.([]interface{}); !ok || len(codeQualityList) != 1 {
+		t.Errorf("expected 1 code_quality finding, got %v", codeQuality)
 	}
 }

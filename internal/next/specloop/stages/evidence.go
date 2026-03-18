@@ -169,7 +169,7 @@ func (s *EvidenceStage) Run(ctx context.Context, rs *runstore.RunState) (specloo
 	}
 
 	// Read review.json and acceptance.json from disk (written by ReviewStage/AcceptStage)
-	reviewFindings, acceptanceCriteria := s.readReviewEvidence(rs.RunID)
+	reviewFindings, acceptanceCriteria, diffUnavailable := s.readReviewEvidence(rs.RunID)
 
 	reviewInput := evidence.ReviewInput{
 		TerminalState:      effectiveStatus(rs),
@@ -180,6 +180,7 @@ func (s *EvidenceStage) Run(ctx context.Context, rs *runstore.RunState) (specloo
 		RecommendedAction:  "review",
 		ReviewFindings:     reviewFindings,
 		AcceptanceCriteria: acceptanceCriteria,
+		DiffUnavailable:    diffUnavailable,
 	}
 	if err := bundler.WriteReview(reviewInput); err != nil {
 		return specloop.NextAction{}, fmt.Errorf("write review: %w", err)
@@ -191,30 +192,58 @@ func (s *EvidenceStage) Run(ctx context.Context, rs *runstore.RunState) (specloo
 // readReviewEvidence reads review.json and acceptance.json from disk and converts
 // them to summary types for the review decision sheet. Missing files produce
 // "Not evaluated" sentinel entries for backward compatibility with 0002a runs.
-func (s *EvidenceStage) readReviewEvidence(runID string) ([]evidence.ReviewFindingSummary, []evidence.AcceptanceCriterionSummary) {
+func (s *EvidenceStage) readReviewEvidence(runID string) ([]evidence.ReviewFindingSummary, []evidence.AcceptanceCriterionSummary, bool) {
 	evidenceDir := s.store.RunEvidenceDir(runID)
 
-	reviewFindings := s.readReviewFindings(filepath.Join(evidenceDir, "review.json"))
+	reviewFindings, diffUnavailable := s.readReviewFindings(filepath.Join(evidenceDir, "review.json"))
 	acceptanceCriteria := s.readAcceptanceCriteria(filepath.Join(evidenceDir, "acceptance.json"))
 
-	return reviewFindings, acceptanceCriteria
+	return reviewFindings, acceptanceCriteria, diffUnavailable
 }
 
-func (s *EvidenceStage) readReviewFindings(path string) []evidence.ReviewFindingSummary {
+func (s *EvidenceStage) readReviewFindings(path string) ([]evidence.ReviewFindingSummary, bool) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return []evidence.ReviewFindingSummary{
 			{Facet: "review", Count: 0, Severities: "Not evaluated"},
-		}
+		}, false
 	}
 
-	var facetFindings map[string][]review.Finding
-	if err := json.Unmarshal(data, &facetFindings); err != nil {
+	// Parse as raw map to handle both old format (just facets) and new format (with diff_unavailable)
+	var parsed map[string]interface{}
+	if err := json.Unmarshal(data, &parsed); err != nil {
 		return []evidence.ReviewFindingSummary{
 			{Facet: "review", Count: 0, Severities: "Not evaluated"},
+		}, false
+	}
+
+	// Extract diff_unavailable flag before filtering facets
+	diffUnavailable := false
+	if v, ok := parsed["diff_unavailable"]; ok {
+		if b, ok := v.(bool); ok {
+			diffUnavailable = b
 		}
 	}
 
+	// Filter out diff_unavailable and other non-facet keys to get just the findings
+	facetFindings := make(map[string][]review.Finding)
+	for facet, rawFindings := range parsed {
+		if facet == "diff_unavailable" {
+			continue
+		}
+		// Convert raw findings to review.Finding
+		findingsData, _ := json.Marshal(rawFindings)
+		var findings []review.Finding
+		if err := json.Unmarshal(findingsData, &findings); err == nil {
+			facetFindings[facet] = findings
+		}
+	}
+
+	return s.summarizeFindings(facetFindings), diffUnavailable
+}
+
+// summarizeFindings converts a map of findings by facet into ReviewFindingSummary objects.
+func (s *EvidenceStage) summarizeFindings(facetFindings map[string][]review.Finding) []evidence.ReviewFindingSummary {
 	// Collect facet keys and sort for deterministic output
 	facetKeys := make([]string, 0, len(facetFindings))
 	for facet := range facetFindings {
