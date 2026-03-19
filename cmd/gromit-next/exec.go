@@ -225,6 +225,10 @@ func (e *execSpecRun) run(ctx context.Context) error {
 
 	// 7. Print terminal state and run ID
 	fmt.Fprintf(e.out, "Run ID:  %s\nStatus:  %s\n", rs.RunID, rs.Status)
+	if rs.WorktreePath != "" {
+		fmt.Fprintf(e.out, "Worktree: %s\n", rs.WorktreePath)
+		fmt.Fprintf(e.out, "Branch:   %s\n", branchResolverFunc(rs.WorktreePath))
+	}
 	return nil
 }
 
