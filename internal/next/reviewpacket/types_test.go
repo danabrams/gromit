@@ -6,10 +6,10 @@ import (
 
 func TestProductReview_NormalizeNilFields(t *testing.T) {
 	pr := &ProductReview{
-		RunID:     "run-1",
-		SpecTitle: "Test Spec",
+		RunID:         "run-1",
+		SpecTitle:     "Test Spec",
 		BehaviorCards: nil,
-		Surprises: nil,
+		Surprises:     nil,
 	}
 
 	pr.NormalizeNilFields()
@@ -67,10 +67,10 @@ func TestBehaviorCard_NormalizeNilFields(t *testing.T) {
 
 func TestProcessReview_NormalizeNilFields(t *testing.T) {
 	pr := &ProcessReview{
-		TrustLevel:         "high",
+		TrustLevel:          "high",
 		RepeatedFailureFlag: false,
-		RepairCycles:       0,
-		DegradedFlags:      nil,
+		RepairCycles:        0,
+		DegradedFlags:       nil,
 	}
 
 	pr.NormalizeNilFields()
