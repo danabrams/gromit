@@ -119,8 +119,20 @@ type execSpecRun struct {
 	store         *runstore.Store
 }
 
-// run executes the spec pipeline and returns the formatted result string.
-func (e *execSpecRun) run(ctx context.Context) (string, error) {
+// normalizeNilFields sets nil fields to safe defaults so run() never panics on
+// a partially-constructed struct (e.g. in tests that only set some fields).
+func (e *execSpecRun) normalizeNilFields() {
+	if e.out == nil {
+		e.out = io.Discard
+	}
+	if e.store == nil && e.storeDir != "" {
+		e.store = runstore.NewStore(e.storeDir)
+	}
+}
+
+// run executes the spec pipeline, writing progress and the terminal summary to e.out.
+func (e *execSpecRun) run(ctx context.Context) error {
+	e.normalizeNilFields()
 	// 1. Load execution policy (skip if pre-loaded by caller)
 	var policy execpolicy.Policy
 	if e.policy != nil {
@@ -133,11 +145,11 @@ func (e *execSpecRun) run(ctx context.Context) (string, error) {
 			policy = execpolicy.DefaultPolicy()
 		}
 		if err != nil {
-			return "", fmt.Errorf("load policy: %w", err)
+			return fmt.Errorf("load policy: %w", err)
 		}
 	}
 	if err := policy.Validate(); err != nil {
-		return "", fmt.Errorf("invalid policy: %w", err)
+		return fmt.Errorf("invalid policy: %w", err)
 	}
 
 	// 2. Create or load run state
@@ -146,7 +158,7 @@ func (e *execSpecRun) run(ctx context.Context) (string, error) {
 		var err error
 		rs, err = e.store.Get(e.resumeRunID)
 		if err != nil {
-			return "", fmt.Errorf("load run for resume: %w", err)
+			return fmt.Errorf("load run for resume: %w", err)
 		}
 		// Mark as resumed so stages can skip redundant work
 		rs.Resumed = true
@@ -187,7 +199,7 @@ func (e *execSpecRun) run(ctx context.Context) (string, error) {
 	// 4. Build stages via provider, passing the shared budget and event log
 	stages, err := e.stageProvider.BuildStages(policy, rs, budget, eventLog)
 	if err != nil {
-		return "", err
+		return err
 	}
 
 	// 5. Filter for dry-run or resume
@@ -202,18 +214,17 @@ func (e *execSpecRun) run(ctx context.Context) (string, error) {
 	})
 
 	if err := loop.Run(ctx, rs); err != nil {
-		return "", fmt.Errorf("spec loop: %w", err)
+		return fmt.Errorf("spec loop: %w", err)
 	}
 
 	// 6. Persist final state
 	if err := e.store.Save(rs); err != nil {
-		return "", fmt.Errorf("save run state: %w", err)
+		return fmt.Errorf("save run state: %w", err)
 	}
 
 	// 7. Print terminal state and run ID
-	output := fmt.Sprintf("Run ID:  %s\nStatus:  %s\n", rs.RunID, rs.Status)
-	fmt.Fprint(e.out, output)
-	return output, nil
+	fmt.Fprintf(e.out, "Run ID:  %s\nStatus:  %s\n", rs.RunID, rs.Status)
+	return nil
 }
 
 // newExecSpecCmd creates the `exec spec` command. Exported for testing.
@@ -317,7 +328,7 @@ func pickSpec(project, specsDir string, store *runstore.Store, branchResolver fu
 			marker = " * (ready_for_review)"
 			if spec.lastRun != nil {
 				branch := branchResolver(spec.lastRun.WorktreePath)
-				extra = fmt.Sprintf(" [%s @ %s]", spec.lastRun.WorktreePath, branch)
+				extra = fmt.Sprintf("\n     worktree: %s\n     branch:   %s", spec.lastRun.WorktreePath, branch)
 			}
 		}
 
@@ -345,16 +356,17 @@ func pickSpec(project, specsDir string, store *runstore.Store, branchResolver fu
 	return filepath.Join(specsDir, selectedSpec+".md"), nil
 }
 
-// statusLabel returns a human-readable label for a run status,
-// mapping StatusNeedsHuman and StatusBlocked to "needs_attention".
+// statusLabel returns a human-readable label for a run status.
 func statusLabel(status string) string {
 	switch status {
 	case runstore.StatusRunning:
 		return "running"
 	case runstore.StatusReadyForReview:
 		return "ready_for_review"
-	case runstore.StatusNeedsHuman, runstore.StatusBlocked:
+	case runstore.StatusNeedsHuman:
 		return "needs_attention"
+	case runstore.StatusBlocked:
+		return "blocked"
 	default:
 		return status
 	}
@@ -547,11 +559,7 @@ func newExecSpecCmdWithProvider(provider StageProvider) *cobra.Command {
 				store:         storeInstance,
 			}
 
-			_, err := r.run(cmd.Context())
-			if err != nil {
-				return err
-			}
-			return nil
+			return r.run(cmd.Context())
 		},
 	}
 	cmd.Flags().String("spec", "", "Path to spec markdown file")

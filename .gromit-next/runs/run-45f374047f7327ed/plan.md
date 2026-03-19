@@ -1,6 +1,10 @@
-# Plan (Cycle 2)
+# Plan (Cycle 10)
 
-## t-014
+## t-042
 
-Fix the 'spec picker — no eligible specs' contract in scenario-contracts.yaml: change the file_contains pattern from a YAML block scalar (|) to a plain quoted string 'no specs available to run' (without trailing newline), and change the test file target from 'cmd/gromit-next/exec_test.go' to 'cmd/gromit-next/exec_scenario_spec_picker_no_eligible_test.go' where the test actually lives. The YAML block scalar adds a literal newline character to the pattern which does not match the Go source (where \n is two literal characters in a string literal).
+Add `store *runstore.Store` field to execSpecRun, construct store in RunE before picker calls, pass it into the struct literal, and replace all uses of local `store` in run() with `e.store`. Addresses review finding: execSpecRun lacks a store field and run() redundantly creates a local store.
+
+## t-043
+
+Update all existing exec spec tests to pass the new `store` field on execSpecRun struct literals, ensuring all tests compile and pass after the struct change in t-042.
 

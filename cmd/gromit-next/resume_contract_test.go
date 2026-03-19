@@ -56,7 +56,7 @@ func TestResumeContract_ResumedRunPreservesCompletedTasks(t *testing.T) {
 		out:           io.Discard,
 	}
 
-	if _, err := r.run(context.Background()); err != nil {
+	if err := r.run(context.Background()); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -138,7 +138,7 @@ func TestResumeContract_ResumedRunReusesWorktree(t *testing.T) {
 		out:           io.Discard,
 	}
 
-	if _, err := r.run(context.Background()); err != nil {
+	if err := r.run(context.Background()); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -199,7 +199,7 @@ func TestResumeContract_CyclesOverridesBudget(t *testing.T) {
 		out:           io.Discard,
 	}
 
-	if _, err := r.run(context.Background()); err != nil {
+	if err := r.run(context.Background()); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -267,7 +267,7 @@ func TestResumeContract_ResumedRunIncludesPlanStage(t *testing.T) {
 		out:           io.Discard,
 	}
 
-	if _, err := r.run(context.Background()); err != nil {
+	if err := r.run(context.Background()); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -331,7 +331,7 @@ func TestResumeContract_GateFlagsResetOnResume(t *testing.T) {
 		out:           io.Discard,
 	}
 
-	if _, err := r.run(context.Background()); err != nil {
+	if err := r.run(context.Background()); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -418,7 +418,7 @@ func TestResumeScenario_HumanSaysKeepGoing(t *testing.T) {
 		out:           io.Discard,
 	}
 
-	if _, err := r.run(context.Background()); err != nil {
+	if err := r.run(context.Background()); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -511,7 +511,7 @@ func TestResumeScenario_ResumeAfterBlockedTask(t *testing.T) {
 		out:           io.Discard,
 	}
 
-	if _, err := r.run(context.Background()); err != nil {
+	if err := r.run(context.Background()); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 

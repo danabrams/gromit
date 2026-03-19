@@ -12,12 +12,8 @@ import (
 )
 
 // TestScenario_RunStartPrintsRunIDAndEventsPath verifies that run() writes a
-// banner to e.out (the buffer) containing the run ID and events path before
-// any stages execute, and returns the run ID in the summary string.
-//
-// RED: execSpecRun has no `out` field — banner is not yet written to a buffer.
-// GREEN after: execSpecRun gains an `out io.Writer` field, and run() writes
-// the banner to e.out before calling loop.Run().
+// start banner to e.out containing the run ID and events path before any
+// stages execute, and also writes the terminal summary to e.out at completion.
 func TestScenario_RunStartPrintsRunIDAndEventsPath(t *testing.T) {
 	// Seed
 	storeDir := t.TempDir()
@@ -34,30 +30,32 @@ func TestScenario_RunStartPrintsRunIDAndEventsPath(t *testing.T) {
 	}
 
 	// Invoke
-	summary, err := r.run(context.Background())
-	if err != nil {
+	if err := r.run(context.Background()); err != nil {
 		t.Fatalf("run() returned error: %v", err)
 	}
 
-	// Assert: summary (return value) contains "Run ID:  " with two spaces
-	parts := strings.SplitN(summary, "Run ID:  ", 2)
+	output := buf.String()
+
+	// Extract run ID from start banner: "Run ID: <id>\n" (single space)
+	parts := strings.SplitN(output, "Run ID: ", 2)
 	if len(parts) < 2 {
-		t.Fatalf("summary missing 'Run ID:  ', got: %s", summary)
+		t.Fatalf("output missing 'Run ID: ' banner, got: %s", output)
 	}
-	fields := strings.Fields(parts[1])
-	if len(fields) == 0 {
-		t.Fatalf("no run ID token after 'Run ID:  ' in summary: %s", summary)
-	}
-	runID := fields[0]
+	runID := strings.Fields(parts[1])[0]
 	if runID == "" {
 		t.Fatal("extracted runID is empty")
 	}
 
-	// Assert: buffer (e.out) begins with the banner — distinct from summary
+	// Assert: buffer begins with the start banner
 	wantBanner := fmt.Sprintf("Run ID: %s\nEvents: %s/runs/%s/events.jsonl\n",
 		runID, storeDir, runID)
-	banner := buf.String()
-	if !strings.HasPrefix(banner, wantBanner) {
-		t.Errorf("banner mismatch.\nwant prefix:\n%s\ngot:\n%s", wantBanner, banner)
+	if !strings.HasPrefix(output, wantBanner) {
+		t.Errorf("banner mismatch.\nwant prefix:\n%s\ngot:\n%s", wantBanner, output)
+	}
+
+	// Assert: terminal summary with double-space is also written to e.out
+	wantSummary := fmt.Sprintf("Run ID:  %s\nStatus:", runID)
+	if !strings.Contains(output, wantSummary) {
+		t.Errorf("terminal summary missing 'Run ID:  %s' (double space), got:\n%s", runID, output)
 	}
 }

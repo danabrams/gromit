@@ -257,7 +257,7 @@ func TestExecSpec_ResumeResetsGateFlags(t *testing.T) {
 		out:           io.Discard,
 	}
 
-	if _, err := r.run(context.Background()); err != nil {
+	if err := r.run(context.Background()); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -325,7 +325,7 @@ func TestExecSpec_ResumePreservesWorktreePath(t *testing.T) {
 		out:           io.Discard,
 	}
 
-	if _, err := r.run(context.Background()); err != nil {
+	if err := r.run(context.Background()); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -354,7 +354,7 @@ func TestExecSpec_ResumeErrorOnMissingRunID(t *testing.T) {
 		out:           io.Discard,
 	}
 
-	_, err := r.run(context.Background())
+	err := r.run(context.Background())
 	if err == nil {
 		t.Fatal("expected error when resuming nonexistent run")
 	}

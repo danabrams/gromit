@@ -2110,7 +2110,7 @@ func TestScenario_ExecSpec_TimeoutEnforcement_ContextReachesStages(t *testing.T)
 	}
 
 	start := time.Now()
-	_, _ = r.run(ctx)
+	_ = r.run(ctx)
 	elapsed := time.Since(start)
 
 	// Run must complete within 10× the deadline — not hanging.
@@ -2184,7 +2184,7 @@ func TestScenario_ExecSpec_InvalidRoutingRatio_ReturnsError(t *testing.T) {
 		out:           io.Discard,
 		store:         runstore.NewStore(storeDir),
 	}
-	_, err := r.run(context.Background())
+	err := r.run(context.Background())
 
 	// Assert: error returned before any stages are built.
 	if err == nil {

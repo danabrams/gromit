@@ -106,12 +106,14 @@ func TestScenario_SpecPickerWithMixedStatuses(t *testing.T) {
 		t.Errorf("expected '* (ready_for_review)' marker for beta, got:\n%s", output)
 	}
 
-	// beta must show worktree and branch details.
-	if !strings.Contains(output, "/tmp/wt") {
-		t.Errorf("expected worktree path '/tmp/wt' in output, got:\n%s", output)
+	// beta must show worktree and branch on indented lines below the spec entry.
+	wantWorktreeLine := "     worktree: /tmp/wt"
+	wantBranchLine := "     branch:   feature/foo"
+	if !strings.Contains(output, wantWorktreeLine) {
+		t.Errorf("expected indented worktree line %q in output, got:\n%s", wantWorktreeLine, output)
 	}
-	if !strings.Contains(output, "feature/foo") {
-		t.Errorf("expected branch 'feature/foo' in output, got:\n%s", output)
+	if !strings.Contains(output, wantBranchLine) {
+		t.Errorf("expected indented branch line %q in output, got:\n%s", wantBranchLine, output)
 	}
 
 	// gamma (completed) and delta (running) must NOT appear.
