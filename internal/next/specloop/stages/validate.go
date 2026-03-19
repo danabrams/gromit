@@ -154,7 +154,9 @@ func (s *ValidateStage) Run(ctx context.Context, rs *runstore.RunState) (specloo
 		// and are visible to the review stage's Claude process.
 		if s.gitOps != nil && rs.WorktreePath != "" {
 			msg := fmt.Sprintf("gromit: %s cycle %d", rs.SpecID, rs.Cycle)
-			_ = s.gitOps.CommitAll(workDir, msg)
+			if err := s.gitOps.CommitAll(workDir, msg); err != nil {
+				fmt.Fprintf(os.Stderr, "gromit: CommitAll warning: %v\n", err)
+			}
 		}
 		return specloop.NextAction{Kind: specloop.Continue}, nil
 	}
