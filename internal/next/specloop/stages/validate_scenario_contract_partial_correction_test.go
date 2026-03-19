@@ -102,16 +102,34 @@ func TestScenario_ContractPartialCorrection(t *testing.T) {
 				ScenarioName:  "test-scenario",
 				AssertionType: "file_contains",
 				Details:       `pattern "expected output 1" not found in "wrong_file_1.txt"`,
+				Assertion: contract.ContractAssertion{
+					FileContains: &contract.FileContainsAssertion{
+						Path:    "wrong_file_1.txt",
+						Pattern: "expected output 1",
+					},
+				},
 			},
 			{
 				ScenarioName:  "test-scenario",
 				AssertionType: "file_contains",
 				Details:       `pattern "expected output 2" not found in "wrong_file_2.txt"`,
+				Assertion: contract.ContractAssertion{
+					FileContains: &contract.FileContainsAssertion{
+						Path:    "wrong_file_2.txt",
+						Pattern: "expected output 2",
+					},
+				},
 			},
 			{
 				ScenarioName:  "test-scenario",
 				AssertionType: "file_contains",
 				Details:       `pattern "this-pattern-does-not-exist-anywhere" not found in "some_file.txt"`,
+				Assertion: contract.ContractAssertion{
+					FileContains: &contract.FileContainsAssertion{
+						Path:    "some_file.txt",
+						Pattern: "this-pattern-does-not-exist-anywhere",
+					},
+				},
 			},
 		},
 		// After corrections, only the uncorrectable failure remains
@@ -120,6 +138,12 @@ func TestScenario_ContractPartialCorrection(t *testing.T) {
 				ScenarioName:  "test-scenario",
 				AssertionType: "file_contains",
 				Details:       `pattern "this-pattern-does-not-exist-anywhere" not found in "some_file.txt"`,
+				Assertion: contract.ContractAssertion{
+					FileContains: &contract.FileContainsAssertion{
+						Path:    "some_file.txt",
+						Pattern: "this-pattern-does-not-exist-anywhere",
+					},
+				},
 			},
 		},
 	}

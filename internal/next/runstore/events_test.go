@@ -60,6 +60,7 @@ func TestEvents_AllEventTypes(t *testing.T) {
 		BlockedWorktreeCleanedEvent{BaseEvent: BaseEvent{Type: "blocked_worktree_cleaned", Timestamp: now}, PriorRunID: "run-old", WorktreePath: "/old"},
 		TerminalStateEvent{BaseEvent: BaseEvent{Type: "terminal_state", Timestamp: now}, Status: "ready_for_review"},
 		DiffUnavailableEvent{BaseEvent: BaseEvent{Type: "diff_unavailable", Timestamp: time.Now()}, Reason: "test error", Message: "test message"},
+		&ContractDeferredEvent{BaseEvent: BaseEvent{Type: "contract_deferred", Timestamp: now}, ScenarioName: "auth-flow", FilePath: "internal/auth/contract.go", Pattern: "login_success", TaskID: "t-042"},
 	}
 
 	for _, ev := range allEvents {
@@ -72,8 +73,8 @@ func TestEvents_AllEventTypes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(events) != 17 {
-		t.Fatalf("want 17 events, got %d", len(events))
+	if len(events) != 18 {
+		t.Fatalf("want 18 events, got %d", len(events))
 	}
 	for i, ev := range events {
 		if ev.EventType() != allEvents[i].EventType() {
@@ -354,5 +355,45 @@ func TestDiffUnavailableEvent_RoundTrip(t *testing.T) {
 	}
 	if due.Type != "diff_unavailable" {
 		t.Errorf("Type = %q, want %q", due.Type, "diff_unavailable")
+	}
+}
+
+func TestContractDeferredEvent_RoundTrip(t *testing.T) {
+	evt := ContractDeferredEvent{
+		BaseEvent:    BaseEvent{Type: "contract_deferred", Timestamp: time.Now()},
+		ScenarioName: "auth-flow",
+		FilePath:     "internal/auth/contract.go",
+		Pattern:      "login_success",
+		TaskID:       "t-042",
+	}
+
+	data, err := json.Marshal(evt)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+
+	roundTripped, err := unmarshalEvent(data)
+	if err != nil {
+		t.Fatalf("unmarshalEvent: %v", err)
+	}
+
+	cde, ok := roundTripped.(*ContractDeferredEvent)
+	if !ok {
+		t.Fatalf("expected *ContractDeferredEvent, got %T", roundTripped)
+	}
+	if cde.ScenarioName != "auth-flow" {
+		t.Errorf("ScenarioName = %q, want %q", cde.ScenarioName, "auth-flow")
+	}
+	if cde.FilePath != "internal/auth/contract.go" {
+		t.Errorf("FilePath = %q, want %q", cde.FilePath, "internal/auth/contract.go")
+	}
+	if cde.Pattern != "login_success" {
+		t.Errorf("Pattern = %q, want %q", cde.Pattern, "login_success")
+	}
+	if cde.TaskID != "t-042" {
+		t.Errorf("TaskID = %q, want %q", cde.TaskID, "t-042")
+	}
+	if cde.Type != "contract_deferred" {
+		t.Errorf("Type = %q, want %q", cde.Type, "contract_deferred")
 	}
 }

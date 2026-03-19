@@ -26,6 +26,12 @@ func (f *fakeContractEvaluatorPatternNotFound) Evaluate(ctx context.Context, c *
 			ScenarioName:  "pattern-not-found-scenario",
 			AssertionType: "file_contains",
 			Details:       `pattern "missing-pattern" not found in "file1.go"`,
+			Assertion: contract.ContractAssertion{
+				FileContains: &contract.FileContainsAssertion{
+					Path:    "file1.go",
+					Pattern: "missing-pattern",
+				},
+			},
 		},
 	}, nil
 }

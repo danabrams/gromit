@@ -71,6 +71,7 @@ func (e *DefaultContractEvaluator) check(scenarioName string, a ContractAssertio
 			ScenarioName:  scenarioName,
 			AssertionType: assertionType,
 			Details:       detail,
+			Assertion:     a,
 		}
 	}
 

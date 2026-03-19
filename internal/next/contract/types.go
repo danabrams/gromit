@@ -42,9 +42,10 @@ type FileContainsAssertion struct {
 
 // ContractFailure represents a single failed contract assertion.
 type ContractFailure struct {
-	ScenarioName  string // e.g., "subtract-works"
-	AssertionType string // e.g., "file_contains"
-	Details       string // Human-readable failure description
+	ScenarioName  string            // e.g., "subtract-works"
+	AssertionType string            // e.g., "file_contains"
+	Details       string            // Human-readable failure description
+	Assertion     ContractAssertion // original assertion that failed
 }
 
 // ScenarioTestWriter writes test files for scenarios.

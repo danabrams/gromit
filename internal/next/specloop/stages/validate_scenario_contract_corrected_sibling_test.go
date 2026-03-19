@@ -86,6 +86,12 @@ func TestScenario_FileContainsAssertionCorrectedToSiblingFile(t *testing.T) {
 				ScenarioName:  "file-correction-scenario",
 				AssertionType: "file_contains",
 				Details:       `pattern "test assertion pass" not found in "exec_test.go"`,
+				Assertion: contract.ContractAssertion{
+					FileContains: &contract.FileContainsAssertion{
+						Path:    "exec_test.go",
+						Pattern: "test assertion pass",
+					},
+				},
 			},
 		},
 	}

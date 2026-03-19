@@ -96,11 +96,23 @@ func TestScenario_ContractReEvaluateWithRemainingFailures(t *testing.T) {
 				ScenarioName:  "test-scenario",
 				AssertionType: "file_contains",
 				Details:       `pattern "corrected pattern" not found in "wrong_file.txt"`,
+				Assertion: contract.ContractAssertion{
+					FileContains: &contract.FileContainsAssertion{
+						Path:    "wrong_file.txt",
+						Pattern: "corrected pattern",
+					},
+				},
 			},
 			{
 				ScenarioName:  "test-scenario",
 				AssertionType: "file_contains",
 				Details:       `pattern "pattern-not-found" not found in "some_file.txt"`,
+				Assertion: contract.ContractAssertion{
+					FileContains: &contract.FileContainsAssertion{
+						Path:    "some_file.txt",
+						Pattern: "pattern-not-found",
+					},
+				},
 			},
 		},
 		// On re-evaluation, the contract has been corrected to point to corrected_file.txt,
@@ -110,6 +122,12 @@ func TestScenario_ContractReEvaluateWithRemainingFailures(t *testing.T) {
 				ScenarioName:  "test-scenario",
 				AssertionType: "file_contains",
 				Details:       `pattern "pattern-not-found" not found in "some_file.txt"`,
+				Assertion: contract.ContractAssertion{
+					FileContains: &contract.FileContainsAssertion{
+						Path:    "some_file.txt",
+						Pattern: "pattern-not-found",
+					},
+				},
 			},
 		},
 	}

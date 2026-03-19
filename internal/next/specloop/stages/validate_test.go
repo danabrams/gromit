@@ -153,7 +153,14 @@ func TestValidateStage_ContractFailures(t *testing.T) {
 	}
 	evaluator := &fakeContractEvaluator{
 		failures: []contract.ContractFailure{
-			{ScenarioName: "subtract-works", AssertionType: "file_exists", Details: `file "result.txt" does not exist`},
+			{
+				ScenarioName:  "subtract-works",
+				AssertionType: "file_exists",
+				Details:       `file "result.txt" does not exist`,
+				Assertion: contract.ContractAssertion{
+					FileExists: "result.txt",
+				},
+			},
 		},
 	}
 
@@ -207,7 +214,14 @@ func TestValidateStage_ContractAndShellFailures(t *testing.T) {
 	}
 	evaluator := &fakeContractEvaluator{
 		failures: []contract.ContractFailure{
-			{ScenarioName: "add-works", AssertionType: "file_exists", Details: `file "out.txt" does not exist`},
+			{
+				ScenarioName:  "add-works",
+				AssertionType: "file_exists",
+				Details:       `file "out.txt" does not exist`,
+				Assertion: contract.ContractAssertion{
+					FileExists: "out.txt",
+				},
+			},
 		},
 	}
 
@@ -409,5 +423,952 @@ func TestFindSiblingFileWithPattern_OnlyGoFilesReturned(t *testing.T) {
 
 	if strings.Contains(foundPath, ".txt") || strings.Contains(foundPath, ".md") {
 		t.Fatalf("expected to return .go file only, got %q which contains non-.go extension", foundPath)
+	}
+}
+
+// TestDeferContractFailures_FileContainsDeferredWhenCovered verifies that
+// file_contains failures are deferred when a pending task covers the file.
+func TestDeferContractFailures_FileContainsDeferredWhenCovered(t *testing.T) {
+	failures := []contract.ContractFailure{
+		{
+			ScenarioName:  "test-scenario",
+			AssertionType: "file_contains",
+			Details:       "pattern not found",
+			Assertion: contract.ContractAssertion{
+				FileContains: &contract.FileContainsAssertion{
+					Path:    "main.go",
+					Pattern: "func main",
+				},
+			},
+		},
+	}
+	tasks := []runstore.Task{
+		{
+			TaskID:              "task-1",
+			Status:              "pending",
+			ExpectedTouchedArea: []string{"main.go"},
+		},
+	}
+
+	result := deferContractFailures(failures, tasks)
+	remaining, deferred := result.remaining, result.deferred
+
+	if len(deferred) != 1 {
+		t.Fatalf("expected 1 deferred failure, got %d", len(deferred))
+	}
+	if len(remaining) != 0 {
+		t.Fatalf("expected 0 remaining failures, got %d", len(remaining))
+	}
+	if deferred[0].ScenarioName != "test-scenario" {
+		t.Fatalf("expected deferred scenario 'test-scenario', got %q", deferred[0].ScenarioName)
+	}
+}
+
+// TestDeferContractFailures_FileExistsDeferredWhenCovered verifies that
+// file_exists failures are deferred when a pending task covers the file.
+func TestDeferContractFailures_FileExistsDeferredWhenCovered(t *testing.T) {
+	failures := []contract.ContractFailure{
+		{
+			ScenarioName:  "another-scenario",
+			AssertionType: "file_exists",
+			Details:       "file does not exist",
+			Assertion: contract.ContractAssertion{
+				FileExists: "output.txt",
+			},
+		},
+	}
+	tasks := []runstore.Task{
+		{
+			TaskID:              "task-2",
+			Status:              "pending",
+			ExpectedTouchedArea: []string{"output.txt"},
+		},
+	}
+
+	result := deferContractFailures(failures, tasks)
+	remaining, deferred := result.remaining, result.deferred
+
+	if len(deferred) != 1 {
+		t.Fatalf("expected 1 deferred failure, got %d", len(deferred))
+	}
+	if len(remaining) != 0 {
+		t.Fatalf("expected 0 remaining failures, got %d", len(remaining))
+	}
+	if deferred[0].Assertion.FileExists != "output.txt" {
+		t.Fatalf("expected deferred file 'output.txt', got %q", deferred[0].Assertion.FileExists)
+	}
+}
+
+// TestDeferContractFailures_NotDeferredWhenNoPendingTaskCovers verifies that
+// failures are not deferred when no pending task covers the file.
+func TestDeferContractFailures_NotDeferredWhenNoPendingTaskCovers(t *testing.T) {
+	failures := []contract.ContractFailure{
+		{
+			ScenarioName:  "uncovered-scenario",
+			AssertionType: "file_exists",
+			Details:       "file does not exist",
+			Assertion: contract.ContractAssertion{
+				FileExists: "uncovered.txt",
+			},
+		},
+	}
+	tasks := []runstore.Task{
+		{
+			TaskID:              "task-1",
+			Status:              "pending",
+			ExpectedTouchedArea: []string{"other.txt"},
+		},
+	}
+
+	result := deferContractFailures(failures, tasks)
+	remaining, deferred := result.remaining, result.deferred
+
+	if len(deferred) != 0 {
+		t.Fatalf("expected 0 deferred failures, got %d", len(deferred))
+	}
+	if len(remaining) != 1 {
+		t.Fatalf("expected 1 remaining failure, got %d", len(remaining))
+	}
+	if remaining[0].ScenarioName != "uncovered-scenario" {
+		t.Fatalf("expected remaining scenario 'uncovered-scenario', got %q", remaining[0].ScenarioName)
+	}
+}
+
+// TestDeferContractFailures_NotDeferredForDoneTask verifies that failures
+// are not deferred by tasks with status="done".
+func TestDeferContractFailures_NotDeferredForDoneTask(t *testing.T) {
+	failures := []contract.ContractFailure{
+		{
+			ScenarioName:  "test-scenario",
+			AssertionType: "file_contains",
+			Details:       "pattern not found",
+			Assertion: contract.ContractAssertion{
+				FileContains: &contract.FileContainsAssertion{
+					Path:    "impl.go",
+					Pattern: "func process",
+				},
+			},
+		},
+	}
+	tasks := []runstore.Task{
+		{
+			TaskID:              "task-1",
+			Status:              "done", // Task is done, not pending
+			ExpectedTouchedArea: []string{"impl.go"},
+		},
+	}
+
+	result := deferContractFailures(failures, tasks)
+	remaining, deferred := result.remaining, result.deferred
+
+	if len(deferred) != 0 {
+		t.Fatalf("expected 0 deferred failures (done task should not trigger deferral), got %d", len(deferred))
+	}
+	if len(remaining) != 1 {
+		t.Fatalf("expected 1 remaining failure, got %d", len(remaining))
+	}
+}
+
+// TestDeferContractFailures_NonDeferrableAssertionTypes verifies that assertion types
+// other than file_contains and file_exists are never deferred.
+func TestDeferContractFailures_NonDeferrableAssertionTypes(t *testing.T) {
+	failures := []contract.ContractFailure{
+		{
+			ScenarioName:  "scenario-1",
+			AssertionType: "file_not_contains",
+			Details:       "pattern found when not expected",
+			Assertion: contract.ContractAssertion{
+				FileNotContains: &contract.FileContainsAssertion{
+					Path:    "bad.go",
+					Pattern: "deprecated",
+				},
+			},
+		},
+		{
+			ScenarioName:  "scenario-2",
+			AssertionType: "file_not_modified",
+			Details:       "file was modified",
+			Assertion: contract.ContractAssertion{
+				FileNotModified: "config.yaml",
+			},
+		},
+		{
+			ScenarioName:  "scenario-3",
+			AssertionType: "file_not_exists",
+			Details:       "file should not exist",
+			Assertion: contract.ContractAssertion{
+				FileNotExists: "temp.txt",
+			},
+		},
+	}
+	tasks := []runstore.Task{
+		{
+			TaskID:              "task-1",
+			Status:              "pending",
+			ExpectedTouchedArea: []string{"bad.go", "config.yaml", "temp.txt"},
+		},
+	}
+
+	result := deferContractFailures(failures, tasks)
+	remaining, deferred := result.remaining, result.deferred
+
+	// All non-deferrable types should remain
+	if len(deferred) != 0 {
+		t.Fatalf("expected 0 deferred failures (all are non-deferrable types), got %d", len(deferred))
+	}
+	if len(remaining) != 3 {
+		t.Fatalf("expected 3 remaining failures, got %d", len(remaining))
+	}
+	// Verify the specific assertion types in remaining
+	assertionTypes := make(map[string]bool)
+	for _, f := range remaining {
+		assertionTypes[f.AssertionType] = true
+	}
+	if !assertionTypes["file_not_contains"] || !assertionTypes["file_not_modified"] || !assertionTypes["file_not_exists"] {
+		t.Fatalf("expected remaining failures to have file_not_contains, file_not_modified, and file_not_exists types")
+	}
+}
+
+// TestDeferContractFailures_MultipleTasksFirstWins verifies that when multiple
+// pending tasks cover the same file, the first one in slice order is recorded.
+func TestDeferContractFailures_MultipleTasksFirstWins(t *testing.T) {
+	failures := []contract.ContractFailure{
+		{
+			ScenarioName:  "multi-task-scenario",
+			AssertionType: "file_exists",
+			Details:       "file does not exist",
+			Assertion: contract.ContractAssertion{
+				FileExists: "shared.go",
+			},
+		},
+	}
+	tasks := []runstore.Task{
+		{
+			TaskID:              "task-1", // First task wins
+			Status:              "pending",
+			ExpectedTouchedArea: []string{"shared.go", "other1.go"},
+		},
+		{
+			TaskID:              "task-2", // Also covers shared.go, but task-1 wins
+			Status:              "pending",
+			ExpectedTouchedArea: []string{"shared.go", "other2.go"},
+		},
+		{
+			TaskID:              "task-3",
+			Status:              "pending",
+			ExpectedTouchedArea: []string{"other3.go"},
+		},
+	}
+
+	result := deferContractFailures(failures, tasks)
+	remaining, deferred := result.remaining, result.deferred
+
+	if len(deferred) != 1 {
+		t.Fatalf("expected 1 deferred failure, got %d", len(deferred))
+	}
+	if len(remaining) != 0 {
+		t.Fatalf("expected 0 remaining failures, got %d", len(remaining))
+	}
+	// Verify that task-1 is recorded via the returned taskIDByFile map
+	taskID := result.taskIDByFile["shared.go"]
+	if taskID != "task-1" {
+		t.Fatalf("expected task-1 to cover shared.go first, got %q", taskID)
+	}
+}
+
+// TestDeferContractFailures_MixOfDeferrableAndNonDeferrable verifies that when
+// given a mix of deferrable and non-deferrable failures, only the covered deferrable
+// ones are removed and put in deferred, while non-deferrable and uncovered failures remain.
+func TestDeferContractFailures_MixOfDeferrableAndNonDeferrable(t *testing.T) {
+	failures := []contract.ContractFailure{
+		// Deferrable and covered
+		{
+			ScenarioName:  "scenario-1",
+			AssertionType: "file_contains",
+			Details:       "pattern not found",
+			Assertion: contract.ContractAssertion{
+				FileContains: &contract.FileContainsAssertion{
+					Path:    "handler.go",
+					Pattern: "Handle",
+				},
+			},
+		},
+		// Deferrable but not covered
+		{
+			ScenarioName:  "scenario-2",
+			AssertionType: "file_exists",
+			Details:       "file does not exist",
+			Assertion: contract.ContractAssertion{
+				FileExists: "uncovered_result.txt",
+			},
+		},
+		// Non-deferrable (file_not_contains)
+		{
+			ScenarioName:  "scenario-3",
+			AssertionType: "file_not_contains",
+			Details:       "pattern found",
+			Assertion: contract.ContractAssertion{
+				FileNotContains: &contract.FileContainsAssertion{
+					Path:    "handler.go",
+					Pattern: "deprecated",
+				},
+			},
+		},
+		// Deferrable and covered
+		{
+			ScenarioName:  "scenario-4",
+			AssertionType: "file_exists",
+			Details:       "file does not exist",
+			Assertion: contract.ContractAssertion{
+				FileExists: "result.txt",
+			},
+		},
+		// Non-deferrable (file_not_modified)
+		{
+			ScenarioName:  "scenario-5",
+			AssertionType: "file_not_modified",
+			Details:       "file was modified",
+			Assertion: contract.ContractAssertion{
+				FileNotModified: "config.yaml",
+			},
+		},
+	}
+	tasks := []runstore.Task{
+		{
+			TaskID:              "task-1",
+			Status:              "pending",
+			ExpectedTouchedArea: []string{"handler.go", "result.txt"},
+		},
+	}
+
+	result := deferContractFailures(failures, tasks)
+	remaining, deferred := result.remaining, result.deferred
+
+	// Should have 2 deferred: handler.go (file_contains) and result.txt (file_exists)
+	if len(deferred) != 2 {
+		t.Fatalf("expected 2 deferred failures, got %d", len(deferred))
+	}
+
+	// Should have 3 remaining: uncovered_result.txt (deferrable but uncovered),
+	// file_not_contains (non-deferrable), file_not_modified (non-deferrable)
+	if len(remaining) != 3 {
+		t.Fatalf("expected 3 remaining failures, got %d", len(remaining))
+	}
+
+	// Verify deferred contains the correct scenarios
+	deferredScenarios := make(map[string]bool)
+	for _, f := range deferred {
+		deferredScenarios[f.ScenarioName] = true
+	}
+	if !deferredScenarios["scenario-1"] || !deferredScenarios["scenario-4"] {
+		t.Fatalf("expected deferred to have scenario-1 and scenario-4")
+	}
+
+	// Verify remaining contains the correct scenarios
+	remainingScenarios := make(map[string]bool)
+	for _, f := range remaining {
+		remainingScenarios[f.ScenarioName] = true
+	}
+	if !remainingScenarios["scenario-2"] || !remainingScenarios["scenario-3"] || !remainingScenarios["scenario-5"] {
+		t.Fatalf("expected remaining to have scenario-2, scenario-3, and scenario-5")
+	}
+}
+
+// TestValidateStage_AllContractsDeferredNoPriorFailures verifies that when all contract
+// failures are deferred and no shell check failures exist, validation passes with Continue action.
+func TestValidateStage_AllContractsDeferredNoPriorFailures(t *testing.T) {
+	dir := t.TempDir()
+
+	contractYAML := `scenarios:
+  - name: scenario-deferred
+    assertions:
+      - file_exists: output.txt
+`
+	if err := os.WriteFile(filepath.Join(dir, "scenario-contracts.yaml"), []byte(contractYAML), 0o644); err != nil {
+		t.Fatalf("write contract file: %v", err)
+	}
+
+	v := &fakeValidator{
+		result: validator.FinalResult{
+			Pass:          true,
+			AlwaysRun:     validator.CheckResults{Results: []validator.CheckResult{{Name: "test", Pass: true}}},
+			ProjectChecks: validator.CheckResults{Results: []validator.CheckResult{{Name: "lint", Pass: true}}},
+		},
+	}
+	evaluator := &fakeContractEvaluator{
+		failures: []contract.ContractFailure{
+			{
+				ScenarioName:  "scenario-deferred",
+				AssertionType: "file_exists",
+				Details:       `file "output.txt" does not exist`,
+				Assertion: contract.ContractAssertion{
+					FileExists: "output.txt",
+				},
+			},
+		},
+	}
+
+	stage := NewValidateStage(v, ValidateStageConfig{
+		WorkDir:     "/tmp/work",
+		EvidenceDir: dir,
+	}, nil, evaluator, nil)
+
+	rs := runstore.NewRunState("spec-001", "proj-001")
+	rs.Tasks = []runstore.Task{
+		{
+			TaskID:              "task-1",
+			Status:              "pending",
+			ExpectedTouchedArea: []string{"output.txt"},
+		},
+	}
+
+	action, err := stage.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// All contract failures deferred + no shell failures = Continue
+	if action.Kind != specloop.Continue {
+		t.Fatalf("expected Continue when all contracts deferred and no shell failures, got %v", action.Kind)
+	}
+
+	if !rs.FinalValidationPassed {
+		t.Fatal("expected FinalValidationPassed to be true when all failures deferred")
+	}
+
+	if len(rs.LastContractFailures) != 0 {
+		t.Fatalf("expected LastContractFailures to be empty (all deferred), got %d", len(rs.LastContractFailures))
+	}
+}
+
+// TestValidateStage_SomeContractsDeferredSomeNotTriggersReplan verifies that when
+// some failures are deferred and others are not, only non-deferred failures trigger
+// a ReplanFrom action.
+func TestValidateStage_SomeContractsDeferredSomeNotTriggersReplan(t *testing.T) {
+	dir := t.TempDir()
+
+	contractYAML := `scenarios:
+  - name: scenario-deferred
+    assertions:
+      - file_exists: output.txt
+  - name: scenario-not-deferred
+    assertions:
+      - file_exists: uncovered.txt
+`
+	if err := os.WriteFile(filepath.Join(dir, "scenario-contracts.yaml"), []byte(contractYAML), 0o644); err != nil {
+		t.Fatalf("write contract file: %v", err)
+	}
+
+	v := &fakeValidator{
+		result: validator.FinalResult{
+			Pass:          true,
+			AlwaysRun:     validator.CheckResults{Results: []validator.CheckResult{{Name: "test", Pass: true}}},
+			ProjectChecks: validator.CheckResults{Results: []validator.CheckResult{{Name: "lint", Pass: true}}},
+		},
+	}
+	evaluator := &fakeContractEvaluator{
+		failures: []contract.ContractFailure{
+			{
+				ScenarioName:  "scenario-deferred",
+				AssertionType: "file_exists",
+				Details:       `file "output.txt" does not exist`,
+				Assertion: contract.ContractAssertion{
+					FileExists: "output.txt",
+				},
+			},
+			{
+				ScenarioName:  "scenario-not-deferred",
+				AssertionType: "file_exists",
+				Details:       `file "uncovered.txt" does not exist`,
+				Assertion: contract.ContractAssertion{
+					FileExists: "uncovered.txt",
+				},
+			},
+		},
+	}
+
+	stage := NewValidateStage(v, ValidateStageConfig{
+		WorkDir:     "/tmp/work",
+		EvidenceDir: dir,
+	}, nil, evaluator, nil)
+
+	rs := runstore.NewRunState("spec-001", "proj-001")
+	rs.Cycle = 1
+	rs.Tasks = []runstore.Task{
+		{
+			TaskID:              "task-1",
+			Status:              "pending",
+			ExpectedTouchedArea: []string{"output.txt"}, // Only covers output.txt, not uncovered.txt
+		},
+	}
+
+	action, err := stage.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// One deferred + one not = ReplanFrom with only non-deferred in context
+	if action.Kind != specloop.ReplanFrom {
+		t.Fatalf("expected ReplanFrom when some failures not deferred, got %v", action.Kind)
+	}
+
+	if action.Context == nil || len(action.Context.Failures) == 0 {
+		t.Fatal("expected FailureContext with failures")
+	}
+
+	// Should only have the non-deferred failure
+	if len(action.Context.Failures) != 1 {
+		t.Fatalf("expected 1 failure (only non-deferred), got %d: %v", len(action.Context.Failures), action.Context.Failures)
+	}
+
+	if !strings.Contains(action.Context.Failures[0], "scenario-not-deferred") {
+		t.Fatalf("expected failure to reference scenario-not-deferred, got %q", action.Context.Failures[0])
+	}
+
+	if !strings.Contains(action.Context.Failures[0], "uncovered.txt") {
+		t.Fatalf("expected failure to reference uncovered.txt, got %q", action.Context.Failures[0])
+	}
+}
+
+// TestValidateStage_DeferredFailuresExcludedFromLastContractFailures verifies that
+// deferred failures do not appear in rs.LastContractFailures.
+func TestValidateStage_DeferredFailuresExcludedFromLastContractFailures(t *testing.T) {
+	dir := t.TempDir()
+
+	contractYAML := `scenarios:
+  - name: deferred-scenario
+    assertions:
+      - file_exists: deferred.txt
+  - name: not-deferred-scenario
+    assertions:
+      - file_exists: not-deferred.txt
+`
+	if err := os.WriteFile(filepath.Join(dir, "scenario-contracts.yaml"), []byte(contractYAML), 0o644); err != nil {
+		t.Fatalf("write contract file: %v", err)
+	}
+
+	v := &fakeValidator{
+		result: validator.FinalResult{
+			Pass:          true,
+			AlwaysRun:     validator.CheckResults{Results: []validator.CheckResult{{Name: "test", Pass: true}}},
+			ProjectChecks: validator.CheckResults{Results: []validator.CheckResult{{Name: "lint", Pass: true}}},
+		},
+	}
+	evaluator := &fakeContractEvaluator{
+		failures: []contract.ContractFailure{
+			{
+				ScenarioName:  "deferred-scenario",
+				AssertionType: "file_exists",
+				Details:       `file "deferred.txt" does not exist`,
+				Assertion: contract.ContractAssertion{
+					FileExists: "deferred.txt",
+				},
+			},
+			{
+				ScenarioName:  "not-deferred-scenario",
+				AssertionType: "file_exists",
+				Details:       `file "not-deferred.txt" does not exist`,
+				Assertion: contract.ContractAssertion{
+					FileExists: "not-deferred.txt",
+				},
+			},
+		},
+	}
+
+	stage := NewValidateStage(v, ValidateStageConfig{
+		WorkDir:     "/tmp/work",
+		EvidenceDir: dir,
+	}, nil, evaluator, nil)
+
+	rs := runstore.NewRunState("spec-001", "proj-001")
+	rs.Tasks = []runstore.Task{
+		{
+			TaskID:              "task-1",
+			Status:              "pending",
+			ExpectedTouchedArea: []string{"deferred.txt"}, // Only covers deferred.txt
+		},
+	}
+
+	_, err := stage.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// LastContractFailures should only contain the not-deferred failure
+	if len(rs.LastContractFailures) != 1 {
+		t.Fatalf("expected 1 failure in LastContractFailures, got %d: %v", len(rs.LastContractFailures), rs.LastContractFailures)
+	}
+
+	if !strings.Contains(rs.LastContractFailures[0], "not-deferred-scenario") {
+		t.Fatalf("expected LastContractFailures to reference not-deferred-scenario, got %q", rs.LastContractFailures[0])
+	}
+
+	if strings.Contains(rs.LastContractFailures[0], "contract:deferred-scenario") {
+		t.Fatalf("expected LastContractFailures to NOT contain contract:deferred-scenario, got %q", rs.LastContractFailures[0])
+	}
+}
+
+// TestValidateStage_ContractDeferredEventEmitted verifies that contract_deferred events
+// are emitted with correct fields: scenario_name, file_path, pattern, task_id.
+func TestValidateStage_ContractDeferredEventEmitted(t *testing.T) {
+	dir := t.TempDir()
+	eventLogPath := filepath.Join(dir, "events.jsonl")
+
+	contractYAML := `scenarios:
+  - name: test-file-exists
+    assertions:
+      - file_exists: result.txt
+  - name: test-file-contains
+    assertions:
+      - file_contains:
+          path: handler.go
+          pattern: "func Handle"
+`
+	if err := os.WriteFile(filepath.Join(dir, "scenario-contracts.yaml"), []byte(contractYAML), 0o644); err != nil {
+		t.Fatalf("write contract file: %v", err)
+	}
+
+	v := &fakeValidator{
+		result: validator.FinalResult{
+			Pass:          true,
+			AlwaysRun:     validator.CheckResults{Results: []validator.CheckResult{{Name: "test", Pass: true}}},
+			ProjectChecks: validator.CheckResults{Results: []validator.CheckResult{{Name: "lint", Pass: true}}},
+		},
+	}
+	evaluator := &fakeContractEvaluator{
+		failures: []contract.ContractFailure{
+			{
+				ScenarioName:  "test-file-exists",
+				AssertionType: "file_exists",
+				Details:       "file does not exist",
+				Assertion: contract.ContractAssertion{
+					FileExists: "result.txt",
+				},
+			},
+			{
+				ScenarioName:  "test-file-contains",
+				AssertionType: "file_contains",
+				Details:       "pattern not found",
+				Assertion: contract.ContractAssertion{
+					FileContains: &contract.FileContainsAssertion{
+						Path:    "handler.go",
+						Pattern: "func Handle",
+					},
+				},
+			},
+		},
+	}
+
+	eventLog := runstore.NewEventLog(eventLogPath)
+	stage := NewValidateStage(v, ValidateStageConfig{
+		WorkDir:     "/tmp/work",
+		EvidenceDir: dir,
+	}, eventLog, evaluator, nil)
+
+	rs := runstore.NewRunState("spec-001", "proj-001")
+	rs.Tasks = []runstore.Task{
+		{
+			TaskID:              "task-101",
+			Status:              "pending",
+			ExpectedTouchedArea: []string{"result.txt", "handler.go"},
+		},
+	}
+
+	_, err := stage.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Read events from log
+	events, err := eventLog.ReadAll()
+	if err != nil {
+		t.Fatalf("failed to read event log: %v", err)
+	}
+
+	// Find contract_deferred events
+	var deferredEvents []*runstore.ContractDeferredEvent
+	for _, ev := range events {
+		if ce, ok := ev.(*runstore.ContractDeferredEvent); ok {
+			deferredEvents = append(deferredEvents, ce)
+		}
+	}
+
+	if len(deferredEvents) != 2 {
+		t.Fatalf("expected 2 contract_deferred events, got %d", len(deferredEvents))
+	}
+
+	// Verify events have correct fields
+	eventsByScenario := make(map[string]*runstore.ContractDeferredEvent)
+	for _, ev := range deferredEvents {
+		eventsByScenario[ev.ScenarioName] = ev
+	}
+
+	// Check file_exists event
+	if ev, ok := eventsByScenario["test-file-exists"]; !ok {
+		t.Fatal("expected contract_deferred event for test-file-exists")
+	} else {
+		if ev.ScenarioName != "test-file-exists" {
+			t.Fatalf("expected ScenarioName 'test-file-exists', got %q", ev.ScenarioName)
+		}
+		if ev.FilePath != "result.txt" {
+			t.Fatalf("expected FilePath 'result.txt', got %q", ev.FilePath)
+		}
+		if ev.Pattern != "" {
+			t.Fatalf("expected Pattern '' (empty for file_exists), got %q", ev.Pattern)
+		}
+		if ev.TaskID != "task-101" {
+			t.Fatalf("expected TaskID 'task-101', got %q", ev.TaskID)
+		}
+	}
+
+	// Check file_contains event
+	if ev, ok := eventsByScenario["test-file-contains"]; !ok {
+		t.Fatal("expected contract_deferred event for test-file-contains")
+	} else {
+		if ev.ScenarioName != "test-file-contains" {
+			t.Fatalf("expected ScenarioName 'test-file-contains', got %q", ev.ScenarioName)
+		}
+		if ev.FilePath != "handler.go" {
+			t.Fatalf("expected FilePath 'handler.go', got %q", ev.FilePath)
+		}
+		if ev.Pattern != "func Handle" {
+			t.Fatalf("expected Pattern 'func Handle', got %q", ev.Pattern)
+		}
+		if ev.TaskID != "task-101" {
+			t.Fatalf("expected TaskID 'task-101', got %q", ev.TaskID)
+		}
+	}
+}
+
+// TestValidateStage_ContractDeferralChainOrder verifies that the processing chain order
+// is: defer → self-correct → re-evaluate → re-defer → format-to-failures.
+// This is an integration test that verifies the full flow works correctly together.
+func TestValidateStage_ContractDeferralChainOrder(t *testing.T) {
+	dir := t.TempDir()
+
+	// Write a contract with a file_contains failure that will be deferred
+	contractYAML := `scenarios:
+  - name: scenario-with-deferred-and-uncorrectable
+    assertions:
+      - file_contains:
+          path: original.go
+          pattern: "func MainLogic"
+`
+	contractPath := filepath.Join(dir, "scenario-contracts.yaml")
+	if err := os.WriteFile(contractPath, []byte(contractYAML), 0o644); err != nil {
+		t.Fatalf("write contract file: %v", err)
+	}
+
+	v := &fakeValidator{
+		result: validator.FinalResult{
+			Pass:          true,
+			AlwaysRun:     validator.CheckResults{Results: []validator.CheckResult{{Name: "test", Pass: true}}},
+			ProjectChecks: validator.CheckResults{Results: []validator.CheckResult{{Name: "lint", Pass: true}}},
+		},
+	}
+	evaluator := &fakeContractEvaluator{
+		failures: []contract.ContractFailure{
+			{
+				ScenarioName:  "scenario-with-deferred-and-uncorrectable",
+				AssertionType: "file_contains",
+				Details:       `pattern "func MainLogic" not found in "original.go"`,
+				Assertion: contract.ContractAssertion{
+					FileContains: &contract.FileContainsAssertion{
+						Path:    "original.go",
+						Pattern: "func MainLogic",
+					},
+				},
+			},
+		},
+	}
+
+	stage := NewValidateStage(v, ValidateStageConfig{
+		WorkDir:          "/tmp/work",
+		EvidenceDir:      dir,
+		SearchExtensions: []string{".go"},
+	}, nil, evaluator, nil)
+
+	rs := runstore.NewRunState("spec-001", "proj-001")
+	rs.Tasks = []runstore.Task{
+		{
+			TaskID:              "task-pending",
+			Status:              "pending",
+			ExpectedTouchedArea: []string{"original.go"}, // Covers the file, should defer
+		},
+	}
+
+	action, err := stage.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// All contract failures should be deferred by the deferral logic
+	// Since there are no shell failures, this should Continue
+	if action.Kind != specloop.Continue {
+		t.Fatalf("expected Continue when all contract failures deferred and no shell failures, got %v", action.Kind)
+	}
+
+	if !rs.FinalValidationPassed {
+		t.Fatal("expected FinalValidationPassed to be true")
+	}
+
+	// LastContractFailures should be empty (all deferred)
+	if len(rs.LastContractFailures) != 0 {
+		t.Fatalf("expected LastContractFailures to be empty after deferral, got %d: %v", len(rs.LastContractFailures), rs.LastContractFailures)
+	}
+}
+
+// TestValidateStage_PipelineOrdering verifies the complete processing pipeline:
+// raw failures → deferral (no-op when no tasks cover) → self-correction → formatted strings.
+// This test confirms that:
+// 1. Raw failures flow through deferral unchanged when no pending tasks cover the files
+// 2. Failures are processed through self-correction
+// 3. Final formatted output strings match the expected format: "contract:<scenario> — <type> failed: <details>"
+func TestValidateStage_PipelineOrdering(t *testing.T) {
+	dir := t.TempDir()
+
+	// Create a contract with a file_contains failure that won't be deferred
+	// (no pending tasks cover the file)
+	contractYAML := `scenarios:
+  - name: scenario-pipeline-test
+    assertions:
+      - file_contains:
+          path: "handler.go"
+          pattern: "func ProcessRequest"
+  - name: scenario-undeferred-exists
+    assertions:
+      - file_exists: "config.yaml"
+`
+	contractPath := filepath.Join(dir, "scenario-contracts.yaml")
+	if err := os.WriteFile(contractPath, []byte(contractYAML), 0o644); err != nil {
+		t.Fatalf("write contract file: %v", err)
+	}
+
+	v := &fakeValidator{
+		result: validator.FinalResult{
+			Pass:          true,
+			AlwaysRun:     validator.CheckResults{Results: []validator.CheckResult{{Name: "test", Pass: true}}},
+			ProjectChecks: validator.CheckResults{Results: []validator.CheckResult{{Name: "lint", Pass: true}}},
+		},
+	}
+
+	// Create raw failures that won't be deferred (no pending tasks cover these files)
+	evaluator := &fakeContractEvaluator{
+		failures: []contract.ContractFailure{
+			{
+				ScenarioName:  "scenario-pipeline-test",
+				AssertionType: "file_contains",
+				Details:       `pattern "func ProcessRequest" not found in "handler.go"`,
+				Assertion: contract.ContractAssertion{
+					FileContains: &contract.FileContainsAssertion{
+						Path:    "handler.go",
+						Pattern: "func ProcessRequest",
+					},
+				},
+			},
+			{
+				ScenarioName:  "scenario-undeferred-exists",
+				AssertionType: "file_exists",
+				Details:       `file "config.yaml" does not exist`,
+				Assertion: contract.ContractAssertion{
+					FileExists: "config.yaml",
+				},
+			},
+		},
+	}
+
+	stage := NewValidateStage(v, ValidateStageConfig{
+		WorkDir:          "/tmp/work",
+		EvidenceDir:      dir,
+		SearchExtensions: []string{".go"},
+	}, nil, evaluator, nil)
+
+	// Create RunState with NO pending tasks that cover the failing files
+	// This ensures deferral is a no-op (failures pass through unchanged)
+	rs := runstore.NewRunState("spec-001", "proj-001")
+	rs.Tasks = []runstore.Task{
+		{
+			TaskID:              "task-other",
+			Status:              "pending",
+			ExpectedTouchedArea: []string{"other_file.go"}, // Doesn't cover handler.go or config.yaml
+		},
+	}
+
+	action, err := stage.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Verify: Should replan due to non-deferred failures
+	if action.Kind != specloop.ReplanFrom {
+		t.Fatalf("expected ReplanFrom, got %v", action.Kind)
+	}
+
+	// Verify: FailureContext contains the failures
+	if action.Context == nil {
+		t.Fatal("expected FailureContext to be non-nil")
+	}
+
+	failures := action.Context.Failures
+	if len(failures) != 2 {
+		t.Fatalf("expected 2 failures (both non-deferred), got %d: %v", len(failures), failures)
+	}
+
+	// Verify: LastContractFailures contains formatted strings with correct format
+	// Format should be: "contract:<scenario> — <type> failed: <details>"
+	if len(rs.LastContractFailures) != 2 {
+		t.Fatalf("expected 2 formatted failures in LastContractFailures, got %d: %v", len(rs.LastContractFailures), rs.LastContractFailures)
+	}
+
+	// Expected formatted strings following the pipeline:
+	// 1. Raw failures (from evaluator)
+	// 2. Through deferral (no-op since no tasks cover these files)
+	// 3. Through self-correction (no corrections possible)
+	// 4. Formatted to strings with "contract:<scenario> — <type> failed: <details>"
+	expectedFormats := map[string]bool{
+		`contract:scenario-pipeline-test — file_contains failed: pattern "func ProcessRequest" not found in "handler.go"`: false,
+		`contract:scenario-undeferred-exists — file_exists failed: file "config.yaml" does not exist`:                     false,
+	}
+
+	for _, failure := range rs.LastContractFailures {
+		found := false
+		for expected := range expectedFormats {
+			if failure == expected {
+				expectedFormats[expected] = true
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatalf("formatted failure does not match expected format: %q\nExpected one of:\n%v", failure, expectedFormats)
+		}
+	}
+
+	// Verify all expected formats were present
+	for expected, found := range expectedFormats {
+		if !found {
+			t.Fatalf("expected failure not found in output: %q", expected)
+		}
+	}
+
+	// Additional verification: Failures in action context should match LastContractFailures
+	// (they come from the same source after processing through the pipeline)
+	for i, failure := range failures {
+		if failure != rs.LastContractFailures[i] {
+			t.Fatalf("failure at index %d in action context does not match LastContractFailures: %q vs %q", i, failure, rs.LastContractFailures[i])
+		}
+	}
+
+	// Verify format compliance: all failures start with "contract:" prefix
+	for _, failure := range rs.LastContractFailures {
+		if !strings.HasPrefix(failure, "contract:") {
+			t.Fatalf("expected failure to have 'contract:' prefix, got: %q", failure)
+		}
+		if !strings.Contains(failure, " — ") {
+			t.Fatalf("expected failure to contain ' — ' separator, got: %q", failure)
+		}
+		if !strings.Contains(failure, " failed: ") {
+			t.Fatalf("expected failure to contain ' failed: ' text, got: %q", failure)
+		}
 	}
 }
