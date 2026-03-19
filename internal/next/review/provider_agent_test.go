@@ -267,6 +267,25 @@ func TestProviderReviewAgent_UsesInvokeInDir_WhenWorkDirFnSet(t *testing.T) {
 	}
 }
 
+func TestProviderReviewAgent_UsesInvoke_WhenWorkDirFnReturnsEmpty(t *testing.T) {
+	inv := &mockInvoker{
+		result: &provider.Result{
+			Output:  `[{"severity":"warning","file":"x.go","line":1,"description":"test"}]`,
+			Success: true,
+		},
+	}
+
+	agent := NewProviderReviewAgentWithDir(inv, func() string { return "" })
+	_, err := agent.ReviewFacet(context.Background(), "code_quality", "review this")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if inv.calledWithDir != "" {
+		t.Errorf("expected Invoke (no dir) when workDirFn returns empty, but InvokeInDir was called with %q", inv.calledWithDir)
+	}
+}
+
 func TestProviderReviewAgent_UsesInvoke_WhenNoWorkDirFn(t *testing.T) {
 	inv := &mockInvoker{
 		result: &provider.Result{
