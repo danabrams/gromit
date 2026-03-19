@@ -10,15 +10,15 @@ import (
 )
 
 // TestScenario_ResumePicker_BlockedAndRunning verifies that pickRun includes
-// both blocked and running runs in the picker menu, displays correct labels
-// and timestamps, and returns the selected run's RunID.
+// both blocked and running runs, sorts by StartedAt descending, and returns
+// the correct RunID for the selected entry.
 //
 // Scenario: resume picker includes blocked and running runs (spec 0003f)
-// Given: Two runs — blocked (spec-f) and running (spec-g)
+// Given: Two runs — blocked (11:00) and running (10:30)
 // When: pickRun is called with input "2\n"
-// Then: Both entries shown; entry 1 = run D (blocked, 11:00); entry 2 = run E (running, 10:30);
+// Then: Entry 1 is run D (blocked, 11:00), entry 2 is run E (running, 10:30),
 //
-//	selecting "2" returns run E's RunID
+//	selection "2" returns run E's RunID.
 func TestScenario_ResumePicker_BlockedAndRunning(t *testing.T) {
 	// --- Seed ---
 	tmp := t.TempDir()
@@ -59,18 +59,18 @@ func TestScenario_ResumePicker_BlockedAndRunning(t *testing.T) {
 	// --- Assert ---
 	output := out.String()
 
-	// Entry 1: Run D (blocked, most recent StartedAt)
+	// Run D (blocked) should be entry 1 (most recent StartedAt)
 	if !strings.Contains(output, "spec-f") {
 		t.Errorf("expected spec-f in output, got:\n%s", output)
 	}
 	if !strings.Contains(output, "blocked") {
-		t.Errorf("expected 'blocked' label in output for blocked run, got:\n%s", output)
+		t.Errorf("expected blocked label in output, got:\n%s", output)
 	}
 	if !strings.Contains(output, "2026-03-18 11:00:00") {
 		t.Errorf("expected timestamp 2026-03-18 11:00:00 in output, got:\n%s", output)
 	}
 
-	// Entry 2: Run E (running)
+	// Run E (running) should be entry 2
 	if !strings.Contains(output, "spec-g") {
 		t.Errorf("expected spec-g in output, got:\n%s", output)
 	}
@@ -81,12 +81,12 @@ func TestScenario_ResumePicker_BlockedAndRunning(t *testing.T) {
 		t.Errorf("expected timestamp 2026-03-18 10:30:00 in output, got:\n%s", output)
 	}
 
-	// Exactly two numbered entries — no third entry.
+	// Exactly two numbered entries
 	if strings.Contains(output, "3.") {
 		t.Errorf("expected exactly two entries, but found a third, got:\n%s", output)
 	}
 
-	// Selecting "2" returns run E's RunID.
+	// Selecting "2" should return run E's RunID
 	if runID != runE.RunID {
 		t.Errorf("expected runID %s, got %s", runE.RunID, runID)
 	}

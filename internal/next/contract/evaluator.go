@@ -111,7 +111,10 @@ func (e *DefaultContractEvaluator) check(scenarioName string, a ContractAssertio
 			}
 			return fail("file_not_contains", fmt.Sprintf("cannot read %q: %v", a.FileNotContains.Path, err))
 		}
-		if matchesPattern(string(content), a.FileNotContains.Pattern) {
+		// file_not_contains uses literal-only matching (no regex fallback).
+		// Regex fallback is dangerous for negative assertions because patterns
+		// like "3." match far more than intended (e.g. any "3" + any char).
+		if strings.Contains(string(content), a.FileNotContains.Pattern) || containsNormalized(string(content), a.FileNotContains.Pattern) {
 			return fail("file_not_contains", fmt.Sprintf("pattern %q found in %q but should not be", a.FileNotContains.Pattern, a.FileNotContains.Path))
 		}
 

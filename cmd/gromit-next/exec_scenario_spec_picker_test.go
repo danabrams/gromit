@@ -15,6 +15,12 @@ import (
 // to only those with derived status "ready" or "ready_for_review", displays them
 // as a numbered list with worktree/branch details for ready_for_review specs,
 // and returns the selected spec path.
+//
+// Scenario: spec picker with mixed statuses
+// Given: Four spec files (alpha, beta, gamma, delta) with mixed run statuses
+// When: pickSpec is called with input "2\n"
+// Then: Only alpha (ready) and beta (ready_for_review) are shown; gamma (completed)
+//       and delta (running) are excluded. Selecting "2" returns beta.md path.
 func TestScenario_SpecPickerWithMixedStatuses(t *testing.T) {
 	// --- Seed ---
 

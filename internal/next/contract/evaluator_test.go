@@ -585,7 +585,9 @@ func TestEvaluator_FileContains_RegexPattern_FuncSignature(t *testing.T) {
 	}
 }
 
-func TestEvaluator_FileNotContains_RegexPattern_Fail(t *testing.T) {
+func TestEvaluator_FileNotContains_RegexNotUsed(t *testing.T) {
+	// file_not_contains uses literal-only matching — regex patterns that don't
+	// appear literally in the file should pass (not fail).
 	dir := t.TempDir()
 	os.WriteFile(filepath.Join(dir, "notes.txt"), []byte("TODO: urgent fix needed here"), 0644)
 
@@ -602,11 +604,9 @@ func TestEvaluator_FileNotContains_RegexPattern_Fail(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if len(failures) != 1 {
-		t.Fatalf("expected 1 failure (regex matched TODO.*urgent), got %d: %v", len(failures), failures)
-	}
-	if failures[0].AssertionType != "file_not_contains" {
-		t.Errorf("wrong assertion type: %s", failures[0].AssertionType)
+	// "TODO.*urgent" is not a literal substring — regex fallback disabled for not_contains
+	if len(failures) != 0 {
+		t.Fatalf("expected 0 failures (regex not used for file_not_contains), got %d: %v", len(failures), failures)
 	}
 }
 
@@ -777,7 +777,9 @@ func TestEvaluator_FileNotContains_RegexPattern_Pass(t *testing.T) {
 	}
 }
 
-func TestEvaluator_FileNotContains_RegexPattern_Fail_ChainIDs(t *testing.T) {
+func TestEvaluator_FileNotContains_RegexPattern_NotUsed(t *testing.T) {
+	// file_not_contains uses literal-only matching — regex fallback is disabled
+	// to prevent patterns like "3." from matching unintended content.
 	dir := t.TempDir()
 	os.WriteFile(filepath.Join(dir, "types.go"), []byte("type State struct {\n\tChainIDs []string\n}"), 0644)
 
@@ -794,11 +796,8 @@ func TestEvaluator_FileNotContains_RegexPattern_Fail_ChainIDs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if len(failures) != 1 {
-		t.Fatalf("expected 1 failure (regex pattern found but should not be), got %v", failures)
-	}
-	if failures[0].AssertionType != "file_not_contains" {
-		t.Errorf("wrong assertion type: %s", failures[0].AssertionType)
+	if len(failures) != 0 {
+		t.Errorf("expected 0 failures (regex not used for file_not_contains), got %v", failures)
 	}
 }
 

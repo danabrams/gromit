@@ -64,6 +64,11 @@ func TestScenario_ExecSpec_ExplicitResumeID_BypassesPicker(t *testing.T) {
 		t.Errorf("expected output to contain explicit run ID run-abc1234567890abc, got: %s", output)
 	}
 
+	// Assert: no picker UI was shown (no numbered list)
+	if strings.Contains(output, "1.") && strings.Contains(output, "Select") {
+		t.Errorf("expected no picker UI when explicit resume ID provided, got: %s", output)
+	}
+
 	// Assert: stages actually ran (pipeline executed, not blocked by picker)
 	if len(order) == 0 {
 		t.Fatal("expected stages to run when resuming with explicit ID")
