@@ -904,6 +904,62 @@ func TestIntegration_BuildStages_FallbackAdapter_RouterWiring(t *testing.T) {
 	}
 }
 
+func TestValidateWorkDirsInWorktree_CatchesMisconfigured(t *testing.T) {
+	err := validateWorkDirsInWorktree("/worktree/path", []workDirEntry{
+		{"execute", "/worktree/path"},
+		{"validate", "/some/other/dir"},
+	})
+	if err == nil {
+		t.Fatal("expected error when a WorkDir is outside worktree, got nil")
+	}
+	if !strings.Contains(err.Error(), "outside worktree") {
+		t.Errorf("error should mention 'outside worktree', got: %v", err)
+	}
+	if !strings.Contains(err.Error(), "validate") {
+		t.Errorf("error should name the offending stage, got: %v", err)
+	}
+}
+
+func TestValidateWorkDirsInWorktree_PassesWhenAligned(t *testing.T) {
+	err := validateWorkDirsInWorktree("/worktree/path", []workDirEntry{
+		{"execute", "/worktree/path"},
+		{"write_scenario_tests", "/worktree/path"},
+		{"validate", "/worktree/path"},
+	})
+	if err != nil {
+		t.Fatalf("expected no error when all WorkDirs match worktree, got: %v", err)
+	}
+}
+
+func TestValidateWorkDirsInWorktree_SkipsWhenNoWorktree(t *testing.T) {
+	err := validateWorkDirsInWorktree("", []workDirEntry{
+		{"execute", "/any/dir"},
+	})
+	if err != nil {
+		t.Fatalf("expected no error when worktreePath is empty, got: %v", err)
+	}
+}
+
+func TestBuildStages_WorkDirWorktreeAssertion_PassesWhenAligned(t *testing.T) {
+	// Integration test: BuildStages succeeds when worktree is set and WorkDir
+	// is inside the worktree path.
+	worktree := t.TempDir()
+	policy := execpolicy.DefaultPolicy()
+	rs := runstore.NewRunState("test-spec", "test-project")
+	rs.WorktreePath = worktree
+
+	sp := NewRealStageProvider(RealStageProviderConfig{
+		WorkDir:  worktree,
+		StoreDir: t.TempDir(),
+		SpecPath: "test-spec.md",
+	})
+
+	_, err := sp.BuildStages(policy, rs, specloop.NewBudget(policy.Budgets), nil)
+	if err != nil {
+		t.Fatalf("expected no error when WorkDir matches worktree, got: %v", err)
+	}
+}
+
 func TestBuildStages_WriteScenarioTestsStageWired(t *testing.T) {
 	// Verify that the write_scenario_tests stage is properly wired with scenarioTestWriter.
 	// The stage provider builds a scenarioTestWriter (either LLM-based ScenarioTestWriter

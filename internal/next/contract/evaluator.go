@@ -119,6 +119,9 @@ func (e *DefaultContractEvaluator) check(scenarioName string, a ContractAssertio
 		}
 
 	case a.FileNotModified != "":
+		// cmd.Dir targets the worktree, so "HEAD" resolves to the worktree's
+		// own HEAD (stored in .git/worktrees/<name>/HEAD), NOT the main repo's
+		// HEAD. This is safe even when the main branch advances concurrently.
 		cmd := exec.Command("git", "diff", "--name-only", "HEAD", "--", a.FileNotModified)
 		cmd.Dir = workDir
 		out, err := cmd.Output()

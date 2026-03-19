@@ -6,6 +6,8 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/danabrams/gromit/internal/next/acceptor"
@@ -181,7 +183,11 @@ func (p *RealStageProvider) BuildStages(policy execpolicy.Policy, rs *runstore.R
 
 		// Read scenario test patterns from docs/scenario-tests.md
 		scenarioTestPatterns := ""
-		patternsPath := "docs/scenario-tests.md"
+		patternsBase := p.cfg.RepoDir
+		if patternsBase == "" {
+			patternsBase = p.cfg.WorkDir
+		}
+		patternsPath := filepath.Join(patternsBase, "docs", "scenario-tests.md")
 		patternsContent, err := os.ReadFile(patternsPath)
 		if err != nil && !os.IsNotExist(err) {
 			return nil, fmt.Errorf("read scenario test patterns: %w", err)
@@ -229,6 +235,10 @@ func (p *RealStageProvider) BuildStages(policy execpolicy.Policy, rs *runstore.R
 		}
 	}
 
+	executeWorkDir := p.cfg.WorkDir
+	if rs.WorktreePath != "" {
+		executeWorkDir = rs.WorktreePath
+	}
 	executeStage := stages.NewExecuteStage(taskRunner, stages.ExecuteStageConfig{
 		MaxRetries:          policy.Budgets.MaxTaskRetries,
 		MaxRedecompositions: policy.Budgets.MaxRedecompositionPasses,
@@ -240,7 +250,7 @@ func (p *RealStageProvider) BuildStages(policy execpolicy.Policy, rs *runstore.R
 		}),
 		Decomposer:             decomposer,
 		GitOps:                 &shellGitOps{},
-		WorkDir:                p.cfg.WorkDir,
+		WorkDir:                executeWorkDir,
 		MaxTaskDurationSeconds: policy.Budgets.MaxTaskDurationSeconds,
 		Budget:                 budget,
 		DetectFilesChanged:     specloop.GitFilesChanged(),
@@ -249,11 +259,15 @@ func (p *RealStageProvider) BuildStages(policy execpolicy.Policy, rs *runstore.R
 
 	evidenceDir := store.RunEvidenceDir(rs.RunID)
 
+	scenarioTestWorkDir := p.cfg.WorkDir
+	if rs.WorktreePath != "" {
+		scenarioTestWorkDir = rs.WorktreePath
+	}
 	writeScenarioTestsStage := stages.NewWriteScenarioTestsStage(scenarioTestWriter, stages.WriteScenarioTestsStageConfig{
 		SpecPath:    p.cfg.SpecPath,
 		EvidenceDir: evidenceDir,
 		Store:       store,
-		WorkDir:     p.cfg.WorkDir,
+		WorkDir:     scenarioTestWorkDir,
 		CompileDir:  rs.WorktreePath,
 	}, budget, eventLog)
 
@@ -307,7 +321,17 @@ func (p *RealStageProvider) BuildStages(policy execpolicy.Policy, rs *runstore.R
 
 	finalizeStage := stages.NewFinalizeStage(gitOps, store, nil)
 
-	return []specloop.Stage{
+	// Build-time assertion: when a worktree is active, all stage WorkDir
+	// values must point inside it.
+	if err := validateWorkDirsInWorktree(rs.WorktreePath, []workDirEntry{
+		{"execute", executeWorkDir},
+		{"write_scenario_tests", scenarioTestWorkDir},
+		{"validate", validateWorkDir},
+	}); err != nil {
+		return nil, err
+	}
+
+	allStages := []specloop.Stage{
 		initStage,
 		compileStage,
 		planStage,
@@ -319,7 +343,45 @@ func (p *RealStageProvider) BuildStages(policy execpolicy.Policy, rs *runstore.R
 		acceptStage,
 		evidenceStage,
 		finalizeStage,
-	}, nil
+	}
+
+	// Runtime guard: when a worktree is active, wrap every stage so that
+	// any unexpected modification to the main repo is caught immediately.
+	if rs.WorktreePath != "" {
+		guardDir := p.cfg.RepoDir
+		if guardDir == "" {
+			guardDir = p.cfg.WorkDir
+		}
+		for i, s := range allStages {
+			allStages[i] = &specloop.WorktreeGuard{
+				Inner:   s,
+				RepoDir: guardDir,
+			}
+		}
+	}
+
+	return allStages, nil
+}
+
+// workDirEntry pairs a stage name with the WorkDir value it was constructed with.
+type workDirEntry struct {
+	stage string
+	dir   string
+}
+
+// validateWorkDirsInWorktree returns an error if worktreePath is non-empty and
+// any entry's dir does not start with worktreePath. This is a build-time safety
+// net ensuring every stage that operates on the filesystem uses the worktree.
+func validateWorkDirsInWorktree(worktreePath string, entries []workDirEntry) error {
+	if worktreePath == "" {
+		return nil
+	}
+	for _, wd := range entries {
+		if !strings.HasPrefix(wd.dir, worktreePath) {
+			return fmt.Errorf("stage %q WorkDir %q is outside worktree %q", wd.stage, wd.dir, worktreePath)
+		}
+	}
+	return nil
 }
 
 // buildRouter constructs a provider.Router from the policy's routing config

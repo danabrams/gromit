@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -238,7 +239,7 @@ func branchResolverFunc(repoPath string) string {
 	cmd := exec.Command("git", "-C", repoPath, "symbolic-ref", "--short", "HEAD")
 	out, err := cmd.Output()
 	if err != nil {
-		return "unknown"
+		return "(unknown)"
 	}
 	return strings.TrimSpace(string(out))
 }
@@ -397,13 +398,9 @@ func pickRun(project string, store *runstore.Store, in io.Reader, out io.Writer)
 	}
 
 	// Sort by StartedAt descending (most recent first)
-	for i := 0; i < len(resumable); i++ {
-		for j := i + 1; j < len(resumable); j++ {
-			if resumable[j].StartedAt.After(resumable[i].StartedAt) {
-				resumable[i], resumable[j] = resumable[j], resumable[i]
-			}
-		}
-	}
+	sort.Slice(resumable, func(i, j int) bool {
+		return resumable[j].StartedAt.Before(resumable[i].StartedAt)
+	})
 
 	// Print numbered list with spec ID, status label, and timestamp
 	for i, run := range resumable {
