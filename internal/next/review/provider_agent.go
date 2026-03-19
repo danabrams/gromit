@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/danabrams/gromit/internal/next/llmadapter"
+	"github.com/danabrams/gromit/internal/provider"
 )
 
 // Compile-time interface check.
@@ -16,7 +17,8 @@ var _ ReviewAgent = (*ProviderReviewAgent)(nil)
 // llmadapter.Invoker. It extracts JSON from LLM output and unmarshals it into
 // []Finding values.
 type ProviderReviewAgent struct {
-	invoker llmadapter.Invoker
+	invoker   llmadapter.Invoker
+	workDirFn func() string
 }
 
 // NewProviderReviewAgent creates a ProviderReviewAgent that delegates to the given invoker.
@@ -24,11 +26,28 @@ func NewProviderReviewAgent(invoker llmadapter.Invoker) *ProviderReviewAgent {
 	return &ProviderReviewAgent{invoker: invoker}
 }
 
+// NewProviderReviewAgentWithDir creates a ProviderReviewAgent that uses InvokeInDir
+// with the directory returned by workDirFn. The workDirFn is a lazy resolver
+// because the worktree path isn't known at agent construction time.
+func NewProviderReviewAgentWithDir(invoker llmadapter.Invoker, workDirFn func() string) *ProviderReviewAgent {
+	return &ProviderReviewAgent{invoker: invoker, workDirFn: workDirFn}
+}
+
 // ReviewFacet delegates to the invoker, extracts JSON from the output, and
 // unmarshals it into []Finding. The facetName parameter is for logging/labeling
 // only and is not passed to the invoker.
 func (a *ProviderReviewAgent) ReviewFacet(ctx context.Context, facetName string, prompt string) ([]Finding, error) {
-	result, err := a.invoker.Invoke(ctx, prompt)
+	var result *provider.Result
+	var err error
+	if a.workDirFn != nil {
+		if dir := a.workDirFn(); dir != "" {
+			result, err = a.invoker.InvokeInDir(ctx, prompt, dir)
+		} else {
+			result, err = a.invoker.Invoke(ctx, prompt)
+		}
+	} else {
+		result, err = a.invoker.Invoke(ctx, prompt)
+	}
 	if err != nil {
 		return []Finding{}, err
 	}

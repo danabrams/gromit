@@ -10,10 +10,10 @@ import (
 
 // mockInvoker satisfies llmadapter.Invoker for testing.
 type mockInvoker struct {
-	result *provider.Result
-	err    error
-	// capture what was passed
+	result           *provider.Result
+	err              error
 	calledWithPrompt string
+	calledWithDir    string
 }
 
 func (m *mockInvoker) Invoke(ctx context.Context, prompt string) (*provider.Result, error) {
@@ -21,7 +21,8 @@ func (m *mockInvoker) Invoke(ctx context.Context, prompt string) (*provider.Resu
 	return m.result, m.err
 }
 
-func (m *mockInvoker) InvokeInDir(ctx context.Context, prompt string, _ string) (*provider.Result, error) {
+func (m *mockInvoker) InvokeInDir(ctx context.Context, prompt string, dir string) (*provider.Result, error) {
+	m.calledWithDir = dir
 	return m.Invoke(ctx, prompt)
 }
 
@@ -245,4 +246,42 @@ func TestProviderReviewAgent_CompileTimeInterfaceCheck(t *testing.T) {
 	// in the implementation file. This test confirms the type assertion works.
 	var agent ReviewAgent = &ProviderReviewAgent{}
 	_ = agent
+}
+
+func TestProviderReviewAgent_UsesInvokeInDir_WhenWorkDirFnSet(t *testing.T) {
+	inv := &mockInvoker{
+		result: &provider.Result{
+			Output:  `[{"severity":"warning","file":"x.go","line":1,"description":"test"}]`,
+			Success: true,
+		},
+	}
+
+	agent := NewProviderReviewAgentWithDir(inv, func() string { return "/tmp/worktree" })
+	_, err := agent.ReviewFacet(context.Background(), "code_quality", "review this")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if inv.calledWithDir != "/tmp/worktree" {
+		t.Errorf("expected InvokeInDir with dir %q, got %q", "/tmp/worktree", inv.calledWithDir)
+	}
+}
+
+func TestProviderReviewAgent_UsesInvoke_WhenNoWorkDirFn(t *testing.T) {
+	inv := &mockInvoker{
+		result: &provider.Result{
+			Output:  `[{"severity":"warning","file":"x.go","line":1,"description":"test"}]`,
+			Success: true,
+		},
+	}
+
+	agent := NewProviderReviewAgent(inv)
+	_, err := agent.ReviewFacet(context.Background(), "code_quality", "review this")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if inv.calledWithDir != "" {
+		t.Errorf("expected Invoke (no dir), but InvokeInDir was called with %q", inv.calledWithDir)
+	}
 }
