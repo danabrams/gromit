@@ -1,3 +1,4 @@
+DONE 2026-03-19
 # Spec 0003a — Infrastructure Failure Detection with Worktree Auto-Recovery
 
 ## spec_id

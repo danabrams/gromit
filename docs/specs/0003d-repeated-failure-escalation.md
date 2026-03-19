@@ -1,3 +1,4 @@
+DONE 2026-03-19
 # Spec 0003d — Same-Task Repeated Failure Escalation
 
 ## spec_id

@@ -1,3 +1,4 @@
+DONE 2026-03-19
 # Spec 0002e — Contract Assertions
 
 ## spec_id

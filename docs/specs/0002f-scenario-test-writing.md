@@ -1,3 +1,4 @@
+DONE 2026-03-19
 # Spec 0002f — Scenario Test Writing
 
 ## spec_id

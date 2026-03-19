@@ -1,3 +1,4 @@
+DONE 2026-03-19
 # Spec 0003b — Replan Context Deduplication
 
 ## spec_id
