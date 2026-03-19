@@ -21,11 +21,11 @@ func containsNormalized(content, pattern string) bool {
 	return strings.Contains(normContent, normPattern)
 }
 
-// matchesPattern reports whether content matches pattern using three strategies
+// MatchesPattern reports whether content matches pattern using three strategies
 // in order: literal strings.Contains, normalized-whitespace containsNormalized,
 // and finally regexp.MatchString. If the pattern is not a valid regex the regex
 // step is skipped silently — no error is returned.
-func matchesPattern(content, pattern string) bool {
+func MatchesPattern(content, pattern string) bool {
 	if strings.Contains(content, pattern) {
 		return true
 	}
@@ -97,7 +97,7 @@ func (e *DefaultContractEvaluator) check(scenarioName string, a ContractAssertio
 		if err != nil {
 			return fail("file_contains", fmt.Sprintf("cannot read %q: %v", a.FileContains.Path, err))
 		}
-		if !matchesPattern(string(content), a.FileContains.Pattern) {
+		if !MatchesPattern(string(content), a.FileContains.Pattern) {
 			return fail("file_contains", fmt.Sprintf("pattern %q not found in %q", a.FileContains.Pattern, a.FileContains.Path))
 		}
 
