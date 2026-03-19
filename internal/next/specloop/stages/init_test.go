@@ -157,15 +157,15 @@ func TestInitStage_SkipsDifferentSpecBlockedWorktrees(t *testing.T) {
 }
 
 type fakeGitOps struct {
-	createdBranch     string
-	worktreePath      string
-	removedPath       string
-	removedPaths      []string
-	createErr         error
-	removeErr         error
-	recoverBranch     string
+	createdBranch       string
+	worktreePath        string
+	removedPath         string
+	removedPaths        []string
+	createErr           error
+	removeErr           error
+	recoverBranch       string
 	recoverWorktreePath string
-	recoverErr        error
+	recoverErr          error
 }
 
 func (f *fakeGitOps) CreateWorktree(repoDir, branch string) (string, error) {

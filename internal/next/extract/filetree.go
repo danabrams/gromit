@@ -19,12 +19,12 @@ type fileInfo struct {
 
 // skipDirs lists directory names that should be skipped during the walk.
 var skipDirs = map[string]bool{
-	".git":          true,
-	".gromit":       true,
-	".gromit-next":  true,
-	"node_modules":  true,
-	"vendor":        true,
-	".worktrees":    true,
+	".git":         true,
+	".gromit":      true,
+	".gromit-next": true,
+	"node_modules": true,
+	"vendor":       true,
+	".worktrees":   true,
 }
 
 // FileTreeExtractor walks a repository and emits one Observed fact per file.

@@ -490,7 +490,7 @@ func TestBundler_WriteReviewFindings_WithDiffUnavailable(t *testing.T) {
 	}
 
 	output := ReviewFindingsOutput{
-		Findings:       findings,
+		Findings:        findings,
 		DiffUnavailable: true,
 	}
 

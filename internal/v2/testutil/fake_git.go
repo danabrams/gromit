@@ -31,15 +31,15 @@ type FakeGit struct {
 
 	// Error injection fields — when non-nil the corresponding method
 	// returns the configured error.
-	CheckoutErr        error
-	DiffErr            error
-	CreateWorktreeErr  error
-	CommitErr          error
-	RemoveWorktreeErr  error
-	StatusErr          error
-	LogErr             error
-	ShowErr            error
-	SquashErr          error
+	CheckoutErr       error
+	DiffErr           error
+	CreateWorktreeErr error
+	CommitErr         error
+	RemoveWorktreeErr error
+	StatusErr         error
+	LogErr            error
+	ShowErr           error
+	SquashErr         error
 }
 
 // NewFakeGit returns a fake Git adapter with defaults.

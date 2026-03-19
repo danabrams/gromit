@@ -97,7 +97,7 @@ func DeduplicateFailures(failures []string) []string {
 
 	var nonContractFailures []string
 	contractFailures := make(map[string][]string) // groupKey -> []original failure string
-	contractDetails := make(map[string]string)     // groupKey -> normalized description
+	contractDetails := make(map[string]string)    // groupKey -> normalized description
 
 	for _, failure := range failures {
 		// Persistent-failure hints pass through unchanged

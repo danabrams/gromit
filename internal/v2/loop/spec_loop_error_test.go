@@ -50,7 +50,7 @@ func TestRunWhenGitCheckoutFails(t *testing.T) {
 
 	adapters := adapter.AdapterSet{
 		Git:         gitAdapter,
-		LLM:        newFakeLLMAdapter(),
+		LLM:         newFakeLLMAdapter(),
 		TaskTracker: newFakeTaskTrackerAdapter(),
 		Presenter:   newFakePresenterAdapter(t),
 	}

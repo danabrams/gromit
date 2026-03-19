@@ -21,17 +21,17 @@ import (
 )
 
 const (
-	defaultGromitDir       = ".gromit"
-	v2DirName              = "v2"
-	gapFileName            = "gap-analysis.md"
-	defaultSpecsDir        = ".gromit/specs"
-	defaultPromptBase      = "You are evaluating a single acceptance criterion. Use the provided diff and criterion text to determine whether the implementation satisfies the criterion. Respond with a JSON object containing \"pass\" (true/false) and \"summary\" (explain your reasoning). Output only the JSON object."
-	maxEvalParseRetries    = 1
-	outputPreviewMaxLen    = 500
+	defaultGromitDir    = ".gromit"
+	v2DirName           = "v2"
+	gapFileName         = "gap-analysis.md"
+	defaultSpecsDir     = ".gromit/specs"
+	defaultPromptBase   = "You are evaluating a single acceptance criterion. Use the provided diff and criterion text to determine whether the implementation satisfies the criterion. Respond with a JSON object containing \"pass\" (true/false) and \"summary\" (explain your reasoning). Output only the JSON object."
+	maxEvalParseRetries = 1
+	outputPreviewMaxLen = 500
 	// batchDiffThreshold is the diff size (in bytes) above which the accept
 	// stage switches from per-criterion invocations to a single batch
 	// invocation that evaluates all criteria in one pass over the diff.
-	batchDiffThreshold     = 50000 // ~12K tokens
+	batchDiffThreshold = 50000 // ~12K tokens
 )
 
 const defaultAcceptFragment = `# Acceptance Criterion Evaluation Instructions

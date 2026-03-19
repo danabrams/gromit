@@ -321,9 +321,9 @@ func TestEventJSONFieldNames(t *testing.T) {
 
 	// Build a set of events with all fields populated so omitempty does not hide them.
 	events := []struct {
-		name               string
-		event              interface{}
-		expectedSnakeCase  []string
+		name              string
+		event             interface{}
+		expectedSnakeCase []string
 	}{
 		{
 			name: "SpecStartedEvent",

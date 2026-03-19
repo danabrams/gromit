@@ -310,8 +310,8 @@ func TestFinalizeStage_WritesReviewPacket(t *testing.T) {
 
 	// Write acceptance.json
 	acceptanceData := map[string]interface{}{
-		"passed": 3,
-		"failed": 0,
+		"passed":  3,
+		"failed":  0,
 		"unclear": 0,
 	}
 	writeTestJSON(t, filepath.Join(evidenceDir, "acceptance.json"), acceptanceData)
@@ -410,8 +410,8 @@ func TestFinalizeStage_DiagnosticPacket(t *testing.T) {
 	writeTestJSON(t, filepath.Join(evidenceDir, "review.json"), reviewData)
 
 	acceptanceData := map[string]interface{}{
-		"passed": 0,
-		"failed": 1,
+		"passed":  0,
+		"failed":  1,
 		"unclear": 0,
 	}
 	writeTestJSON(t, filepath.Join(evidenceDir, "acceptance.json"), acceptanceData)
@@ -477,8 +477,8 @@ func TestFinalizeStage_BlockedRunGeneratesReviewPacket(t *testing.T) {
 	writeTestJSON(t, filepath.Join(evidenceDir, "review.json"), reviewData)
 
 	acceptanceData := map[string]interface{}{
-		"passed": 0,
-		"failed": 0,
+		"passed":  0,
+		"failed":  0,
 		"unclear": 0,
 	}
 	writeTestJSON(t, filepath.Join(evidenceDir, "acceptance.json"), acceptanceData)

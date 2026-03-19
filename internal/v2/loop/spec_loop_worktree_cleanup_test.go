@@ -129,8 +129,8 @@ func (r *recordingGitAdapter) RemoveWorktree(ctx context.Context, worktree strin
 // failingRemoveGitAdapter returns an error from RemoveWorktree.
 type failingRemoveGitAdapter struct {
 	fakeGitAdapter
-	removeErr       error
-	removeCalled    bool
+	removeErr    error
+	removeCalled bool
 }
 
 func (f *failingRemoveGitAdapter) RemoveWorktree(_ context.Context, worktree string) error {
