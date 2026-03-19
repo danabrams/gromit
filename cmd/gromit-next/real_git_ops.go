@@ -6,7 +6,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 )
 
 // realGitOps implements stages.GitOps using real git worktree commands.
@@ -85,10 +84,7 @@ func (r *realGitOps) CommitAll(workDir, message string) error {
 	// Stage all changes, excluding .gromit-next/
 	addCmd := exec.Command("git", "-C", workDir, "add", "--", ".", ":!.gromit-next")
 	if out, err := addCmd.CombinedOutput(); err != nil {
-		// Ignore errors from .gitignore'd files
-		if !strings.Contains(string(out), "ignored by one of your .gitignore") {
-			return fmt.Errorf("git add: %s: %w", string(out), err)
-		}
+		return fmt.Errorf("git add: %s: %w", string(out), err)
 	}
 
 	// Check if there's anything staged
