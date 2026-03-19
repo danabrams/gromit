@@ -189,6 +189,10 @@ func (f *fakeGitOps) RecoverWorktree(repoDir, branch string) (string, error) {
 	return f.worktreePath, f.recoverErr
 }
 
+func (f *fakeGitOps) CommitAll(workDir, message string) error {
+	return nil
+}
+
 // TestInitStage_CleansBlockedWorktrees_EventWrittenToRunDir verifies that
 // blocked_worktree_cleaned is emitted even when the eventLog path is inside
 // the new run's directory — which does not exist yet when cleanBlockedWorktrees

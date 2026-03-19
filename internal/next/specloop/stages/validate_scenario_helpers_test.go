@@ -30,5 +30,9 @@ func (f *validateScenarioFakeGitOps) RecoverWorktree(repoDir, branch string) (st
 	return f.recoveredPath, f.recoverErr
 }
 
+func (f *validateScenarioFakeGitOps) CommitAll(workDir, message string) error {
+	return nil
+}
+
 // fakeGitOps is a test double for GitOps used in scenario validation tests.
 var _ GitOps = (*validateScenarioFakeGitOps)(nil)

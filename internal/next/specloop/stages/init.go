@@ -16,6 +16,7 @@ type GitOps interface {
 	CreateWorktree(repoDir, branch string) (worktreePath string, err error)
 	RemoveWorktree(path string) error
 	RecoverWorktree(repoDir, branch string) (worktreePath string, err error)
+	CommitAll(workDir, message string) error
 }
 
 // InitStageConfig configures the InitStage.
