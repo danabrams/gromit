@@ -120,6 +120,105 @@ func TestRealGitOps_RemoveWorktree(t *testing.T) {
 	}
 }
 
+func TestRealGitOps_CommitAll(t *testing.T) {
+	repoDir := initBareRepo(t)
+	ops := &realGitOps{}
+
+	wtPath, err := ops.CreateWorktree(repoDir, "commit-branch")
+	if err != nil {
+		t.Fatalf("CreateWorktree: %v", err)
+	}
+	defer ops.RemoveWorktree(wtPath)
+
+	// Create a new file in the worktree
+	if err := os.WriteFile(filepath.Join(wtPath, "new.txt"), []byte("hello\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// CommitAll should stage and commit
+	if err := ops.CommitAll(wtPath, "test: add new file"); err != nil {
+		t.Fatalf("CommitAll: %v", err)
+	}
+
+	// Verify: git status should be clean
+	cmd := exec.Command("git", "-C", wtPath, "status", "--porcelain")
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("git status: %v", err)
+	}
+	if strings.TrimSpace(string(out)) != "" {
+		t.Errorf("expected clean working tree, got: %q", string(out))
+	}
+
+	// Verify: commit message is correct
+	cmd = exec.Command("git", "-C", wtPath, "log", "-1", "--format=%s")
+	out, err = cmd.Output()
+	if err != nil {
+		t.Fatalf("git log: %v", err)
+	}
+	if strings.TrimSpace(string(out)) != "test: add new file" {
+		t.Errorf("expected commit message %q, got %q", "test: add new file", strings.TrimSpace(string(out)))
+	}
+}
+
+func TestRealGitOps_CommitAll_NothingToCommit(t *testing.T) {
+	repoDir := initBareRepo(t)
+	ops := &realGitOps{}
+
+	wtPath, err := ops.CreateWorktree(repoDir, "empty-commit-branch")
+	if err != nil {
+		t.Fatalf("CreateWorktree: %v", err)
+	}
+	defer ops.RemoveWorktree(wtPath)
+
+	// CommitAll with nothing to commit should return nil (not error)
+	if err := ops.CommitAll(wtPath, "empty"); err != nil {
+		t.Fatalf("CommitAll on clean tree should return nil, got: %v", err)
+	}
+}
+
+func TestRealGitOps_CommitAll_ExcludesGromitNext(t *testing.T) {
+	repoDir := initBareRepo(t)
+	ops := &realGitOps{}
+
+	wtPath, err := ops.CreateWorktree(repoDir, "exclude-branch")
+	if err != nil {
+		t.Fatalf("CreateWorktree: %v", err)
+	}
+	defer ops.RemoveWorktree(wtPath)
+
+	// Create files: one normal, one in .gromit-next/
+	if err := os.WriteFile(filepath.Join(wtPath, "code.go"), []byte("package main\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	gromitDir := filepath.Join(wtPath, ".gromit-next")
+	if err := os.MkdirAll(gromitDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(gromitDir, "run.json"), []byte("{}"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := ops.CommitAll(wtPath, "test: exclude gromit-next"); err != nil {
+		t.Fatalf("CommitAll: %v", err)
+	}
+
+	// Verify: code.go was committed
+	cmd := exec.Command("git", "-C", wtPath, "show", "--name-only", "--format=", "HEAD")
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("git show: %v", err)
+	}
+	if !strings.Contains(string(out), "code.go") {
+		t.Errorf("expected code.go in commit, got: %q", string(out))
+	}
+
+	// Verify: .gromit-next/ was NOT committed
+	if strings.Contains(string(out), ".gromit-next") {
+		t.Errorf("expected .gromit-next excluded from commit, got: %q", string(out))
+	}
+}
+
 func TestRealGitOps_WorktreeHasRepoContents(t *testing.T) {
 	repoDir := initRepoWithFile(t, "hello.txt", "hello world\n")
 	ops := &realGitOps{}

@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 )
 
 // realGitOps implements stages.GitOps using real git worktree commands.
@@ -76,6 +77,39 @@ func forceRemoveAll(path string) error {
 		return nil
 	})
 	return os.RemoveAll(path)
+}
+
+// CommitAll stages all changes (excluding .gromit-next/) and commits them.
+// Returns nil if there is nothing to commit (clean working tree).
+func (r *realGitOps) CommitAll(workDir, message string) error {
+	// Stage all changes, excluding .gromit-next/
+	addCmd := exec.Command("git", "-C", workDir, "add", "--", ".", ":!.gromit-next")
+	if out, err := addCmd.CombinedOutput(); err != nil {
+		// Ignore errors from .gitignore'd files
+		if !strings.Contains(string(out), "ignored by one of your .gitignore") {
+			return fmt.Errorf("git add: %s: %w", string(out), err)
+		}
+	}
+
+	// Check if there's anything staged
+	diffCmd := exec.Command("git", "-C", workDir, "diff", "--cached", "--quiet")
+	if err := diffCmd.Run(); err == nil {
+		// Exit 0 means no staged changes — nothing to commit
+		return nil
+	}
+
+	// Commit with git env vars to avoid needing user config
+	commitCmd := exec.Command("git", "-C", workDir, "commit", "-m", message)
+	commitCmd.Env = append(os.Environ(),
+		"GIT_AUTHOR_NAME=Gromit",
+		"GIT_AUTHOR_EMAIL=gromit@noreply",
+		"GIT_COMMITTER_NAME=Gromit",
+		"GIT_COMMITTER_EMAIL=gromit@noreply",
+	)
+	if out, err := commitCmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("git commit: %s: %w", string(out), err)
+	}
+	return nil
 }
 
 // RemoveWorktree removes a git worktree. It first attempts git worktree remove --force,
