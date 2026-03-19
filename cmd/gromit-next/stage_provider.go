@@ -150,7 +150,12 @@ func (p *RealStageProvider) BuildStages(policy execpolicy.Policy, rs *runstore.R
 			llmadapter.Config{Tier: policy.Models.Evaluator, OnCost: costCallback, OnInvocation: invocationCallback},
 			policy.Models.Evaluator,
 		)
-		reviewAgent := review.NewProviderReviewAgent(reviewAdapter)
+		reviewAgent := review.NewProviderReviewAgentWithDir(reviewAdapter, func() string {
+			if rs.WorktreePath != "" {
+				return rs.WorktreePath
+			}
+			return p.cfg.WorkDir
+		})
 		reviewRunner = review.NewRunner(reviewAgent, review.RunnerConfig{
 			Facets:     policy.Review.Facets,
 			Threshold:  threshold,
