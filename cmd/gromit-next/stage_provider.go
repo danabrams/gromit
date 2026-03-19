@@ -294,10 +294,11 @@ func (p *RealStageProvider) BuildStages(policy execpolicy.Policy, rs *runstore.R
 		validateWorkDir = rs.WorktreePath
 	}
 	validateStage := stages.NewValidateStage(finalVal, stages.ValidateStageConfig{
-		AlwaysRun:   alwaysRun,
-		WorkDir:     validateWorkDir,
-		EvidenceDir: evidenceDir,
-		RepoDir:     repoDir,
+		AlwaysRun:        alwaysRun,
+		WorkDir:          validateWorkDir,
+		EvidenceDir:      evidenceDir,
+		RepoDir:          repoDir,
+		SearchExtensions: []string{".go"},
 	}, eventLog, contractEvaluator, gitOps)
 
 	reviewStage := stages.NewReviewStage(reviewRunner, stages.ReviewStageConfig{

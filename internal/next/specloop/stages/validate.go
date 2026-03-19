@@ -12,6 +12,7 @@ import (
 	"github.com/danabrams/gromit/internal/next/runstore"
 	"github.com/danabrams/gromit/internal/next/specloop"
 	"github.com/danabrams/gromit/internal/next/validator"
+	"gopkg.in/yaml.v3"
 )
 
 // FinalValidator abstracts final validation for testability.
@@ -28,11 +29,12 @@ func (e *worktreeCleanupError) Unwrap() error { return e.err }
 
 // ValidateStageConfig configures the ValidateStage.
 type ValidateStageConfig struct {
-	AlwaysRun     []validator.Check
-	ProjectChecks []validator.Check
-	WorkDir       string
-	EvidenceDir   string
-	RepoDir       string
+	AlwaysRun        []validator.Check
+	ProjectChecks    []validator.Check
+	WorkDir          string
+	EvidenceDir      string
+	RepoDir          string
+	SearchExtensions []string // file extensions to search for contract correction (e.g. [".go"])
 }
 
 // ValidateStage runs final validation checks.
@@ -106,6 +108,32 @@ func (s *ValidateStage) Run(ctx context.Context, rs *runstore.RunState) (specloo
 			if err != nil {
 				return specloop.NextAction{}, fmt.Errorf("evaluate contracts: %w", err)
 			}
+
+			// Attempt contract self-correction for file_contains failures
+			corrected, _ := s.attemptContractCorrection(&sc, contractFailures, workDir, contractPath)
+
+			// If corrections were made, emit events and re-evaluate
+			if len(corrected) > 0 {
+				// Emit correction events
+				for _, c := range corrected {
+					if s.eventLog != nil {
+						s.eventLog.Append(runstore.ContractCorrectedEvent{
+							BaseEvent:    runstore.BaseEvent{Type: "contract_corrected", Timestamp: time.Now()},
+							ScenarioName: c.ScenarioName,
+							OldPath:      c.OldPath,
+							NewPath:      c.NewPath,
+							Pattern:      c.Pattern,
+						})
+					}
+				}
+
+				// Always re-evaluate after corrections, regardless of uncorrectable failures
+				contractFailures, err = s.contractEvaluator.Evaluate(ctx, &sc, workDir)
+				if err != nil {
+					return specloop.NextAction{}, fmt.Errorf("re-evaluate contracts after correction: %w", err)
+				}
+			}
+
 			for _, f := range contractFailures {
 				failures = append(failures, fmt.Sprintf("contract:%s — %s failed: %s", f.ScenarioName, f.AssertionType, f.Details))
 			}
@@ -172,6 +200,155 @@ func (s *ValidateStage) Run(ctx context.Context, rs *runstore.RunState) (specloo
 			Cycle:    rs.Cycle,
 		},
 	}, nil
+}
+
+// correctionResult tracks a single corrected assertion for event emission.
+type correctionResult struct {
+	ScenarioName string
+	OldPath      string
+	NewPath      string
+	Pattern      string
+}
+
+// attemptContractCorrection tries to fix file_contains failures by finding patterns
+// in sibling files. Returns corrected assertions and uncorrectable failures.
+func (s *ValidateStage) attemptContractCorrection(
+	sc *contract.ScenarioContract,
+	failures []contract.ContractFailure,
+	workDir, contractPath string,
+) ([]correctionResult, []contract.ContractFailure) {
+	var corrected []correctionResult
+	var remaining []contract.ContractFailure
+
+	// Group failures by scenario for easier processing
+	failuresByScenario := make(map[string][]contract.ContractFailure)
+	for _, f := range failures {
+		if f.AssertionType == "file_contains" {
+			failuresByScenario[f.ScenarioName] = append(failuresByScenario[f.ScenarioName], f)
+		} else {
+			remaining = append(remaining, f)
+		}
+	}
+
+	// Try to correct each scenario's file_contains failures
+	for scenarioIdx, scenario := range sc.Scenarios {
+		if scenarioFailures, ok := failuresByScenario[scenario.Name]; ok {
+			for _, failure := range scenarioFailures {
+				// Try to parse the failure details to extract path and pattern
+				oldPath, pat := extractFileAndPattern(failure.Details)
+				if oldPath == "" {
+					remaining = append(remaining, failure)
+					continue
+				}
+
+				// Search for the pattern in sibling files
+				found := findSiblingFileWithPattern(workDir, oldPath, pat, s.cfg.SearchExtensions)
+				if found == "" {
+					remaining = append(remaining, failure)
+					continue
+				}
+
+				// Found a sibling file with the pattern, update the contract
+				for assertionIdx, assertion := range scenario.Assertions {
+					if assertion.FileContains != nil && assertion.FileContains.Path == oldPath && assertion.FileContains.Pattern == pat {
+						// Update the assertion
+						sc.Scenarios[scenarioIdx].Assertions[assertionIdx].FileContains.Path = found
+						corrected = append(corrected, correctionResult{
+							ScenarioName: scenario.Name,
+							OldPath:      oldPath,
+							NewPath:      found,
+							Pattern:      pat,
+						})
+						break
+					}
+				}
+			}
+		}
+	}
+
+	// Rewrite the corrected contract to disk if any corrections were made
+	if len(corrected) > 0 {
+		if err := rewriteContractYAML(contractPath, sc); err != nil {
+			// Log error but continue (fire-and-forget for contract rewriting)
+			fmt.Fprintf(os.Stderr, "gromit: rewrite contract YAML: %v\n", err)
+		}
+	}
+
+	return corrected, remaining
+}
+
+// extractFileAndPattern extracts the file path and pattern from a failure description.
+// It uses fmt.Sscanf to parse the standard failure message format:
+// "pattern %q not found in %q" -> extracts pattern and path.
+// Returns empty strings if parsing fails.
+func extractFileAndPattern(failureDetails string) (string, string) {
+	// Try to parse using Sscanf: "pattern "PATTERN" not found in "PATH""
+	var pattern, path string
+	if _, err := fmt.Sscanf(failureDetails, "pattern %q not found in %q", &pattern, &path); err == nil {
+		return path, pattern
+	}
+
+	return "", ""
+}
+
+// findSiblingFileWithPattern searches for a file in the same directory as filePath
+// that contains the pattern using contract.MatchesPattern. It only considers files
+// whose extension is in the provided extensions list and skips the original failing file.
+func findSiblingFileWithPattern(workDir, filePath, pattern string, extensions []string) string {
+	dir := filepath.Dir(filePath)
+	dirPath := filepath.Join(workDir, dir)
+	baseName := filepath.Base(filePath)
+
+	entries, err := os.ReadDir(dirPath)
+	if err != nil {
+		return ""
+	}
+
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+
+		// Only search files with an allowed extension.
+		ext := filepath.Ext(entry.Name())
+		allowed := false
+		for _, e := range extensions {
+			if ext == e {
+				allowed = true
+				break
+			}
+		}
+		if !allowed {
+			continue
+		}
+
+		// Skip the original failing file.
+		if entry.Name() == baseName {
+			continue
+		}
+
+		candidatePath := filepath.Join(dirPath, entry.Name())
+		content, err := os.ReadFile(candidatePath)
+		if err != nil {
+			continue
+		}
+
+		if contract.MatchesPattern(string(content), pattern) {
+			relPath, _ := filepath.Rel(workDir, candidatePath)
+			return relPath
+		}
+	}
+
+	return ""
+}
+
+// rewriteContractYAML writes the corrected contract back to the YAML file.
+func rewriteContractYAML(contractPath string, sc *contract.ScenarioContract) error {
+	data, err := yaml.Marshal(sc)
+	if err != nil {
+		return fmt.Errorf("marshal contract: %w", err)
+	}
+	return os.WriteFile(contractPath, data, 0o644)
 }
 
 // checkWorktreeHealth verifies that the worktree directory is healthy.
