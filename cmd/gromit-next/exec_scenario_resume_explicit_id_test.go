@@ -51,7 +51,7 @@ func TestScenario_ExecSpec_ExplicitResumeID_BypassesPicker(t *testing.T) {
 		"--spec", "my-spec.md",
 		"--project", "gromit",
 		"--store-dir", tmp,
-		"--resume", "run-abc1234567890abc",
+		"--resume=run-abc1234567890abc",
 	})
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("unexpected error: %v", err)

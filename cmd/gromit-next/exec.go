@@ -1,12 +1,14 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -113,7 +115,8 @@ type execSpecRun struct {
 	storeDir      string
 	stageProvider StageProvider
 	policy        *execpolicy.Policy // pre-loaded policy; skips re-load in run()
-	out           io.Writer          // banner output; nil means no banner written
+	out           io.Writer
+	store         *runstore.Store
 }
 
 // run executes the spec pipeline and returns the formatted result string.
@@ -138,11 +141,10 @@ func (e *execSpecRun) run(ctx context.Context) (string, error) {
 	}
 
 	// 2. Create or load run state
-	store := runstore.NewStore(e.storeDir)
 	var rs *runstore.RunState
 	if e.resumeRunID != "" {
 		var err error
-		rs, err = store.Get(e.resumeRunID)
+		rs, err = e.store.Get(e.resumeRunID)
 		if err != nil {
 			return "", fmt.Errorf("load run for resume: %w", err)
 		}
@@ -176,13 +178,11 @@ func (e *execSpecRun) run(ctx context.Context) (string, error) {
 	budget := specloop.NewBudget(policy.Budgets)
 
 	// 3b. Create the event log so pipeline events are persisted to disk.
-	eventLogPath := filepath.Join(store.RunDir(rs.RunID), "events.jsonl")
+	eventLogPath := filepath.Join(e.store.RunDir(rs.RunID), "events.jsonl")
 	eventLog := runstore.NewEventLog(eventLogPath)
 
 	// 3c. Write the start banner
-	if e.out != nil {
-		fmt.Fprintf(e.out, "Run ID: %s\nEvents: %s\n\n", rs.RunID, eventLogPath)
-	}
+	fmt.Fprintf(e.out, "Run ID: %s\nEvents: %s\n\n", rs.RunID, eventLogPath)
 
 	// 4. Build stages via provider, passing the shared budget and event log
 	stages, err := e.stageProvider.BuildStages(policy, rs, budget, eventLog)
@@ -206,12 +206,14 @@ func (e *execSpecRun) run(ctx context.Context) (string, error) {
 	}
 
 	// 6. Persist final state
-	if err := store.Save(rs); err != nil {
+	if err := e.store.Save(rs); err != nil {
 		return "", fmt.Errorf("save run state: %w", err)
 	}
 
 	// 7. Print terminal state and run ID
-	return fmt.Sprintf("Run ID:  %s\nStatus:  %s\n", rs.RunID, rs.Status), nil
+	output := fmt.Sprintf("Run ID:  %s\nStatus:  %s\n", rs.RunID, rs.Status)
+	fmt.Fprint(e.out, output)
+	return output, nil
 }
 
 // newExecSpecCmd creates the `exec spec` command. Exported for testing.
@@ -221,6 +223,7 @@ func newExecSpecCmd() *cobra.Command {
 
 // branchResolverFunc resolves the git branch for a spec by running git symbolic-ref.
 func branchResolverFunc(repoPath string) string {
+	// Run: git -C <repoPath> symbolic-ref --short HEAD
 	cmd := exec.Command("git", "-C", repoPath, "symbolic-ref", "--short", "HEAD")
 	out, err := cmd.Output()
 	if err != nil {
@@ -244,7 +247,7 @@ func pickSpec(project, specsDir string, store *runstore.Store, branchResolver fu
 		return "", err
 	}
 
-	// Convert []*RunState to []RunState for DeriveSpecStatusFromContent
+	// Convert []*RunState to []RunState for DeriveSpecStatus
 	runValues := make([]runstore.RunState, len(runs))
 	for i, r := range runs {
 		runValues[i] = *r
@@ -252,10 +255,10 @@ func pickSpec(project, specsDir string, store *runstore.Store, branchResolver fu
 
 	// Filter specs to those with status ready or ready_for_review
 	type specInfo struct {
-		name     string
-		status   string
-		runs     []runstore.RunState
-		lastRun  *runstore.RunState
+		name    string
+		status  string
+		runs    []runstore.RunState
+		lastRun *runstore.RunState
 	}
 
 	var availableSpecs []specInfo
@@ -307,45 +310,50 @@ func pickSpec(project, specsDir string, store *runstore.Store, branchResolver fu
 	// Print numbered list of available specs
 	for i, spec := range availableSpecs {
 		num := i + 1
-		fmt.Fprintf(out, "%d. %s\n", num, spec.name)
+		marker := ""
+		extra := ""
 
 		if spec.status == "ready_for_review" {
-			fmt.Fprintf(out, "   * (ready_for_review)\n")
+			marker = " * (ready_for_review)"
 			if spec.lastRun != nil {
-				if spec.lastRun.WorktreePath != "" {
-					fmt.Fprintf(out, "   worktree: %s\n", spec.lastRun.WorktreePath)
-				}
 				branch := branchResolver(spec.lastRun.WorktreePath)
-				if branch != "" && branch != "unknown" {
-					fmt.Fprintf(out, "   branch: %s\n", branch)
-				}
+				extra = fmt.Sprintf(" [%s @ %s]", spec.lastRun.WorktreePath, branch)
 			}
 		}
+
+		fmt.Fprintf(out, "%d. %s%s%s\n", num, spec.name, marker, extra)
 	}
 
 	// Read selection from stdin
-	var choice int
-	if _, err := fmt.Fscan(in, &choice); err != nil {
-		return "", fmt.Errorf("read selection: %w", err)
+	scanner := bufio.NewScanner(in)
+	fmt.Fprintf(out, "\nEnter spec number: ")
+	if !scanner.Scan() {
+		return "", fmt.Errorf("failed to read input")
 	}
 
-	if choice < 1 || choice > len(availableSpecs) {
-		return "", fmt.Errorf("selection out of range: %d", choice)
+	selection := strings.TrimSpace(scanner.Text())
+	num, err := strconv.Atoi(selection)
+	if err != nil {
+		return "", fmt.Errorf("invalid selection: %q", selection)
 	}
 
-	selectedSpec := availableSpecs[choice-1].name
+	if num < 1 || num > len(availableSpecs) {
+		return "", fmt.Errorf("selection out of range: %d", num)
+	}
+
+	selectedSpec := availableSpecs[num-1].name
 	return filepath.Join(specsDir, selectedSpec+".md"), nil
 }
 
 // statusLabel returns a human-readable label for a run status,
-// mapping StatusNeedsHuman to "needs_attention".
+// mapping StatusNeedsHuman and StatusBlocked to "needs_attention".
 func statusLabel(status string) string {
 	switch status {
 	case runstore.StatusRunning:
 		return "running"
 	case runstore.StatusReadyForReview:
 		return "ready_for_review"
-	case runstore.StatusNeedsHuman:
+	case runstore.StatusNeedsHuman, runstore.StatusBlocked:
 		return "needs_attention"
 	default:
 		return status
@@ -373,7 +381,7 @@ func pickRun(project string, store *runstore.Store, in io.Reader, out io.Writer)
 	// Check if any runs are available
 	if len(resumable) == 0 {
 		fmt.Fprintf(out, "no runs available to resume\n")
-		return "", fmt.Errorf("no runs available to resume")
+		return "", nil
 	}
 
 	// Sort by StartedAt descending (most recent first)
@@ -394,16 +402,23 @@ func pickRun(project string, store *runstore.Store, in io.Reader, out io.Writer)
 	}
 
 	// Read selection from stdin
-	var choice int
-	if _, err := fmt.Fscan(in, &choice); err != nil {
-		return "", fmt.Errorf("read selection: %w", err)
+	scanner := bufio.NewScanner(in)
+	fmt.Fprintf(out, "\nEnter run number: ")
+	if !scanner.Scan() {
+		return "", fmt.Errorf("failed to read input")
 	}
 
-	if choice < 1 || choice > len(resumable) {
-		return "", fmt.Errorf("selection out of range: %d", choice)
+	selection := strings.TrimSpace(scanner.Text())
+	num, err := strconv.Atoi(selection)
+	if err != nil {
+		return "", fmt.Errorf("invalid selection: %q", selection)
 	}
 
-	return resumable[choice-1].RunID, nil
+	if num < 1 || num > len(resumable) {
+		return "", fmt.Errorf("selection out of range: %d", num)
+	}
+
+	return resumable[num-1].RunID, nil
 }
 
 // newExecSpecCmdWithProvider creates the `exec spec` command with an explicit
@@ -416,6 +431,7 @@ func newExecSpecCmdWithProvider(provider StageProvider) *cobra.Command {
 			specPath, _ := cmd.Flags().GetString("spec")
 			projectID, _ := cmd.Flags().GetString("project")
 			policyPath, _ := cmd.Flags().GetString("policy")
+			specsDir, _ := cmd.Flags().GetString("specs-dir")
 			resolver := workspace.NewEnvResolver()
 			root, _ := resolver.Resolve()
 			if policyPath == "" && root != "" {
@@ -429,6 +445,9 @@ func newExecSpecCmdWithProvider(provider StageProvider) *cobra.Command {
 				storeDir = ".gromit-next"
 			}
 
+			// Construct store early for picker operations
+			storeInstance := runstore.NewStore(storeDir)
+
 			// Load policy early so budget values are available for client config.
 			var policy execpolicy.Policy
 			if policyPath != "" {
@@ -441,6 +460,55 @@ func newExecSpecCmdWithProvider(provider StageProvider) *cobra.Command {
 				policy = execpolicy.DefaultPolicy()
 			}
 
+			// Wire picker flow
+			if resumeRunID == "__pick__" {
+				runID, err := pickRun(projectID, storeInstance, cmd.InOrStdin(), cmd.OutOrStdout())
+				if err != nil {
+					return fmt.Errorf("pick run: %w", err)
+				}
+				if runID == "" {
+					return nil
+				}
+				resumeRunID = runID
+			}
+
+			if resumeRunID == "" && specPath == "" {
+				// Resolve specsDir if not provided via flag
+				if specsDir == "" {
+					if root != "" {
+						projectDir, err := ResolveProjectConfigPath(root, projectID)
+						if err != nil {
+							return fmt.Errorf("resolve project config: %w", err)
+						}
+						cfg, err := LoadProjectConfig(projectDir)
+						if err != nil {
+							return fmt.Errorf("load project config: %w", err)
+						}
+						specsDir = cfg.SpecsDir
+						if specsDir == "" && cfg.RepoPath != "" {
+							specsDir = filepath.Join(cfg.RepoPath, "specs")
+						}
+					}
+				}
+				selectedPath, err := pickSpec(projectID, specsDir, storeInstance, branchResolverFunc, cmd.InOrStdin(), cmd.OutOrStdout())
+				if err != nil {
+					return fmt.Errorf("pick spec: %w", err)
+				}
+				if selectedPath == "" {
+					return nil
+				}
+				specPath = selectedPath
+			}
+
+			// On resume, resolve specPath from the run's stored spec if not provided.
+			if resumeRunID != "" && specPath == "" {
+				stored := filepath.Join(storeDir, "runs", resumeRunID, "spec.md")
+				if _, err := os.Stat(stored); err == nil {
+					specPath = stored
+				}
+			}
+
+			// Construct RealStageProvider after pickers
 			p := provider
 			if p == nil {
 				workDir := resolveWorkDir(projectID, root)
@@ -472,13 +540,14 @@ func newExecSpecCmdWithProvider(provider StageProvider) *cobra.Command {
 				storeDir:      storeDir,
 				stageProvider: p,
 				policy:        &policy,
+				out:           cmd.OutOrStdout(),
+				store:         storeInstance,
 			}
 
-			output, err := r.run(cmd.Context())
+			_, err := r.run(cmd.Context())
 			if err != nil {
 				return err
 			}
-			fmt.Fprint(cmd.OutOrStdout(), output)
 			return nil
 		},
 	}
@@ -487,9 +556,10 @@ func newExecSpecCmdWithProvider(provider StageProvider) *cobra.Command {
 	cmd.Flags().String("policy", "", "Path to execution policy JSON file")
 	cmd.Flags().Bool("dry-run", false, "Compile plan but do not execute")
 	cmd.Flags().String("resume", "", "Resume a previous run by run ID")
+	cmd.Flag("resume").NoOptDefVal = "__pick__"
 	cmd.Flags().Int("cycles", 3, "Number of cycles to run (useful with --resume)")
 	cmd.Flags().String("store-dir", "", "Override store directory (for testing)")
-	_ = cmd.MarkFlagRequired("spec")
+	cmd.Flags().String("specs-dir", "", "Override specs directory (for testing)")
 	_ = cmd.MarkFlagRequired("project")
 	return cmd
 }

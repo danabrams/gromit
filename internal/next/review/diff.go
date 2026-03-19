@@ -21,6 +21,12 @@ type GitDiffProvider struct {
 // newly created files appear in the diff output. The worktree is ephemeral,
 // so staging has no side effects on the main repo.
 func (g *GitDiffProvider) Diff(baseBranch string) (string, error) {
+	// Unstage .gromit-next/ if previously staged — these are run artifacts
+	// that should never appear in the review diff.
+	rmCmd := exec.Command("git", "rm", "-r", "--cached", "--ignore-unmatch", "--quiet", ".gromit-next")
+	rmCmd.Dir = g.WorkDir
+	_ = rmCmd.Run() // best-effort: ignore errors if nothing to unstage
+
 	// Stage all changes (including new files) so they appear in the diff.
 	// The worktree is ephemeral, so staging has no side effects on the main repo.
 	addCmd := exec.Command("git", "add", "--", ".", ":!.gromit-next")

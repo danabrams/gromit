@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -2084,11 +2085,14 @@ func TestScenario_ExecSpec_TimeoutEnforcement_ContextReachesStages(t *testing.T)
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
 
+	storeDir := t.TempDir()
 	r := &execSpecRun{
 		specPath:      "test-spec.md",
 		projectID:     "test-proj",
-		storeDir:      t.TempDir(),
+		storeDir:      storeDir,
 		stageProvider: provider,
+		store:         runstore.NewStore(storeDir),
+		out:           io.Discard,
 	}
 
 	start := time.Now()

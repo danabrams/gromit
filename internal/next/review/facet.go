@@ -32,8 +32,13 @@ Label each current finding as "new" or "pre-existing" by comparing against these
 {{end}}
 {{end}}
 
-Respond with a JSON array of findings. Each finding must have: severity (error/warning/suggestion/info), file, line, description, suggested_fix{{if .PriorFindings}}, disposition (new/pre-existing){{end}}.
-If no issues found, respond with an empty array: []`
+CRITICAL OUTPUT FORMAT RULE: Your entire response must be a valid JSON array and nothing else. Do not include any text before or after the JSON. Do not wrap the JSON in markdown code fences. Do not add any explanation.
+
+Each finding object must have these fields: "severity" (error/warning/suggestion/info), "file", "line" (integer), "description", "suggested_fix"{{if .PriorFindings}}, "disposition" (new/pre-existing){{end}}.
+
+If no issues found, your entire response must be exactly: []
+
+Your response (JSON array only):`
 
 // Registry holds the set of built-in review facets.
 type Registry struct {

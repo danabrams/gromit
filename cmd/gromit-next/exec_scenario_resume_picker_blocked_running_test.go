@@ -63,8 +63,8 @@ func TestScenario_ResumePicker_BlockedAndRunning(t *testing.T) {
 	if !strings.Contains(output, "spec-f") {
 		t.Errorf("expected spec-f in output, got:\n%s", output)
 	}
-	if !strings.Contains(output, "blocked") {
-		t.Errorf("expected blocked label in output, got:\n%s", output)
+	if !strings.Contains(output, "needs_attention") {
+		t.Errorf("expected needs_attention label in output for blocked run, got:\n%s", output)
 	}
 	if !strings.Contains(output, "2026-03-18 11:00:00") {
 		t.Errorf("expected timestamp 2026-03-18 11:00:00 in output, got:\n%s", output)

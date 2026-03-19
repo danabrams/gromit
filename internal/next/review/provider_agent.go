@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/danabrams/gromit/internal/next/llmadapter"
 )
@@ -37,6 +38,12 @@ func (a *ProviderReviewAgent) ReviewFacet(ctx context.Context, facetName string,
 
 	extracted := llmadapter.ExtractJSON(result.Output)
 
+	// If extraction returned no JSON (pure prose), return as ParseError for retry.
+	trimmed := strings.TrimSpace(extracted)
+	if trimmed == "" || (trimmed[0] != '[' && trimmed[0] != '{') {
+		return []Finding{}, &ParseError{Msg: fmt.Sprintf("review response contained no JSON (starts with %q)", truncate(trimmed, 40))}
+	}
+
 	var findings []Finding
 	if err := json.Unmarshal([]byte(extracted), &findings); err != nil {
 		// Check if it's already a ParseError (e.g. missing required field from Finding.UnmarshalJSON).
@@ -54,4 +61,11 @@ func (a *ProviderReviewAgent) ReviewFacet(ctx context.Context, facetName string,
 	}
 
 	return findings, nil
+}
+
+func truncate(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	return s[:n] + "..."
 }

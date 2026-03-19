@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/danabrams/gromit/internal/next/runstore"
 	"github.com/danabrams/gromit/internal/next/specloop"
 )
 
@@ -29,6 +30,7 @@ func TestScenario_RunStartPrintsRunIDAndEventsPath(t *testing.T) {
 		storeDir:      storeDir,
 		stageProvider: provider,
 		out:           &buf,
+		store:         runstore.NewStore(storeDir),
 	}
 
 	// Invoke

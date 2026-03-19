@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"io"
 	"testing"
 	"time"
 
@@ -51,6 +52,8 @@ func TestResumeContract_ResumedRunPreservesCompletedTasks(t *testing.T) {
 		storeDir:      tmp,
 		stageProvider: provider,
 		policy:        ptrPolicy(execpolicy.DefaultPolicy()),
+		store:         store,
+		out:           io.Discard,
 	}
 
 	if _, err := r.run(context.Background()); err != nil {
@@ -131,6 +134,8 @@ func TestResumeContract_ResumedRunReusesWorktree(t *testing.T) {
 		storeDir:      tmp,
 		stageProvider: provider,
 		policy:        ptrPolicy(execpolicy.DefaultPolicy()),
+		store:         store,
+		out:           io.Discard,
 	}
 
 	if _, err := r.run(context.Background()); err != nil {
@@ -190,6 +195,8 @@ func TestResumeContract_CyclesOverridesBudget(t *testing.T) {
 		storeDir:      tmp,
 		stageProvider: budgetCapture,
 		policy:        ptrPolicy(execpolicy.DefaultPolicy()),
+		store:         store,
+		out:           io.Discard,
 	}
 
 	if _, err := r.run(context.Background()); err != nil {
@@ -256,6 +263,8 @@ func TestResumeContract_ResumedRunIncludesPlanStage(t *testing.T) {
 		storeDir:      tmp,
 		stageProvider: provider,
 		policy:        ptrPolicy(execpolicy.DefaultPolicy()),
+		store:         store,
+		out:           io.Discard,
 	}
 
 	if _, err := r.run(context.Background()); err != nil {
@@ -318,6 +327,8 @@ func TestResumeContract_GateFlagsResetOnResume(t *testing.T) {
 		storeDir:      tmp,
 		stageProvider: provider,
 		policy:        ptrPolicy(execpolicy.DefaultPolicy()),
+		store:         store,
+		out:           io.Discard,
 	}
 
 	if _, err := r.run(context.Background()); err != nil {
@@ -403,6 +414,8 @@ func TestResumeScenario_HumanSaysKeepGoing(t *testing.T) {
 		storeDir:      tmp,
 		stageProvider: provider,
 		policy:        ptrPolicy(execpolicy.DefaultPolicy()),
+		store:         store,
+		out:           io.Discard,
 	}
 
 	if _, err := r.run(context.Background()); err != nil {
@@ -494,6 +507,8 @@ func TestResumeScenario_ResumeAfterBlockedTask(t *testing.T) {
 		storeDir:      tmp,
 		stageProvider: provider,
 		policy:        ptrPolicy(execpolicy.DefaultPolicy()),
+		store:         store,
+		out:           io.Discard,
 	}
 
 	if _, err := r.run(context.Background()); err != nil {

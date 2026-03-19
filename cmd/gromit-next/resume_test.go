@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"io"
 	"strings"
 	"testing"
 	"time"
@@ -127,7 +128,7 @@ func TestExecSpec_ResumeLoadsExistingRunState(t *testing.T) {
 		"--spec", "my-spec.md",
 		"--project", "my-proj",
 		"--store-dir", tmp,
-		"--resume", prior.RunID,
+		"--resume=" + prior.RunID,
 	})
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -186,7 +187,7 @@ func TestExecSpec_ResumeSkipsCompile(t *testing.T) {
 		"--spec", "my-spec.md",
 		"--project", "my-proj",
 		"--store-dir", tmp,
-		"--resume", prior.RunID,
+		"--resume=" + prior.RunID,
 	})
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -252,6 +253,8 @@ func TestExecSpec_ResumeResetsGateFlags(t *testing.T) {
 		storeDir:      tmp,
 		stageProvider: provider,
 		policy:        ptrPolicy(execpolicy.DefaultPolicy()),
+		store:         store,
+		out:           io.Discard,
 	}
 
 	if _, err := r.run(context.Background()); err != nil {
@@ -318,6 +321,8 @@ func TestExecSpec_ResumePreservesWorktreePath(t *testing.T) {
 		storeDir:      tmp,
 		stageProvider: provider,
 		policy:        ptrPolicy(execpolicy.DefaultPolicy()),
+		store:         store,
+		out:           io.Discard,
 	}
 
 	if _, err := r.run(context.Background()); err != nil {
@@ -345,6 +350,8 @@ func TestExecSpec_ResumeErrorOnMissingRunID(t *testing.T) {
 		storeDir:      tmp,
 		stageProvider: provider,
 		policy:        ptrPolicy(execpolicy.DefaultPolicy()),
+		store:         runstore.NewStore(tmp),
+		out:           io.Discard,
 	}
 
 	_, err := r.run(context.Background())
