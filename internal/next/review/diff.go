@@ -40,7 +40,7 @@ func (g *GitDiffProvider) Diff(baseBranch string) (string, error) {
 		}
 	}
 
-	cmd := exec.Command("git", "diff", "--cached", baseBranch)
+	cmd := exec.Command("git", "diff", "--cached", baseBranch, "--", ".", ":!.gromit-next")
 	cmd.Dir = g.WorkDir
 	out, err := cmd.Output()
 	if err != nil {

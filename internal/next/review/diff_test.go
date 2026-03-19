@@ -387,6 +387,92 @@ func TestGitDiffProvider_GitignoredDirDoesNotBlockDiff(t *testing.T) {
 	}
 }
 
+// TestGitDiffProvider_TrackedGromitNextExcludedFromDiff verifies that .gromit-next/
+// files committed to the base branch do not appear in the diff output.
+// This mirrors the real scenario where .gromit-next/ run artifacts were committed
+// to main before the .gitignore was added, causing diff bloat.
+func TestGitDiffProvider_TrackedGromitNextExcludedFromDiff(t *testing.T) {
+	repoDir := t.TempDir()
+	worktreeDir := t.TempDir()
+
+	gitEnv := append(os.Environ(),
+		"GIT_CONFIG_NOSYSTEM=1",
+		"GIT_AUTHOR_NAME=Test",
+		"GIT_AUTHOR_EMAIL=test@test.com",
+		"GIT_COMMITTER_NAME=Test",
+		"GIT_COMMITTER_EMAIL=test@test.com",
+	)
+
+	run := func(dir string, args ...string) {
+		t.Helper()
+		cmd := exec.Command(args[0], args[1:]...)
+		cmd.Dir = dir
+		cmd.Env = gitEnv
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("%v failed: %v\n%s", args, err, out)
+		}
+	}
+
+	runOutput := func(dir string, args ...string) string {
+		t.Helper()
+		cmd := exec.Command(args[0], args[1:]...)
+		cmd.Dir = dir
+		cmd.Env = gitEnv
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("%v failed: %v\n%s", args, err, out)
+		}
+		return strings.TrimSpace(string(out))
+	}
+
+	// Initialize repo WITH .gromit-next/ committed to main (no .gitignore).
+	run(repoDir, "git", "init")
+	if err := os.WriteFile(repoDir+"/main.go", []byte("package main\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(repoDir+"/.gromit-next/runs/run-abc", 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(repoDir+"/.gromit-next/runs/run-abc/events.jsonl", []byte(`{"type":"run_started"}`+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	run(repoDir, "git", "add", ".")
+	run(repoDir, "git", "commit", "-m", "initial with gromit-next tracked")
+
+	baseBranch := runOutput(repoDir, "git", "branch", "--show-current")
+
+	// Create worktree on a feature branch.
+	run(repoDir, "git", "worktree", "add", "-b", "feature/tracked-gromit-next", worktreeDir)
+	t.Cleanup(func() {
+		_ = exec.Command("git", "worktree", "remove", "--force", worktreeDir).Run()
+	})
+
+	// Add a .gitignore that excludes .gromit-next/ now (after it was committed).
+	if err := os.WriteFile(worktreeDir+"/.gitignore", []byte(".gromit-next/\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// Make a real code change.
+	if err := os.WriteFile(worktreeDir+"/main.go", []byte("package main\n\nfunc NewFunc() {}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	run(worktreeDir, "git", "add", ".gitignore", "main.go")
+	run(worktreeDir, "git", "commit", "-m", "feat: add NewFunc and gitignore")
+
+	// Diff should contain the code change but NOT the .gromit-next/ files.
+	provider := &GitDiffProvider{WorkDir: worktreeDir}
+	diff, err := provider.Diff(baseBranch)
+	if err != nil {
+		t.Fatalf("Diff should not fail: %v", err)
+	}
+	if !strings.Contains(diff, "NewFunc") {
+		t.Errorf("diff should contain tracked code change, got:\n%s", diff)
+	}
+	if strings.Contains(diff, "diff --git a/.gromit-next/") {
+		t.Errorf("diff should not contain .gromit-next/ files even when tracked in base branch, got:\n%s", diff)
+	}
+}
+
 // TestGitDiffProvider_EmptyWorktreeNoDiff verifies that a worktree with no
 // changes produces an empty diff.
 func TestGitDiffProvider_EmptyWorktreeNoDiff(t *testing.T) {
