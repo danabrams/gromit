@@ -110,12 +110,16 @@ If no scenarios are found, the generator falls back to acceptance criteria as be
 
 Each card gets an `automatic_status` derived from overall run evidence, not per-scenario correlation:
 
-- `proven` — validation passed, all acceptance criteria passed, no blocking review findings
-- `mixed` — validation passed but some acceptance criteria unclear or non-blocking review findings exist
+- `proven` — validation passed, all acceptance criteria passed, no blocking review findings, and no degraded flags
+- `mixed` — validation passed but some acceptance criteria unclear, non-blocking review findings exist, or degraded flags are present
 - `failed` — acceptance criteria failed or blocking review findings exist
-- `unclear` — insufficient evidence (degraded mode, missing artifacts)
+- `unclear` — insufficient evidence (missing artifacts) or run is `blocked`/`needs_human`
 
 For `ready_for_review` runs, all cards share the same status since we lack per-scenario traceability. Evidence links point to whole artifact files.
+
+### Surprises
+
+The `surprises` field in `ProductReview` captures unexpected conditions detected during packet generation — for example, acceptance criteria that passed despite degraded evidence, or a mismatch between the number of scenarios in the spec and the number of task results. Surprises are informational and do not affect trust level or behavior card status. The field is omitted when empty.
 
 ### Trust level rules
 
@@ -132,6 +136,10 @@ Derived from trust level:
 - medium → `manual_check_carefully`
 - low → `do_not_accept_without_changes`
 
+### Product review summary
+
+The `summary` field in `ProductReview` is a deterministic, template-generated string (no LLM). For `ready_for_review` runs it describes the overall outcome, e.g. "6 behaviors verified, all proven. 5/5 acceptance criteria passed." For diagnostic runs it summarizes the blocker situation, e.g. "Run blocked: validation failed after 3 repair cycles."
+
 ### Diagnostic packet variant
 
 For `blocked` or `needs_human` runs, the generator produces the same artifact set but with different content rules:
@@ -143,7 +151,7 @@ For `blocked` or `needs_human` runs, the generator produces the same artifact se
 
 ### Artifact writing
 
-The finalize stage calls the generator, then writes the five JSON files and two rendered markdown files via the existing evidence bundler pattern. The markdown files are human-readable renderings of the JSON — not separate data sources.
+The finalize stage calls the generator, then writes three JSON files (`product-review.json`, `process-review.json`, `manual-checklist.json`) and two rendered markdown files (`product-review.md`, `process-review.md`) via the existing evidence bundler pattern — five artifacts total. The markdown files are human-readable renderings of the JSON — not separate data sources.
 
 ### Types
 
@@ -174,9 +182,9 @@ type BehaviorCard struct {
 
 type ProcessReview struct {
     TrustLevel          string   `json:"trust_level"`
-    AutomaticProof      string   `json:"automatic_proof"`
-    MachineReview       string   `json:"machine_review"`
-    Acceptance          string   `json:"acceptance"`
+    AutomaticProof      string   `json:"automatic_proof"`      // summary of validation outcome, e.g. "all 12 checks passed"
+    MachineReview       string   `json:"machine_review"`       // summary of review findings, e.g. "3 findings (0 blocking)"
+    Acceptance          string   `json:"acceptance"`            // summary of acceptance outcome, e.g. "5/5 criteria passed"
     DegradedFlags       []string `json:"degraded_flags,omitempty"`
     RepairCycles        int      `json:"repair_cycles"`
     RepeatedFailureFlag bool     `json:"repeated_failure_flag"`
@@ -201,7 +209,7 @@ Note: `ManualCheckItem` has no `Result` or `Notes` fields — those belong to th
 ## Acceptance Criteria
 
 1. When a run reaches `ready_for_review`, the finalize stage writes `product-review.json`, `product-review.md`, `process-review.json`, `process-review.md`, and `manual-checklist.json` to the run's evidence directory.
-2. When a run reaches `needs_human` or `blocked`, the same five artifacts are written, but `product-review.json` has `is_diagnostic: true`, an empty manual checklist, trust level `low`, and a populated `recommended_next_action`.
+2. When a run reaches `needs_human` or `blocked`, the same five artifacts are written, but `product-review.json` has `is_diagnostic: true` and a populated `recommended_next_action`; `manual-checklist.json` has an empty items array; and `process-review.json` has `trust_level: "low"`.
 3. Behavior cards are derived from `### Scenario:` blocks in the spec content using deterministic markdown parsing; each scenario becomes one card with its Given/When/Then extracted.
 4. When the spec has no `### Scenario:` blocks, behavior cards are derived from acceptance criteria — one card per criterion.
 5. Each behavior card has an `automatic_status` of `proven`, `mixed`, `failed`, or `unclear` derived from overall run evidence (validation, acceptance, review findings).
