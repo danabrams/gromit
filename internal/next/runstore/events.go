@@ -171,6 +171,14 @@ type ContractCorrectedEvent struct {
 	Pattern      string `json:"pattern"`
 }
 
+type ContractDeferredEvent struct {
+	BaseEvent
+	ScenarioName string `json:"scenario_name"`
+	FilePath     string `json:"file_path"`
+	Pattern      string `json:"pattern"`
+	TaskID       string `json:"task_id"`
+}
+
 type DiffUnavailableEvent struct {
 	BaseEvent
 	Reason  string `json:"reason"`
@@ -346,6 +354,9 @@ func unmarshalEvent(data []byte) (TypedEvent, error) {
 		ev = &e
 	case "contract_corrected":
 		var e ContractCorrectedEvent
+		ev = &e
+	case "contract_deferred":
+		var e ContractDeferredEvent
 		ev = &e
 	case "diff_unavailable":
 		var e DiffUnavailableEvent

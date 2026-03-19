@@ -95,16 +95,34 @@ func TestScenario_MultipleAssertionsCorrectedInOnePass(t *testing.T) {
 				ScenarioName:  "multi-correction-scenario",
 				AssertionType: "file_contains",
 				Details:       `pattern "assertion one passes" not found in "exec_test.go"`,
+				Assertion: contract.ContractAssertion{
+					FileContains: &contract.FileContainsAssertion{
+						Path:    "exec_test.go",
+						Pattern: "assertion one passes",
+					},
+				},
 			},
 			{
 				ScenarioName:  "multi-correction-scenario",
 				AssertionType: "file_contains",
 				Details:       `pattern "assertion two passes" not found in "exec_test.go"`,
+				Assertion: contract.ContractAssertion{
+					FileContains: &contract.FileContainsAssertion{
+						Path:    "exec_test.go",
+						Pattern: "assertion two passes",
+					},
+				},
 			},
 			{
 				ScenarioName:  "multi-correction-scenario",
 				AssertionType: "file_contains",
 				Details:       `pattern "assertion three passes" not found in "exec_test.go"`,
+				Assertion: contract.ContractAssertion{
+					FileContains: &contract.FileContainsAssertion{
+						Path:    "exec_test.go",
+						Pattern: "assertion three passes",
+					},
+				},
 			},
 		},
 	}

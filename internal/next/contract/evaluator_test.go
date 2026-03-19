@@ -859,3 +859,187 @@ if len(entry.LastError) > 2000 {
 		t.Errorf("expected no failures for spec patterns, got %d failures: %v", len(failures), failures)
 	}
 }
+
+// --- Assertion field population tests ---
+
+func TestAssertion_FileNotExists_PopulatedOnFailure(t *testing.T) {
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "present.txt"), []byte("x"), 0644)
+
+	ev := &DefaultContractEvaluator{}
+	contract := ScenarioContract{
+		Scenarios: []ScenarioAssertions{{
+			Name: "test-scenario",
+			Assertions: []ContractAssertion{
+				{FileNotExists: "present.txt"},
+			},
+		}},
+	}
+
+	failures, err := ev.Evaluate(context.Background(), &contract, dir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(failures) != 1 {
+		t.Fatalf("expected 1 failure, got %d", len(failures))
+	}
+
+	failure := failures[0]
+	if failure.Assertion.FileNotExists != "present.txt" {
+		t.Errorf("expected FileNotExists to be 'present.txt', got %q", failure.Assertion.FileNotExists)
+	}
+	if failure.Assertion.FileExists != "" {
+		t.Errorf("expected FileExists to be empty, got %q", failure.Assertion.FileExists)
+	}
+}
+
+func TestAssertion_FileNotContains_PopulatedOnFailure(t *testing.T) {
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "b.txt"), []byte("hello world"), 0644)
+
+	ev := &DefaultContractEvaluator{}
+	assertion := FileContainsAssertion{Path: "b.txt", Pattern: "hello"}
+	contract := ScenarioContract{
+		Scenarios: []ScenarioAssertions{{
+			Name: "test-scenario",
+			Assertions: []ContractAssertion{
+				{FileNotContains: &assertion},
+			},
+		}},
+	}
+
+	failures, err := ev.Evaluate(context.Background(), &contract, dir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(failures) != 1 {
+		t.Fatalf("expected 1 failure, got %d", len(failures))
+	}
+
+	failure := failures[0]
+	if failure.Assertion.FileNotContains == nil {
+		t.Errorf("expected Assertion.FileNotContains to be populated, got nil")
+	}
+	if failure.Assertion.FileNotContains.Path != "b.txt" {
+		t.Errorf("expected Path to be 'b.txt', got %q", failure.Assertion.FileNotContains.Path)
+	}
+	if failure.Assertion.FileNotContains.Pattern != "hello" {
+		t.Errorf("expected Pattern to be 'hello', got %q", failure.Assertion.FileNotContains.Pattern)
+	}
+}
+
+func TestAssertion_FileNotModified_PopulatedOnFailure(t *testing.T) {
+	dir := initGitRepo(t)
+	p := filepath.Join(dir, "dirty.go")
+	os.WriteFile(p, []byte("package main"), 0644)
+
+	run := func(args ...string) {
+		cmd := exec.Command(args[0], args[1:]...)
+		cmd.Dir = dir
+		cmd.Run()
+	}
+	run("git", "add", "dirty.go")
+	run("git", "commit", "-m", "add dirty.go")
+	// Modify the file after commit.
+	os.WriteFile(p, []byte("package main\n// changed"), 0644)
+	run("git", "add", "dirty.go")
+
+	ev := &DefaultContractEvaluator{}
+	contract := ScenarioContract{
+		Scenarios: []ScenarioAssertions{{
+			Name: "test-scenario",
+			Assertions: []ContractAssertion{
+				{FileNotModified: "dirty.go"},
+			},
+		}},
+	}
+
+	failures, err := ev.Evaluate(context.Background(), &contract, dir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(failures) != 1 {
+		t.Fatalf("expected 1 failure, got %d", len(failures))
+	}
+
+	failure := failures[0]
+	if failure.Assertion.FileNotModified != "dirty.go" {
+		t.Errorf("expected FileNotModified to be 'dirty.go', got %q", failure.Assertion.FileNotModified)
+	}
+	if failure.Assertion.FileExists != "" {
+		t.Errorf("expected FileExists to be empty, got %q", failure.Assertion.FileExists)
+	}
+}
+
+// TestEvaluate_PopulatesAssertion_FileExists verifies that Evaluate() populates
+// the Assertion field on ContractFailure for file_exists assertions.
+func TestEvaluate_PopulatesAssertion_FileExists(t *testing.T) {
+	dir := t.TempDir()
+
+	ev := &DefaultContractEvaluator{}
+	contract := ScenarioContract{
+		Scenarios: []ScenarioAssertions{{
+			Name: "my-scenario",
+			Assertions: []ContractAssertion{
+				{FileExists: "nonexistent.txt"},
+			},
+		}},
+	}
+
+	failures, err := ev.Evaluate(context.Background(), &contract, dir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(failures) != 1 {
+		t.Fatalf("expected 1 failure, got %d", len(failures))
+	}
+
+	failure := failures[0]
+	// Verify that the Assertion field is populated
+	if failure.Assertion.FileExists == "" {
+		t.Errorf("expected Assertion.FileExists to be populated, got empty string")
+	}
+	if failure.Assertion.FileExists != "nonexistent.txt" {
+		t.Errorf("expected Assertion.FileExists to be 'nonexistent.txt', got %q", failure.Assertion.FileExists)
+	}
+}
+
+// TestEvaluate_PopulatesAssertion_FileContains verifies that Evaluate() populates
+// the Assertion field on ContractFailure for file_contains assertions.
+func TestEvaluate_PopulatesAssertion_FileContains(t *testing.T) {
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "code.go"), []byte("package main\nfunc main() {}"), 0644)
+
+	ev := &DefaultContractEvaluator{}
+	contract := ScenarioContract{
+		Scenarios: []ScenarioAssertions{{
+			Name: "my-scenario",
+			Assertions: []ContractAssertion{
+				{FileContains: &FileContainsAssertion{
+					Path:    "code.go",
+					Pattern: "missing_function",
+				}},
+			},
+		}},
+	}
+
+	failures, err := ev.Evaluate(context.Background(), &contract, dir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(failures) != 1 {
+		t.Fatalf("expected 1 failure, got %d", len(failures))
+	}
+
+	failure := failures[0]
+	// Verify that the Assertion field is populated
+	if failure.Assertion.FileContains == nil {
+		t.Errorf("expected Assertion.FileContains to be populated, got nil")
+	}
+	if failure.Assertion.FileContains.Path != "code.go" {
+		t.Errorf("expected Assertion.FileContains.Path to be 'code.go', got %q", failure.Assertion.FileContains.Path)
+	}
+	if failure.Assertion.FileContains.Pattern != "missing_function" {
+		t.Errorf("expected Assertion.FileContains.Pattern to be 'missing_function', got %q", failure.Assertion.FileContains.Pattern)
+	}
+}

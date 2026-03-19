@@ -57,6 +57,7 @@ type RunState struct {
 	ReplanContext         []string                    `json:"replan_context,omitempty"`
 	LastValidationResult  *string                     `json:"last_validation_result,omitempty"`
 	LastFinalValidation   *validator.FinalResult      `json:"last_final_validation,omitempty"`
+	LastContractFailures  []string                    `json:"last_contract_failures,omitempty"`
 	ReviewFindings        []string                    `json:"review_findings,omitempty"`
 	AcceptanceResults     []string                    `json:"acceptance_results,omitempty"`
 	TotalReplans          int                         `json:"total_replans"`
@@ -83,6 +84,9 @@ func (rs *RunState) NormalizeNilFields() {
 	}
 	if rs.AcceptanceResults == nil {
 		rs.AcceptanceResults = []string{}
+	}
+	if rs.LastContractFailures == nil {
+		rs.LastContractFailures = []string{}
 	}
 	if rs.FailureHistory == nil {
 		rs.FailureHistory = map[string]int{}

@@ -24,7 +24,9 @@ type FinalValidator interface {
 // distinguish cleanup failures from recreation failures using errors.As.
 type worktreeCleanupError struct{ err error }
 
-func (e *worktreeCleanupError) Error() string { return fmt.Sprintf("worktree cleanup failed: %v", e.err) }
+func (e *worktreeCleanupError) Error() string {
+	return fmt.Sprintf("worktree cleanup failed: %v", e.err)
+}
 func (e *worktreeCleanupError) Unwrap() error { return e.err }
 
 // ValidateStageConfig configures the ValidateStage.
@@ -109,7 +111,12 @@ func (s *ValidateStage) Run(ctx context.Context, rs *runstore.RunState) (specloo
 				return specloop.NextAction{}, fmt.Errorf("evaluate contracts: %w", err)
 			}
 
-			// Attempt contract self-correction for file_contains failures
+			// (1) Deferral pass on raw failures
+			deferResult := deferContractFailures(contractFailures, rs.Tasks)
+			contractFailures = deferResult.remaining
+			emitDeferralEvents(s.eventLog, deferResult.deferred, deferResult.taskIDByFile)
+
+			// (2) Self-correction pass on raw failures
 			corrected, _ := s.attemptContractCorrection(&sc, contractFailures, workDir, contractPath)
 
 			// If corrections were made, emit events and re-evaluate
@@ -128,15 +135,28 @@ func (s *ValidateStage) Run(ctx context.Context, rs *runstore.RunState) (specloo
 				}
 
 				// Always re-evaluate after corrections, regardless of uncorrectable failures
-				contractFailures, err = s.contractEvaluator.Evaluate(ctx, &sc, workDir)
+				reEvaluated, err := s.contractEvaluator.Evaluate(ctx, &sc, workDir)
 				if err != nil {
 					return specloop.NextAction{}, fmt.Errorf("re-evaluate contracts after correction: %w", err)
 				}
+				// Re-apply deferral after re-evaluation
+				reResult := deferContractFailures(reEvaluated, rs.Tasks)
+				contractFailures = reResult.remaining
+				emitDeferralEvents(s.eventLog, reResult.deferred, reResult.taskIDByFile)
 			}
 
+			// (3) Format to []string AFTER both passes (deferral + self-correction) complete
+			contractFailureStrings := []string{}
 			for _, f := range contractFailures {
-				failures = append(failures, fmt.Sprintf("contract:%s — %s failed: %s", f.ScenarioName, f.AssertionType, f.Details))
+				failureStr := fmt.Sprintf("contract:%s — %s failed: %s", f.ScenarioName, f.AssertionType, f.Details)
+				failures = append(failures, failureStr)
+				contractFailureStrings = append(contractFailureStrings, failureStr)
 			}
+			// Store non-deferred contract failures for reference
+			rs.LastContractFailures = contractFailureStrings
+
+			// (4) TODO: 0003g loop detection slot — runs on formatted strings
+			// Future: Implement loop detection on contractFailureStrings
 		}
 	}
 
@@ -234,8 +254,8 @@ func (s *ValidateStage) attemptContractCorrection(
 	for scenarioIdx, scenario := range sc.Scenarios {
 		if scenarioFailures, ok := failuresByScenario[scenario.Name]; ok {
 			for _, failure := range scenarioFailures {
-				// Try to parse the failure details to extract path and pattern
-				oldPath, pat := extractFileAndPattern(failure.Details)
+				// Try to extract path and pattern from failure assertion or details
+				oldPath, pat := extractFileAndPattern(failure)
 				if oldPath == "" {
 					remaining = append(remaining, failure)
 					continue
@@ -277,17 +297,12 @@ func (s *ValidateStage) attemptContractCorrection(
 	return corrected, remaining
 }
 
-// extractFileAndPattern extracts the file path and pattern from a failure description.
-// It uses fmt.Sscanf to parse the standard failure message format:
-// "pattern %q not found in %q" -> extracts pattern and path.
-// Returns empty strings if parsing fails.
-func extractFileAndPattern(failureDetails string) (string, string) {
-	// Try to parse using Sscanf: "pattern "PATTERN" not found in "PATH""
-	var pattern, path string
-	if _, err := fmt.Sscanf(failureDetails, "pattern %q not found in %q", &pattern, &path); err == nil {
-		return path, pattern
+// extractFileAndPattern extracts the file path and pattern from a ContractFailure's
+// structured Assertion field. Returns (path, pattern) or ("", "") if unavailable.
+func extractFileAndPattern(f contract.ContractFailure) (string, string) {
+	if f.Assertion.FileContains != nil {
+		return f.Assertion.FileContains.Path, f.Assertion.FileContains.Pattern
 	}
-
 	return "", ""
 }
 
@@ -349,6 +364,97 @@ func rewriteContractYAML(contractPath string, sc *contract.ScenarioContract) err
 		return fmt.Errorf("marshal contract: %w", err)
 	}
 	return os.WriteFile(contractPath, data, 0o644)
+}
+
+// deferralResult holds the result of deferring contract failures, including
+// a map from file path to the task ID that covers it.
+type deferralResult struct {
+	remaining    []contract.ContractFailure
+	deferred     []contract.ContractFailure
+	taskIDByFile map[string]string // file path → covering task ID
+}
+
+// deferContractFailures defers file_contains and file_exists failures that are
+// covered by pending tasks' ExpectedTouchedArea. Uses exact string matching only.
+// First task in rs.Tasks slice order wins when multiple pending tasks cover the same file.
+// Only pending tasks trigger deferral; tasks with other statuses are ignored.
+func deferContractFailures(failures []contract.ContractFailure, tasks []runstore.Task) deferralResult {
+	// Build a map from file path to first task ID that covers it (pending tasks only)
+	coverageMap := make(map[string]string)
+	for _, task := range tasks {
+		// Only process pending tasks
+		if task.Status != "pending" {
+			continue
+		}
+		for _, path := range task.ExpectedTouchedArea {
+			// Only map if we haven't seen this path before (first task wins)
+			if _, exists := coverageMap[path]; !exists {
+				coverageMap[path] = task.TaskID
+			}
+		}
+	}
+
+	var result deferralResult
+	result.taskIDByFile = coverageMap
+
+	// Process each failure
+	for _, f := range failures {
+		filePath := extractFilePath(f)
+		if filePath == "" || (f.AssertionType != "file_contains" && f.AssertionType != "file_exists") {
+			// Not a deferrable failure type or couldn't extract path
+			result.remaining = append(result.remaining, f)
+			continue
+		}
+
+		// Check if the file is covered by any task
+		if _, covered := coverageMap[filePath]; covered {
+			result.deferred = append(result.deferred, f)
+		} else {
+			result.remaining = append(result.remaining, f)
+		}
+	}
+
+	return result
+}
+
+// emitDeferralEvents emits a ContractDeferredEvent for each deferred failure,
+// using the provided taskIDByFile map to look up covering task IDs.
+func emitDeferralEvents(eventLog *runstore.EventLog, deferred []contract.ContractFailure, taskIDByFile map[string]string) {
+	if eventLog == nil {
+		return
+	}
+	for _, d := range deferred {
+		filePath := extractFilePath(d)
+		eventLog.Append(runstore.ContractDeferredEvent{
+			BaseEvent:    runstore.BaseEvent{Type: "contract_deferred", Timestamp: time.Now()},
+			ScenarioName: d.ScenarioName,
+			FilePath:     filePath,
+			Pattern:      extractPattern(d),
+			TaskID:       taskIDByFile[filePath],
+		})
+	}
+}
+
+// extractFilePath extracts the file path from a ContractAssertion.
+func extractFilePath(f contract.ContractFailure) string {
+	switch f.AssertionType {
+	case "file_exists":
+		return f.Assertion.FileExists
+	case "file_contains":
+		if f.Assertion.FileContains != nil {
+			return f.Assertion.FileContains.Path
+		}
+	}
+	return ""
+}
+
+// extractPattern extracts the pattern from a ContractAssertion.
+// Returns empty string for file_exists assertions.
+func extractPattern(f contract.ContractFailure) string {
+	if f.AssertionType == "file_contains" && f.Assertion.FileContains != nil {
+		return f.Assertion.FileContains.Pattern
+	}
+	return ""
 }
 
 // checkWorktreeHealth verifies that the worktree directory is healthy.
