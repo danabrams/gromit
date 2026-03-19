@@ -9,6 +9,7 @@ import (
 
 	"github.com/danabrams/gromit/internal/next/acceptor"
 	"github.com/danabrams/gromit/internal/next/review"
+	"github.com/danabrams/gromit/internal/next/reviewpacket"
 	"github.com/danabrams/gromit/internal/next/runstore"
 	"github.com/danabrams/gromit/internal/next/validator"
 )
@@ -566,5 +567,195 @@ func TestBundler_WriteReviewFindings_DiffUnavailableFalse(t *testing.T) {
 		t.Fatal("code_quality findings should be present in review.json")
 	} else if codeQualityList, ok := codeQuality.([]interface{}); !ok || len(codeQualityList) != 1 {
 		t.Errorf("expected 1 code_quality finding, got %v", codeQuality)
+	}
+}
+
+func TestBundler_WriteProductReview(t *testing.T) {
+	dir := t.TempDir()
+	b := NewBundler(dir)
+	if err := b.Init(); err != nil {
+		t.Fatal(err)
+	}
+
+	review := reviewpacket.ProductReview{
+		RunID:         "run-001",
+		SpecTitle:     "User Authentication",
+		TerminalState: "ready_for_review",
+		Summary:       "Implemented login and logout flows",
+		BehaviorCards: []reviewpacket.BehaviorCard{
+			{ID: "bc-1", Title: "User can login", AutomaticStatus: "pass"},
+			{ID: "bc-2", Title: "Session persists", AutomaticStatus: "pass"},
+		},
+		IsDiagnostic: false,
+	}
+
+	if err := b.WriteProductReview(review); err != nil {
+		t.Fatalf("WriteProductReview: %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(dir, "product-review.json"))
+	if err != nil {
+		t.Fatalf("read product-review.json: %v", err)
+	}
+
+	content := string(data)
+	if !strings.Contains(content, "run-001") {
+		t.Fatal("product-review.json should contain run ID")
+	}
+	if !strings.Contains(content, "User Authentication") {
+		t.Fatal("product-review.json should contain spec title")
+	}
+
+	var parsed reviewpacket.ProductReview
+	if err := json.Unmarshal(data, &parsed); err != nil {
+		t.Fatalf("product-review.json should be valid JSON: %v", err)
+	}
+	if len(parsed.BehaviorCards) != 2 {
+		t.Errorf("expected 2 behavior cards, got %d", len(parsed.BehaviorCards))
+	}
+}
+
+func TestBundler_WriteProcessReview(t *testing.T) {
+	dir := t.TempDir()
+	b := NewBundler(dir)
+	if err := b.Init(); err != nil {
+		t.Fatal(err)
+	}
+
+	review := reviewpacket.ProcessReview{
+		TrustLevel:          "high",
+		AutomaticProof:      "All tests passed",
+		MachineReview:       "No issues found",
+		Acceptance:          "Ready for merge",
+		RepairCycles:        0,
+		RepeatedFailureFlag: false,
+		RecommendedPosture:  "approve",
+	}
+
+	if err := b.WriteProcessReview(review); err != nil {
+		t.Fatalf("WriteProcessReview: %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(dir, "process-review.json"))
+	if err != nil {
+		t.Fatalf("read process-review.json: %v", err)
+	}
+
+	content := string(data)
+	if !strings.Contains(content, "high") {
+		t.Fatal("process-review.json should contain trust level")
+	}
+	if !strings.Contains(content, "approve") {
+		t.Fatal("process-review.json should contain recommended posture")
+	}
+
+	var parsed reviewpacket.ProcessReview
+	if err := json.Unmarshal(data, &parsed); err != nil {
+		t.Fatalf("process-review.json should be valid JSON: %v", err)
+	}
+	if parsed.TrustLevel != "high" {
+		t.Errorf("expected trust level 'high', got %q", parsed.TrustLevel)
+	}
+}
+
+func TestBundler_WriteManualChecklist(t *testing.T) {
+	dir := t.TempDir()
+	b := NewBundler(dir)
+	if err := b.Init(); err != nil {
+		t.Fatal(err)
+	}
+
+	checklist := reviewpacket.ManualChecklist{
+		Items: []reviewpacket.ManualCheckItem{
+			{
+				ID:             "check-1",
+				Title:          "Verify UI appearance",
+				Instructions:   "Open the app and check the login screen",
+				ExpectedResult: "Login screen displays correctly",
+			},
+			{
+				ID:             "check-2",
+				Title:          "Test error handling",
+				Instructions:   "Try logging in with invalid credentials",
+				ExpectedResult: "Error message is displayed",
+			},
+		},
+	}
+
+	if err := b.WriteManualChecklist(checklist); err != nil {
+		t.Fatalf("WriteManualChecklist: %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(dir, "manual-checklist.json"))
+	if err != nil {
+		t.Fatalf("read manual-checklist.json: %v", err)
+	}
+
+	content := string(data)
+	if !strings.Contains(content, "check-1") {
+		t.Fatal("manual-checklist.json should contain check ID")
+	}
+	if !strings.Contains(content, "Verify UI appearance") {
+		t.Fatal("manual-checklist.json should contain check title")
+	}
+
+	var parsed reviewpacket.ManualChecklist
+	if err := json.Unmarshal(data, &parsed); err != nil {
+		t.Fatalf("manual-checklist.json should be valid JSON: %v", err)
+	}
+	if len(parsed.Items) != 2 {
+		t.Errorf("expected 2 checklist items, got %d", len(parsed.Items))
+	}
+}
+
+func TestBundler_WriteProductReviewMD(t *testing.T) {
+	dir := t.TempDir()
+	b := NewBundler(dir)
+	if err := b.Init(); err != nil {
+		t.Fatal(err)
+	}
+
+	mdContent := "# Product Review\n\nUser authentication flows have been successfully implemented."
+	if err := b.WriteProductReviewMD(mdContent); err != nil {
+		t.Fatalf("WriteProductReviewMD: %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(dir, "product-review.md"))
+	if err != nil {
+		t.Fatalf("read product-review.md: %v", err)
+	}
+
+	content := string(data)
+	if content != mdContent {
+		t.Errorf("product-review.md content mismatch: expected %q, got %q", mdContent, content)
+	}
+	if !strings.Contains(content, "# Product Review") {
+		t.Fatal("product-review.md should contain markdown header")
+	}
+}
+
+func TestBundler_WriteProcessReviewMD(t *testing.T) {
+	dir := t.TempDir()
+	b := NewBundler(dir)
+	if err := b.Init(); err != nil {
+		t.Fatal(err)
+	}
+
+	mdContent := "# Process Review\n\nTrust level: High\nAll validation checks passed."
+	if err := b.WriteProcessReviewMD(mdContent); err != nil {
+		t.Fatalf("WriteProcessReviewMD: %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(dir, "process-review.md"))
+	if err != nil {
+		t.Fatalf("read process-review.md: %v", err)
+	}
+
+	content := string(data)
+	if content != mdContent {
+		t.Errorf("process-review.md content mismatch: expected %q, got %q", mdContent, content)
+	}
+	if !strings.Contains(content, "# Process Review") {
+		t.Fatal("process-review.md should contain markdown header")
 	}
 }

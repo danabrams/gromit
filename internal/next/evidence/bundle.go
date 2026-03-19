@@ -8,6 +8,7 @@ import (
 
 	"github.com/danabrams/gromit/internal/next/acceptor"
 	"github.com/danabrams/gromit/internal/next/review"
+	"github.com/danabrams/gromit/internal/next/reviewpacket"
 	"github.com/danabrams/gromit/internal/next/runstore"
 	"github.com/danabrams/gromit/internal/next/validator"
 )
@@ -243,6 +244,34 @@ func (b *Bundler) WriteReviewFindings(output ReviewFindingsOutput) error {
 func (b *Bundler) WriteAcceptanceResults(result acceptor.AcceptanceResult) error {
 	result.NormalizeNilFields()
 	return b.writeJSON("acceptance.json", result)
+}
+
+// WriteProductReview writes the product review to product-review.json.
+func (b *Bundler) WriteProductReview(review reviewpacket.ProductReview) error {
+	review.NormalizeNilFields()
+	return b.writeJSON("product-review.json", review)
+}
+
+// WriteProcessReview writes the process review to process-review.json.
+func (b *Bundler) WriteProcessReview(review reviewpacket.ProcessReview) error {
+	review.NormalizeNilFields()
+	return b.writeJSON("process-review.json", review)
+}
+
+// WriteManualChecklist writes the manual checklist to manual-checklist.json.
+func (b *Bundler) WriteManualChecklist(checklist reviewpacket.ManualChecklist) error {
+	checklist.NormalizeNilFields()
+	return b.writeJSON("manual-checklist.json", checklist)
+}
+
+// WriteProductReviewMD writes the product review markdown to product-review.md.
+func (b *Bundler) WriteProductReviewMD(md string) error {
+	return os.WriteFile(filepath.Join(b.dir, "product-review.md"), []byte(md), 0o644)
+}
+
+// WriteProcessReviewMD writes the process review markdown to process-review.md.
+func (b *Bundler) WriteProcessReviewMD(md string) error {
+	return os.WriteFile(filepath.Join(b.dir, "process-review.md"), []byte(md), 0o644)
 }
 
 func (b *Bundler) writeJSON(name string, v any) error {

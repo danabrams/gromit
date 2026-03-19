@@ -325,7 +325,10 @@ func (p *RealStageProvider) BuildStages(policy execpolicy.Policy, rs *runstore.R
 		InvocationSource: budget,
 	})
 
-	finalizeStage := stages.NewFinalizeStage(gitOps, store, nil)
+	finalizeStage := stages.NewFinalizeStageWithConfig(gitOps, store, nil, &stages.FinalizeStageConfig{
+		SpecContent: string(specContent),
+		EvidenceDir: evidenceDir,
+	})
 
 	// Build-time assertion: when a worktree is active, all stage WorkDir
 	// values must point inside it.
