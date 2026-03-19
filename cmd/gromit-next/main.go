@@ -29,5 +29,6 @@ func init() {
 	execCmd.AddCommand(newExecSpecCmd())
 	execCmd.AddCommand(newExecShowCmd())
 	execCmd.AddCommand(newExecListCmd())
+	execCmd.AddCommand(newExecCompleteCmd())
 	specCmd.AddCommand(newSpecListCmd())
 }

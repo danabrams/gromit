@@ -293,16 +293,31 @@ func pickSpec(project, specsDir string, store *runstore.Store, branchResolver fu
 			continue
 		}
 
-		// Find the most recent run for this spec
+		// Find the most recent run matching this spec's derived status.
+		// For ready_for_review specs we need the ready_for_review run specifically,
+		// not a later run that may have a different status (e.g. blocked).
 		var lastRun *runstore.RunState
 		if len(specRuns) > 0 {
-			latest := specRuns[0]
-			for i := 1; i < len(specRuns); i++ {
-				if specRuns[i].StartedAt.After(latest.StartedAt) {
-					latest = specRuns[i]
+			var latest *runstore.RunState
+			for i := range specRuns {
+				if specRuns[i].Status != status {
+					continue
+				}
+				if latest == nil || specRuns[i].StartedAt.After(latest.StartedAt) {
+					latest = &specRuns[i]
 				}
 			}
-			lastRun = &latest
+			// Fall back to most recent run overall if no status-matched run found
+			if latest == nil {
+				best := specRuns[0]
+				for i := 1; i < len(specRuns); i++ {
+					if specRuns[i].StartedAt.After(best.StartedAt) {
+						best = specRuns[i]
+					}
+				}
+				latest = &best
+			}
+			lastRun = latest
 		}
 
 		availableSpecs = append(availableSpecs, specInfo{
@@ -327,9 +342,13 @@ func pickSpec(project, specsDir string, store *runstore.Store, branchResolver fu
 
 		if spec.status == "ready_for_review" {
 			marker = " * (ready_for_review)"
-			if spec.lastRun != nil {
+			if spec.lastRun != nil && spec.lastRun.WorktreePath != "" {
+				wtLabel := spec.lastRun.WorktreePath
+				if _, err := os.Stat(spec.lastRun.WorktreePath); err != nil {
+					wtLabel += " (removed)"
+				}
 				branch := branchResolver(spec.lastRun.WorktreePath)
-				extra = fmt.Sprintf("\n     worktree: %s\n     branch:   %s", spec.lastRun.WorktreePath, branch)
+				extra = fmt.Sprintf("\n     worktree: %s\n     branch:   %s", wtLabel, branch)
 			}
 		}
 
@@ -437,6 +456,7 @@ func newExecSpecCmdWithProvider(provider StageProvider) *cobra.Command {
 		Use:   "spec",
 		Short: "Execute a spec through the full pipeline",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			cmd.SilenceUsage = true
 			specPath, _ := cmd.Flags().GetString("spec")
 			projectID, _ := cmd.Flags().GetString("project")
 			policyPath, _ := cmd.Flags().GetString("policy")
@@ -448,6 +468,13 @@ func newExecSpecCmdWithProvider(provider StageProvider) *cobra.Command {
 			}
 			dryRun, _ := cmd.Flags().GetBool("dry-run")
 			resumeRunID, _ := cmd.Flags().GetString("resume")
+			// Fixup: cobra NoOptDefVal means `--resume run-xxx` (space-separated)
+			// parses as --resume="__pick__" with "run-xxx" left as a positional arg.
+			// Recover the intended run ID from args so both forms work identically.
+			if resumeRunID == "__pick__" && len(args) > 0 && strings.HasPrefix(args[0], "run-") {
+				resumeRunID = args[0]
+				args = args[1:]
+			}
 			resumeCycles, _ := cmd.Flags().GetInt("cycles")
 			storeDir, _ := cmd.Flags().GetString("store-dir")
 			if storeDir == "" {
@@ -495,7 +522,7 @@ func newExecSpecCmdWithProvider(provider StageProvider) *cobra.Command {
 						}
 						specsDir = cfg.SpecsDir
 						if specsDir == "" && cfg.RepoPath != "" {
-							specsDir = filepath.Join(cfg.RepoPath, "specs")
+							specsDir = filepath.Join(cfg.RepoPath, "docs", "specs")
 						}
 					}
 					if specsDir == "" {

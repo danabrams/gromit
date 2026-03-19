@@ -116,6 +116,7 @@ func newSpecListCmd() *cobra.Command {
 		Use:   "list",
 		Short: "List specs and their statuses",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			cmd.SilenceUsage = true
 			project, _ := cmd.Flags().GetString("project")
 			storeDir, _ := cmd.Flags().GetString("store-dir")
 			specsDir, _ := cmd.Flags().GetString("specs-dir")
@@ -142,7 +143,7 @@ func newSpecListCmd() *cobra.Command {
 				}
 				specsDir = cfg.SpecsDir
 				if specsDir == "" && cfg.RepoPath != "" {
-					specsDir = filepath.Join(cfg.RepoPath, "specs")
+					specsDir = filepath.Join(cfg.RepoPath, "docs", "specs")
 				}
 			}
 
