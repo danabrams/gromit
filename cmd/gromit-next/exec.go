@@ -489,6 +489,9 @@ func newExecSpecCmdWithProvider(provider StageProvider) *cobra.Command {
 							specsDir = filepath.Join(cfg.RepoPath, "specs")
 						}
 					}
+					if specsDir == "" {
+						return fmt.Errorf("cannot resolve specs directory: project config has no specs_dir or repo_path")
+					}
 				}
 				selectedPath, err := pickSpec(projectID, specsDir, storeInstance, branchResolverFunc, cmd.InOrStdin(), cmd.OutOrStdout())
 				if err != nil {

@@ -2167,6 +2167,8 @@ func TestScenario_ExecSpec_InvalidRoutingRatio_ReturnsError(t *testing.T) {
 		policyPath:    policyPath,
 		storeDir:      storeDir,
 		stageProvider: stageProvider,
+		out:           io.Discard,
+		store:         runstore.NewStore(storeDir),
 	}
 	_, err := r.run(context.Background())
 
