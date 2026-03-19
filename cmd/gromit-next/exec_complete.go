@@ -4,27 +4,12 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/danabrams/gromit/internal/next/runstore"
 	"github.com/danabrams/gromit/internal/next/workspace"
 	"github.com/spf13/cobra"
 )
-
-// ParseDoneDate extracts the date from a "DONE YYYY-MM-DD" line.
-// Returns empty string if the line doesn't match the pattern.
-func ParseDoneDate(line string) string {
-	line = strings.TrimSpace(line)
-	if !strings.HasPrefix(line, "DONE") {
-		return ""
-	}
-	parts := strings.Fields(line)
-	if len(parts) < 2 {
-		return ""
-	}
-	return parts[1]
-}
 
 // newExecCompleteCmd creates the `exec complete` command.
 func newExecCompleteCmd() *cobra.Command {
@@ -86,10 +71,12 @@ func newExecCompleteCmd() *cobra.Command {
 				if data, err := os.ReadFile(specPath); err == nil {
 					content := string(data)
 					// Skip if already starts with DONE
-					if !strings.HasPrefix(content, "DONE") {
+					if _, isDone := ParseDoneDate(content); !isDone {
 						today := time.Now().Format("2006-01-02")
 						newContent := fmt.Sprintf("DONE %s\n%s", today, content)
-						os.WriteFile(specPath, []byte(newContent), 0o644)
+						if err := os.WriteFile(specPath, []byte(newContent), 0o644); err != nil {
+							fmt.Fprintf(cmd.ErrOrStderr(), "Warning: could not mark spec file as done: %v\n", err)
+						}
 					}
 				}
 				// Silently skip if spec file doesn't exist

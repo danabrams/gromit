@@ -20,7 +20,8 @@ import (
 // Given: Four spec files (alpha, beta, gamma, delta) with mixed run statuses
 // When: pickSpec is called with input "2\n"
 // Then: Only alpha (ready) and beta (ready_for_review) are shown; gamma (completed)
-//       and delta (running) are excluded. Selecting "2" returns beta.md path.
+//
+//	and delta (running) are excluded. Selecting "2" returns beta.md path.
 func TestScenario_SpecPickerWithMixedStatuses(t *testing.T) {
 	// --- Seed ---
 

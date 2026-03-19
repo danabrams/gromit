@@ -26,7 +26,11 @@ func TestScenario_SpecList_DoneSpecsAtBottomWithDate(t *testing.T) {
 	}
 	for _, name := range []string{"0003a", "0003h", "0003i"} {
 		path := filepath.Join(specsDir, name+".md")
-		if err := os.WriteFile(path, []byte("# Spec "+name+"\n"), 0o644); err != nil {
+		content := "# Spec " + name + "\n"
+		if name == "0003a" {
+			content = "DONE 2026-03-19\n" + content
+		}
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 			t.Fatalf("write %s: %v", name, err)
 		}
 	}
