@@ -19,12 +19,26 @@ import (
 	"github.com/danabrams/gromit/internal/next/workspace"
 )
 
-func TestExecCmd_RequiresSpecFlag(t *testing.T) {
+func TestExecCmd_SpecPickerInvokedWhenSpecOmitted(t *testing.T) {
+	// Create a temp specsDir with one ready spec (no runs → derived status "ready").
+	specsDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(specsDir, "myspec.md"), []byte("# My Spec\n"), 0o644); err != nil {
+		t.Fatalf("write myspec.md: %v", err)
+	}
+	storeDir := t.TempDir()
+
 	cmd := newExecSpecCmd()
-	cmd.SetArgs([]string{"--project", "my-project"})
-	err := cmd.Execute()
-	if err == nil {
-		t.Fatal("expected error when no --spec flag")
+	var buf bytes.Buffer
+	cmd.SetOut(&buf)
+	// Empty stdin: the picker prints the numbered list then fails to read a selection.
+	// The test only needs to verify the picker output appeared.
+	cmd.SetIn(strings.NewReader(""))
+	cmd.SetArgs([]string{"--project", "my-project", "--specs-dir", specsDir, "--store-dir", storeDir})
+
+	_ = cmd.Execute() // error expected ("failed to read input"); intentionally ignored
+
+	if !strings.Contains(buf.String(), "1. myspec") {
+		t.Errorf("expected spec picker output containing %q, got: %s", "1. myspec", buf.String())
 	}
 }
 
