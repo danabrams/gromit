@@ -8,6 +8,10 @@ type validateScenarioFakeGitOps struct {
 	removeCalled    bool
 	recoverCalled   bool
 	recoveredPath   string
+	commitCalled    bool
+	commitWorkDir   string
+	commitMessage   string
+	commitErr       error
 }
 
 func (f *validateScenarioFakeGitOps) CreateWorktree(repoDir, branch string) (string, error) {
@@ -31,7 +35,10 @@ func (f *validateScenarioFakeGitOps) RecoverWorktree(repoDir, branch string) (st
 }
 
 func (f *validateScenarioFakeGitOps) CommitAll(workDir, message string) error {
-	return nil
+	f.commitCalled = true
+	f.commitWorkDir = workDir
+	f.commitMessage = message
+	return f.commitErr
 }
 
 // fakeGitOps is a test double for GitOps used in scenario validation tests.

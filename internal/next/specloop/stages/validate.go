@@ -150,6 +150,12 @@ func (s *ValidateStage) Run(ctx context.Context, rs *runstore.RunState) (specloo
 
 	if finalPassed {
 		rs.FinalValidationPassed = true
+		// Commit worktree changes to branch so they survive recovery
+		// and are visible to the review stage's Claude process.
+		if s.gitOps != nil && rs.WorktreePath != "" {
+			msg := fmt.Sprintf("gromit: %s cycle %d", rs.SpecID, rs.Cycle)
+			_ = s.gitOps.CommitAll(workDir, msg)
+		}
 		return specloop.NextAction{Kind: specloop.Continue}, nil
 	}
 
