@@ -238,14 +238,21 @@ func newExecSpecCmd() *cobra.Command {
 }
 
 // branchResolverFunc resolves the git branch for a spec by running git symbolic-ref.
+// Falls back to showing the abbreviated SHA for detached HEADs.
 func branchResolverFunc(repoPath string) string {
-	// Run: git -C <repoPath> symbolic-ref --short HEAD
+	// Try: git -C <repoPath> symbolic-ref --short HEAD
 	cmd := exec.Command("git", "-C", repoPath, "symbolic-ref", "--short", "HEAD")
 	out, err := cmd.Output()
-	if err != nil {
-		return "(unknown)"
+	if err == nil {
+		return strings.TrimSpace(string(out))
 	}
-	return strings.TrimSpace(string(out))
+	// Detached HEAD — fall back to abbreviated SHA.
+	cmd = exec.Command("git", "-C", repoPath, "rev-parse", "--short", "HEAD")
+	out, err = cmd.Output()
+	if err == nil {
+		return "detached:" + strings.TrimSpace(string(out))
+	}
+	return "(unknown)"
 }
 
 // pickSpec discovers specs, derives their status, filters to ready/ready_for_review,

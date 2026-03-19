@@ -14,7 +14,7 @@ type realGitOps struct{}
 // CreateWorktree creates a new git worktree on the given branch.
 // It uses os.MkdirTemp to generate a unique path, removes the directory
 // (git worktree add requires the target not to exist), then runs
-// git worktree add -b <branch> <path>.
+// git worktree add -B <branch> <path>.
 func (r *realGitOps) CreateWorktree(repoDir, branch string) (string, error) {
 	// Use a stable directory under the repo instead of OS temp dir,
 	// which macOS can partially clean (deleting .git but leaving subdirs).
@@ -31,11 +31,22 @@ func (r *realGitOps) CreateWorktree(repoDir, branch string) (string, error) {
 		return "", fmt.Errorf("remove temp dir: %w", err)
 	}
 
-	cmd := exec.Command("git", "-C", repoDir, "worktree", "add", "-b", branch, tmp)
+	cmd := exec.Command("git", "-C", repoDir, "worktree", "add", "-B", branch, tmp)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return "", fmt.Errorf("git worktree add: %w\n%s", err, out)
 	}
+
+	// Verify worktree is not in detached HEAD state.
+	headCmd := exec.Command("git", "-C", tmp, "symbolic-ref", "--short", "HEAD")
+	if _, err := headCmd.Output(); err != nil {
+		// Detached HEAD — create the branch from current HEAD.
+		fixCmd := exec.Command("git", "-C", tmp, "checkout", "-b", branch)
+		if fixOut, fixErr := fixCmd.CombinedOutput(); fixErr != nil {
+			return "", fmt.Errorf("fix detached HEAD: %w\n%s", fixErr, fixOut)
+		}
+	}
+
 	return tmp, nil
 }
 
