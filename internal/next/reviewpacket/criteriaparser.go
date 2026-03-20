@@ -8,9 +8,6 @@ import (
 // numberedCriterionRe matches lines starting with "N." (e.g., "1.", "23.").
 var numberedCriterionRe = regexp.MustCompile(`^\d+\.\s`)
 
-// dashCriterionRe matches lines starting with "- " (e.g., "- API returns...").
-var dashCriterionRe = regexp.MustCompile(`^-\s`)
-
 // criterionPrefixRe matches the leading "N. " prefix to strip it.
 var criterionPrefixRe = regexp.MustCompile(`^\d+\.\s+`)
 

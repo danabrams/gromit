@@ -1,5 +1,7 @@
 package reviewpacket
 
+import "encoding/json"
+
 // ValidationData holds the validation result fields needed by the review packet generator.
 // This is a local mirror of the relevant fields from validator.FinalResult,
 // avoiding an import cycle with the validator package.
@@ -22,6 +24,58 @@ type AcceptanceData struct {
 // so this avoids importing the full review.Finding type.
 type ReviewFinding struct {
 	Message string `json:"message,omitempty"`
+}
+
+// AcceptanceResultJSON represents the on-disk acceptance.json format
+// produced by the acceptor package.
+type AcceptanceResultJSON struct {
+	Results []AcceptanceResultItem `json:"results"`
+}
+
+// AcceptanceResultItem is a single criterion result in acceptance.json.
+type AcceptanceResultItem struct {
+	Criterion string `json:"criterion"`
+	Status    string `json:"status"` // "pass", "fail", "skip", "unclear"
+}
+
+// ReviewResultJSON represents the on-disk review.json format.
+// Finding categories (e.g. "correctness", "design") are top-level keys
+// mapping to arrays of ReviewFindingJSON objects.
+// The special key "diff_unavailable" is a boolean flag.
+type ReviewResultJSON struct {
+	Categories      map[string][]ReviewFindingJSON
+	DiffUnavailable bool
+}
+
+// ReviewFindingJSON is a single finding object in review.json.
+type ReviewFindingJSON struct {
+	Message string `json:"message"`
+}
+
+// UnmarshalJSON implements custom unmarshalling for ReviewResultJSON
+// to handle the mixed schema (string-keyed category arrays + bool flag).
+func (r *ReviewResultJSON) UnmarshalJSON(data []byte) error {
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	r.Categories = make(map[string][]ReviewFindingJSON)
+	for key, val := range raw {
+		if key == "diff_unavailable" {
+			var b bool
+			if err := json.Unmarshal(val, &b); err == nil {
+				r.DiffUnavailable = b
+			}
+			continue
+		}
+		var findings []ReviewFindingJSON
+		if err := json.Unmarshal(val, &findings); err != nil {
+			// skip keys that aren't finding arrays
+			continue
+		}
+		r.Categories[key] = findings
+	}
+	return nil
 }
 
 // ProductReview is the behavior-focused product review artifact.

@@ -95,71 +95,53 @@ func (s *FinalizeStage) generateReviewPacket(rs *runstore.RunState) error {
 		return fmt.Errorf("unmarshal validation.json: %w", err)
 	}
 
-	// Read review.json
-	rawReview, err := readJSONFile(filepath.Join(s.config.EvidenceDir, "review.json"))
+	// Read and unmarshal review.json into typed struct
+	reviewBytes, err := os.ReadFile(filepath.Join(s.config.EvidenceDir, "review.json"))
 	if err != nil {
 		return fmt.Errorf("read review.json: %w", err)
 	}
+	var reviewResult reviewpacket.ReviewResultJSON
+	if err := json.Unmarshal(reviewBytes, &reviewResult); err != nil {
+		return fmt.Errorf("unmarshal review.json: %w", err)
+	}
 
-	// Read acceptance.json
-	rawAcceptance, err := readJSONFile(filepath.Join(s.config.EvidenceDir, "acceptance.json"))
+	// Read and unmarshal acceptance.json into typed struct
+	acceptanceBytes, err := os.ReadFile(filepath.Join(s.config.EvidenceDir, "acceptance.json"))
 	if err != nil {
 		return fmt.Errorf("read acceptance.json: %w", err)
 	}
+	var acceptanceRaw reviewpacket.AcceptanceResultJSON
+	if err := json.Unmarshal(acceptanceBytes, &acceptanceRaw); err != nil {
+		return fmt.Errorf("unmarshal acceptance.json: %w", err)
+	}
 
-	// Extract acceptance data into concrete type
+	// Extract acceptance data into aggregate counts
 	acceptanceResult := reviewpacket.AcceptanceData{}
-	if am, ok := rawAcceptance.(map[string]interface{}); ok {
-		// Parse the acceptor.AcceptanceResult schema: {results: [...], all_pass: bool, has_fail_or_unclear: bool}
-		if resultsRaw, ok := am["results"]; ok {
-			if resultsArray, ok := resultsRaw.([]interface{}); ok {
-				for _, item := range resultsArray {
-					if resultMap, ok := item.(map[string]interface{}); ok {
-						if status, ok := resultMap["status"].(string); ok {
-							switch status {
-							case "pass":
-								acceptanceResult.Passed++
-							case "fail":
-								acceptanceResult.Failed++
-							case "unclear":
-								acceptanceResult.Unclear++
-							}
-						}
-					}
-				}
-			}
+	for _, item := range acceptanceRaw.Results {
+		switch item.Status {
+		case "pass":
+			acceptanceResult.Passed++
+		case "fail":
+			acceptanceResult.Failed++
+		case "unclear":
+			acceptanceResult.Unclear++
 		}
 	}
 
-	// Build review findings map from review data
+	// Build review findings map from typed review data
 	reviewFindings := make(map[string][]reviewpacket.ReviewFinding)
-	if reviewDataMap, ok := rawReview.(map[string]interface{}); ok {
-		for key, value := range reviewDataMap {
-			if key == "diff_unavailable" {
-				continue
-			}
-			if items, ok := value.([]interface{}); ok {
-				findings := make([]reviewpacket.ReviewFinding, 0, len(items))
-				for _, item := range items {
-					f := reviewpacket.ReviewFinding{}
-					if m, ok := item.(map[string]interface{}); ok {
-						f.Message, _ = m["message"].(string)
-					}
-					findings = append(findings, f)
-				}
-				reviewFindings[key] = findings
-			}
+	for category, items := range reviewResult.Categories {
+		findings := make([]reviewpacket.ReviewFinding, 0, len(items))
+		for _, item := range items {
+			findings = append(findings, reviewpacket.ReviewFinding{Message: item.Message})
 		}
+		reviewFindings[category] = findings
 	}
 
 	// Detect degraded flags from review data
 	degradedFlags := []string{}
-	if reviewDataMap, ok := rawReview.(map[string]interface{}); ok {
-		if diffUnavailable, ok := reviewDataMap["diff_unavailable"]; ok {
-			if boolVal, ok := diffUnavailable.(bool); ok && boolVal {
-				degradedFlags = append(degradedFlags, "diff_unavailable")
-			}
-		}
+	if reviewResult.DiffUnavailable {
+		degradedFlags = append(degradedFlags, "diff_unavailable")
 	}
 
 	// Detect repeated failure escalation from task lineage
@@ -225,16 +207,3 @@ func detectRepeatedFailure(rs *runstore.RunState) bool {
 	return false
 }
 
-// readJSONFile reads a JSON file and unmarshals it to a map or slice.
-func readJSONFile(path string) (interface{}, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-
-	var result interface{}
-	if err := json.Unmarshal(data, &result); err != nil {
-		return nil, err
-	}
-	return result, nil
-}

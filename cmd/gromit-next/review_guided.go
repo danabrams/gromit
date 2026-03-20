@@ -31,6 +31,8 @@ If no run-id is given, the latest run is reviewed (by modification time of .grom
 				storeDir = ".gromit-next"
 			}
 
+			store := runstore.NewStore(storeDir)
+
 			var runID string
 			// --run flag takes precedence over positional arg
 			if runFlag != "" {
@@ -38,7 +40,7 @@ If no run-id is given, the latest run is reviewed (by modification time of .grom
 			} else if len(args) > 0 && args[0] != "latest" {
 				runID = args[0]
 			} else {
-				id, err := findLatestRunID(storeDir, "", nil)
+				id, err := findLatestRunID(storeDir, "", store)
 				if err != nil {
 					return err
 				}
@@ -58,17 +60,10 @@ If no run-id is given, the latest run is reviewed (by modification time of .grom
 // Input is read from the provided reader (for testing, this can be a strings.Reader; in normal use, it's os.Stdin).
 func reviewGuided(runID string, storeDir string, input io.Reader, out io.Writer) error {
 	// Load run and ensure packet exists
-	_, err := loadRunAndEnsurePacket(runID, storeDir)
+	_, _, evidenceDir, err := loadRunAndEnsurePacket(runID, storeDir)
 	if err != nil {
 		return err
 	}
-
-	// Initialize run store
-	if storeDir == "" {
-		storeDir = ".gromit-next"
-	}
-	store := runstore.NewStore(storeDir)
-	evidenceDir := store.RunEvidenceDir(runID)
 
 	// Load review packet outputs
 	outputs, err := loadPacketOutputs(evidenceDir)
@@ -126,16 +121,20 @@ func reviewGuided(runID string, storeDir string, input io.Reader, out io.Writer)
 		fmt.Fprintln(out)
 	}
 
+	if err := scanner.Err(); err != nil {
+		return fmt.Errorf("read input: %w", err)
+	}
+
 	// All items completed, now prompt for outcome
 	fmt.Fprintln(out, "=== Review Outcome ===")
 	fmt.Fprintln(out, "Choose the final outcome:")
-	fmt.Fprintln(out, "1. accept         - Accept the work as-is")
+	fmt.Fprintln(out, "1. accepted (or accept) - Accept the work as-is")
 	fmt.Fprintln(out, "2. rework_implementation_gap - Work needs fixes (implementation issue)")
 	fmt.Fprintln(out, "3. rework_vision_change     - Work direction needs to change")
 
 	var outcome string
 	for {
-		fmt.Fprint(out, "Outcome (accept/rework_implementation_gap/rework_vision_change): ")
+		fmt.Fprint(out, "Outcome (accepted/rework_implementation_gap/rework_vision_change): ")
 		if !scanner.Scan() {
 			return fmt.Errorf("failed to read outcome")
 		}

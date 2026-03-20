@@ -205,6 +205,12 @@ func TestRecordItemResult(t *testing.T) {
 			wantErr: true,
 		},
 		{
+			name:    "pending is not a valid recorded result",
+			step:    0,
+			result:  ResultPending,
+			wantErr: true,
+		},
+		{
 			name:    "no current item",
 			step:    2,
 			result:  ResultPass,

@@ -17,48 +17,52 @@ var reviewCmd = &cobra.Command{
 	Short: "Review command group for running and recording reviews",
 }
 
-var reviewRecordCmd = &cobra.Command{
-	Use:   "record [run-id]",
-	Short: "Record a review outcome for a run with --outcome and --summary flags",
-	Args:  cobra.MaximumNArgs(1),
-	RunE: func(cmd *cobra.Command, args []string) error {
-		outcome, _ := cmd.Flags().GetString("outcome")
-		summary, _ := cmd.Flags().GetString("summary")
-		override, _ := cmd.Flags().GetString("override")
-		storeDir, _ := cmd.Flags().GetString("store-dir")
-		runFlag, _ := cmd.Flags().GetString("run")
+// newReviewRecordCmd creates the `review record` command.
+func newReviewRecordCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "record [run-id]",
+		Short: "Record a review outcome for a run with --outcome and --summary flags",
+		Args:  cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			outcome, _ := cmd.Flags().GetString("outcome")
+			summary, _ := cmd.Flags().GetString("summary")
+			override, _ := cmd.Flags().GetString("override")
+			storeDir, _ := cmd.Flags().GetString("store-dir")
+			runFlag, _ := cmd.Flags().GetString("run")
 
-		if outcome == "" {
-			return fmt.Errorf("--outcome flag is required")
-		}
+			if outcome == "" {
+				return fmt.Errorf("--outcome flag is required")
+			}
 
-		var runID string
-		// --run flag takes precedence over positional arg
-		if runFlag != "" {
-			runID = runFlag
-		} else if len(args) > 0 {
-			runID = args[0]
-		} else {
-			return fmt.Errorf("run ID is required (provide via --run flag or positional argument)")
-		}
+			var runID string
+			// --run flag takes precedence over positional arg
+			if runFlag != "" {
+				runID = runFlag
+			} else if len(args) > 0 {
+				runID = args[0]
+			} else {
+				return fmt.Errorf("run ID is required (provide via --run flag or positional argument)")
+			}
 
-		return reviewRecord(runID, storeDir, outcome, summary, override)
-	},
+			return reviewRecord(runID, storeDir, outcome, summary, override)
+		},
+	}
+	cmd.Flags().String("outcome", "", "The review outcome (accepted, rework_implementation_gap, rework_vision_change)")
+	cmd.Flags().String("summary", "", "Summary of the review")
+	cmd.Flags().String("override", "", "Override reason for accepting a run with unsure items")
+	cmd.Flags().String("store-dir", "", "Run store directory (default: .gromit-next)")
+	cmd.Flags().String("run", "", "Run ID to record (if not specified, uses positional argument)")
+	return cmd
 }
 
 func init() {
-	reviewRecordCmd.Flags().String("outcome", "", "The review outcome (accepted, rework_implementation_gap, rework_vision_change)")
-	reviewRecordCmd.Flags().String("summary", "", "Summary of the review")
-	reviewRecordCmd.Flags().String("override", "", "Override reason for accepting a run with unsure items")
-	reviewRecordCmd.Flags().String("store-dir", "", "Run store directory (default: .gromit-next)")
-	reviewRecordCmd.Flags().String("run", "", "Run ID to record (if not specified, uses positional argument)")
-	reviewCmd.AddCommand(reviewRecordCmd)
+	reviewCmd.AddCommand(newReviewRecordCmd())
 }
 
 // loadRunAndEnsurePacket loads the run from store, checks IsTerminal,
 // verifies review packet artifacts exist, and regenerates them if missing.
-// Returns the loaded run state and any error.
-func loadRunAndEnsurePacket(runID, storeDir string) (*runstore.RunState, error) {
+// Returns the loaded run state, the store, the evidence directory, and any error.
+func loadRunAndEnsurePacket(runID, storeDir string) (*runstore.RunState, *runstore.Store, string, error) {
 	// Default store directory
 	if storeDir == "" {
 		storeDir = ".gromit-next"
@@ -70,12 +74,12 @@ func loadRunAndEnsurePacket(runID, storeDir string) (*runstore.RunState, error) 
 	// Load the run
 	run, err := store.Get(runID)
 	if err != nil {
-		return nil, fmt.Errorf("load run %q: %w", runID, err)
+		return nil, nil, "", fmt.Errorf("load run %q: %w", runID, err)
 	}
 
 	// Check if run is terminal
 	if !run.IsTerminal() {
-		return nil, fmt.Errorf("cannot review non-terminal run (status: %s) - run must be in ready_for_review, needs_human, blocked, or completed state", run.Status)
+		return nil, nil, "", fmt.Errorf("cannot review non-terminal run (status: %s) - run must be in ready_for_review, needs_human, blocked, or completed state", run.Status)
 	}
 
 	// Check for review packet artifacts in run evidence directory
@@ -91,76 +95,69 @@ func loadRunAndEnsurePacket(runID, storeDir string) (*runstore.RunState, error) 
 
 	// If all artifacts exist, return early
 	if errProd == nil && errProc == nil && errManual == nil {
-		return run, nil
+		return run, store, runEvidenceDir, nil
 	}
 
 	// Regenerate artifacts: load inputs from evidence, generate outputs, write artifacts
 	specPath := filepath.Join(store.RunDir(runID), "spec.md")
 	inputs, err := reviewpacket.InputsFromEvidence(runEvidenceDir, specPath, run)
 	if err != nil {
-		return nil, fmt.Errorf("load inputs from evidence: %w", err)
+		return nil, nil, "", fmt.Errorf("load inputs from evidence: %w", err)
 	}
 
 	// Generate review packet outputs
 	gen := &reviewpacket.Generator{}
 	outputs, err := gen.Generate(inputs)
 	if err != nil {
-		return nil, fmt.Errorf("generate review packet: %w", err)
+		return nil, nil, "", fmt.Errorf("generate review packet: %w", err)
 	}
 
 	// Write artifacts to run evidence directory
 	if err := os.MkdirAll(runEvidenceDir, 0o755); err != nil {
-		return nil, fmt.Errorf("create evidence directory: %w", err)
+		return nil, nil, "", fmt.Errorf("create evidence directory: %w", err)
 	}
 
 	// Write product review
 	outputs.ProductReview.NormalizeNilFields()
 	prodData, err := json.MarshalIndent(outputs.ProductReview, "", "  ")
 	if err != nil {
-		return nil, fmt.Errorf("marshal product review: %w", err)
+		return nil, nil, "", fmt.Errorf("marshal product review: %w", err)
 	}
 	if err := os.WriteFile(productReviewPath, prodData, 0o644); err != nil {
-		return nil, fmt.Errorf("write product review: %w", err)
+		return nil, nil, "", fmt.Errorf("write product review: %w", err)
 	}
 
 	// Write process review
 	outputs.ProcessReview.NormalizeNilFields()
 	procData, err := json.MarshalIndent(outputs.ProcessReview, "", "  ")
 	if err != nil {
-		return nil, fmt.Errorf("marshal process review: %w", err)
+		return nil, nil, "", fmt.Errorf("marshal process review: %w", err)
 	}
 	if err := os.WriteFile(processReviewPath, procData, 0o644); err != nil {
-		return nil, fmt.Errorf("write process review: %w", err)
+		return nil, nil, "", fmt.Errorf("write process review: %w", err)
 	}
 
 	// Write manual checklist
 	outputs.ManualChecklist.NormalizeNilFields()
 	manualData, err := json.MarshalIndent(outputs.ManualChecklist, "", "  ")
 	if err != nil {
-		return nil, fmt.Errorf("marshal manual checklist: %w", err)
+		return nil, nil, "", fmt.Errorf("marshal manual checklist: %w", err)
 	}
 	if err := os.WriteFile(manualChecklistPath, manualData, 0o644); err != nil {
-		return nil, fmt.Errorf("write manual checklist: %w", err)
+		return nil, nil, "", fmt.Errorf("write manual checklist: %w", err)
 	}
 
-	return run, nil
+	return run, store, runEvidenceDir, nil
 }
 
 // reviewRecord records a review outcome and writes review-outcome.json to the run's evidence directory.
 // All unwalked checklist items default to skipped.
 func reviewRecord(runID string, storeDir string, outcome string, summary string, overrideReason string) error {
 	// Load run and ensure packet exists
-	_, err := loadRunAndEnsurePacket(runID, storeDir)
+	_, _, evidenceDir, err := loadRunAndEnsurePacket(runID, storeDir)
 	if err != nil {
 		return err
 	}
-
-	// Initialize run store
-	if storeDir == "" {
-		storeDir = ".gromit-next"
-	}
-	store := runstore.NewStore(storeDir)
-	evidenceDir := store.RunEvidenceDir(runID)
 
 	// Load review packet outputs
 	outputs, err := loadPacketOutputs(evidenceDir)

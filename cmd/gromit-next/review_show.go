@@ -29,6 +29,8 @@ If no run-id is given, the latest run is shown (by modification time of .gromit-
 				storeDir = ".gromit-next"
 			}
 
+			store := runstore.NewStore(storeDir)
+
 			var runID string
 			// --run flag takes precedence over positional arg
 			if runFlag != "" {
@@ -36,7 +38,7 @@ If no run-id is given, the latest run is shown (by modification time of .gromit-
 			} else if len(args) > 0 && args[0] != "latest" {
 				runID = args[0]
 			} else {
-				id, err := findLatestRunID(storeDir, "", nil)
+				id, err := findLatestRunID(storeDir, "", store)
 				if err != nil {
 					return err
 				}
@@ -60,16 +62,12 @@ If no run-id is given, the latest run is shown (by modification time of .gromit-
 // reviewShow formats review results as a human-readable string.
 func reviewShow(runID string, storeDir string, details bool) (string, error) {
 	// Load run and ensure review packet exists
-	_, err := loadRunAndEnsurePacket(runID, storeDir)
+	_, _, evidenceDir, err := loadRunAndEnsurePacket(runID, storeDir)
 	if err != nil {
 		return "", err
 	}
 
 	var b strings.Builder
-
-	// Get evidence directory
-	store := runstore.NewStore(storeDir)
-	evidenceDir := store.RunEvidenceDir(runID)
 
 	// Read product-review.json
 	productReviewPath := filepath.Join(evidenceDir, "product-review.json")
@@ -90,9 +88,7 @@ func reviewShow(runID string, storeDir string, details bool) (string, error) {
 		return "", fmt.Errorf("read process-review.json: %w", err)
 	}
 
-	var processReview struct {
-		TrustLevel string `json:"trust_level"`
-	}
+	var processReview reviewpacket.ProcessReview
 	if err := json.Unmarshal(processData, &processReview); err != nil {
 		return "", fmt.Errorf("parse process-review.json: %w", err)
 	}
@@ -115,6 +111,8 @@ func reviewShow(runID string, storeDir string, details bool) (string, error) {
 			b.WriteString("### validation.json\n\n```json\n")
 			b.Write(data)
 			b.WriteString("\n```\n\n")
+		} else {
+			b.WriteString("### validation.json\n\n(not found)\n\n")
 		}
 
 		// Include acceptance.json
@@ -123,6 +121,8 @@ func reviewShow(runID string, storeDir string, details bool) (string, error) {
 			b.WriteString("### acceptance.json\n\n```json\n")
 			b.Write(data)
 			b.WriteString("\n```\n\n")
+		} else {
+			b.WriteString("### acceptance.json\n\n(not found)\n\n")
 		}
 
 		// Include review.json
@@ -131,6 +131,8 @@ func reviewShow(runID string, storeDir string, details bool) (string, error) {
 			b.WriteString("### review.json\n\n```json\n")
 			b.Write(data)
 			b.WriteString("\n```\n\n")
+		} else {
+			b.WriteString("### review.json\n\n(not found)\n\n")
 		}
 	}
 

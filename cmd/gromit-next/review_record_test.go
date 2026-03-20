@@ -364,9 +364,9 @@ func TestReviewRecord_AcceptedRequiresNoFailedItems(t *testing.T) {
 	os.WriteFile(filepath.Join(evidenceDir, "manual-checklist.json"), manualData, 0o644)
 
 	// Load the packet and manually record one item as failed
-	outputs, err := loadReviewPacket(rs.RunID, storeDir)
+	outputs, err := loadPacketOutputs(evidenceDir)
 	if err != nil {
-		t.Fatalf("loadReviewPacket: %v", err)
+		t.Fatalf("loadPacketOutputs: %v", err)
 	}
 
 	session := reviewsession.Start(*outputs)
@@ -435,9 +435,9 @@ func TestReviewRecord_AcceptedWithUnsureRequiresOverride(t *testing.T) {
 	os.WriteFile(filepath.Join(evidenceDir, "manual-checklist.json"), manualData, 0o644)
 
 	// Load the packet and record one item as unsure
-	outputs, err := loadReviewPacket(rs.RunID, storeDir)
+	outputs, err := loadPacketOutputs(evidenceDir)
 	if err != nil {
-		t.Fatalf("loadReviewPacket: %v", err)
+		t.Fatalf("loadPacketOutputs: %v", err)
 	}
 
 	session := reviewsession.Start(*outputs)
@@ -538,49 +538,3 @@ func TestReviewRecord_CommandWithRunFlag(t *testing.T) {
 	}
 }
 
-// loadReviewPacket loads the review packet from the evidence directory.
-// This is a helper function for tests.
-func loadReviewPacket(runID, storeDir string) (*reviewpacket.Outputs, error) {
-	store := runstore.NewStore(storeDir)
-	evidenceDir := store.RunEvidenceDir(runID)
-
-	// Read product-review.json
-	productPath := filepath.Join(evidenceDir, "product-review.json")
-	productData, err := os.ReadFile(productPath)
-	if err != nil {
-		return nil, err
-	}
-	var productReview reviewpacket.ProductReview
-	if err := json.Unmarshal(productData, &productReview); err != nil {
-		return nil, err
-	}
-
-	// Read process-review.json
-	processPath := filepath.Join(evidenceDir, "process-review.json")
-	processData, err := os.ReadFile(processPath)
-	if err != nil {
-		return nil, err
-	}
-	var processReview reviewpacket.ProcessReview
-	if err := json.Unmarshal(processData, &processReview); err != nil {
-		return nil, err
-	}
-
-	// Read manual-checklist.json
-	manualPath := filepath.Join(evidenceDir, "manual-checklist.json")
-	manualData, err := os.ReadFile(manualPath)
-	if err != nil {
-		return nil, err
-	}
-	var manualChecklist reviewpacket.ManualChecklist
-	if err := json.Unmarshal(manualData, &manualChecklist); err != nil {
-		return nil, err
-	}
-
-	outputs := &reviewpacket.Outputs{
-		ProductReview:   productReview,
-		ProcessReview:   processReview,
-		ManualChecklist: manualChecklist,
-	}
-	return outputs, nil
-}
