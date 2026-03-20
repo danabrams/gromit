@@ -15,9 +15,9 @@ func TestRenderProductReview(t *testing.T) {
 		{
 			name: "renders spec title and summary",
 			review: ProductReview{
-				RunID:      "run-123",
-				SpecTitle:  "Add user authentication",
-				Summary:    "Successfully implemented OAuth flow",
+				RunID:         "run-123",
+				SpecTitle:     "Add user authentication",
+				Summary:       "Successfully implemented OAuth flow",
 				TerminalState: "success",
 			},
 			contains: []string{
@@ -105,8 +105,8 @@ func TestRenderProductReview(t *testing.T) {
 		{
 			name: "marks diagnostic reviews",
 			review: ProductReview{
-				SpecTitle: "Test spec",
-				Summary:   "Test summary",
+				SpecTitle:    "Test spec",
+				Summary:      "Test summary",
 				IsDiagnostic: true,
 			},
 			contains: []string{"diagnostic"},
@@ -115,9 +115,9 @@ func TestRenderProductReview(t *testing.T) {
 		{
 			name: "includes blocker and recommended action",
 			review: ProductReview{
-				SpecTitle:          "Test spec",
-				Summary:            "Test summary",
-				BlockerSummary:     "Database migration failed",
+				SpecTitle:             "Test spec",
+				Summary:               "Test summary",
+				BlockerSummary:        "Database migration failed",
 				RecommendedNextAction: "Rollback and investigate schema changes",
 			},
 			contains: []string{
@@ -155,11 +155,11 @@ func TestRenderProcessReview(t *testing.T) {
 		{
 			name: "shows trust level and key fields",
 			review: ProcessReview{
-				TrustLevel:          "high",
-				AutomaticProof:      "All tests passed",
-				MachineReview:       "Code quality acceptable",
-				Acceptance:          "Ready for production",
-				RecommendedPosture:  "Deploy",
+				TrustLevel:         "high",
+				AutomaticProof:     "All tests passed",
+				MachineReview:      "Code quality acceptable",
+				Acceptance:         "Ready for production",
+				RecommendedPosture: "Deploy",
 			},
 			contains: []string{
 				"high",
@@ -204,14 +204,14 @@ func TestRenderProcessReview(t *testing.T) {
 		{
 			name: "handles empty degraded flags",
 			review: ProcessReview{
-				TrustLevel:         "high",
-				AutomaticProof:     "All checks passed",
-				MachineReview:      "No issues",
-				Acceptance:         "Approved",
-				DegradedFlags:      []string{},
-				RepairCycles:       0,
+				TrustLevel:          "high",
+				AutomaticProof:      "All checks passed",
+				MachineReview:       "No issues",
+				Acceptance:          "Approved",
+				DegradedFlags:       []string{},
+				RepairCycles:        0,
 				RepeatedFailureFlag: false,
-				RecommendedPosture: "Deploy",
+				RecommendedPosture:  "Deploy",
 			},
 			contains: []string{
 				"high",

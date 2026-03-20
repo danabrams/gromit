@@ -1,3 +1,0 @@
-{"type":"blocked_worktree_cleaned","timestamp":"2026-03-17T10:05:17.524294-04:00","prior_run_id":"run-fe1fe07a3c00c93a","worktree_path":"/var/folders/qd/qyx62km142b7lpv0868gpwgw0000gn/T/gromit-wt-4199721749"}
-{"type":"run_started","timestamp":"2026-03-17T10:05:17.762772-04:00","spec_id":"0002f-scenario-test-writing","project_id":"gromit"}
-{"type":"terminal_state","timestamp":"2026-03-17T10:13:48.20931-04:00","status":"blocked"}

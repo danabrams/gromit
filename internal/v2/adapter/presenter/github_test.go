@@ -266,7 +266,7 @@ func TestPresent_PublishedURLFromCreateCommand(t *testing.T) {
 	// When no PR exists, the "gh pr create" command outputs the URL.
 	expectedURL := "https://github.com/owner/repo/pull/99"
 	runner := &spyCommandRunner{
-		prViewErr:     fmt.Errorf("no PR found"),
+		prViewErr:      fmt.Errorf("no PR found"),
 		prCreateOutput: expectedURL,
 	}
 	presenter := NewGitHubPresenter(runner)

@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -12,7 +13,12 @@ import (
 func TestRefineCommand_UsesNewPipelineDeps(t *testing.T) {
 	t.Parallel()
 
-	refinePath := filepath.Join(".", "refine.go")
+	_, testFile, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("unable to determine test file location")
+	}
+	testDir := filepath.Dir(testFile)
+	refinePath := filepath.Join(testDir, "refine.go")
 	content, err := os.ReadFile(refinePath)
 	if err != nil {
 		t.Fatalf("reading refine.go: %v", err)

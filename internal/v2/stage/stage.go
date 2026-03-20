@@ -18,19 +18,19 @@ type Stage interface {
 
 // StageRequest captures metadata the loop passes to each stage during execution.
 type StageRequest struct {
-	Bead         BeadInfo
-	Model        string
-	Tier         string // routing tier (e.g. "low", "medium", "high")
-	Provider     llmtypes.LLMProvider
-	Iteration    int
-	Config       *config.Config
-	Worktree     string
+	Bead                     BeadInfo
+	Model                    string
+	Tier                     string // routing tier (e.g. "low", "medium", "high")
+	Provider                 llmtypes.LLMProvider
+	Iteration                int
+	Config                   *config.Config
+	Worktree                 string
 	Remediation              bool
 	GapAnalysis              string
 	CompletedBeadTitles      []string // titles of beads already closed
 	FailedAcceptanceCriteria []string // specific criteria that failed acceptance
-	RetryContext *RetryContext
-	Telemetry    *LLMCostSummary
+	RetryContext             *RetryContext
+	Telemetry                *LLMCostSummary
 }
 
 // StageResult reports the outcome of a stage invocation.

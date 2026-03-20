@@ -167,3 +167,55 @@ func TestParseAcceptanceCriteria_MultilineWithDashes(t *testing.T) {
 		t.Errorf("expected 'First criterion with multiple parts:', got '%s'", criteria[0].Text)
 	}
 }
+
+func TestParseAcceptanceCriteria_DashPrefixed(t *testing.T) {
+	content := `
+## Acceptance Criteria
+
+- API returns paginated results
+- Error handling for invalid inputs
+- Performance meets SLA requirements
+`
+
+	criteria := ParseAcceptanceCriteria(content)
+
+	if len(criteria) != 3 {
+		t.Fatalf("expected 3 criteria, got %d", len(criteria))
+	}
+
+	if criteria[0].Text != "API returns paginated results" {
+		t.Errorf("expected 'API returns paginated results', got '%s'", criteria[0].Text)
+	}
+	if criteria[1].Text != "Error handling for invalid inputs" {
+		t.Errorf("expected 'Error handling for invalid inputs', got '%s'", criteria[1].Text)
+	}
+	if criteria[2].Text != "Performance meets SLA requirements" {
+		t.Errorf("expected 'Performance meets SLA requirements', got '%s'", criteria[2].Text)
+	}
+}
+
+func TestParseAcceptanceCriteria_MixedNumberedAndDash(t *testing.T) {
+	content := `
+## Acceptance Criteria
+
+1. First numbered criterion
+- A dash-prefixed criterion
+2. Second numbered criterion
+`
+
+	criteria := ParseAcceptanceCriteria(content)
+
+	if len(criteria) != 3 {
+		t.Fatalf("expected 3 criteria, got %d", len(criteria))
+	}
+
+	if criteria[0].Text != "First numbered criterion" {
+		t.Errorf("expected 'First numbered criterion', got '%s'", criteria[0].Text)
+	}
+	if criteria[1].Text != "A dash-prefixed criterion" {
+		t.Errorf("expected 'A dash-prefixed criterion', got '%s'", criteria[1].Text)
+	}
+	if criteria[2].Text != "Second numbered criterion" {
+		t.Errorf("expected 'Second numbered criterion', got '%s'", criteria[2].Text)
+	}
+}

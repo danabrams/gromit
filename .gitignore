@@ -1,6 +1,9 @@
 # Binary (in root directory only)
 /gromit
 
+# Compiled binaries
+cmd/gromit-next/gromit-next
+
 # IDE
 .idea/
 .vscode/

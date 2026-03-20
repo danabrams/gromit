@@ -266,4 +266,3 @@ func formatReviewSummary(findings map[string][]ReviewFinding) string {
 func formatAcceptanceSummary(passed int, total int) string {
 	return fmt.Sprintf("%d/%d criteria passed", passed, total)
 }
-

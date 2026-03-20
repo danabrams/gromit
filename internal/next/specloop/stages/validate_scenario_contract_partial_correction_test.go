@@ -19,9 +19,9 @@ import (
 // This simulates a contract evaluator where some assertions can be auto-corrected
 // and others require a replan.
 type fakeContractEvaluatorPartialCorrection struct {
-	callCount              int
-	firstCallFailures      []contract.ContractFailure
-	secondCallFailures     []contract.ContractFailure
+	callCount          int
+	firstCallFailures  []contract.ContractFailure
+	secondCallFailures []contract.ContractFailure
 }
 
 func (f *fakeContractEvaluatorPartialCorrection) Evaluate(ctx context.Context, c *contract.ScenarioContract, workDir string) ([]contract.ContractFailure, error) {

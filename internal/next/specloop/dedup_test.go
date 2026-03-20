@@ -717,9 +717,9 @@ func TestScenario_FailureHistoryStillWorks(t *testing.T) {
 	UpdateFailureHistory(failureHistory, contractKeys)
 
 	expectedKeys := map[string]bool{
-		"contract:Happy path":            true,
-		"contract:Self-repair succeeds":  true,
-		"contract:Self-repair fails":     true,
+		"contract:Happy path":           true,
+		"contract:Self-repair succeeds": true,
+		"contract:Self-repair fails":    true,
 	}
 
 	if len(failureHistory) != 3 {

@@ -23,8 +23,8 @@ type SatisfactionDiffer interface {
 type Stage struct {
 	name    string
 	tracker trackertypes.TaskTracker
-	llm     llmtypes.LLMProvider   // optional
-	git     SatisfactionDiffer     // optional
+	llm     llmtypes.LLMProvider // optional
+	git     SatisfactionDiffer   // optional
 }
 
 // Option configures optional Stage behavior.

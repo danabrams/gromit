@@ -20,10 +20,10 @@ const codexProcessCapacityWait = 1500 * time.Millisecond
 
 // codexTransientRetry constants for bounded retry on transport/rate-limit errors.
 const (
-	codexTransientRetryMax       = 2
-	codexRetryBackoffFirst       = 250 * time.Millisecond
-	codexRetryBackoffSecond      = 750 * time.Millisecond
-	codexRetryBackoffDefault     = 1500 * time.Millisecond
+	codexTransientRetryMax   = 2
+	codexRetryBackoffFirst   = 250 * time.Millisecond
+	codexRetryBackoffSecond  = 750 * time.Millisecond
+	codexRetryBackoffDefault = 1500 * time.Millisecond
 )
 
 var _ LLMProvider = (*codexAdapter)(nil)
@@ -537,16 +537,16 @@ func processCodexJSONLStream(reader io.Reader, output io.Writer) (string, *codex
 
 // codexJSONLEvent is a minimal representation of codex JSONL events.
 type codexJSONLEvent struct {
-	Type    string              `json:"type"`
-	Text    string              `json:"text,omitempty"`
-	Item    *codexJSONLItem     `json:"item,omitempty"`
-	Delta   *codexJSONLDelta    `json:"delta,omitempty"`
-	Usage   *codexJSONLUsage    `json:"usage,omitempty"`
-	Result  *codexJSONLResult   `json:"result,omitempty"`
-	Response *codexJSONLResponse `json:"response,omitempty"`
-	InputTokens  int     `json:"input_tokens,omitempty"`
-	OutputTokens int     `json:"output_tokens,omitempty"`
-	TotalCostUSD float64 `json:"total_cost_usd,omitempty"`
+	Type         string              `json:"type"`
+	Text         string              `json:"text,omitempty"`
+	Item         *codexJSONLItem     `json:"item,omitempty"`
+	Delta        *codexJSONLDelta    `json:"delta,omitempty"`
+	Usage        *codexJSONLUsage    `json:"usage,omitempty"`
+	Result       *codexJSONLResult   `json:"result,omitempty"`
+	Response     *codexJSONLResponse `json:"response,omitempty"`
+	InputTokens  int                 `json:"input_tokens,omitempty"`
+	OutputTokens int                 `json:"output_tokens,omitempty"`
+	TotalCostUSD float64             `json:"total_cost_usd,omitempty"`
 }
 
 type codexJSONLItem struct {

@@ -202,10 +202,10 @@ func (f *fakeLLM) StreamInvoke(ctx context.Context, req llm.StreamInvokeRequest)
 }
 
 type fakeGitAdapter struct {
-	diff              string
-	diffFromBase      string
-	lastWorktree      string
-	diffCalled        bool
+	diff               string
+	diffFromBase       string
+	lastWorktree       string
+	diffCalled         bool
 	diffFromBaseCalled bool
 }
 

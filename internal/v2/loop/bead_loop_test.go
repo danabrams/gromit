@@ -16,12 +16,12 @@ import (
 	"github.com/danabrams/gromit/internal/v2/event"
 	"github.com/danabrams/gromit/internal/v2/generation"
 	"github.com/danabrams/gromit/internal/v2/stage"
-	stagedesc "github.com/danabrams/gromit/internal/v2/stage/names"
 	epiloguestage "github.com/danabrams/gromit/internal/v2/stage/epilogue"
+	stagedesc "github.com/danabrams/gromit/internal/v2/stage/names"
 	reviewstage "github.com/danabrams/gromit/internal/v2/stage/review"
 	"github.com/danabrams/gromit/internal/v2/stage/triage"
-	"github.com/danabrams/gromit/internal/v2/trackertypes"
 	stagevalidate "github.com/danabrams/gromit/internal/v2/stage/validate"
+	"github.com/danabrams/gromit/internal/v2/trackertypes"
 )
 
 func TestBeadLoopRunsStagesInOrder(t *testing.T) {
@@ -942,7 +942,6 @@ func (m *mockGitCommitter) Commit(ctx context.Context, worktree, message string)
 	return m.commitHash, m.commitErr
 }
 
-
 func TestBeadLoopNoGitAdapterSkipsCommit(t *testing.T) {
 	t.Parallel()
 
@@ -1287,11 +1286,11 @@ func TestBeadLoopTriageDecomposeRespectsGenerationCap(t *testing.T) {
 	}
 
 	cfg := BeadLoopConfig{
-		Gate:            newNoopStage("gate"),
-		Build:           buildStage,
-		Validate:        newNoopStage("validate"),
-		Review:          newNoopStage("review"),
-		Epilogue:        newNoopStage("epilogue"),
+		Gate:                       newNoopStage("gate"),
+		Build:                      buildStage,
+		Validate:                   newNoopStage("validate"),
+		Review:                     newNoopStage("review"),
+		Epilogue:                   newNoopStage("epilogue"),
 		Triage:                     triageStage,
 		Decompose:                  decomposeStage,
 		Emitter:                    emitter,

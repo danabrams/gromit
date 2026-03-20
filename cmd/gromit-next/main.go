@@ -26,6 +26,7 @@ func init() {
 	rootCmd.AddCommand(contextCmd)
 	rootCmd.AddCommand(execCmd)
 	rootCmd.AddCommand(specCmd)
+	rootCmd.AddCommand(reviewCmd)
 	execCmd.AddCommand(newExecSpecCmd())
 	execCmd.AddCommand(newExecShowCmd())
 	execCmd.AddCommand(newExecListCmd())

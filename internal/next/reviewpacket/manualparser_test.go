@@ -277,3 +277,105 @@ Instructions: Do something important
 		t.Errorf("expected empty ExpectedResult for partial check, got '%s'", checks.Items[0].ExpectedResult)
 	}
 }
+
+func TestParseManualChecks_NumberedItems(t *testing.T) {
+	content := `
+# My Spec
+
+## Validation
+
+### Manual
+
+1. Run a fixture spec that reaches ready_for_review and verify product-review.json exists
+2. Verify product-review.md is readable and leads with behavior cards
+3. Verify a blocked fixture run produces a diagnostic packet
+`
+
+	scenarios := []ParsedScenario{
+		{Title: "Scenario 1", Given: "given", When: "when", Then: "then"},
+		{Title: "Scenario 2", Given: "given", When: "when", Then: "then"},
+	}
+
+	checks := ParseManualChecks(content, scenarios)
+
+	if len(checks.Items) != 3 {
+		t.Fatalf("expected 3 explicit checks from numbered items, got %d", len(checks.Items))
+	}
+
+	// Check titles contain the numbered item text
+	expectedTitles := []string{
+		"Run a fixture spec that reaches ready_for_review and verify product-review.json exists",
+		"Verify product-review.md is readable and leads with behavior cards",
+		"Verify a blocked fixture run produces a diagnostic packet",
+	}
+
+	for i, expected := range expectedTitles {
+		if checks.Items[i].Title != expected {
+			t.Errorf("item %d: expected title '%s', got '%s'", i, expected, checks.Items[i].Title)
+		}
+		if checks.Items[i].ID == "" {
+			t.Errorf("item %d: expected non-empty ID", i)
+		}
+	}
+}
+
+func TestParseManualChecks_NumberedItemsPreferredOverScenarios(t *testing.T) {
+	// When explicit numbered items exist, they should be used instead of fallback to scenarios
+	content := `
+# My Spec
+
+## Validation
+
+### Manual
+
+1. First manual step
+2. Second manual step
+3. Third manual step
+`
+
+	scenarios := []ParsedScenario{
+		{Title: "Scenario 1", Given: "given", When: "when", Then: "then"},
+		{Title: "Scenario 2", Given: "given", When: "when", Then: "then"},
+	}
+
+	checks := ParseManualChecks(content, scenarios)
+
+	// Should use explicit 3 items, not fallback to 2 scenarios
+	if len(checks.Items) != 3 {
+		t.Fatalf("expected 3 explicit checks, got %d", len(checks.Items))
+	}
+
+	if checks.Items[0].Title != "First manual step" {
+		t.Errorf("expected 'First manual step', got '%s'", checks.Items[0].Title)
+	}
+}
+
+func TestParseManualChecks_MixedExplicitFormats(t *testing.T) {
+	// Both "#### Check:" and numbered items should work together
+	content := `
+# My Spec
+
+## Validation
+
+### Manual
+
+#### Check: Explicit check format
+Instructions: Do this
+Expected Result: See that
+
+1. Numbered item format
+`
+
+	checks := ParseManualChecks(content, nil)
+
+	if len(checks.Items) != 2 {
+		t.Fatalf("expected 2 checks (one explicit header, one numbered), got %d", len(checks.Items))
+	}
+
+	if checks.Items[0].Title != "Explicit check format" {
+		t.Errorf("expected first item to be explicit check, got '%s'", checks.Items[0].Title)
+	}
+	if checks.Items[1].Title != "Numbered item format" {
+		t.Errorf("expected second item to be numbered, got '%s'", checks.Items[1].Title)
+	}
+}

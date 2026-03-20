@@ -28,8 +28,8 @@ func TestGenerator_ReadyForReview(t *testing.T) {
 			"info": {},
 		},
 		AcceptanceResult: AcceptanceData{
-			Passed: 5,
-			Failed: 0,
+			Passed:  5,
+			Failed:  0,
 			Unclear: 0,
 		},
 		DegradedFlags:   []string{},
