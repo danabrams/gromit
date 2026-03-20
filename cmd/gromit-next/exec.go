@@ -166,6 +166,7 @@ func (e *execSpecRun) run(ctx context.Context) error {
 		// Reset terminal state so the pipeline can re-run
 		rs.Status = runstore.StatusRunning
 		rs.TerminalReason = ""
+		rs.BlockerSummary = ""
 		rs.EndedAt = time.Time{}
 		// Reset per-cycle gate flags
 		rs.FinalValidationPassed = false

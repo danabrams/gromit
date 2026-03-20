@@ -116,6 +116,9 @@ func (sl *SpecLoop) Run(ctx context.Context, rs *runstore.RunState) error {
 				return nil
 			case Blocked:
 				rs.Status = runstore.StatusBlocked
+				if action.Context != nil && len(action.Context.Failures) > 0 {
+					rs.BlockerSummary = action.Context.Failures[0]
+				}
 				rs.EndedAt = time.Now()
 				sl.emitTerminal(rs)
 				sl.runEvidence(ctx, rs)
