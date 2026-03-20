@@ -35,7 +35,9 @@ A RiskAssessor computes a discrete risk level (low, medium, high) from five sign
 |------|-----|--------|------|
 | Adversarial review | skip | 1 facet (skeptical_reviewer) | all 3 facets |
 | Counterexample cap | 1 per scenario | 3 per scenario | 5 per scenario |
-| Blocking threshold | error only | error only | warning + error |
+| Blocking threshold | error only | error only | warning + error (threshold lowered to `SeverityWarning`, per `IsBlocking(threshold, severity)` semantics) |
+
+**Note:** Risk modulates the default adversarial scope, but explicit `adversarial_review.enabled` and `adversarial_review.facets` config from 0005b takes precedence. If a project explicitly configures adversarial review, that config overrides the risk-driven default.
 
 ### RiskAssessor
 
@@ -67,10 +69,22 @@ func Assess(signals RiskSignals) RiskLevel
 
 ### Scoring Rules (deterministic, no weights)
 
+#### Signal Category to Struct Field Mapping
+
+| Signal Category | RiskSignals Fields |
+|---|---|
+| Diff size | `DiffLines` |
+| Surface area | `FilesTouched`, `PackagesTouched`, `PublicAPIChanges` |
+| Sensitive areas | `SensitiveAreas` |
+| Evidence quality | `DegradedFlags`, `TrustLevel` |
+| Cycle history | `ReplanCount`, `RepeatedFailure` |
+
 High if ANY of:
 - `DiffLines > 500` or `FilesTouched > 20`
+- `PackagesTouched > 8` or `PublicAPIChanges == true`
 - Any sensitive area touched
 - `TrustLevel == "low"`
+- `len(DegradedFlags) > 0`
 - `RepeatedFailure == true`
 
 Low if ALL of:
@@ -79,11 +93,11 @@ Low if ALL of:
 - `TrustLevel == "high"`
 - `ReplanCount == 0`
 
-Medium otherwise.
+Medium otherwise (including `TrustLevel == "medium"`, which is neither low-triggering nor high-triggering and falls to this catch-all).
 
 ### Two Assessment Points
 
-1. **After Plan, before WriteContracts** — preliminary assessment from plan metadata (task count, targeted packages, sensitive area keywords). Sets counterexample cap for 0005a.
+1. **After Plan, before WriteContracts** — preliminary assessment from plan metadata. Plan metadata maps to RiskSignals as follows: task count is used as an estimate for DiffLines (e.g., tasks * 50), targeted packages map to FilesTouched and PackagesTouched estimates, and package names are matched against the sensitive areas list. Sets counterexample cap for 0005a.
 2. **After Execute, before Review** — updated assessment from actual diff and validation results. Sets adversarial scope and blocking threshold for 0005b.
 
 ### Configuration
@@ -123,7 +137,7 @@ When `level` is set to a specific value, `Assess()` is skipped and that level is
 ## Scenarios
 
 ### Scenario: High-risk run triggers full adversarial review
-**Given:** A run that touches 25 files across 8 packages with 600 lines changed
+**Given:** A run that touches 25 files across 9 packages with 600 lines changed
 **When:** The RiskAssessor runs after Execute
 **Then:** Risk level is computed as `high`. AdversarialReview runs all 3 facets. Counterexample cap is 5 per scenario. Blocking threshold is warning + error. `risk-assessment.json` records the level and all input signals.
 
@@ -131,6 +145,11 @@ When `level` is set to a specific value, `Assess()` is skipped and that level is
 **Given:** A run that touches 3 files in 1 package with 30 lines changed, no sensitive areas, trust level high, no replans
 **When:** The RiskAssessor runs after Execute
 **Then:** Risk level is computed as `low`. AdversarialReview is skipped. Counterexample cap is 1 per scenario. Blocking threshold is error only.
+
+### Scenario: Low trust level forces high risk
+**Given:** A run with 3 files, 40 lines changed, but TrustLevel is "low"
+**When:** The RiskAssessor runs after Execute
+**Then:** Risk level is `high` because TrustLevel is "low", despite the small diff
 
 ### Scenario: Sensitive area forces high risk regardless of diff size
 **Given:** A run that touches 2 files with 20 lines changed, but one file is in an auth package
@@ -140,12 +159,22 @@ When `level` is set to a specific value, `Assess()` is skipped and that level is
 ### Scenario: Config override bypasses computation
 **Given:** A project with `risk.level: low` in config
 **When:** The run touches 30 files with 800 lines changed
-**Then:** Risk level is `low` regardless of signals. Adversarial review is skipped. `risk-assessment.json` records the override and the signals that would have produced `high`.
+**Then:** Risk level is `low` regardless of signals. Adversarial review is skipped. `Assess()` is not called. `risk-assessment.json` records the override level and notes that computation was bypassed, but does not record a hypothetical computed level.
 
 ### Scenario: Floor raises computed level
 **Given:** A project with `risk.floor: medium` in config
 **When:** The run touches 2 files with 15 lines changed (would compute as `low`)
 **Then:** Risk level is raised to `medium`. AdversarialReview runs with 1 facet. Counterexample cap is 3.
+
+### Scenario: Degraded evidence flags force high risk
+**Given:** A run that touches 4 files with 40 lines changed and no sensitive areas, but DegradedFlags contains `["test_coverage_incomplete"]`
+**When:** The RiskAssessor runs after Execute
+**Then:** Risk level is `high` because degraded evidence flags are present, despite the small diff. AdversarialReview runs all 3 facets. Blocking threshold is warning + error.
+
+### Scenario: Replan prevents low risk classification
+**Given:** A run that touches 2 files with 20 lines changed, no sensitive areas, trust level high, but ReplanCount is 1
+**When:** The RiskAssessor runs after Execute
+**Then:** Risk level is NOT `low` because `ReplanCount > 0` violates the low-risk requirement. Risk falls to `medium` (the catch-all).
 
 ### Scenario: Preliminary vs updated risk diverge
 **Given:** A plan targeting 2 tasks in 1 package (preliminary risk: `low`, counterexample cap set to 1), but execution produces a 600-line diff touching auth code

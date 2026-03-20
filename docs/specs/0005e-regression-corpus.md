@@ -4,13 +4,13 @@
 regression-corpus
 
 ## Depends on
-spec-0005a, spec-0005c, spec-0005d
+spec-0005a, spec-0005b, spec-0005c, spec-0005d
 
 ## Vision
 Generic validation and review operate on abstract rules. They catch classes of problems but have no memory of specific failures that actually happened. A regression corpus grounds the system in real history — escaped bugs, near-misses, adversarial catches, and manually discovered defects become entries that future runs must prove they don't repeat. Unlike imagined test catalogs, a regression corpus has already proved its relevance. Every entry represents a failure someone cared about enough to record, making it the highest-signal regression surface the system can accumulate.
 
 ## Summary
-A project accumulates a regression corpus of real failures — sourced from promoted proposals (0005d), adversarial review catches, and manual entries. Each entry is either a natural language assertion (verified by LLM evaluation) or an executable test snippet (run via a configurable command). A new pipeline stage, ReplayRegression, runs after Validate and replays corpus entries whose package tags or freeform tags match the current run's diff. A standalone CLI command allows on-demand replay against the current codebase. The corpus is language-agnostic — executable entries specify their runner command in configuration.
+A project accumulates a regression corpus of real failures — sourced from promoted proposals (0005d), adversarial review catches, and manual entries. Each entry is either a natural language assertion (verified by LLM evaluation) or an executable test snippet (run via a configurable command). A new pipeline stage, ReplayRegression, runs after Validate and replays corpus entries whose package tags or freeform tags match the current run's spec content. A standalone CLI command allows on-demand replay against the current codebase. The corpus is language-agnostic — executable entries specify their runner command in configuration.
 
 ## Goals
 ### Primary
@@ -52,11 +52,12 @@ type Entry struct {
     Tags             []string  `json:"tags"`                      // freeform tags for cross-cutting concerns
     Severity         string    `json:"severity"`                  // critical, high, medium, low
     Source           string    `json:"source"`                    // "promoted:<proposal-id>", "manual", "adversarial:<finding-id>"
-    Status           string    `json:"status"`                    // active, superseded
+    Status           string    `json:"status"`                    // active, superseded, removed
     SourceRunID      string    `json:"source_run_id,omitempty"`
     SourceSpecID     string    `json:"source_spec_id,omitempty"`
     CreatedAt        time.Time `json:"created_at"`
     SupersededBy     string    `json:"superseded_by,omitempty"`
+    RemovalReason    string    `json:"removal_reason,omitempty"`  // reason for removal (status=removed)
 }
 
 type Store struct{}
@@ -69,7 +70,7 @@ Entry IDs computed from `(title, description)` via SHA-256, first 8 hex characte
 
 ### Entry Sources
 
-1. **Promoted proposals (0005d)** — when a proposal is accepted and its content describes a specific reproducible failure, the triage CLI can promote it to the regression corpus via `review proposals accept --to-corpus`
+1. **Promoted proposals (0005d)** — when a proposal is accepted and its content describes a specific reproducible failure, the triage CLI can promote it to the regression corpus via `review proposals accept --to-corpus`. 0005e extends the `--to-corpus` flag (defined in 0005d) with required `--packages` and `--tags` arguments for specifying corpus entry metadata.
 2. **Manual entry** — `regression add` CLI command for bugs discovered outside the pipeline
 3. **Adversarial findings** — blocking adversarial findings that triggered replan can be added via the triage CLI
 
@@ -77,8 +78,8 @@ Entry IDs computed from `(title, description)` via SHA-256, first 8 hex characte
 
 When the ReplayRegression stage runs, it selects entries to replay:
 
-1. **Package match** — if any of the entry's `package_tags` overlap with packages touched in the diff, the entry is selected
-2. **Tag match** — if any of the entry's freeform `tags` appear in the spec content, acceptance criteria, or scenario text, the entry is selected
+1. **Package match** — if any of the entry's `package_tags` overlap with packages touched in the diff, the entry is selected. Package tag matching uses prefix matching: an entry tag `internal/parser` matches a diff file `internal/parser/parse.go`.
+2. **Tag match** — if any of the entry's freeform `tags` appear in the spec content (the spec's scenarios and acceptance criteria text), the entry is selected. Tag matching is whole-word, case-insensitive.
 3. Only `active` entries are considered
 4. Matching is deterministic — no LLM calls
 
@@ -100,8 +101,10 @@ When the ReplayRegression stage runs, it selects entries to replay:
 Runs after Validate, before Review. Position:
 
 ```
-Execute → WriteScenarioTests → Validate → ReplayRegression → Review → AdversarialReview → Accept
+Plan → WriteContracts → SynthesizeCounterexamples → Execute → WriteScenarioTests → Validate → ReplayRegression → Review → AdversarialReview → Accept
 ```
+
+Note: init, compile, finalize, and evidence stages are omitted for brevity.
 
 Lives in `internal/next/specloop/stages/replay_regression.go`. Implements the existing `Stage` interface.
 
@@ -122,8 +125,8 @@ Lives in `internal/next/specloop/stages/replay_regression.go`. Implements the ex
 - `--kind assertion` requires `--assertion`
 - `--kind executable` requires `--snippet-file` and `--runner`
 
-**`regression list [--tag tag] [--package pkg] [--status active|superseded]`**
-- Lists corpus entries with filters
+**`regression list [--tag tag] [--package pkg] [--status active|superseded|removed]`**
+- Lists corpus entries with filters (defaults to `active`)
 
 **`regression show <entry-id>`**
 - Displays full entry detail
@@ -134,7 +137,10 @@ Lives in `internal/next/specloop/stages/replay_regression.go`. Implements the ex
 - Reports pass/fail per entry
 
 **`regression remove <entry-id> --reason "..."`**
-- Supersedes an entry with a reason
+- Removes an entry from active replay by setting status to `removed` and recording the reason in `removal_reason`
+- Distinct from `superseded` (which means replaced by another entry via `superseded_by`)
+
+> **Note on `superseded` vs `removed`:** The `superseded` status is set programmatically (e.g., when a new corpus entry explicitly replaces an old one via the promotion pipeline), not via a CLI command. There is no `regression supersede` CLI command — supersession is an internal operation. The `removed` status is set via the `regression remove` CLI command shown above.
 
 ### Configuration
 
@@ -178,17 +184,18 @@ type EntryResult struct {
 5. The runner command is per-entry and language-agnostic — not hardcoded to Go
 6. A configurable `default_runner` is used for executable entries that don't specify their own runner
 7. Entry matching uses package tag overlap with the diff and freeform tag overlap with spec content — no LLM calls for matching
-8. Only `active` entries are replayed; `superseded` entries are excluded
+8. Only `active` entries are replayed; `superseded` and `removed` entries are excluded
 9. If any matched entry fails, the stage returns `ReplanFrom` with failure context
 10. If no entries match the current run, the stage returns `Continue` immediately with no LLM or runner invocations
 11. Replay results are recorded in `regression-replay.json` in the evidence directory
 12. `regression add` creates a manual corpus entry with title, description, kind, tags, packages, and severity
 13. `regression replay` runs on-demand replay against the current codebase with optional filters
 14. `regression list` and `regression show` provide corpus browsability
-15. `regression remove` supersedes an entry with a recorded reason
+15. `regression remove` sets an entry's status to `removed` with a recorded reason; distinct from `superseded` which requires a replacement entry
 16. Entries from 0005d's promotion pipeline can be added to the corpus via `review proposals accept --to-corpus`
 17. Model tier for LLM-evaluated assertions is configurable, defaulting to project's medium tier
 18. All existing tests continue to pass
+19. A runner error (command not found, permission denied, timeout) on one entry does not prevent remaining entries from being replayed; the errored entry's result status is `error` with output capturing the error details
 
 ## Scenarios
 
@@ -220,7 +227,7 @@ type EntryResult struct {
 
 **Given:** An `automated-distillation-proposals.json` contains a `counterexample_seed` proposal about nil map handling that was a real failure
 **When:** The reviewer runs `review proposals accept <proposal-id> --to-corpus --packages "internal/config" --tags "nil,maps"`
-**Then:** A new corpus entry is created with source `promoted:<proposal-id>`, the proposal's description as the entry description, and the specified tags
+**Then:** A new corpus entry is created with source `promoted:<proposal-id>`, the proposal's description as the entry description, and the specified tags. Promoted proposals default to `kind: assertion` with the proposal description becoming the assertion text.
 
 ### Scenario: On-demand replay via CLI
 
@@ -245,6 +252,30 @@ type EntryResult struct {
 **Given:** A corpus with 3 entries: one with runner `go test`, one with runner `pytest`, one with kind `assertion` (LLM-evaluated)
 **When:** All three match the current run and ReplayRegression runs
 **Then:** Each entry is replayed via its own mechanism — Go test via `go test`, Python test via `pytest`, assertion via LLM. All three results appear in `regression-replay.json`.
+
+### Scenario: Executable entry uses default runner when none specified
+
+**Given:** An active corpus entry with kind `executable`, no explicit `runner` set, and a project configuration with `regression.default_runner: "go test"`
+**When:** The entry matches the current run and ReplayRegression replays it
+**Then:** The snippet is executed via the configured `default_runner` ("go test"). The result is recorded with the runner used.
+
+### Scenario: Entry removed with reason via CLI
+
+**Given:** An active corpus entry with ID `rc-a1b2c3d4`
+**When:** The developer runs `regression remove rc-a1b2c3d4 --reason "Fixed upstream in v2.3; test now covered by unit tests"`
+**Then:** The entry's status is set to `removed` and its `removal_reason` field records the provided reason. The entry no longer matches during replay.
+
+### Scenario: Model tier for LLM assertions is configurable
+
+**Given:** A project with `regression.model_tier: high` and an active corpus entry with kind `assertion`
+**When:** The entry matches and is replayed during ReplayRegression
+**Then:** The LLM assertion evaluation uses the project's high tier model instead of the default medium tier.
+
+### Scenario: Runner command fails on one entry but replay continues
+
+**Given:** A corpus with 3 matched executable entries. The first entry's runner command (`nonexistent-tool`) is not found on the system.
+**When:** ReplayRegression replays all 3 entries
+**Then:** The first entry's result status is `error` with output capturing the "command not found" error. The remaining 2 entries are still replayed normally. `regression-replay.json` records all 3 results.
 
 ## Validation
 

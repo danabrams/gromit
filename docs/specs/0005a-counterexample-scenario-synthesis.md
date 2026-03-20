@@ -3,11 +3,14 @@
 ## spec_id
 counterexample-scenario-synthesis
 
+## Depends on
+None (establishes pipeline stage ordering used by 0005b, 0005c)
+
 ## Vision
 The scenario surface today is only as strong as the spec author's foresight. Many bugs live in the missing examples — boundaries, negations, error paths, and stale-state edges that the original scenarios never mentioned. Counterexample synthesis turns disciplined expansion of the existing scenarios into a pipeline stage, so the implementation must satisfy harder cases from the start rather than passing on optimistic happy-path coverage alone.
 
 ## Summary
-A new configurable pipeline stage, SynthesizeCounterexamples, runs after WriteContracts and before Execute. It reads the spec's existing scenarios and acceptance criteria, then uses an LLM to synthesize counterexample scenarios across boundary, negation, error-path, and state-edge categories. Synthesized scenarios are tagged `origin: synthesized`, subject to a configurable per-scenario cap, and flow through the existing contract and test infrastructure with equal weight.
+A new configurable pipeline stage, SynthesizeCounterexamples, runs after WriteContracts and before Execute. It reads the spec's existing scenarios and acceptance criteria, then uses an LLM to synthesize counterexample scenarios across boundary, negation, error-path, state-edge, and persistence categories. Synthesized scenarios are tagged `origin: synthesized`, subject to a configurable per-scenario cap, and flow through the existing contract and test infrastructure with equal weight.
 
 ## Goals
 ### Primary
@@ -36,22 +39,27 @@ New flow:
   Plan → WriteContracts → SynthesizeCounterexamples → Execute → WriteScenarioTests → Validate → Review → Accept
 ```
 
+> **Note:** This diagram is simplified and omits the init, compile, finalize, and evidence stages.
+
 ### New Stage: SynthesizeCounterexamples
 
-Lives in `internal/next/specloop/stages/synthesize_counterexamples.go`. Implements the existing `Stage` interface.
+Lives in `internal/next/specloop/stages/synthesize_counterexamples.go`. Implements the existing `Stage` interface. `Name()` returns `"synthesize_counterexamples"`.
 
 ```go
 type SynthesizedScenario struct {
-    Scenario                   // embeds existing Scenario type
-    Origin         string      // "synthesized"
-    SourceScenario string      // name of the scenario it was derived from
-    Category       string      // "boundary" | "negation" | "error_path" | "state_edge" | "persistence"
+    Name             string   // short descriptive name
+    Description      string   // what this scenario tests
+    Steps            []string // given/when/then steps
+    ExpectedBehavior string   // what correct behavior looks like
+    Origin           string   // always "synthesized"
+    SourceScenario   string   // name of the authored scenario it was derived from
+    Category         string   // "boundary" | "negation" | "error_path" | "state_edge" | "persistence"
 }
 ```
 
 ### LLM Prompt Structure
 - Receives: original scenarios, acceptance criteria, spec summary
-- Instructed to consider 5 categories per scenario: boundaries, negations, error paths, state edges, persistence edges
+- Instructed to consider 5 categories per scenario: boundary, negation, error_path, state_edge, persistence
 - Must output structured scenarios in the same format as authored ones
 - Capped at N per source scenario (default 3)
 
@@ -65,13 +73,13 @@ counterexamples:
 ```
 
 ### Integration Points
-- Synthesized scenarios are appended to the run's scenario list with `origin: synthesized` tag
+- Synthesized scenarios are written to the evidence artifacts (`scenario-contracts.yaml`, `scenario-test-manifest.json`) with `origin: synthesized` tag and passed to downstream stages via those files
 - WriteScenarioTests sees them identically to authored scenarios
 - Contract verification treats them identically
 - Evidence bundler records them in `scenario-contracts.yaml` with origin metadata
 - Review facets can see the tag but don't treat them differently
 
-### Key Decision
+### Key Decisions
 The stage does NOT modify the spec file. Counterexamples exist only in the run context and evidence artifacts. The spec remains the author's source of truth.
 
 ## Acceptance Criteria
@@ -108,13 +116,38 @@ The stage does NOT modify the spec file. Counterexamples exist only in the run c
 
 ### Scenario: Per-scenario cap respected
 **Given:** A spec with 1 authored scenario and `max_per_scenario: 2`
-**When:** The LLM generates 5 candidate counterexamples for that scenario
-**Then:** Only 2 counterexamples are kept (highest relevance as judged by the LLM), and the remaining 3 are discarded
+**When:** The LLM is prompted to synthesize counterexamples for that scenario
+**Then:** The LLM prompt instructs it to return exactly 2 counterexamples (the cap is passed in the prompt, so the LLM produces at most N rather than generating extras to be filtered)
+
+### Scenario: LLM invocation failure degrades gracefully
+**Given:** A spec with 2 authored scenarios and default config
+**When:** The LLM invocation fails due to a network error or timeout during SynthesizeCounterexamples
+**Then:** The stage logs the error, produces zero synthesized scenarios, and the pipeline continues to Execute with only the authored scenarios (graceful degradation, not a blocking failure)
+
+### Scenario: LLM returns malformed output
+**Given:** A spec with 2 authored scenarios and default config
+**When:** The LLM returns output that cannot be parsed into valid SynthesizedScenario structs
+**Then:** The stage logs a warning with the parse error, produces zero synthesized scenarios, and the pipeline continues to Execute with only the authored scenarios
 
 ### Scenario: Evidence artifacts include origin metadata
 **Given:** A completed run with 2 authored and 4 synthesized scenarios
 **When:** Evidence is bundled at finalization
 **Then:** `scenario-contracts.yaml` and `scenario-test-manifest.json` include all 6 scenarios, with synthesized ones carrying `origin: synthesized`, `source_scenario`, and `category` fields
+
+### Scenario: WriteScenarioTests treats synthesized scenarios identically to authored ones
+**Given:** A completed SynthesizeCounterexamples stage that produced 3 synthesized scenarios alongside 2 authored scenarios
+**When:** The WriteScenarioTests stage runs
+**Then:** Tests are written for all 5 scenarios using the same test-writing logic; synthesized scenarios receive scenario tests identical in structure to authored ones
+
+### Scenario: Model tier configuration is respected
+**Given:** A project config with `counterexamples.model_tier: low` and a spec with 2 authored scenarios
+**When:** The SynthesizeCounterexamples stage invokes the LLM
+**Then:** The LLM invocation uses the project's low-tier model, not the default medium tier
+
+### Scenario: Spec file on disk is not modified
+**Given:** A spec file with 3 authored scenarios and default config
+**When:** The SynthesizeCounterexamples stage runs and produces synthesized scenarios
+**Then:** The spec file on disk has identical content (byte-for-byte) before and after the stage runs; all synthesized scenarios exist only in evidence artifacts
 
 ## Validation
 
