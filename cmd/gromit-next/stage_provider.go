@@ -356,15 +356,20 @@ func (p *RealStageProvider) BuildStages(policy execpolicy.Policy, rs *runstore.R
 
 	// Runtime guard: when a worktree is active, wrap every stage so that
 	// any unexpected modification to the main repo is caught immediately.
+	// Capture a baseline snapshot of the main repo's git status so that
+	// pre-existing untracked files don't cause false-positive blocks.
 	if rs.WorktreePath != "" {
 		guardDir := p.cfg.RepoDir
 		if guardDir == "" {
 			guardDir = p.cfg.WorkDir
 		}
+		baseline, _ := specloop.DefaultGitStatus(guardDir)
+		baselineSet := specloop.ParseStatusLines(baseline)
 		for i, s := range allStages {
 			allStages[i] = &specloop.WorktreeGuard{
-				Inner:   s,
-				RepoDir: guardDir,
+				Inner:    s,
+				RepoDir:  guardDir,
+				Baseline: baselineSet,
 			}
 		}
 	}

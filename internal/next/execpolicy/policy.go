@@ -105,8 +105,8 @@ func DefaultPolicy() Policy {
 			},
 		},
 		Review: ReviewConfig{
-			Facets:           []string{"spec_alignment", "code_quality"},
-			Tiers:            map[string]string{"spec_alignment": "high", "code_quality": "medium"},
+			Facets:           []string{"spec_alignment", "code_quality", "logic_gaps"},
+			Tiers:            map[string]string{"spec_alignment": "high", "code_quality": "medium", "logic_gaps": "high"},
 			ReplanThreshold:  "warning",
 			FacetMaxAttempts: 2,
 		},

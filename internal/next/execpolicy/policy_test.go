@@ -190,8 +190,8 @@ func TestLoadPolicy_ReviewDefaultsPreservedOnPartialJSON(t *testing.T) {
 	if p.Review.ReplanThreshold != "warning" {
 		t.Errorf("threshold should be overridden to warning, got %q", p.Review.ReplanThreshold)
 	}
-	if len(p.Review.Facets) != 2 {
-		t.Errorf("facets should be default (2), got %d", len(p.Review.Facets))
+	if len(p.Review.Facets) != 3 {
+		t.Errorf("facets should be default (3), got %d", len(p.Review.Facets))
 	}
 }
 
@@ -204,14 +204,17 @@ func TestDefaultPolicy_HasFacetMaxAttempts(t *testing.T) {
 
 func TestDefaultPolicy_HasReviewConfig(t *testing.T) {
 	p := DefaultPolicy()
-	if len(p.Review.Facets) != 2 {
-		t.Fatalf("default review should have 2 facets, got %d", len(p.Review.Facets))
+	if len(p.Review.Facets) != 3 {
+		t.Fatalf("default review should have 3 facets, got %d", len(p.Review.Facets))
 	}
 	if p.Review.Facets[0] != "spec_alignment" {
 		t.Errorf("first facet = %q, want spec_alignment", p.Review.Facets[0])
 	}
 	if p.Review.Facets[1] != "code_quality" {
 		t.Errorf("second facet = %q, want code_quality", p.Review.Facets[1])
+	}
+	if p.Review.Facets[2] != "logic_gaps" {
+		t.Errorf("third facet = %q, want logic_gaps", p.Review.Facets[2])
 	}
 	if p.Review.ReplanThreshold != "warning" {
 		t.Errorf("ReplanThreshold = %q, want warning", p.Review.ReplanThreshold)
