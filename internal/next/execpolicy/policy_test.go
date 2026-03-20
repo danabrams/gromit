@@ -30,6 +30,24 @@ func TestDefaultPolicy_AlwaysRunChecksNonEmpty(t *testing.T) {
 	}
 }
 
+func TestDefaultPolicy_HasBuildAndFormatChecks(t *testing.T) {
+	p := DefaultPolicy()
+	names := make(map[string]string)
+	for _, c := range p.AlwaysRun {
+		names[c.Name] = c.Command
+	}
+	if cmd, ok := names["build"]; !ok {
+		t.Fatal("default policy must include 'build' always-run check")
+	} else if cmd != "go build ./..." {
+		t.Fatalf("build command = %q, want \"go build ./...\"", cmd)
+	}
+	if cmd, ok := names["format"]; !ok {
+		t.Fatal("default policy must include 'format' always-run check")
+	} else if cmd != "gofmt -l ." {
+		t.Fatalf("format command = %q, want \"gofmt -l .\"", cmd)
+	}
+}
+
 func TestLoadPolicy_FromJSON(t *testing.T) {
 	dir := t.TempDir()
 	data := `{"budgets":{"max_spec_cycles":5},"models":{"planner":"xhigh","executor":"high"},"always_run":[{"name":"vet","command":"go vet ./...","type":"lint"}]}`

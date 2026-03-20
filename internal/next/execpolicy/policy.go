@@ -82,8 +82,9 @@ type Models struct {
 func DefaultPolicy() Policy {
 	return Policy{
 		AlwaysRun: []Check{
-			{Name: "unit-tests", Command: "go test ./...", Type: "test"},
+			{Name: "build", Command: "go build ./...", Type: "lint"},
 			{Name: "format", Command: "gofmt -l .", Type: "lint"},
+			{Name: "unit-tests", Command: "go test ./...", Type: "test"},
 			{Name: "vet", Command: "go vet ./...", Type: "lint"},
 		},
 		Budgets: Budgets{

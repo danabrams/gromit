@@ -3,6 +3,8 @@ package specloop
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -641,6 +643,249 @@ func TestProviderTaskRunner_LazyWorkDirResolution(t *testing.T) {
 	}
 	if inv.capturedDir != "/tmp/lazy-worktree" {
 		t.Errorf("expected dir '/tmp/lazy-worktree', got %q", inv.capturedDir)
+	}
+}
+
+// --- TaskContext tests ---
+
+func TestRenderTaskPrompt_IncludesProjectConventions(t *testing.T) {
+	task := runstore.Task{TaskID: "t-ctx-1", Objective: "implement feature"}
+	tc := TaskContext{ProjectConventions: "# Gromit\nUse Go idioms.\n"}
+	prompt := renderTaskPrompt(task, tc)
+
+	if !strings.Contains(prompt, "Project Conventions") {
+		t.Error("prompt does not contain 'Project Conventions' header")
+	}
+	if !strings.Contains(prompt, "Use Go idioms.") {
+		t.Error("prompt does not contain CLAUDE.md content")
+	}
+}
+
+func TestRenderTaskPrompt_OriginalTaskOmitsSpec(t *testing.T) {
+	task := runstore.Task{TaskID: "t-ctx-2", Objective: "implement feature"}
+	tc := TaskContext{SpecContent: "# Spec 0042\nBuild the frobnicator.\n"}
+	prompt := renderTaskPrompt(task, tc)
+
+	if strings.Contains(prompt, "Full Spec") {
+		t.Error("original task prompt should not contain 'Full Spec' — spec is only for fix/repair tasks")
+	}
+}
+
+func TestRenderTaskPrompt_FixTaskIncludesSpec(t *testing.T) {
+	task := runstore.Task{TaskID: "t-ctx-2b", Kind: "fix", Objective: "fix the frobnicator"}
+	tc := TaskContext{SpecContent: "# Spec 0042\nBuild the frobnicator.\n"}
+	prompt := renderTaskPrompt(task, tc)
+
+	if !strings.Contains(prompt, "Full Spec") {
+		t.Error("fix task prompt should contain 'Full Spec' header")
+	}
+	if !strings.Contains(prompt, "Build the frobnicator.") {
+		t.Error("fix task prompt should contain spec content")
+	}
+}
+
+func TestRenderTaskPrompt_ConventionsAppearBeforeTask(t *testing.T) {
+	task := runstore.Task{TaskID: "t-ctx-3", Objective: "do work"}
+	tc := TaskContext{ProjectConventions: "conventions here"}
+	prompt := renderTaskPrompt(task, tc)
+
+	convIdx := strings.Index(prompt, "Project Conventions")
+	taskIdx := strings.Index(prompt, "## Task:")
+
+	if convIdx == -1 || taskIdx == -1 {
+		t.Fatalf("missing sections: conv=%d task=%d", convIdx, taskIdx)
+	}
+	if convIdx > taskIdx {
+		t.Error("Project Conventions should appear before the task header")
+	}
+}
+
+func TestRenderTaskPrompt_FixTaskSpecAppearsBeforeTask(t *testing.T) {
+	task := runstore.Task{TaskID: "t-ctx-3b", Kind: "fix", Objective: "fix work"}
+	tc := TaskContext{
+		ProjectConventions: "conventions here",
+		SpecContent:        "spec here",
+	}
+	prompt := renderTaskPrompt(task, tc)
+
+	convIdx := strings.Index(prompt, "Project Conventions")
+	specIdx := strings.Index(prompt, "Full Spec")
+	taskIdx := strings.Index(prompt, "## Fix Task:")
+
+	if convIdx == -1 || specIdx == -1 || taskIdx == -1 {
+		t.Fatalf("missing sections: conv=%d spec=%d task=%d", convIdx, specIdx, taskIdx)
+	}
+	if convIdx > taskIdx {
+		t.Error("Project Conventions should appear before the task header")
+	}
+	if specIdx > taskIdx {
+		t.Error("Full Spec should appear before the task header")
+	}
+}
+
+func TestRenderTaskPrompt_EmptyContextOmitsSections(t *testing.T) {
+	task := runstore.Task{TaskID: "t-ctx-4", Objective: "do work"}
+	tc := TaskContext{} // empty
+	prompt := renderTaskPrompt(task, tc)
+
+	if strings.Contains(prompt, "Project Conventions") {
+		t.Error("prompt should not contain 'Project Conventions' when empty")
+	}
+	if strings.Contains(prompt, "Full Spec") {
+		t.Error("prompt should not contain 'Full Spec' when empty")
+	}
+	if !strings.Contains(prompt, "do work") {
+		t.Error("prompt should still contain the objective")
+	}
+}
+
+func TestRenderRepairPrompt_IncludesContext(t *testing.T) {
+	task := runstore.Task{TaskID: "t-ctx-5", Objective: "fix bug"}
+	tc := TaskContext{ProjectConventions: "conventions", SpecContent: "spec text"}
+	prompt := renderRepairPrompt(task, []string{"test failed"}, tc)
+
+	if !strings.Contains(prompt, "Project Conventions") {
+		t.Error("repair prompt does not contain 'Project Conventions'")
+	}
+	if !strings.Contains(prompt, "Full Spec") {
+		t.Error("repair prompt does not contain 'Full Spec'")
+	}
+	if !strings.Contains(prompt, "test failed") {
+		t.Error("repair prompt does not contain failure")
+	}
+}
+
+func TestProviderTaskRunner_ContextProviderWired_OriginalTask(t *testing.T) {
+	inv := &mockInvoker{
+		result: &provider.Result{
+			Success:  true,
+			Model:    "sonnet",
+			Duration: 1 * time.Second,
+		},
+	}
+	runner := NewProviderTaskRunner(inv, func() string { return "" })
+	runner.SetContextProvider(func() TaskContext {
+		return TaskContext{
+			ProjectConventions: "always write tests",
+			SpecContent:        "build the widget",
+		}
+	})
+	task := runstore.Task{TaskID: "t-ctx-6", Objective: "implement"}
+
+	_, err := runner.RunTask(context.Background(), task)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if !strings.Contains(inv.capturedPrompt, "always write tests") {
+		t.Error("prompt does not contain project conventions from context provider")
+	}
+	if strings.Contains(inv.capturedPrompt, "build the widget") {
+		t.Error("original task prompt should not contain spec content")
+	}
+}
+
+func TestProviderTaskRunner_ContextProviderWired_FixTask(t *testing.T) {
+	inv := &mockInvoker{
+		result: &provider.Result{
+			Success:  true,
+			Model:    "sonnet",
+			Duration: 1 * time.Second,
+		},
+	}
+	runner := NewProviderTaskRunner(inv, func() string { return "" })
+	runner.SetContextProvider(func() TaskContext {
+		return TaskContext{
+			ProjectConventions: "always write tests",
+			SpecContent:        "build the widget",
+		}
+	})
+	task := runstore.Task{TaskID: "t-ctx-6b", Kind: "fix", Objective: "fix it"}
+
+	_, err := runner.RunTask(context.Background(), task)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if !strings.Contains(inv.capturedPrompt, "always write tests") {
+		t.Error("prompt does not contain project conventions from context provider")
+	}
+	if !strings.Contains(inv.capturedPrompt, "build the widget") {
+		t.Error("fix task prompt should contain spec content from context provider")
+	}
+}
+
+func TestProviderTaskRunner_NoContextProviderOmitsSections(t *testing.T) {
+	inv := &mockInvoker{
+		result: &provider.Result{
+			Success:  true,
+			Model:    "sonnet",
+			Duration: 1 * time.Second,
+		},
+	}
+	runner := NewProviderTaskRunner(inv, func() string { return "" })
+	// No SetContextProvider call — default nil
+	task := runstore.Task{TaskID: "t-ctx-7", Objective: "implement"}
+
+	_, err := runner.RunTask(context.Background(), task)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if strings.Contains(inv.capturedPrompt, "Project Conventions") {
+		t.Error("prompt should not contain 'Project Conventions' without context provider")
+	}
+	if strings.Contains(inv.capturedPrompt, "Full Spec") {
+		t.Error("prompt should not contain 'Full Spec' without context provider")
+	}
+}
+
+func TestFileTaskContextProvider_ReadsFiles(t *testing.T) {
+	workDir := t.TempDir()
+	runDir := t.TempDir()
+
+	// Create CLAUDE.md
+	os.WriteFile(filepath.Join(workDir, "CLAUDE.md"), []byte("# Project Rules\nBe excellent."), 0o644)
+	// Create spec.md
+	os.WriteFile(filepath.Join(runDir, "spec.md"), []byte("# Spec 42\nDo the thing."), 0o644)
+
+	provider := FileTaskContextProvider(func() string { return workDir }, runDir)
+	tc := provider()
+
+	if !strings.Contains(tc.ProjectConventions, "Be excellent.") {
+		t.Errorf("expected CLAUDE.md content, got %q", tc.ProjectConventions)
+	}
+	if !strings.Contains(tc.SpecContent, "Do the thing.") {
+		t.Errorf("expected spec.md content, got %q", tc.SpecContent)
+	}
+}
+
+func TestFileTaskContextProvider_MissingFilesGraceful(t *testing.T) {
+	emptyDir := t.TempDir()
+
+	provider := FileTaskContextProvider(func() string { return emptyDir }, emptyDir)
+	tc := provider()
+
+	if tc.ProjectConventions != "" {
+		t.Errorf("expected empty ProjectConventions, got %q", tc.ProjectConventions)
+	}
+	if tc.SpecContent != "" {
+		t.Errorf("expected empty SpecContent, got %q", tc.SpecContent)
+	}
+}
+
+func TestFileTaskContextProvider_EmptyWorkDir(t *testing.T) {
+	runDir := t.TempDir()
+	os.WriteFile(filepath.Join(runDir, "spec.md"), []byte("spec content"), 0o644)
+
+	provider := FileTaskContextProvider(func() string { return "" }, runDir)
+	tc := provider()
+
+	if tc.ProjectConventions != "" {
+		t.Errorf("expected empty ProjectConventions when workDir is empty, got %q", tc.ProjectConventions)
+	}
+	if tc.SpecContent != "spec content" {
+		t.Errorf("expected spec content, got %q", tc.SpecContent)
 	}
 }
 

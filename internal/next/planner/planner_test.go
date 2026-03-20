@@ -524,3 +524,94 @@ func TestBuildFixPlanPrompt_MultiplePersistentFailures_AcrossDifferentContracts(
 		t.Fatal("persistent failures section must appear before validation failures section")
 	}
 }
+
+func TestBuildPlanPrompt_TaskGranularityConstraint(t *testing.T) {
+	prompt := buildPlanPrompt(PlanRequest{
+		SpecPacket: "build a thing",
+		Cycle:      1,
+	})
+	if !strings.Contains(prompt, "at most 3-4 files") {
+		t.Fatal("buildPlanPrompt must include file count constraint per task")
+	}
+	if !strings.Contains(prompt, "one task per scenario") {
+		t.Fatal("buildPlanPrompt must instruct one task per scenario for scenario-driven work")
+	}
+}
+
+func TestBuildFixPlanPrompt_TaskGranularityConstraint(t *testing.T) {
+	prompt := buildFixPlanPrompt(FixPlanRequest{
+		OriginalPlan: Plan{SpecID: "s1", Cycle: 1},
+		Failures:     []string{"test failure"},
+		Cycle:        2,
+	})
+	if !strings.Contains(prompt, "at most 3-4 files") {
+		t.Fatal("buildFixPlanPrompt must include file count constraint per task")
+	}
+	if !strings.Contains(prompt, "one task per scenario") {
+		t.Fatal("buildFixPlanPrompt must instruct one task per scenario for scenario-driven work")
+	}
+}
+
+func TestBuildPlanPrompt_ProofCheckQualityGuidelines(t *testing.T) {
+	prompt := buildPlanPrompt(PlanRequest{
+		SpecPacket: "build a thing",
+		Cycle:      1,
+	})
+	// Compilation mandatory
+	if !strings.Contains(prompt, "go build ./...") {
+		t.Fatal("buildPlanPrompt must require go build ./... for tasks modifying .go files")
+	}
+	// Behavioral over presence
+	if !strings.Contains(prompt, "Behavioral over presence") {
+		t.Fatal("buildPlanPrompt must include behavioral over presence guidance")
+	}
+	if !strings.Contains(prompt, "go test -run TestX") {
+		t.Fatal("buildPlanPrompt must show go test -run as preferred over grep")
+	}
+	// Order verification
+	if !strings.Contains(prompt, "Order and sequence verification") {
+		t.Fatal("buildPlanPrompt must include order verification guidance")
+	}
+	if !strings.Contains(prompt, "awk") {
+		t.Fatal("buildPlanPrompt must show awk example for order verification")
+	}
+	// Config flow
+	if !strings.Contains(prompt, "Config flow verification") {
+		t.Fatal("buildPlanPrompt must include config flow verification guidance")
+	}
+	// Integration wiring
+	if !strings.Contains(prompt, "Integration wiring verification") {
+		t.Fatal("buildPlanPrompt must include integration wiring verification guidance")
+	}
+	if !strings.Contains(prompt, "function CALL") {
+		t.Fatal("buildPlanPrompt must emphasize verifying function calls not just imports")
+	}
+}
+
+func TestBuildFixPlanPrompt_ProofCheckQualityGuidelines(t *testing.T) {
+	prompt := buildFixPlanPrompt(FixPlanRequest{
+		OriginalPlan: Plan{SpecID: "s1", Cycle: 1},
+		Failures:     []string{"test failure"},
+		Cycle:        2,
+	})
+	// Compilation mandatory
+	if !strings.Contains(prompt, "go build ./...") {
+		t.Fatal("buildFixPlanPrompt must require go build ./... for tasks modifying .go files")
+	}
+	// Behavioral over presence
+	if !strings.Contains(prompt, "go test -run TestX") {
+		t.Fatal("buildFixPlanPrompt must show go test -run as preferred over grep")
+	}
+	// Order verification with awk
+	if !strings.Contains(prompt, "awk") {
+		t.Fatal("buildFixPlanPrompt must show awk example for order verification")
+	}
+	// Config flow
+	if !strings.Contains(prompt, "config") || !strings.Contains(prompt, "READ") {
+		t.Fatal("buildFixPlanPrompt must include config flow verification (verify config is READ)")
+	}
+	// Integration wiring — verify function CALL not just import
+	if !strings.Contains(prompt, "function CALL") {
+		t.Fatal("buildFixPlanPrompt must emphasize verifying function calls not just imports")
+	}
+}

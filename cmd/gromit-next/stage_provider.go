@@ -135,12 +135,15 @@ func (p *RealStageProvider) BuildStages(policy execpolicy.Policy, rs *runstore.R
 			llmadapter.Config{Tier: policy.Models.Executor, OnInvocation: invocationCallback},
 			policy.Models.Executor,
 		)
-		taskRunner = specloop.NewProviderTaskRunner(execAdapter, func() string {
+		workDirFn := func() string {
 			if rs.WorktreePath != "" {
 				return rs.WorktreePath
 			}
 			return p.cfg.WorkDir
-		})
+		}
+		ptr := specloop.NewProviderTaskRunner(execAdapter, workDirFn)
+		ptr.SetContextProvider(specloop.FileTaskContextProvider(workDirFn, store.RunDir(rs.RunID)))
+		taskRunner = ptr
 
 		finalVal = validator.NewShellValidator(validator.NewRunner())
 

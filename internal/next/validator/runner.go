@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os/exec"
+	"strings"
 	"time"
 )
 
@@ -46,6 +47,11 @@ func (r *Runner) RunCheck(ctx context.Context, c Check, workDir string) (CheckRe
 		}
 	}
 	pass := err == nil
+	// For lint checks, non-empty stdout also means failure (e.g. gofmt -l
+	// exits 0 but lists files that need formatting).
+	if pass && c.Type == "lint" && len(strings.TrimSpace(string(out))) > 0 {
+		pass = false
+	}
 	return CheckResult{
 		Name:     c.Name,
 		Pass:     pass,
