@@ -39,6 +39,7 @@ func ParseManualChecks(content string, scenarios []ParsedScenario) ManualCheckli
 
 // parseExplicitManualChecks looks for the "## Validation" section,
 // then "### Manual" subsection, and parses all check items.
+// It supports both "#### Check: Title" headers and numbered items "1. text", "2. text", etc.
 func parseExplicitManualChecks(lines []string) []ManualCheckItem {
 	var validationIdx int = -1
 	var manualIdx int = -1
@@ -82,10 +83,15 @@ func parseExplicitManualChecks(lines []string) []ManualCheckItem {
 		line := lines[i]
 		trimmed := strings.TrimSpace(line)
 
-		// Look for check headers "#### Check: Title" first (before generic # check)
+		// Look for check headers "#### Check: Title"
 		if strings.HasPrefix(trimmed, "#### Check:") {
 			check := parseManualCheckItem(lines, &i)
 			checks = append(checks, check)
+		} else if isNumberedItem(trimmed) {
+			// Parse numbered items like "1. text", "2. text", etc.
+			check := parseNumberedCheckItem(trimmed)
+			checks = append(checks, check)
+			i++
 		} else if strings.HasPrefix(trimmed, "#") && len(trimmed) > 0 {
 			// Stop if we hit another ## or ### section (but not ####)
 			break
@@ -95,6 +101,58 @@ func parseExplicitManualChecks(lines []string) []ManualCheckItem {
 	}
 
 	return checks
+}
+
+// isNumberedItem checks if a line is a numbered item like "1. text", "2. text", etc.
+func isNumberedItem(line string) bool {
+	if len(line) < 3 {
+		return false
+	}
+
+	// Check if it starts with a digit followed by a period and space
+	if !strings.ContainsAny(line[0:1], "0123456789") {
+		return false
+	}
+
+	// Find the period
+	dotIdx := strings.Index(line, ".")
+	if dotIdx < 1 {
+		return false
+	}
+
+	// Everything before the dot should be digits
+	for j := 0; j < dotIdx; j++ {
+		if !strings.ContainsAny(line[j:j+1], "0123456789") {
+			return false
+		}
+	}
+
+	// Should have a space after the dot
+	if dotIdx+1 < len(line) && line[dotIdx+1] != ' ' {
+		return false
+	}
+
+	return true
+}
+
+// parseNumberedCheckItem extracts a numbered item and creates a ManualCheckItem.
+// It expects input like "1. Some text description".
+func parseNumberedCheckItem(line string) ManualCheckItem {
+	// Find the dot
+	dotIdx := strings.Index(line, ".")
+	if dotIdx < 0 {
+		dotIdx = 0
+	}
+
+	// Extract title (everything after the dot and space)
+	title := line[dotIdx+1:]
+	title = strings.TrimSpace(title)
+
+	checkID := generateCheckID(title)
+	return ManualCheckItem{
+		ID:    checkID,
+		Title: title,
+	}
 }
 
 // parseManualCheckItem parses a single manual check starting at the current index.
@@ -122,6 +180,11 @@ func parseManualCheckItem(lines []string, idx *int) ManualCheckItem {
 
 		// Stop if we hit another check or section header
 		if strings.HasPrefix(trimmed, "####") || (strings.HasPrefix(trimmed, "#") && len(trimmed) > 0) {
+			break
+		}
+
+		// Stop if we hit a numbered item (next explicit manual item)
+		if isNumberedItem(trimmed) {
 			break
 		}
 

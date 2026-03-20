@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/danabrams/gromit/internal/next/runstore"
 )
@@ -14,17 +15,43 @@ import (
 // acceptance.json, review.json) from the evidence directory, spec content from
 // specPath, and run metadata from RunState.
 func InputsFromEvidence(evidenceDir string, specPath string, run *runstore.RunState) (Inputs, error) {
+	// Collect all missing file errors before returning
+	var missingFiles []string
+
 	// Read spec content from specPath
 	specContent, err := os.ReadFile(specPath)
 	if err != nil {
-		return Inputs{}, fmt.Errorf("read spec from %q: %w", specPath, err)
+		missingFiles = append(missingFiles, fmt.Sprintf("read spec from %q: %v", specPath, err))
 	}
 
 	// Read validation.json
 	validationPath := filepath.Join(evidenceDir, "validation.json")
 	validationData, err := os.ReadFile(validationPath)
 	if err != nil {
-		return Inputs{}, fmt.Errorf("read validation.json: %w", err)
+		missingFiles = append(missingFiles, fmt.Sprintf("read validation.json: %v", err))
+	}
+
+	// Read acceptance.json
+	acceptancePath := filepath.Join(evidenceDir, "acceptance.json")
+	acceptanceData, err := os.ReadFile(acceptancePath)
+	if err != nil {
+		missingFiles = append(missingFiles, fmt.Sprintf("read acceptance.json: %v", err))
+	}
+
+	// Read review.json to extract review findings
+	reviewPath := filepath.Join(evidenceDir, "review.json")
+	reviewData, err := os.ReadFile(reviewPath)
+	if err != nil {
+		missingFiles = append(missingFiles, fmt.Sprintf("read review.json: %v", err))
+	}
+
+	// If any files are missing, return error with all missing files
+	if len(missingFiles) > 0 {
+		errMsg := "missing required files for regeneration:\n"
+		for _, f := range missingFiles {
+			errMsg += "  - " + f + "\n"
+		}
+		return Inputs{}, fmt.Errorf("%s", strings.TrimSuffix(errMsg, "\n"))
 	}
 
 	var validationResult ValidationData
@@ -32,23 +59,30 @@ func InputsFromEvidence(evidenceDir string, specPath string, run *runstore.RunSt
 		return Inputs{}, fmt.Errorf("unmarshal validation.json: %w", err)
 	}
 
-	// Read acceptance.json
-	acceptancePath := filepath.Join(evidenceDir, "acceptance.json")
-	acceptanceData, err := os.ReadFile(acceptancePath)
-	if err != nil {
-		return Inputs{}, fmt.Errorf("read acceptance.json: %w", err)
-	}
-
-	var acceptanceResult AcceptanceData
-	if err := json.Unmarshal(acceptanceData, &acceptanceResult); err != nil {
+	// Parse acceptance.json: read results array and count by status
+	var acceptanceRaw map[string]interface{}
+	if err := json.Unmarshal(acceptanceData, &acceptanceRaw); err != nil {
 		return Inputs{}, fmt.Errorf("unmarshal acceptance.json: %w", err)
 	}
 
-	// Read review.json to extract review findings
-	reviewPath := filepath.Join(evidenceDir, "review.json")
-	reviewData, err := os.ReadFile(reviewPath)
-	if err != nil {
-		return Inputs{}, fmt.Errorf("read review.json: %w", err)
+	acceptanceResult := AcceptanceData{}
+	if resultsRaw, ok := acceptanceRaw["results"]; ok {
+		if resultsArray, ok := resultsRaw.([]interface{}); ok {
+			for _, item := range resultsArray {
+				if resultMap, ok := item.(map[string]interface{}); ok {
+					if status, ok := resultMap["status"].(string); ok {
+						switch status {
+						case "pass":
+							acceptanceResult.Passed++
+						case "fail":
+							acceptanceResult.Failed++
+						case "unclear":
+							acceptanceResult.Unclear++
+						}
+					}
+				}
+			}
+		}
 	}
 
 	// Parse review.json to extract review findings by category

@@ -454,16 +454,27 @@ func TestScenario_MissingPacketRegeneration(t *testing.T) {
 		t.Fatalf("save run: %v", err)
 	}
 
+	runDir := store.RunDir(rs.RunID)
+	if err := os.MkdirAll(runDir, 0o755); err != nil {
+		t.Fatalf("create run dir: %v", err)
+	}
+
+	// Write spec.md to the run directory
+	specPath := filepath.Join(runDir, "spec.md")
+	if err := os.WriteFile(specPath, []byte("# Test Spec\nThis is a test specification."), 0o644); err != nil {
+		t.Fatalf("write spec.md: %v", err)
+	}
+
 	evidenceDir := store.RunEvidenceDir(rs.RunID)
 	if err := os.MkdirAll(evidenceDir, 0o755); err != nil {
 		t.Fatalf("create evidence dir: %v", err)
 	}
 
-	// Create minimal evidence artifacts
+	// Create all required evidence artifacts
 	review := map[string]interface{}{
 		"run_id": rs.RunID,
-		"items": []map[string]interface{}{
-			{"id": "1", "title": "Test", "status": "pass"},
+		"info": []map[string]interface{}{
+			{"message": "Test passed"},
 		},
 	}
 	reviewData, _ := json.MarshalIndent(review, "", "  ")
@@ -487,9 +498,20 @@ func TestScenario_MissingPacketRegeneration(t *testing.T) {
 	}
 
 	// Call reviewShow which should trigger regeneration
-	// (This test structure expects regeneration to work)
-	// For now, just verify that the regeneration path would be attempted
-	t.Skip("packet regeneration test - depends on InputsFromEvidence implementation")
+	output, err := reviewShow(rs.RunID, storeDir, false)
+	if err != nil {
+		t.Fatalf("reviewShow: %v", err)
+	}
+
+	// Verify packet artifacts were created
+	if _, err := os.Stat(filepath.Join(evidenceDir, "product-review.json")); err != nil {
+		t.Fatalf("product-review.json should exist after regeneration: %v", err)
+	}
+
+	// Verify output contains product review content (spec title and summary should be in output)
+	if !strings.Contains(output, "test-spec") && !strings.Contains(output, "Test Spec") {
+		t.Errorf("output should contain spec title, got: %s", output)
+	}
 }
 
 // TestScenario_RegenerationFailure verifies error handling when packet regeneration fails.
@@ -504,6 +526,17 @@ func TestScenario_RegenerationFailure(t *testing.T) {
 	rs.Status = runstore.StatusReadyForReview
 	if err := store.Save(rs); err != nil {
 		t.Fatalf("save run: %v", err)
+	}
+
+	runDir := store.RunDir(rs.RunID)
+	if err := os.MkdirAll(runDir, 0o755); err != nil {
+		t.Fatalf("create run dir: %v", err)
+	}
+
+	// Write spec.md to the run directory
+	specPath := filepath.Join(runDir, "spec.md")
+	if err := os.WriteFile(specPath, []byte("# Test Spec\n"), 0o644); err != nil {
+		t.Fatalf("write spec.md: %v", err)
 	}
 
 	evidenceDir := store.RunEvidenceDir(rs.RunID)
@@ -526,8 +559,15 @@ func TestScenario_RegenerationFailure(t *testing.T) {
 	// Do NOT create packet artifacts
 
 	// Call reviewShow which should fail with clear error
-	// (This test expects error handling for missing evidence)
-	t.Skip("regeneration failure test - depends on InputsFromEvidence implementation")
+	_, err := reviewShow(rs.RunID, storeDir, false)
+	if err == nil {
+		t.Fatal("expected error when evidence files are missing")
+	}
+
+	// Verify error message mentions acceptance.json
+	if !strings.Contains(err.Error(), "acceptance.json") {
+		t.Errorf("error should mention 'acceptance.json', got: %v", err)
+	}
 }
 
 // TestScenario_NonTerminalRunRefusal verifies command refuses non-terminal runs.

@@ -500,3 +500,55 @@ func TestReviewShow_CommandDetailsFlagWorks(t *testing.T) {
 		t.Error("output with --details should contain Technical Artifacts")
 	}
 }
+
+// TestReviewShow_CommandWithRunFlag tests that the --run flag properly specifies
+// the run ID instead of using positional argument.
+func TestReviewShow_CommandWithRunFlag(t *testing.T) {
+	storeDir := t.TempDir()
+	store := runstore.NewStore(storeDir)
+
+	rs := runstore.NewRunState("my-spec", "my-project")
+	rs.Status = runstore.StatusCompleted
+	if err := store.Save(rs); err != nil {
+		t.Fatalf("save run: %v", err)
+	}
+
+	evidenceDir := store.RunEvidenceDir(rs.RunID)
+	os.MkdirAll(evidenceDir, 0o755)
+
+	productReview := reviewpacket.ProductReview{
+		RunID:         rs.RunID,
+		SpecTitle:     "Run Flag Test",
+		TerminalState: runstore.StatusCompleted,
+		Summary:       "Testing --run flag",
+	}
+	productReview.NormalizeNilFields()
+	productData, _ := json.MarshalIndent(productReview, "", "  ")
+	os.WriteFile(filepath.Join(evidenceDir, "product-review.json"), productData, 0o644)
+
+	processReview := map[string]interface{}{"trust_level": "high"}
+	processData, _ := json.MarshalIndent(processReview, "", "  ")
+	os.WriteFile(filepath.Join(evidenceDir, "process-review.json"), processData, 0o644)
+
+	manualChecklist := map[string]interface{}{"items": []interface{}{}}
+	manualData, _ := json.MarshalIndent(manualChecklist, "", "  ")
+	os.WriteFile(filepath.Join(evidenceDir, "manual-checklist.json"), manualData, 0o644)
+
+	// Test with --run flag
+	cmd := newReviewShowCmd()
+	var buf bytes.Buffer
+	cmd.SetOut(&buf)
+	cmd.SetArgs([]string{"--run", rs.RunID, "--store-dir", storeDir})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("command execute with --run flag: %v", err)
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, "**Trust Level:** high") {
+		t.Errorf("output missing trust level with --run flag:\n%s", output)
+	}
+	if !strings.Contains(output, "Run Flag Test") {
+		t.Errorf("output missing spec title with --run flag:\n%s", output)
+	}
+}

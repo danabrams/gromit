@@ -1,6 +1,7 @@
 package reviewsession
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/next/reviewpacket"
@@ -667,5 +668,150 @@ func makeCheckItems(count int) []reviewpacket.ManualCheckItem {
 
 // Helper function to check if string contains substring
 func contains(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(s) > 0)
+	return strings.Contains(s, substr)
+}
+
+// TestScenario_AcceptanceWithUnsureItemRequiresOverride verifies AC6:
+// Acceptance with unsure items must require an override reason.
+func TestScenario_AcceptanceWithUnsureItemRequiresOverride(t *testing.T) {
+	packet := reviewpacket.Outputs{
+		ProductReview: reviewpacket.ProductReview{
+			RunID: "run123",
+		},
+		ManualChecklist: reviewpacket.ManualChecklist{
+			Items: makeCheckItems(2),
+		},
+	}
+
+	session := Start(packet)
+	session.Checklist[0].Result = ResultPass
+	session.Checklist[1].Result = ResultUnsure
+
+	// Test 1: Acceptance with unsure but no override should fail
+	_, err := session.RecordOutcome(OutcomeAccepted, "", "")
+	if err == nil {
+		t.Errorf("RecordOutcome() expected error for unsure without override, got nil")
+	}
+	if !strings.Contains(err.Error(), "unsure items requires override reason") {
+		t.Errorf("error = %q, want substring 'unsure items requires override reason'", err.Error())
+	}
+
+	// Test 2: Acceptance with unsure AND override should succeed
+	outcome, err := session.RecordOutcome(OutcomeAccepted, "", "Reviewed manually")
+	if err != nil {
+		t.Errorf("RecordOutcome() with override = %v, want nil", err)
+	}
+	if outcome == nil {
+		t.Errorf("outcome = nil, want outcome")
+	} else if outcome.Outcome != OutcomeAccepted {
+		t.Errorf("outcome.Outcome = %q, want %q", outcome.Outcome, OutcomeAccepted)
+	}
+}
+
+// TestScenario_ReworkImplementationGapRequiresFlaggedItemOrSummary verifies AC7:
+// Rework implementation gap requires either fail/unsure items or a non-empty summary.
+func TestScenario_ReworkImplementationGapRequiresFlaggedItemOrSummary(t *testing.T) {
+	packet := reviewpacket.Outputs{
+		ProductReview: reviewpacket.ProductReview{
+			RunID: "run123",
+		},
+		ManualChecklist: reviewpacket.ManualChecklist{
+			Items: makeCheckItems(2),
+		},
+	}
+
+	// Test 1: Rework with all pass and no summary should fail
+	session := Start(packet)
+	session.Checklist[0].Result = ResultPass
+	session.Checklist[1].Result = ResultPass
+
+	_, err := session.RecordOutcome(OutcomeReworkImplementationGap, "", "")
+	if err == nil {
+		t.Errorf("RecordOutcome() expected error without fail/unsure/summary, got nil")
+	}
+	if !strings.Contains(err.Error(), "rework_implementation_gap requires") {
+		t.Errorf("error = %q, want substring 'rework_implementation_gap requires'", err.Error())
+	}
+
+	// Test 2: Rework with fail item should succeed
+	session = Start(packet)
+	session.Checklist[0].Result = ResultPass
+	session.Checklist[1].Result = ResultFail
+
+	outcome, err := session.RecordOutcome(OutcomeReworkImplementationGap, "", "")
+	if err != nil {
+		t.Errorf("RecordOutcome() with fail item = %v, want nil", err)
+	}
+	if outcome == nil || outcome.Outcome != OutcomeReworkImplementationGap {
+		t.Errorf("outcome = %v, want rework_implementation_gap", outcome)
+	}
+
+	// Test 3: Rework with unsure item should succeed
+	session = Start(packet)
+	session.Checklist[0].Result = ResultPass
+	session.Checklist[1].Result = ResultUnsure
+
+	outcome, err = session.RecordOutcome(OutcomeReworkImplementationGap, "", "")
+	if err != nil {
+		t.Errorf("RecordOutcome() with unsure item = %v, want nil", err)
+	}
+	if outcome == nil || outcome.Outcome != OutcomeReworkImplementationGap {
+		t.Errorf("outcome = %v, want rework_implementation_gap", outcome)
+	}
+
+	// Test 4: Rework with all pass but summary should succeed
+	session = Start(packet)
+	session.Checklist[0].Result = ResultPass
+	session.Checklist[1].Result = ResultPass
+
+	outcome, err = session.RecordOutcome(OutcomeReworkImplementationGap, "Need implementation rework", "")
+	if err != nil {
+		t.Errorf("RecordOutcome() with summary = %v, want nil", err)
+	}
+	if outcome == nil || outcome.Outcome != OutcomeReworkImplementationGap {
+		t.Errorf("outcome = %v, want rework_implementation_gap", outcome)
+	}
+}
+
+// TestScenario_ReworkVisionChangeRequiresSummary verifies AC8:
+// Rework vision change requires a non-empty summary.
+func TestScenario_ReworkVisionChangeRequiresSummary(t *testing.T) {
+	packet := reviewpacket.Outputs{
+		ProductReview: reviewpacket.ProductReview{
+			RunID: "run123",
+		},
+		ManualChecklist: reviewpacket.ManualChecklist{
+			Items: makeCheckItems(2),
+		},
+	}
+
+	// Test 1: Rework vision change with empty summary should fail
+	session := Start(packet)
+	session.Checklist[0].Result = ResultPass
+	session.Checklist[1].Result = ResultPass
+
+	_, err := session.RecordOutcome(OutcomeReworkVisionChange, "", "")
+	if err == nil {
+		t.Errorf("RecordOutcome() expected error with empty summary, got nil")
+	}
+	if !strings.Contains(err.Error(), "rework_vision_change requires") {
+		t.Errorf("error = %q, want substring 'rework_vision_change requires'", err.Error())
+	}
+
+	// Test 2: Rework vision change with summary should succeed
+	session = Start(packet)
+	session.Checklist[0].Result = ResultPass
+	session.Checklist[1].Result = ResultPass
+
+	outcome, err := session.RecordOutcome(OutcomeReworkVisionChange, "Vision needs to change", "")
+	if err != nil {
+		t.Errorf("RecordOutcome() with summary = %v, want nil", err)
+	}
+	if outcome == nil {
+		t.Errorf("outcome = nil, want outcome")
+	} else if outcome.Outcome != OutcomeReworkVisionChange {
+		t.Errorf("outcome.Outcome = %q, want %q", outcome.Outcome, OutcomeReworkVisionChange)
+	} else if outcome.Summary != "Vision needs to change" {
+		t.Errorf("outcome.Summary = %q, want %q", outcome.Summary, "Vision needs to change")
+	}
 }

@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/danabrams/gromit/internal/next/reviewpacket"
+	"github.com/danabrams/gromit/internal/next/runstore"
 	"github.com/spf13/cobra"
 )
 
@@ -22,20 +23,24 @@ If no run-id is given, the latest run is shown (by modification time of .gromit-
 		RunE: func(cmd *cobra.Command, args []string) error {
 			storeDir, _ := cmd.Flags().GetString("store-dir")
 			details, _ := cmd.Flags().GetBool("details")
+			runFlag, _ := cmd.Flags().GetString("run")
 
 			if storeDir == "" {
 				storeDir = ".gromit-next"
 			}
 
 			var runID string
-			if len(args) == 0 || args[0] == "latest" {
+			// --run flag takes precedence over positional arg
+			if runFlag != "" {
+				runID = runFlag
+			} else if len(args) > 0 && args[0] != "latest" {
+				runID = args[0]
+			} else {
 				id, err := findLatestRunID(storeDir, "", nil)
 				if err != nil {
 					return err
 				}
 				runID = id
-			} else {
-				runID = args[0]
 			}
 
 			output, err := reviewShow(runID, storeDir, details)
@@ -48,6 +53,7 @@ If no run-id is given, the latest run is shown (by modification time of .gromit-
 	}
 	cmd.Flags().Bool("details", false, "Include linked technical artifacts (validation.json, acceptance.json, review.json)")
 	cmd.Flags().String("store-dir", "", "Override store directory (for testing)")
+	cmd.Flags().String("run", "", "Run ID to show (if not specified, uses latest or positional argument)")
 	return cmd
 }
 
@@ -62,7 +68,8 @@ func reviewShow(runID string, storeDir string, details bool) (string, error) {
 	var b strings.Builder
 
 	// Get evidence directory
-	evidenceDir := filepath.Join(storeDir, "runs", runID, "evidence")
+	store := runstore.NewStore(storeDir)
+	evidenceDir := store.RunEvidenceDir(runID)
 
 	// Read product-review.json
 	productReviewPath := filepath.Join(evidenceDir, "product-review.json")

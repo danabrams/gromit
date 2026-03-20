@@ -24,19 +24,23 @@ func TestInputsFromEvidence_SuccessfulReconstruction(t *testing.T) {
 	}
 
 	// Write validation.json
-	validationData := map[string]interface{}{
-		"passed": true,
-		"checks": 12,
+	validationData := ValidationData{
+		Passed: true,
+		Checks: 12,
 	}
 	if err := writeJSON(tempDir, "validation.json", validationData); err != nil {
 		t.Fatalf("write validation.json: %v", err)
 	}
 
-	// Write acceptance.json
+	// Write acceptance.json in results-array format
 	acceptanceData := map[string]interface{}{
-		"passed":  5,
-		"failed":  0,
-		"unclear": 0,
+		"results": []map[string]interface{}{
+			{"status": "pass"},
+			{"status": "pass"},
+			{"status": "pass"},
+			{"status": "pass"},
+			{"status": "pass"},
+		},
 	}
 	if err := writeJSON(tempDir, "acceptance.json", acceptanceData); err != nil {
 		t.Fatalf("write acceptance.json: %v", err)
@@ -131,8 +135,10 @@ func TestInputsFromEvidence_MissingValidationJson(t *testing.T) {
 		t.Fatalf("write spec file: %v", err)
 	}
 
-	// Write acceptance.json
-	acceptanceData := map[string]interface{}{"passed": 0, "failed": 0, "unclear": 0}
+	// Write acceptance.json in results-array format
+	acceptanceData := map[string]interface{}{
+		"results": []map[string]interface{}{},
+	}
 	if err := writeJSON(tempDir, "acceptance.json", acceptanceData); err != nil {
 		t.Fatalf("write acceptance.json: %v", err)
 	}
@@ -169,7 +175,7 @@ func TestInputsFromEvidence_MissingAcceptanceJson(t *testing.T) {
 	}
 
 	// Write validation.json
-	validationData := map[string]interface{}{"passed": true, "checks": 5}
+	validationData := ValidationData{Passed: true, Checks: 5}
 	if err := writeJSON(tempDir, "validation.json", validationData); err != nil {
 		t.Fatalf("write validation.json: %v", err)
 	}
@@ -201,7 +207,7 @@ func TestInputsFromEvidence_MissingSpecFile(t *testing.T) {
 	specPath := filepath.Join(tempDir, "nonexistent.md")
 
 	// Write evidence files
-	validationData := map[string]interface{}{"passed": true, "checks": 5}
+	validationData := ValidationData{Passed: true, Checks: 5}
 	if err := writeJSON(tempDir, "validation.json", validationData); err != nil {
 		t.Fatalf("write validation.json: %v", err)
 	}
@@ -242,13 +248,15 @@ func TestInputsFromEvidence_MissingReviewJson(t *testing.T) {
 	}
 
 	// Write validation.json
-	validationData := map[string]interface{}{"passed": true, "checks": 5}
+	validationData := ValidationData{Passed: true, Checks: 5}
 	if err := writeJSON(tempDir, "validation.json", validationData); err != nil {
 		t.Fatalf("write validation.json: %v", err)
 	}
 
-	// Write acceptance.json
-	acceptanceData := map[string]interface{}{"passed": 0, "failed": 0, "unclear": 0}
+	// Write acceptance.json in results-array format
+	acceptanceData := map[string]interface{}{
+		"results": []map[string]interface{}{},
+	}
 	if err := writeJSON(tempDir, "acceptance.json", acceptanceData); err != nil {
 		t.Fatalf("write acceptance.json: %v", err)
 	}
@@ -283,8 +291,10 @@ func TestInputsFromEvidence_InvalidValidationJson(t *testing.T) {
 		t.Fatalf("write invalid validation.json: %v", err)
 	}
 
-	// Write acceptance.json
-	acceptanceData := map[string]interface{}{"passed": 0, "failed": 0, "unclear": 0}
+	// Write acceptance.json in results-array format
+	acceptanceData := map[string]interface{}{
+		"results": []map[string]interface{}{},
+	}
 	if err := writeJSON(tempDir, "acceptance.json", acceptanceData); err != nil {
 		t.Fatalf("write acceptance.json: %v", err)
 	}
@@ -321,7 +331,7 @@ func TestInputsFromEvidence_InvalidAcceptanceJson(t *testing.T) {
 	}
 
 	// Write validation.json
-	validationData := map[string]interface{}{"passed": true, "checks": 5}
+	validationData := ValidationData{Passed: true, Checks: 5}
 	if err := writeJSON(tempDir, "validation.json", validationData); err != nil {
 		t.Fatalf("write validation.json: %v", err)
 	}
@@ -363,13 +373,15 @@ func TestInputsFromEvidence_InvalidReviewJson(t *testing.T) {
 	}
 
 	// Write validation.json
-	validationData := map[string]interface{}{"passed": true, "checks": 5}
+	validationData := ValidationData{Passed: true, Checks: 5}
 	if err := writeJSON(tempDir, "validation.json", validationData); err != nil {
 		t.Fatalf("write validation.json: %v", err)
 	}
 
-	// Write acceptance.json
-	acceptanceData := map[string]interface{}{"passed": 0, "failed": 0, "unclear": 0}
+	// Write acceptance.json in results-array format
+	acceptanceData := map[string]interface{}{
+		"results": []map[string]interface{}{},
+	}
 	if err := writeJSON(tempDir, "acceptance.json", acceptanceData); err != nil {
 		t.Fatalf("write acceptance.json: %v", err)
 	}
@@ -405,12 +417,19 @@ func TestInputsFromEvidence_ExtractRunMetadata(t *testing.T) {
 	}
 
 	// Write evidence files
-	validationData := map[string]interface{}{"passed": true, "checks": 8}
+	validationData := ValidationData{Passed: true, Checks: 8}
 	if err := writeJSON(tempDir, "validation.json", validationData); err != nil {
 		t.Fatalf("write validation.json: %v", err)
 	}
 
-	acceptanceData := map[string]interface{}{"passed": 3, "failed": 1, "unclear": 0}
+	acceptanceData := map[string]interface{}{
+		"results": []map[string]interface{}{
+			{"status": "pass"},
+			{"status": "pass"},
+			{"status": "pass"},
+			{"status": "fail"},
+		},
+	}
 	if err := writeJSON(tempDir, "acceptance.json", acceptanceData); err != nil {
 		t.Fatalf("write acceptance.json: %v", err)
 	}
@@ -479,12 +498,17 @@ func TestInputsFromEvidence_RepeatedFailureDetectionViaFailureHistory(t *testing
 	}
 
 	// Write evidence files
-	validationData := map[string]interface{}{"passed": false, "checks": 3}
+	validationData := ValidationData{Passed: false, Checks: 3}
 	if err := writeJSON(tempDir, "validation.json", validationData); err != nil {
 		t.Fatalf("write validation.json: %v", err)
 	}
 
-	acceptanceData := map[string]interface{}{"passed": 0, "failed": 2, "unclear": 0}
+	acceptanceData := map[string]interface{}{
+		"results": []map[string]interface{}{
+			{"status": "fail"},
+			{"status": "fail"},
+		},
+	}
 	if err := writeJSON(tempDir, "acceptance.json", acceptanceData); err != nil {
 		t.Fatalf("write acceptance.json: %v", err)
 	}
@@ -530,12 +554,16 @@ func TestInputsFromEvidence_RepeatedFailureDetectionViaTaskLineage(t *testing.T)
 	}
 
 	// Write evidence files
-	validationData := map[string]interface{}{"passed": false, "checks": 2}
+	validationData := ValidationData{Passed: false, Checks: 2}
 	if err := writeJSON(tempDir, "validation.json", validationData); err != nil {
 		t.Fatalf("write validation.json: %v", err)
 	}
 
-	acceptanceData := map[string]interface{}{"passed": 0, "failed": 1, "unclear": 0}
+	acceptanceData := map[string]interface{}{
+		"results": []map[string]interface{}{
+			{"status": "fail"},
+		},
+	}
 	if err := writeJSON(tempDir, "acceptance.json", acceptanceData); err != nil {
 		t.Fatalf("write acceptance.json: %v", err)
 	}
@@ -583,12 +611,17 @@ func TestInputsFromEvidence_NoRepeatedFailure(t *testing.T) {
 	}
 
 	// Write evidence files
-	validationData := map[string]interface{}{"passed": true, "checks": 5}
+	validationData := ValidationData{Passed: true, Checks: 5}
 	if err := writeJSON(tempDir, "validation.json", validationData); err != nil {
 		t.Fatalf("write validation.json: %v", err)
 	}
 
-	acceptanceData := map[string]interface{}{"passed": 2, "failed": 0, "unclear": 0}
+	acceptanceData := map[string]interface{}{
+		"results": []map[string]interface{}{
+			{"status": "pass"},
+			{"status": "pass"},
+		},
+	}
 	if err := writeJSON(tempDir, "acceptance.json", acceptanceData); err != nil {
 		t.Fatalf("write acceptance.json: %v", err)
 	}
@@ -638,12 +671,16 @@ func TestInputsFromEvidence_EmptyDegradedFlags(t *testing.T) {
 	}
 
 	// Write evidence files
-	validationData := map[string]interface{}{"passed": true, "checks": 1}
+	validationData := ValidationData{Passed: true, Checks: 1}
 	if err := writeJSON(tempDir, "validation.json", validationData); err != nil {
 		t.Fatalf("write validation.json: %v", err)
 	}
 
-	acceptanceData := map[string]interface{}{"passed": 1, "failed": 0, "unclear": 0}
+	acceptanceData := map[string]interface{}{
+		"results": []map[string]interface{}{
+			{"status": "pass"},
+		},
+	}
 	if err := writeJSON(tempDir, "acceptance.json", acceptanceData); err != nil {
 		t.Fatalf("write acceptance.json: %v", err)
 	}
@@ -690,12 +727,18 @@ func TestInputsFromEvidence_MultipleReviewFindingCategories(t *testing.T) {
 	}
 
 	// Write evidence files
-	validationData := map[string]interface{}{"passed": false, "checks": 5}
+	validationData := ValidationData{Passed: false, Checks: 5}
 	if err := writeJSON(tempDir, "validation.json", validationData); err != nil {
 		t.Fatalf("write validation.json: %v", err)
 	}
 
-	acceptanceData := map[string]interface{}{"passed": 1, "failed": 2, "unclear": 0}
+	acceptanceData := map[string]interface{}{
+		"results": []map[string]interface{}{
+			{"status": "pass"},
+			{"status": "fail"},
+			{"status": "fail"},
+		},
+	}
 	if err := writeJSON(tempDir, "acceptance.json", acceptanceData); err != nil {
 		t.Fatalf("write acceptance.json: %v", err)
 	}
@@ -770,12 +813,16 @@ func TestInputsFromEvidence_EmptyReviewFindings(t *testing.T) {
 	}
 
 	// Write evidence files
-	validationData := map[string]interface{}{"passed": true, "checks": 3}
+	validationData := map[string]interface{}{"pass": true, "checks": 3}
 	if err := writeJSON(tempDir, "validation.json", validationData); err != nil {
 		t.Fatalf("write validation.json: %v", err)
 	}
 
-	acceptanceData := map[string]interface{}{"passed": 1, "failed": 0, "unclear": 0}
+	acceptanceData := map[string]interface{}{
+		"results": []map[string]interface{}{
+			{"status": "pass"},
+		},
+	}
 	if err := writeJSON(tempDir, "acceptance.json", acceptanceData); err != nil {
 		t.Fatalf("write acceptance.json: %v", err)
 	}
@@ -803,6 +850,76 @@ func TestInputsFromEvidence_EmptyReviewFindings(t *testing.T) {
 	// Verify default 'info' category exists
 	if _, ok := inputs.ReviewFindings["info"]; !ok {
 		t.Errorf("ReviewFindings missing default 'info' category")
+	}
+}
+
+func TestInputsFromEvidence_RoundTripAcceptanceFormat(t *testing.T) {
+	// Scenario: acceptance.json written by finalize stage format (results-array)
+	// can be read back by evidence_loader with correct counts
+	// Given: acceptance.json with results array containing pass/fail/unclear statuses
+	// When: InputsFromEvidence is called
+	// Then: AcceptanceResult contains correct counts parsed from results array
+
+	tempDir := t.TempDir()
+	specPath := filepath.Join(tempDir, "spec.md")
+
+	// Write spec file
+	if err := os.WriteFile(specPath, []byte("# Round-trip Spec"), 0o644); err != nil {
+		t.Fatalf("write spec file: %v", err)
+	}
+
+	// Write validation.json
+	validationData := ValidationData{Passed: true, Checks: 10}
+	if err := writeJSON(tempDir, "validation.json", validationData); err != nil {
+		t.Fatalf("write validation.json: %v", err)
+	}
+
+	// Write acceptance.json in the exact format that finalize.go produces
+	// (results array with status field for each acceptance item)
+	acceptanceData := map[string]interface{}{
+		"results": []map[string]interface{}{
+			{"status": "pass"},
+			{"status": "pass"},
+			{"status": "pass"},
+			{"status": "fail"},
+			{"status": "unclear"},
+		},
+	}
+	if err := writeJSON(tempDir, "acceptance.json", acceptanceData); err != nil {
+		t.Fatalf("write acceptance.json: %v", err)
+	}
+
+	// Write review.json
+	reviewData := map[string]interface{}{
+		"info": []interface{}{
+			map[string]interface{}{"message": "test finding"},
+		},
+	}
+	if err := writeJSON(tempDir, "review.json", reviewData); err != nil {
+		t.Fatalf("write review.json: %v", err)
+	}
+
+	run := &runstore.RunState{
+		RunID:          "round-trip-test",
+		Status:         "ready_for_review",
+		FailureHistory: map[string]int{},
+		TaskLineage:    map[string]runstore.TaskLineageEntry{},
+	}
+
+	inputs, err := InputsFromEvidence(tempDir, specPath, run)
+	if err != nil {
+		t.Fatalf("InputsFromEvidence() error = %v, want nil", err)
+	}
+
+	// Verify that counts match the results array
+	if inputs.AcceptanceResult.Passed != 3 {
+		t.Errorf("AcceptanceResult.Passed = %d, want 3", inputs.AcceptanceResult.Passed)
+	}
+	if inputs.AcceptanceResult.Failed != 1 {
+		t.Errorf("AcceptanceResult.Failed = %d, want 1", inputs.AcceptanceResult.Failed)
+	}
+	if inputs.AcceptanceResult.Unclear != 1 {
+		t.Errorf("AcceptanceResult.Unclear = %d, want 1", inputs.AcceptanceResult.Unclear)
 	}
 }
 

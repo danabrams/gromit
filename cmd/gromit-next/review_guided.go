@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/danabrams/gromit/internal/next/reviewpacket"
 	"github.com/danabrams/gromit/internal/next/reviewsession"
 	"github.com/danabrams/gromit/internal/next/runstore"
 	"github.com/spf13/cobra"
@@ -24,20 +25,24 @@ If no run-id is given, the latest run is reviewed (by modification time of .grom
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			storeDir, _ := cmd.Flags().GetString("store-dir")
+			runFlag, _ := cmd.Flags().GetString("run")
 
 			if storeDir == "" {
 				storeDir = ".gromit-next"
 			}
 
 			var runID string
-			if len(args) == 0 || args[0] == "latest" {
+			// --run flag takes precedence over positional arg
+			if runFlag != "" {
+				runID = runFlag
+			} else if len(args) > 0 && args[0] != "latest" {
+				runID = args[0]
+			} else {
 				id, err := findLatestRunID(storeDir, "", nil)
 				if err != nil {
 					return err
 				}
 				runID = id
-			} else {
-				runID = args[0]
 			}
 
 			// Use stdin for interactive input
@@ -45,6 +50,7 @@ If no run-id is given, the latest run is reviewed (by modification time of .grom
 		},
 	}
 	cmd.Flags().String("store-dir", "", "Override store directory (for testing)")
+	cmd.Flags().String("run", "", "Run ID to review (if not specified, uses latest or positional argument)")
 	return cmd
 }
 
@@ -70,6 +76,10 @@ func reviewGuided(runID string, storeDir string, input io.Reader) error {
 		return fmt.Errorf("load packet outputs: %w", err)
 	}
 
+	// Render and display product review
+	rendered := reviewpacket.RenderProductReview(outputs.ProductReview)
+	fmt.Println(rendered)
+
 	// Create session and start interactive review
 	session := reviewsession.Start(*outputs)
 	scanner := bufio.NewScanner(input)
@@ -84,7 +94,7 @@ func reviewGuided(runID string, storeDir string, input io.Reader) error {
 		}
 
 		// Prompt for result
-		fmt.Print("\nResult (pass/fail/unsure/skip): ")
+		fmt.Print("\nResult (pass/fail/unsure/skipped): ")
 		if !scanner.Scan() {
 			return fmt.Errorf("failed to read result")
 		}
@@ -98,7 +108,7 @@ func reviewGuided(runID string, storeDir string, input io.Reader) error {
 			reviewsession.ResultSkipped: true,
 		}
 		if !validResults[result] {
-			fmt.Printf("Invalid result %q. Please use: pass, fail, unsure, or skip.\n\n", result)
+			fmt.Printf("Invalid result %q. Please use: pass, fail, unsure, or skipped.\n\n", result)
 			continue
 		}
 
@@ -131,16 +141,7 @@ func reviewGuided(runID string, storeDir string, input io.Reader) error {
 		}
 		outcome = strings.TrimSpace(scanner.Text())
 
-		validOutcomes := map[string]bool{
-			reviewsession.OutcomeAccepted:                true,
-			reviewsession.OutcomeReworkImplementationGap: true,
-			reviewsession.OutcomeReworkVisionChange:      true,
-		}
-		if validOutcomes[outcome] {
-			break
-		}
-
-		// Check for acceptance-specific validation
+		// Check for acceptance-specific validation first
 		if outcome == "accept" || outcome == reviewsession.OutcomeAccepted {
 			outcome = reviewsession.OutcomeAccepted
 			canAccept, reason := session.CanAccept()
@@ -149,6 +150,15 @@ func reviewGuided(runID string, storeDir string, input io.Reader) error {
 				fmt.Println("Please choose a rework outcome instead.")
 				continue
 			}
+			break
+		}
+
+		validOutcomes := map[string]bool{
+			reviewsession.OutcomeAccepted:                true,
+			reviewsession.OutcomeReworkImplementationGap: true,
+			reviewsession.OutcomeReworkVisionChange:      true,
+		}
+		if validOutcomes[outcome] {
 			break
 		}
 

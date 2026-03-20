@@ -85,10 +85,14 @@ func (s *FinalizeStage) Run(ctx context.Context, rs *runstore.RunState) (specloo
 
 // generateReviewPacket reads evidence artifacts and generates review packet.
 func (s *FinalizeStage) generateReviewPacket(rs *runstore.RunState) error {
-	// Read validation.json
-	rawValidation, err := readJSONFile(filepath.Join(s.config.EvidenceDir, "validation.json"))
+	// Read and unmarshal validation.json into ValidationData struct
+	validationBytes, err := os.ReadFile(filepath.Join(s.config.EvidenceDir, "validation.json"))
 	if err != nil {
 		return fmt.Errorf("read validation.json: %w", err)
+	}
+	validationResult := reviewpacket.ValidationData{}
+	if err := json.Unmarshal(validationBytes, &validationResult); err != nil {
+		return fmt.Errorf("unmarshal validation.json: %w", err)
 	}
 
 	// Read review.json
@@ -103,19 +107,28 @@ func (s *FinalizeStage) generateReviewPacket(rs *runstore.RunState) error {
 		return fmt.Errorf("read acceptance.json: %w", err)
 	}
 
-	// Extract validation data into concrete type
-	validationResult := reviewpacket.ValidationData{}
-	if vm, ok := rawValidation.(map[string]interface{}); ok {
-		validationResult.Passed, _ = vm["passed"].(bool)
-		validationResult.Checks = jsonIntValue(vm["checks"])
-	}
-
 	// Extract acceptance data into concrete type
 	acceptanceResult := reviewpacket.AcceptanceData{}
 	if am, ok := rawAcceptance.(map[string]interface{}); ok {
-		acceptanceResult.Passed = jsonIntValue(am["passed"])
-		acceptanceResult.Failed = jsonIntValue(am["failed"])
-		acceptanceResult.Unclear = jsonIntValue(am["unclear"])
+		// Parse the acceptor.AcceptanceResult schema: {results: [...], all_pass: bool, has_fail_or_unclear: bool}
+		if resultsRaw, ok := am["results"]; ok {
+			if resultsArray, ok := resultsRaw.([]interface{}); ok {
+				for _, item := range resultsArray {
+					if resultMap, ok := item.(map[string]interface{}); ok {
+						if status, ok := resultMap["status"].(string); ok {
+							switch status {
+							case "pass":
+								acceptanceResult.Passed++
+							case "fail":
+								acceptanceResult.Failed++
+							case "unclear":
+								acceptanceResult.Unclear++
+							}
+						}
+					}
+				}
+			}
+		}
 	}
 
 	// Build review findings map from review data

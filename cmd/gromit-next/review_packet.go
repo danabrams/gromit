@@ -18,26 +18,40 @@ var reviewCmd = &cobra.Command{
 }
 
 var reviewRecordCmd = &cobra.Command{
-	Use:   "record <run-id>",
+	Use:   "record [run-id]",
 	Short: "Record a review outcome for a run with --outcome and --summary flags",
-	Args:  cobra.ExactArgs(1),
+	Args:  cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		outcome, _ := cmd.Flags().GetString("outcome")
 		summary, _ := cmd.Flags().GetString("summary")
-		storeDir, _ := cmd.Flags().GetString("store")
+		override, _ := cmd.Flags().GetString("override")
+		storeDir, _ := cmd.Flags().GetString("store-dir")
+		runFlag, _ := cmd.Flags().GetString("run")
 
 		if outcome == "" {
 			return fmt.Errorf("--outcome flag is required")
 		}
 
-		return reviewRecord(args[0], storeDir, outcome, summary, "")
+		var runID string
+		// --run flag takes precedence over positional arg
+		if runFlag != "" {
+			runID = runFlag
+		} else if len(args) > 0 {
+			runID = args[0]
+		} else {
+			return fmt.Errorf("run ID is required (provide via --run flag or positional argument)")
+		}
+
+		return reviewRecord(runID, storeDir, outcome, summary, override)
 	},
 }
 
 func init() {
 	reviewRecordCmd.Flags().String("outcome", "", "The review outcome (accepted, rework_vision_change, rework_implementation_gap, needs_human)")
 	reviewRecordCmd.Flags().String("summary", "", "Summary of the review")
-	reviewRecordCmd.Flags().String("store", "", "Run store directory (default: .gromit-next)")
+	reviewRecordCmd.Flags().String("override", "", "Override reason for accepting a run with unsure items")
+	reviewRecordCmd.Flags().String("store-dir", "", "Run store directory (default: .gromit-next)")
+	reviewRecordCmd.Flags().String("run", "", "Run ID to record (if not specified, uses positional argument)")
 	reviewCmd.AddCommand(reviewRecordCmd)
 }
 
