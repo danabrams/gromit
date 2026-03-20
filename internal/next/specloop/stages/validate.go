@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/danabrams/gromit/internal/next/contract"
@@ -174,6 +175,15 @@ func (s *ValidateStage) Run(ctx context.Context, rs *runstore.RunState) (specloo
 	}
 	for _, cr := range result.ProjectChecks.FailedChecks() {
 		failures = append(failures, fmt.Sprintf("project check %q failed: %s", cr.Name, cr.Output))
+	}
+
+	// Detect I/O leak infrastructure failures before classifying as test logic failures.
+	// "Test I/O incomplete" / "WaitDelay expired" means a test subprocess leaked I/O
+	// pipes — this is a lifecycle bug, not a test logic failure. Replanning won't help.
+	if msg := detectIOLeakFailure(result); msg != "" {
+		rs.BlockerSummary = msg
+		rs.LastFinalValidation = &result
+		return specloop.NextAction{Kind: specloop.Blocked}, nil
 	}
 
 	// Determine final validation status after collecting ALL failures (contract + shell).
@@ -487,6 +497,31 @@ func (s *ValidateStage) checkWorktreeHealth(workDir string) error {
 	}
 
 	return nil
+}
+
+// ioLeakSignatures are substrings in go test output that indicate a test binary
+// leaked subprocess I/O pipes. These are infrastructure/lifecycle bugs, not test
+// logic failures — replanning or retrying the fix task won't resolve them.
+var ioLeakSignatures = []string{
+	"Test I/O incomplete",
+	"WaitDelay expired",
+}
+
+// detectIOLeakFailure scans all failed check results for I/O leak signatures.
+// Returns an infrastructure blocker message if detected, or "" if no leak found.
+func detectIOLeakFailure(result validator.FinalResult) string {
+	allFailed := append(result.AlwaysRun.FailedChecks(), result.ProjectChecks.FailedChecks()...)
+	for _, cr := range allFailed {
+		for _, sig := range ioLeakSignatures {
+			if strings.Contains(cr.Output, sig) {
+				return fmt.Sprintf(
+					"infrastructure_io_leak: test binary has leaked subprocess I/O — likely a fire-and-forget goroutine spawning a subprocess (check %q)",
+					cr.Name,
+				)
+			}
+		}
+	}
+	return ""
 }
 
 // recoverWorktree attempts to recover a failed worktree by removing the existing
