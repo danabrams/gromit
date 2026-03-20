@@ -8,391 +8,285 @@
 
 ## Vision
 
-Spec 0004c gives Gromit something strategically valuable: structured proposals about how the system should improve. But those proposals are inert. They live in run evidence, a human can read them, and then the system goes back to work unchanged.
+After 0004c, Gromit can synthesize human review judgments into structured improvement proposals — but the proposals are write-only. They accumulate in evidence directories, read once and forgotten. No proposal ever changes how the next run behaves.
 
-That leaves the highest-value learning signal in the project stranded at the edge of the loop.
+This spec closes the learning loop. It adds a proposal triage CLI, a promotion pipeline that materializes accepted proposals into durable operational stores, and prompt injection wiring that feeds those stores back into the planner, validator, and refinement stages. A proposal accepted today makes tomorrow's run smarter.
 
-If accepted review outcomes and implementation-gap reworks are going to compound, Gromit needs a human-gated path from proposal to durable project memory. The machine should draft improvements, a human should approve or edit them, and accepted improvements should become visible in future prompts automatically. Without that last step, review distillation is analysis without leverage.
+Two stores hold operational knowledge: doctrine (normative rules, already established in 0004a-c) and a new playbook (advisory heuristics, validation gaps, and refinement guidance). Doctrine remains authoritative; playbook entries are advisory guidance that can be overridden or superseded.
+
+The human remains in full control. Proposals are never auto-applied. Every promotion requires explicit acceptance, and every acceptance is reversible via rejection that supersedes the materialized entry.
 
 ## Summary
 
-This spec adds a proposal promotion workflow for distillation outputs. New `review proposals` CLI commands let a human list, inspect, accept, edit, or reject proposals produced by spec 0004c. Accepting a proposal writes a decision record to the source run and materializes the approved guidance into project memory:
-
-- `doctrine_rule` proposals become doctrine rules
-- `validation_gap`, `planner_heuristic`, and `refinement_guidance` proposals become entries in a new `playbook` artifact
-
-The context compiler is extended to inject `playbook` alongside `doctrine` into future project/spec/task packets, so accepted proposals affect future execution behavior. Materialization is deterministic and duplicate-safe: identical approved guidance maps to the same target ID, so repeated proposals reinforce the same memory instead of bloating prompts.
+This spec adds a `review proposals` CLI command group that lets a human reviewer triage distillation proposals from 0004c, promote accepted proposals into project-local operational stores, and wire those stores into future run prompts. `doctrine_rule` proposals materialize into the existing doctrine store. `validation_gap`, `planner_heuristic`, and `refinement_guidance` proposals materialize into a new playbook store. The reviewer can override proposal fields (title, change text, rationale) at accept time for minor wording fixes. Rejecting a previously accepted proposal supersedes the materialized entry. Promoted knowledge is injected into type-specific prompt injection points: planner heuristics into the planner, validation gaps into the validator, and refinement guidance into the pre-execution refinement stage.
 
 ## Goals
 
 ### Primary
-- Provide a human-gated workflow for accepting, editing, or rejecting distillation proposals
-- Materialize accepted proposals into prompt-visible project memory that future runs automatically receive
-- Deduplicate repeated accepted proposals across runs using deterministic IDs
-- Persist proposal decisions with provenance back to the source run
+- Add `review proposals list`, `show`, `accept`, and `reject` CLI commands for triaging distillation proposals.
+- Materialize accepted `doctrine_rule` proposals into the existing doctrine store (`cellPath/doctrine/rules.json`).
+- Materialize accepted `validation_gap`, `planner_heuristic`, and `refinement_guidance` proposals into a new playbook store (`cellPath/playbook/entries.json`).
+- Inject promoted doctrine rules into task executor prompts (extending existing wiring).
+- Inject promoted planner heuristics into planner prompts.
+- Inject promoted validation gaps into validator prompts.
+- Inject promoted refinement guidance into pre-execution refinement prompts.
+- Support field overrides on accept (`--title`, `--change`, `--rationale`) for minor wording adjustments without reject-and-redistill.
+- Support reject-after-accept to supersede materialized entries when promoted knowledge turns out to be wrong.
+- Record rejections with reasons for future use.
 
 ### Secondary
-- Support project-wide proposal review without introducing a separate database or background indexer
-- Keep doctrine normative and playbook guidance advisory, with explicit precedence rules
-- Make repeated accept/reject commands idempotent when the requested decision matches the existing one
+- Preserve full provenance: every materialized rule/entry traces back to its source proposal, run, and spec.
+- Deterministic content-hash IDs so duplicate proposals across runs resolve to the same materialized entry.
 
 ## Non-goals
-
-- Automatically accepting or applying proposals without human action
-- Semantic or LLM-based deduplication across differently worded proposals
-- Global or cross-project proposal scope
-- Retraction, editing, or removal of already-accepted project memory entries
-- Automatic repo-wide backfill of missing `distillation-proposals.json` artifacts
-- Writing to the target repository instead of the project cell / run evidence
-- Replacing or changing the proposal-generation behavior from spec 0004c
+- Auto-applying proposals without human approval.
+- Global or cross-project proposal scope (deferred to Spec 0004e).
+- Global/local layered store resolution (deferred to Spec 0004e).
+- Proposal grouping and LLM-based semantic clustering (deferred to Spec 0004e).
+- `--dismiss-group` for clearing sibling proposals (deferred to Spec 0004e).
+- Feeding rejection history back into the distiller's prompts (deferred to Spec 0004e).
+- In-place `$EDITOR` flow for editing proposals.
+- Web UI for proposal triage.
+- Cross-run trend analysis or dashboards over proposal history.
+- Proposal `suggested_scope` field in the distiller output.
 
 ## Architecture
 
 ### Package layout
 
 ```text
-internal/next/reviewpromotion/      # proposal discovery, decision validation, materialization
-internal/next/playbook/             # approved non-doctrine operational memory store
-cmd/gromit-next/review_proposals.go # review proposals list/show/apply/record subcommands
+internal/next/playbook/              # NEW — playbook store (entries.json), load/save/merge
+internal/next/proposaltriage/        # NEW — proposal discovery, decision validation, promotion logic
+cmd/gromit-next/review_proposals.go  # NEW — review proposals list/show/accept/reject
 ```
 
-### Proposal discovery
+### Playbook store
 
-V1 does not add a persistent project-level inbox or index. The source of truth remains the run evidence written by spec 0004c.
-
-`review proposals` commands discover proposals by scanning runs in the store for:
-
-- `distillation-proposals.json`
-- optional `proposal-decisions.json`
-
-This keeps the design aligned with the existing run-centric evidence model and avoids introducing a second store just to surface pending work.
-
-```go
-package reviewpromotion
-
-type DiscoveredProposal struct {
-    ProposalID   string
-    RunID        string
-    SpecID       string
-    Outcome      string
-    ProposalType string
-    Title        string
-    Confidence   string
-    Status       string // pending, accepted, rejected
-    CreatedAt    time.Time
-}
-
-func Discover(store *runstore.Store, project string) ([]DiscoveredProposal, error)
-func LoadProposal(store *runstore.Store, project string, proposalID string) (*LoadedProposal, error)
-```
-
-Discovery behavior:
-
-1. `store.List(project)` provides candidate runs
-2. Runs without `distillation-proposals.json` are skipped silently
-3. If `proposal-decisions.json` exists, it is joined by `proposal_id`
-4. Proposals with no decision are `pending`
-5. Results are sorted by proposal creation time descending
-
-This means older runs only appear if they have already been distilled. Explicit backfill remains the job of `review distill`.
-
-### Decision artifact
-
-Each source run gets a new evidence artifact: `proposal-decisions.json`.
-
-```go
-type ProposalDecisionFile struct {
-    Decisions []ProposalDecision `json:"decisions"`
-}
-
-type ProposalDecision struct {
-    ProposalID          string    `json:"proposal_id"`
-    RunID               string    `json:"run_id"`
-    Decision            string    `json:"decision"` // accepted, rejected
-    DecidedAt           time.Time `json:"decided_at"`
-    Reason              string    `json:"reason,omitempty"`               // required for rejected
-    ApprovedTitle       string    `json:"approved_title,omitempty"`
-    ApprovedChange      string    `json:"approved_change,omitempty"`
-    ApprovedRationale   string    `json:"approved_rationale,omitempty"`
-    Scope               string    `json:"scope,omitempty"`                // doctrine only; defaults to "*"
-    MaterializedEntryID string    `json:"materialized_entry_id,omitempty"`
-    DuplicateOf         string    `json:"duplicate_of,omitempty"`
-}
-```
-
-Decision rules:
-
-- `accepted` and `rejected` are terminal
-- Recording the same terminal decision twice with the same effective payload is idempotent
-- Recording a different decision for an already-decided proposal returns an error
-- `rejected` requires a non-empty `reason`
-- `accepted` defaults `approved_*` fields from the original proposal when omitted
-
-This keeps materialization simple and avoids the need to retract already-promoted memory in V1.
-
-### Deterministic materialization IDs
-
-Accepted proposals are materialized by hashing the approved content, not the source run.
-
-Fingerprint algorithm:
-
-1. Trim leading/trailing whitespace from `approved_change`
-2. Collapse internal whitespace to single spaces (`strings.Fields`)
-3. Concatenate `proposal_type + "\x00" + normalized_approved_change`
-4. Compute SHA-256
-5. Take the first 8 hex characters
-
-Materialized IDs:
-
-- doctrine rules: `promoted-<short-hash>`
-- playbook entries: `pb-<short-hash>`
-
-This is intentionally deterministic and narrow. If two accepted proposals approve the same change text for the same type, they resolve to the same target entry. Differently worded proposals are treated as distinct unless a human edits them to the same approved wording.
-
-### Materialization targets
-
-#### Doctrine
-
-Accepted `doctrine_rule` proposals are converted into `doctrine.Rule` values and persisted via the existing doctrine store.
-
-```go
-// existing type with new usage contract, not a new struct
-type Rule struct {
-    ID        string    `json:"id"`
-    Summary   string    `json:"summary"`
-    Scope     string    `json:"scope"`
-    Source    string    `json:"source"`
-    CreatedAt time.Time `json:"created_at"`
-}
-```
-
-Materialization mapping:
-
-- `ID` = deterministic `promoted-<short-hash>`
-- `Summary` = `approved_change`
-- `Scope` = accepted scope, defaulting to `*`
-- `Source` = `promoted:<proposal-id>`
-- `CreatedAt` = decision timestamp
-
-When the rule ID already exists, no duplicate rule is added. The decision is still recorded, with `materialized_entry_id` set to the existing rule ID and `duplicate_of` pointing to that same ID.
-
-After doctrine materialization, the project cell's doctrine artifact is refreshed so context compilation sees the updated rule set immediately.
-
-#### Playbook
-
-Accepted non-doctrine proposals are materialized into a new `playbook` store.
+The playbook is the non-doctrine operational memory store. It holds three entry types: `validation_gap`, `planner_heuristic`, and `refinement_guidance`. It follows the same patterns as the doctrine store and enrichment fact store.
 
 ```go
 package playbook
 
 type Entry struct {
-    ID                 string    `json:"id"`
-    Type               string    `json:"type"` // validation_gap, planner_heuristic, refinement_guidance
-    Title              string    `json:"title"`
-    Guidance           string    `json:"guidance"`
-    Rationale          string    `json:"rationale"`
-    EvidenceReferences []string  `json:"evidence_references,omitempty"`
-    SourceProposalID   string    `json:"source_proposal_id"`
-    SourceRunID        string    `json:"source_run_id"`
-    CreatedAt          time.Time `json:"created_at"`
+    ID               string    `json:"id"`
+    Type             string    `json:"type"`              // validation_gap, planner_heuristic, refinement_guidance
+    Title            string    `json:"title"`
+    Content          string    `json:"content"`           // the actionable guidance text
+    Rationale        string    `json:"rationale"`
+    Status           string    `json:"status"`            // active, superseded
+    SourceProposalID string    `json:"source_proposal_id"`
+    SourceRunID      string    `json:"source_run_id"`
+    SourceSpecID     string    `json:"source_spec_id"`
+    CreatedAt        time.Time `json:"created_at"`
+    SupersededBy     string    `json:"superseded_by,omitempty"`
 }
 
-type Playbook struct {
-    Entries []Entry `json:"entries"`
+type Store struct{}
+
+func (s *Store) Load(dir string) ([]Entry, error)
+func (s *Store) Save(dir string, entries []Entry) error
+```
+
+Entry IDs are computed from `(type, content)` via SHA-256, first 8 hex characters, prefixed with `pb-`. This makes IDs stable for deduplication. The `content` field is whitespace-normalized (trimmed, internal whitespace collapsed to single spaces) before hashing.
+
+### Proposal discovery
+
+`proposaltriage` scans run evidence directories for `distillation-proposals.json` files, filters out proposals that have already been decided (by checking for `proposal-decisions.json` per run), and builds the list of pending proposals.
+
+```go
+package proposaltriage
+
+type PendingProposal struct {
+    Proposal    reviewdistiller.Proposal
+    RunID       string
+    SpecID      string
 }
 
-type Store interface {
-    Save(playbookDir string, pb Playbook) error
-    Load(playbookDir string) (Playbook, error)
+type Decision struct {
+    ProposalID       string    `json:"proposal_id"`
+    Action           string    `json:"action"`           // accepted, rejected
+    Reason           string    `json:"reason,omitempty"` // required for rejected
+    ApprovedTitle    string    `json:"approved_title,omitempty"`
+    ApprovedChange   string    `json:"approved_change,omitempty"`
+    ApprovedRationale string   `json:"approved_rationale,omitempty"`
+    MaterializedID   string    `json:"materialized_id,omitempty"`
+    DuplicateOf      string    `json:"duplicate_of,omitempty"`
+    DecidedAt        time.Time `json:"decided_at"`
 }
 ```
 
-Materialization mapping:
+Discovery behavior:
+1. List runs for the current project via the run store
+2. Skip runs without `distillation-proposals.json`
+3. Join with `proposal-decisions.json` by proposal ID when present
+4. Proposals with no decision are `pending`
+5. Results sorted by creation time descending
 
-- `ID` = deterministic `pb-<short-hash>`
-- `Type` = proposal type
-- `Title` = `approved_title`
-- `Guidance` = `approved_change`
-- `Rationale` = `approved_rationale`
-- `EvidenceReferences` = proposal evidence references
-- `SourceProposalID` = proposal ID
-- `SourceRunID` = source run ID
-- `CreatedAt` = decision timestamp
+### Promotion pipeline
 
-The playbook store lives in the project cell and is mirrored into an artifact (`playbook.json`) so the context compiler can read it without importing the concrete package.
+When a proposal is accepted:
 
-When the playbook entry ID already exists, no duplicate entry is added. The decision is still recorded with `duplicate_of` set to the existing entry ID.
+1. Apply field overrides: use `--title`, `--change`, `--rationale` values if provided, otherwise default from the original proposal
+2. Determine target store: `doctrine_rule` → doctrine store, others → playbook store
+3. Compute deterministic materialized ID from `(type, approved_change)` — `promoted-<hash>` for doctrine, `pb-<hash>` for playbook
+4. Check for duplicates: if an entry with that ID already exists and is `active`, record the decision with `duplicate_of` set and skip materialization
+5. Materialize: create a `doctrine.Rule` or `playbook.Entry` from the approved fields
+6. Save to project cell store
+7. Record a `Decision` in `proposal-decisions.json` in the source run's evidence directory
 
-### Knowledge precedence
+### Reject-after-accept
 
-Doctrine remains the highest-authority instruction surface. Playbook entries are approved operational guidance, not declared law.
+When `reject` targets a proposal that was previously accepted:
 
-Precedence rules:
+1. Look up the `materialized_id` from the existing accepted decision
+2. Find the corresponding entry in the doctrine or playbook store
+3. Set its status to `superseded`, with `superseded_by` pointing to the rejection decision
+4. Overwrite the decision in `proposal-decisions.json` with the new `rejected` action and reason
 
-- Doctrine overrides playbook on conflict
-- Playbook is advisory and should be rendered as "preferred guidance", not "must"
-- Proposal promotion never mutates or removes declared doctrine authored outside this workflow
+This makes promotion fully reversible without needing a separate retraction command.
 
-This preserves the design rule from the existing system: human-declared doctrine stays authoritative.
+### Decision persistence
 
-### Context compilation
+Each run's evidence directory gains an optional `proposal-decisions.json` — an array of `Decision` objects. New decisions are added; existing decisions for the same proposal ID are overwritten (enabling reject-after-accept).
 
-The context compiler gains a `playbookSection()` reader parallel to `doctrineSection()`. The new section is included when the `playbook` artifact exists and contains entries.
+### Prompt injection points
 
-Updated packet composition:
+At prompt assembly time, the project's doctrine and playbook stores are loaded and injected at type-specific points:
 
-```text
-Project: architecture + doctrine + playbook + glossary + validation
-Spec:    architecture + doctrine + playbook + spec-text
-Task:    doctrine + playbook + spec-text + proof-requirements
-```
+| Entry type | Injection point | Mechanism |
+|---|---|---|
+| `doctrine_rule` | Task executor packet | Extend existing `Doctrine` field in `TaskPacketInput` (already wired) |
+| `planner_heuristic` | Planner prompt | Add `PlaybookHeuristics` field to `buildPlanPrompt()` and `buildFixPlanPrompt()` |
+| `validation_gap` | Validator prompt | Add `KnownGaps` field to validation prompt assembly |
+| `refinement_guidance` | Refinement/pre-execution prompt | Add `RefinementGuidance` field to spec refinement prompt |
 
-Rendering rules:
-
-- Omit the section entirely when playbook is empty
-- Group entries by `Type`
-- Sort deterministically by `Type`, then `ID`
-- Render guidance text, not raw JSON
-- Keep the section small and compatible with the existing token-budget trimming in `contextpkt`
-
-This is the key operational change in the spec: accepted proposals stop being archival evidence and become future prompt context.
+Each injection renders entries as a markdown list within the prompt section — title, content, and rationale per entry. Only `active` entries are included; `superseded` entries are excluded.
 
 ### CLI commands
 
-#### `review proposals list [--all]`
+**`review proposals list [--type <type>] [--run <run-id>] [--all]`**
+- Discovers pending proposals for the current project
+- Shows proposal ID, type, source run, confidence, and title
+- Defaults to pending proposals only; `--all` includes accepted and rejected
+- Filters by type or source run
 
-- Scans proposals for the current project
-- Prints proposal ID, type, status, source run, outcome, confidence, and title
-- Defaults to `pending` proposals only
-- `--all` includes accepted and rejected proposals
+**`review proposals show <proposal-id>`**
+- Displays full proposal detail: all fields, source run context, existing decision if any
 
-#### `review proposals show --proposal <proposal-id>`
+**`review proposals accept <proposal-id> [--title "..."] [--change "..."] [--rationale "..."]`**
+- Materializes into project-local target store
+- Records decision with approved fields (overridden or defaulted from proposal)
+- Reports materialized entry ID and target store
 
-- Loads and prints the full proposal
-- Includes existing decision data if present
-
-#### `review proposals apply --proposal <proposal-id>`
-
-Interactive path:
-
-1. Show the proposal
-2. Prompt for `accept` or `reject`
-3. If `accept`, allow edits to title/change/rationale
-4. If `accept` and type is `doctrine_rule`, prompt for scope (default `*`)
-5. Persist `proposal-decisions.json`
-6. Materialize doctrine/playbook entry if needed
-
-#### `review proposals record --proposal <proposal-id> --decision accepted|rejected`
-
-Non-interactive path:
-
-- `accepted` accepts optional `--title`, `--change`, `--rationale`, `--scope`
-- `rejected` requires `--reason`
-- Uses the same validation and materialization path as `apply`
-
-### Missing artifacts and backfill behavior
-
-Proposal promotion commands do not automatically re-run distillation across all runs.
-
-Behavior:
-
-- `list` skips runs with no `distillation-proposals.json`
-- `show` / `apply` / `record` return a clear error when the proposal cannot be found
-- If the user targets a run with review outcome but no distillation artifacts, the error should suggest `review distill --run <run-id>`
-
-This keeps promotion narrowly scoped to proposal handling rather than turning it into a second distillation orchestration path.
+**`review proposals reject <proposal-id> --reason "..."`**
+- Records rejection decision with reason
+- If the proposal was previously accepted, supersedes the materialized entry in the store
 
 ## Acceptance Criteria
 
-1. `gromit-next review proposals list` discovers distilled proposals by scanning run evidence and shows pending proposals by default.
-2. `gromit-next review proposals list --all` includes accepted and rejected proposals with their recorded status.
-3. `gromit-next review proposals show --proposal <proposal-id>` prints the full proposal and any existing decision.
-4. `gromit-next review proposals apply --proposal <proposal-id>` supports an interactive accept/reject flow and writes `proposal-decisions.json` to the source run's evidence directory.
-5. `gromit-next review proposals record --proposal <proposal-id> --decision accepted|rejected ...` supports non-interactive decision recording using the same validation/materialization path as `apply`.
-6. Accepted `doctrine_rule` proposals are materialized into the doctrine store using deterministic rule IDs and the doctrine artifact is refreshed.
-7. Accepted `validation_gap`, `planner_heuristic`, and `refinement_guidance` proposals are materialized into the playbook store and mirrored artifact using deterministic entry IDs.
-8. Accepting a proposal whose deterministic target ID already exists does not create a duplicate doctrine rule or playbook entry; the decision is still recorded and points to the existing entry ID.
-9. Rejected proposals require a non-empty reason; accepted proposals may override title/change/rationale and default omitted fields from the original proposal.
-10. Proposal decisions are terminal: repeating the same decision is idempotent, but attempting to change an existing accepted/rejected decision returns an error.
-11. Future project/spec/task context packets include the playbook section when playbook entries exist, and omit it when empty.
-12. Doctrine remains authoritative over playbook guidance; this precedence is documented in the rendering and materialization rules.
-13. Promotion writes only to run evidence and the project cell (doctrine/playbook artifacts), never to the target repository.
+1. `gromit-next review proposals list` discovers pending proposals from `distillation-proposals.json` files across runs for the current project.
+2. `review proposals list --all` includes accepted and rejected proposals with their recorded status.
+3. `review proposals list` supports `--type` and `--run` filters.
+4. `review proposals show <proposal-id>` displays the full proposal including all fields, source run context, and existing decision if any.
+5. `review proposals accept <proposal-id>` materializes the proposal into the appropriate project-local store: `doctrine_rule` → doctrine store, others → playbook store.
+6. `review proposals accept` supports `--title`, `--change`, and `--rationale` overrides; omitted fields default from the original proposal.
+7. `review proposals reject <proposal-id> --reason "..."` records a rejection decision with the given reason.
+8. Rejecting a previously accepted proposal supersedes the materialized entry in the target store (sets status to `superseded`).
+9. Decisions are persisted in `proposal-decisions.json` in the source run's evidence directory; re-deciding overwrites the previous decision for the same proposal ID.
+10. The playbook store (`cellPath/playbook/entries.json`) supports `validation_gap`, `planner_heuristic`, and `refinement_guidance` entry types with the `Entry` schema defined in Architecture.
+11. Accepting a proposal whose deterministic materialized ID already exists as an `active` entry does not create a duplicate; the decision is recorded with `duplicate_of` set to the existing entry ID.
+12. Promoted `doctrine_rule` entries are injected into task executor prompts via the existing `Doctrine` field.
+13. Promoted `planner_heuristic` entries are injected into planner prompts (`buildPlanPrompt` and `buildFixPlanPrompt`).
+14. Promoted `validation_gap` entries are injected into validator prompts.
+15. Promoted `refinement_guidance` entries are injected into refinement/pre-execution prompts.
+16. Only `active` entries are injected into prompts; `superseded` entries are excluded.
+17. Playbook entry IDs are computed from `(type, whitespace-normalized content)` via SHA-256, first 8 hex characters, prefixed with `pb-`.
+18. Doctrine rule IDs from promotion are computed the same way, prefixed with `promoted-`.
+19. Every materialized rule/entry includes provenance fields: `source_proposal_id`, `source_run_id`, `source_spec_id`.
+20. The `proposaltriage` package has no dependency on CLI or specloop machinery — it receives paths and returns data.
+21. The `playbook` package has no dependency on CLI, specloop, or proposaltriage — it is a pure store.
 
 ## Scenarios
 
-### Scenario: list shows pending proposals across multiple runs
+### Scenario: accept a doctrine_rule proposal into project-local store
+**Given:** a run with ID `run-201` has `distillation-proposals.json` containing 4 proposals, one of which is a `doctrine_rule` with ID `run-201-proposal-a1b2c3d4` and title "Interactive UI specs must include accessibility scenario checks"
+**When:** the reviewer runs `gromit-next review proposals accept run-201-proposal-a1b2c3d4`
+**Then:** a new rule appears in the project cell's `doctrine/rules.json` with ID `promoted-<hash>`, the proposal's title as summary, and source `promoted:run-201-proposal-a1b2c3d4`; `proposal-decisions.json` in run-201's evidence directory contains an `accepted` decision; the proposal no longer appears in `review proposals list`
 
-**Given:** Run A and Run B both contain `distillation-proposals.json`; Run A has no `proposal-decisions.json`, while Run B has one accepted proposal decision
-**When:** the reviewer runs `gromit-next review proposals list`
-**Then:** only Run A's undecided proposals are shown
-**And:** `gromit-next review proposals list --all` shows both Run A's pending proposals and Run B's accepted proposal with its status
+### Scenario: accept a planner_heuristic proposal into playbook
+**Given:** a run with ID `run-202` has a `planner_heuristic` proposal with ID `run-202-proposal-e5f6a7b8` and content "Prefer package-scoped compile checks before full test suite"
+**When:** the reviewer runs `gromit-next review proposals accept run-202-proposal-e5f6a7b8`
+**Then:** a new entry appears in `cellPath/playbook/entries.json` with type `planner_heuristic`, status `active`, and the proposal's content; provenance fields trace back to run-202
 
-### Scenario: accepting a doctrine proposal materializes a rule
+### Scenario: accept with field overrides
+**Given:** a run with ID `run-203` has a `validation_gap` proposal with ID `run-203-proposal-f1f2f3f4`, title "Contract assertions target wrong file", and proposed change "Avoid file-path-specific contract assertions when behavior can be verified by scenario tests"
+**When:** the reviewer runs `gromit-next review proposals accept run-203-proposal-f1f2f3f4 --title "Prefer scenario tests over file-path contracts" --change "When a behavior can be verified by a scenario test, prefer that over file-path-specific contract assertions which break on refactoring"`
+**Then:** the materialized playbook entry uses the overridden title and content, not the original proposal text; the decision records the approved overrides
 
-**Given:** proposal `run-101-proposal-abcd1234` has type `doctrine_rule`, approved change text `Interactive UI specs must include keyboard-navigation scenarios`, and no existing decision
-**When:** the reviewer runs `gromit-next review proposals record --proposal run-101-proposal-abcd1234 --decision accepted --scope ui`
-**Then:** `proposal-decisions.json` records an accepted decision for that proposal
-**And:** the doctrine store contains a rule with ID `promoted-<hash>`, summary equal to the approved change text, scope `ui`, and source `promoted:run-101-proposal-abcd1234`
-**And:** the doctrine artifact is refreshed so future context packets include the new rule
+### Scenario: reject a proposal with reason
+**Given:** a run with ID `run-204` has a `validation_gap` proposal with ID `run-204-proposal-c9d0e1f2`
+**When:** the reviewer runs `gromit-next review proposals reject run-204-proposal-c9d0e1f2 --reason "Too specific to this one-off migration"`
+**Then:** `proposal-decisions.json` in run-204's evidence directory contains a `rejected` decision with the given reason; the proposal no longer appears in `review proposals list`; neither doctrine nor playbook is modified
 
-### Scenario: accepting a planner heuristic proposal materializes playbook guidance
-
-**Given:** proposal `run-102-proposal-efgh5678` has type `planner_heuristic`, title `Split proof-writing from implementation`, and proposed change text `When scenario tests and implementation both need to be written, prefer separate tasks so validation can localize failures`
-**When:** the reviewer accepts the proposal
-**Then:** the playbook store contains an entry with type `planner_heuristic`, the approved title, the approved guidance text, and evidence references from the proposal
-**And:** a subsequent task-level context packet includes a `playbook` section containing that guidance
+### Scenario: reject a previously accepted proposal supersedes the materialized entry
+**Given:** proposal `run-205-proposal-aabbccdd` was previously accepted as a local `planner_heuristic`, and an active entry with the corresponding ID exists in `cellPath/playbook/entries.json`
+**When:** the reviewer runs `gromit-next review proposals reject run-205-proposal-aabbccdd --reason "Turned out to cause worse task splits"`
+**Then:** the entry in `playbook/entries.json` has status `superseded`; `proposal-decisions.json` is updated with a `rejected` decision replacing the previous `accepted` decision
 
 ### Scenario: accepting a duplicate proposal does not create duplicate memory
-
-**Given:** proposal `run-103-proposal-1111aaaa` is accepted and materialized into playbook entry `pb-9f81c3a2`
-**And:** a later run produces proposal `run-104-proposal-2222bbbb` whose accepted type and approved change text hash to the same `pb-9f81c3a2`
+**Given:** proposal `run-206-proposal-1111aaaa` was previously accepted and materialized into playbook entry `pb-9f81c3a2`; a later run produces proposal `run-207-proposal-2222bbbb` whose type and approved change text hash to the same `pb-9f81c3a2`
 **When:** the reviewer accepts the later proposal
-**Then:** no second playbook entry is created
-**And:** the later run's `proposal-decisions.json` records `materialized_entry_id: "pb-9f81c3a2"` and `duplicate_of: "pb-9f81c3a2"`
+**Then:** no second playbook entry is created; the decision records `materialized_id: "pb-9f81c3a2"` and `duplicate_of: "pb-9f81c3a2"`
 
-### Scenario: rejecting a proposal requires a reason
+### Scenario: promoted heuristic appears in planner prompt
+**Given:** a `planner_heuristic` entry with title "Prefer compile checks before full test suite" is active in the project's playbook
+**When:** the planner builds a plan for a new spec in this project
+**Then:** the planner prompt includes the heuristic title and content in its guidance section
 
-**Given:** proposal `run-105-proposal-cccc3333` is pending
-**When:** the reviewer runs `gromit-next review proposals record --proposal run-105-proposal-cccc3333 --decision rejected --reason "Too project-specific to codify"`
-**Then:** `proposal-decisions.json` records a rejected decision with that reason
-**And:** neither doctrine nor playbook is modified
+### Scenario: promoted validation gap appears in validator prompt
+**Given:** a `validation_gap` entry with title "File-path-specific contract assertions are fragile" is active in the project's playbook
+**When:** the validator runs for a spec in this project
+**Then:** the validator prompt includes the gap title and content as a known issue to watch for
 
-### Scenario: repeated record with same decision is idempotent
+### Scenario: promoted refinement guidance appears in refinement prompt
+**Given:** a `refinement_guidance` entry with title "Ask about deployment constraints before designing infrastructure tasks" is active in the project's playbook
+**When:** a spec enters the refinement stage in this project
+**Then:** the refinement prompt includes the guidance title and content
 
-**Given:** proposal `run-106-proposal-dddd4444` already has an accepted decision with the same approved fields and target entry ID
-**When:** the reviewer repeats the same `review proposals record` command
-**Then:** the command succeeds without changing doctrine or playbook
-**And:** no duplicate decision or duplicate materialized entry is created
+### Scenario: superseded entries excluded from prompts
+**Given:** a `planner_heuristic` entry exists in the playbook with status `superseded`
+**When:** the planner builds a prompt for this project
+**Then:** the superseded entry does not appear in the planner prompt
 
-### Scenario: attempting to change a terminal decision is rejected
+### Scenario: list with --all shows decided proposals
+**Given:** 4 proposals exist across runs: 2 pending, 1 accepted, 1 rejected
+**When:** the reviewer runs `gromit-next review proposals list --all`
+**Then:** all 4 proposals are shown with their respective statuses
 
-**Given:** proposal `run-107-proposal-eeee5555` already has a rejected decision
-**When:** the reviewer attempts to accept it with `review proposals record`
-**Then:** the command returns an error explaining that the proposal already has a terminal decision
-**And:** no doctrine or playbook state changes
+## Deferred
+- Global or cross-project proposal scope and `--scope global|local` (Spec 0004e).
+- Global/local layered store resolution with local-wins semantics (Spec 0004e).
+- Proposal grouping via deterministic content-hash matching and LLM semantic clustering (Spec 0004e).
+- `--dismiss-group` for clearing sibling proposals on accept (Spec 0004e).
+- Feeding rejection history into the distiller's prompts to suppress re-proposals (Spec 0004e).
+- In-place `$EDITOR` flow for editing proposals before acceptance.
+- Proposal expiration or staleness detection.
+- Trend analysis and dashboards over proposal/promotion history.
+- Web UI for proposal triage.
+- Bulk accept/reject operations.
 
 ## Validation
 
 ### Automatic
-- `go test ./internal/next/reviewpromotion/...`
 - `go test ./internal/next/playbook/...`
-- `go test ./internal/next/contextpkt/...`
+- `go test ./internal/next/proposaltriage/...`
 - `go test ./cmd/gromit-next/...`
 - `go vet ./...`
 
 ### Manual
-1. Record a review outcome, run distillation, then run `gromit-next review proposals list` and verify the new proposal appears as pending.
-2. Accept a `doctrine_rule` proposal and verify the doctrine artifact changes and future context packets include the promoted rule.
-3. Accept a `planner_heuristic` proposal and verify the playbook artifact changes and future task packets include the new guidance.
-4. Accept an equivalent proposal from a second run and verify no duplicate doctrine/playbook entry is created.
-5. Reject a proposal and verify only `proposal-decisions.json` changes.
-
-## Deferred
-
-- Global / cross-project proposal scope
-- Proposal retirement, retraction, or editing after acceptance
-- Automatic repo-wide backfill for runs that have review outcomes but no distillation artifacts
-- Semantic deduplication across similar but differently worded proposals
-- Ordering or weighting playbook entries by reinforcement count
-- Rendering playbook content in `project guide` or other human-facing summary surfaces
-- Impact tracking that measures whether accepted proposals improve future review outcomes
+1. Run a spec through to review, record an outcome, distill it, then run `review proposals list` and verify proposals appear.
+2. Accept a `doctrine_rule` proposal and verify it appears in `cellPath/doctrine/rules.json` with correct provenance.
+3. Accept a `planner_heuristic` proposal with `--change` override and verify the playbook entry uses the overridden text.
+4. Run a new spec and verify the promoted heuristic appears in the planner prompt output.
+5. Reject a previously accepted proposal and verify the materialized entry is superseded.
+6. Accept a duplicate proposal (same type and change text as an existing entry) and verify no duplicate entry is created.
