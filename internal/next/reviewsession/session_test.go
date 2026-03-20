@@ -1,6 +1,7 @@
 package reviewsession
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -400,9 +401,9 @@ func TestCanAccept(t *testing.T) {
 			can, reason := session.CanAccept()
 
 			if can != tt.can {
-				t.Errorf("CanAccept() = %v, want %v", can, tt.can)
+				t.Errorf("can = %v, want %v", can, tt.can)
 			}
-			if can != tt.can && reason != tt.reason {
+			if reason != tt.reason {
 				t.Errorf("reason = %q, want %q", reason, tt.reason)
 			}
 		})
@@ -659,8 +660,8 @@ func makeCheckItems(count int) []reviewpacket.ManualCheckItem {
 	items := make([]reviewpacket.ManualCheckItem, count)
 	for i := 0; i < count; i++ {
 		items[i] = reviewpacket.ManualCheckItem{
-			ID:    "item" + string(rune(i)),
-			Title: "Item " + string(rune(i)),
+			ID:    "item" + fmt.Sprintf("%d", i),
+			Title: "Item " + fmt.Sprintf("%d", i),
 		}
 	}
 	return items

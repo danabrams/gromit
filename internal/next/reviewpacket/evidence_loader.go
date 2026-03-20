@@ -123,27 +123,21 @@ func InputsFromEvidence(evidenceDir string, specPath string, run *runstore.RunSt
 		reviewFindings["info"] = []ReviewFinding{}
 	}
 
-	// Extract degraded flags from run state
-	degradedFlags := run.ReviewFindings
-	if degradedFlags == nil {
-		degradedFlags = []string{}
-	}
-
-	// Determine if this is a repeated failure from run state by checking if any
-	// failure in the failure history or task lineage has repeated occurrences
-	repeatedFailure := false
-	for _, count := range run.FailureHistory {
-		if count > 1 {
-			repeatedFailure = true
-			break
+	// Extract degraded flags from review.json data (matching finalize.go behavior)
+	degradedFlags := []string{}
+	if reviewRaw != nil {
+		if diffUnavail, ok := reviewRaw["diff_unavailable"].(bool); ok && diffUnavail {
+			degradedFlags = append(degradedFlags, "diff_unavailable")
 		}
 	}
-	if !repeatedFailure {
-		for _, entry := range run.TaskLineage {
-			if entry.ConsecutiveFails > 1 {
-				repeatedFailure = true
-				break
-			}
+
+	// Determine if this is a repeated failure by checking task lineage
+	// (matches finalize.go behavior)
+	repeatedFailure := false
+	for _, entry := range run.TaskLineage {
+		if entry.ConsecutiveFails > 1 {
+			repeatedFailure = true
+			break
 		}
 	}
 
@@ -157,7 +151,7 @@ func InputsFromEvidence(evidenceDir string, specPath string, run *runstore.RunSt
 		ReviewFindings:   reviewFindings,
 		AcceptanceResult: acceptanceResult,
 		DegradedFlags:    degradedFlags,
-		RepairCycles:     run.TotalReplans,
+		RepairCycles:     run.Cycle,
 		RepeatedFailure:  repeatedFailure,
 	}
 

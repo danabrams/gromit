@@ -225,18 +225,6 @@ func detectRepeatedFailure(rs *runstore.RunState) bool {
 	return false
 }
 
-// jsonIntValue extracts an integer from a JSON-decoded interface{}, handling both int and float64.
-func jsonIntValue(v interface{}) int {
-	switch val := v.(type) {
-	case int:
-		return val
-	case float64:
-		return int(val)
-	default:
-		return 0
-	}
-}
-
 // readJSONFile reads a JSON file and unmarshals it to a map or slice.
 func readJSONFile(path string) (interface{}, error) {
 	data, err := os.ReadFile(path)

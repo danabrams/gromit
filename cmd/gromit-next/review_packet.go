@@ -47,7 +47,7 @@ var reviewRecordCmd = &cobra.Command{
 }
 
 func init() {
-	reviewRecordCmd.Flags().String("outcome", "", "The review outcome (accepted, rework_vision_change, rework_implementation_gap, needs_human)")
+	reviewRecordCmd.Flags().String("outcome", "", "The review outcome (accepted, rework_implementation_gap, rework_vision_change)")
 	reviewRecordCmd.Flags().String("summary", "", "Summary of the review")
 	reviewRecordCmd.Flags().String("override", "", "Override reason for accepting a run with unsure items")
 	reviewRecordCmd.Flags().String("store-dir", "", "Run store directory (default: .gromit-next)")

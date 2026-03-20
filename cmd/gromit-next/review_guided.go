@@ -46,7 +46,7 @@ If no run-id is given, the latest run is reviewed (by modification time of .grom
 			}
 
 			// Use stdin for interactive input
-			return reviewGuided(runID, storeDir, os.Stdin)
+			return reviewGuided(runID, storeDir, os.Stdin, cmd.OutOrStdout())
 		},
 	}
 	cmd.Flags().String("store-dir", "", "Override store directory (for testing)")
@@ -56,7 +56,7 @@ If no run-id is given, the latest run is reviewed (by modification time of .grom
 
 // reviewGuided runs an interactive guided review for a run.
 // Input is read from the provided reader (for testing, this can be a strings.Reader; in normal use, it's os.Stdin).
-func reviewGuided(runID string, storeDir string, input io.Reader) error {
+func reviewGuided(runID string, storeDir string, input io.Reader, out io.Writer) error {
 	// Load run and ensure packet exists
 	_, err := loadRunAndEnsurePacket(runID, storeDir)
 	if err != nil {
@@ -78,23 +78,23 @@ func reviewGuided(runID string, storeDir string, input io.Reader) error {
 
 	// Render and display product review
 	rendered := reviewpacket.RenderProductReview(outputs.ProductReview)
-	fmt.Println(rendered)
+	fmt.Fprintln(out, rendered)
 
 	// Create session and start interactive review
 	session := reviewsession.Start(*outputs)
 	scanner := bufio.NewScanner(input)
 
 	// Process checklist items
-	fmt.Println("\n=== Manual Review Checklist ===")
+	fmt.Fprintln(out, "\n=== Manual Review Checklist ===")
 	for session.CurrentItem() != nil {
 		item := session.CurrentItem()
-		fmt.Printf("[%d/%d] %s\n", session.CurrentStep+1, len(session.Checklist), item.Item.Title)
+		fmt.Fprintf(out, "[%d/%d] %s\n", session.CurrentStep+1, len(session.Checklist), item.Item.Title)
 		if item.Item.Instructions != "" {
-			fmt.Printf("  Instructions: %s\n", item.Item.Instructions)
+			fmt.Fprintf(out, "  Instructions: %s\n", item.Item.Instructions)
 		}
 
 		// Prompt for result
-		fmt.Print("\nResult (pass/fail/unsure/skipped): ")
+		fmt.Fprint(out, "\nResult (pass/fail/unsure/skipped): ")
 		if !scanner.Scan() {
 			return fmt.Errorf("failed to read result")
 		}
@@ -108,12 +108,12 @@ func reviewGuided(runID string, storeDir string, input io.Reader) error {
 			reviewsession.ResultSkipped: true,
 		}
 		if !validResults[result] {
-			fmt.Printf("Invalid result %q. Please use: pass, fail, unsure, or skipped.\n\n", result)
+			fmt.Fprintf(out, "Invalid result %q. Please use: pass, fail, unsure, or skipped.\n\n", result)
 			continue
 		}
 
 		// Prompt for notes (optional)
-		fmt.Print("Notes (optional, press Enter to skip): ")
+		fmt.Fprint(out, "Notes (optional, press Enter to skip): ")
 		var notes string
 		if scanner.Scan() {
 			notes = strings.TrimSpace(scanner.Text())
@@ -123,19 +123,19 @@ func reviewGuided(runID string, storeDir string, input io.Reader) error {
 		if err := session.RecordItemResult(result, notes); err != nil {
 			return fmt.Errorf("record item result: %w", err)
 		}
-		fmt.Println()
+		fmt.Fprintln(out)
 	}
 
 	// All items completed, now prompt for outcome
-	fmt.Println("=== Review Outcome ===")
-	fmt.Println("Choose the final outcome:")
-	fmt.Println("1. accept         - Accept the work as-is")
-	fmt.Println("2. rework_implementation_gap - Work needs fixes (implementation issue)")
-	fmt.Println("3. rework_vision_change     - Work direction needs to change")
+	fmt.Fprintln(out, "=== Review Outcome ===")
+	fmt.Fprintln(out, "Choose the final outcome:")
+	fmt.Fprintln(out, "1. accept         - Accept the work as-is")
+	fmt.Fprintln(out, "2. rework_implementation_gap - Work needs fixes (implementation issue)")
+	fmt.Fprintln(out, "3. rework_vision_change     - Work direction needs to change")
 
 	var outcome string
 	for {
-		fmt.Print("Outcome (accept/rework_implementation_gap/rework_vision_change): ")
+		fmt.Fprint(out, "Outcome (accept/rework_implementation_gap/rework_vision_change): ")
 		if !scanner.Scan() {
 			return fmt.Errorf("failed to read outcome")
 		}
@@ -146,8 +146,8 @@ func reviewGuided(runID string, storeDir string, input io.Reader) error {
 			outcome = reviewsession.OutcomeAccepted
 			canAccept, reason := session.CanAccept()
 			if !canAccept {
-				fmt.Printf("Cannot accept: %s\n\n", reason)
-				fmt.Println("Please choose a rework outcome instead.")
+				fmt.Fprintf(out, "Cannot accept: %s\n\n", reason)
+				fmt.Fprintln(out, "Please choose a rework outcome instead.")
 				continue
 			}
 			break
@@ -162,11 +162,11 @@ func reviewGuided(runID string, storeDir string, input io.Reader) error {
 			break
 		}
 
-		fmt.Printf("Invalid outcome %q.\n", outcome)
+		fmt.Fprintf(out, "Invalid outcome %q.\n", outcome)
 	}
 
 	// Prompt for summary
-	fmt.Print("Summary of the review: ")
+	fmt.Fprint(out, "Summary of the review: ")
 	var summary string
 	if scanner.Scan() {
 		summary = strings.TrimSpace(scanner.Text())
@@ -175,8 +175,8 @@ func reviewGuided(runID string, storeDir string, input io.Reader) error {
 	// If accepting with unsure items, require override reason
 	var overrideReason string
 	if outcome == reviewsession.OutcomeAccepted && session.NeedsOverride() {
-		fmt.Println("Note: Unsure items found in the checklist.")
-		fmt.Print("Override reason (why accepting despite unsure items): ")
+		fmt.Fprintln(out, "Note: Unsure items found in the checklist.")
+		fmt.Fprint(out, "Override reason (why accepting despite unsure items): ")
 		if scanner.Scan() {
 			overrideReason = strings.TrimSpace(scanner.Text())
 		}
@@ -201,15 +201,15 @@ func reviewGuided(runID string, storeDir string, input io.Reader) error {
 	}
 
 	// Print summary
-	fmt.Println("\n=== Review Complete ===")
-	fmt.Printf("Outcome: %s\n", outcome)
+	fmt.Fprintln(out, "\n=== Review Complete ===")
+	fmt.Fprintf(out, "Outcome: %s\n", outcome)
 	if summary != "" {
-		fmt.Printf("Summary: %s\n", summary)
+		fmt.Fprintf(out, "Summary: %s\n", summary)
 	}
 	if overrideReason != "" {
-		fmt.Printf("Override: %s\n", overrideReason)
+		fmt.Fprintf(out, "Override: %s\n", overrideReason)
 	}
-	fmt.Println("Review saved to review-outcome.json")
+	fmt.Fprintln(out, "Review saved to review-outcome.json")
 
 	return nil
 }

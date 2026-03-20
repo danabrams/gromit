@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -76,12 +77,15 @@ func TestScenario_ExecComplete_MarksSpecFileAsDone(t *testing.T) {
 	}
 	content := string(data)
 
-	if !strings.HasPrefix(content, "DONE 2026-03-19\n") {
-		t.Errorf("expected spec file to start with 'DONE 2026-03-19\\n', got:\n%s", content)
+	today := time.Now().Format("2006-01-02")
+	donePrefix := fmt.Sprintf("DONE %s\n", today)
+
+	if !strings.HasPrefix(content, donePrefix) {
+		t.Errorf("expected spec file to start with %q, got:\n%s", donePrefix, content)
 	}
 
 	// Assert: original content is preserved after the DONE line
-	afterDone := strings.TrimPrefix(content, "DONE 2026-03-19\n")
+	afterDone := strings.TrimPrefix(content, donePrefix)
 	if afterDone != originalContent {
 		t.Errorf("expected original content preserved after DONE line.\nWant:\n%s\nGot:\n%s", originalContent, afterDone)
 	}

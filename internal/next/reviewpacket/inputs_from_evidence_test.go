@@ -3,6 +3,7 @@ package reviewpacket
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/next/runstore"
@@ -62,6 +63,7 @@ func TestInputsFromEvidence_SuccessfulReconstruction(t *testing.T) {
 		SpecID:         "spec-0001",
 		Status:         "ready_for_review",
 		ReviewFindings: []string{"info"},
+		Cycle:          2,
 		TotalReplans:   2,
 		FailureHistory: map[string]int{},
 		TaskLineage:    map[string]runstore.TaskLineageEntry{},
@@ -110,9 +112,9 @@ func TestInputsFromEvidence_SuccessfulReconstruction(t *testing.T) {
 		t.Errorf("ReviewFindings['info'] length = %d, want 1", len(inputs.ReviewFindings["info"]))
 	}
 
-	// Verify DegradedFlags
-	if len(inputs.DegradedFlags) != 1 {
-		t.Errorf("DegradedFlags length = %d, want 1", len(inputs.DegradedFlags))
+	// Verify DegradedFlags (no diff_unavailable in review.json, so empty)
+	if len(inputs.DegradedFlags) != 0 {
+		t.Errorf("DegradedFlags length = %d, want 0", len(inputs.DegradedFlags))
 	}
 
 	// Verify RepairCycles
@@ -155,7 +157,7 @@ func TestInputsFromEvidence_MissingValidationJson(t *testing.T) {
 	if err == nil {
 		t.Error("InputsFromEvidence() error = nil, want error for missing validation.json")
 	}
-	if err != nil && !stringContains(err.Error(), "validation.json") {
+	if err != nil && !strings.Contains(err.Error(), "validation.json") {
 		t.Errorf("error message does not mention validation.json: %v", err)
 	}
 }
@@ -192,7 +194,7 @@ func TestInputsFromEvidence_MissingAcceptanceJson(t *testing.T) {
 	if err == nil {
 		t.Error("InputsFromEvidence() error = nil, want error for missing acceptance.json")
 	}
-	if err != nil && !stringContains(err.Error(), "acceptance.json") {
+	if err != nil && !strings.Contains(err.Error(), "acceptance.json") {
 		t.Errorf("error message does not mention acceptance.json: %v", err)
 	}
 }
@@ -228,7 +230,7 @@ func TestInputsFromEvidence_MissingSpecFile(t *testing.T) {
 	if err == nil {
 		t.Error("InputsFromEvidence() error = nil, want error for missing spec file")
 	}
-	if err != nil && !stringContains(err.Error(), "read spec") {
+	if err != nil && !strings.Contains(err.Error(), "read spec") {
 		t.Errorf("error message does not mention spec: %v", err)
 	}
 }
@@ -267,7 +269,7 @@ func TestInputsFromEvidence_MissingReviewJson(t *testing.T) {
 	if err == nil {
 		t.Error("InputsFromEvidence() error = nil, want error for missing review.json")
 	}
-	if err != nil && !stringContains(err.Error(), "review.json") {
+	if err != nil && !strings.Contains(err.Error(), "review.json") {
 		t.Errorf("error message does not mention review.json: %v", err)
 	}
 }
@@ -311,7 +313,7 @@ func TestInputsFromEvidence_InvalidValidationJson(t *testing.T) {
 	if err == nil {
 		t.Error("InputsFromEvidence() error = nil, want error for invalid validation.json")
 	}
-	if err != nil && !stringContains(err.Error(), "unmarshal validation.json") {
+	if err != nil && !strings.Contains(err.Error(), "unmarshal validation.json") {
 		t.Errorf("error message does not mention unmarshal validation.json: %v", err)
 	}
 }
@@ -353,7 +355,7 @@ func TestInputsFromEvidence_InvalidAcceptanceJson(t *testing.T) {
 	if err == nil {
 		t.Error("InputsFromEvidence() error = nil, want error for invalid acceptance.json")
 	}
-	if err != nil && !stringContains(err.Error(), "unmarshal acceptance.json") {
+	if err != nil && !strings.Contains(err.Error(), "unmarshal acceptance.json") {
 		t.Errorf("error message does not mention unmarshal acceptance.json: %v", err)
 	}
 }
@@ -397,7 +399,7 @@ func TestInputsFromEvidence_InvalidReviewJson(t *testing.T) {
 	if err == nil {
 		t.Error("InputsFromEvidence() error = nil, want error for invalid review.json")
 	}
-	if err != nil && !stringContains(err.Error(), "unmarshal review.json") {
+	if err != nil && !strings.Contains(err.Error(), "unmarshal review.json") {
 		t.Errorf("error message does not mention unmarshal review.json: %v", err)
 	}
 }
@@ -434,7 +436,10 @@ func TestInputsFromEvidence_ExtractRunMetadata(t *testing.T) {
 		t.Fatalf("write acceptance.json: %v", err)
 	}
 
-	reviewData := map[string]interface{}{"info": []interface{}{}}
+	reviewData := map[string]interface{}{
+		"diff_unavailable": true,
+		"info":             []interface{}{},
+	}
 	if err := writeJSON(tempDir, "review.json", reviewData); err != nil {
 		t.Fatalf("write review.json: %v", err)
 	}
@@ -445,7 +450,6 @@ func TestInputsFromEvidence_ExtractRunMetadata(t *testing.T) {
 		SpecID:         "spec-0042",
 		Status:         "blocked",
 		Cycle:          5,
-		ReviewFindings: []string{"performance", "maintainability"},
 		TotalReplans:   4,
 		FailureHistory: map[string]int{},
 		TaskLineage:    map[string]runstore.TaskLineageEntry{},
@@ -466,28 +470,25 @@ func TestInputsFromEvidence_ExtractRunMetadata(t *testing.T) {
 		t.Errorf("TerminalState = %q, want %q", inputs.TerminalState, "blocked")
 	}
 
-	// Verify DegradedFlags
-	if len(inputs.DegradedFlags) != 2 {
-		t.Errorf("len(DegradedFlags) = %d, want 2", len(inputs.DegradedFlags))
+	// Verify DegradedFlags derived from review.json diff_unavailable
+	if len(inputs.DegradedFlags) != 1 {
+		t.Errorf("len(DegradedFlags) = %d, want 1", len(inputs.DegradedFlags))
 	}
-	if !contains(inputs.DegradedFlags, "performance") {
-		t.Errorf("DegradedFlags missing 'performance': %v", inputs.DegradedFlags)
-	}
-	if !contains(inputs.DegradedFlags, "maintainability") {
-		t.Errorf("DegradedFlags missing 'maintainability': %v", inputs.DegradedFlags)
+	if !contains(inputs.DegradedFlags, "diff_unavailable") {
+		t.Errorf("DegradedFlags missing 'diff_unavailable': %v", inputs.DegradedFlags)
 	}
 
-	// Verify RepairCycles
-	if inputs.RepairCycles != 4 {
-		t.Errorf("RepairCycles = %d, want 4", inputs.RepairCycles)
+	// Verify RepairCycles (uses Cycle, not TotalReplans)
+	if inputs.RepairCycles != 5 {
+		t.Errorf("RepairCycles = %d, want 5", inputs.RepairCycles)
 	}
 }
 
-func TestInputsFromEvidence_RepeatedFailureDetectionViaFailureHistory(t *testing.T) {
-	// Scenario: RepeatedFailure is set when FailureHistory contains entries with count > 1
-	// Given: a RunState with FailureHistory containing repeated failures
+func TestInputsFromEvidence_RepeatedFailureDetectionViaTaskLineageOnly(t *testing.T) {
+	// Scenario: RepeatedFailure is only detected via TaskLineage (not FailureHistory)
+	// Given: a RunState with FailureHistory containing repeated failures but empty TaskLineage
 	// When: InputsFromEvidence is called
-	// Then: the returned Inputs has RepeatedFailure = true
+	// Then: the returned Inputs has RepeatedFailure = false (FailureHistory is ignored)
 
 	tempDir := t.TempDir()
 	specPath := filepath.Join(tempDir, "spec.md")
@@ -518,7 +519,7 @@ func TestInputsFromEvidence_RepeatedFailureDetectionViaFailureHistory(t *testing
 		t.Fatalf("write review.json: %v", err)
 	}
 
-	// Create RunState with repeated failures in history
+	// Create RunState with repeated failures in FailureHistory but empty TaskLineage
 	run := &runstore.RunState{
 		RunID:  "repeated-run",
 		Status: "blocked",
@@ -534,8 +535,9 @@ func TestInputsFromEvidence_RepeatedFailureDetectionViaFailureHistory(t *testing
 		t.Fatalf("InputsFromEvidence() error = %v, want nil", err)
 	}
 
-	if !inputs.RepeatedFailure {
-		t.Errorf("RepeatedFailure = false, want true when FailureHistory has count > 1")
+	// FailureHistory is no longer checked; only TaskLineage matters
+	if inputs.RepeatedFailure {
+		t.Errorf("RepeatedFailure = true, want false when only FailureHistory has count > 1 (TaskLineage is empty)")
 	}
 }
 
@@ -657,8 +659,8 @@ func TestInputsFromEvidence_NoRepeatedFailure(t *testing.T) {
 }
 
 func TestInputsFromEvidence_EmptyDegradedFlags(t *testing.T) {
-	// Scenario: DegradedFlags is empty array when RunState has nil ReviewFindings
-	// Given: a RunState with ReviewFindings = nil
+	// Scenario: DegradedFlags is empty array when review.json has no diff_unavailable field
+	// Given: a review.json without diff_unavailable
 	// When: InputsFromEvidence is called
 	// Then: the returned Inputs has DegradedFlags as empty slice, not nil
 
@@ -923,6 +925,113 @@ func TestInputsFromEvidence_RoundTripAcceptanceFormat(t *testing.T) {
 	}
 }
 
+func TestInputsFromEvidence_DegradedFlagsFromDiffUnavailableTrue(t *testing.T) {
+	// Scenario: DegradedFlags contains "diff_unavailable" when review.json has diff_unavailable: true
+	// Given: review.json with diff_unavailable set to true
+	// When: InputsFromEvidence is called
+	// Then: DegradedFlags contains exactly ["diff_unavailable"]
+
+	tempDir := t.TempDir()
+	specPath := filepath.Join(tempDir, "spec.md")
+
+	if err := os.WriteFile(specPath, []byte("# Spec"), 0o644); err != nil {
+		t.Fatalf("write spec file: %v", err)
+	}
+
+	validationData := ValidationData{Passed: true, Checks: 3}
+	if err := writeJSON(tempDir, "validation.json", validationData); err != nil {
+		t.Fatalf("write validation.json: %v", err)
+	}
+
+	acceptanceData := map[string]interface{}{
+		"results": []map[string]interface{}{
+			{"status": "pass"},
+		},
+	}
+	if err := writeJSON(tempDir, "acceptance.json", acceptanceData); err != nil {
+		t.Fatalf("write acceptance.json: %v", err)
+	}
+
+	reviewData := map[string]interface{}{
+		"diff_unavailable": true,
+		"info":             []interface{}{},
+	}
+	if err := writeJSON(tempDir, "review.json", reviewData); err != nil {
+		t.Fatalf("write review.json: %v", err)
+	}
+
+	run := &runstore.RunState{
+		RunID:          "degraded-true",
+		Status:         "ready_for_review",
+		FailureHistory: map[string]int{},
+		TaskLineage:    map[string]runstore.TaskLineageEntry{},
+	}
+
+	inputs, err := InputsFromEvidence(tempDir, specPath, run)
+	if err != nil {
+		t.Fatalf("InputsFromEvidence() error = %v, want nil", err)
+	}
+
+	if len(inputs.DegradedFlags) != 1 {
+		t.Fatalf("len(DegradedFlags) = %d, want 1", len(inputs.DegradedFlags))
+	}
+	if inputs.DegradedFlags[0] != "diff_unavailable" {
+		t.Errorf("DegradedFlags[0] = %q, want %q", inputs.DegradedFlags[0], "diff_unavailable")
+	}
+}
+
+func TestInputsFromEvidence_DegradedFlagsFromDiffUnavailableFalse(t *testing.T) {
+	// Scenario: DegradedFlags is empty when review.json has diff_unavailable: false
+	// Given: review.json with diff_unavailable set to false
+	// When: InputsFromEvidence is called
+	// Then: DegradedFlags is empty
+
+	tempDir := t.TempDir()
+	specPath := filepath.Join(tempDir, "spec.md")
+
+	if err := os.WriteFile(specPath, []byte("# Spec"), 0o644); err != nil {
+		t.Fatalf("write spec file: %v", err)
+	}
+
+	validationData := ValidationData{Passed: true, Checks: 3}
+	if err := writeJSON(tempDir, "validation.json", validationData); err != nil {
+		t.Fatalf("write validation.json: %v", err)
+	}
+
+	acceptanceData := map[string]interface{}{
+		"results": []map[string]interface{}{
+			{"status": "pass"},
+		},
+	}
+	if err := writeJSON(tempDir, "acceptance.json", acceptanceData); err != nil {
+		t.Fatalf("write acceptance.json: %v", err)
+	}
+
+	reviewData := map[string]interface{}{
+		"diff_unavailable": false,
+		"info":             []interface{}{},
+	}
+	if err := writeJSON(tempDir, "review.json", reviewData); err != nil {
+		t.Fatalf("write review.json: %v", err)
+	}
+
+	run := &runstore.RunState{
+		RunID:          "degraded-false",
+		Status:         "ready_for_review",
+		FailureHistory: map[string]int{},
+		TaskLineage:    map[string]runstore.TaskLineageEntry{},
+	}
+
+	inputs, err := InputsFromEvidence(tempDir, specPath, run)
+	if err != nil {
+		t.Fatalf("InputsFromEvidence() error = %v, want nil", err)
+	}
+
+	if len(inputs.DegradedFlags) != 0 {
+		t.Errorf("len(DegradedFlags) = %d, want 0 when diff_unavailable is false", len(inputs.DegradedFlags))
+	}
+}
+
 // Helper function to check if a string contains a substring
 func contains(slice []string, item string) bool {
 	for _, s := range slice {
@@ -933,12 +1042,3 @@ func contains(slice []string, item string) bool {
 	return false
 }
 
-// Helper function to check if a string contains a substring
-func stringContains(s, substr string) bool {
-	for i := 0; i < len(s)-len(substr)+1; i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
-}

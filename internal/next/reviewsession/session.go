@@ -39,7 +39,6 @@ func (s *Session) RecordItemResult(result string, notes string) error {
 
 	// Validate result value
 	validResults := map[string]bool{
-		ResultPending: true,
 		ResultPass:    true,
 		ResultFail:    true,
 		ResultUnsure:  true,

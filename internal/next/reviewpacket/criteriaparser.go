@@ -77,11 +77,6 @@ func isNumberedCriterion(line string) bool {
 	return numberedCriterionRe.MatchString(line)
 }
 
-// isDashCriterion checks if a line starts with "- " pattern.
-func isDashCriterion(line string) bool {
-	return dashCriterionRe.MatchString(line)
-}
-
 // isDashCriterionAtRootLevel checks if a line starts with "- " at the root level (not indented).
 func isDashCriterionAtRootLevel(line string) bool {
 	// Check if the line starts with "- " without leading spaces

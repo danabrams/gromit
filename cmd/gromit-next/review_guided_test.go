@@ -1,7 +1,7 @@
 package main
 
 import (
-	"bufio"
+	"bytes"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -67,11 +67,13 @@ func TestReviewGuided_FullAcceptanceFlowWithAllPass(t *testing.T) {
 	rs, _, storeDir := setupReviewTest(t, items)
 
 	// Simulate user input: pass all items, then accept with summary
-	input := "pass\n\npass\n\npass\n\naccepted\nAll tests passed\n"
-	output, err := reviewGuidedFlow(rs.RunID, storeDir, strings.NewReader(input))
+	input := strings.NewReader("pass\n\npass\n\npass\n\naccepted\nAll tests passed\n")
+	var buf bytes.Buffer
+	err := reviewGuided(rs.RunID, storeDir, input, &buf)
 	if err != nil {
-		t.Fatalf("reviewGuidedFlow: %v", err)
+		t.Fatalf("reviewGuided: %v", err)
 	}
+	output := buf.String()
 
 	// Verify the outcome file was created
 	store := runstore.NewStore(storeDir)
@@ -102,9 +104,18 @@ func TestReviewGuided_FullAcceptanceFlowWithAllPass(t *testing.T) {
 		}
 	}
 
-	// Verify output contains the item prompts
+	// Verify output contains expected prompts
 	if !strings.Contains(output, "Feature A works") {
 		t.Errorf("output missing item prompt: %s", output)
+	}
+	if !strings.Contains(output, "Manual Review Checklist") {
+		t.Errorf("output missing checklist header: %s", output)
+	}
+	if !strings.Contains(output, "Review Complete") {
+		t.Errorf("output missing review complete: %s", output)
+	}
+	if !strings.Contains(output, "Result (pass/fail/unsure/skipped):") {
+		t.Errorf("output missing result prompt: %s", output)
 	}
 }
 
@@ -118,13 +129,15 @@ func TestReviewGuided_RejectionWhenFailedItemsAndAcceptSelected(t *testing.T) {
 	}
 	rs, _, storeDir := setupReviewTest(t, items)
 
-	// Simulate user input: mark first as pass, second as fail, then try to accept
-	// When rejection happens, user selects rework_implementation_gap with summary
-	input := "pass\n\nfail\nFound issue\nrework_implementation_gap\nNeed to fix issue\n"
-	output, err := reviewGuidedFlow(rs.RunID, storeDir, strings.NewReader(input))
+	// Simulate user input: mark first as pass, second as fail,
+	// then try to accept (gets rejected), then select rework_implementation_gap with summary
+	input := strings.NewReader("pass\n\nfail\nFound issue\naccepted\nrework_implementation_gap\nNeed to fix issue\n")
+	var buf bytes.Buffer
+	err := reviewGuided(rs.RunID, storeDir, input, &buf)
 	if err != nil {
-		t.Fatalf("reviewGuidedFlow: %v", err)
+		t.Fatalf("reviewGuided: %v", err)
 	}
+	output := buf.String()
 
 	// Verify the outcome file exists
 	store := runstore.NewStore(storeDir)
@@ -151,10 +164,9 @@ func TestReviewGuided_RejectionWhenFailedItemsAndAcceptSelected(t *testing.T) {
 		t.Errorf("second item notes wrong: got %q, want %q", outcome.ManualResults[1].Notes, "Found issue")
 	}
 
-	// Verify output indicates acceptance was rejected (output contains item title)
-	if output != "" {
-		// Output validation successful
-		_ = output
+	// Verify the output shows the rejection message
+	if !strings.Contains(output, "Cannot accept") {
+		t.Errorf("output should contain rejection message: %s", output)
 	}
 }
 
@@ -168,11 +180,13 @@ func TestReviewGuided_UnsureItemRequiresOverride(t *testing.T) {
 	rs, _, storeDir := setupReviewTest(t, items)
 
 	// Simulate user input: pass first, unsure second, then accept with override
-	input := "pass\n\nunsure\nCouldn't verify\naccepted\nFull summary\nManual verification OK\n"
-	output, err := reviewGuidedFlow(rs.RunID, storeDir, strings.NewReader(input))
+	input := strings.NewReader("pass\n\nunsure\nCouldn't verify\naccepted\nFull summary\nManual verification OK\n")
+	var buf bytes.Buffer
+	err := reviewGuided(rs.RunID, storeDir, input, &buf)
 	if err != nil {
-		t.Fatalf("reviewGuidedFlow: %v", err)
+		t.Fatalf("reviewGuided: %v", err)
 	}
+	output := buf.String()
 
 	// Verify the outcome file exists
 	store := runstore.NewStore(storeDir)
@@ -201,10 +215,9 @@ func TestReviewGuided_UnsureItemRequiresOverride(t *testing.T) {
 		t.Errorf("second item should be unsure, got %q", outcome.ManualResults[1].Result)
 	}
 
-	// Verify output contains expected information
-	if output != "" {
-		// Output contains the flow information
-		_ = output
+	// Verify override prompt appeared in output
+	if !strings.Contains(output, "Unsure items found") {
+		t.Errorf("output should mention unsure items: %s", output)
 	}
 }
 
@@ -218,11 +231,13 @@ func TestReviewGuided_ReworkImplementationGapFlow(t *testing.T) {
 	rs, _, storeDir := setupReviewTest(t, items)
 
 	// Simulate user input: pass first, fail second, then rework with summary
-	input := "pass\n\nfail\nPerformance issue\nrework_implementation_gap\nOptimization needed\n"
-	_, err := reviewGuidedFlow(rs.RunID, storeDir, strings.NewReader(input))
+	input := strings.NewReader("pass\n\nfail\nPerformance issue\nrework_implementation_gap\nOptimization needed\n")
+	var buf bytes.Buffer
+	err := reviewGuided(rs.RunID, storeDir, input, &buf)
 	if err != nil {
-		t.Fatalf("reviewGuidedFlow: %v", err)
+		t.Fatalf("reviewGuided: %v", err)
 	}
+	output := buf.String()
 
 	// Verify the rework outcome
 	store := runstore.NewStore(storeDir)
@@ -244,6 +259,11 @@ func TestReviewGuided_ReworkImplementationGapFlow(t *testing.T) {
 	if outcome.ManualResults[1].Result != reviewsession.ResultFail {
 		t.Errorf("should have failed item")
 	}
+
+	// Verify output contains review outcome section
+	if !strings.Contains(output, "Review Outcome") {
+		t.Errorf("output missing review outcome section: %s", output)
+	}
 }
 
 // TestReviewGuided_ReworkVisionChangeFlow verifies the rework vision change flow.
@@ -254,11 +274,13 @@ func TestReviewGuided_ReworkVisionChangeFlow(t *testing.T) {
 	rs, _, storeDir := setupReviewTest(t, items)
 
 	// Simulate user input: skip check item, then rework with vision change and summary
-	input := "skipped\n\nrework_vision_change\nRequirements changed\n"
-	_, err := reviewGuidedFlow(rs.RunID, storeDir, strings.NewReader(input))
+	input := strings.NewReader("skipped\n\nrework_vision_change\nRequirements changed\n")
+	var buf bytes.Buffer
+	err := reviewGuided(rs.RunID, storeDir, input, &buf)
 	if err != nil {
-		t.Fatalf("reviewGuidedFlow: %v", err)
+		t.Fatalf("reviewGuided: %v", err)
 	}
+	output := buf.String()
 
 	// Verify the vision change outcome
 	store := runstore.NewStore(storeDir)
@@ -275,6 +297,11 @@ func TestReviewGuided_ReworkVisionChangeFlow(t *testing.T) {
 	if outcome.Summary != "Requirements changed" {
 		t.Errorf("wrong summary: got %q, want %q", outcome.Summary, "Requirements changed")
 	}
+
+	// Verify output contains the check item
+	if !strings.Contains(output, "Check requirements") {
+		t.Errorf("output missing check item: %s", output)
+	}
 }
 
 // TestReviewGuided_AcceptanceWithoutUnsureDoesNotNeedOverride verifies that
@@ -287,10 +314,11 @@ func TestReviewGuided_AcceptanceWithoutUnsureDoesNotNeedOverride(t *testing.T) {
 	rs, _, storeDir := setupReviewTest(t, items)
 
 	// Simulate user input: pass all items, then accept without override
-	input := "pass\n\npass\n\naccepted\nAll good\n"
-	_, err := reviewGuidedFlow(rs.RunID, storeDir, strings.NewReader(input))
+	input := strings.NewReader("pass\n\npass\n\naccepted\nAll good\n")
+	var buf bytes.Buffer
+	err := reviewGuided(rs.RunID, storeDir, input, &buf)
 	if err != nil {
-		t.Fatalf("reviewGuidedFlow: %v", err)
+		t.Fatalf("reviewGuided: %v", err)
 	}
 
 	// Verify the outcome
@@ -323,10 +351,11 @@ func TestReviewGuided_MultipleItemsAndNotes(t *testing.T) {
 	rs, _, storeDir := setupReviewTest(t, items)
 
 	// Simulate user input with notes for each item
-	input := "pass\nNote for item 1\nfail\nBug found in item 2\nunsure\nCouldn't fully test\nrework_implementation_gap\nFix the bug\n"
-	_, err := reviewGuidedFlow(rs.RunID, storeDir, strings.NewReader(input))
+	input := strings.NewReader("pass\nNote for item 1\nfail\nBug found in item 2\nunsure\nCouldn't fully test\nrework_implementation_gap\nFix the bug\n")
+	var buf bytes.Buffer
+	err := reviewGuided(rs.RunID, storeDir, input, &buf)
 	if err != nil {
-		t.Fatalf("reviewGuidedFlow: %v", err)
+		t.Fatalf("reviewGuided: %v", err)
 	}
 
 	// Verify the outcome with notes
@@ -369,10 +398,11 @@ func TestReviewGuided_EmptyNotes(t *testing.T) {
 	rs, _, storeDir := setupReviewTest(t, items)
 
 	// Simulate user input: pass with empty notes, then accept
-	input := "pass\n\naccepted\nSummary\n"
-	_, err := reviewGuidedFlow(rs.RunID, storeDir, strings.NewReader(input))
+	input := strings.NewReader("pass\n\naccepted\nSummary\n")
+	var buf bytes.Buffer
+	err := reviewGuided(rs.RunID, storeDir, input, &buf)
 	if err != nil {
-		t.Fatalf("reviewGuidedFlow: %v", err)
+		t.Fatalf("reviewGuided: %v", err)
 	}
 
 	// Verify the outcome
@@ -400,10 +430,11 @@ func TestReviewGuided_NoItemsChecklist(t *testing.T) {
 	rs, _, storeDir := setupReviewTest(t, items)
 
 	// Simulate user input: no items to check, just accept
-	input := "accepted\nNothing to check\n"
-	_, err := reviewGuidedFlow(rs.RunID, storeDir, strings.NewReader(input))
+	input := strings.NewReader("accepted\nNothing to check\n")
+	var buf bytes.Buffer
+	err := reviewGuided(rs.RunID, storeDir, input, &buf)
 	if err != nil {
-		t.Fatalf("reviewGuidedFlow: %v", err)
+		t.Fatalf("reviewGuided: %v", err)
 	}
 
 	// Verify the outcome
@@ -424,22 +455,17 @@ func TestReviewGuided_NoItemsChecklist(t *testing.T) {
 }
 
 // TestReviewGuided_CommandWithRunFlag tests that the --run flag properly specifies
-// the run ID and the flow works correctly when paired with reviewGuidedFlow.
+// the run ID and the flow works correctly when paired with reviewGuided.
 func TestReviewGuided_CommandWithRunFlag(t *testing.T) {
 	items := []reviewpacket.ManualCheckItem{
 		{ID: "check-1", Title: "Feature test"},
 	}
-	rs, _, storeDir := setupReviewTest(t, items)
+	_, _, _ = setupReviewTest(t, items)
 
 	// Test that the command properly handles --run flag by checking the argument parsing
-	// We verify this by checking that the run ID is correctly extracted.
 	cmd := newReviewGuidedCmd()
 
-	// Set args with --run flag (without stdin, just to verify flag parsing)
-	cmd.SetArgs([]string{"--run", rs.RunID, "--store-dir", storeDir})
-
-	// Verify the flags are parsed correctly by checking the command's help
-	// The command should accept --run flag and store the run ID
+	// Verify the flags are parsed correctly
 	if cmd.Flag("run") == nil {
 		t.Error("--run flag not found in command")
 	}
@@ -448,123 +474,4 @@ func TestReviewGuided_CommandWithRunFlag(t *testing.T) {
 	if cmd.Flag("store-dir") == nil {
 		t.Error("--store-dir flag not found in command")
 	}
-}
-
-// reviewGuidedFlow is a test helper that runs the guided review with a provided input reader.
-func reviewGuidedFlow(runID, storeDir string, input *strings.Reader) (string, error) {
-	// Load run and ensure packet exists
-	_, err := loadRunAndEnsurePacket(runID, storeDir)
-	if err != nil {
-		return "", err
-	}
-
-	// Initialize run store
-	if storeDir == "" {
-		storeDir = ".gromit-next"
-	}
-	store := runstore.NewStore(storeDir)
-	evidenceDir := store.RunEvidenceDir(runID)
-
-	// Load review packet outputs
-	outputs, err := loadPacketOutputs(evidenceDir)
-	if err != nil {
-		return "", err
-	}
-
-	// Create session and process through guided flow
-	session := reviewsession.Start(*outputs)
-
-	var output strings.Builder
-	scanner := bufio.NewScanner(input)
-
-	// Process checklist items
-	for session.CurrentItem() != nil {
-		item := session.CurrentItem()
-		output.WriteString(item.Item.Title + "\n")
-
-		// Read result from input
-		var resultLine string
-		if scanner.Scan() {
-			resultLine = strings.TrimSpace(scanner.Text())
-		} else {
-			break
-		}
-
-		// Read notes from input
-		var notesLine string
-		if scanner.Scan() {
-			notesLine = strings.TrimSpace(scanner.Text())
-		}
-
-		// Map skip to skipped
-		if resultLine == "skip" {
-			resultLine = reviewsession.ResultSkipped
-		}
-
-		// Validate and record result
-		if resultLine != reviewsession.ResultPass && resultLine != reviewsession.ResultFail && resultLine != reviewsession.ResultUnsure && resultLine != reviewsession.ResultSkipped {
-			continue
-		}
-
-		if err := session.RecordItemResult(resultLine, notesLine); err != nil {
-			return output.String(), err
-		}
-	}
-
-	// Read outcome from input
-	var outcomeLine string
-	if scanner.Scan() {
-		outcomeLine = strings.TrimSpace(scanner.Text())
-	}
-
-	// Read summary from input
-	var summaryLine string
-	if scanner.Scan() {
-		summaryLine = strings.TrimSpace(scanner.Text())
-	}
-
-	// Read override reason if needed
-	var overrideReason string
-	if session.NeedsOverride() && outcomeLine == reviewsession.OutcomeAccepted {
-		output.WriteString("Unsure items found - override reason required\n")
-		if scanner.Scan() {
-			overrideReason = strings.TrimSpace(scanner.Text())
-		}
-	}
-
-	// Check if acceptance is valid
-	if outcomeLine == reviewsession.OutcomeAccepted {
-		canAccept, _ := session.CanAccept()
-		if !canAccept {
-			output.WriteString("Cannot accept due to failed items\n")
-			// Read rework outcome instead
-			if scanner.Scan() {
-				outcomeLine = strings.TrimSpace(scanner.Text())
-			}
-			// Read rework summary
-			if scanner.Scan() {
-				summaryLine = strings.TrimSpace(scanner.Text())
-			}
-		}
-	}
-
-	// Record the outcome
-	reviewOutcome, err := session.RecordOutcome(outcomeLine, summaryLine, overrideReason)
-	if err != nil {
-		return output.String(), err
-	}
-
-	// Write review-outcome.json
-	reviewOutcome.NormalizeNilFields()
-	outcomeData, err := json.MarshalIndent(reviewOutcome, "", "  ")
-	if err != nil {
-		return output.String(), err
-	}
-
-	outcomeFile := filepath.Join(evidenceDir, "review-outcome.json")
-	if err := os.WriteFile(outcomeFile, outcomeData, 0o644); err != nil {
-		return output.String(), err
-	}
-
-	return output.String(), nil
 }

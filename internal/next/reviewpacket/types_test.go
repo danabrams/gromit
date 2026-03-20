@@ -1,6 +1,7 @@
 package reviewpacket
 
 import (
+	"encoding/json"
 	"testing"
 )
 
@@ -143,5 +144,44 @@ func TestOutputs_Creation(t *testing.T) {
 	}
 	if outputs.ProcessReview.TrustLevel != "high" {
 		t.Errorf("expected ProcessReview.TrustLevel 'high', got %q", outputs.ProcessReview.TrustLevel)
+	}
+}
+
+// TestValidationData_JSONTagRegression guards against JSON tag drift from "passed" to "pass".
+// This regression test ensures that ValidationData.Passed is correctly unmarshaled when the
+// JSON key is "passed", preventing silent zero-out of the field if the tag changes.
+func TestValidationData_JSONTagRegression(t *testing.T) {
+	jsonData := `{"passed": true, "checks": 5}`
+	var vd ValidationData
+	err := json.Unmarshal([]byte(jsonData), &vd)
+	if err != nil {
+		t.Fatalf("unexpected error unmarshaling JSON: %v", err)
+	}
+	if !vd.Passed {
+		t.Errorf("expected Passed to be true, got false")
+	}
+	if vd.Checks != 5 {
+		t.Errorf("expected Checks to be 5, got %d", vd.Checks)
+	}
+}
+
+// TestAcceptanceData_JSONTagRegression guards against JSON tag drift from "passed" to "pass".
+// This regression test ensures that AcceptanceData.Passed is correctly unmarshaled when the
+// JSON key is "passed", preventing silent zero-out of the field if the tag changes.
+func TestAcceptanceData_JSONTagRegression(t *testing.T) {
+	jsonData := `{"passed": 10, "failed": 2, "unclear": 1}`
+	var ad AcceptanceData
+	err := json.Unmarshal([]byte(jsonData), &ad)
+	if err != nil {
+		t.Fatalf("unexpected error unmarshaling JSON: %v", err)
+	}
+	if ad.Passed != 10 {
+		t.Errorf("expected Passed to be 10, got %d", ad.Passed)
+	}
+	if ad.Failed != 2 {
+		t.Errorf("expected Failed to be 2, got %d", ad.Failed)
+	}
+	if ad.Unclear != 1 {
+		t.Errorf("expected Unclear to be 1, got %d", ad.Unclear)
 	}
 }
