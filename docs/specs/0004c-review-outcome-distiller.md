@@ -158,11 +158,22 @@ The distiller accepts an `LLMCompleter` interface. A thin adapter in the calling
 package reviewdistiller
 // imports omitted for brevity
 
+// Tier is a distinct string type for model tier levels.
+// Using a named type prevents accidentally passing a resolved model name
+// (e.g. "claude-3-5-sonnet-20241022") where a tier label is expected.
+type Tier string
+
+const (
+    TierLow    Tier = "low"
+    TierMedium Tier = "medium"
+    TierHigh   Tier = "high"
+)
+
 type DistillationResult struct {
     RunID      string     `json:"run_id"`
     SpecID     string     `json:"spec_id"`
     Outcome    string     `json:"outcome"`
-    ModelTier  string     `json:"model_tier"`
+    ModelTier  Tier       `json:"model_tier"`
     Proposals  []Proposal `json:"proposals"`
     CreatedAt  time.Time  `json:"created_at"`
 }
@@ -215,7 +226,7 @@ Note: the `Proposal` fields map directly to the vision's four questions — what
 - Overwrites existing distillation artifacts if present; the most recent distillation result wins
 - `--tier` overrides the configured default model tier for this invocation (accepts `high`, `medium`, `low`)
 
-The `project.json` config loaded by `cmd/gromit-next/spec.go` gains an optional `distiller_tier` field (string, default `medium`) that specifies which model tier the distiller uses. The provider's tier-to-model mapping resolves this to a concrete model name. The CLI command reads this field and passes the tier to the distiller as a plain string — the `reviewdistiller` package does not import the config package.
+The `project.json` config loaded by `cmd/gromit-next/spec.go` gains an optional `distiller_tier` field (string, default `medium`) that specifies which model tier the distiller uses. The provider's tier-to-model mapping resolves this to a concrete model name. The CLI command reads this field and converts it to `reviewdistiller.Tier` at the boundary — the `reviewdistiller` package does not import the config package. All functions that accept a tier (`Distill`, `attemptDistillation`, `distillReview`, `tierToModel`) must use the `Tier` type, not plain `string`. The `tierToModel` function signature is `tierToModel(Tier) string` — its return type is `string` (a model name), making it a compile error to pass a model name where a `Tier` is expected.
 
 ### Markdown rendering
 
@@ -242,6 +253,7 @@ The `project.json` config loaded by `cmd/gromit-next/spec.go` gains an optional 
 17. The `reviewdistiller` package has no dependency on CLI, specloop, or stage machinery — it receives plain data and an `LLMCompleter` interface — verified by import analysis, not behavioral scenario.
 18. `DistillationResult` metadata fields (`RunID`, `SpecID`, `Outcome`, `ModelTier`, `CreatedAt`) are populated in the output JSON.
 19. The distiller returns an error for unrecognized outcome types (anything other than `accepted`, `rework_implementation_gap`, `rework_vision_change`).
+20. All tier parameters use the `reviewdistiller.Tier` type, not plain `string`. The `tierToModel` function accepts `Tier` and returns `string`. Passing a model name where a tier is expected must be a compile error.
 
 ## Scenarios
 
