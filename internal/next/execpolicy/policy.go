@@ -17,6 +17,7 @@ type EscalationConfig struct {
 // model tier config, and review settings.
 type Policy struct {
 	AlwaysRun  []Check          `json:"always_run"`
+	AutoFix    []Check          `json:"auto_fix"`
 	Budgets    Budgets          `json:"budgets"`
 	Models     Models           `json:"models"`
 	Review     ReviewConfig     `json:"review"`
@@ -86,6 +87,9 @@ func DefaultPolicy() Policy {
 			{Name: "format", Command: "gofmt -l .", Type: "lint"},
 			{Name: "unit-tests", Command: "go test ./...", Type: "test"},
 			{Name: "vet", Command: "go vet ./...", Type: "lint"},
+		},
+		AutoFix: []Check{
+			{Name: "gofmt", Command: "gofmt -w .", Type: "format"},
 		},
 		Budgets: Budgets{
 			MaxSpecCycles:            3,
@@ -157,6 +161,14 @@ func (p *Policy) Validate() error {
 		}
 		if c.Command == "" {
 			errs = append(errs, fmt.Errorf("AlwaysRun[%d].Command must be non-empty", i))
+		}
+	}
+	for i, c := range p.AutoFix {
+		if c.Name == "" {
+			errs = append(errs, fmt.Errorf("AutoFix[%d].Name must be non-empty", i))
+		}
+		if c.Command == "" {
+			errs = append(errs, fmt.Errorf("AutoFix[%d].Command must be non-empty", i))
 		}
 	}
 	if p.Budgets.MaxSpecCycles <= 0 {
@@ -236,6 +248,9 @@ func (p *Policy) ValidateReviewConfig() error {
 func (p *Policy) NormalizeNilFields() {
 	if p.AlwaysRun == nil {
 		p.AlwaysRun = []Check{}
+	}
+	if p.AutoFix == nil {
+		p.AutoFix = []Check{}
 	}
 	if p.Review.Facets == nil {
 		p.Review.Facets = []string{}

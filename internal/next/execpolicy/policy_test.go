@@ -483,6 +483,84 @@ func TestLoadPolicy_EscalationFromJSON(t *testing.T) {
 	}
 }
 
+func TestDefaultPolicy_HasAutoFixCommands(t *testing.T) {
+	p := DefaultPolicy()
+	if len(p.AutoFix) == 0 {
+		t.Fatal("default policy must include at least one auto_fix command")
+	}
+	names := make(map[string]string)
+	for _, c := range p.AutoFix {
+		names[c.Name] = c.Command
+	}
+	if cmd, ok := names["gofmt"]; !ok {
+		t.Fatal("default policy must include 'gofmt' auto_fix command")
+	} else if cmd != "gofmt -w ." {
+		t.Fatalf("gofmt auto_fix command = %q, want \"gofmt -w .\"", cmd)
+	}
+}
+
+func TestLoadPolicy_AutoFixFromJSON(t *testing.T) {
+	tmpDir := t.TempDir()
+	policyJSON := `{
+		"auto_fix": [
+			{"name": "prettier", "command": "prettier --write .", "type": "format"},
+			{"name": "black", "command": "black .", "type": "format"}
+		]
+	}`
+	path := filepath.Join(tmpDir, "policy.json")
+	if err := os.WriteFile(path, []byte(policyJSON), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	p, err := LoadPolicy(path)
+	if err != nil {
+		t.Fatalf("LoadPolicy: %v", err)
+	}
+	if len(p.AutoFix) != 2 {
+		t.Fatalf("want 2 auto_fix commands, got %d", len(p.AutoFix))
+	}
+	if p.AutoFix[0].Name != "prettier" {
+		t.Errorf("first auto_fix name = %q, want prettier", p.AutoFix[0].Name)
+	}
+	if p.AutoFix[1].Command != "black ." {
+		t.Errorf("second auto_fix command = %q, want \"black .\"", p.AutoFix[1].Command)
+	}
+}
+
+func TestPolicy_NormalizeNilFields_AutoFix(t *testing.T) {
+	p := Policy{}
+	if p.AutoFix != nil {
+		t.Fatal("precondition: AutoFix should be nil")
+	}
+	p.NormalizeNilFields()
+	if p.AutoFix == nil {
+		t.Fatal("AutoFix should be non-nil after normalization")
+	}
+	if len(p.AutoFix) != 0 {
+		t.Fatalf("AutoFix should be empty, got %d", len(p.AutoFix))
+	}
+}
+
+func TestPolicy_Validate_AcceptsEmptyAutoFix(t *testing.T) {
+	p := DefaultPolicy()
+	p.AutoFix = []Check{}
+	if err := p.Validate(); err != nil {
+		t.Fatalf("empty AutoFix should be valid: %v", err)
+	}
+}
+
+func TestPolicy_Validate_RejectsAutoFixWithEmptyCommand(t *testing.T) {
+	p := DefaultPolicy()
+	p.AutoFix = []Check{{Name: "fmt", Command: "", Type: "format"}}
+	err := p.Validate()
+	if err == nil {
+		t.Fatal("expected validation error for empty AutoFix Command")
+	}
+	if !strings.Contains(err.Error(), "AutoFix[0].Command must be non-empty") {
+		t.Fatalf("unexpected error message: %v", err)
+	}
+}
+
 func TestLoadPolicy_EscalationDefaultsPreservedOnPartialJSON(t *testing.T) {
 	tmpDir := t.TempDir()
 	policyJSON := `{

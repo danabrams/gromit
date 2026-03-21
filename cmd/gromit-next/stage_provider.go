@@ -98,6 +98,10 @@ func (p *RealStageProvider) BuildStages(policy execpolicy.Policy, rs *runstore.R
 	for i, c := range policy.AlwaysRun {
 		alwaysRun[i] = validator.Check{Name: c.Name, Command: c.Command, Type: c.Type}
 	}
+	autoFix := make([]validator.Check, len(policy.AutoFix))
+	for i, c := range policy.AutoFix {
+		autoFix[i] = validator.Check{Name: c.Name, Command: c.Command, Type: c.Type}
+	}
 
 	var (
 		compiler           stages.SpecCompiler
@@ -298,6 +302,7 @@ func (p *RealStageProvider) BuildStages(policy execpolicy.Policy, rs *runstore.R
 	}
 	validateStage := stages.NewValidateStage(finalVal, stages.ValidateStageConfig{
 		AlwaysRun:        alwaysRun,
+		AutoFix:          autoFix,
 		WorkDir:          validateWorkDir,
 		EvidenceDir:      evidenceDir,
 		RepoDir:          repoDir,

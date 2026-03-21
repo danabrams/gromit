@@ -33,6 +33,7 @@ func (e *worktreeCleanupError) Unwrap() error { return e.err }
 // ValidateStageConfig configures the ValidateStage.
 type ValidateStageConfig struct {
 	AlwaysRun        []validator.Check
+	AutoFix          []validator.Check // commands to run before validation (e.g. gofmt -w .)
 	ProjectChecks    []validator.Check
 	WorkDir          string
 	EvidenceDir      string
@@ -167,6 +168,15 @@ func (s *ValidateStage) Run(ctx context.Context, rs *runstore.RunState) (specloo
 			}
 			// Store non-deferred contract failures for next-cycle comparison
 			rs.LastContractFailures = contractFailureStrings
+		}
+	}
+
+	// Run auto-fix commands before validation (e.g. gofmt -w .).
+	// Failures are logged but do not block validation.
+	if len(s.cfg.AutoFix) > 0 {
+		runner := validator.NewRunner()
+		for _, fix := range s.cfg.AutoFix {
+			runner.RunCheck(ctx, fix, workDir) //nolint:errcheck // auto-fix failures are best-effort
 		}
 	}
 

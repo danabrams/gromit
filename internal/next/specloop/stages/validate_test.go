@@ -1218,6 +1218,101 @@ func TestValidateStage_ContractDeferralChainOrder(t *testing.T) {
 	}
 }
 
+func TestValidateStage_AutoFixRunsBeforeValidation(t *testing.T) {
+	dir := t.TempDir()
+	// Create a file that auto-fix will modify
+	targetFile := filepath.Join(dir, "fixme.txt")
+	if err := os.WriteFile(targetFile, []byte("unfixed"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	v := &fakeValidator{
+		result: validator.FinalResult{
+			Pass:          true,
+			AlwaysRun:     validator.CheckResults{Results: []validator.CheckResult{{Name: "test", Pass: true}}},
+			ProjectChecks: validator.CheckResults{},
+		},
+	}
+
+	// Auto-fix command rewrites the file content
+	stage := NewValidateStage(v, ValidateStageConfig{
+		WorkDir: dir,
+		AutoFix: []validator.Check{
+			{Name: "fix-it", Command: "echo fixed > fixme.txt", Type: "format"},
+		},
+	}, nil, nil, nil)
+
+	rs := runstore.NewRunState("spec-001", "proj-001")
+	action, err := stage.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if action.Kind != specloop.Continue {
+		t.Fatalf("expected Continue, got %v", action.Kind)
+	}
+
+	// Verify auto-fix ran: file should be modified
+	got, err := os.ReadFile(targetFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.TrimSpace(string(got)) != "fixed" {
+		t.Fatalf("auto-fix did not run: file contains %q, want \"fixed\"", string(got))
+	}
+}
+
+func TestValidateStage_AutoFixErrorDoesNotBlockValidation(t *testing.T) {
+	v := &fakeValidator{
+		result: validator.FinalResult{
+			Pass:          true,
+			AlwaysRun:     validator.CheckResults{Results: []validator.CheckResult{{Name: "test", Pass: true}}},
+			ProjectChecks: validator.CheckResults{},
+		},
+	}
+
+	// Auto-fix command that fails (nonexistent command)
+	stage := NewValidateStage(v, ValidateStageConfig{
+		WorkDir: t.TempDir(),
+		AutoFix: []validator.Check{
+			{Name: "broken", Command: "false", Type: "format"},
+		},
+	}, nil, nil, nil)
+
+	rs := runstore.NewRunState("spec-001", "proj-001")
+	action, err := stage.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("auto-fix failure should not propagate: %v", err)
+	}
+	// Validation should still continue despite auto-fix failure
+	if action.Kind != specloop.Continue {
+		t.Fatalf("expected Continue despite auto-fix failure, got %v", action.Kind)
+	}
+}
+
+func TestValidateStage_EmptyAutoFixSkipped(t *testing.T) {
+	v := &fakeValidator{
+		result: validator.FinalResult{
+			Pass:          true,
+			AlwaysRun:     validator.CheckResults{Results: []validator.CheckResult{{Name: "test", Pass: true}}},
+			ProjectChecks: validator.CheckResults{},
+		},
+	}
+
+	stage := NewValidateStage(v, ValidateStageConfig{
+		WorkDir: t.TempDir(),
+		AutoFix: []validator.Check{}, // empty — nothing to run
+	}, nil, nil, nil)
+
+	rs := runstore.NewRunState("spec-001", "proj-001")
+	action, err := stage.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if action.Kind != specloop.Continue {
+		t.Fatalf("expected Continue, got %v", action.Kind)
+	}
+}
+
 // TestValidateStage_PipelineOrdering verifies the complete processing pipeline:
 // raw failures → deferral (no-op when no tasks cover) → self-correction → formatted strings.
 // This test confirms that:

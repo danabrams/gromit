@@ -5,19 +5,18 @@
 
 ## Depends on
 - 0003g-contract-loop-detection
-- 0003h-contract-file-self-correction
 
 ## Vision
 
 Review findings can contradict contract assertions, causing infinite replan loops. A real example: a contract asserts `file_contains: {path: types.go, pattern: ModelTier}` — satisfied by `DistillationResult.ModelTier`. A review finding says "remove ModelTier from DistillerInputs" (different struct, same file). Fix tasks are coarse-grained and sometimes rewrite the whole file, dropping ModelTier from DistillationResult too. The contract fails, replan adds it back, review flags it again — infinite loop.
 
-Layer 1 (0003g) detects repeated identical failures and bails to needs_human. Layer 2 (runtime review-contract contradiction suppression) filters contradictory review findings at runtime. This spec is Layer 3: preventing the problem at the source by catching ambiguous contracts before they cause thrash.
+Layer 1 (0003g) detects repeated identical failures and bails to needs_human. Layer 2 (runtime review-contract contradiction filter in `internal/next/specloop/stages/review_contract_filter.go`) suppresses review findings that contradict contract assertions. This spec is Layer 3: preventing the problem at the source by catching ambiguous contracts before they cause thrash.
 
 Single-identifier patterns like `ModelTier` are ambiguous when a file contains multiple type definitions. A pattern like `ModelTier  string` or a separate assertion for the containing struct is unambiguous. This spec adds a specificity validation pass to the WriteContracts stage that flags low-specificity patterns and gives the LLM one chance to fix them.
 
 ## Summary
 
-After the LLM generates `scenario-contracts.yaml` in the WriteContracts stage, a new `ValidateContractSpecificity()` function scores each `file_contains` pattern for ambiguity risk. Single Go identifier patterns (one word matching `^[A-Z][a-zA-Z0-9]*$`) are flagged as low-specificity. The validation produces warnings — not hard rejections — and feeds them back to the LLM for one retry attempt. The WriteContracts prompt is also updated with instructions to prefer struct-scoped patterns when multiple types share a file.
+After the LLM generates `scenario-contracts.yaml` in the WriteContracts stage, a new `ValidateContractSpecificity()` function scores each `file_contains` pattern for ambiguity risk. Single Go identifier patterns (one word matching `^[A-Z][a-zA-Z0-9_]*$`) are flagged as low-specificity. The validation produces warnings — not hard rejections — and feeds them back to the LLM for one retry attempt. The WriteContracts prompt is also updated with instructions to prefer struct-scoped patterns when multiple types share a file.
 
 ## Goals
 
@@ -29,9 +28,6 @@ After the LLM generates `scenario-contracts.yaml` in the WriteContracts stage, a
 ### Secondary
 - Score patterns to distinguish low-specificity (single exported identifier) from high-specificity (multi-token, includes type context)
 - Log specificity warnings as events for observability
-
-### Tertiary
-- When a contract failure occurs during validation AND the failing contract has a low-specificity pattern, auto-tighten the pattern before triggering a replan (builds on 0003h self-correction)
 
 ## Non-goals
 - Cross-assertion analysis (e.g., detecting that two assertions in different scenarios contradict each other)
@@ -62,10 +58,7 @@ type SpecificityWarning struct {
 func ValidateContractSpecificity(c ScenarioContract) []SpecificityWarning
 ```
 
-A pattern is classified as **low-specificity** when all of the following hold:
-1. It is a single token (no spaces, no punctuation other than `_`)
-2. It matches an exported Go identifier: `^[A-Z][a-zA-Z0-9_]*$`
-3. It does not include type context (no surrounding whitespace-separated tokens like `struct`, field type suffixes, etc.)
+A pattern is classified as **low-specificity** when it matches the regex `^[A-Z][a-zA-Z0-9_]*$` — i.e., it is a single exported Go identifier with no surrounding type context (no spaces, struct keywords, field types, etc.).
 
 Multi-token patterns (e.g., `ModelTier  string`, `type DistillationResult struct`), patterns containing operators or punctuation beyond `_` (e.g., `func ValidateContract(`), and unexported identifiers (e.g., `modelTier`) are classified as **high-specificity** and not flagged.
 
@@ -73,29 +66,53 @@ The function does not inspect the target file — it is a static analysis of pat
 
 ### Integration into WriteContracts stage
 
-In `internal/next/specloop/stages/write_contracts.go`, within the existing retry loop, after `ValidateContract()` passes with no errors:
+In `internal/next/specloop/stages/write_contracts.go`, as a separate phase **after** the existing structural retry loop succeeds:
 
 ```text
-1. result, err = s.writer.WriteContracts(ctx, scenarios, specPacket)
-2. validationErrors = contract.ValidateContract(*result)
-3. if len(validationErrors) == 0:
-4.     specificityWarnings = contract.ValidateContractSpecificity(*result)   // NEW
-5.     if len(specificityWarnings) > 0 && !specificityCorrectionAttempted:   // NEW
-6.         inject warnings into specPacket as retry context                  // NEW
-7.         specificityCorrectionAttempted = true                             // NEW
-8.         continue  // one more attempt                                    // NEW
-9.     // If warnings remain after retry, accept the contract anyway (warn-only)
+// Existing structural retry loop (up to 3 attempts)
+for attempt := 0; attempt < maxAttempts; attempt++ {
+    result, err = s.writer.WriteContracts(ctx, scenarios, specPacket)
+    validationErrors = contract.ValidateContract(*result)
+    if len(validationErrors) == 0 {
+        break  // structural validation passed
+    }
+    // inject validation errors into specPacket and retry...
+}
+
+// NEW: Specificity validation phase (separate from structural retries)
+specificityWarnings = contract.ValidateContractSpecificity(*result)
+if len(specificityWarnings) > 0 {
+    previousResult := result  // save for fallback
+    // inject warnings into specPacket as retry context
+    result, err = s.writer.WriteContracts(ctx, scenarios, specPacketWithWarnings)
+    if err != nil {
+        // LLM error on specificity retry — keep the pre-retry result
+        result = previousResult
+    } else {
+        // re-run structural validation on the new result
+        validationErrors = contract.ValidateContract(*result)
+        if len(validationErrors) > 0 {
+            // structural regression — keep the pre-retry result instead
+            result = previousResult
+        } else {
+            specificityWarnings = contract.ValidateContractSpecificity(*result)
+        }
+    }
+    // emit contract_specificity_warning event if warnings remain
+}
+// Accept the contract regardless of remaining specificity warnings
 ```
 
 Key behaviors:
 - Specificity validation runs only after structural validation (`ValidateContract`) passes — no point scoring patterns on a malformed contract
-- At most one retry for specificity — tracked by a `specificityCorrectionAttempted` bool, not counted against the existing 3-attempt structural retry budget
+- At most one retry for specificity — runs as a separate phase after the structural loop, so it does not count against the 3-attempt structural retry budget
+- If the specificity retry introduces structural validation regressions, the pre-retry result is kept
 - If low-specificity patterns remain after retry, the contract is accepted and an event is logged — this is a quality gate, not a hard gate
 - The retry shares the same LLM call path (`s.writer.WriteContracts`) — no new interfaces needed
 
 ### Prompt additions
 
-Add to the contract writer's system prompt (the prompt template used by the `ContractWriter` implementation):
+Add to the contract writer's prompt template at `internal/next/contract/prompt.txt` (embedded via `prompt.go`):
 
 ```text
 When writing file_contains assertions for files that will contain multiple
@@ -118,24 +135,10 @@ Add to `internal/next/runstore/events.go`:
 type ContractSpecificityWarningEvent struct {
     BaseEvent
     Warnings []string `json:"warnings"` // human-readable warning strings
-    Retried  bool     `json:"retried"`  // true if a retry was attempted
 }
 ```
 
-Event type string: `"contract_specificity_warning"`. Emitted once per WriteContracts invocation that encounters low-specificity patterns, after the retry decision is made.
-
-### Runtime auto-correction of low-specificity contracts
-
-When the validate stage encounters a contract failure for a `file_contains` assertion with a low-specificity pattern (as defined by `ValidateContractSpecificity`), and the target file exists but the pattern match failed because the implementation placed the identifier in a different struct than expected, the system should auto-tighten the contract rather than triggering a replan.
-
-Auto-correction logic in `internal/next/specloop/stages/validate.go`, after contract evaluation:
-
-1. For each `file_contains` failure, check if the pattern is low-specificity (single exported identifier)
-2. If the file exists and contains the pattern in a different location than expected (e.g., `ModelTier` exists in `DistillationResult` but not `DistillerInputs`), the contract is satisfied — the pattern is just too broad
-3. Read the file, find where the pattern actually appears, extract the surrounding struct context, and rewrite the contract pattern to be more specific (e.g., `ModelTier` → `ModelTier  string` with the struct's field signature)
-4. Write the updated `scenario-contracts.yaml` and re-evaluate
-
-This builds on 0003h (contract file self-correction) but operates on pattern specificity rather than file paths. The auto-correction is bounded: at most one rewrite per assertion per cycle, and only for patterns classified as low-specificity.
+Event type string: `"contract_specificity_warning"`. Emitted only when low-specificity warnings persist after the retry attempt. A corresponding `case "contract_specificity_warning"` must be added to `unmarshalEvent()` in the same file.
 
 ## Acceptance Criteria
 
@@ -143,15 +146,13 @@ This builds on 0003h (contract file self-correction) but operates on pattern spe
 2. `ValidateContractSpecificity` does not warn on multi-token patterns (e.g., `ModelTier  string`), patterns with punctuation (e.g., `func Validate(`), or unexported identifiers (e.g., `modelTier`)
 3. When `ValidateContractSpecificity` returns warnings and no prior specificity retry has been attempted, the WriteContracts stage injects warning context into the prompt and retries once
 4. The specificity retry does not count against the existing 3-attempt structural validation retry budget
-5. If low-specificity patterns remain after the retry, the contract is accepted (warn-only) and a `contract_specificity_warning` event is emitted with `retried: true`
-6. If the first attempt has no specificity warnings, no retry occurs and no event is emitted
-7. The contract writer prompt includes instructions to prefer struct-scoped patterns over bare identifiers
-8. `file_not_contains` assertions are not checked by specificity validation
-9. All existing WriteContracts and ValidateContract tests continue to pass
-10. `ValidateContractSpecificity` is a pure function — it does not read files or invoke the LLM
-11. When a contract failure has a low-specificity pattern and the pattern exists elsewhere in the target file, the validate stage auto-tightens the pattern and re-evaluates instead of replanning
-12. Auto-tightening is bounded to one rewrite per assertion per cycle
-13. Auto-tightened contracts are persisted to `scenario-contracts.yaml` so subsequent cycles use the improved version
+5. If low-specificity patterns remain after the retry, the contract is accepted (warn-only) and a `contract_specificity_warning` event is emitted with the warning text
+6. If the specificity retry produces a contract with no low-specificity warnings, the contract is accepted and no event is emitted
+7. If the first attempt has no specificity warnings, no retry occurs and no event is emitted
+8. The contract writer prompt includes instructions to prefer struct-scoped patterns over bare identifiers
+9. `file_not_contains` assertions are not checked by specificity validation
+10. All existing WriteContracts and ValidateContract tests continue to pass
+11. `ValidateContractSpecificity` is a pure function — it does not read files or invoke the LLM
 
 ## Scenarios
 
@@ -168,12 +169,17 @@ This builds on 0003h (contract file self-correction) but operates on pattern spe
 ### Scenario: low-specificity pattern triggers one retry in WriteContracts
 **Given:** A spec with scenarios that produce contracts. The LLM's first attempt generates a `file_contains` pattern `ModelTier` (single identifier).
 **When:** The WriteContracts stage runs
-**Then:** After structural validation passes, specificity validation flags the pattern. The stage injects the warning into the prompt and calls the LLM once more. If the second attempt produces `ModelTier  string`, the contract is accepted with no specificity event.
+**Then:** After structural validation passes, specificity validation flags the pattern. The stage injects the warning into the prompt and calls the LLM once more. The second attempt produces `ModelTier  string`, so the contract is accepted with no `contract_specificity_warning` event.
 
 ### Scenario: low-specificity pattern persists after retry — accepted with warning
 **Given:** A spec with scenarios that produce contracts. The LLM generates `ModelTier` as the pattern on both the first attempt and the specificity retry.
 **When:** The WriteContracts stage runs
-**Then:** The contract is accepted despite the low-specificity pattern. A `contract_specificity_warning` event is emitted with `retried: true` and the warning text. The stage returns `Continue`.
+**Then:** The contract is accepted despite the low-specificity pattern. A `contract_specificity_warning` event is emitted with the warning text. The stage returns `Continue`.
+
+### Scenario: all patterns high-specificity on first attempt — no retry
+**Given:** A spec with scenarios that produce contracts. The LLM generates only multi-token patterns like `ModelTier  string` and `type DistillationResult struct`.
+**When:** The WriteContracts stage runs
+**Then:** Specificity validation returns no warnings. No specificity retry occurs. No `contract_specificity_warning` event is emitted.
 
 ### Scenario: multiple low-specificity patterns in one contract
 **Given:** The LLM generates a contract with three `file_contains` assertions: `ModelTier`, `Proposal`, and `type DistillationResult struct`
@@ -184,11 +190,6 @@ This builds on 0003h (contract file self-correction) but operates on pattern spe
 **Given:** The LLM generates a contract with `file_contains: {path: internal/foo/bar.go, pattern: modelTier}`
 **When:** `ValidateContractSpecificity` runs on the contract
 **Then:** No warning is returned — unexported identifiers are less likely to be ambiguous across multiple type definitions
-
-### Scenario: runtime auto-correction tightens low-specificity contract
-**Given:** A run in cycle 2 where validation finds `file_contains: {path: types.go, pattern: ModelTier}` fails because `ModelTier` was removed from `DistillerInputs`. But `DistillationResult` in the same file still has `ModelTier  string`.
-**When:** The validate stage checks the failure
-**Then:** The pattern is classified as low-specificity. The validator reads `types.go`, finds `ModelTier  string` in `DistillationResult`, rewrites the contract pattern from `ModelTier` to `ModelTier  string`, persists the updated `scenario-contracts.yaml`, and re-evaluates. The tightened contract passes. No replan is triggered for this assertion.
 
 ### Scenario: file_not_contains assertion not checked
 **Given:** The LLM generates a contract with `file_not_contains: {path: types.go, pattern: DeprecatedField}`
