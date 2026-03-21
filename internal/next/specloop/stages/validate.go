@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -168,6 +169,17 @@ func (s *ValidateStage) Run(ctx context.Context, rs *runstore.RunState) (specloo
 			}
 			// Store non-deferred contract failures for next-cycle comparison
 			rs.LastContractFailures = contractFailureStrings
+		}
+	}
+
+	// Safety net: auto-format all Go files before validation so that
+	// TestRepoGofmtCompliance (and the "gofmt -l ." always-run check) won't
+	// fail on files created by earlier stages. Best-effort — errors are logged
+	// but never block validation.
+	if fmtCmd := exec.CommandContext(ctx, "gofmt", "-w", "."); fmtCmd != nil {
+		fmtCmd.Dir = workDir
+		if out, err := fmtCmd.CombinedOutput(); err != nil {
+			fmt.Fprintf(os.Stderr, "gromit: gofmt -w . safety net: %v: %s\n", err, out)
 		}
 	}
 

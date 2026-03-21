@@ -198,8 +198,8 @@ func TestIntegration_BlockedRun(t *testing.T) {
 	}
 
 	acceptanceData := map[string]interface{}{
-		"results":            []map[string]interface{}{},
-		"all_pass":           false,
+		"results":             []map[string]interface{}{},
+		"all_pass":            false,
 		"has_fail_or_unclear": false,
 	}
 	if err := writeJSON(tempDir, "acceptance.json", acceptanceData); err != nil {

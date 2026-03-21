@@ -57,7 +57,7 @@ func InputsFromEvidence(evidenceDir string, specPath string, run *runstore.RunSt
 	// validation.json uses "pass" (not "passed") and nests results under
 	// always_run.results / project_checks.results — not a flat {passed, checks}.
 	var rawValidation struct {
-		Pass          bool `json:"pass"`
+		Pass          bool                                `json:"pass"`
 		AlwaysRun     struct{ Results []json.RawMessage } `json:"always_run"`
 		ProjectChecks struct{ Results []json.RawMessage } `json:"project_checks"`
 	}

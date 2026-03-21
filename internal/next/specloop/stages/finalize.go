@@ -93,7 +93,7 @@ func (s *FinalizeStage) generateReviewPacket(rs *runstore.RunState) error {
 		return fmt.Errorf("read validation.json: %w", err)
 	}
 	var rawValidation struct {
-		Pass          bool `json:"pass"`
+		Pass          bool                                `json:"pass"`
 		AlwaysRun     struct{ Results []json.RawMessage } `json:"always_run"`
 		ProjectChecks struct{ Results []json.RawMessage } `json:"project_checks"`
 	}
@@ -216,4 +216,3 @@ func detectRepeatedFailure(rs *runstore.RunState) bool {
 	}
 	return false
 }
-

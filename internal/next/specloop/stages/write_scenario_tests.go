@@ -179,6 +179,13 @@ func (s *WriteScenarioTestsStage) Run(ctx context.Context, rs *runstore.RunState
 				break
 			}
 
+			// Run gofmt on the written file to normalize formatting.
+			fmtPath := testFilePath
+			if !filepath.IsAbs(fmtPath) {
+				fmtPath = filepath.Join(workDir, fmtPath)
+			}
+			_ = exec.Command("gofmt", "-w", fmtPath).Run()
+
 			// Verify compilation.
 			if s.compilesSuccessfully(testFilePath) {
 				// Success — update manifest and emit event.
