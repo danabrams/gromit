@@ -247,10 +247,7 @@ func (p *RealStageProvider) BuildStages(policy execpolicy.Policy, rs *runstore.R
 		}
 	}
 
-	executeWorkDir := p.cfg.WorkDir
-	if rs.WorktreePath != "" {
-		executeWorkDir = rs.WorktreePath
-	}
+	// ExecuteStage resolves rs.WorktreePath at runtime in Run().
 	executeStage := stages.NewExecuteStage(taskRunner, stages.ExecuteStageConfig{
 		MaxRetries:          policy.Budgets.MaxTaskRetries,
 		MaxRedecompositions: policy.Budgets.MaxRedecompositionPasses,
@@ -262,7 +259,7 @@ func (p *RealStageProvider) BuildStages(policy execpolicy.Policy, rs *runstore.R
 		}),
 		Decomposer:             decomposer,
 		GitOps:                 &shellGitOps{},
-		WorkDir:                executeWorkDir,
+		WorkDir:                p.cfg.WorkDir,
 		MaxTaskDurationSeconds: policy.Budgets.MaxTaskDurationSeconds,
 		Budget:                 budget,
 		DetectFilesChanged:     specloop.GitFilesChanged(),
@@ -292,14 +289,11 @@ func (p *RealStageProvider) BuildStages(policy execpolicy.Policy, rs *runstore.R
 		repoDir = p.cfg.WorkDir
 	}
 
-	validateWorkDir := p.cfg.WorkDir
-	if rs.WorktreePath != "" {
-		validateWorkDir = rs.WorktreePath
-	}
+	// ValidateStage resolves rs.WorktreePath at runtime in Run().
 	validateStage := stages.NewValidateStage(finalVal, stages.ValidateStageConfig{
 		AlwaysRun:        alwaysRun,
 		AutoFix:          autoFix,
-		WorkDir:          validateWorkDir,
+		WorkDir:          p.cfg.WorkDir,
 		EvidenceDir:      evidenceDir,
 		RepoDir:          repoDir,
 		SearchExtensions: []string{".go"},
@@ -336,13 +330,8 @@ func (p *RealStageProvider) BuildStages(policy execpolicy.Policy, rs *runstore.R
 
 	// Build-time assertion: when a worktree is active, all stage WorkDir
 	// values must point inside it.
-	// write_scenario_tests resolves WorktreePath at runtime, so only check execute and validate.
-	if err := validateWorkDirsInWorktree(rs.WorktreePath, []workDirEntry{
-		{"execute", executeWorkDir},
-		{"validate", validateWorkDir},
-	}); err != nil {
-		return nil, err
-	}
+	// All stages that use WorkDir resolve rs.WorktreePath at runtime in Run(),
+	// so build-time worktree validation is no longer needed.
 
 	allStages := []specloop.Stage{
 		initStage,
