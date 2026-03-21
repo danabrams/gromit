@@ -243,7 +243,7 @@ func TestParseStatusLines(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got := parseStatusLines(tc.input)
+			got := ParseStatusLines(tc.input)
 			for _, want := range tc.expect {
 				if _, ok := got[want]; !ok {
 					t.Errorf("missing expected file %q in parsed output", want)

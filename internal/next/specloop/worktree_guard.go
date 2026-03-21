@@ -30,8 +30,9 @@ func DefaultGitStatus(dir string) (string, error) {
 // if new uncommitted changes appear.
 type WorktreeGuard struct {
 	Inner     Stage
-	RepoDir   string        // main repo path — checked for unexpected modifications
-	GitStatus GitStatusFunc // nil defaults to DefaultGitStatus
+	RepoDir   string                 // main repo path — checked for unexpected modifications
+	GitStatus GitStatusFunc          // nil defaults to DefaultGitStatus
+	Baseline  map[string]struct{}    // pre-captured baseline; if set, skip the pre-snapshot
 }
 
 func (g *WorktreeGuard) Name() string { return g.Inner.Name() }
@@ -47,11 +48,16 @@ func (g *WorktreeGuard) Run(ctx context.Context, rs *runstore.RunState) (NextAct
 		statusFn = DefaultGitStatus
 	}
 
-	before, err := statusFn(g.RepoDir)
-	if err != nil {
-		return NextAction{}, fmt.Errorf("worktree guard: pre-snapshot: %w", err)
+	var beforeSet map[string]struct{}
+	if g.Baseline != nil {
+		beforeSet = g.Baseline
+	} else {
+		before, err := statusFn(g.RepoDir)
+		if err != nil {
+			return NextAction{}, fmt.Errorf("worktree guard: pre-snapshot: %w", err)
+		}
+		beforeSet = ParseStatusLines(before)
 	}
-	beforeSet := parseStatusLines(before)
 
 	action, runErr := g.Inner.Run(ctx, rs)
 
@@ -59,7 +65,7 @@ func (g *WorktreeGuard) Run(ctx context.Context, rs *runstore.RunState) (NextAct
 	if err != nil {
 		return NextAction{}, fmt.Errorf("worktree guard: post-snapshot: %w", err)
 	}
-	afterSet := parseStatusLines(after)
+	afterSet := ParseStatusLines(after)
 
 	newFiles := diffSets(beforeSet, afterSet)
 	if len(newFiles) > 0 {
@@ -76,8 +82,8 @@ func (g *WorktreeGuard) Run(ctx context.Context, rs *runstore.RunState) (NextAct
 	return action, runErr
 }
 
-// parseStatusLines splits `git status --porcelain` output into a set of file paths.
-func parseStatusLines(output string) map[string]struct{} {
+// ParseStatusLines splits `git status --porcelain` output into a set of file paths.
+func ParseStatusLines(output string) map[string]struct{} {
 	set := make(map[string]struct{})
 	for _, line := range strings.Split(output, "\n") {
 		// Porcelain format: "XY filename" — status is first 2 chars, position [2] is
