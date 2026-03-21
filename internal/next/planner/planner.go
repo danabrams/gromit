@@ -62,6 +62,7 @@ func (p *Planner) CreatePlan(ctx context.Context, req PlanRequest) (Plan, error)
 			lastErr = err
 			continue
 		}
+		SanitizeWorktreePaths(&plan)
 		return plan, nil
 	}
 	return Plan{}, fmt.Errorf("plan generation failed after %d attempts: %w", attempts, lastErr)
@@ -108,6 +109,7 @@ func (p *Planner) CreateFixPlan(ctx context.Context, req FixPlanRequest) (Plan, 
 			lastErr = err
 			continue
 		}
+		SanitizeWorktreePaths(&plan)
 		if req.PriorMaxTaskID != "" {
 			if err := ValidatePlanWithPrior(plan, req.PriorMaxTaskID); err != nil {
 				lastErr = fmt.Errorf("prior-plan validation failed: %w", err)
@@ -246,6 +248,7 @@ func buildFixPlanPrompt(req FixPlanRequest) string {
 	b.WriteString("  - objective: string describing the surgical fix\n")
 	b.WriteString("  - expected_touched_area: array of strings (file paths or directories)\n")
 	b.WriteString("  - proof_checks: array of EXECUTABLE SHELL COMMANDS to verify the fix. Must be runnable via `sh -c`. No prose descriptions.\n")
+	b.WriteString("    **CRITICAL: All file paths in proof_checks and expected_touched_area must be relative to the project root (e.g. `internal/pkg/foo.go`). NEVER use `.gromit-next/worktrees/...` prefixes.**\n")
 	b.WriteString("    **Proof check quality rules** (same as original plan):\n")
 	b.WriteString("    - Every task modifying `.go` files MUST include `go build ./...`.\n")
 	b.WriteString("    - Prefer `go test -run TestX -v ./path/to/pkg/` over `grep -q 'func X'` — verify behavior, not presence.\n")
@@ -303,7 +306,8 @@ func buildPlanPrompt(req PlanRequest) string {
 	b.WriteString("task_id must use the format \"t-NNN\" (e.g. \"t-001\", \"t-002\").\n")
 	b.WriteString("expected_touched_area must be an array of strings (e.g. [\"calc/calc.go\"]).\n")
 	b.WriteString("Each task needs: task_id, objective, expected_touched_area, proof_checks.\n")
-	b.WriteString("proof_checks must be EXECUTABLE SHELL COMMANDS only (run via `sh -c`). No prose descriptions — only runnable commands.\n\n")
+	b.WriteString("proof_checks must be EXECUTABLE SHELL COMMANDS only (run via `sh -c`). No prose descriptions — only runnable commands.\n")
+	b.WriteString("**CRITICAL: All file paths in proof_checks and expected_touched_area must be relative to the project root (e.g. `internal/pkg/foo.go`). NEVER use `.gromit-next/worktrees/...` prefixes.**\n\n")
 
 	b.WriteString("## Proof Check Quality Guidelines\n")
 	b.WriteString("Proof checks must verify BEHAVIOR, not just PRESENCE of code. Follow these rules in priority order:\n\n")
