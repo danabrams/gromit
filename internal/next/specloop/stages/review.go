@@ -161,11 +161,26 @@ func (s *ReviewStage) Run(ctx context.Context, rs *runstore.RunState) (specloop.
 
 	if result.HasBlockingFindings {
 		rs.FinalReviewPassed = false
-		failures := review.BuildFailureStrings(*result)
+
+		// Filter out review findings that contradict contract assertions.
+		// A contradiction: review says "remove X from file Y" but contract
+		// asserts "X must exist in file Y". Suppressing these prevents
+		// infinite replan loops where reviewer and contracts disagree.
+		blockingFiltered, suppressed := filterContractContradictions(
+			result.BlockingFindings, s.cfg.EvidenceDir,
+		)
+
+		// If all blocking findings were contradicted by contracts, pass the review.
+		if len(blockingFiltered) == 0 && suppressed > 0 {
+			rs.FinalReviewPassed = true
+			return specloop.NextAction{Kind: specloop.Continue}, nil
+		}
+
+		failures := review.ReviewFailuresToStrings(blockingFiltered)
 
 		// On the ReplanFrom path, restrict ReviewFindings to blocking findings only.
 		// These feed the planner's FailureContext; info/pre-existing findings are noise.
-		rs.ReviewFindings = review.ReviewFailuresToStrings(result.BlockingFindings)
+		rs.ReviewFindings = failures
 
 		return specloop.NextAction{
 			Kind: specloop.ReplanFrom,

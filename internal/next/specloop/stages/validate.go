@@ -153,11 +153,20 @@ func (s *ValidateStage) Run(ctx context.Context, rs *runstore.RunState) (specloo
 				failures = append(failures, failureStr)
 				contractFailureStrings = append(contractFailureStrings, failureStr)
 			}
-			// Store non-deferred contract failures for reference
+			// (4) Contract loop detection (spec 0003g):
+			// When the same non-empty set of contract failure strings repeats on
+			// two consecutive cycles, escalate to needs_human instead of replanning.
+			if len(contractFailureStrings) > 0 && slicesEqual(contractFailureStrings, rs.LastContractFailures) {
+				return specloop.NextAction{
+					Kind: specloop.NeedsHuman,
+					Context: &specloop.FailureContext{
+						Failures: append([]string{"repeated contract failures — same failures on consecutive cycles:"}, contractFailureStrings...),
+						Cycle:    rs.Cycle,
+					},
+				}, nil
+			}
+			// Store non-deferred contract failures for next-cycle comparison
 			rs.LastContractFailures = contractFailureStrings
-
-			// (4) TODO: 0003g loop detection slot — runs on formatted strings
-			// Future: Implement loop detection on contractFailureStrings
 		}
 	}
 
@@ -522,6 +531,20 @@ func detectIOLeakFailure(result validator.FinalResult) string {
 		}
 	}
 	return ""
+}
+
+// slicesEqual returns true if a and b have the same length and identical
+// elements in the same order. Used for contract loop detection (spec 0003g).
+func slicesEqual(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }
 
 // recoverWorktree attempts to recover a failed worktree by removing the existing
