@@ -56,6 +56,16 @@ Rules:
 - Do not invent assertions not derivable from the Given/When/Then text.
 - **Only assert against implementation source files (Go files in internal/, cmd/, etc.).** Do NOT reference runtime artifact paths (run.json, execution-policy.json, tasks.json, events.jsonl, spec-packet.md, spec.md) — these files live in the run store, not the project source tree where the contract evaluator resolves paths.
 
+## Struct-Scoped Patterns
+
+When writing file_contains assertions for files that will contain multiple type definitions, use struct-scoped patterns instead of bare identifiers.
+
+BAD:  file_contains: {path: types.go, pattern: ModelTier}
+GOOD: file_contains: {path: types.go, pattern: "ModelTier  string"}
+GOOD: file_contains: {path: types.go, pattern: "type DistillationResult struct"}
+
+A bare exported identifier like "ModelTier" is ambiguous — it could match any of several structs in the file, making it fragile when review findings cause targeted edits to one struct but not another.
+
 Respond with ONLY a YAML block in this exact structure:
 
 ```yaml

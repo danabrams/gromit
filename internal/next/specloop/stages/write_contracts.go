@@ -144,7 +144,7 @@ func (s *WriteContractsStage) Run(ctx context.Context, rs *runstore.RunState) (s
 		specPacket = "# Prior Contract Validation Errors\n" + strings.Join(existingValidationErrors, "\n") + "\n\n" + specPacket
 	}
 
-	// Retry loop: up to 3 total attempts (1 initial + 2 retries).
+	// Phase 1: Structural validation retry loop (up to 3 total attempts).
 	const maxAttempts = 3
 	const validKeys = "Valid assertion keys: file_exists, file_contains, file_not_modified, file_not_exists, file_not_contains"
 	var (
@@ -167,8 +167,7 @@ func (s *WriteContractsStage) Run(ctx context.Context, rs *runstore.RunState) (s
 
 		validationErrors = contract.ValidateContract(*result)
 		if len(validationErrors) == 0 {
-			// Valid output — break out of retry loop.
-			lastErr = nil
+			// Structural validation passed.
 			break
 		}
 
@@ -176,7 +175,7 @@ func (s *WriteContractsStage) Run(ctx context.Context, rs *runstore.RunState) (s
 		specPacket = "# Prior Validation Errors\n" + strings.Join(validationErrors, "\n") + "\n\n# Valid Assertion Keys\n" + validKeys + "\n\n" + string(specPacketBytes)
 	}
 
-	// Determine terminal failure.
+	// Determine terminal failure from structural validation.
 	if lastErr != nil || len(validationErrors) > 0 {
 		var reason string
 		if lastErr != nil {
@@ -198,6 +197,53 @@ func (s *WriteContractsStage) Run(ctx context.Context, rs *runstore.RunState) (s
 				Cycle:    rs.Cycle,
 			},
 		}, nil
+	}
+
+	// Phase 2: Specificity validation (separate phase, runs only after structural validation passes).
+	if result != nil {
+		specificityWarnings := contract.ValidateContractSpecificity(*result)
+		if len(specificityWarnings) > 0 {
+			preRetryResult := result
+			specificityMessages := make([]string, len(specificityWarnings))
+			for i, w := range specificityWarnings {
+				specificityMessages[i] = fmt.Sprintf("%s (assertion %d, %s, pattern: %s): %s", w.ScenarioName, w.AssertionIdx, w.Path, w.Pattern, w.Reason)
+			}
+			specPacketWithWarnings := "# Specificity Issues Found\n" + strings.Join(specificityMessages, "\n") + "\nPlease improve pattern specificity by adding more context (e.g., type declarations, function signatures, or surrounding code).\n\n" + string(specPacketBytes)
+
+			retryResult, retryErr := s.writer.WriteContracts(ctx, scenarios, specPacketWithWarnings)
+			if retryErr != nil {
+				// LLM error on specificity retry — keep the pre-retry result.
+				result = preRetryResult
+			} else if retryResult != nil && len(retryResult.Scenarios) > 0 {
+				// Specificity retry succeeded; validate structure.
+				retryValidationErrors := contract.ValidateContract(*retryResult)
+				if len(retryValidationErrors) > 0 {
+					// Structural regression — keep the pre-retry result.
+					result = preRetryResult
+				} else {
+					// New contract is valid; check if specificity improved.
+					result = retryResult
+					specificityWarnings = contract.ValidateContractSpecificity(*result)
+				}
+			} else {
+				// Empty result on retry — keep pre-retry result.
+				result = preRetryResult
+			}
+
+			// Emit warning event if low-specificity patterns remain.
+			if len(specificityWarnings) > 0 {
+				if s.eventLog != nil {
+					warningMessages := make([]string, len(specificityWarnings))
+					for i, w := range specificityWarnings {
+						warningMessages[i] = fmt.Sprintf("%s (assertion %d, %s, pattern: %s): %s", w.ScenarioName, w.AssertionIdx, w.Path, w.Pattern, w.Reason)
+					}
+					s.eventLog.Append(runstore.ContractSpecificityWarningEvent{
+						BaseEvent: runstore.BaseEvent{Type: "contract_specificity_warning", Timestamp: time.Now()},
+						Warnings:  warningMessages,
+					})
+				}
+			}
+		}
 	}
 
 	// Write scenario-contracts.yaml to EvidenceDir.

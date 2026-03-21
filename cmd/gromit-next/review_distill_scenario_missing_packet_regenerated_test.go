@@ -141,9 +141,9 @@ func TestScenario_MissingReviewPacketIsRegeneratedBeforeDistillation(t *testing.
 		Summary:   "Accepted run with regenerated packet — quality backpressure patterns worth reinforcing",
 		CreatedAt: now,
 		Metadata: map[string]string{
-			"run_id":           "run-105",
-			"spec_id":          "spec-quality-backpressure",
-			"model":            "opus",
+			"run_id":             "run-105",
+			"spec_id":            "spec-quality-backpressure",
+			"model":              "opus",
 			"packet_regenerated": "true",
 		},
 		Proposals: []distillProposal{

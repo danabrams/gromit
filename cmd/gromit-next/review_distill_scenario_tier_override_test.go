@@ -14,14 +14,14 @@ import (
 
 // tierOverrideResult represents the distillation output for tier override assertions.
 type tierOverrideResult struct {
-	RunID     string                `json:"run_id"`
-	SpecID    string                `json:"spec_id"`
-	Outcome   string                `json:"outcome"`
-	ModelTier string                `json:"model_tier"`
-	Summary   string                `json:"summary"`
+	RunID     string                 `json:"run_id"`
+	SpecID    string                 `json:"spec_id"`
+	Outcome   string                 `json:"outcome"`
+	ModelTier string                 `json:"model_tier"`
+	Summary   string                 `json:"summary"`
 	Proposals []tierOverrideProposal `json:"proposals"`
-	CreatedAt time.Time             `json:"created_at"`
-	Metadata  map[string]string     `json:"metadata,omitempty"`
+	CreatedAt time.Time              `json:"created_at"`
+	Metadata  map[string]string      `json:"metadata,omitempty"`
 }
 
 type tierOverrideProposal struct {

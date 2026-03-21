@@ -24,14 +24,14 @@ type distillProposal struct {
 
 // distillResult represents the distillation output for test assertions.
 type distillResult struct {
-	RunID     string             `json:"run_id"`
-	SpecID    string             `json:"spec_id"`
-	Outcome   string             `json:"outcome"`
-	ModelTier string             `json:"model_tier"`
-	Summary   string             `json:"summary"`
-	Proposals []distillProposal  `json:"proposals"`
-	CreatedAt time.Time          `json:"created_at"`
-	Metadata  map[string]string  `json:"metadata,omitempty"`
+	RunID     string            `json:"run_id"`
+	SpecID    string            `json:"spec_id"`
+	Outcome   string            `json:"outcome"`
+	ModelTier string            `json:"model_tier"`
+	Summary   string            `json:"summary"`
+	Proposals []distillProposal `json:"proposals"`
+	CreatedAt time.Time         `json:"created_at"`
+	Metadata  map[string]string `json:"metadata,omitempty"`
 }
 
 func TestScenario_AcceptedRunProducesReinforcementProposals(t *testing.T) {

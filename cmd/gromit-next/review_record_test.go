@@ -537,4 +537,3 @@ func TestReviewRecord_CommandWithRunFlag(t *testing.T) {
 		t.Errorf("wrong Outcome: got %q, want %q", outcome.Outcome, reviewsession.OutcomeAccepted)
 	}
 }
-

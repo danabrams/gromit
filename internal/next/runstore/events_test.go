@@ -61,6 +61,7 @@ func TestEvents_AllEventTypes(t *testing.T) {
 		TerminalStateEvent{BaseEvent: BaseEvent{Type: "terminal_state", Timestamp: now}, Status: "ready_for_review"},
 		DiffUnavailableEvent{BaseEvent: BaseEvent{Type: "diff_unavailable", Timestamp: time.Now()}, Reason: "test error", Message: "test message"},
 		&ContractDeferredEvent{BaseEvent: BaseEvent{Type: "contract_deferred", Timestamp: now}, ScenarioName: "auth-flow", FilePath: "internal/auth/contract.go", Pattern: "login_success", TaskID: "t-042"},
+		ContractSpecificityWarningEvent{BaseEvent: BaseEvent{Type: "contract_specificity_warning", Timestamp: now}, Warnings: []string{"pattern too generic"}},
 	}
 
 	for _, ev := range allEvents {
@@ -73,8 +74,8 @@ func TestEvents_AllEventTypes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(events) != 18 {
-		t.Fatalf("want 18 events, got %d", len(events))
+	if len(events) != 19 {
+		t.Fatalf("want 19 events, got %d", len(events))
 	}
 	for i, ev := range events {
 		if ev.EventType() != allEvents[i].EventType() {

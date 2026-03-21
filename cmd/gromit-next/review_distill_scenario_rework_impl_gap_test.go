@@ -78,12 +78,12 @@ func TestScenario_ReworkImplementationGapProducesGuardrailProposals(t *testing.T
 
 	// process-review.json with trust level "medium"
 	processReview := map[string]interface{}{
-		"trust_level":        "medium",
-		"automatic_proof":    "Tests passed but coverage incomplete",
-		"machine_review":     "No blocking issues found",
+		"trust_level":         "medium",
+		"automatic_proof":     "Tests passed but coverage incomplete",
+		"machine_review":      "No blocking issues found",
 		"recommended_posture": "manual_check_carefully",
-		"degraded_flags":     []string{"incomplete_coverage"},
-		"repair_cycles":      1,
+		"degraded_flags":      []string{"incomplete_coverage"},
+		"repair_cycles":       1,
 	}
 	writeJSON(t, filepath.Join(evidenceDir, "process-review.json"), processReview)
 

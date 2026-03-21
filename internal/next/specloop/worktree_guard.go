@@ -30,9 +30,9 @@ func DefaultGitStatus(dir string) (string, error) {
 // if new uncommitted changes appear.
 type WorktreeGuard struct {
 	Inner     Stage
-	RepoDir   string                 // main repo path — checked for unexpected modifications
-	GitStatus GitStatusFunc          // nil defaults to DefaultGitStatus
-	Baseline  map[string]struct{}    // pre-captured baseline; if set, skip the pre-snapshot
+	RepoDir   string              // main repo path — checked for unexpected modifications
+	GitStatus GitStatusFunc       // nil defaults to DefaultGitStatus
+	Baseline  map[string]struct{} // pre-captured baseline; if set, skip the pre-snapshot
 }
 
 func (g *WorktreeGuard) Name() string { return g.Inner.Name() }

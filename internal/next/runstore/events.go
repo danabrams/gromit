@@ -201,6 +201,11 @@ type ScenarioTestsBlockedEvent struct {
 	Reason string `json:"reason"`
 }
 
+type ContractSpecificityWarningEvent struct {
+	BaseEvent
+	Warnings []string `json:"warnings"`
+}
+
 type TerminalStateEvent struct {
 	BaseEvent
 	Status string `json:"status"`
@@ -357,6 +362,9 @@ func unmarshalEvent(data []byte) (TypedEvent, error) {
 		ev = &e
 	case "contract_deferred":
 		var e ContractDeferredEvent
+		ev = &e
+	case "contract_specificity_warning":
+		var e ContractSpecificityWarningEvent
 		ev = &e
 	case "diff_unavailable":
 		var e DiffUnavailableEvent

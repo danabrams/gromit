@@ -106,9 +106,9 @@ func TestScenario_DistillCommandRejectsUnrecognizedOutcomeType(t *testing.T) {
 
 	// Build the error that the distill command would return for unsupported outcome types
 	supportedOutcomes := map[string]bool{
-		"accepted":                    true,
-		"rework_implementation_gap":   true,
-		"rework_vision_change":        true,
+		"accepted":                  true,
+		"rework_implementation_gap": true,
+		"rework_vision_change":      true,
 	}
 
 	// === Assert ===

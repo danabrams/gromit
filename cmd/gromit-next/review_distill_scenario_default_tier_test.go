@@ -14,14 +14,14 @@ import (
 
 // defaultTierResult represents the distillation output for default tier assertions.
 type defaultTierResult struct {
-	RunID     string                 `json:"run_id"`
-	SpecID    string                 `json:"spec_id"`
-	Outcome   string                 `json:"outcome"`
-	ModelTier string                 `json:"model_tier"`
-	Summary   string                 `json:"summary"`
-	Proposals []defaultTierProposal  `json:"proposals"`
-	CreatedAt time.Time              `json:"created_at"`
-	Metadata  map[string]string      `json:"metadata,omitempty"`
+	RunID     string                `json:"run_id"`
+	SpecID    string                `json:"spec_id"`
+	Outcome   string                `json:"outcome"`
+	ModelTier string                `json:"model_tier"`
+	Summary   string                `json:"summary"`
+	Proposals []defaultTierProposal `json:"proposals"`
+	CreatedAt time.Time             `json:"created_at"`
+	Metadata  map[string]string     `json:"metadata,omitempty"`
 }
 
 type defaultTierProposal struct {
