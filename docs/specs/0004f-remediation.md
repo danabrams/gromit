@@ -51,7 +51,7 @@ All changes are localized refactors within existing files. No new files, types, 
 2. A `specificityWarningString` helper exists and is called from both the retry-prompt and event-emission blocks in `write_contracts.go`
 3. The dead-code `if result != nil` guard is removed from the specificity phase in `write_contracts.go`
 4. A comment on the structural-regression fallback path (inside `if len(retryValidationErrors) > 0`) explains that `specificityWarnings` describes the restored pre-retry result
-5. `specificity_test.go` is deleted; the punctuation-pattern test is extracted to `specificity_scenario_punctuation_test.go`; all 6 `specificity_scenario_*_test.go` files pass
+5. `specificity_test.go` is deleted; the punctuation-pattern test is extracted to a `specificity_scenario_*_test.go` file; all `specificity_scenario_*_test.go` files pass and cover the same behaviors as the deleted file
 6. The 3 duplicate `TestWriteContracts_Specificity*` tests with scenario counterparts are deleted from `write_contracts_test.go`; `StructuralRegression` and `LLMError` tests are kept
 7. The structural regression test uses a non-empty contract (with at least one scenario containing a `ContractAssertion{}` with no assertion type set) that fails `ValidateContract`, exercising the actual regression detection branch (not the empty-result branch)
 8. Both the `StructuralRegression` and any remaining persists-warning tests use `writerCalls != 2` (exactly 2), not `writerCalls < 2`
@@ -68,7 +68,7 @@ All changes are localized refactors within existing files. No new files, types, 
 ### Scenario: duplicate test files removed without losing coverage
 **Given:** `specificity_test.go` is deleted from `internal/next/contract/`, the punctuation test is extracted to `specificity_scenario_punctuation_test.go`, and the 3 duplicate `TestWriteContracts_Specificity*` tests (NoWarnings, RetryFixes, RetryPersists) are deleted from `write_contracts_test.go`
 **When:** `go test ./internal/next/contract/... ./internal/next/specloop/stages/...` runs
-**Then:** All remaining tests pass; 6 scenario files exist in `contract/`; `StructuralRegression` and `LLMError` tests still exist and pass in `stages/`
+**Then:** All remaining tests pass; `specificity_test.go` no longer exists; all behaviors from the deleted file have scenario-named counterparts; `StructuralRegression` and `LLMError` tests still exist and pass in `stages/`
 
 ### Scenario: structural regression test exercises correct branch
 **Given:** The `SpecificityRetryStructuralRegression` test provides a `ScenarioContract` with one scenario containing a `ContractAssertion{}` with no assertion type set
