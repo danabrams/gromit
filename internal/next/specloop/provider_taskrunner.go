@@ -108,7 +108,7 @@ func (r *ProviderTaskRunner) taskContext() TaskContext {
 // RunTask renders a task prompt and invokes the LLM. It maps the provider result
 // to a TaskResult. FilesChanged is always empty — the TaskLoop fills that in.
 func (r *ProviderTaskRunner) RunTask(ctx context.Context, task runstore.Task) (TaskResult, error) {
-	prompt := renderTaskPrompt(task, r.taskContext())
+	prompt := renderTaskPrompt(task, r.taskContext(), r.workDirFn())
 	result, err := r.invoke(ctx, prompt)
 	tr := mapResult(result)
 	if err != nil {
@@ -123,7 +123,7 @@ func (r *ProviderTaskRunner) RunTask(ctx context.Context, task runstore.Task) (T
 // RepairTask renders a repair prompt that includes failure context, then invokes
 // the LLM. Result mapping is the same as RunTask.
 func (r *ProviderTaskRunner) RepairTask(ctx context.Context, task runstore.Task, failures []string) (TaskResult, error) {
-	prompt := renderRepairPrompt(task, failures, r.taskContext())
+	prompt := renderRepairPrompt(task, failures, r.taskContext(), r.workDirFn())
 	result, err := r.invoke(ctx, prompt)
 	tr := mapResult(result)
 	if err != nil {
@@ -154,9 +154,59 @@ func renderContextSections(b *strings.Builder, tc TaskContext, includeSpec bool)
 	}
 }
 
-// renderTaskBody writes the common task sections (Objective, Spec Constraints, Expected Touched Area, Proof Checks).
+// maxFilePreviewLines is the maximum number of lines included per file in the
+// "Current File Contents" prompt section to avoid blowing up context.
+const maxFilePreviewLines = 200
+
+// renderCurrentFileContents reads each file in ExpectedTouchedArea from workDir
+// and appends a "Current File Contents" section. Files that don't exist (new
+// files) or can't be read are silently skipped. Each file is truncated to
+// maxFilePreviewLines lines.
+func renderCurrentFileContents(b *strings.Builder, areas []string, workDir string) {
+	if workDir == "" || len(areas) == 0 {
+		return
+	}
+
+	var previews []string
+	for _, area := range areas {
+		// Skip directory paths (trailing slash) — only read actual files.
+		if strings.HasSuffix(area, "/") {
+			continue
+		}
+		fullPath := filepath.Join(workDir, area)
+		data, err := os.ReadFile(fullPath)
+		if err != nil {
+			continue // file doesn't exist or can't be read — skip silently
+		}
+		content := string(data)
+		lines := strings.SplitAfter(content, "\n")
+		truncated := false
+		if len(lines) > maxFilePreviewLines {
+			lines = lines[:maxFilePreviewLines]
+			truncated = true
+		}
+		preview := strings.Join(lines, "")
+		entry := fmt.Sprintf("#### %s\n```\n%s", area, preview)
+		if truncated {
+			entry += "\n... (truncated)\n"
+		}
+		entry += "```\n"
+		previews = append(previews, entry)
+	}
+
+	if len(previews) > 0 {
+		b.WriteString("### Current File Contents\n")
+		b.WriteString("The following are the current contents of existing files you will be editing.\n\n")
+		for _, p := range previews {
+			b.WriteString(p)
+			b.WriteString("\n")
+		}
+	}
+}
+
+// renderTaskBody writes the common task sections (Objective, Spec Constraints, Expected Touched Area, Current File Contents, Proof Checks).
 // Spec Constraints appear before Proof Checks so the agent anchors on hard limits before reading success criteria.
-func renderTaskBody(b *strings.Builder, task runstore.Task) {
+func renderTaskBody(b *strings.Builder, task runstore.Task, workDir string) {
 	fmt.Fprintf(b, "### Objective\n%s\n\n", task.Objective)
 
 	if task.SpecConstraints != "" {
@@ -175,6 +225,8 @@ func renderTaskBody(b *strings.Builder, task runstore.Task) {
 		b.WriteString("\n")
 	}
 
+	renderCurrentFileContents(b, task.ExpectedTouchedArea, workDir)
+
 	if len(task.ProofChecks) > 0 {
 		b.WriteString("### Proof Checks\n")
 		for _, check := range task.ProofChecks {
@@ -187,7 +239,7 @@ func renderTaskBody(b *strings.Builder, task runstore.Task) {
 // renderTaskPrompt builds the prompt sent to the LLM for a new task execution.
 // Context sections (project conventions, spec) are rendered first, followed by
 // the task header, body, and fix-specific sections.
-func renderTaskPrompt(task runstore.Task, tc TaskContext) string {
+func renderTaskPrompt(task runstore.Task, tc TaskContext, workDir string) string {
 	var b strings.Builder
 
 	renderContextSections(&b, tc, task.Kind == "fix")
@@ -197,7 +249,7 @@ func renderTaskPrompt(task runstore.Task, tc TaskContext) string {
 	} else {
 		fmt.Fprintf(&b, "## Task: %s\n\n", task.TaskID)
 	}
-	renderTaskBody(&b, task)
+	renderTaskBody(&b, task, workDir)
 
 	if task.Kind == "fix" && len(task.FailuresAddressed) > 0 {
 		b.WriteString("### Failures to Address\n")
@@ -214,13 +266,13 @@ func renderTaskPrompt(task runstore.Task, tc TaskContext) string {
 
 // renderRepairPrompt builds a prompt that includes context, the original task,
 // and the failures that need to be addressed.
-func renderRepairPrompt(task runstore.Task, failures []string, tc TaskContext) string {
+func renderRepairPrompt(task runstore.Task, failures []string, tc TaskContext, workDir string) string {
 	var b strings.Builder
 
 	renderContextSections(&b, tc, true)
 
 	fmt.Fprintf(&b, "## Repair Task: %s\n\n", task.TaskID)
-	renderTaskBody(&b, task)
+	renderTaskBody(&b, task, workDir)
 	if len(failures) > 0 {
 		b.WriteString("### Failures to Address\n")
 		for _, f := range failures {

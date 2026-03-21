@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/next/planner"
@@ -430,6 +432,108 @@ func TestPlanStage_FixesCopiedToTasks(t *testing.T) {
 		// Verified: Fixes matches expected value
 	} else {
 		t.Fatalf("task t-002: expected Fixes 'issue-789', got %q", rs.Tasks[1].Fixes)
+	}
+}
+
+func TestPlanStage_FixCycle_PopulatesCurrentDiffAndCompletedTasks(t *testing.T) {
+	tmp := t.TempDir()
+	store := runstore.NewStore(tmp)
+	rs := runstore.NewRunState("spec-001", "proj-001")
+	rs.Cycle = 2
+	rs.ReplanContext = []string{"test failure in pkg/foo"}
+
+	// Set up a git repo as the worktree so git diff HEAD works
+	worktree := t.TempDir()
+	for _, args := range [][]string{
+		{"init"},
+		{"config", "user.email", "test@test.com"},
+		{"config", "user.name", "Test"},
+		{"commit", "--allow-empty", "-m", "initial"},
+	} {
+		cmd := exec.Command("git", args...)
+		cmd.Dir = worktree
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %s: %v", args, out, err)
+		}
+	}
+	// Create a file and leave it as an unstaged change so git diff HEAD shows it
+	os.WriteFile(filepath.Join(worktree, "new.go"), []byte("package main\n"), 0o644)
+	cmd := exec.Command("git", "add", "new.go")
+	cmd.Dir = worktree
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git add: %s: %v", out, err)
+	}
+
+	rs.WorktreePath = worktree
+
+	// Pre-populate with cycle 1 tasks — one done, one failed
+	rs.Tasks = []runstore.Task{
+		{TaskID: "t-001", Status: "done", Cycle: 1, Kind: "original", Objective: "Build foo", Attempts: 1, FilesChanged: []string{"pkg/foo/foo.go"}},
+		{TaskID: "t-002", Status: "failed", Cycle: 1, Kind: "original", Objective: "Build bar", Attempts: 2},
+	}
+	runDir := store.RunDir(rs.RunID)
+	os.MkdirAll(runDir, 0o755)
+	os.WriteFile(filepath.Join(runDir, "spec-packet.md"), []byte("spec content"), 0o644)
+
+	fixPlan := planner.Plan{
+		SpecID: "spec-001",
+		Cycle:  2,
+		Kind:   "fix",
+		Tasks: []planner.TaskDef{
+			{
+				TaskID:              "t-003",
+				Objective:           "Fix the failure",
+				ExpectedTouchedArea: []string{"pkg/foo"},
+				ProofChecks:         []string{"go test ./pkg/foo/..."},
+				ParentCycle:         1,
+				FailuresAddressed:   []string{"test failure in pkg/foo"},
+			},
+		},
+	}
+
+	ffp := &fakeFixPlanner{plans: []planner.Plan{fixPlan}}
+	fp := &fakePlanner{plans: []planner.Plan{validPlan()}}
+	stage := NewPlanStage(fp, store, nil)
+	stage.SetFixPlanner(ffp)
+
+	action, err := stage.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if action.Kind != specloop.Continue {
+		t.Fatalf("expected Continue, got %v", action.Kind)
+	}
+
+	// Verify the fix planner received CompletedTasks
+	if len(ffp.reqs) != 1 {
+		t.Fatalf("expected 1 fix planner call, got %d", len(ffp.reqs))
+	}
+	req := ffp.reqs[0]
+
+	// Only "done" task should appear
+	if len(req.CompletedTasks) != 1 {
+		t.Fatalf("expected 1 completed task, got %d", len(req.CompletedTasks))
+	}
+	ct := req.CompletedTasks[0]
+	if ct.TaskID != "t-001" {
+		t.Fatalf("expected completed task t-001, got %q", ct.TaskID)
+	}
+	if ct.Attempts != 1 {
+		t.Fatalf("expected 1 attempt, got %d", ct.Attempts)
+	}
+	if len(ct.FilesChanged) != 1 || ct.FilesChanged[0] != "pkg/foo/foo.go" {
+		t.Fatalf("expected FilesChanged [pkg/foo/foo.go], got %v", ct.FilesChanged)
+	}
+	if ct.ValidationOutcome != "done" {
+		t.Fatalf("expected ValidationOutcome 'done', got %q", ct.ValidationOutcome)
+	}
+
+	// Verify CurrentDiff is populated (should contain our staged new.go)
+	if req.CurrentDiff == "" {
+		t.Fatal("expected CurrentDiff to be populated from worktree git diff")
+	}
+	if !strings.Contains(req.CurrentDiff, "new.go") {
+		t.Fatalf("expected CurrentDiff to mention new.go, got: %s", req.CurrentDiff)
 	}
 }
 

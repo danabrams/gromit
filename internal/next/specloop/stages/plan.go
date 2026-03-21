@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -95,6 +96,8 @@ func (s *PlanStage) Run(ctx context.Context, rs *runstore.RunState) (specloop.Ne
 			PriorMaxTaskID:  maxTaskID(rs.Tasks),
 			SpecConstraints: rs.SpecConstraints,
 			SpecPacket:      string(specPacket),
+			CompletedTasks:  completedTaskSummaries(rs.Tasks),
+			CurrentDiff:     worktreeDiff(rs.WorktreePath),
 		}
 		// Try up to 2 times (initial + 1 retry)
 		allFiltered := false
@@ -245,6 +248,39 @@ func (s *PlanStage) Run(ctx context.Context, rs *runstore.RunState) (specloop.Ne
 	}
 
 	return specloop.NextAction{Kind: specloop.Continue}, nil
+}
+
+// completedTaskSummaries builds CompletedTask entries from tasks that finished
+// successfully (status "done" or "passed").
+func completedTaskSummaries(tasks []runstore.Task) []planner.CompletedTask {
+	var out []planner.CompletedTask
+	for _, t := range tasks {
+		if t.Status != "done" && t.Status != "passed" {
+			continue
+		}
+		out = append(out, planner.CompletedTask{
+			TaskID:            t.TaskID,
+			Attempts:          t.Attempts,
+			FilesChanged:      t.FilesChanged,
+			ValidationOutcome: t.Status,
+		})
+	}
+	return out
+}
+
+// worktreeDiff returns the output of `git diff HEAD` in the given directory.
+// If the directory is empty or the command fails, it returns "".
+func worktreeDiff(dir string) string {
+	if dir == "" {
+		return ""
+	}
+	cmd := exec.Command("git", "diff", "HEAD")
+	cmd.Dir = dir
+	out, err := cmd.Output()
+	if err != nil {
+		return ""
+	}
+	return string(out)
 }
 
 // filterForbiddenFixTasks removes fix plan tasks whose expected_touched_area

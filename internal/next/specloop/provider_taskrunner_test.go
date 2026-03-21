@@ -3,6 +3,7 @@ package specloop
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -651,7 +652,7 @@ func TestProviderTaskRunner_LazyWorkDirResolution(t *testing.T) {
 func TestRenderTaskPrompt_IncludesProjectConventions(t *testing.T) {
 	task := runstore.Task{TaskID: "t-ctx-1", Objective: "implement feature"}
 	tc := TaskContext{ProjectConventions: "# Gromit\nUse Go idioms.\n"}
-	prompt := renderTaskPrompt(task, tc)
+	prompt := renderTaskPrompt(task, tc, "")
 
 	if !strings.Contains(prompt, "Project Conventions") {
 		t.Error("prompt does not contain 'Project Conventions' header")
@@ -664,7 +665,7 @@ func TestRenderTaskPrompt_IncludesProjectConventions(t *testing.T) {
 func TestRenderTaskPrompt_OriginalTaskOmitsSpec(t *testing.T) {
 	task := runstore.Task{TaskID: "t-ctx-2", Objective: "implement feature"}
 	tc := TaskContext{SpecContent: "# Spec 0042\nBuild the frobnicator.\n"}
-	prompt := renderTaskPrompt(task, tc)
+	prompt := renderTaskPrompt(task, tc, "")
 
 	if strings.Contains(prompt, "Full Spec") {
 		t.Error("original task prompt should not contain 'Full Spec' — spec is only for fix/repair tasks")
@@ -674,7 +675,7 @@ func TestRenderTaskPrompt_OriginalTaskOmitsSpec(t *testing.T) {
 func TestRenderTaskPrompt_FixTaskIncludesSpec(t *testing.T) {
 	task := runstore.Task{TaskID: "t-ctx-2b", Kind: "fix", Objective: "fix the frobnicator"}
 	tc := TaskContext{SpecContent: "# Spec 0042\nBuild the frobnicator.\n"}
-	prompt := renderTaskPrompt(task, tc)
+	prompt := renderTaskPrompt(task, tc, "")
 
 	if !strings.Contains(prompt, "Full Spec") {
 		t.Error("fix task prompt should contain 'Full Spec' header")
@@ -687,7 +688,7 @@ func TestRenderTaskPrompt_FixTaskIncludesSpec(t *testing.T) {
 func TestRenderTaskPrompt_ConventionsAppearBeforeTask(t *testing.T) {
 	task := runstore.Task{TaskID: "t-ctx-3", Objective: "do work"}
 	tc := TaskContext{ProjectConventions: "conventions here"}
-	prompt := renderTaskPrompt(task, tc)
+	prompt := renderTaskPrompt(task, tc, "")
 
 	convIdx := strings.Index(prompt, "Project Conventions")
 	taskIdx := strings.Index(prompt, "## Task:")
@@ -706,7 +707,7 @@ func TestRenderTaskPrompt_FixTaskSpecAppearsBeforeTask(t *testing.T) {
 		ProjectConventions: "conventions here",
 		SpecContent:        "spec here",
 	}
-	prompt := renderTaskPrompt(task, tc)
+	prompt := renderTaskPrompt(task, tc, "")
 
 	convIdx := strings.Index(prompt, "Project Conventions")
 	specIdx := strings.Index(prompt, "Full Spec")
@@ -726,7 +727,7 @@ func TestRenderTaskPrompt_FixTaskSpecAppearsBeforeTask(t *testing.T) {
 func TestRenderTaskPrompt_EmptyContextOmitsSections(t *testing.T) {
 	task := runstore.Task{TaskID: "t-ctx-4", Objective: "do work"}
 	tc := TaskContext{} // empty
-	prompt := renderTaskPrompt(task, tc)
+	prompt := renderTaskPrompt(task, tc, "")
 
 	if strings.Contains(prompt, "Project Conventions") {
 		t.Error("prompt should not contain 'Project Conventions' when empty")
@@ -742,7 +743,7 @@ func TestRenderTaskPrompt_EmptyContextOmitsSections(t *testing.T) {
 func TestRenderRepairPrompt_IncludesContext(t *testing.T) {
 	task := runstore.Task{TaskID: "t-ctx-5", Objective: "fix bug"}
 	tc := TaskContext{ProjectConventions: "conventions", SpecContent: "spec text"}
-	prompt := renderRepairPrompt(task, []string{"test failed"}, tc)
+	prompt := renderRepairPrompt(task, []string{"test failed"}, tc, "")
 
 	if !strings.Contains(prompt, "Project Conventions") {
 		t.Error("repair prompt does not contain 'Project Conventions'")
@@ -913,5 +914,97 @@ func TestShellTaskInspector_LazyWorkDirResolution(t *testing.T) {
 	result = inspector.Inspect(context.Background(), task)
 	if !result.Pass {
 		t.Error("expected pass with 'true' command after switching dir")
+	}
+}
+
+// --- renderCurrentFileContents tests ---
+
+func TestRenderTaskPrompt_IncludesExistingFileContents(t *testing.T) {
+	workDir := t.TempDir()
+
+	// Create a file that exists in the worktree.
+	os.MkdirAll(filepath.Join(workDir, "internal", "frob"), 0o755)
+	os.WriteFile(filepath.Join(workDir, "internal", "frob", "frob.go"), []byte("package frob\n\nfunc Frobnicate() {}\n"), 0o644)
+
+	task := runstore.Task{
+		TaskID:              "t-file-contents",
+		Objective:           "edit the frobnicator",
+		ExpectedTouchedArea: []string{"internal/frob/frob.go", "internal/frob/new_file.go"},
+	}
+	tc := TaskContext{}
+	prompt := renderTaskPrompt(task, tc, workDir)
+
+	// Existing file should appear in the prompt.
+	if !strings.Contains(prompt, "Current File Contents") {
+		t.Error("prompt does not contain 'Current File Contents' header")
+	}
+	if !strings.Contains(prompt, "internal/frob/frob.go") {
+		t.Error("prompt does not contain file path header for existing file")
+	}
+	if !strings.Contains(prompt, "func Frobnicate()") {
+		t.Error("prompt does not contain content of existing file")
+	}
+
+	// Non-existent file should NOT appear in the file contents section.
+	// (It will appear in Expected Touched Area, so check specifically for a code fence with its content.)
+	fileContentsIdx := strings.Index(prompt, "Current File Contents")
+	afterContents := prompt[fileContentsIdx:]
+	if strings.Contains(afterContents, "new_file.go") {
+		t.Error("Current File Contents section should not contain non-existent file")
+	}
+}
+
+func TestRenderCurrentFileContents_TruncatesLongFiles(t *testing.T) {
+	workDir := t.TempDir()
+
+	// Create a file with more than maxFilePreviewLines lines.
+	var lines []string
+	for i := 0; i < maxFilePreviewLines+50; i++ {
+		lines = append(lines, fmt.Sprintf("line %d", i))
+	}
+	os.WriteFile(filepath.Join(workDir, "big.go"), []byte(strings.Join(lines, "\n")), 0o644)
+
+	var b strings.Builder
+	renderCurrentFileContents(&b, []string{"big.go"}, workDir)
+	output := b.String()
+
+	if !strings.Contains(output, "... (truncated)") {
+		t.Error("long file should be truncated with indicator")
+	}
+	// Line 0 should be present, line at maxFilePreviewLines+40 should not.
+	if !strings.Contains(output, "line 0") {
+		t.Error("first line should be present")
+	}
+	if strings.Contains(output, fmt.Sprintf("line %d", maxFilePreviewLines+40)) {
+		t.Error("lines beyond maxFilePreviewLines should not be present")
+	}
+}
+
+func TestRenderCurrentFileContents_SkipsDirectories(t *testing.T) {
+	workDir := t.TempDir()
+	os.MkdirAll(filepath.Join(workDir, "internal", "frob"), 0o755)
+
+	var b strings.Builder
+	renderCurrentFileContents(&b, []string{"internal/frob/"}, workDir)
+	output := b.String()
+
+	if output != "" {
+		t.Errorf("expected empty output for directory-only areas, got %q", output)
+	}
+}
+
+func TestRenderCurrentFileContents_EmptyWorkDir(t *testing.T) {
+	var b strings.Builder
+	renderCurrentFileContents(&b, []string{"some/file.go"}, "")
+	if b.String() != "" {
+		t.Error("expected empty output when workDir is empty")
+	}
+}
+
+func TestRenderCurrentFileContents_EmptyAreas(t *testing.T) {
+	var b strings.Builder
+	renderCurrentFileContents(&b, []string{}, t.TempDir())
+	if b.String() != "" {
+		t.Error("expected empty output when areas is empty")
 	}
 }
