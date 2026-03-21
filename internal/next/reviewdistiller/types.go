@@ -2,7 +2,9 @@
 package reviewdistiller
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
 	"time"
 )
 
@@ -63,5 +65,37 @@ type DistillerInputs struct {
 // Production wraps llmadapter.Invoker, extracting the text from provider.Result.
 // Tests use a stub returning canned JSON.
 type LLMCompleter interface {
-	Complete(ctx interface{}, prompt string) (string, error)
+	Complete(ctx context.Context, prompt string) (string, error)
+}
+
+// validateOutcomeType checks that ReviewOutcome is a valid JSON object.
+func validateOutcomeType(outcomeJSON json.RawMessage) error {
+	if len(outcomeJSON) == 0 {
+		return fmt.Errorf("outcome type is empty")
+	}
+
+	var outcomeObj map[string]interface{}
+	if err := json.Unmarshal(outcomeJSON, &outcomeObj); err != nil {
+		return fmt.Errorf("invalid outcome JSON: %w", err)
+	}
+
+	return nil
+}
+
+// extractOutcomeType extracts the outcome string from the ReviewOutcome JSON.
+// Expects a JSON object with an "outcome" field containing the outcome type string.
+func extractOutcomeType(outcomeJSON json.RawMessage) (string, error) {
+	var outcomeObj struct {
+		Outcome string `json:"outcome"`
+	}
+
+	if err := json.Unmarshal(outcomeJSON, &outcomeObj); err != nil {
+		return "", fmt.Errorf("failed to unmarshal outcome: %w", err)
+	}
+
+	if outcomeObj.Outcome == "" {
+		return "", fmt.Errorf("outcome field is empty")
+	}
+
+	return outcomeObj.Outcome, nil
 }

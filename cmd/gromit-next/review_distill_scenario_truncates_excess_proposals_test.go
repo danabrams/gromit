@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -305,6 +306,6 @@ type mockDistillerLLM struct {
 	response string
 }
 
-func (m *mockDistillerLLM) Complete(ctx interface{}, prompt string) (string, error) {
+func (m *mockDistillerLLM) Complete(ctx context.Context, prompt string) (string, error) {
 	return m.response, nil
 }

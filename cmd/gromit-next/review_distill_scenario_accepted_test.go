@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -18,7 +19,7 @@ type mockLLMCompleter struct {
 	response string
 }
 
-func (m *mockLLMCompleter) Complete(ctx interface{}, prompt string) (string, error) {
+func (m *mockLLMCompleter) Complete(ctx context.Context, prompt string) (string, error) {
 	return m.response, nil
 }
 

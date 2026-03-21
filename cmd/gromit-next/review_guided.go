@@ -10,10 +10,14 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/danabrams/gromit/internal/claude"
+	"github.com/danabrams/gromit/internal/next/execpolicy"
+	"github.com/danabrams/gromit/internal/next/llmadapter"
 	"github.com/danabrams/gromit/internal/next/reviewdistiller"
 	"github.com/danabrams/gromit/internal/next/reviewpacket"
 	"github.com/danabrams/gromit/internal/next/reviewsession"
 	"github.com/danabrams/gromit/internal/next/runstore"
+	"github.com/danabrams/gromit/internal/provider"
 	"github.com/spf13/cobra"
 )
 
@@ -201,8 +205,21 @@ func reviewGuided(runID string, storeDir string, input io.Reader, out io.Writer)
 	}
 
 	// Attempt automatic distillation (non-blocking)
-	if err := attemptDistillation(runID, storeDir, reviewdistiller.TierMedium, &stubLLMCompleter{}); err != nil {
-		log.Printf("distillation failed (non-blocking): %v", err)
+	const defaultClaudeBinary = "claude"
+	defaultPolicy := execpolicy.DefaultPolicy()
+	client, err := claude.NewClient(defaultClaudeBinary, []string{"--dangerously-skip-permissions"}, defaultPolicy.Budgets.MaxTaskDurationSeconds)
+	if err != nil {
+		log.Printf("distillation skipped: failed to create claude client: %v", err)
+	} else {
+		prov := provider.NewClaudeProvider(client, provider.DefaultTierToModelMap)
+		adapter := llmadapter.New(prov, llmadapter.Config{
+			Phase: "review",
+			Tier:  provider.TierMedium,
+		})
+		completer := NewInvokerAdapter(adapter)
+		if err := attemptDistillation(runID, storeDir, reviewdistiller.TierMedium, completer); err != nil {
+			log.Printf("distillation failed (non-blocking): %v", err)
+		}
 	}
 
 	// Print summary

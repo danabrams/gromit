@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"os"
@@ -18,7 +19,7 @@ type failingLLMCompleter struct {
 	failureMsg string
 }
 
-func (f *failingLLMCompleter) Complete(_ interface{}, _ string) (string, error) {
+func (f *failingLLMCompleter) Complete(_ context.Context, _ string) (string, error) {
 	return "", errors.New(f.failureMsg)
 }
 

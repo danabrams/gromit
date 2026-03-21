@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -15,7 +16,7 @@ import (
 // mockAuthLLMCompleter returns auth-specific proposals for testing tier overrides.
 type mockAuthLLMCompleter struct{}
 
-func (m *mockAuthLLMCompleter) Complete(ctx interface{}, prompt string) (string, error) {
+func (m *mockAuthLLMCompleter) Complete(ctx context.Context, prompt string) (string, error) {
 	// Return mock proposals specific to auth refactoring
 	mockResponse := `{
   "proposals": [

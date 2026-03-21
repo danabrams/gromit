@@ -10,9 +10,12 @@ import (
 	"path/filepath"
 	"text/template"
 
+	"github.com/danabrams/gromit/internal/claude"
+	"github.com/danabrams/gromit/internal/next/execpolicy"
 	"github.com/danabrams/gromit/internal/next/llmadapter"
 	"github.com/danabrams/gromit/internal/next/reviewdistiller"
 	"github.com/danabrams/gromit/internal/next/runstore"
+	"github.com/danabrams/gromit/internal/provider"
 	"github.com/spf13/cobra"
 )
 
@@ -69,8 +72,11 @@ If no run-id is given, the latest run is distilled (by modification time of .gro
 
 // reviewDistill runs distillation for a run.
 func reviewDistill(runID string, storeDir string, tier reviewdistiller.Tier) error {
-	// Use stub completer for now
-	completer := &stubLLMCompleter{}
+	// Build real LLM completer backed by invoker
+	completer, err := buildDistillationCompleter(tier)
+	if err != nil {
+		return fmt.Errorf("build LLM completer: %w", err)
+	}
 
 	if err := attemptDistillation(runID, storeDir, tier, completer); err != nil {
 		return err
@@ -297,17 +303,8 @@ func NewInvokerAdapter(invoker llmadapter.Invoker) reviewdistiller.LLMCompleter 
 }
 
 // Complete implements LLMCompleter by calling the invoker and extracting Output.
-func (ia *invokerAdapter) Complete(ctx interface{}, prompt string) (string, error) {
-	// Cast ctx to context.Context (or use background context if not provided)
-	var actx context.Context
-	if c, ok := ctx.(context.Context); ok {
-		actx = c
-	} else {
-		// Fallback to background context if ctx is not a context.Context
-		actx = context.Background()
-	}
-
-	result, err := ia.invoker.Invoke(actx, prompt)
+func (ia *invokerAdapter) Complete(ctx context.Context, prompt string) (string, error) {
+	result, err := ia.invoker.Invoke(ctx, prompt)
 	if err != nil {
 		return "", err
 	}
@@ -316,42 +313,6 @@ func (ia *invokerAdapter) Complete(ctx interface{}, prompt string) (string, erro
 }
 
 var _ reviewdistiller.LLMCompleter = (*invokerAdapter)(nil)
-
-// stubLLMCompleter is a temporary stub LLMCompleter that returns mock proposals.
-// This will be replaced with actual LLM invocation when integrated with llmadapter.
-type stubLLMCompleter struct{}
-
-func (s *stubLLMCompleter) Complete(ctx interface{}, prompt string) (string, error) {
-	// Return a mock JSON response with sample proposals
-	// This stub ensures the command structure works while waiting for LLM integration
-	mockProposals := `{
-  "proposals": [
-    {
-      "type": "doctrine_rule",
-      "title": "Establish assertion isolation principle",
-      "what_happened": "The test suite passed validation but assertions were tightly coupled to implementation details",
-      "what_was_missing": "A documented doctrine rule on assertion isolation and brittle test detection",
-      "proposed_change": "Add a doctrine rule: assertions should target behavior, not implementation; brittle tests should fail CI",
-      "rationale": "Prevents future test fragility and maintenance burden",
-      "confidence": "high",
-      "confidence_rationale": "This pattern recurs across multiple failed runs",
-      "evidence_references": ["validation.json", "acceptance.json"]
-    },
-    {
-      "type": "validation_gap",
-      "title": "Add mutation testing to validation suite",
-      "what_happened": "Tests passed but implementation had subtle logic errors that mutation testing would catch",
-      "what_was_missing": "Mutation testing as a validation stage",
-      "proposed_change": "Integrate mutation testing (stryker-like tool) into post-acceptance validation",
-      "rationale": "Catches logic errors that survive conventional test coverage",
-      "confidence": "medium",
-      "confidence_rationale": "Beneficial but requires toolchain investment",
-      "evidence_references": ["validation.json"]
-    }
-  ]
-}`
-	return mockProposals, nil
-}
 
 // tierToModel converts a tier designation to a concrete model name.
 // This function serves as the boundary between the abstract tier system
@@ -367,4 +328,28 @@ func tierToModel(tier reviewdistiller.Tier) string {
 	default:
 		return "claude-sonnet-4-20250514" // default fallback
 	}
+}
+
+// buildDistillationCompleter creates a real LLMCompleter backed by llmadapter.Invoker.
+// It builds a provider, wraps it in an LLMAdapter, and adapts it to LLMCompleter.
+func buildDistillationCompleter(tier reviewdistiller.Tier) (reviewdistiller.LLMCompleter, error) {
+	const defaultClaudeBinary = "claude"
+
+	defaultPolicy := execpolicy.DefaultPolicy()
+	client, err := claude.NewClient(defaultClaudeBinary, []string{"--dangerously-skip-permissions"}, defaultPolicy.Budgets.MaxTaskDurationSeconds)
+	if err != nil {
+		return nil, fmt.Errorf("create claude client: %w", err)
+	}
+
+	prov := provider.NewClaudeProvider(client, provider.DefaultTierToModelMap)
+
+	// Create llmadapter with review phase
+	adapter := llmadapter.New(prov, llmadapter.Config{
+		Phase: "review",
+		Tier:  tierToModel(tier),
+	})
+
+	// Wrap in invoker adapter to satisfy LLMCompleter interface
+	completer := NewInvokerAdapter(adapter)
+	return completer, nil
 }

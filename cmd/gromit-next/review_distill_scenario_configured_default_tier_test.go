@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -224,7 +225,7 @@ func TestScenario_DistillationUsesConfiguredDefaultTierFromProjectJSON(t *testin
 // configuredTierStubLLM provides canned proposals for the configured default tier test.
 type configuredTierStubLLM struct{}
 
-func (s *configuredTierStubLLM) Complete(ctx interface{}, prompt string) (string, error) {
+func (s *configuredTierStubLLM) Complete(ctx context.Context, prompt string) (string, error) {
 	return `[
     {
       "type": "doctrine_rule",

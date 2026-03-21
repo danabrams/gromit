@@ -1,10 +1,24 @@
 package reviewdistiller
 
 import (
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 )
+
+// isValidOutcome checks if the outcome is one of the three recognized types.
+func isValidOutcome(outcome string) bool {
+	switch outcome {
+	case "accepted", "rework_implementation_gap", "rework_vision_change":
+		return true
+	default:
+		return false
+	}
+}
 
 // Distill orchestrates the complete distillation pipeline:
 // 1. Validate the outcome type
@@ -27,11 +41,16 @@ func Distill(inputs *DistillerInputs, llm LLMCompleter, tier Tier) (*Distillatio
 		return nil, fmt.Errorf("failed to extract outcome type: %w", err)
 	}
 
+	// Validate outcome is one of the three recognized types
+	if !isValidOutcome(outcome) {
+		return nil, fmt.Errorf("unsupported outcome type: %q (must be 'accepted', 'rework_implementation_gap', or 'rework_vision_change')", outcome)
+	}
+
 	// Step 2: Build the prompt
 	prompt := BuildPrompt(inputs, outcome)
 
 	// Step 3: Invoke LLMCompleter
-	response, err := llm.Complete(nil, prompt)
+	response, err := llm.Complete(context.Background(), prompt)
 	if err != nil {
 		return nil, fmt.Errorf("LLM completion failed: %w", err)
 	}
@@ -49,7 +68,7 @@ func Distill(inputs *DistillerInputs, llm LLMCompleter, tier Tier) (*Distillatio
 
 	// Step 6: Generate proposal IDs
 	for i := range proposals {
-		proposals[i].ID = GenerateProposalID(i)
+		proposals[i].ID = GenerateProposalID(inputs.RunID, proposals[i])
 	}
 
 	// Step 7: Run outcome-specific validation
@@ -68,39 +87,6 @@ func Distill(inputs *DistillerInputs, llm LLMCompleter, tier Tier) (*Distillatio
 	}
 
 	return result, nil
-}
-
-// validateOutcomeType checks that ReviewOutcome is a valid JSON object.
-// The actual outcome validation happens in ValidateProposals after proposals are extracted.
-func validateOutcomeType(outcomeJSON json.RawMessage) error {
-	if len(outcomeJSON) == 0 {
-		return fmt.Errorf("outcome type is empty")
-	}
-
-	var outcomeObj map[string]interface{}
-	if err := json.Unmarshal(outcomeJSON, &outcomeObj); err != nil {
-		return fmt.Errorf("invalid outcome JSON: %w", err)
-	}
-
-	return nil
-}
-
-// extractOutcomeType extracts the outcome string from the ReviewOutcome JSON.
-// Expects a JSON object with an "outcome" field containing the outcome type string.
-func extractOutcomeType(outcomeJSON json.RawMessage) (string, error) {
-	var outcomeObj struct {
-		Outcome string `json:"outcome"`
-	}
-
-	if err := json.Unmarshal(outcomeJSON, &outcomeObj); err != nil {
-		return "", fmt.Errorf("failed to unmarshal outcome: %w", err)
-	}
-
-	if outcomeObj.Outcome == "" {
-		return "", fmt.Errorf("outcome field is empty")
-	}
-
-	return outcomeObj.Outcome, nil
 }
 
 // parseProposalsFromJSON parses a JSON response from the LLM into a slice of Proposal structs.
@@ -125,8 +111,19 @@ func parseProposalsFromJSON(jsonStr string) ([]Proposal, error) {
 	return proposalObj.Proposals, nil
 }
 
-// GenerateProposalID generates a unique ID for a proposal based on its index.
-// Uses a simple "p<index>" format where index starts at 1.
-func GenerateProposalID(index int) string {
-	return fmt.Sprintf("p%d", index+1)
+// GenerateProposalID generates a stable ID for a proposal based on its content.
+// Concatenates whitespace-trimmed type, title, and proposed_change separated by \x00,
+// computes SHA-256, takes the first 8 hex characters, and formats as '<run_id>-proposal-<short-hash>'.
+// This ensures the same proposal content always generates the same ID.
+func GenerateProposalID(runID string, p Proposal) string {
+	content := strings.Join([]string{
+		strings.TrimSpace(p.Type),
+		strings.TrimSpace(p.Title),
+		strings.TrimSpace(p.ProposedChange),
+	}, "\x00")
+
+	hash := sha256.Sum256([]byte(content))
+	shortHash := hex.EncodeToString(hash[:])[:8]
+
+	return fmt.Sprintf("%s-proposal-%s", runID, shortHash)
 }

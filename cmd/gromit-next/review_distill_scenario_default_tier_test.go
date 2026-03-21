@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -237,7 +238,7 @@ func TestScenario_DistillationUsesConfiguredDefaultTier(t *testing.T) {
 // testStubLLMCompleter provides canned proposals for testing distillation.
 type testStubLLMCompleter struct{}
 
-func (s *testStubLLMCompleter) Complete(ctx interface{}, prompt string) (string, error) {
+func (s *testStubLLMCompleter) Complete(ctx context.Context, prompt string) (string, error) {
 	return `[
     {
       "type": "doctrine_rule",

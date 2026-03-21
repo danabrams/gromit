@@ -1,19 +1,28 @@
 package reviewdistiller
 
 import (
+	"context"
 	"encoding/json"
+	"regexp"
 	"strings"
 	"testing"
 )
 
 // stubLLMCompleter implements LLMCompleter and returns canned JSON for testing.
 type stubLLMCompleter struct {
-	response string
-	err      error
+	response  string
+	err       error
+	callCount int
 }
 
-func (s *stubLLMCompleter) Complete(ctx interface{}, prompt string) (string, error) {
+func (s *stubLLMCompleter) Complete(ctx context.Context, prompt string) (string, error) {
+	s.callCount++
 	return s.response, s.err
+}
+
+// Called returns the number of times Complete was invoked.
+func (s *stubLLMCompleter) Called() int {
+	return s.callCount
 }
 
 // TestDistill_Accepted verifies Distill with accepted outcome.
@@ -107,15 +116,11 @@ func TestDistill_Accepted(t *testing.T) {
 		t.Errorf("Proposal count = %d, want 4", len(result.Proposals))
 	}
 
-	// Verify proposal IDs are content-based (p1, p2, p3, p4)
-	expectedIDs := []string{"p1", "p2", "p3", "p4"}
-	for i, expectedID := range expectedIDs {
-		if i >= len(result.Proposals) {
-			t.Errorf("Expected proposal %d with ID %q, but no proposal found", i, expectedID)
-			continue
-		}
-		if result.Proposals[i].ID != expectedID {
-			t.Errorf("Proposal %d ID = %q, want %q", i, result.Proposals[i].ID, expectedID)
+	// Verify proposal IDs are content-based with format '<run_id>-proposal-<8hexchars>'
+	idRegex := regexp.MustCompile(`^run-123-proposal-[0-9a-f]{8}$`)
+	for i := 0; i < len(result.Proposals); i++ {
+		if !idRegex.MatchString(result.Proposals[i].ID) {
+			t.Errorf("Proposal %d ID %q does not match format '<run_id>-proposal-<8hexchars>'", i, result.Proposals[i].ID)
 		}
 	}
 
@@ -220,15 +225,11 @@ func TestDistill_ReworkImplementationGap(t *testing.T) {
 		t.Errorf("Proposal count = %d, want 3", len(result.Proposals))
 	}
 
-	// Verify proposal IDs are content-based (p1, p2, p3)
-	expectedIDs := []string{"p1", "p2", "p3"}
-	for i, expectedID := range expectedIDs {
-		if i >= len(result.Proposals) {
-			t.Errorf("Expected proposal %d with ID %q, but no proposal found", i, expectedID)
-			continue
-		}
-		if result.Proposals[i].ID != expectedID {
-			t.Errorf("Proposal %d ID = %q, want %q", i, result.Proposals[i].ID, expectedID)
+	// Verify proposal IDs are content-based with format '<run_id>-proposal-<8hexchars>'
+	idRegex := regexp.MustCompile(`^run-789-proposal-[0-9a-f]{8}$`)
+	for i := 0; i < len(result.Proposals); i++ {
+		if !idRegex.MatchString(result.Proposals[i].ID) {
+			t.Errorf("Proposal %d ID %q does not match format '<run_id>-proposal-<8hexchars>'", i, result.Proposals[i].ID)
 		}
 	}
 
@@ -329,15 +330,11 @@ func TestDistill_ReworkVisionChange(t *testing.T) {
 		t.Errorf("Proposal count = %d, want 3", len(result.Proposals))
 	}
 
-	// Verify proposal IDs are content-based (p1, p2, p3)
-	expectedIDs := []string{"p1", "p2", "p3"}
-	for i, expectedID := range expectedIDs {
-		if i >= len(result.Proposals) {
-			t.Errorf("Expected proposal %d with ID %q, but no proposal found", i, expectedID)
-			continue
-		}
-		if result.Proposals[i].ID != expectedID {
-			t.Errorf("Proposal %d ID = %q, want %q", i, result.Proposals[i].ID, expectedID)
+	// Verify proposal IDs are content-based with format '<run_id>-proposal-<8hexchars>'
+	idRegex := regexp.MustCompile(`^run-345-proposal-[0-9a-f]{8}$`)
+	for i := 0; i < len(result.Proposals); i++ {
+		if !idRegex.MatchString(result.Proposals[i].ID) {
+			t.Errorf("Proposal %d ID %q does not match format '<run_id>-proposal-<8hexchars>'", i, result.Proposals[i].ID)
 		}
 	}
 
@@ -360,6 +357,7 @@ func TestDistill_ReworkVisionChange(t *testing.T) {
 
 // TestDistill_UnrecognizedOutcome verifies Distill returns an error with an unrecognized outcome type.
 // Verifies the error message contains the unsupported type name.
+// Verifies the LLM stub is NOT called when an unrecognized outcome is encountered (early-exit).
 func TestDistill_UnrecognizedOutcome(t *testing.T) {
 	// Create stub LLM response with a single proposal
 	llmResponse := `{
@@ -404,6 +402,11 @@ func TestDistill_UnrecognizedOutcome(t *testing.T) {
 	// Verify error message contains the unsupported type name
 	if !strings.Contains(err.Error(), "unsupported_outcome") {
 		t.Errorf("Error message does not contain unsupported type name: %v", err)
+	}
+
+	// Verify LLM stub was NOT called (early-exit before LLM invocation)
+	if stub.Called() != 0 {
+		t.Errorf("LLM stub should not be called for unrecognized outcome, but was called %d times", stub.Called())
 	}
 }
 
@@ -517,21 +520,12 @@ func TestDistill_TruncatesExcess(t *testing.T) {
 		t.Errorf("Proposal count = %d, want 5", len(result.Proposals))
 	}
 
-	// Verify proposal IDs are p1 through p5
-	expectedIDs := []string{"p1", "p2", "p3", "p4", "p5"}
-	for i, expectedID := range expectedIDs {
-		if i >= len(result.Proposals) {
-			t.Errorf("Expected proposal %d with ID %q, but no proposal found", i, expectedID)
-			continue
+	// Verify proposal IDs are content-based with format '<run_id>-proposal-<8hexchars>'
+	idRegex := regexp.MustCompile(`^run-trunc-proposal-[0-9a-f]{8}$`)
+	for i := 0; i < len(result.Proposals); i++ {
+		if !idRegex.MatchString(result.Proposals[i].ID) {
+			t.Errorf("Proposal %d ID %q does not match format '<run_id>-proposal-<8hexchars>'", i, result.Proposals[i].ID)
 		}
-		if result.Proposals[i].ID != expectedID {
-			t.Errorf("Proposal %d ID = %q, want %q", i, result.Proposals[i].ID, expectedID)
-		}
-	}
-
-	// Verify that proposals 6 and 7 are not present
-	if len(result.Proposals) > 5 {
-		t.Errorf("Expected max 5 proposals, but got %d", len(result.Proposals))
 	}
 }
 
@@ -604,15 +598,11 @@ func TestDistill_FewerThanThree(t *testing.T) {
 		t.Errorf("Proposal count = %d, want 2", len(result.Proposals))
 	}
 
-	// Verify proposal IDs are content-based (p1, p2)
-	expectedIDs := []string{"p1", "p2"}
-	for i, expectedID := range expectedIDs {
-		if i >= len(result.Proposals) {
-			t.Errorf("Expected proposal %d with ID %q, but no proposal found", i, expectedID)
-			continue
-		}
-		if result.Proposals[i].ID != expectedID {
-			t.Errorf("Proposal %d ID = %q, want %q", i, result.Proposals[i].ID, expectedID)
+	// Verify proposal IDs are content-based with format '<run_id>-proposal-<8hexchars>'
+	idRegex := regexp.MustCompile(`^run-two-proposal-[0-9a-f]{8}$`)
+	for i := 0; i < len(result.Proposals); i++ {
+		if !idRegex.MatchString(result.Proposals[i].ID) {
+			t.Errorf("Proposal %d ID %q does not match format '<run_id>-proposal-<8hexchars>'", i, result.Proposals[i].ID)
 		}
 	}
 
@@ -754,8 +744,9 @@ func TestDistill_LLMFailure(t *testing.T) {
 }
 
 // TestDistill_ProposalIDsContentBased verifies proposal IDs are content-based and stable.
+// Verifies IDs have format '<run_id>-proposal-<8hexchars>' where hexchars is SHA-256 of content.
 // Calls Distill twice with identical content and verifies IDs match across invocations.
-// Calls Distill with different content and verifies IDs differ based on proposal count.
+// Mutates a proposal field and verifies IDs differ based on content.
 func TestDistill_ProposalIDsContentBased(t *testing.T) {
 	// LLM response with 3 proposals
 	llmResponseThreeProposals := `{
@@ -818,6 +809,14 @@ func TestDistill_ProposalIDsContentBased(t *testing.T) {
 		t.Fatalf("Second Distill() call returned error: %v", err)
 	}
 
+	// Verify IDs have correct format: '<run_id>-proposal-<8hexchars>'
+	idRegex := regexp.MustCompile(`^run-stable-proposal-[0-9a-f]{8}$`)
+	for i := 0; i < len(result1.Proposals); i++ {
+		if !idRegex.MatchString(result1.Proposals[i].ID) {
+			t.Errorf("Result1 Proposal %d ID %q does not match format '<run_id>-proposal-<8hexchars>'", i, result1.Proposals[i].ID)
+		}
+	}
+
 	// Verify IDs are identical across both calls (demonstrating stability)
 	if len(result1.Proposals) != len(result2.Proposals) {
 		t.Errorf("Proposal count mismatch: first=%d, second=%d", len(result1.Proposals), len(result2.Proposals))
@@ -829,68 +828,62 @@ func TestDistill_ProposalIDsContentBased(t *testing.T) {
 		}
 	}
 
-	// Verify IDs are p1, p2, p3 for the three proposals
-	expectedIDsThree := []string{"p1", "p2", "p3"}
-	for i, expectedID := range expectedIDsThree {
-		if result1.Proposals[i].ID != expectedID {
-			t.Errorf("Result1 Proposal %d ID = %q, want %q", i, result1.Proposals[i].ID, expectedID)
-		}
-	}
-
-	// Now test with different content (2 proposals instead of 3)
-	llmResponseTwoProposals := `{
+	// Test with different content: mutate one proposal's title to produce different IDs
+	llmResponseMutatedTitle := `{
 		"proposals": [
 			{
 				"type": "doctrine_rule",
-				"title": "Proposal X",
-				"what_happened": "Issue X",
-				"what_was_missing": "Missing X",
-				"proposed_change": "Change X",
-				"rationale": "Reason X",
+				"title": "First proposal MODIFIED",
+				"what_happened": "Issue A",
+				"what_was_missing": "Missing A",
+				"proposed_change": "Change A",
+				"rationale": "Reason A",
 				"confidence": "high",
-				"confidence_rationale": "Confident X",
-				"evidence_references": ["line 10"]
+				"confidence_rationale": "Confident A",
+				"evidence_references": ["line 1"]
 			},
 			{
 				"type": "validation_gap",
-				"title": "Proposal Y",
-				"what_happened": "Issue Y",
-				"what_was_missing": "Missing Y",
-				"proposed_change": "Change Y",
-				"rationale": "Reason Y",
+				"title": "Second proposal",
+				"what_happened": "Issue B",
+				"what_was_missing": "Missing B",
+				"proposed_change": "Change B",
+				"rationale": "Reason B",
 				"confidence": "high",
-				"confidence_rationale": "Confident Y",
-				"evidence_references": ["line 20"]
+				"confidence_rationale": "Confident B",
+				"evidence_references": ["line 2"]
+			},
+			{
+				"type": "planner_heuristic",
+				"title": "Third proposal",
+				"what_happened": "Issue C",
+				"what_was_missing": "Missing C",
+				"proposed_change": "Change C",
+				"rationale": "Reason C",
+				"confidence": "medium",
+				"confidence_rationale": "Confident C",
+				"evidence_references": ["line 3"]
 			}
 		]
 	}`
 
-	stubDifferent := &stubLLMCompleter{response: llmResponseTwoProposals}
-	result3, err := Distill(inputs, stubDifferent, TierHigh)
+	stubMutated := &stubLLMCompleter{response: llmResponseMutatedTitle}
+	result3, err := Distill(inputs, stubMutated, TierHigh)
 	if err != nil {
-		t.Fatalf("Distill() with different content returned error: %v", err)
+		t.Fatalf("Distill() with mutated content returned error: %v", err)
 	}
 
-	// Verify result3 has fewer proposals than result1 (demonstrating content-dependence)
-	if len(result3.Proposals) >= len(result1.Proposals) {
-		t.Errorf("Expected different proposal counts: result1=%d, result3=%d", len(result1.Proposals), len(result3.Proposals))
+	// Verify that the first proposal's ID differs from result1 (content changed)
+	if result3.Proposals[0].ID == result1.Proposals[0].ID {
+		t.Errorf("Mutated first proposal should have different ID, but got same: %q", result1.Proposals[0].ID)
 	}
 
-	// Verify result3 has IDs p1, p2 (different pattern from result1 which has p1, p2, p3)
-	expectedIDsTwo := []string{"p1", "p2"}
-	for i, expectedID := range expectedIDsTwo {
-		if result3.Proposals[i].ID != expectedID {
-			t.Errorf("Result3 Proposal %d ID = %q, want %q", i, result3.Proposals[i].ID, expectedID)
-		}
+	// Verify that the second and third proposals have identical IDs (content unchanged)
+	if result3.Proposals[1].ID != result1.Proposals[1].ID {
+		t.Errorf("Unchanged second proposal should have same ID, but got different: %q vs %q", result1.Proposals[1].ID, result3.Proposals[1].ID)
 	}
-
-	// Verify that result3 does NOT have a p3 ID (proving the IDs differ based on content)
-	if len(result3.Proposals) > 2 {
-		for i := 2; i < len(result3.Proposals); i++ {
-			if result3.Proposals[i].ID == "p3" {
-				t.Errorf("Result3 should not have p3 ID since it only has 2 proposals, but got %q", result3.Proposals[i].ID)
-			}
-		}
+	if result3.Proposals[2].ID != result1.Proposals[2].ID {
+		t.Errorf("Unchanged third proposal should have same ID, but got different: %q vs %q", result1.Proposals[2].ID, result3.Proposals[2].ID)
 	}
 }
 

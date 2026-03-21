@@ -159,8 +159,8 @@ Refactor widget rendering system.
 	if !strings.Contains(errMsg, "rejected") {
 		t.Errorf("error should mention the unsupported outcome type 'rejected', got: %s", errMsg)
 	}
-	if !strings.Contains(errMsg, "unrecognized") && !strings.Contains(errMsg, "not supported") {
-		t.Errorf("error should indicate unrecognized/unsupported outcome type, got: %s", errMsg)
+	if !strings.Contains(errMsg, "unsupported") && !strings.Contains(errMsg, "unrecognized") {
+		t.Errorf("error should indicate unsupported/unrecognized outcome type, got: %s", errMsg)
 	}
 
 	// 4. Error mentions supported outcome types so the user knows what to use
