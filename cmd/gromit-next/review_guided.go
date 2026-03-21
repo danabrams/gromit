@@ -5,10 +5,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"github.com/danabrams/gromit/internal/next/reviewdistiller"
 	"github.com/danabrams/gromit/internal/next/reviewpacket"
 	"github.com/danabrams/gromit/internal/next/reviewsession"
 	"github.com/danabrams/gromit/internal/next/runstore"
@@ -194,9 +196,13 @@ func reviewGuided(runID string, storeDir string, input io.Reader, out io.Writer)
 		return fmt.Errorf("marshal review outcome: %w", err)
 	}
 
-	outcomeFile := filepath.Join(evidenceDir, "review-outcome.json")
-	if err := os.WriteFile(outcomeFile, outcomeData, 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(evidenceDir, "review-outcome.json"), outcomeData, 0o644); err != nil {
 		return fmt.Errorf("write review-outcome.json: %w", err)
+	}
+
+	// Attempt automatic distillation (non-blocking)
+	if err := attemptDistillation(runID, storeDir, reviewdistiller.TierMedium, &stubLLMCompleter{}); err != nil {
+		log.Printf("distillation failed (non-blocking): %v", err)
 	}
 
 	// Print summary

@@ -12,7 +12,7 @@ import (
 	"github.com/danabrams/gromit/internal/next/runstore"
 )
 
-func TestScenario_DistillationUsesConfiguredDefaultTier(t *testing.T) {
+func TestScenario_DistillationUsesConfiguredDefaultTierFromProjectJSON(t *testing.T) {
 	// === Seed ===
 	tmp := t.TempDir()
 	store := runstore.NewStore(tmp)
@@ -41,24 +41,14 @@ func TestScenario_DistillationUsesConfiguredDefaultTier(t *testing.T) {
 	}
 
 	// Seed project.json with distiller_tier: low
-	projectDir := tmp
 	projectCfg := map[string]interface{}{
 		"repo_path":      "/tmp/fixture-app",
 		"specs_dir":      "specs",
 		"distiller_tier": "low",
 	}
-	writeJSON(t, filepath.Join(projectDir, "project.json"), projectCfg)
+	writeJSON(t, filepath.Join(tmp, "project.json"), projectCfg)
 
-	// Verify project.json has distiller_tier set to low
-	projRaw, err := os.ReadFile(filepath.Join(projectDir, "project.json"))
-	if err != nil {
-		t.Fatalf("read project.json: %v", err)
-	}
-	if !strings.Contains(string(projRaw), `"distiller_tier": "low"`) {
-		t.Fatal("precondition: project.json should have distiller_tier set to low")
-	}
-
-	// Seed review-outcome.json (prerequisite for distillation)
+	// Seed review-outcome.json
 	reviewOutcome := map[string]interface{}{
 		"run_id":      "run-109",
 		"outcome":     "accepted",
@@ -71,9 +61,19 @@ func TestScenario_DistillationUsesConfiguredDefaultTier(t *testing.T) {
 	}
 	writeJSON(t, filepath.Join(evidenceDir, "review-outcome.json"), reviewOutcome)
 
+	// Seed spec.md in run directory
+	runDir := store.RunDir("run-109")
+	if err := os.MkdirAll(runDir, 0o755); err != nil {
+		t.Fatalf("mkdir runDir: %v", err)
+	}
+	specContent := "# Spec: Add Caching\n\nImplement caching for the application.\n"
+	if err := os.WriteFile(filepath.Join(runDir, "spec.md"), []byte(specContent), 0o644); err != nil {
+		t.Fatalf("write spec.md: %v", err)
+	}
+
 	// === Invoke ===
-	// Load distiller_tier from project.json
-	projectData, err := os.ReadFile(filepath.Join(projectDir, "project.json"))
+	// Load distiller_tier from project.json (simulating what the CLI would do)
+	projectData, err := os.ReadFile(filepath.Join(tmp, "project.json"))
 	if err != nil {
 		t.Fatalf("read project.json: %v", err)
 	}
@@ -86,40 +86,28 @@ func TestScenario_DistillationUsesConfiguredDefaultTier(t *testing.T) {
 		t.Fatal("distiller_tier not found or not a string in project.json")
 	}
 
-	// Convert to reviewdistiller.Tier
+	// Convert to reviewdistiller.Tier — no --tier override, so use configured default
 	tier := reviewdistiller.Tier(tierStr)
 
-	// Create stub LLM completer
-	completer := &testStubLLMCompleter{}
-
-	// Create DistillerInputs
-	inputs := &reviewdistiller.DistillerInputs{
-		RunID:  "run-109",
-		SpecID: "spec-add-caching",
-	}
-
-	// Load spec content
-	runDir := store.RunDir("run-109")
-	if err := os.MkdirAll(runDir, 0o755); err != nil {
-		t.Fatalf("mkdir runDir: %v", err)
-	}
-	specContent := "# Spec: Add Caching\n\nImplement caching for the application.\n"
-	if err := os.WriteFile(filepath.Join(runDir, "spec.md"), []byte(specContent), 0o644); err != nil {
-		t.Fatalf("write spec.md: %v", err)
-	}
-	inputs.SpecContent = specContent
-
-	// Load review-outcome.json
+	// Build DistillerInputs
 	outcomeData, err := os.ReadFile(filepath.Join(evidenceDir, "review-outcome.json"))
 	if err != nil {
 		t.Fatalf("read review-outcome.json: %v", err)
 	}
-	inputs.ReviewOutcome = json.RawMessage(outcomeData)
 
-	// Call Distill
+	inputs := &reviewdistiller.DistillerInputs{
+		RunID:         "run-109",
+		SpecID:        "spec-add-caching",
+		SpecContent:   specContent,
+		ReviewOutcome: json.RawMessage(outcomeData),
+	}
+
+	// Use a stub LLM completer that returns canned proposals
+	completer := &configuredTierStubLLM{}
+
 	result, err := reviewdistiller.Distill(inputs, completer, tier)
 	if err != nil {
-		t.Fatalf("distill: %v", err)
+		t.Fatalf("Distill: %v", err)
 	}
 
 	// Write distillation-proposals.json
@@ -132,7 +120,7 @@ func TestScenario_DistillationUsesConfiguredDefaultTier(t *testing.T) {
 		t.Fatalf("write distillation-proposals.json: %v", err)
 	}
 
-	// Render and write distillation-proposals.md
+	// Write distillation-proposals.md
 	markdown := renderDistillationMarkdown(result)
 	markdownPath := filepath.Join(evidenceDir, "distillation-proposals.md")
 	if err := os.WriteFile(markdownPath, []byte(markdown), 0o644); err != nil {
@@ -156,12 +144,12 @@ func TestScenario_DistillationUsesConfiguredDefaultTier(t *testing.T) {
 		t.Errorf("expected run_id 'run-109', got %q", parsed.RunID)
 	}
 
-	// 3. model_tier reflects "low" from project.json distiller_tier config
+	// 3. model_tier is "low" from project.json distiller_tier config
 	if parsed.ModelTier != reviewdistiller.TierLow {
 		t.Errorf("expected model_tier 'low' (from project.json distiller_tier), got %q", parsed.ModelTier)
 	}
 
-	// 4. model_tier is not the default "medium" (verifies config was read)
+	// 4. model_tier in JSON is not "medium" (the default)
 	jsonStr := string(rawJSON)
 	if strings.Contains(jsonStr, `"model_tier": "medium"`) {
 		t.Error("model_tier should be 'low' from config, not the default 'medium'")
@@ -207,7 +195,7 @@ func TestScenario_DistillationUsesConfiguredDefaultTier(t *testing.T) {
 		}
 	}
 
-	// 9. distillation-proposals.md exists and reflects low tier
+	// 9. distillation-proposals.md exists and references low tier
 	mdData, err := os.ReadFile(markdownPath)
 	if err != nil {
 		t.Fatalf("read distillation-proposals.md: %v", err)
@@ -215,10 +203,9 @@ func TestScenario_DistillationUsesConfiguredDefaultTier(t *testing.T) {
 	if len(mdData) == 0 {
 		t.Error("expected non-empty distillation-proposals.md")
 	}
-
 	mdStr := string(mdData)
 
-	// 10. Markdown contains "low" model reference
+	// 10. Markdown contains "low" model tier reference
 	if !strings.Contains(mdStr, "low") {
 		t.Error("distillation-proposals.md should reference low tier")
 	}
@@ -234,10 +221,10 @@ func TestScenario_DistillationUsesConfiguredDefaultTier(t *testing.T) {
 	}
 }
 
-// testStubLLMCompleter provides canned proposals for testing distillation.
-type testStubLLMCompleter struct{}
+// configuredTierStubLLM provides canned proposals for the configured default tier test.
+type configuredTierStubLLM struct{}
 
-func (s *testStubLLMCompleter) Complete(ctx interface{}, prompt string) (string, error) {
+func (s *configuredTierStubLLM) Complete(ctx interface{}, prompt string) (string, error) {
 	return `[
     {
       "type": "doctrine_rule",

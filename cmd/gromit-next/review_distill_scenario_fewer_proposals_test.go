@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/danabrams/gromit/internal/next/reviewdistiller"
 	"github.com/danabrams/gromit/internal/next/runstore"
 )
 
@@ -65,48 +66,60 @@ func TestScenario_DistillerAcceptsFewerThanThreeProposals(t *testing.T) {
 	writeJSON(t, filepath.Join(evidenceDir, "validation.json"), validationData)
 
 	// === Invoke ===
-	// Simulate distiller returning only 2 proposals (LLM found only 2 things
-	// worth proposing for this trivially simple spec). The lower bound of 3
-	// is advisory and must not be enforced.
-	now := time.Now().UTC()
-	result := distillResult{
-		RunID:     "run-108",
-		SpecID:    "spec-trivial",
-		Outcome:   "accepted",
-		ModelTier: "sonnet",
-		Summary:   "Simple accepted run with minimal learnings to extract",
-		CreatedAt: now,
-		Metadata: map[string]string{
-			"run_id":  "run-108",
-			"spec_id": "spec-trivial",
-			"model":   "sonnet",
-		},
-		Proposals: []distillProposal{
-			{
-				ID:                  fmt.Sprintf("run-108-doctrine_rule-%d", 1),
-				Type:                "doctrine_rule",
-				Title:               "Keep trivial specs single-task",
-				Content:             "Specs with a single acceptance criterion should map to one task",
-				Confidence:          0.80,
-				ConfidenceRationale: "Consistent with prior simple runs that completed in one cycle",
-			},
-			{
-				ID:                  fmt.Sprintf("run-108-info-%d", 2),
-				Type:                "info",
-				Title:               "Sonnet tier sufficient for trivial specs",
-				Content:             "This trivially simple spec completed successfully with sonnet tier",
-				Confidence:          0.75,
-				ConfidenceRationale: "Run completed under budget and on first attempt",
-			},
-		},
+	// Mock LLM returns exactly 2 proposals — the lower bound of 3 is advisory, not enforced.
+	mockCompleter := &mockLLMCompleter{
+		response: `{
+  "proposals": [
+    {
+      "type": "doctrine_rule",
+      "title": "Keep trivial specs single-task",
+      "what_happened": "Spec was simple enough for single task",
+      "what_was_missing": "Prior guidance on single-task mapping",
+      "proposed_change": "Establish rule: single-criterion specs map to one task",
+      "rationale": "Reduces planning overhead for trivial cases",
+      "confidence": "high",
+      "confidence_rationale": "Consistent with prior simple runs that completed in one cycle",
+      "evidence_references": []
+    },
+    {
+      "type": "validation_gap",
+      "title": "Sonnet tier sufficient for trivial specs",
+      "what_happened": "Spec completed successfully with sonnet tier",
+      "what_was_missing": "Confidence threshold for tier selection",
+      "proposed_change": "Add tier-selection guidance: sonnet is sufficient for trivial specs",
+      "rationale": "Reduces unnecessary model tier escalation",
+      "confidence": "medium",
+      "confidence_rationale": "Run completed under budget and on first attempt",
+      "evidence_references": []
+    }
+  ]
+}`,
+	}
+
+	outcomeData, _ := json.Marshal(reviewOutcome)
+	inputs := &reviewdistiller.DistillerInputs{
+		RunID:         "run-108",
+		SpecID:        "spec-trivial",
+		SpecContent:   "# Trivial Spec\nCalculate 1 + 1",
+		ReviewOutcome: outcomeData,
+		Validation: json.RawMessage(`{
+  "pass": true,
+  "build_errors": [],
+  "test_results": "All 5 tests passed"
+}`),
+	}
+
+	result, err := reviewdistiller.Distill(inputs, mockCompleter, reviewdistiller.TierMedium)
+	if err != nil {
+		t.Fatalf("distillation failed: %v", err)
 	}
 
 	// Write distillation-proposals.json
+	proposalsPath := filepath.Join(evidenceDir, "distillation-proposals.json")
 	proposalsJSON, err := json.MarshalIndent(result, "", "  ")
 	if err != nil {
 		t.Fatalf("marshal result: %v", err)
 	}
-	proposalsPath := filepath.Join(evidenceDir, "distillation-proposals.json")
 	if err := os.WriteFile(proposalsPath, proposalsJSON, 0o644); err != nil {
 		t.Fatalf("write distillation-proposals.json: %v", err)
 	}
@@ -114,12 +127,18 @@ func TestScenario_DistillerAcceptsFewerThanThreeProposals(t *testing.T) {
 	// Write distillation-proposals.md
 	var mdBuf strings.Builder
 	fmt.Fprintf(&mdBuf, "# Distillation Proposals\n\n")
-	fmt.Fprintf(&mdBuf, "**Run:** %s | **Outcome:** %s | **Model:** %s\n\n", result.RunID, result.Outcome, result.ModelTier)
-	fmt.Fprintf(&mdBuf, "## Summary\n\n%s\n\n", result.Summary)
-	for i, p := range result.Proposals {
-		fmt.Fprintf(&mdBuf, "### %d. [%s] %s\n\n", i+1, p.Type, p.Title)
-		fmt.Fprintf(&mdBuf, "%s\n\n", p.Content)
-		fmt.Fprintf(&mdBuf, "**Confidence:** %.2f — %s\n\n", p.Confidence, p.ConfidenceRationale)
+	fmt.Fprintf(&mdBuf, "**Run:** %s | **Outcome:** %s | **Model Tier:** %s\n\n", result.RunID, result.Outcome, result.ModelTier)
+	fmt.Fprintf(&mdBuf, "## Summary\n\nDistilled %s review outcome into %d improvement proposals.\n\n", result.Outcome, len(result.Proposals))
+	for _, p := range result.Proposals {
+		fmt.Fprintf(&mdBuf, "---\n\n")
+		fmt.Fprintf(&mdBuf, "## %s\n\n", p.Title)
+		fmt.Fprintf(&mdBuf, "**Type:** %s\n", p.Type)
+		fmt.Fprintf(&mdBuf, "**Confidence:** %s\n\n", p.Confidence)
+		fmt.Fprintf(&mdBuf, "### What Happened\n\n%s\n\n", p.WhatHappened)
+		fmt.Fprintf(&mdBuf, "### What Was Missing\n\n%s\n\n", p.WhatWasMissing)
+		fmt.Fprintf(&mdBuf, "### Proposed Change\n\n%s\n\n", p.ProposedChange)
+		fmt.Fprintf(&mdBuf, "### Rationale\n\n%s\n\n", p.Rationale)
+		fmt.Fprintf(&mdBuf, "**Confidence Rationale:** %s\n\n", p.ConfidenceRationale)
 	}
 	markdownPath := filepath.Join(evidenceDir, "distillation-proposals.md")
 	if err := os.WriteFile(markdownPath, []byte(mdBuf.String()), 0o644); err != nil {
@@ -133,7 +152,7 @@ func TestScenario_DistillerAcceptsFewerThanThreeProposals(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read distillation-proposals.json: %v", err)
 	}
-	var parsed distillResult
+	var parsed reviewdistiller.DistillationResult
 	if err := json.Unmarshal(rawJSON, &parsed); err != nil {
 		t.Fatalf("parse distillation-proposals.json: %v", err)
 	}
@@ -164,11 +183,20 @@ func TestScenario_DistillerAcceptsFewerThanThreeProposals(t *testing.T) {
 		if p.Title == "" {
 			t.Errorf("proposal[%d]: expected non-empty Title", i)
 		}
-		if p.Content == "" {
-			t.Errorf("proposal[%d]: expected non-empty Content", i)
+		if p.WhatHappened == "" {
+			t.Errorf("proposal[%d]: expected non-empty WhatHappened", i)
 		}
-		if p.Confidence == 0 {
-			t.Errorf("proposal[%d]: expected non-zero Confidence", i)
+		if p.WhatWasMissing == "" {
+			t.Errorf("proposal[%d]: expected non-empty WhatWasMissing", i)
+		}
+		if p.ProposedChange == "" {
+			t.Errorf("proposal[%d]: expected non-empty ProposedChange", i)
+		}
+		if p.Rationale == "" {
+			t.Errorf("proposal[%d]: expected non-empty Rationale", i)
+		}
+		if p.Confidence == "" {
+			t.Errorf("proposal[%d]: expected non-empty Confidence", i)
 		}
 		if p.ConfidenceRationale == "" {
 			t.Errorf("proposal[%d]: expected non-empty ConfidenceRationale", i)
@@ -196,12 +224,7 @@ func TestScenario_DistillerAcceptsFewerThanThreeProposals(t *testing.T) {
 		t.Error("expected non-zero created_at")
 	}
 
-	// 8. Metadata populated
-	if parsed.Metadata["run_id"] != "run-108" {
-		t.Errorf("expected metadata run_id 'run-108', got %q", parsed.Metadata["run_id"])
-	}
-
-	// 9. distillation-proposals.md exists and reflects 2 proposals
+	// 8. distillation-proposals.md exists and reflects 2 proposals
 	mdData, err := os.ReadFile(markdownPath)
 	if err != nil {
 		t.Fatalf("read distillation-proposals.md: %v", err)
@@ -216,8 +239,7 @@ func TestScenario_DistillerAcceptsFewerThanThreeProposals(t *testing.T) {
 	if !strings.Contains(mdStr, "Sonnet tier sufficient for trivial specs") {
 		t.Error("distillation-proposals.md should contain second proposal title")
 	}
-	// Verify no third proposal section exists
-	if strings.Contains(mdStr, "### 3.") {
-		t.Error("distillation-proposals.md should not contain a third proposal section")
+	if strings.Contains(mdStr, "Error rendering markdown") {
+		t.Error("distillation-proposals.md should not contain rendering error")
 	}
 }
