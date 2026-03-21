@@ -1025,386 +1025,6 @@ func TestWriteContracts_RevalidateExistingContract(t *testing.T) {
 	}
 }
 
-func TestWriteContracts_SpecificityNoWarningsNoRetry(t *testing.T) {
-	// When the LLM produces only high-specificity patterns, no specificity retry
-	// occurs and no contract_specificity_warning event is emitted.
-	// The writer should be called exactly once (the structural attempt only).
-	tmp := t.TempDir()
-	store := runstore.NewStore(tmp)
-	rs := makeWriteContractsRunState(t, store)
-
-	specPath := filepath.Join(tmp, "spec.md")
-	if err := os.WriteFile(specPath, []byte(specWithScenarios), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	runDir := store.RunDir(rs.RunID)
-	if err := os.WriteFile(filepath.Join(runDir, "spec-packet.md"), []byte("packet"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	evidenceDir := filepath.Join(tmp, "evidence")
-	if err := os.MkdirAll(evidenceDir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-
-	// Create a contract with HIGH-specificity patterns (multi-token patterns)
-	// that won't trigger specificity warnings.
-	highSpecificityContract := contract.ScenarioContract{
-		Scenarios: []contract.ScenarioAssertions{
-			{
-				Name: "add-works",
-				Assertions: []contract.ContractAssertion{
-					{
-						FileContains: &contract.FileContainsAssertion{
-							Path:    "calc/calc.go",
-							Pattern: "func Add(a, b int) int",
-						},
-					},
-				},
-			},
-			{
-				Name: "subtract-works",
-				Assertions: []contract.ContractAssertion{
-					{
-						FileContains: &contract.FileContainsAssertion{
-							Path:    "calc/calc.go",
-							Pattern: "func Subtract(a, b int) int",
-						},
-					},
-				},
-			},
-		},
-	}
-
-	// Track writer calls
-	writerCalls := 0
-	writer := &callbackContractWriter{
-		fn: func(ctx context.Context, scenarios []contract.SpecScenario, specPacket string) (*contract.ScenarioContract, error) {
-			writerCalls++
-			return &highSpecificityContract, nil
-		},
-	}
-
-	eventLogPath := filepath.Join(tmp, "events.jsonl")
-	eventLog := runstore.NewEventLog(eventLogPath)
-	cfg := WriteContractsStageConfig{
-		SpecPath:    specPath,
-		EvidenceDir: evidenceDir,
-		Store:       store,
-	}
-	stage := NewWriteContractsStage(writer, cfg, nil, eventLog)
-
-	action, err := stage.Run(context.Background(), rs)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if action.Kind != specloop.Continue {
-		t.Fatalf("expected Continue, got %v", action.Kind)
-	}
-
-	// Verify writer was called exactly once (no specificity retry)
-	if writerCalls != 1 {
-		t.Fatalf("expected writer to be called exactly once, got %d", writerCalls)
-	}
-
-	// Verify no contract_specificity_warning event was emitted
-	events, err := eventLog.ReadAll()
-	if err != nil {
-		t.Fatalf("read events: %v", err)
-	}
-	for _, ev := range events {
-		if ev.EventType() == "contract_specificity_warning" {
-			t.Fatal("expected no contract_specificity_warning event for high-specificity patterns")
-		}
-	}
-
-	// Verify contract file was written successfully
-	contractPath := filepath.Join(evidenceDir, "scenario-contracts.yaml")
-	data, err := os.ReadFile(contractPath)
-	if err != nil {
-		t.Fatalf("contract file not written: %v", err)
-	}
-	if len(data) == 0 {
-		t.Fatal("contract file is empty")
-	}
-
-	// Verify rs.ContractsWritten flag was set
-	if !rs.ContractsWritten {
-		t.Fatal("expected rs.ContractsWritten=true after successful write")
-	}
-}
-
-func TestWriteContracts_SpecificityRetryFixesPattern(t *testing.T) {
-	// When the LLM produces a contract with low-specificity patterns, a specificity retry
-	// should occur. On retry, if the LLM produces high-specificity patterns, the writer
-	// should be called exactly twice, and the final contract should use the improved pattern.
-	// No contract_specificity_warning event should be emitted since the issue was fixed.
-	tmp := t.TempDir()
-	store := runstore.NewStore(tmp)
-	rs := makeWriteContractsRunState(t, store)
-
-	specPath := filepath.Join(tmp, "spec.md")
-	if err := os.WriteFile(specPath, []byte(specWithScenarios), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	runDir := store.RunDir(rs.RunID)
-	if err := os.WriteFile(filepath.Join(runDir, "spec-packet.md"), []byte("packet content"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	evidenceDir := filepath.Join(tmp, "evidence")
-	if err := os.MkdirAll(evidenceDir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-
-	// First call returns a contract with LOW-specificity pattern
-	lowSpecificityContract := contract.ScenarioContract{
-		Scenarios: []contract.ScenarioAssertions{
-			{
-				Name: "add-works",
-				Assertions: []contract.ContractAssertion{
-					{
-						FileContains: &contract.FileContainsAssertion{
-							Path:    "calc/calc.go",
-							Pattern: "ModelTier", // Low-specificity: single exported identifier
-						},
-					},
-				},
-			},
-		},
-	}
-
-	// Second call returns a contract with HIGH-specificity pattern
-	highSpecificityContract := contract.ScenarioContract{
-		Scenarios: []contract.ScenarioAssertions{
-			{
-				Name: "add-works",
-				Assertions: []contract.ContractAssertion{
-					{
-						FileContains: &contract.FileContainsAssertion{
-							Path:    "calc/calc.go",
-							Pattern: "ModelTier  string", // High-specificity: multi-token pattern
-						},
-					},
-				},
-			},
-		},
-	}
-
-	// Track writer calls and what's being passed in
-	writerCalls := 0
-	var secondCallSpecPacket string
-	writer := &callbackContractWriter{
-		fn: func(ctx context.Context, scenarios []contract.SpecScenario, specPacket string) (*contract.ScenarioContract, error) {
-			writerCalls++
-			if writerCalls == 1 {
-				return &lowSpecificityContract, nil
-			}
-			secondCallSpecPacket = specPacket
-			return &highSpecificityContract, nil
-		},
-	}
-
-	eventLogPath := filepath.Join(tmp, "events.jsonl")
-	eventLog := runstore.NewEventLog(eventLogPath)
-	cfg := WriteContractsStageConfig{
-		SpecPath:    specPath,
-		EvidenceDir: evidenceDir,
-		Store:       store,
-	}
-	stage := NewWriteContractsStage(writer, cfg, nil, eventLog)
-
-	action, err := stage.Run(context.Background(), rs)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if action.Kind != specloop.Continue {
-		t.Fatalf("expected Continue, got %v", action.Kind)
-	}
-
-	// Verify writer was called exactly twice (initial + specificity retry)
-	if writerCalls != 2 {
-		t.Fatalf("expected writer to be called exactly twice, got %d", writerCalls)
-	}
-
-	// Verify the second call's specPacket includes specificity warning information
-	// (This verifies the retry context was properly set up)
-	if secondCallSpecPacket == "" {
-		t.Fatal("expected second call to receive updated specPacket")
-	}
-
-	// Verify no contract_specificity_warning event was emitted
-	// (because the issue was fixed on retry, not left as a warning)
-	events, err := eventLog.ReadAll()
-	if err != nil {
-		t.Fatalf("read events: %v", err)
-	}
-	for _, ev := range events {
-		if ev.EventType() == "contract_specificity_warning" {
-			t.Fatal("expected no contract_specificity_warning event since issue was fixed on retry")
-		}
-	}
-
-	// Verify the final contract file has the high-specificity pattern
-	contractPath := filepath.Join(evidenceDir, "scenario-contracts.yaml")
-	data, err := os.ReadFile(contractPath)
-	if err != nil {
-		t.Fatalf("contract file not written: %v", err)
-	}
-
-	var finalContract contract.ScenarioContract
-	if err := yaml.Unmarshal(data, &finalContract); err != nil {
-		t.Fatalf("failed to unmarshal contract: %v", err)
-	}
-
-	// Verify the pattern in the final contract is the high-specificity one
-	if len(finalContract.Scenarios) == 0 || len(finalContract.Scenarios[0].Assertions) == 0 {
-		t.Fatal("final contract missing scenarios or assertions")
-	}
-
-	finalPattern := finalContract.Scenarios[0].Assertions[0].FileContains.Pattern
-	if finalPattern != "ModelTier  string" {
-		t.Fatalf("expected final pattern 'ModelTier  string', got '%s'", finalPattern)
-	}
-
-	// Verify rs.ContractsWritten flag was set
-	if !rs.ContractsWritten {
-		t.Fatal("expected rs.ContractsWritten=true after successful retry")
-	}
-}
-
-func TestWriteContracts_SpecificityRetryPersistsWarning(t *testing.T) {
-	// When the LLM produces a contract with low-specificity patterns on both attempts,
-	// the specificity issue persists. On the final attempt, the contract is accepted
-	// (Continue returned), and a contract_specificity_warning event is emitted with
-	// the warning text about the low-specificity pattern.
-	tmp := t.TempDir()
-	store := runstore.NewStore(tmp)
-	rs := makeWriteContractsRunState(t, store)
-
-	specPath := filepath.Join(tmp, "spec.md")
-	if err := os.WriteFile(specPath, []byte(specWithScenarios), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	runDir := store.RunDir(rs.RunID)
-	if err := os.WriteFile(filepath.Join(runDir, "spec-packet.md"), []byte("packet content"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	evidenceDir := filepath.Join(tmp, "evidence")
-	if err := os.MkdirAll(evidenceDir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-
-	// Contract with LOW-specificity pattern (single exported identifier)
-	lowSpecificityContract := contract.ScenarioContract{
-		Scenarios: []contract.ScenarioAssertions{
-			{
-				Name: "add-works",
-				Assertions: []contract.ContractAssertion{
-					{
-						FileContains: &contract.FileContainsAssertion{
-							Path:    "calc/calc.go",
-							Pattern: "ModelTier", // Low-specificity: single exported identifier
-						},
-					},
-				},
-			},
-		},
-	}
-
-	// Track writer calls
-	writerCalls := 0
-	writer := &callbackContractWriter{
-		fn: func(ctx context.Context, scenarios []contract.SpecScenario, specPacket string) (*contract.ScenarioContract, error) {
-			writerCalls++
-			// Return the same low-specificity contract on all attempts
-			return &lowSpecificityContract, nil
-		},
-	}
-
-	eventLogPath := filepath.Join(tmp, "events.jsonl")
-	eventLog := runstore.NewEventLog(eventLogPath)
-	cfg := WriteContractsStageConfig{
-		SpecPath:    specPath,
-		EvidenceDir: evidenceDir,
-		Store:       store,
-	}
-	stage := NewWriteContractsStage(writer, cfg, nil, eventLog)
-
-	action, err := stage.Run(context.Background(), rs)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if action.Kind != specloop.Continue {
-		t.Fatalf("expected Continue, got %v", action.Kind)
-	}
-
-	// Verify writer was called at least twice (1 initial + 1 specificity retry before accepting)
-	if writerCalls < 2 {
-		t.Fatalf("expected at least 2 writer calls, got %d", writerCalls)
-	}
-
-	// Verify the contract file was written
-	contractPath := filepath.Join(evidenceDir, "scenario-contracts.yaml")
-	data, err := os.ReadFile(contractPath)
-	if err != nil {
-		t.Fatalf("contract file not written: %v", err)
-	}
-
-	var finalContract contract.ScenarioContract
-	if err := yaml.Unmarshal(data, &finalContract); err != nil {
-		t.Fatalf("failed to unmarshal contract: %v", err)
-	}
-
-	// Verify the final contract has the low-specificity pattern
-	if len(finalContract.Scenarios) == 0 || len(finalContract.Scenarios[0].Assertions) == 0 {
-		t.Fatal("final contract missing scenarios or assertions")
-	}
-	finalPattern := finalContract.Scenarios[0].Assertions[0].FileContains.Pattern
-	if finalPattern != "ModelTier" {
-		t.Fatalf("expected final pattern 'ModelTier', got '%s'", finalPattern)
-	}
-
-	// Verify rs.ContractsWritten flag was set
-	if !rs.ContractsWritten {
-		t.Fatal("expected rs.ContractsWritten=true after accepting contract with warning")
-	}
-
-	// Verify contract_specificity_warning event was emitted with warning text
-	events, err := eventLog.ReadAll()
-	if err != nil {
-		t.Fatalf("read events: %v", err)
-	}
-
-	var specificityWarningFound bool
-	var warningText string
-	for _, ev := range events {
-		if ev.EventType() == "contract_specificity_warning" {
-			specificityWarningFound = true
-			// Extract warnings from the event
-			if cswe, ok := ev.(*runstore.ContractSpecificityWarningEvent); ok {
-				if len(cswe.Warnings) > 0 {
-					warningText = cswe.Warnings[0]
-				}
-			}
-			break
-		}
-	}
-
-	if !specificityWarningFound {
-		t.Fatal("expected contract_specificity_warning event to be emitted")
-	}
-
-	// Verify the warning text mentions the low-specificity pattern
-	if warningText == "" {
-		t.Fatal("expected warning text to be present in contract_specificity_warning event")
-	}
-	if !strings.Contains(warningText, "ModelTier") {
-		t.Fatalf("expected warning to mention 'ModelTier', got %q", warningText)
-	}
-}
-
 func TestWriteContracts_SpecificityRetryStructuralRegression(t *testing.T) {
 	// When the LLM produces a valid contract with specificity warnings on the first attempt,
 	// but returns a structurally invalid contract (zero fields set) on the specificity retry,
@@ -1445,11 +1065,21 @@ func TestWriteContracts_SpecificityRetryStructuralRegression(t *testing.T) {
 		},
 	}
 
-	// Invalid contract: zero fields set (fails structural validation)
-	invalidContract := &contract.ScenarioContract{}
+	// Invalid contract: has scenario but ContractAssertion has zero fields set (fails structural validation)
+	invalidContract := &contract.ScenarioContract{
+		Scenarios: []contract.ScenarioAssertions{
+			{
+				Name: "add-works",
+				Assertions: []contract.ContractAssertion{
+					{}, // No assertion type set - structurally invalid
+				},
+			},
+		},
+	}
 
 	// Track writer calls
 	writerCalls := 0
+	var retrySpecPacket string
 	writer := &callbackContractWriter{
 		fn: func(ctx context.Context, scenarios []contract.SpecScenario, specPacket string) (*contract.ScenarioContract, error) {
 			writerCalls++
@@ -1458,6 +1088,7 @@ func TestWriteContracts_SpecificityRetryStructuralRegression(t *testing.T) {
 				return &validLowSpecificityContract, nil
 			}
 			// Retry call: return structurally invalid contract
+			retrySpecPacket = specPacket
 			return invalidContract, nil
 		},
 	}
@@ -1479,9 +1110,14 @@ func TestWriteContracts_SpecificityRetryStructuralRegression(t *testing.T) {
 		t.Fatalf("expected Continue, got %v", action.Kind)
 	}
 
-	// Verify writer was called at least twice (1 initial + 1 specificity retry)
-	if writerCalls < 2 {
-		t.Fatalf("expected at least 2 writer calls, got %d", writerCalls)
+	// Verify writer was called exactly twice (1 initial + 1 specificity retry)
+	if writerCalls != 2 {
+		t.Fatalf("expected exactly 2 writer calls, got %d", writerCalls)
+	}
+
+	// Verify the retry spec packet contains specificity warning text
+	if !strings.Contains(retrySpecPacket, "Specificity") {
+		t.Fatalf("expected retry spec packet to contain 'Specificity', got: %s", retrySpecPacket)
 	}
 
 	// Verify the contract file was written

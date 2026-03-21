@@ -2,6 +2,9 @@ package contract
 
 import "regexp"
 
+// exportedIdentifierRegex matches single exported identifiers: start with uppercase, followed by alphanumeric/underscore
+var exportedIdentifierRegex = regexp.MustCompile(`^[A-Z][a-zA-Z0-9_]*$`)
+
 // SpecificityWarning describes a low-specificity pattern in a contract assertion.
 type SpecificityWarning struct {
 	ScenarioName string
@@ -17,9 +20,6 @@ type SpecificityWarning struct {
 // patterns are adequately specific.
 func ValidateContractSpecificity(c ScenarioContract) []SpecificityWarning {
 	var warnings []SpecificityWarning
-
-	// Regex to match single exported identifiers: start with uppercase, followed by alphanumeric/underscore
-	exportedIdentifierRegex := regexp.MustCompile(`^[A-Z][a-zA-Z0-9_]*$`)
 
 	for _, scenario := range c.Scenarios {
 		for assertionIdx, assertion := range scenario.Assertions {

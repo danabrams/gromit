@@ -1,3 +1,4 @@
+DONE 2026-03-21
 # Spec 0004f-remediation — Contract Specificity Cleanup
 
 ## spec_id

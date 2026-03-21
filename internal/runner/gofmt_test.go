@@ -176,13 +176,21 @@ func repoRootDir(t *testing.T) string {
 
 func gofmtNonCompliantFiles(t *testing.T, root string, files []string) []string {
 	t.Helper()
-	var nonCompliant []string
-	for start := 0; start < len(files); start += gofmtChunkSize {
-		end := start + gofmtChunkSize
-		if end > len(files) {
-			end = len(files)
+	// Filter to only existing files (exclude deleted files that still show up in git diff)
+	var existingFiles []string
+	for _, f := range files {
+		if _, err := os.Stat(filepath.Join(root, f)); err == nil {
+			existingFiles = append(existingFiles, f)
 		}
-		chunk := files[start:end]
+	}
+
+	var nonCompliant []string
+	for start := 0; start < len(existingFiles); start += gofmtChunkSize {
+		end := start + gofmtChunkSize
+		if end > len(existingFiles) {
+			end = len(existingFiles)
+		}
+		chunk := existingFiles[start:end]
 		args := append([]string{"-l"}, chunk...)
 		cmd := exec.Command("gofmt", args...)
 		cmd.Dir = root
@@ -222,12 +230,12 @@ func changedGoFilesSinceBase(t *testing.T, root string) []string {
 
 func gitDiffGoFiles(t *testing.T, root, base, head string) []string {
 	t.Helper()
-	return gitList(t, root, "diff", "--name-only", "--diff-filter=d", base, head, "--", "*.go")
+	return gitList(t, root, "diff", "--name-only", "--diff-filter=ACM", base, head, "--", "*.go")
 }
 
 func gitDiffHeadGoFiles(t *testing.T, root string) []string {
 	t.Helper()
-	return gitList(t, root, "diff", "--name-only", "--diff-filter=d", "HEAD", "--", "*.go")
+	return gitList(t, root, "diff", "--name-only", "--diff-filter=ACM", "HEAD", "--", "*.go")
 }
 
 func gitMergeBase(root, other string) (string, error) {
