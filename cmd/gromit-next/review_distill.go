@@ -346,7 +346,7 @@ func buildDistillationCompleter(tier reviewdistiller.Tier) (reviewdistiller.LLMC
 	// Create llmadapter with review phase
 	adapter := llmadapter.New(prov, llmadapter.Config{
 		Phase: "review",
-		Tier:  tierToModel(tier),
+		Tier:  string(tier),
 	})
 
 	// Wrap in invoker adapter to satisfy LLMCompleter interface
