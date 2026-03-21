@@ -206,6 +206,22 @@ Commands that verify the spec is implemented correctly.
 - Include negative criteria where important ("does NOT affect existing Z")
 - If you're past ~8-10 criteria, the spec is probably too big — revisit scope
 
+**Anti-pattern: artifact counts as acceptance criteria.** Never use exact file, test, or artifact counts as acceptance criteria unless the count itself is the requirement (e.g., "max 2 files touched per bead"). Counts are usually proxies for behavioral properties — state the behavior instead.
+
+- BAD: "6 scenario test files exist in `contract/`"
+- GOOD: "all behaviors from the deleted file have scenario-named counterparts"
+- BAD: "17 acceptance criteria in the remediation spec"
+- GOOD: "each non-blocking finding produces one acceptance criterion"
+
+Exact counts become hard contract assertions that break when the executor legitimately creates additional artifacts.
+
+**Write contract-friendly criteria.** ACs are translated into machine-checkable contract assertions (file_exists, file_contains, file_not_exists). When writing ACs, consider how they'll be encoded:
+
+- Prefer existence/non-existence over counts: "specificity_test.go is deleted" → `file_not_exists`
+- Prefer content checks over structural checks: "regex is compiled at package level" → `file_contains: {pattern: "var exportedIdentifierRegex"}`
+- Avoid prescribing exact file layouts — state what must exist and what must not, let the executor decide the rest
+- If an AC mentions a specific number of files/tests/items, ask: "Would it break if the executor created one more?"
+
 ### Scenarios
 - Each scenario should describe one end-to-end behavior
 - Use concrete values, not abstractions ("5 tasks" not "multiple tasks")

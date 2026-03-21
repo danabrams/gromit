@@ -56,6 +56,12 @@ Rules:
 - Do not invent assertions not derivable from the Given/When/Then text.
 - **Only assert against implementation source files (Go files in internal/, cmd/, etc.).** Do NOT reference runtime artifact paths (run.json, execution-policy.json, tasks.json, events.jsonl, spec-packet.md, spec.md) — these files live in the run store, not the project source tree where the contract evaluator resolves paths.
 
+## Assertion Quality — Avoid Brittle Counts
+
+- Do NOT encode exact file or artifact counts as assertions. If the spec says "6 scenario files exist", do NOT write 6 separate file_exists assertions or a count check. Instead, assert the key behavioral files exist and assert that removed files do not exist (file_not_exists).
+- Prefer file_contains over file_exists when verifying behavior — checking that a file contains expected content is more robust than checking it exists.
+- When the spec says "delete X and replace with Y", use file_not_exists for X and file_exists (or file_contains) for Y. Do not enumerate all expected files.
+
 ## Struct-Scoped Patterns
 
 When writing file_contains assertions for files that will contain multiple type definitions, use struct-scoped patterns instead of bare identifiers.
