@@ -60,6 +60,13 @@ func (s *WriteScenarioTestsStage) Run(ctx context.Context, rs *runstore.RunState
 		return specloop.NextAction{}, fmt.Errorf("write_scenario_tests: EvidenceDir is required but empty")
 	}
 
+	// Resolve workDir at runtime: prefer worktree path over config WorkDir.
+	// This prevents writing test files to the main repo when a worktree is active.
+	workDir := s.cfg.WorkDir
+	if rs.WorktreePath != "" {
+		workDir = rs.WorktreePath
+	}
+
 	// Idempotency: if scenario tests are already written, skip.
 	if rs.ScenarioTestsWritten {
 		return specloop.NextAction{Kind: specloop.Continue}, nil
@@ -139,7 +146,7 @@ func (s *WriteScenarioTestsStage) Run(ctx context.Context, rs *runstore.RunState
 			if testFile != "" {
 				absPath := testFile
 				if !filepath.IsAbs(absPath) {
-					absPath = filepath.Join(s.cfg.WorkDir, absPath)
+					absPath = filepath.Join(workDir, absPath)
 				}
 				os.Remove(absPath)
 				manifest.Scenarios = removeManifestEntry(manifest.Scenarios, scenario.Name)
@@ -154,7 +161,7 @@ func (s *WriteScenarioTestsStage) Run(ctx context.Context, rs *runstore.RunState
 		compileErrors := ""
 
 		for attempt := 0; attempt <= maxRetries; attempt++ {
-			testFilePath, writeErr = s.writer.WriteScenarioTest(ctx, scenario, implFiles, s.cfg.WorkDir, compileErrors)
+			testFilePath, writeErr = s.writer.WriteScenarioTest(ctx, scenario, implFiles, workDir, compileErrors)
 			if writeErr != nil {
 				errMsg := writeErr.Error()
 				// Parse errors are retryable — treat like compile errors so the LLM

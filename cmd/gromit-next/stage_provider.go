@@ -271,15 +271,11 @@ func (p *RealStageProvider) BuildStages(policy execpolicy.Policy, rs *runstore.R
 
 	evidenceDir := store.RunEvidenceDir(rs.RunID)
 
-	scenarioTestWorkDir := p.cfg.WorkDir
-	if rs.WorktreePath != "" {
-		scenarioTestWorkDir = rs.WorktreePath
-	}
 	writeScenarioTestsStage := stages.NewWriteScenarioTestsStage(scenarioTestWriter, stages.WriteScenarioTestsStageConfig{
 		SpecPath:    p.cfg.SpecPath,
 		EvidenceDir: evidenceDir,
 		Store:       store,
-		WorkDir:     scenarioTestWorkDir,
+		WorkDir:     p.cfg.WorkDir, // stage resolves rs.WorktreePath at runtime
 		CompileDir:  rs.WorktreePath,
 	}, budget, eventLog)
 
@@ -340,9 +336,9 @@ func (p *RealStageProvider) BuildStages(policy execpolicy.Policy, rs *runstore.R
 
 	// Build-time assertion: when a worktree is active, all stage WorkDir
 	// values must point inside it.
+	// write_scenario_tests resolves WorktreePath at runtime, so only check execute and validate.
 	if err := validateWorkDirsInWorktree(rs.WorktreePath, []workDirEntry{
 		{"execute", executeWorkDir},
-		{"write_scenario_tests", scenarioTestWorkDir},
 		{"validate", validateWorkDir},
 	}); err != nil {
 		return nil, err

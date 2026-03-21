@@ -23,6 +23,7 @@ type fakeScenarioTestWriter struct {
 	returnedPaths       []string
 	returnedPathIndex   int
 	compilableScenarios map[string]bool // scenarios that will compile
+	receivedWorkDirs    []string        // workDir values passed to WriteScenarioTest
 }
 
 func (m *fakeScenarioTestWriter) WriteScenarioTest(
@@ -33,6 +34,7 @@ func (m *fakeScenarioTestWriter) WriteScenarioTest(
 	compileErrors string,
 ) (testFilePath string, err error) {
 	defer func() { m.calls++ }()
+	m.receivedWorkDirs = append(m.receivedWorkDirs, workDir)
 
 	// Check if this attempt should fail
 	if m.failAttempt >= 0 && m.calls == m.failAttempt {
@@ -1174,6 +1176,53 @@ func TestWriteScenarioTests_CompileDir_ReturnedWhenSet(t *testing.T) {
 	stage := &WriteScenarioTestsStage{cfg: cfg}
 	if got := stage.compileDir(); got != compileDir {
 		t.Fatalf("expected compileDir() == %q, got %q", compileDir, got)
+	}
+}
+
+func TestWriteScenarioTests_UsesWorktreePathWhenSet(t *testing.T) {
+	// When rs.WorktreePath is set, the writer should receive the worktree path
+	// as workDir, not the config WorkDir. This prevents files from being written
+	// to the main repo when a worktree is active.
+	mainDir := t.TempDir()
+	worktreeDir := t.TempDir()
+
+	specPath := filepath.Join(mainDir, "spec.md")
+	if err := os.WriteFile(specPath, []byte(specWithTwoScenarios), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	evidenceDir := filepath.Join(mainDir, "evidence")
+	if err := os.MkdirAll(evidenceDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	testFile := filepath.Join(worktreeDir, "cmd/gromit-next/scenario_test.go")
+	writer := &fakeScenarioTestWriter{
+		failAttempt:         -1,
+		returnedPaths:       []string{testFile, testFile},
+		compilableScenarios: map[string]bool{"scenario-one": true, "scenario-two": true},
+	}
+
+	cfg := WriteScenarioTestsStageConfig{
+		SpecPath:    specPath,
+		EvidenceDir: evidenceDir,
+		WorkDir:     mainDir, // should NOT be used when worktree is active
+	}
+	stage := NewWriteScenarioTestsStage(writer, cfg, nil, nil)
+
+	rs := makeWriteScenarioTestsRunState(t)
+	rs.WorktreePath = worktreeDir
+
+	_, err := stage.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// The writer should have received worktreeDir, not mainDir
+	for i, wd := range writer.receivedWorkDirs {
+		if wd != worktreeDir {
+			t.Fatalf("writer call %d received workDir=%q, want %q (worktree path)", i, wd, worktreeDir)
+		}
 	}
 }
 
