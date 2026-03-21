@@ -91,9 +91,6 @@ func (rs *RunState) NormalizeNilFields() {
 	if rs.FailureHistory == nil {
 		rs.FailureHistory = map[string]int{}
 	}
-	if rs.LastContractFailures == nil {
-		rs.LastContractFailures = []string{}
-	}
 	if rs.TaskLineage == nil {
 		rs.TaskLineage = make(map[string]TaskLineageEntry)
 	}

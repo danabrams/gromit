@@ -108,13 +108,25 @@ func isContradicted(f review.Finding, required []contractRequirement) bool {
 }
 
 // pathMatches returns true if the finding file and contract path refer to the
-// same file. Handles both exact match and suffix match (finding might use a
-// shorter path like "types.go" vs contract "internal/next/reviewdistiller/types.go").
+// same file. Handles exact match and suffix match (finding might use a shorter
+// path like "reviewdistiller/types.go" vs "internal/next/reviewdistiller/types.go").
+// Requires at least one directory component for suffix matching to avoid false
+// positives on common filenames like "types.go".
 func pathMatches(findingFile, contractPath string) bool {
 	if findingFile == contractPath {
 		return true
 	}
-	return strings.HasSuffix(contractPath, "/"+findingFile) ||
-		strings.HasSuffix(findingFile, "/"+contractPath) ||
-		filepath.Base(findingFile) == filepath.Base(contractPath)
+	// Require at least one "/" in the shorter path to prevent basename-only matching.
+	// "types.go" alone is too ambiguous, but "reviewdistiller/types.go" is specific enough.
+	if strings.Contains(findingFile, "/") {
+		if strings.HasSuffix(contractPath, "/"+findingFile) {
+			return true
+		}
+	}
+	if strings.Contains(contractPath, "/") {
+		if strings.HasSuffix(findingFile, "/"+contractPath) {
+			return true
+		}
+	}
+	return false
 }

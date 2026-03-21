@@ -156,8 +156,14 @@ func TestPathMatches_ExactMatch(t *testing.T) {
 }
 
 func TestPathMatches_SuffixMatch(t *testing.T) {
-	if !pathMatches("types.go", "internal/next/reviewdistiller/types.go") {
-		t.Error("basename match should return true")
+	if !pathMatches("reviewdistiller/types.go", "internal/next/reviewdistiller/types.go") {
+		t.Error("suffix match should return true")
+	}
+}
+
+func TestPathMatches_BaseNameAloneDoesNotMatch(t *testing.T) {
+	if pathMatches("types.go", "internal/next/reviewdistiller/types.go") {
+		t.Error("basename-only should NOT match — too many files share common names")
 	}
 }
 
