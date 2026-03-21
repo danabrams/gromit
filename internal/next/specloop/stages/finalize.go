@@ -85,14 +85,24 @@ func (s *FinalizeStage) Run(ctx context.Context, rs *runstore.RunState) (specloo
 
 // generateReviewPacket reads evidence artifacts and generates review packet.
 func (s *FinalizeStage) generateReviewPacket(rs *runstore.RunState) error {
-	// Read and unmarshal validation.json into ValidationData struct
+	// Read validation.json and extract pass status + check count.
+	// validation.json uses "pass" (not "passed") and nests results under
+	// always_run.results / project_checks.results — not a flat {passed, checks}.
 	validationBytes, err := os.ReadFile(filepath.Join(s.config.EvidenceDir, "validation.json"))
 	if err != nil {
 		return fmt.Errorf("read validation.json: %w", err)
 	}
-	validationResult := reviewpacket.ValidationData{}
-	if err := json.Unmarshal(validationBytes, &validationResult); err != nil {
+	var rawValidation struct {
+		Pass          bool `json:"pass"`
+		AlwaysRun     struct{ Results []json.RawMessage } `json:"always_run"`
+		ProjectChecks struct{ Results []json.RawMessage } `json:"project_checks"`
+	}
+	if err := json.Unmarshal(validationBytes, &rawValidation); err != nil {
 		return fmt.Errorf("unmarshal validation.json: %w", err)
+	}
+	validationResult := reviewpacket.ValidationData{
+		Passed: rawValidation.Pass,
+		Checks: len(rawValidation.AlwaysRun.Results) + len(rawValidation.ProjectChecks.Results),
 	}
 
 	// Read and unmarshal review.json into typed struct

@@ -24,11 +24,9 @@ func TestInputsFromEvidence_SuccessfulReconstruction(t *testing.T) {
 		t.Fatalf("write spec file: %v", err)
 	}
 
-	// Write validation.json
-	validationData := ValidationData{
-		Passed: true,
-		Checks: 12,
-	}
+	// Write validation.json in the real validator.FinalResult format:
+	// "pass" (not "passed"), results nested under always_run/project_checks.
+	validationData := testValidationJSON(true, 8, 4)
 	if err := writeJSON(tempDir, "validation.json", validationData); err != nil {
 		t.Fatalf("write validation.json: %v", err)
 	}
@@ -177,7 +175,7 @@ func TestInputsFromEvidence_MissingAcceptanceJson(t *testing.T) {
 	}
 
 	// Write validation.json
-	validationData := ValidationData{Passed: true, Checks: 5}
+	validationData := testValidationJSON(true, 3, 2)
 	if err := writeJSON(tempDir, "validation.json", validationData); err != nil {
 		t.Fatalf("write validation.json: %v", err)
 	}
@@ -209,12 +207,12 @@ func TestInputsFromEvidence_MissingSpecFile(t *testing.T) {
 	specPath := filepath.Join(tempDir, "nonexistent.md")
 
 	// Write evidence files
-	validationData := ValidationData{Passed: true, Checks: 5}
+	validationData := testValidationJSON(true, 3, 2)
 	if err := writeJSON(tempDir, "validation.json", validationData); err != nil {
 		t.Fatalf("write validation.json: %v", err)
 	}
 
-	acceptanceData := map[string]interface{}{"passed": 0, "failed": 0, "unclear": 0}
+	acceptanceData := map[string]interface{}{"results": []map[string]interface{}{}}
 	if err := writeJSON(tempDir, "acceptance.json", acceptanceData); err != nil {
 		t.Fatalf("write acceptance.json: %v", err)
 	}
@@ -249,8 +247,8 @@ func TestInputsFromEvidence_MissingReviewJson(t *testing.T) {
 		t.Fatalf("write spec file: %v", err)
 	}
 
-	// Write validation.json
-	validationData := ValidationData{Passed: true, Checks: 5}
+	// Write validation.json in real format
+	validationData := testValidationJSON(true, 3, 2)
 	if err := writeJSON(tempDir, "validation.json", validationData); err != nil {
 		t.Fatalf("write validation.json: %v", err)
 	}
@@ -333,7 +331,7 @@ func TestInputsFromEvidence_InvalidAcceptanceJson(t *testing.T) {
 	}
 
 	// Write validation.json
-	validationData := ValidationData{Passed: true, Checks: 5}
+	validationData := testValidationJSON(true, 3, 2)
 	if err := writeJSON(tempDir, "validation.json", validationData); err != nil {
 		t.Fatalf("write validation.json: %v", err)
 	}
@@ -375,7 +373,7 @@ func TestInputsFromEvidence_InvalidReviewJson(t *testing.T) {
 	}
 
 	// Write validation.json
-	validationData := ValidationData{Passed: true, Checks: 5}
+	validationData := testValidationJSON(true, 3, 2)
 	if err := writeJSON(tempDir, "validation.json", validationData); err != nil {
 		t.Fatalf("write validation.json: %v", err)
 	}
@@ -419,7 +417,7 @@ func TestInputsFromEvidence_ExtractRunMetadata(t *testing.T) {
 	}
 
 	// Write evidence files
-	validationData := ValidationData{Passed: true, Checks: 8}
+	validationData := testValidationJSON(true, 5, 3)
 	if err := writeJSON(tempDir, "validation.json", validationData); err != nil {
 		t.Fatalf("write validation.json: %v", err)
 	}
@@ -499,7 +497,7 @@ func TestInputsFromEvidence_RepeatedFailureDetectionViaTaskLineageOnly(t *testin
 	}
 
 	// Write evidence files
-	validationData := ValidationData{Passed: false, Checks: 3}
+	validationData := testValidationJSON(false, 2, 1)
 	if err := writeJSON(tempDir, "validation.json", validationData); err != nil {
 		t.Fatalf("write validation.json: %v", err)
 	}
@@ -556,7 +554,7 @@ func TestInputsFromEvidence_RepeatedFailureDetectionViaTaskLineage(t *testing.T)
 	}
 
 	// Write evidence files
-	validationData := ValidationData{Passed: false, Checks: 2}
+	validationData := testValidationJSON(false, 1, 1)
 	if err := writeJSON(tempDir, "validation.json", validationData); err != nil {
 		t.Fatalf("write validation.json: %v", err)
 	}
@@ -613,7 +611,7 @@ func TestInputsFromEvidence_NoRepeatedFailure(t *testing.T) {
 	}
 
 	// Write evidence files
-	validationData := ValidationData{Passed: true, Checks: 5}
+	validationData := testValidationJSON(true, 3, 2)
 	if err := writeJSON(tempDir, "validation.json", validationData); err != nil {
 		t.Fatalf("write validation.json: %v", err)
 	}
@@ -673,7 +671,7 @@ func TestInputsFromEvidence_EmptyDegradedFlags(t *testing.T) {
 	}
 
 	// Write evidence files
-	validationData := ValidationData{Passed: true, Checks: 1}
+	validationData := testValidationJSON(true, 1, 0)
 	if err := writeJSON(tempDir, "validation.json", validationData); err != nil {
 		t.Fatalf("write validation.json: %v", err)
 	}
@@ -729,7 +727,7 @@ func TestInputsFromEvidence_MultipleReviewFindingCategories(t *testing.T) {
 	}
 
 	// Write evidence files
-	validationData := ValidationData{Passed: false, Checks: 5}
+	validationData := testValidationJSON(false, 3, 2)
 	if err := writeJSON(tempDir, "validation.json", validationData); err != nil {
 		t.Fatalf("write validation.json: %v", err)
 	}
@@ -815,7 +813,7 @@ func TestInputsFromEvidence_EmptyReviewFindings(t *testing.T) {
 	}
 
 	// Write evidence files
-	validationData := map[string]interface{}{"pass": true, "checks": 3}
+	validationData := testValidationJSON(true, 2, 1)
 	if err := writeJSON(tempDir, "validation.json", validationData); err != nil {
 		t.Fatalf("write validation.json: %v", err)
 	}
@@ -871,7 +869,7 @@ func TestInputsFromEvidence_RoundTripAcceptanceFormat(t *testing.T) {
 	}
 
 	// Write validation.json
-	validationData := ValidationData{Passed: true, Checks: 10}
+	validationData := testValidationJSON(true, 6, 4)
 	if err := writeJSON(tempDir, "validation.json", validationData); err != nil {
 		t.Fatalf("write validation.json: %v", err)
 	}
@@ -938,7 +936,7 @@ func TestInputsFromEvidence_DegradedFlagsFromDiffUnavailableTrue(t *testing.T) {
 		t.Fatalf("write spec file: %v", err)
 	}
 
-	validationData := ValidationData{Passed: true, Checks: 3}
+	validationData := testValidationJSON(true, 2, 1)
 	if err := writeJSON(tempDir, "validation.json", validationData); err != nil {
 		t.Fatalf("write validation.json: %v", err)
 	}
@@ -993,7 +991,7 @@ func TestInputsFromEvidence_DegradedFlagsFromDiffUnavailableFalse(t *testing.T) 
 		t.Fatalf("write spec file: %v", err)
 	}
 
-	validationData := ValidationData{Passed: true, Checks: 3}
+	validationData := testValidationJSON(true, 2, 1)
 	if err := writeJSON(tempDir, "validation.json", validationData); err != nil {
 		t.Fatalf("write validation.json: %v", err)
 	}
@@ -1029,6 +1027,24 @@ func TestInputsFromEvidence_DegradedFlagsFromDiffUnavailableFalse(t *testing.T) 
 
 	if len(inputs.DegradedFlags) != 0 {
 		t.Errorf("len(DegradedFlags) = %d, want 0 when diff_unavailable is false", len(inputs.DegradedFlags))
+	}
+}
+
+// testValidationJSON builds a validation.json fixture in the real validator.FinalResult format.
+// The real format uses "pass" (not "passed") and nests results under always_run/project_checks.
+func testValidationJSON(pass bool, alwaysRunCount, projectChecksCount int) map[string]interface{} {
+	alwaysRunResults := make([]map[string]interface{}, alwaysRunCount)
+	for i := range alwaysRunResults {
+		alwaysRunResults[i] = map[string]interface{}{"pass": pass}
+	}
+	projectResults := make([]map[string]interface{}, projectChecksCount)
+	for i := range projectResults {
+		projectResults[i] = map[string]interface{}{"pass": pass}
+	}
+	return map[string]interface{}{
+		"pass":           pass,
+		"always_run":     map[string]interface{}{"results": alwaysRunResults},
+		"project_checks": map[string]interface{}{"results": projectResults},
 	}
 }
 

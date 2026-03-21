@@ -54,9 +54,19 @@ func InputsFromEvidence(evidenceDir string, specPath string, run *runstore.RunSt
 		return Inputs{}, fmt.Errorf("%s", strings.TrimSuffix(errMsg, "\n"))
 	}
 
-	var validationResult ValidationData
-	if err := json.Unmarshal(validationData, &validationResult); err != nil {
+	// validation.json uses "pass" (not "passed") and nests results under
+	// always_run.results / project_checks.results — not a flat {passed, checks}.
+	var rawValidation struct {
+		Pass          bool `json:"pass"`
+		AlwaysRun     struct{ Results []json.RawMessage } `json:"always_run"`
+		ProjectChecks struct{ Results []json.RawMessage } `json:"project_checks"`
+	}
+	if err := json.Unmarshal(validationData, &rawValidation); err != nil {
 		return Inputs{}, fmt.Errorf("unmarshal validation.json: %w", err)
+	}
+	validationResult := ValidationData{
+		Passed: rawValidation.Pass,
+		Checks: len(rawValidation.AlwaysRun.Results) + len(rawValidation.ProjectChecks.Results),
 	}
 
 	// Parse acceptance.json: read results array and count by status

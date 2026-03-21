@@ -19,10 +19,7 @@ func TestIntegration_CleanRun(t *testing.T) {
 	tempDir := t.TempDir()
 
 	// Step 1: Write input artifacts (validation.json, review.json, acceptance.json)
-	validationData := map[string]interface{}{
-		"passed": true,
-		"checks": 12,
-	}
+	validationData := testValidationJSON(true, 8, 4)
 	if err := writeJSON(tempDir, "validation.json", validationData); err != nil {
 		t.Fatalf("write validation.json: %v", err)
 	}
@@ -35,9 +32,12 @@ func TestIntegration_CleanRun(t *testing.T) {
 	}
 
 	acceptanceData := map[string]interface{}{
-		"passed":  5,
-		"failed":  0,
-		"unclear": 0,
+		"results": []map[string]interface{}{
+			{"status": "pass"}, {"status": "pass"}, {"status": "pass"},
+			{"status": "pass"}, {"status": "pass"},
+		},
+		"all_pass":            true,
+		"has_fail_or_unclear": false,
 	}
 	if err := writeJSON(tempDir, "acceptance.json", acceptanceData); err != nil {
 		t.Fatalf("write acceptance.json: %v", err)
@@ -182,10 +182,7 @@ func TestIntegration_BlockedRun(t *testing.T) {
 	tempDir := t.TempDir()
 
 	// Write input artifacts
-	validationData := map[string]interface{}{
-		"passed": false,
-		"checks": 5,
-	}
+	validationData := testValidationJSON(false, 3, 2)
 	if err := writeJSON(tempDir, "validation.json", validationData); err != nil {
 		t.Fatalf("write validation.json: %v", err)
 	}
@@ -201,9 +198,9 @@ func TestIntegration_BlockedRun(t *testing.T) {
 	}
 
 	acceptanceData := map[string]interface{}{
-		"passed":  0,
-		"failed":  0,
-		"unclear": 0,
+		"results":            []map[string]interface{}{},
+		"all_pass":           false,
+		"has_fail_or_unclear": false,
 	}
 	if err := writeJSON(tempDir, "acceptance.json", acceptanceData); err != nil {
 		t.Fatalf("write acceptance.json: %v", err)
@@ -342,10 +339,7 @@ func TestIntegration_NoScenariosFallback(t *testing.T) {
 	tempDir := t.TempDir()
 
 	// Write input artifacts
-	validationData := map[string]interface{}{
-		"passed": true,
-		"checks": 10,
-	}
+	validationData := testValidationJSON(true, 6, 4)
 	if err := writeJSON(tempDir, "validation.json", validationData); err != nil {
 		t.Fatalf("write validation.json: %v", err)
 	}
@@ -358,9 +352,11 @@ func TestIntegration_NoScenariosFallback(t *testing.T) {
 	}
 
 	acceptanceData := map[string]interface{}{
-		"passed":  3,
-		"failed":  0,
-		"unclear": 0,
+		"results": []map[string]interface{}{
+			{"status": "pass"}, {"status": "pass"}, {"status": "pass"},
+		},
+		"all_pass":            true,
+		"has_fail_or_unclear": false,
 	}
 	if err := writeJSON(tempDir, "acceptance.json", acceptanceData); err != nil {
 		t.Fatalf("write acceptance.json: %v", err)

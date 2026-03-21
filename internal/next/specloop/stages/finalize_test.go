@@ -294,11 +294,8 @@ func TestFinalizeStage_WritesReviewPacket(t *testing.T) {
 		t.Fatalf("create evidence dir: %v", err)
 	}
 
-	// Write validation.json
-	validationData := map[string]interface{}{
-		"passed": true,
-		"checks": 5,
-	}
+	// Write validation.json in real validator.FinalResult format
+	validationData := testValidationJSON(true, 3, 2)
 	writeTestJSON(t, filepath.Join(evidenceDir, "validation.json"), validationData)
 
 	// Write review.json
@@ -405,10 +402,7 @@ func TestFinalizeStage_DiagnosticPacket(t *testing.T) {
 		t.Fatalf("create evidence dir: %v", err)
 	}
 
-	validationData := map[string]interface{}{
-		"passed": false,
-		"checks": 0,
-	}
+	validationData := testValidationJSON(false, 0, 0)
 	writeTestJSON(t, filepath.Join(evidenceDir, "validation.json"), validationData)
 
 	reviewData := map[string]interface{}{
@@ -480,10 +474,7 @@ func TestFinalizeStage_BlockedRunGeneratesReviewPacket(t *testing.T) {
 		t.Fatalf("create evidence dir: %v", err)
 	}
 
-	validationData := map[string]interface{}{
-		"passed": false,
-		"checks": 0,
-	}
+	validationData := testValidationJSON(false, 0, 0)
 	writeTestJSON(t, filepath.Join(evidenceDir, "validation.json"), validationData)
 
 	reviewData := map[string]interface{}{
@@ -560,10 +551,8 @@ func TestFinalizeStage_BlockedRunGeneratesReviewPacket(t *testing.T) {
 }
 
 func TestFinalizeStage_ValidationPassedRoundTrip(t *testing.T) {
-	// Verify that ValidationData.Passed is correctly unmarshaled from validation.json
-	// using json.Unmarshal with the struct JSON tags, not raw-map access with wrong keys.
-	// This test demonstrates that the fix to use json.Unmarshal preserves the
-	// "passed" field correctly from the JSON input.
+	// Verify that validation.json "pass" field is correctly parsed into
+	// the review packet's ValidationData.Passed field.
 	tmp := t.TempDir()
 	evidenceDir := filepath.Join(tmp, "evidence")
 
@@ -571,11 +560,8 @@ func TestFinalizeStage_ValidationPassedRoundTrip(t *testing.T) {
 		t.Fatalf("create evidence dir: %v", err)
 	}
 
-	// Write validation.json with passed=true
-	validationDataTrue := map[string]interface{}{
-		"passed": true,
-		"checks": 10,
-	}
+	// Write validation.json with pass=true in real format
+	validationDataTrue := testValidationJSON(true, 6, 4)
 	writeTestJSON(t, filepath.Join(evidenceDir, "validation.json"), validationDataTrue)
 
 	// Write minimal review.json
@@ -661,11 +647,8 @@ func TestFinalizeStage_AcceptanceRoundTrip(t *testing.T) {
 		t.Fatalf("create evidence dir: %v", err)
 	}
 
-	// Write validation.json (required for finalize)
-	validationData := map[string]interface{}{
-		"passed": true,
-		"checks": 5,
-	}
+	// Write validation.json (required for finalize) in real format
+	validationData := testValidationJSON(true, 3, 2)
 	writeTestJSON(t, filepath.Join(evidenceDir, "validation.json"), validationData)
 
 	// Write review.json (required for finalize)
@@ -799,6 +782,23 @@ func TestFinalizeStage_AcceptanceRoundTrip(t *testing.T) {
 				t.Errorf("expected 1 fail result, got %d", failCount)
 			}
 		}
+	}
+}
+
+// testValidationJSON builds a validation.json fixture in the real validator.FinalResult format.
+func testValidationJSON(pass bool, alwaysRunCount, projectChecksCount int) map[string]interface{} {
+	alwaysRunResults := make([]map[string]interface{}, alwaysRunCount)
+	for i := range alwaysRunResults {
+		alwaysRunResults[i] = map[string]interface{}{"pass": pass}
+	}
+	projectResults := make([]map[string]interface{}, projectChecksCount)
+	for i := range projectResults {
+		projectResults[i] = map[string]interface{}{"pass": pass}
+	}
+	return map[string]interface{}{
+		"pass":           pass,
+		"always_run":     map[string]interface{}{"results": alwaysRunResults},
+		"project_checks": map[string]interface{}{"results": projectResults},
 	}
 }
 
