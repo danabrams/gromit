@@ -1,14 +1,11 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
-	"text/template"
 
 	"github.com/danabrams/gromit/internal/claude"
 	"github.com/danabrams/gromit/internal/next/execpolicy"
@@ -214,7 +211,10 @@ func attemptDistillation(runID string, storeDir string, tier reviewdistiller.Tie
 		"failure_history": run.FailureHistory,
 		"task_lineage":    run.Tasks,
 	}
-	metadataJSON, _ := json.Marshal(runMetadata)
+	metadataJSON, err := json.Marshal(runMetadata)
+	if err != nil {
+		return fmt.Errorf("marshal run metadata: %w", err)
+	}
 	inputs.RunMetadata = json.RawMessage(metadataJSON)
 
 	// Invoke distiller
@@ -235,72 +235,12 @@ func attemptDistillation(runID string, storeDir string, tier reviewdistiller.Tie
 
 	// Write distillation-proposals.md
 	markdownPath := filepath.Join(evidenceDir, "distillation-proposals.md")
-	markdown := renderDistillationMarkdown(result)
+	markdown := reviewdistiller.RenderMarkdown(result)
 	if err := os.WriteFile(markdownPath, []byte(markdown), 0o644); err != nil {
 		return fmt.Errorf("write distillation-proposals.md: %w", err)
 	}
 
 	return nil
-}
-
-// renderDistillationMarkdown renders a DistillationResult as markdown.
-func renderDistillationMarkdown(result *reviewdistiller.DistillationResult) string {
-	tmpl, err := template.New("distill").Parse(`# Distillation Proposals
-
-**Run:** {{ .RunID }} | **Outcome:** {{ .Outcome }} | **Model Tier:** {{ .ModelTier }}
-
-**Generated:** {{ .CreatedAt.Format "2006-01-02 15:04:05 UTC" }}
-
-## Summary
-
-Distilled {{ .Outcome }} review outcome into {{ len .Proposals }} improvement proposals.
-
-{{ range .Proposals }}
----
-
-## {{ .Title }}
-
-**Type:** {{ .Type }}
-**Confidence:** {{ .Confidence }}
-
-### What Happened
-
-{{ .WhatHappened }}
-
-### What Was Missing
-
-{{ .WhatWasMissing }}
-
-### Proposed Change
-
-{{ .ProposedChange }}
-
-### Rationale
-
-{{ .Rationale }}
-
-**Confidence Rationale:** {{ .ConfidenceRationale }}
-
-{{ if .EvidenceReferences }}
-### Evidence References
-
-{{ range .EvidenceReferences }}- {{ . }}
-{{ end }}{{ end }}
-{{ end }}
-`)
-
-	if err != nil {
-		log.Printf("warning: template parse error: %v", err)
-		return "# Distillation Proposals\n\nError rendering markdown\n"
-	}
-
-	var buf bytes.Buffer
-	if err := tmpl.Execute(&buf, result); err != nil {
-		log.Printf("warning: template execute error: %v", err)
-		return "# Distillation Proposals\n\nError rendering markdown\n"
-	}
-
-	return buf.String()
 }
 
 // invokerAdapter wraps llmadapter.Invoker to satisfy LLMCompleter.
