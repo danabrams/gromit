@@ -91,6 +91,76 @@ func TestExecuteStage_AllTasksFailed_ReplanFrom(t *testing.T) {
 	}
 }
 
+// TestExecuteStage_AllFailed_PropagatesPerTaskFailures verifies that when all
+// tasks fail, the FailureContext contains per-task failure strings from
+// TaskResult.Failures rather than just the generic "all tasks failed" message.
+func TestExecuteStage_AllFailed_PropagatesPerTaskFailures(t *testing.T) {
+	runner := &fakeTaskRunner{
+		results: []specloop.TaskResult{
+			{
+				Status:   "failed",
+				Failures: []string{"[suspect-proof-check] grep failed"},
+			},
+			{
+				Status:   "failed",
+				Failures: []string{"[suspect-proof-check] awk failed"},
+			},
+		},
+	}
+	stage := NewExecuteStage(runner, ExecuteStageConfig{MaxRetries: 0})
+	rs := runstore.NewRunState("spec-001", "proj-001")
+	rs.Tasks = []runstore.Task{
+		{TaskID: "t-001", Status: "pending", Objective: "first"},
+		{TaskID: "t-002", Status: "pending", Objective: "second"},
+	}
+	action, err := stage.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if action.Kind != specloop.ReplanFrom {
+		t.Fatalf("expected ReplanFrom, got %v", action.Kind)
+	}
+	if action.Context == nil {
+		t.Fatal("expected non-nil Context")
+	}
+	found := false
+	for _, f := range action.Context.Failures {
+		if strings.Contains(f, "suspect-proof-check") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected [suspect-proof-check] in failures, got: %v", action.Context.Failures)
+	}
+}
+
+func TestExecuteStage_AllFailed_FallsBackToGenericMessage_WhenNoPerTaskFailures(t *testing.T) {
+	// When tasks fail but have no per-task failures, fall back to generic message.
+	runner := &fakeTaskRunner{
+		results: []specloop.TaskResult{
+			{Status: "failed"},
+			{Status: "failed"},
+		},
+	}
+	stage := NewExecuteStage(runner, ExecuteStageConfig{MaxRetries: 0})
+	rs := runstore.NewRunState("spec-001", "proj-001")
+	rs.Tasks = []runstore.Task{
+		{TaskID: "t-001", Status: "pending", Objective: "first"},
+		{TaskID: "t-002", Status: "pending", Objective: "second"},
+	}
+	action, err := stage.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if action.Kind != specloop.ReplanFrom {
+		t.Fatalf("expected ReplanFrom, got %v", action.Kind)
+	}
+	if len(action.Context.Failures) != 1 || action.Context.Failures[0] != "all tasks failed" {
+		t.Errorf("expected [\"all tasks failed\"], got: %v", action.Context.Failures)
+	}
+}
+
 func TestExecuteStage_SkipsCompletedTasks(t *testing.T) {
 	callCount := 0
 	runner := &fakeTaskRunner{

@@ -54,6 +54,7 @@ type TaskResult struct {
 	Cost            float64
 	DurationMs      int64
 	FilesChanged    []string
+	Failures        []string // per-task failure strings, populated on failed status
 	Model           string
 	Tier            string
 	TargetedChecks  CheckSummary
@@ -66,6 +67,9 @@ type TaskResult struct {
 func (tr *TaskResult) NormalizeNilFields() {
 	if tr.FilesChanged == nil {
 		tr.FilesChanged = []string{}
+	}
+	if tr.Failures == nil {
+		tr.Failures = []string{}
 	}
 }
 
