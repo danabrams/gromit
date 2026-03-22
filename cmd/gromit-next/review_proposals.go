@@ -367,7 +367,7 @@ func displayPendingProposals(proposals []proposaltriage.PendingProposal) error {
 
 	// Sort by creation time descending (already sorted by discover, but ensure here)
 	sort.Slice(proposals, func(i, j int) bool {
-		return proposals[i].RunID > proposals[j].RunID
+		return proposals[i].CreatedAt.After(proposals[j].CreatedAt)
 	})
 
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
@@ -401,7 +401,7 @@ func displayAllProposals(proposals []proposaltriage.AllProposal) error {
 
 	// Sort by creation time descending
 	sort.Slice(proposals, func(i, j int) bool {
-		return proposals[i].RunID > proposals[j].RunID
+		return proposals[i].CreatedAt.After(proposals[j].CreatedAt)
 	})
 
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
