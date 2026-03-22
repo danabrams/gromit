@@ -50,7 +50,7 @@ Four changes, deployed as a unit:
 
 ### `isBuildCheck(cmd string) bool` (`taskloop.go`)
 
-Classifies a proof check command as a build/compile check by matching leading command tokens against known build tool invocations (two tokens for most tools, three for `npm run build`):
+Classifies a proof check command as a build/compile check by matching by leading token prefix regardless of trailing arguments — e.g. `go build`, `go build ./...`, and `go build -v ./...` all match. Three leading tokens are required for `npm run build`. Known invocations:
 
 - `go build`, `go vet`
 - `npm run build`
@@ -68,7 +68,7 @@ The `failures` parameter contains inspection failure messages, typically formatt
 
 1. If `proofChecks` is empty or `failures` is empty → return failures unchanged
 2. If any proof check that `isBuildCheck` classifies as a build check has its command string appear as a substring of any failure message → return failures unchanged (a build check is failing; not a suspect-proof-check situation)
-3. If no build check exists in `proofChecks` → return failures unchanged (without build evidence, the passing-build inference cannot be drawn). Note: reaching this step means no build check command string was found in any failure message — i.e., all build checks in the task either passed or did not run.
+3. If no build check exists in `proofChecks` → return failures unchanged (without build evidence, the passing-build inference cannot be drawn). Note: reaching this step means no build check command string appeared in any failure message — but step 3 still guards against the case where `proofChecks` contains *no* build check at all (e.g. only grep commands). If at least one build check exists and none appeared in failures, the algorithm proceeds to annotation (step 4).
 4. Otherwise: prefix every failure with `[suspect-proof-check] All build checks pass but pattern-matching checks failed. The implementation may be correct; proof checks may be testing source structure rather than behavior. `
 
 ### `TaskResult.Failures []string` (`taskloop.go`)
@@ -77,7 +77,7 @@ New field on `TaskResult`, populated immediately after `annotateSuspectProofChec
 
 ### Failure collection in execute stage (`execute.go`)
 
-When every result in the task loop has `Status == "failed"`, the execute stage collects `r.Failures` from each `TaskResult` into a single slice. If no per-task failures exist (empty or nil across all results), falls back to `["all tasks failed"]`. The collected slice populates `FailureContext.Failures`, making annotated strings visible to the fix planner.
+When every result in the task loop has `Status == "failed"`, the execute stage collects `r.Failures` from each `TaskResult` into a single slice. If no per-task failures exist (empty or nil across all results), falls back to `["all tasks failed"]`. The collected slice populates `FailureContext.Failures`, making annotated strings visible to the fix planner. The allFailed path fires only when `len(results) > 0`; if no tasks ran, the stage returns Continue without triggering a replan.
 
 ### Fix-planner instruction (`planner.go`)
 
@@ -91,7 +91,7 @@ In `buildFixPlanPrompt`'s `## Instructions` block, a new bullet:
 
 2. `buildFixPlanPrompt` output contains the text `"Runtime over source-grep"` and references `--help`.
 
-3. `isBuildCheck("go build ./...")` returns true; `isBuildCheck("grep -q 'func Foo' foo.go")` returns false.
+3. `isBuildCheck("go build ./...")` returns true; `isBuildCheck("cargo build --release")` returns true; `isBuildCheck("go test ./...")` returns false; `isBuildCheck("grep -q 'func Foo' foo.go")` returns false.
 
 4. When a task has `ProofChecks: ["go build ./...", "grep -q '--title' cmd/foo.go"]` and only the grep check fails (build passes), all failure messages are prefixed with `[suspect-proof-check]`.
 
