@@ -295,7 +295,7 @@ func TestParseScenarioTestResponse_NoFenceNoMarkers(t *testing.T) {
 	}
 }
 
-func TestWriteScenarioTest_AbsolutePathMatchingWorkDir_StripsPrefix(t *testing.T) {
+func TestWriteScenarioTest_AbsolutePathMatchingWorkDir_ReturnsError(t *testing.T) {
 	workDir := t.TempDir()
 	relPath := "internal/foo/foo_scenario_bar_test.go"
 	absPath := filepath.Join(workDir, relPath)
@@ -306,18 +306,9 @@ func TestWriteScenarioTest_AbsolutePathMatchingWorkDir_StripsPrefix(t *testing.T
 	)}
 	w := NewLLMScenarioTestWriter(invoker, "")
 
-	got, err := w.WriteScenarioTest(context.Background(), SpecScenario{Name: "bar"}, nil, workDir, "")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if filepath.IsAbs(got) {
-		t.Errorf("returned path should be relative, got %q", got)
-	}
-	if got != relPath {
-		t.Errorf("got %q, want %q", got, relPath)
-	}
-	if _, err := os.Stat(filepath.Join(workDir, relPath)); err != nil {
-		t.Errorf("file not written at expected path: %v", err)
+	_, err := w.WriteScenarioTest(context.Background(), SpecScenario{Name: "bar"}, nil, workDir, "")
+	if err == nil {
+		t.Fatal("expected error for absolute path, got nil")
 	}
 }
 

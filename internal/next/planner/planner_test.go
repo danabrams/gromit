@@ -652,3 +652,77 @@ func TestBuildFixPlanPrompt_ContainsSuspectProofCheckInstruction(t *testing.T) {
 		t.Error("expected instruction to mention proof-check rewrite task")
 	}
 }
+
+func TestBuildFixPlanPrompt_PlaybookHeuristics(t *testing.T) {
+	// When PlaybookHeuristics is non-empty, section should be included
+	prompt := buildFixPlanPrompt(FixPlanRequest{
+		OriginalPlan:       Plan{SpecID: "s1", Cycle: 1},
+		Failures:           []string{"test failure"},
+		Cycle:              2,
+		PlaybookHeuristics: "Prioritize quick wins first\nAvoid deep refactoring in fix cycles",
+	})
+	if !strings.Contains(prompt, "## Playbook Heuristics") {
+		t.Fatal("buildFixPlanPrompt must include Playbook Heuristics section when field is non-empty")
+	}
+	if !strings.Contains(prompt, "Prioritize quick wins first") {
+		t.Fatal("buildFixPlanPrompt must include PlaybookHeuristics content")
+	}
+
+	// When PlaybookHeuristics is empty, section should be omitted
+	prompt = buildFixPlanPrompt(FixPlanRequest{
+		OriginalPlan: Plan{SpecID: "s1", Cycle: 1},
+		Failures:     []string{"test failure"},
+		Cycle:        2,
+	})
+	if strings.Contains(prompt, "## Playbook Heuristics") {
+		t.Fatal("buildFixPlanPrompt must omit Playbook Heuristics section when field is empty")
+	}
+}
+
+func TestBuildPlanPrompt_PlaybookHeuristics(t *testing.T) {
+	// When PlaybookHeuristics is non-empty, section should be included
+	prompt := buildPlanPrompt(PlanRequest{
+		SpecPacket:         "build a thing",
+		PlaybookHeuristics: "Use async patterns where applicable",
+		Cycle:              1,
+	})
+	if !strings.Contains(prompt, "## Playbook Heuristics") {
+		t.Fatal("buildPlanPrompt must include Playbook Heuristics section when field is non-empty")
+	}
+	if !strings.Contains(prompt, "Use async patterns where applicable") {
+		t.Fatal("buildPlanPrompt must include PlaybookHeuristics content")
+	}
+
+	// When PlaybookHeuristics is empty, section should be omitted
+	prompt = buildPlanPrompt(PlanRequest{
+		SpecPacket: "build a thing",
+		Cycle:      1,
+	})
+	if strings.Contains(prompt, "## Playbook Heuristics") {
+		t.Fatal("buildPlanPrompt must omit Playbook Heuristics section when field is empty")
+	}
+}
+
+func TestBuildPlanPrompt_RefinementGuidance(t *testing.T) {
+	// When RefinementGuidance is non-empty, section should be included
+	prompt := buildPlanPrompt(PlanRequest{
+		SpecPacket:         "build a thing",
+		RefinementGuidance: "Focus on error handling improvements",
+		Cycle:              1,
+	})
+	if !strings.Contains(prompt, "## Refinement Guidance") {
+		t.Fatal("buildPlanPrompt must include Refinement Guidance section when field is non-empty")
+	}
+	if !strings.Contains(prompt, "Focus on error handling improvements") {
+		t.Fatal("buildPlanPrompt must include RefinementGuidance content")
+	}
+
+	// When RefinementGuidance is empty, section should be omitted
+	prompt = buildPlanPrompt(PlanRequest{
+		SpecPacket: "build a thing",
+		Cycle:      1,
+	})
+	if strings.Contains(prompt, "## Refinement Guidance") {
+		t.Fatal("buildPlanPrompt must omit Refinement Guidance section when field is empty")
+	}
+}

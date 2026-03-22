@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/danabrams/gromit/internal/next/planner"
+	"github.com/danabrams/gromit/internal/next/playbook"
 	"github.com/danabrams/gromit/internal/next/runstore"
 	"github.com/danabrams/gromit/internal/next/specloop"
 )
@@ -49,13 +50,19 @@ type FixPlanCreator interface {
 	CreateFixPlan(ctx context.Context, req planner.FixPlanRequest) (planner.Plan, error)
 }
 
+// CellPathResolver resolves the cell directory path from a project ID.
+type CellPathResolver interface {
+	ResolveCellPath(projectID string) (string, error)
+}
+
 // PlanStage reads the spec packet, invokes the planner, validates the plan,
 // and populates rs.Tasks on success.
 type PlanStage struct {
-	planner    PlanCreator
-	fixPlanner FixPlanCreator
-	store      *runstore.Store
-	eventLog   *runstore.EventLog
+	planner          PlanCreator
+	fixPlanner       FixPlanCreator
+	store            *runstore.Store
+	eventLog         *runstore.EventLog
+	cellPathResolver CellPathResolver
 }
 
 // NewPlanStage creates a new PlanStage.
@@ -68,8 +75,57 @@ func (s *PlanStage) SetFixPlanner(fp FixPlanCreator) {
 	s.fixPlanner = fp
 }
 
+// SetCellPathResolver sets the cell path resolver for loading playbook and doctrine.
+func (s *PlanStage) SetCellPathResolver(resolver CellPathResolver) {
+	s.cellPathResolver = resolver
+}
+
 // Name returns the stage name.
 func (s *PlanStage) Name() string { return "plan" }
+
+// loadPlaybookAndDoctrine loads the playbook and doctrine stores and returns
+// formatted heuristics and refinement guidance for prompt injection.
+// Both strings are empty if the cell path cannot be resolved or stores don't exist.
+func (s *PlanStage) loadPlaybookAndDoctrine(rs *runstore.RunState) (heuristics, guidance string) {
+	if s.cellPathResolver == nil {
+		return "", ""
+	}
+
+	cellPath, err := s.cellPathResolver.ResolveCellPath(rs.ProjectID)
+	if err != nil || cellPath == "" {
+		return "", ""
+	}
+
+	// Load playbook entries
+	playbookStore := &playbook.Store{Dir: filepath.Join(cellPath, "playbook")}
+	entries, err := playbookStore.Load()
+	if err != nil {
+		return "", ""
+	}
+
+	// Filter to only active entries
+	entries = playbook.ActiveEntries(entries)
+
+	// Separate entries by type
+	var heuristicEntries, guidanceEntries []playbook.Entry
+	for _, entry := range entries {
+		if entry.Status != "active" || entry.SupersededBy != "" {
+			continue
+		}
+		switch entry.Type {
+		case "planner_heuristic":
+			heuristicEntries = append(heuristicEntries, entry)
+		case "refinement_guidance":
+			guidanceEntries = append(guidanceEntries, entry)
+		}
+	}
+
+	// Format for prompt injection
+	heuristics = playbook.FormatPlaybookForPrompt(heuristicEntries)
+	guidance = playbook.FormatPlaybookForPrompt(guidanceEntries)
+
+	return heuristics, guidance
+}
 
 // Run executes the plan stage.
 func (s *PlanStage) Run(ctx context.Context, rs *runstore.RunState) (specloop.NextAction, error) {
@@ -98,15 +154,19 @@ func (s *PlanStage) Run(ctx context.Context, rs *runstore.RunState) (specloop.Ne
 	var plan planner.Plan
 	var validationErr error
 
+	// Load playbook and doctrine for prompt injection
+	heuristics, guidance := s.loadPlaybookAndDoctrine(rs)
+
 	if isFixCycle && s.fixPlanner != nil {
 		fixReq := planner.FixPlanRequest{
-			Failures:        rs.ReplanContext,
-			Cycle:           rs.Cycle,
-			PriorMaxTaskID:  maxTaskID(rs.Tasks),
-			SpecConstraints: rs.SpecConstraints,
-			SpecPacket:      string(specPacket),
-			CompletedTasks:  completedTaskSummaries(rs.Tasks),
-			CurrentDiff:     worktreeDiff(rs.WorktreePath),
+			Failures:           rs.ReplanContext,
+			Cycle:              rs.Cycle,
+			PriorMaxTaskID:     maxTaskID(rs.Tasks),
+			SpecConstraints:    rs.SpecConstraints,
+			SpecPacket:         string(specPacket),
+			CompletedTasks:     completedTaskSummaries(rs.Tasks),
+			CurrentDiff:        worktreeDiff(rs.WorktreePath),
+			PlaybookHeuristics: heuristics,
 		}
 		// Try up to 2 times (initial + 1 retry)
 		allFiltered := false
@@ -149,9 +209,11 @@ func (s *PlanStage) Run(ctx context.Context, rs *runstore.RunState) (specloop.Ne
 		}
 	} else {
 		req := planner.PlanRequest{
-			SpecPacket: string(specPacket),
-			Cycle:      rs.Cycle,
-			Failures:   rs.ReplanContext,
+			SpecPacket:         string(specPacket),
+			Cycle:              rs.Cycle,
+			Failures:           rs.ReplanContext,
+			PlaybookHeuristics: heuristics,
+			RefinementGuidance: guidance,
 		}
 		// Try up to 2 times (initial + 1 retry)
 		for attempt := 0; attempt < 2; attempt++ {

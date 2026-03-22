@@ -26,7 +26,11 @@ type CheckResult struct {
 }
 
 // Runner executes validation checks as shell commands.
-type Runner struct{}
+type Runner struct {
+	// KnownGaps contains known validation gaps for targeted validation prompts.
+	// When non-empty, this text is included in validation guidance sections.
+	KnownGaps string
+}
 
 // NewRunner creates a new Runner.
 func NewRunner() *Runner { return &Runner{} }

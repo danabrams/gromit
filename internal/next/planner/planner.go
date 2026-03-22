@@ -23,11 +23,13 @@ type Agent interface {
 
 // PlanRequest contains everything needed to generate a plan.
 type PlanRequest struct {
-	SpecPacket     string
-	Cycle          int
-	CompletedTasks []string
-	Failures       []string
-	CurrentDiff    string
+	SpecPacket         string
+	PlaybookHeuristics string // pre-rendered active playbook.Entry heuristics (only active entries; superseded excluded)
+	RefinementGuidance string
+	Cycle              int
+	CompletedTasks     []string
+	Failures           []string
+	CurrentDiff        string
 }
 
 // Planner orchestrates agent-driven plan generation.
@@ -78,14 +80,15 @@ type CompletedTask struct {
 
 // FixPlanRequest contains everything needed to generate a fix plan.
 type FixPlanRequest struct {
-	OriginalPlan    Plan            `json:"original_plan"`
-	CompletedTasks  []CompletedTask `json:"completed_tasks"`
-	Failures        []string        `json:"failures"`
-	CurrentDiff     string          `json:"current_diff"`
-	Cycle           int             `json:"cycle"`
-	PriorMaxTaskID  string          `json:"prior_max_task_id,omitempty"` // e.g. "t-004"; if set, fix plan task IDs must be greater
-	SpecConstraints string          `json:"spec_constraints,omitempty"`  // Out-of-Scope + Architectural Constraints from spec.md
-	SpecPacket      string          `json:"spec_packet,omitempty"`       // full spec packet for context (requirements, scope, acceptance criteria)
+	OriginalPlan       Plan            `json:"original_plan"`
+	CompletedTasks     []CompletedTask `json:"completed_tasks"`
+	Failures           []string        `json:"failures"`
+	CurrentDiff        string          `json:"current_diff"`
+	Cycle              int             `json:"cycle"`
+	PriorMaxTaskID     string          `json:"prior_max_task_id,omitempty"`   // e.g. "t-004"; if set, fix plan task IDs must be greater
+	SpecConstraints    string          `json:"spec_constraints,omitempty"`    // Out-of-Scope + Architectural Constraints from spec.md
+	SpecPacket         string          `json:"spec_packet,omitempty"`         // full spec packet for context (requirements, scope, acceptance criteria)
+	PlaybookHeuristics string          `json:"playbook_heuristics,omitempty"` // pre-rendered active playbook.Entry heuristics to guide fix plan strategy (only active entries; superseded excluded)
 }
 
 // CreateFixPlan invokes the agent to produce a fix plan addressing failures.
@@ -146,6 +149,12 @@ func buildFixPlanPrompt(req FixPlanRequest) string {
 		b.WriteString("then do NOT create a fix task for that failure at all. Leave it unfixed.\n")
 		b.WriteString("It is BETTER to exhaust cycles and hand off to a human than to violate a spec constraint.\n\n")
 		b.WriteString(req.SpecConstraints)
+		b.WriteString("\n\n")
+	}
+
+	if req.PlaybookHeuristics != "" {
+		b.WriteString("## Playbook Heuristics\n")
+		b.WriteString(req.PlaybookHeuristics)
 		b.WriteString("\n\n")
 	}
 
@@ -271,6 +280,16 @@ func buildPlanPrompt(req PlanRequest) string {
 	b.WriteString("## Spec Packet\n")
 	b.WriteString(req.SpecPacket)
 	b.WriteString("\n\n")
+	if req.PlaybookHeuristics != "" {
+		b.WriteString("## Playbook Heuristics\n")
+		b.WriteString(req.PlaybookHeuristics)
+		b.WriteString("\n\n")
+	}
+	if req.RefinementGuidance != "" {
+		b.WriteString("## Refinement Guidance\n")
+		b.WriteString(req.RefinementGuidance)
+		b.WriteString("\n\n")
+	}
 	b.WriteString(fmt.Sprintf("## Cycle: %d\n\n", req.Cycle))
 
 	if len(req.CompletedTasks) > 0 {

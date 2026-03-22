@@ -122,7 +122,7 @@ func TestScenario_DistillationUsesConfiguredDefaultTierFromProjectJSON(t *testin
 	}
 
 	// Write distillation-proposals.md
-	markdown := renderDistillationMarkdown(result)
+	markdown := reviewdistiller.RenderMarkdown(result)
 	markdownPath := filepath.Join(evidenceDir, "distillation-proposals.md")
 	if err := os.WriteFile(markdownPath, []byte(markdown), 0o644); err != nil {
 		t.Fatalf("write distillation-proposals.md: %v", err)

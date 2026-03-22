@@ -62,9 +62,9 @@ func (w *LLMScenarioTestWriter) WriteScenarioTest(ctx context.Context, scenario 
 		return "", fmt.Errorf("parse scenario test response: %w", err)
 	}
 
-	testFilePath, err = sanitizeTestFilePath(testFilePath, workDir)
-	if err != nil {
-		return "", fmt.Errorf("test file path rejected: %w", err)
+	// Validate that the test file path stays within workDir.
+	if err := sanitizeTestFilePath(testFilePath, workDir); err != nil {
+		return "", fmt.Errorf("invalid test file path: %w", err)
 	}
 
 	// Write the test file to workDir.
@@ -195,29 +195,6 @@ func parseScenarioTestResponse(response string) (string, string, error) {
 	return testFilePath, testContent, nil
 }
 
-// sanitizeTestFilePath ensures testFilePath is a relative path within workDir.
-// If testFilePath is absolute and has workDir as a prefix, the prefix is stripped
-// and the resulting relative path is returned.
-// If testFilePath is absolute but outside workDir, an error is returned.
-// If testFilePath is relative, it is validated to not escape workDir via traversal
-// (e.g. ../../etc/passwd); if it does, an error is returned.
-func sanitizeTestFilePath(testFilePath, workDir string) (string, error) {
-	if filepath.IsAbs(testFilePath) {
-		rel, err := filepath.Rel(workDir, testFilePath)
-		if err != nil || strings.HasPrefix(rel, "..") {
-			return "", fmt.Errorf("absolute test file path %q is outside workDir %q", testFilePath, workDir)
-		}
-		return rel, nil
-	}
-	// Validate that joining does not escape workDir.
-	joined := filepath.Join(workDir, testFilePath)
-	rel, err := filepath.Rel(workDir, joined)
-	if err != nil || strings.HasPrefix(rel, "..") {
-		return "", fmt.Errorf("relative test file path %q escapes workDir", testFilePath)
-	}
-	return rel, nil
-}
-
 // parseFenceResponse attempts to extract a test file path and content from a markdown
 // ```go fence when the LLM did not use the === markers.
 //
@@ -270,4 +247,32 @@ func parseFenceResponse(response string) (path, content string, ok bool) {
 	}
 
 	return "", "", false
+}
+
+// sanitizeTestFilePath validates that testFilePath does not escape from workDir.
+// It rejects absolute paths, paths containing "..", and paths that would resolve
+// outside of workDir after joining and cleaning.
+func sanitizeTestFilePath(testFilePath, workDir string) error {
+	// Reject absolute paths.
+	if filepath.IsAbs(testFilePath) {
+		return fmt.Errorf("path must be relative, got %q", testFilePath)
+	}
+
+	// Reject paths with ".." components.
+	if strings.Contains(testFilePath, "..") {
+		return fmt.Errorf("path must not contain '..', got %q", testFilePath)
+	}
+
+	// Construct the full path and clean it.
+	fullPath := filepath.Join(workDir, testFilePath)
+	fullPath = filepath.Clean(fullPath)
+	workDirAbs := filepath.Clean(workDir)
+
+	// Ensure the resolved path stays within workDir.
+	// Check if fullPath starts with workDirAbs followed by a separator.
+	if !strings.HasPrefix(fullPath, workDirAbs) || (len(fullPath) > len(workDirAbs) && fullPath[len(workDirAbs)] != filepath.Separator) {
+		return fmt.Errorf("path escapes workDir: %q is outside %q", fullPath, workDirAbs)
+	}
+
+	return nil
 }

@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/danabrams/gromit/internal/next/planner"
+	"github.com/danabrams/gromit/internal/next/playbook"
 	"github.com/danabrams/gromit/internal/next/runstore"
 	"github.com/danabrams/gromit/internal/next/specloop"
 )
@@ -18,9 +19,11 @@ type fakePlanner struct {
 	plans []planner.Plan
 	errs  []error
 	calls int
+	reqs  []planner.PlanRequest
 }
 
 func (f *fakePlanner) CreatePlan(ctx context.Context, req planner.PlanRequest) (planner.Plan, error) {
+	f.reqs = append(f.reqs, req)
 	idx := f.calls
 	f.calls++
 	if idx < len(f.errs) && f.errs[idx] != nil {
@@ -700,5 +703,131 @@ func TestPlanStage_FixCycle_AllTasksFilteredReturnsContinue(t *testing.T) {
 	// No new tasks should have been added
 	if len(rs.Tasks) != 1 {
 		t.Fatalf("expected 1 task (no new tasks added), got %d", len(rs.Tasks))
+	}
+}
+
+type fakeCellPathResolver struct {
+	path string
+}
+
+func (f *fakeCellPathResolver) ResolveCellPath(projectID string) (string, error) {
+	return f.path, nil
+}
+
+func TestPlanStage_PlaybookHeuristics_PopulatedWhenEntryExists(t *testing.T) {
+	tmp := t.TempDir()
+	store := runstore.NewStore(tmp)
+	rs := runstore.NewRunState("spec-001", "proj-001")
+	runDir := store.RunDir(rs.RunID)
+	os.MkdirAll(runDir, 0o755)
+	os.WriteFile(filepath.Join(runDir, "spec-packet.md"), []byte("spec content"), 0o644)
+
+	// Create a playbook store with planner_heuristic entries
+	playbookDir := t.TempDir()
+	pb := &playbook.Store{Dir: playbookDir}
+	entries := []playbook.Entry{
+		{
+			ID:        "pb-001",
+			Type:      "planner_heuristic",
+			Title:     "Task Granularity",
+			Content:   "Each task should touch at most 3-4 files",
+			Rationale: "Smaller tasks reduce complexity",
+			Status:    "active",
+		},
+		{
+			ID:        "pb-002",
+			Type:      "planner_heuristic",
+			Title:     "Parallel Work",
+			Content:   "Identify opportunities for parallel task execution",
+			Rationale: "Improves planning efficiency",
+			Status:    "active",
+		},
+	}
+	if err := pb.Save(entries); err != nil {
+		t.Fatalf("failed to save playbook: %v", err)
+	}
+
+	// Set up PlanStage with resolver that points to our playbook
+	fp := &fakePlanner{plans: []planner.Plan{validPlan()}}
+	stage := NewPlanStage(fp, store, nil)
+	stage.SetCellPathResolver(&fakeCellPathResolver{path: t.TempDir()})
+
+	// We need to actually put the playbook where the resolver points to
+	cellPath := t.TempDir()
+	playbookDirReal := filepath.Join(cellPath, "playbook")
+	os.MkdirAll(playbookDirReal, 0o755)
+	pbReal := &playbook.Store{Dir: playbookDirReal}
+	if err := pbReal.Save(entries); err != nil {
+		t.Fatalf("failed to save playbook in cell: %v", err)
+	}
+	stage.SetCellPathResolver(&fakeCellPathResolver{path: cellPath})
+
+	action, err := stage.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if action.Kind != specloop.Continue {
+		t.Fatalf("expected Continue, got %v", action.Kind)
+	}
+
+	// Verify the PlanRequest was populated with heuristics
+	if len(fp.reqs) != 1 {
+		t.Fatalf("expected 1 plan request, got %d", len(fp.reqs))
+	}
+	req := fp.reqs[0]
+
+	// The PlaybookHeuristics should contain formatted heuristics
+	expectedHeuristics := playbook.FormatPlaybookForPrompt(entries)
+	if req.PlaybookHeuristics != expectedHeuristics {
+		t.Fatalf("expected PlaybookHeuristics %q, got %q", expectedHeuristics, req.PlaybookHeuristics)
+	}
+
+	// Verify the formatted heuristics include the titles and content
+	if !strings.Contains(req.PlaybookHeuristics, "Task Granularity") {
+		t.Fatalf("expected 'Task Granularity' in PlaybookHeuristics, got: %q", req.PlaybookHeuristics)
+	}
+	if !strings.Contains(req.PlaybookHeuristics, "Parallel Work") {
+		t.Fatalf("expected 'Parallel Work' in PlaybookHeuristics, got: %q", req.PlaybookHeuristics)
+	}
+}
+
+func TestPlanStage_PlaybookHeuristics_EmptyWhenNoEntries(t *testing.T) {
+	tmp := t.TempDir()
+	store := runstore.NewStore(tmp)
+	rs := runstore.NewRunState("spec-001", "proj-001")
+	runDir := store.RunDir(rs.RunID)
+	os.MkdirAll(runDir, 0o755)
+	os.WriteFile(filepath.Join(runDir, "spec-packet.md"), []byte("spec content"), 0o644)
+
+	// Create a playbook store with NO entries
+	cellPath := t.TempDir()
+	playbookDir := filepath.Join(cellPath, "playbook")
+	os.MkdirAll(playbookDir, 0o755)
+	pb := &playbook.Store{Dir: playbookDir}
+	if err := pb.Save([]playbook.Entry{}); err != nil {
+		t.Fatalf("failed to save empty playbook: %v", err)
+	}
+
+	// Set up PlanStage with resolver pointing to the empty playbook
+	fp := &fakePlanner{plans: []planner.Plan{validPlan()}}
+	stage := NewPlanStage(fp, store, nil)
+	stage.SetCellPathResolver(&fakeCellPathResolver{path: cellPath})
+
+	action, err := stage.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if action.Kind != specloop.Continue {
+		t.Fatalf("expected Continue, got %v", action.Kind)
+	}
+
+	// Verify the PlanRequest was populated with empty heuristics
+	if len(fp.reqs) != 1 {
+		t.Fatalf("expected 1 plan request, got %d", len(fp.reqs))
+	}
+	req := fp.reqs[0]
+
+	if req.PlaybookHeuristics != "" {
+		t.Fatalf("expected empty PlaybookHeuristics, got %q", req.PlaybookHeuristics)
 	}
 }

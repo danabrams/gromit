@@ -33,4 +33,5 @@ func init() {
 	execCmd.AddCommand(newExecCompleteCmd())
 	specCmd.AddCommand(newSpecListCmd())
 	reviewCmd.AddCommand(newReviewDistillCmd())
+	reviewCmd.AddCommand(proposalsCmd)
 }

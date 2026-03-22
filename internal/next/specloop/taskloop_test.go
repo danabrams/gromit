@@ -95,6 +95,10 @@ func (f *fakeInspector) Inspect(_ context.Context, _ runstore.Task) InspectResul
 	return InspectResult{Pass: f.pass}
 }
 
+func (f *fakeInspector) SetKnownGaps(_ string) {
+	// no-op for testing
+}
+
 type fakeDecomposer struct {
 	subTasks []runstore.Task
 }

@@ -850,7 +850,7 @@ func TestFileTaskContextProvider_ReadsFiles(t *testing.T) {
 	// Create spec.md
 	os.WriteFile(filepath.Join(runDir, "spec.md"), []byte("# Spec 42\nDo the thing."), 0o644)
 
-	provider := FileTaskContextProvider(func() string { return workDir }, runDir)
+	provider := FileTaskContextProvider(func() string { return workDir }, runDir, "")
 	tc := provider()
 
 	if !strings.Contains(tc.ProjectConventions, "Be excellent.") {
@@ -864,7 +864,7 @@ func TestFileTaskContextProvider_ReadsFiles(t *testing.T) {
 func TestFileTaskContextProvider_MissingFilesGraceful(t *testing.T) {
 	emptyDir := t.TempDir()
 
-	provider := FileTaskContextProvider(func() string { return emptyDir }, emptyDir)
+	provider := FileTaskContextProvider(func() string { return emptyDir }, emptyDir, "")
 	tc := provider()
 
 	if tc.ProjectConventions != "" {
@@ -879,7 +879,7 @@ func TestFileTaskContextProvider_EmptyWorkDir(t *testing.T) {
 	runDir := t.TempDir()
 	os.WriteFile(filepath.Join(runDir, "spec.md"), []byte("spec content"), 0o644)
 
-	provider := FileTaskContextProvider(func() string { return "" }, runDir)
+	provider := FileTaskContextProvider(func() string { return "" }, runDir, "")
 	tc := provider()
 
 	if tc.ProjectConventions != "" {
@@ -1006,5 +1006,478 @@ func TestRenderCurrentFileContents_EmptyAreas(t *testing.T) {
 	renderCurrentFileContents(&b, []string{}, t.TempDir())
 	if b.String() != "" {
 		t.Error("expected empty output when areas is empty")
+	}
+}
+
+// --- renderContextSections tests ---
+
+func TestRenderContextSections_Doctrine(t *testing.T) {
+	tc := TaskContext{
+		Doctrine: "Always validate user input at system boundaries.\nLog all errors with sufficient context for debugging.",
+	}
+
+	var b strings.Builder
+	renderContextSections(&b, tc, false)
+	output := b.String()
+
+	if !strings.Contains(output, "### Doctrine") {
+		t.Error("output does not contain Doctrine section header")
+	}
+	if !strings.Contains(output, "Always validate user input at system boundaries") {
+		t.Error("output does not contain doctrine content")
+	}
+}
+
+func TestRenderContextSections_KnownGaps(t *testing.T) {
+	testCases := []struct {
+		name          string
+		includeSpec   bool
+		knownGaps     string
+		shouldInclude bool
+	}{
+		{
+			name:          "fix task with known gaps",
+			includeSpec:   true,
+			knownGaps:     "Database connection may fail under high load.",
+			shouldInclude: true,
+		},
+		{
+			name:          "original task with known gaps (should be omitted)",
+			includeSpec:   false,
+			knownGaps:     "Database connection may fail under high load.",
+			shouldInclude: false,
+		},
+		{
+			name:          "fix task without known gaps",
+			includeSpec:   true,
+			knownGaps:     "",
+			shouldInclude: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := TaskContext{
+				KnownGaps: tc.knownGaps,
+			}
+
+			var b strings.Builder
+			renderContextSections(&b, ctx, tc.includeSpec)
+			output := b.String()
+
+			if tc.shouldInclude {
+				if !strings.Contains(output, "### Known Validation Gaps") {
+					t.Error("output should contain Known Validation Gaps section header")
+				}
+				if !strings.Contains(output, tc.knownGaps) {
+					t.Error("output should contain known gaps content")
+				}
+			} else {
+				if strings.Contains(output, "### Known Validation Gaps") {
+					t.Error("output should not contain Known Validation Gaps section header")
+				}
+			}
+		})
+	}
+}
+
+func TestRenderTaskPrompt_IncludesDoctrine(t *testing.T) {
+	testCases := []struct {
+		name string
+		kind string
+	}{
+		{
+			name: "original task includes doctrine",
+			kind: "",
+		},
+		{
+			name: "fix task includes doctrine",
+			kind: "fix",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			doctrineText := "Cache invalidation is the hardest problem in computer science."
+			taskContext := TaskContext{
+				Doctrine: doctrineText,
+			}
+			task := runstore.Task{
+				TaskID:    "t-doctrine-test",
+				Objective: "implement something",
+				Kind:      tc.kind,
+			}
+
+			prompt := renderTaskPrompt(task, taskContext, "")
+
+			if !strings.Contains(prompt, "### Doctrine") {
+				t.Error("prompt should contain Doctrine section header")
+			}
+			if !strings.Contains(prompt, doctrineText) {
+				t.Error("prompt should contain doctrine text")
+			}
+		})
+	}
+}
+
+func TestFileTaskContextProvider_LoadsDoctrine(t *testing.T) {
+	workDir := t.TempDir()
+	runDir := t.TempDir()
+	cellPath := t.TempDir()
+	doctrineDir := filepath.Join(cellPath, "doctrine")
+
+	os.MkdirAll(doctrineDir, 0o755)
+
+	// Create doctrine rules file
+	doctrineJSON := `{
+  "rules": [
+    {
+      "id": "rule-1",
+      "summary": "Use meaningful variable names",
+      "scope": "*",
+      "source": "declared",
+      "created_at": "2026-03-01T00:00:00Z",
+      "status": "active",
+      "superseded_by": ""
+    }
+  ]
+}`
+	os.WriteFile(filepath.Join(doctrineDir, "rules.json"), []byte(doctrineJSON), 0o644)
+
+	provider := FileTaskContextProvider(func() string { return workDir }, runDir, cellPath)
+	tc := provider()
+
+	if !strings.Contains(tc.Doctrine, "Use meaningful variable names") {
+		t.Errorf("expected doctrine content, got %q", tc.Doctrine)
+	}
+}
+
+func TestFileTaskContextProvider_LoadsValidationGapPlaybook(t *testing.T) {
+	workDir := t.TempDir()
+	runDir := t.TempDir()
+	cellPath := t.TempDir()
+	playbookDir := filepath.Join(cellPath, "playbook")
+
+	os.MkdirAll(playbookDir, 0o755)
+
+	// Create playbook entries file with validation_gap type
+	playbookJSON := `[
+  {
+    "id": "pb-abc123def",
+    "type": "validation_gap",
+    "title": "Missing test coverage",
+    "content": "Tests need coverage for edge cases",
+    "rationale": "Prevent regressions",
+    "status": "active",
+    "source_proposal_id": "proposal-1",
+    "source_run_id": "",
+    "source_spec_id": "",
+    "created_at": "2026-03-01T00:00:00Z",
+    "superseded_by": ""
+  },
+  {
+    "id": "pb-def456ghi",
+    "type": "doctrine_rule",
+    "title": "Code style",
+    "content": "Follow Go conventions",
+    "rationale": "Consistency",
+    "status": "active",
+    "source_proposal_id": "proposal-2",
+    "source_run_id": "",
+    "source_spec_id": "",
+    "created_at": "2026-03-01T00:00:00Z",
+    "superseded_by": ""
+  }
+]`
+	os.WriteFile(filepath.Join(playbookDir, "entries.json"), []byte(playbookJSON), 0o644)
+
+	provider := FileTaskContextProvider(func() string { return workDir }, runDir, cellPath)
+	tc := provider()
+
+	// Should only include validation_gap, not doctrine_rule
+	if !strings.Contains(tc.KnownGaps, "Missing test coverage") {
+		t.Errorf("expected validation_gap content, got %q", tc.KnownGaps)
+	}
+	if strings.Contains(tc.KnownGaps, "Code style") {
+		t.Errorf("should not include non-validation_gap entries, got %q", tc.KnownGaps)
+	}
+}
+
+func TestTaskPrompt_ValidationGaps(t *testing.T) {
+	workDir := t.TempDir()
+	runDir := t.TempDir()
+	cellPath := t.TempDir()
+	playbookDir := filepath.Join(cellPath, "playbook")
+
+	os.MkdirAll(playbookDir, 0o755)
+
+	// Create playbook entries with active validation_gap
+	playbookJSON := `[
+  {
+    "id": "pb-gap001",
+    "type": "validation_gap",
+    "title": "Error handling incomplete",
+    "content": "Add error recovery for network failures",
+    "rationale": "Improve robustness",
+    "status": "active",
+    "source_proposal_id": "proposal-1",
+    "source_run_id": "",
+    "source_spec_id": "",
+    "created_at": "2026-03-01T00:00:00Z",
+    "superseded_by": ""
+  }
+]`
+	os.WriteFile(filepath.Join(playbookDir, "entries.json"), []byte(playbookJSON), 0o644)
+
+	ctxProvider := FileTaskContextProvider(func() string { return workDir }, runDir, cellPath)
+
+	inv := &mockInvoker{
+		result: &provider.Result{
+			Success:  true,
+			Model:    "sonnet",
+			Duration: 1 * time.Second,
+		},
+	}
+	runner := NewProviderTaskRunner(inv, func() string { return workDir })
+	runner.SetContextProvider(ctxProvider)
+
+	// Fix tasks should include validation gaps in prompt
+	task := runstore.Task{
+		TaskID:    "t-fix-1",
+		Objective: "fix the error handling",
+		Kind:      "fix",
+	}
+
+	_, err := runner.RunTask(context.Background(), task)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if !strings.Contains(inv.capturedPrompt, "### Known Validation Gaps") {
+		t.Error("prompt should contain 'Known Validation Gaps' section header for fix task")
+	}
+	if !strings.Contains(inv.capturedPrompt, "Error handling incomplete") {
+		t.Error("prompt should contain validation gap title")
+	}
+	if !strings.Contains(inv.capturedPrompt, "Add error recovery for network failures") {
+		t.Error("prompt should contain validation gap content")
+	}
+	if !strings.Contains(inv.capturedPrompt, "Improve robustness") {
+		t.Error("prompt should contain validation gap rationale")
+	}
+}
+
+func TestRenderContextSections_SupersededExcluded(t *testing.T) {
+	workDir := t.TempDir()
+	runDir := t.TempDir()
+	cellPath := t.TempDir()
+	playbookDir := filepath.Join(cellPath, "playbook")
+
+	os.MkdirAll(playbookDir, 0o755)
+
+	// Create playbook entries with both active and superseded validation gaps
+	playbookJSON := `[
+  {
+    "id": "pb-gap001",
+    "type": "validation_gap",
+    "title": "Error handling incomplete",
+    "content": "Add error recovery for network failures",
+    "rationale": "Improve robustness",
+    "status": "active",
+    "source_proposal_id": "proposal-1",
+    "source_run_id": "",
+    "source_spec_id": "",
+    "created_at": "2026-03-01T00:00:00Z",
+    "superseded_by": ""
+  },
+  {
+    "id": "pb-gap002",
+    "type": "validation_gap",
+    "title": "Old logging gap",
+    "content": "Previously identified logging issue",
+    "rationale": "Resolved in later iteration",
+    "status": "active",
+    "source_proposal_id": "proposal-2",
+    "source_run_id": "",
+    "source_spec_id": "",
+    "created_at": "2026-03-01T00:00:00Z",
+    "superseded_by": "pb-gap001"
+  }
+]`
+	os.WriteFile(filepath.Join(playbookDir, "entries.json"), []byte(playbookJSON), 0o644)
+
+	ctxProvider := FileTaskContextProvider(func() string { return workDir }, runDir, cellPath)
+
+	inv := &mockInvoker{
+		result: &provider.Result{
+			Success:  true,
+			Model:    "sonnet",
+			Duration: 1 * time.Second,
+		},
+	}
+	runner := NewProviderTaskRunner(inv, func() string { return workDir })
+	runner.SetContextProvider(ctxProvider)
+
+	task := runstore.Task{
+		TaskID:    "t-fix-1",
+		Objective: "fix the error handling",
+		Kind:      "fix",
+	}
+
+	_, err := runner.RunTask(context.Background(), task)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Active gap should be included
+	if !strings.Contains(inv.capturedPrompt, "Error handling incomplete") {
+		t.Error("prompt should contain active validation gap")
+	}
+
+	// Superseded gap should NOT be included
+	if strings.Contains(inv.capturedPrompt, "Old logging gap") {
+		t.Error("prompt should NOT contain superseded validation gap")
+	}
+	if strings.Contains(inv.capturedPrompt, "Previously identified logging issue") {
+		t.Error("prompt should NOT contain superseded gap content")
+	}
+}
+
+func TestRenderContextSections_ValidationGapsOnlyInRepairContext(t *testing.T) {
+	validationGapText := "- **Test gap**: Missing test coverage"
+
+	tests := []struct {
+		name        string
+		includeSpec bool
+		expectGaps  bool
+	}{
+		{
+			name:        "includeSpec=true (repair task)",
+			includeSpec: true,
+			expectGaps:  true,
+		},
+		{
+			name:        "includeSpec=false (regular task)",
+			includeSpec: false,
+			expectGaps:  false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			taskContext := TaskContext{
+				KnownGaps: validationGapText,
+			}
+			var b strings.Builder
+			renderContextSections(&b, taskContext, tc.includeSpec)
+			prompt := b.String()
+
+			if tc.expectGaps {
+				if !strings.Contains(prompt, "### Known Validation Gaps") {
+					t.Error("prompt should contain Known Validation Gaps section when includeSpec=true")
+				}
+				if !strings.Contains(prompt, validationGapText) {
+					t.Error("prompt should contain validation gap text when includeSpec=true")
+				}
+			} else {
+				if strings.Contains(prompt, "### Known Validation Gaps") {
+					t.Error("prompt should not contain Known Validation Gaps section when includeSpec=false")
+				}
+			}
+		})
+	}
+}
+
+func TestFileTaskContextProvider_FiltersSuperseededDoctrineRules(t *testing.T) {
+	workDir := t.TempDir()
+	runDir := t.TempDir()
+	cellPath := t.TempDir()
+	doctrineDir := filepath.Join(cellPath, "doctrine")
+
+	os.MkdirAll(doctrineDir, 0o755)
+
+	// Create doctrine rules with both active and superseded rules
+	doctrineJSON := `{
+  "rules": [
+    {
+      "id": "rule-1",
+      "summary": "Use meaningful variable names",
+      "scope": "*",
+      "source": "declared",
+      "created_at": "2026-03-01T00:00:00Z",
+      "status": "active",
+      "superseded_by": ""
+    },
+    {
+      "id": "rule-2",
+      "summary": "Old naming convention",
+      "scope": "*",
+      "source": "declared",
+      "created_at": "2026-03-01T00:00:00Z",
+      "status": "active",
+      "superseded_by": "rule-1"
+    }
+  ]
+}`
+	os.WriteFile(filepath.Join(doctrineDir, "rules.json"), []byte(doctrineJSON), 0o644)
+
+	provider := FileTaskContextProvider(func() string { return workDir }, runDir, cellPath)
+	tc := provider()
+
+	// Active rule should be included
+	if !strings.Contains(tc.Doctrine, "Use meaningful variable names") {
+		t.Error("prompt should contain active doctrine rule")
+	}
+
+	// Superseded rule should NOT be included
+	if strings.Contains(tc.Doctrine, "Old naming convention") {
+		t.Error("prompt should NOT contain superseded doctrine rule")
+	}
+}
+
+func TestFileTaskContextProvider_TreatsEmptyStatusAsActive(t *testing.T) {
+	workDir := t.TempDir()
+	runDir := t.TempDir()
+	cellPath := t.TempDir()
+	doctrineDir := filepath.Join(cellPath, "doctrine")
+
+	os.MkdirAll(doctrineDir, 0o755)
+
+	// Create doctrine rules with one having empty status (pre-existing rule) and one explicit active
+	doctrineJSON := `{
+  "rules": [
+    {
+      "id": "rule-legacy",
+      "summary": "Pre-existing rule with no status field",
+      "scope": "*",
+      "source": "declared",
+      "created_at": "2026-03-01T00:00:00Z",
+      "status": "",
+      "superseded_by": ""
+    },
+    {
+      "id": "rule-new",
+      "summary": "Explicitly active rule",
+      "scope": "*",
+      "source": "declared",
+      "created_at": "2026-03-02T00:00:00Z",
+      "status": "active",
+      "superseded_by": ""
+    }
+  ]
+}`
+	os.WriteFile(filepath.Join(doctrineDir, "rules.json"), []byte(doctrineJSON), 0o644)
+
+	provider := FileTaskContextProvider(func() string { return workDir }, runDir, cellPath)
+	tc := provider()
+
+	// Empty status rule should be included for backward compatibility
+	if !strings.Contains(tc.Doctrine, "Pre-existing rule with no status field") {
+		t.Error("prompt should contain pre-existing rule with empty status (backward compatibility)")
+	}
+
+	// Explicit active rule should also be included
+	if !strings.Contains(tc.Doctrine, "Explicitly active rule") {
+		t.Error("prompt should contain explicitly active rule")
 	}
 }

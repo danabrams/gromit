@@ -117,11 +117,12 @@ func (f *InferredFact) ComputeID() string {
 
 // EnrichInput holds the context provided to an enrichment pass.
 type EnrichInput struct {
-	ProjectName  string   `json:"project_name"`
-	FileTree     []string `json:"file_tree"`
-	Architecture string   `json:"architecture"` // JSON string of architecture artifact
-	Doctrine     string   `json:"doctrine"`     // JSON string of doctrine artifact
-	SourceMap    string   `json:"source_map"`   // JSON string of sourcemap artifact
-	Validation   string   `json:"validation"`   // JSON string of validation artifact
-	Glossary     string   `json:"glossary"`     // JSON string of glossary artifact
+	ProjectName        string   `json:"project_name"`
+	FileTree           []string `json:"file_tree"`
+	Architecture       string   `json:"architecture"`        // JSON string of architecture artifact
+	Doctrine           string   `json:"doctrine"`            // JSON string of doctrine artifact
+	SourceMap          string   `json:"source_map"`          // JSON string of sourcemap artifact
+	Validation         string   `json:"validation"`          // JSON string of validation artifact
+	Glossary           string   `json:"glossary"`            // JSON string of glossary artifact
+	RefinementGuidance string   `json:"refinement_guidance"` // Pre-rendered playbook.Entry data of type refinement_guidance
 }

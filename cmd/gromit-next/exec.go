@@ -577,6 +577,7 @@ func newExecSpecCmdWithProvider(provider StageProvider) *cobra.Command {
 					StoreDir:       storeDir,
 					SpecPath:       specPath,
 					PolicyPath:     policyPath,
+					ProjectsDir:    filepath.Join(storeDir, "projects"),
 					ClaudeProvider: claudeProv,
 				})
 			}
