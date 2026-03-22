@@ -129,7 +129,7 @@ func TestScenario_DistillerTruncatesExcessProposals(t *testing.T) {
       "evidence_references": []
     },
     {
-      "type": "info",
+      "type": "refinement_guidance",
       "title": "Sixth proposal — should be truncated",
       "what_happened": "This is a sixth observation",
       "what_was_missing": "Irrelevant",
@@ -140,7 +140,7 @@ func TestScenario_DistillerTruncatesExcessProposals(t *testing.T) {
       "evidence_references": []
     },
     {
-      "type": "info",
+      "type": "refinement_guidance",
       "title": "Seventh proposal — should be truncated",
       "what_happened": "This is a seventh observation",
       "what_was_missing": "Irrelevant",

@@ -154,3 +154,39 @@ func TestValidateProposalsNilProposals(t *testing.T) {
 		}
 	}
 }
+
+// TestValidateProposals_InvalidProposalType validates that proposals with invalid types are rejected.
+func TestValidateProposals_InvalidProposalType(t *testing.T) {
+	invalidTypes := []string{
+		"info",
+		"unknown",
+		"",
+		"recommendation",
+		"note",
+		"doctrine",
+		"validation",
+	}
+
+	for _, invalidType := range invalidTypes {
+		proposals := []Proposal{
+			{ID: "p1", Type: invalidType, Title: "Some proposal"},
+		}
+		err := ValidateProposals("accepted", proposals)
+		if err == nil {
+			t.Errorf("ValidateProposals should reject invalid proposal type %q", invalidType)
+		}
+	}
+}
+
+// TestValidateProposals_InvalidProposalTypeMultiple validates that multiple invalid proposal types are rejected.
+func TestValidateProposals_InvalidProposalTypeMultiple(t *testing.T) {
+	proposals := []Proposal{
+		{ID: "p1", Type: "info", Title: "Invalid info"},
+		{ID: "p2", Type: "doctrine_rule", Title: "Valid rule"},
+		{ID: "p3", Type: "unknown", Title: "Invalid unknown"},
+	}
+	err := ValidateProposals("accepted", proposals)
+	if err == nil {
+		t.Error("ValidateProposals should reject when any proposal has an invalid type")
+	}
+}

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -73,22 +74,15 @@ func TestScenario_DistillationUsesConfiguredDefaultTier(t *testing.T) {
 	writeJSON(t, filepath.Join(evidenceDir, "review-outcome.json"), reviewOutcome)
 
 	// === Invoke ===
-	// Load distiller_tier from project.json
-	projectData, err := os.ReadFile(filepath.Join(projectDir, "project.json"))
+	// Load distiller_tier from project.json via loadConfigTier
+	tier, err := loadConfigTier(filepath.Join(projectDir, "project.json"))
 	if err != nil {
-		t.Fatalf("read project.json: %v", err)
+		t.Fatalf("loadConfigTier: %v", err)
 	}
-	var projectConfig map[string]interface{}
-	if err := json.Unmarshal(projectData, &projectConfig); err != nil {
-		t.Fatalf("parse project.json: %v", err)
+	// Verify loadConfigTier read the correct tier from project.json config
+	if tier != reviewdistiller.TierLow {
+		t.Errorf("loadConfigTier should read tier 'low' from project.json, got %q", tier)
 	}
-	tierStr, ok := projectConfig["distiller_tier"].(string)
-	if !ok {
-		t.Fatal("distiller_tier not found or not a string in project.json")
-	}
-
-	// Convert to reviewdistiller.Tier
-	tier := reviewdistiller.Tier(tierStr)
 
 	// Create stub LLM completer
 	completer := &testStubLLMCompleter{}
@@ -252,15 +246,34 @@ func (s *testStubLLMCompleter) Complete(ctx context.Context, prompt string) (str
       "evidence_references": ["review-outcome.json"]
     },
     {
-      "type": "validation_gap",
-      "title": "Add cache consistency tests",
+      "type": "planner_heuristic",
+      "title": "Validate cache layer setup during planning",
       "what_happened": "Caching implementation passed manual review",
-      "what_was_missing": "Automated validation for cache consistency across mutations",
-      "proposed_change": "Add test suite validating cache state matches underlying data",
-      "rationale": "Catches consistency bugs missed by manual testing",
-      "confidence": "medium",
-      "confidence_rationale": "Validation gaps are common in distributed systems",
-      "evidence_references": ["validation.json"]
+      "what_was_missing": "Early validation that cache infrastructure is properly initialized",
+      "proposed_change": "Add a planner heuristic to validate cache setup during task decomposition",
+      "rationale": "Catches infrastructure issues before implementation",
+      "confidence": "high",
+      "confidence_rationale": "Early validation prevents implementation delays",
+      "evidence_references": ["acceptance.json"]
     }
   ]`, nil
+}
+
+// loadConfigTier reads project.json and extracts the distiller_tier field,
+// converting it to a reviewdistiller.Tier. This helper verifies that config
+// is correctly persisted and readable from project.json.
+func loadConfigTier(projectPath string) (reviewdistiller.Tier, error) {
+	projectData, err := os.ReadFile(projectPath)
+	if err != nil {
+		return "", err
+	}
+	var projectConfig map[string]interface{}
+	if err := json.Unmarshal(projectData, &projectConfig); err != nil {
+		return "", err
+	}
+	tierStr, ok := projectConfig["distiller_tier"].(string)
+	if !ok {
+		return "", fmt.Errorf("distiller_tier not found or not a string in project.json")
+	}
+	return reviewdistiller.Tier(tierStr), nil
 }

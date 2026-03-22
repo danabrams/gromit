@@ -7,6 +7,7 @@ import (
 // ValidateProposals validates that proposals conform to outcome-specific requirements.
 // Returns an error if:
 // - The outcome type is not recognized (must be accepted, rework_implementation_gap, or rework_vision_change)
+// - Any proposal has an invalid type (must be one of: doctrine_rule, validation_gap, planner_heuristic, refinement_guidance)
 // - The proposals do not contain the required types for the given outcome
 //
 // Validation rules:
@@ -17,10 +18,19 @@ func ValidateProposals(outcome string, proposals []Proposal) error {
 	// Validate outcome type is recognized
 	switch outcome {
 	case "accepted":
+		if err := validateProposalTypes(proposals); err != nil {
+			return err
+		}
 		return validateAccepted(proposals)
 	case "rework_implementation_gap":
+		if err := validateProposalTypes(proposals); err != nil {
+			return err
+		}
 		return validateReworkImplementationGap(proposals)
 	case "rework_vision_change":
+		if err := validateProposalTypes(proposals); err != nil {
+			return err
+		}
 		return validateReworkVisionChange(proposals)
 	default:
 		return fmt.Errorf("unrecognized outcome type: %q (must be one of: accepted, rework_implementation_gap, rework_vision_change)", outcome)
@@ -55,4 +65,28 @@ func validateReworkVisionChange(proposals []Proposal) error {
 		}
 	}
 	return fmt.Errorf("outcome rework_vision_change requires at least one proposal of type refinement_guidance")
+}
+
+// isValidProposalType checks if a proposal type is one of the allowed values.
+func isValidProposalType(pType string) bool {
+	switch pType {
+	case "doctrine_rule", "validation_gap", "planner_heuristic", "refinement_guidance":
+		return true
+	default:
+		return false
+	}
+}
+
+// validateProposalTypes validates that all proposals have valid types.
+func validateProposalTypes(proposals []Proposal) error {
+	var invalidTypes []string
+	for _, p := range proposals {
+		if !isValidProposalType(p.Type) {
+			invalidTypes = append(invalidTypes, p.Type)
+		}
+	}
+	if len(invalidTypes) > 0 {
+		return fmt.Errorf("invalid proposal type(s): %v (must be one of: doctrine_rule, validation_gap, planner_heuristic, refinement_guidance)", invalidTypes)
+	}
+	return nil
 }

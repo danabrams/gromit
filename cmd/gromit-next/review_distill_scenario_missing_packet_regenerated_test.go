@@ -77,7 +77,7 @@ func TestScenario_MissingReviewPacketIsRegeneratedBeforeDistillation(t *testing.
 
 	// review.json exists (raw evidence from execution)
 	reviewData := map[string]interface{}{
-		"info": []map[string]string{
+		"observations": []map[string]string{
 			{"message": "Clean implementation with good separation of concerns"},
 		},
 	}
