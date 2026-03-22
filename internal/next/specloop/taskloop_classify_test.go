@@ -7,8 +7,10 @@ func TestIsBuildCheck(t *testing.T) {
 		cmd  string
 		want bool
 	}{
+		{"go build", true},
 		{"go build ./...", true},
 		{"go build ./internal/next/planner/...", true},
+		{"go vet", true},
 		{"go vet ./...", true},
 		{"npm run build", true},
 		{"cargo build", true},

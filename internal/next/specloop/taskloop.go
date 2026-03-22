@@ -16,22 +16,24 @@ import (
 // treated as harder evidence than pattern-matching checks (grep, awk, sed).
 func isBuildCheck(cmd string) bool {
 	cmd = strings.TrimSpace(cmd)
-	for _, prefix := range []string{
-		"go build ",
-		"go build\t",
-		"go vet ",
-		"go vet\t",
-		"npm run build",
-		"cargo build",
-		"mvn compile",
-		"make build",
-	} {
-		if strings.HasPrefix(cmd, prefix) {
-			return true
-		}
+	fields := strings.Fields(cmd)
+	if len(fields) == 0 {
+		return false
 	}
-	// Handle bare "go build ./..." and "go vet ./..." (no trailing space needed)
-	return cmd == "go build ./..." || cmd == "go vet ./..."
+	// Match build commands by their base invocation regardless of arguments
+	switch {
+	case fields[0] == "go" && len(fields) >= 2 && (fields[1] == "build" || fields[1] == "vet"):
+		return true
+	case fields[0] == "cargo" && len(fields) >= 2 && fields[1] == "build":
+		return true
+	case fields[0] == "mvn" && len(fields) >= 2 && fields[1] == "compile":
+		return true
+	case fields[0] == "make" && len(fields) >= 2 && fields[1] == "build":
+		return true
+	case len(fields) >= 3 && fields[0] == "npm" && fields[1] == "run" && fields[2] == "build":
+		return true
+	}
+	return false
 }
 
 // TaskRunner executes a single task or repairs it after failure.
