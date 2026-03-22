@@ -12,13 +12,40 @@ func LabelDispositions(current, prior []Finding) []Finding {
 	for i := range result {
 		result[i].Disposition = DispositionNew
 		for _, p := range prior {
+			// Primary match: same file + description match
 			if result[i].File == p.File && descriptionMatches(result[i].Description, p.Description) {
+				result[i].Disposition = DispositionPreExisting
+				break
+			}
+			// Fallback: description-only match (catches same issue across related files,
+			// e.g. when the original file was deleted and a sibling file is flagged)
+			if descriptionMatchesStrong(result[i].Description, p.Description) {
 				result[i].Disposition = DispositionPreExisting
 				break
 			}
 		}
 	}
 	return result
+}
+
+// strongSubstringMatchLen is the minimum description length for description-only
+// (file-agnostic) fallback matching. Longer than minSubstringMatchLen to reduce
+// false positives when matching across different files.
+const strongSubstringMatchLen = 20
+
+// descriptionMatchesStrong returns true if both descriptions meet the strong length
+// threshold and one contains the other as a substring. Used as a fallback when file
+// paths differ (e.g. the original file was deleted and a sibling file is flagged).
+func descriptionMatchesStrong(a, b string) bool {
+	if a == "" || b == "" {
+		return false
+	}
+	if len(a) < strongSubstringMatchLen || len(b) < strongSubstringMatchLen {
+		return false
+	}
+	lowerA := strings.ToLower(a)
+	lowerB := strings.ToLower(b)
+	return strings.Contains(lowerA, lowerB) || strings.Contains(lowerB, lowerA)
 }
 
 // minSubstringMatchLen is the minimum description length for substring matching.

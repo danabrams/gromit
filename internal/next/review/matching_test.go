@@ -33,17 +33,33 @@ func TestMatchFindings_SubstringMatch(t *testing.T) {
 	}
 }
 
-func TestMatchFindings_DifferentFile_IsNew(t *testing.T) {
+func TestMatchFindings_DifferentFile_DifferentDescription_IsNew(t *testing.T) {
 	prior := []Finding{
 		{File: "handler.go", Description: "nil pointer if commands list is empty"},
 	}
 	current := []Finding{
-		{File: "router.go", Description: "nil pointer if commands list is empty"},
+		{File: "router.go", Description: "missing authorization check on admin endpoint"},
 	}
 
 	labeled := LabelDispositions(current, prior)
 	if labeled[0].Disposition != DispositionNew {
-		t.Errorf("different file should be new, got %q", labeled[0].Disposition)
+		t.Errorf("different file and different description should be new, got %q", labeled[0].Disposition)
+	}
+}
+
+func TestMatchFindings_DifferentFile_SameDescription_IsPreExisting(t *testing.T) {
+	// When the original file is deleted and the same issue appears on a sibling file,
+	// the description-only fallback should suppress the spurious "new" label.
+	prior := []Finding{
+		{File: "test_helpers.go", Description: "nil pointer if commands list is empty"},
+	}
+	current := []Finding{
+		{File: "test_helpers_test.go", Description: "nil pointer if commands list is empty"},
+	}
+
+	labeled := LabelDispositions(current, prior)
+	if labeled[0].Disposition != DispositionPreExisting {
+		t.Errorf("same description across related files should be pre-existing, got %q", labeled[0].Disposition)
 	}
 }
 
