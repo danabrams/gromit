@@ -36,6 +36,43 @@ func isBuildCheck(cmd string) bool {
 	return false
 }
 
+// annotateSuspectProofChecks annotates failure messages with [suspect-proof-check]
+// when the task has at least one build check that is NOT failing, but all failing
+// checks are pattern-matching (grep, awk, etc.). This signals to the fix planner
+// that the implementation may be correct and proof checks may need to be rewritten
+// to be more behavioral rather than re-implementing already-correct code.
+func annotateSuspectProofChecks(proofChecks []string, failures []string) []string {
+	if len(proofChecks) == 0 || len(failures) == 0 {
+		return failures
+	}
+	// Check if any build check appears in any failure message
+	for _, f := range failures {
+		for _, pc := range proofChecks {
+			if isBuildCheck(pc) && strings.Contains(f, pc) {
+				return failures
+			}
+		}
+	}
+	// Check that at least one build check exists in the task's proof checks
+	hasBuildCheck := false
+	for _, pc := range proofChecks {
+		if isBuildCheck(pc) {
+			hasBuildCheck = true
+			break
+		}
+	}
+	if !hasBuildCheck {
+		return failures
+	}
+	// Build checks all pass, only pattern-matching checks are failing
+	const prefix = "[suspect-proof-check] All build checks pass but pattern-matching checks failed. The implementation may be correct; proof checks may be testing source structure rather than behavior. "
+	annotated := make([]string, len(failures))
+	for i, f := range failures {
+		annotated[i] = prefix + f
+	}
+	return annotated
+}
+
 // TaskRunner executes a single task or repairs it after failure.
 type TaskRunner interface {
 	RunTask(ctx context.Context, task runstore.Task) (TaskResult, error)
@@ -331,8 +368,11 @@ func RunTaskLoop(ctx context.Context, tasks []runstore.Task, runner TaskRunner, 
 						break
 					}
 				}
-				// If inspection still fails after all retries, mark as failed
+				// If inspection still fails after all retries, mark as failed.
+				// Annotate failures with [suspect-proof-check] if only pattern-matching
+				// checks are failing while build checks all pass.
 				if !ir.Pass {
+					ir.Failures = annotateSuspectProofChecks(entry.task.ProofChecks, ir.Failures)
 					result.Status = "failed"
 				}
 			}

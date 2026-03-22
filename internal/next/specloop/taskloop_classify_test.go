@@ -1,6 +1,9 @@
 package specloop
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestIsBuildCheck(t *testing.T) {
 	cases := []struct {
@@ -27,5 +30,67 @@ func TestIsBuildCheck(t *testing.T) {
 		if got != c.want {
 			t.Errorf("isBuildCheck(%q) = %v, want %v", c.cmd, got, c.want)
 		}
+	}
+}
+
+func TestAnnotateSuspectProofChecks_AllBuildPass(t *testing.T) {
+	proofChecks := []string{
+		"go build ./...",
+		"grep -q '--title' cmd/gromit-next/review_proposals.go",
+		"grep -q '--change' cmd/gromit-next/review_proposals.go",
+	}
+	failures := []string{
+		"grep -q '--title' cmd/gromit-next/review_proposals.go: exit status 1",
+		"grep -q '--change' cmd/gromit-next/review_proposals.go: exit status 1",
+	}
+	result := annotateSuspectProofChecks(proofChecks, failures)
+	if len(result) != len(failures) {
+		t.Fatalf("expected %d failures, got %d", len(failures), len(result))
+	}
+	for _, f := range result {
+		if !strings.HasPrefix(f, "[suspect-proof-check]") {
+			t.Errorf("expected suspect prefix on %q", f)
+		}
+	}
+}
+
+func TestAnnotateSuspectProofChecks_BuildFailing(t *testing.T) {
+	proofChecks := []string{
+		"go build ./...",
+		"grep -q 'func Foo' internal/foo.go",
+	}
+	failures := []string{
+		"go build ./...: exit status 1: undefined: Bar",
+		"grep -q 'func Foo' internal/foo.go: exit status 1",
+	}
+	result := annotateSuspectProofChecks(proofChecks, failures)
+	for _, f := range result {
+		if strings.HasPrefix(f, "[suspect-proof-check]") {
+			t.Errorf("should NOT have suspect prefix when build is also failing: %q", f)
+		}
+	}
+}
+
+func TestAnnotateSuspectProofChecks_NoBuildCheck(t *testing.T) {
+	proofChecks := []string{
+		"grep -q 'func Foo' internal/foo.go",
+	}
+	failures := []string{
+		"grep -q 'func Foo' internal/foo.go: exit status 1",
+	}
+	result := annotateSuspectProofChecks(proofChecks, failures)
+	for _, f := range result {
+		if strings.HasPrefix(f, "[suspect-proof-check]") {
+			t.Errorf("should NOT annotate when no build check exists: %q", f)
+		}
+	}
+}
+
+func TestAnnotateSuspectProofChecks_EmptyInputs(t *testing.T) {
+	if got := annotateSuspectProofChecks(nil, []string{"fail"}); strings.HasPrefix(got[0], "[suspect-proof-check]") {
+		t.Error("nil proofChecks should not annotate")
+	}
+	if got := annotateSuspectProofChecks([]string{"go build ./..."}, nil); got != nil {
+		t.Error("nil failures should return nil")
 	}
 }
