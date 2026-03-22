@@ -355,3 +355,19 @@ func TestWriteScenarioTest_RelativePath_Unchanged(t *testing.T) {
 		t.Errorf("got %q, want %q", got, relPath)
 	}
 }
+
+func TestWriteScenarioTest_RelativeTraversalPath_ReturnsError(t *testing.T) {
+	workDir := t.TempDir()
+	traversalPath := "../../etc/passwd"
+
+	invoker := &stubInvoker{output: fmt.Sprintf(
+		"===TEST_FILE_PATH===\n%s\n===TEST_FILE_CONTENT===\npackage foo\n===END_TEST_FILE===\n",
+		traversalPath,
+	)}
+	w := NewLLMScenarioTestWriter(invoker, "")
+
+	_, err := w.WriteScenarioTest(context.Background(), SpecScenario{Name: "bar"}, nil, workDir, "")
+	if err == nil {
+		t.Fatal("expected error for path traversal, got nil")
+	}
+}

@@ -196,20 +196,24 @@ func parseScenarioTestResponse(response string) (string, string, error) {
 }
 
 // sanitizeTestFilePath ensures testFilePath is a relative path within workDir.
-// If testFilePath is already relative it is returned unchanged.
 // If testFilePath is absolute and has workDir as a prefix, the prefix is stripped
 // and the resulting relative path is returned.
 // If testFilePath is absolute but outside workDir, an error is returned.
+// If testFilePath is relative, it is validated to not escape workDir via traversal
+// (e.g. ../../etc/passwd); if it does, an error is returned.
 func sanitizeTestFilePath(testFilePath, workDir string) (string, error) {
-	if !filepath.IsAbs(testFilePath) {
-		return testFilePath, nil
+	if filepath.IsAbs(testFilePath) {
+		rel, err := filepath.Rel(workDir, testFilePath)
+		if err != nil || strings.HasPrefix(rel, "..") {
+			return "", fmt.Errorf("absolute test file path %q is outside workDir %q", testFilePath, workDir)
+		}
+		return rel, nil
 	}
-	rel, err := filepath.Rel(workDir, testFilePath)
-	if err != nil {
-		return "", fmt.Errorf("absolute test file path %q is outside workDir %q: %w", testFilePath, workDir, err)
-	}
-	if strings.HasPrefix(rel, "..") {
-		return "", fmt.Errorf("absolute test file path %q is outside workDir %q", testFilePath, workDir)
+	// Validate that joining does not escape workDir.
+	joined := filepath.Join(workDir, testFilePath)
+	rel, err := filepath.Rel(workDir, joined)
+	if err != nil || strings.HasPrefix(rel, "..") {
+		return "", fmt.Errorf("relative test file path %q escapes workDir", testFilePath)
 	}
 	return rel, nil
 }
