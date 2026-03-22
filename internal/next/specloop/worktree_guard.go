@@ -3,7 +3,9 @@ package specloop
 import (
 	"context"
 	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -70,6 +72,11 @@ func (g *WorktreeGuard) Run(ctx context.Context, rs *runstore.RunState) (NextAct
 	newFiles := diffSets(beforeSet, afterSet)
 	if len(newFiles) > 0 {
 		sort.Strings(newFiles)
+		if rs.WorktreePath != "" {
+			if err := moveFilesToWorktree(g.RepoDir, rs.WorktreePath, newFiles); err == nil {
+				return action, runErr
+			}
+		}
 		msg := fmt.Sprintf("worktree guard: stage %q modified main repo files: %v", g.Inner.Name(), newFiles)
 		return NextAction{
 			Kind: Blocked,
@@ -107,4 +114,27 @@ func diffSets(before, after map[string]struct{}) []string {
 		}
 	}
 	return diff
+}
+
+// moveFilesToWorktree moves each file from repoDir to the equivalent path in
+// worktreeDir, preserving directory structure. Returns an error if any move fails.
+func moveFilesToWorktree(repoDir, worktreeDir string, files []string) error {
+	for _, f := range files {
+		src := filepath.Join(repoDir, f)
+		dst := filepath.Join(worktreeDir, f)
+		data, err := os.ReadFile(src)
+		if err != nil {
+			return fmt.Errorf("read stray file %s: %w", src, err)
+		}
+		if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+			return fmt.Errorf("mkdir for %s: %w", dst, err)
+		}
+		if err := os.WriteFile(dst, data, 0o644); err != nil {
+			return fmt.Errorf("write to worktree %s: %w", dst, err)
+		}
+		if err := os.Remove(src); err != nil {
+			return fmt.Errorf("remove stray file %s: %w", src, err)
+		}
+	}
+	return nil
 }

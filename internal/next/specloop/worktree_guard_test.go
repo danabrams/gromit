@@ -3,6 +3,8 @@ package specloop
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/next/runstore"
@@ -227,6 +229,131 @@ func TestWorktreeGuard_ViolationTakesPrecedenceOverInnerResult(t *testing.T) {
 	}
 	if action.Kind != Blocked {
 		t.Fatalf("want Blocked (violation), got %v", action.Kind)
+	}
+}
+
+func TestWorktreeGuard_StrayFiles_MovedToWorktreeAndContinues(t *testing.T) {
+	repoDir := t.TempDir()
+	worktreeDir := t.TempDir()
+	strayRel := "internal/pkg/foo_test.go"
+	strayContent := []byte("package pkg")
+
+	// Write stray file to main repo before the stage runs (simulating the stage's side effect).
+	strayPath := filepath.Join(repoDir, strayRel)
+	if err := os.MkdirAll(filepath.Dir(strayPath), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(strayPath, strayContent, 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	inner := &fakeStage{name: "write_scenario_tests", action: NextAction{Kind: Continue}}
+
+	callCount := 0
+	guard := &WorktreeGuard{
+		Inner:   inner,
+		RepoDir: repoDir,
+		GitStatus: func(dir string) (string, error) {
+			callCount++
+			if callCount == 1 {
+				return "", nil // clean before
+			}
+			return "?? " + strayRel + "\n", nil // stray file after
+		},
+	}
+
+	rs := &runstore.RunState{WorktreePath: worktreeDir}
+	action, err := guard.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if action.Kind != Continue {
+		t.Errorf("expected Continue, got %v", action.Kind)
+	}
+	// Stray file gone from main repo.
+	if _, err := os.Stat(filepath.Join(repoDir, strayRel)); !os.IsNotExist(err) {
+		t.Error("stray file should be removed from main repo")
+	}
+	// File exists in worktree.
+	data, err := os.ReadFile(filepath.Join(worktreeDir, strayRel))
+	if err != nil {
+		t.Fatalf("file not moved to worktree: %v", err)
+	}
+	if string(data) != string(strayContent) {
+		t.Errorf("content mismatch: got %q, want %q", data, strayContent)
+	}
+}
+
+func TestWorktreeGuard_StrayFiles_MoveFailsBlocksFallback(t *testing.T) {
+	repoDir := t.TempDir()
+	worktreeDir := t.TempDir()
+	strayRel := "internal/pkg/foo_test.go"
+
+	// Write stray file.
+	strayPath := filepath.Join(repoDir, strayRel)
+	os.MkdirAll(filepath.Dir(strayPath), 0755)
+	os.WriteFile(strayPath, []byte("package pkg"), 0644)
+
+	// Make worktreeDir unwritable so move fails.
+	os.Chmod(worktreeDir, 0555)
+	defer os.Chmod(worktreeDir, 0755)
+
+	inner := &fakeStage{name: "write_scenario_tests", action: NextAction{Kind: Continue}}
+
+	callCount := 0
+	guard := &WorktreeGuard{
+		Inner:   inner,
+		RepoDir: repoDir,
+		GitStatus: func(dir string) (string, error) {
+			callCount++
+			if callCount == 1 {
+				return "", nil
+			}
+			return "?? " + strayRel + "\n", nil
+		},
+	}
+
+	rs := &runstore.RunState{WorktreePath: worktreeDir}
+	action, err := guard.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if action.Kind != Blocked {
+		t.Errorf("expected Blocked on move failure, got %v", action.Kind)
+	}
+}
+
+func TestWorktreeGuard_StrayFiles_InnerReplanPreservedOnSuccessfulMove(t *testing.T) {
+	repoDir := t.TempDir()
+	worktreeDir := t.TempDir()
+	strayRel := "pkg/bar_test.go"
+
+	strayPath := filepath.Join(repoDir, strayRel)
+	os.MkdirAll(filepath.Dir(strayPath), 0755)
+	os.WriteFile(strayPath, []byte("package pkg"), 0644)
+
+	inner := &fakeStage{name: "execute", action: NextAction{Kind: ReplanFrom}}
+
+	callCount := 0
+	guard := &WorktreeGuard{
+		Inner:   inner,
+		RepoDir: repoDir,
+		GitStatus: func(dir string) (string, error) {
+			callCount++
+			if callCount == 1 {
+				return "", nil
+			}
+			return "?? " + strayRel + "\n", nil
+		},
+	}
+
+	rs := &runstore.RunState{WorktreePath: worktreeDir}
+	action, err := guard.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if action.Kind != ReplanFrom {
+		t.Errorf("expected ReplanFrom preserved, got %v", action.Kind)
 	}
 }
 
