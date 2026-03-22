@@ -50,13 +50,13 @@ Four changes, deployed as a unit:
 
 ### `isBuildCheck(cmd string) bool` (`taskloop.go`)
 
-Classifies a proof check command as a build/compile check by matching by leading token prefix regardless of trailing arguments — e.g. `go build`, `go build ./...`, and `go build -v ./...` all match. Three leading tokens are required for `npm run build`. Known invocations:
+Classifies a proof check command as a build/compile check by matching leading tokens regardless of trailing arguments — e.g. `go build`, `go build ./...`, and `go build -v ./...` all match. Two leading tokens are required for most invocations; three are required for `npm run build` (to distinguish it from other `npm run <script>` invocations). Known invocations:
 
-- `go build`, `go vet`
-- `npm run build`
-- `cargo build`
-- `mvn compile`
-- `make build`
+- `go build`, `go vet` (two tokens)
+- `cargo build` (two tokens)
+- `mvn compile` (two tokens)
+- `make build` (two tokens)
+- `npm run build` (three tokens)
 
 Returns false for test runners, grep, awk, sed, and runtime binary invocations.
 
@@ -67,17 +67,20 @@ Called after all inspection retries are exhausted. Algorithm:
 The `failures` parameter contains inspection failure messages, typically formatted as `<proof-check-command>: <error output>` (e.g. `"go build ./...: exit status 1"`). Step 2 relies on this format for its substring check.
 
 1. If `proofChecks` is empty or `failures` is empty → return failures unchanged
-2. If any proof check that `isBuildCheck` classifies as a build check has its command string appear as a substring of any failure message → return failures unchanged (a build check is failing; not a suspect-proof-check situation)
+2. If any proof check that `isBuildCheck` classifies as a build check has its command string appear as a substring of any failure message (`strings.Contains(failureMsg, proofCheckCmd)`) → return failures unchanged (a build check is failing; not a suspect-proof-check situation). In the standard `<cmd>: <error output>` failure format, the proof-check command string is a prefix of the failure message, so this check reliably identifies build failures.
 3. If no build check exists in `proofChecks` → return failures unchanged (without build evidence, the passing-build inference cannot be drawn). Note: reaching this step means no build check command string appeared in any failure message — but step 3 still guards against the case where `proofChecks` contains *no* build check at all (e.g. only grep commands). If at least one build check exists and none appeared in failures, the algorithm proceeds to annotation (step 4).
 4. Otherwise: prefix every failure with `[suspect-proof-check] All build checks pass but pattern-matching checks failed. The implementation may be correct; proof checks may be testing source structure rather than behavior. `
 
 ### `TaskResult.Failures []string` (`taskloop.go`)
 
-New field on `TaskResult`, populated immediately after `annotateSuspectProofChecks` — only when inspection fails after all retries. If the task fails at the runner level (execution error before inspection), `Failures` remains empty, and the `execute` stage falls back to `"all tasks failed"` in `FailureContext`. `NormalizeNilFields` maps nil to `[]string{}` for JSON consistency.
+New field on `TaskResult`, populated immediately after `annotateSuspectProofChecks` — only when inspection fails after all retries. In all other failure paths, `Failures` remains empty:
+- If the task fails at the runner level (execution error before inspection), `Failures` is never set.
+- If a task transitions from `needs_split` to `failed` (decomposition not possible or failed), `Failures` is never set.
+In both cases the `execute` stage falls back to `"all tasks failed"` in `FailureContext`. `NormalizeNilFields` maps nil to `[]string{}` for JSON consistency.
 
 ### Failure collection in execute stage (`execute.go`)
 
-When every result in the task loop has `Status == "failed"`, the execute stage collects `r.Failures` from each `TaskResult` into a single slice. If no per-task failures exist (empty or nil across all results), falls back to `["all tasks failed"]`. The collected slice populates `FailureContext.Failures`, making annotated strings visible to the fix planner. The allFailed path fires only when `len(results) > 0`; if no tasks ran, the stage returns Continue without triggering a replan.
+When every result in the task loop has `Status == "failed"`, the execute stage collects `r.Failures` from each `TaskResult` into a single slice. If no per-task failures exist (empty or nil across all results), falls back to `["all tasks failed"]`. The collected slice populates `FailureContext.Failures`, making annotated strings visible to the fix planner. The allFailed path fires only when `len(results) > 0`; if no tasks ran, the stage returns Continue without triggering a replan. Tasks with `Status == "blocked"` (budget exceeded) are not counted as failed — if all tasks are blocked, `allFailed` is false and the stage returns Continue rather than triggering a replan.
 
 ### Fix-planner instruction (`planner.go`)
 
@@ -93,7 +96,7 @@ In `buildFixPlanPrompt`'s `## Instructions` block, a new bullet:
 
 3. `isBuildCheck("go build ./...")` returns true; `isBuildCheck("cargo build --release")` returns true; `isBuildCheck("go test ./...")` returns false; `isBuildCheck("grep -q 'func Foo' foo.go")` returns false.
 
-4. When a task has `ProofChecks: ["go build ./...", "grep -q '--title' cmd/foo.go"]` and only the grep check fails (build passes), all failure messages are prefixed with `[suspect-proof-check]`.
+4. When a task has `ProofChecks: ["go build ./...", "grep -q '--title' cmd/foo.go"]` and only the grep check fails (i.e. `"go build ./..."` does not appear as a substring in any failure message), all failure messages are prefixed with `[suspect-proof-check]`.
 
 5. When a task has `ProofChecks: ["go build ./...", "grep -q '--title' cmd/foo.go"]` and a failure message contains `go build ./...` as a substring (meaning the build check is also failing, e.g. `"go build ./...: exit status 1"`), no annotation is added.
 
@@ -125,7 +128,7 @@ In `buildFixPlanPrompt`'s `## Instructions` block, a new bullet:
 **Given:** a task has `ProofChecks: ["go build ./...", "grep -q '--title' cmd/foo.go"]`
 **And:** both `go build ./...` and the grep check appear in failures
 **When:** the task loop exhausts retries
-**Then:** `TaskResult.Failures` contains the failure messages without `[suspect-proof-check]` prefix
+**Then:** `TaskResult.Failures` contains both the `go build ./...` failure message and the grep failure message, neither annotated with `[suspect-proof-check]`
 **And:** no `[suspect-proof-check]` annotation appears in `FailureContext.Failures`
 
 ### Scenario: No build check in task — no annotation
