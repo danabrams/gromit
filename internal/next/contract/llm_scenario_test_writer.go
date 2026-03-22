@@ -62,6 +62,11 @@ func (w *LLMScenarioTestWriter) WriteScenarioTest(ctx context.Context, scenario 
 		return "", fmt.Errorf("parse scenario test response: %w", err)
 	}
 
+	testFilePath, err = sanitizeTestFilePath(testFilePath, workDir)
+	if err != nil {
+		return "", fmt.Errorf("test file path rejected: %w", err)
+	}
+
 	// Write the test file to workDir.
 	absTestPath := filepath.Join(workDir, testFilePath)
 	if err := os.MkdirAll(filepath.Dir(absTestPath), 0o755); err != nil {
@@ -188,6 +193,25 @@ func parseScenarioTestResponse(response string) (string, string, error) {
 	}
 
 	return testFilePath, testContent, nil
+}
+
+// sanitizeTestFilePath ensures testFilePath is a relative path within workDir.
+// If testFilePath is already relative it is returned unchanged.
+// If testFilePath is absolute and has workDir as a prefix, the prefix is stripped
+// and the resulting relative path is returned.
+// If testFilePath is absolute but outside workDir, an error is returned.
+func sanitizeTestFilePath(testFilePath, workDir string) (string, error) {
+	if !filepath.IsAbs(testFilePath) {
+		return testFilePath, nil
+	}
+	rel, err := filepath.Rel(workDir, testFilePath)
+	if err != nil {
+		return "", fmt.Errorf("absolute test file path %q is outside workDir %q: %w", testFilePath, workDir, err)
+	}
+	if strings.HasPrefix(rel, "..") {
+		return "", fmt.Errorf("absolute test file path %q is outside workDir %q", testFilePath, workDir)
+	}
+	return rel, nil
 }
 
 // parseFenceResponse attempts to extract a test file path and content from a markdown

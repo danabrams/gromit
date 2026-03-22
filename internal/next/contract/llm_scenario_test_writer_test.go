@@ -2,6 +2,7 @@ package contract
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -291,5 +292,66 @@ func TestParseScenarioTestResponse_NoFenceNoMarkers(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "===TEST_FILE_PATH===") {
 		t.Errorf("expected original strict-parse error, got: %v", err)
+	}
+}
+
+func TestWriteScenarioTest_AbsolutePathMatchingWorkDir_StripsPrefix(t *testing.T) {
+	workDir := t.TempDir()
+	relPath := "internal/foo/foo_scenario_bar_test.go"
+	absPath := filepath.Join(workDir, relPath)
+
+	invoker := &stubInvoker{output: fmt.Sprintf(
+		"===TEST_FILE_PATH===\n%s\n===TEST_FILE_CONTENT===\npackage foo\n===END_TEST_FILE===\n",
+		absPath,
+	)}
+	w := NewLLMScenarioTestWriter(invoker, "")
+
+	got, err := w.WriteScenarioTest(context.Background(), SpecScenario{Name: "bar"}, nil, workDir, "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if filepath.IsAbs(got) {
+		t.Errorf("returned path should be relative, got %q", got)
+	}
+	if got != relPath {
+		t.Errorf("got %q, want %q", got, relPath)
+	}
+	if _, err := os.Stat(filepath.Join(workDir, relPath)); err != nil {
+		t.Errorf("file not written at expected path: %v", err)
+	}
+}
+
+func TestWriteScenarioTest_AbsolutePathOutsideWorkDir_ReturnsError(t *testing.T) {
+	workDir := t.TempDir()
+	outsidePath := "/etc/passwd"
+
+	invoker := &stubInvoker{output: fmt.Sprintf(
+		"===TEST_FILE_PATH===\n%s\n===TEST_FILE_CONTENT===\npackage foo\n===END_TEST_FILE===\n",
+		outsidePath,
+	)}
+	w := NewLLMScenarioTestWriter(invoker, "")
+
+	_, err := w.WriteScenarioTest(context.Background(), SpecScenario{Name: "bar"}, nil, workDir, "")
+	if err == nil {
+		t.Fatal("expected error for absolute path outside workDir, got nil")
+	}
+}
+
+func TestWriteScenarioTest_RelativePath_Unchanged(t *testing.T) {
+	workDir := t.TempDir()
+	relPath := "internal/foo/foo_scenario_bar_test.go"
+
+	invoker := &stubInvoker{output: fmt.Sprintf(
+		"===TEST_FILE_PATH===\n%s\n===TEST_FILE_CONTENT===\npackage foo\n===END_TEST_FILE===\n",
+		relPath,
+	)}
+	w := NewLLMScenarioTestWriter(invoker, "")
+
+	got, err := w.WriteScenarioTest(context.Background(), SpecScenario{Name: "bar"}, nil, workDir, "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got != relPath {
+		t.Errorf("got %q, want %q", got, relPath)
 	}
 }
