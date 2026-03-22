@@ -73,10 +73,19 @@ func (s *PlanStage) Name() string { return "plan" }
 
 // Run executes the plan stage.
 func (s *PlanStage) Run(ctx context.Context, rs *runstore.RunState) (specloop.NextAction, error) {
-	isFixCycle := rs.Cycle > 1 && len(rs.ReplanContext) > 0
-	if rs.Resumed && len(rs.Tasks) > 0 && !isFixCycle {
-		// Resumed run with existing tasks: skip planning on the first cycle so
-		// execution continues from where it left off without overwriting tasks.
+	hasPendingTasks := false
+	for _, t := range rs.Tasks {
+		if t.Status == "pending" {
+			hasPendingTasks = true
+			break
+		}
+	}
+
+	isFixCycle := (rs.Cycle > 1 && len(rs.ReplanContext) > 0) ||
+		(rs.Resumed && len(rs.ReplanContext) > 0 && !hasPendingTasks)
+	if rs.Resumed && len(rs.Tasks) > 0 && !isFixCycle && hasPendingTasks {
+		// Resumed run with existing pending tasks: skip planning so execution
+		// continues from where it left off without overwriting tasks.
 		return specloop.NextAction{Kind: specloop.Continue}, nil
 	}
 

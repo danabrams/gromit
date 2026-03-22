@@ -604,7 +604,7 @@ func newExecSpecCmdWithProvider(provider StageProvider) *cobra.Command {
 	cmd.Flags().Bool("dry-run", false, "Compile plan but do not execute")
 	cmd.Flags().String("resume", "", "Resume a previous run by run ID")
 	cmd.Flag("resume").NoOptDefVal = "__pick__"
-	cmd.Flags().Int("cycles", 3, "Number of cycles to run (useful with --resume)")
+	cmd.Flags().Int("cycles", 0, "Number of cycles to run (useful with --resume)")
 	cmd.Flags().String("store-dir", "", "Override store directory (for testing)")
 	cmd.Flags().String("specs-dir", "", "Override specs directory (for testing)")
 	_ = cmd.MarkFlagRequired("project")
