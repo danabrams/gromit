@@ -11,6 +11,29 @@ import (
 	"github.com/danabrams/gromit/internal/next/runstore"
 )
 
+// isBuildCheck returns true if cmd is a build or compilation check (go build,
+// go vet, npm run build, cargo build, mvn compile, make build). These are
+// treated as harder evidence than pattern-matching checks (grep, awk, sed).
+func isBuildCheck(cmd string) bool {
+	cmd = strings.TrimSpace(cmd)
+	for _, prefix := range []string{
+		"go build ",
+		"go build\t",
+		"go vet ",
+		"go vet\t",
+		"npm run build",
+		"cargo build",
+		"mvn compile",
+		"make build",
+	} {
+		if strings.HasPrefix(cmd, prefix) {
+			return true
+		}
+	}
+	// Handle bare "go build ./..." and "go vet ./..." (no trailing space needed)
+	return cmd == "go build ./..." || cmd == "go vet ./..."
+}
+
 // TaskRunner executes a single task or repairs it after failure.
 type TaskRunner interface {
 	RunTask(ctx context.Context, task runstore.Task) (TaskResult, error)
