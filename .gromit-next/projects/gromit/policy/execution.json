@@ -1,0 +1,14 @@
+{
+  "auto_fix": [
+    {"name": "gofmt", "command": "gofmt -w .", "type": "format"}
+  ],
+  "budgets": {
+    "max_run_duration_seconds": 18000
+  },
+  "routing": {
+    "ratio": {"codex": 80, "claude": 20}
+  },
+  "models": {
+    "planner": "medium"
+  }
+}
