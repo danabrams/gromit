@@ -3,7 +3,8 @@
     {"name": "gofmt", "command": "gofmt -w .", "type": "format"}
   ],
   "budgets": {
-    "max_run_duration_seconds": 18000
+    "max_run_duration_seconds": 21600,
+    "max_spec_cycles": 30
   },
   "routing": {
     "ratio": {"codex": 80, "claude": 20}
