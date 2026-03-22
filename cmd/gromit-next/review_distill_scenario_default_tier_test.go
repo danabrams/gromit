@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -257,23 +256,4 @@ func (s *testStubLLMCompleter) Complete(ctx context.Context, prompt string) (str
       "evidence_references": ["acceptance.json"]
     }
   ]`, nil
-}
-
-// loadConfigTier reads project.json and extracts the distiller_tier field,
-// converting it to a reviewdistiller.Tier. This helper verifies that config
-// is correctly persisted and readable from project.json.
-func loadConfigTier(projectPath string) (reviewdistiller.Tier, error) {
-	projectData, err := os.ReadFile(projectPath)
-	if err != nil {
-		return "", err
-	}
-	var projectConfig map[string]interface{}
-	if err := json.Unmarshal(projectData, &projectConfig); err != nil {
-		return "", err
-	}
-	tierStr, ok := projectConfig["distiller_tier"].(string)
-	if !ok {
-		return "", fmt.Errorf("distiller_tier not found or not a string in project.json")
-	}
-	return reviewdistiller.Tier(tierStr), nil
 }

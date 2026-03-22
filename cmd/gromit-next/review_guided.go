@@ -77,6 +77,13 @@ func reviewGuided(runID string, storeDir string, input io.Reader, out io.Writer)
 		return fmt.Errorf("load packet outputs: %w", err)
 	}
 
+	// Load project config to get configured distiller tier
+	cfg, err := LoadProjectConfig(storeDir)
+	if err != nil {
+		return fmt.Errorf("load project config: %w", err)
+	}
+	distillerTier := reviewdistiller.Tier(cfg.DistillerTier)
+
 	// Render and display product review
 	rendered := reviewpacket.RenderProductReview(outputs.ProductReview)
 	fmt.Fprintln(out, rendered)
@@ -214,10 +221,10 @@ func reviewGuided(runID string, storeDir string, input io.Reader, out io.Writer)
 		prov := provider.NewClaudeProvider(client, provider.DefaultTierToModelMap)
 		adapter := llmadapter.New(prov, llmadapter.Config{
 			Phase: "review",
-			Tier:  provider.TierMedium,
+			Tier:  string(distillerTier),
 		})
 		completer := NewInvokerAdapter(adapter)
-		if err := attemptDistillation(runID, storeDir, reviewdistiller.TierMedium, completer); err != nil {
+		if err := attemptDistillation(runID, storeDir, distillerTier, completer); err != nil {
 			log.Printf("distillation failed (non-blocking): %v", err)
 		}
 	}

@@ -192,6 +192,14 @@ func reviewRecord(runID string, storeDir string, outcome string, summary string,
 		return fmt.Errorf("write review-outcome.json: %w", err)
 	}
 
+	// Load project config to get configured distiller tier
+	cfg, err := LoadProjectConfig(storeDir)
+	if err != nil {
+		log.Printf("distillation skipped: failed to load project config: %v", err)
+		return nil
+	}
+	distillerTier := reviewdistiller.Tier(cfg.DistillerTier)
+
 	// Attempt automatic distillation (non-blocking on error)
 	const defaultClaudeBinary = "claude"
 	defaultPolicy := execpolicy.DefaultPolicy()
@@ -202,10 +210,10 @@ func reviewRecord(runID string, storeDir string, outcome string, summary string,
 		prov := provider.NewClaudeProvider(client, provider.DefaultTierToModelMap)
 		adapter := llmadapter.New(prov, llmadapter.Config{
 			Phase: "review",
-			Tier:  provider.TierMedium,
+			Tier:  string(distillerTier),
 		})
 		completer := NewInvokerAdapter(adapter)
-		if err := attemptDistillation(runID, storeDir, reviewdistiller.TierMedium, completer); err != nil {
+		if err := attemptDistillation(runID, storeDir, distillerTier, completer); err != nil {
 			log.Printf("distillation failed (non-blocking): %v", err)
 		}
 	}

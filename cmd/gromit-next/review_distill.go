@@ -52,9 +52,20 @@ If no run-id is given, the latest run is distilled (by modification time of .gro
 				runID = id
 			}
 
-			// Determine tier (CLI override takes precedence)
-			tier := reviewdistiller.TierMedium
-			if tierStr != "" {
+			// Determine tier (CLI override takes precedence over config)
+			var tier reviewdistiller.Tier
+			if tierStr == "" {
+				// No --tier flag, load from project config
+				cfg, err := LoadProjectConfig(storeDir)
+				if err != nil {
+					// Config not found or invalid; default to medium
+					tier = reviewdistiller.TierMedium
+				} else {
+					// Use configured tier (already defaulted to "medium" by LoadProjectConfig if unset)
+					tier = reviewdistiller.Tier(cfg.DistillerTier)
+				}
+			} else {
+				// --tier flag provided, use it
 				tier = reviewdistiller.Tier(tierStr)
 				if tier != reviewdistiller.TierLow && tier != reviewdistiller.TierMedium && tier != reviewdistiller.TierHigh {
 					return fmt.Errorf("invalid tier: %q (must be low, medium, or high)", tierStr)

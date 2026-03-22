@@ -30,6 +30,10 @@ func isValidOutcome(outcome string) bool {
 // 7. Run outcome-specific validation
 // 8. Assemble and return the DistillationResult
 func Distill(inputs *DistillerInputs, llm LLMCompleter, tier Tier) (*DistillationResult, error) {
+	if inputs == nil {
+		return nil, fmt.Errorf("inputs cannot be nil")
+	}
+
 	// Step 1: Validate outcome type by checking what it expects
 	if err := validateOutcomeType(inputs.ReviewOutcome); err != nil {
 		return nil, err

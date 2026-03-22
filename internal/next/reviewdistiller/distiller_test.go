@@ -887,6 +887,22 @@ func TestDistill_ProposalIDsContentBased(t *testing.T) {
 	}
 }
 
+// TestDistill_NilInputs verifies that Distill returns an error when inputs is nil.
+func TestDistill_NilInputs(t *testing.T) {
+	stub := &stubLLMCompleter{response: "{}"}
+	result, err := Distill(nil, stub, TierHigh)
+
+	if result != nil {
+		t.Errorf("Distill(nil, ...) should return nil result, got %v", result)
+	}
+	if err == nil {
+		t.Error("Distill(nil, ...) should return an error")
+	}
+	if err != nil && !strings.Contains(err.Error(), "nil") {
+		t.Errorf("Distill(nil, ...) error should mention nil, got: %v", err)
+	}
+}
+
 // mockError implements error interface for testing.
 type mockError struct {
 	msg string
