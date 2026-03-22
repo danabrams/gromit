@@ -118,6 +118,9 @@ func computePlaybookID(typ, change string) string {
 }
 
 // promoteToDoctrine saves the proposal as a doctrine rule.
+// Note: rationale is intentionally not stored on doctrine.Rule — the Rule type
+// captures the rule text (title/change) and provenance. The rationale from the
+// original proposal is preserved in the Decision record, not duplicated here.
 func promoteToDoctrine(
 	pp *PendingProposal,
 	title string,
