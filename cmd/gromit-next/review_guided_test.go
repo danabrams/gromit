@@ -18,6 +18,13 @@ func setupReviewTest(t *testing.T, items []reviewpacket.ManualCheckItem) (*runst
 	storeDir := t.TempDir()
 	store := runstore.NewStore(storeDir)
 
+	// Create project.json with default distiller tier
+	projectCfg := map[string]interface{}{"distiller_tier": "medium"}
+	projectData, _ := json.MarshalIndent(projectCfg, "", "  ")
+	if err := os.WriteFile(filepath.Join(storeDir, "project.json"), projectData, 0o644); err != nil {
+		t.Fatalf("write project.json: %v", err)
+	}
+
 	// Create a run in ready_for_review state
 	rs := runstore.NewRunState("my-spec", "my-project")
 	rs.Status = runstore.StatusReadyForReview

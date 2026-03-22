@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/danabrams/gromit/internal/next/reviewdistiller"
 	"github.com/danabrams/gromit/internal/next/runstore"
 )
 
@@ -76,7 +77,7 @@ func TestScenario_MissingReviewPacketIsRegeneratedBeforeDistillation(t *testing.
 
 	// review.json exists (raw evidence from execution)
 	reviewData := map[string]interface{}{
-		"info": []map[string]string{
+		"observations": []map[string]string{
 			{"message": "Clean implementation with good separation of concerns"},
 		},
 	}
@@ -130,48 +131,95 @@ func TestScenario_MissingReviewPacketIsRegeneratedBeforeDistillation(t *testing.
 		}
 	}
 
-	// Now simulate distillation (will be replaced by actual distiller call once
-	// the reviewdistiller package lands on main).
-	now := time.Now().UTC()
-	result := distillResult{
-		RunID:     "run-105",
-		SpecID:    "spec-quality-backpressure",
-		Outcome:   "accepted",
-		ModelTier: "opus",
-		Summary:   "Accepted run with regenerated packet — quality backpressure patterns worth reinforcing",
-		CreatedAt: now,
-		Metadata: map[string]string{
-			"run_id":             "run-105",
-			"spec_id":            "spec-quality-backpressure",
-			"model":              "opus",
-			"packet_regenerated": "true",
-		},
-		Proposals: []distillProposal{
-			{
-				ID:                  fmt.Sprintf("run-105-doctrine_rule-%d", 1),
-				Type:                "doctrine_rule",
-				Title:               "Require backpressure tests for all queue-based components",
-				Content:             "Any component using an internal queue must include backpressure threshold tests",
-				Confidence:          0.91,
-				ConfidenceRationale: "Pattern confirmed by accepted run with full acceptance pass",
-			},
-			{
-				ID:                  fmt.Sprintf("run-105-planner_heuristic-%d", 2),
-				Type:                "planner_heuristic",
-				Title:               "Plan drain-path testing separately from enqueue-path testing",
-				Content:             "Queue drain behavior has different failure modes than enqueue; plan as separate sub-tasks",
-				Confidence:          0.84,
-				ConfidenceRationale: "Run demonstrated clean separation of enqueue/drain concerns",
-			},
-			{
-				ID:                  fmt.Sprintf("run-105-info-%d", 3),
-				Type:                "info",
-				Title:               "Packet regeneration succeeded transparently",
-				Content:             "Missing review packet was regenerated from raw evidence without manual intervention",
-				Confidence:          0.97,
-				ConfidenceRationale: "Direct observation: packet files were absent, regeneration produced valid outputs",
-			},
-		},
+	// Load regenerated artifacts for distiller inputs
+	outcomeDataBytes, err := os.ReadFile(filepath.Join(evidenceDir, "review-outcome.json"))
+	if err != nil {
+		t.Fatalf("read review-outcome.json: %v", err)
+	}
+	productDataBytes, err := os.ReadFile(filepath.Join(evidenceDir, "product-review.json"))
+	if err != nil {
+		t.Fatalf("read product-review.json: %v", err)
+	}
+	processDataBytes, err := os.ReadFile(filepath.Join(evidenceDir, "process-review.json"))
+	if err != nil {
+		t.Fatalf("read process-review.json: %v", err)
+	}
+	checklistDataBytes, err := os.ReadFile(filepath.Join(evidenceDir, "manual-checklist.json"))
+	if err != nil {
+		t.Fatalf("read manual-checklist.json: %v", err)
+	}
+	validationDataBytes, err := os.ReadFile(filepath.Join(evidenceDir, "validation.json"))
+	if err != nil {
+		t.Fatalf("read validation.json: %v", err)
+	}
+	acceptanceDataBytes, err := os.ReadFile(filepath.Join(evidenceDir, "acceptance.json"))
+	if err != nil {
+		t.Fatalf("read acceptance.json: %v", err)
+	}
+	reviewDataBytes, err := os.ReadFile(filepath.Join(evidenceDir, "review.json"))
+	if err != nil {
+		t.Fatalf("read review.json: %v", err)
+	}
+
+	// Build DistillerInputs
+	inputs := &reviewdistiller.DistillerInputs{
+		RunID:           "run-105",
+		SpecID:          "spec-quality-backpressure",
+		SpecContent:     specContent,
+		ReviewOutcome:   json.RawMessage(outcomeDataBytes),
+		ProductReview:   json.RawMessage(productDataBytes),
+		ProcessReview:   json.RawMessage(processDataBytes),
+		ManualChecklist: json.RawMessage(checklistDataBytes),
+		Validation:      json.RawMessage(validationDataBytes),
+		Acceptance:      json.RawMessage(acceptanceDataBytes),
+		MachineReview:   json.RawMessage(reviewDataBytes),
+	}
+
+	// Create mock LLM completer that returns sample proposals
+	mockLLM := &mockLLMCompleter{
+		response: `{
+  "proposals": [
+    {
+      "type": "doctrine_rule",
+      "title": "Require backpressure tests for all queue-based components",
+      "what_happened": "Implementation included backpressure mechanism but tests could be more systematic",
+      "what_was_missing": "Doctrine rule on mandatory backpressure test coverage",
+      "proposed_change": "Document: any queue-based component must include backpressure threshold tests",
+      "rationale": "Pattern confirmed by accepted run with full acceptance pass",
+      "confidence": "high",
+      "confidence_rationale": "Direct observation from successful implementation",
+      "evidence_references": ["acceptance.json"]
+    },
+    {
+      "type": "planner_heuristic",
+      "title": "Plan drain-path testing separately from enqueue-path testing",
+      "what_happened": "Tests covered both paths but could benefit from explicit separation",
+      "what_was_missing": "Documented heuristic on path isolation",
+      "proposed_change": "Add planner heuristic: queue operations should test enqueue and drain as separate sub-tasks",
+      "rationale": "Queue drain behavior has different failure modes than enqueue",
+      "confidence": "medium",
+      "confidence_rationale": "Run demonstrated clean separation of enqueue/drain concerns",
+      "evidence_references": ["validation.json", "acceptance.json"]
+    },
+    {
+      "type": "refinement_guidance",
+      "title": "Packet regeneration succeeded transparently",
+      "what_happened": "Missing review packet was successfully regenerated from raw evidence",
+      "what_was_missing": "No guidance needed — success case",
+      "proposed_change": "Document success: InputsFromEvidence → Generator pipeline handles missing packets correctly",
+      "rationale": "Demonstrates robustness of packet regeneration mechanism",
+      "confidence": "high",
+      "confidence_rationale": "Direct observation: packet files were absent, regeneration produced valid outputs",
+      "evidence_references": ["product-review.json", "process-review.json"]
+    }
+  ]
+}`,
+	}
+
+	// Call reviewdistiller.Distill
+	result, err := reviewdistiller.Distill(inputs, mockLLM, reviewdistiller.TierHigh)
+	if err != nil {
+		t.Fatalf("Distill: %v", err)
 	}
 
 	// Write distillation-proposals.json
@@ -187,12 +235,26 @@ func TestScenario_MissingReviewPacketIsRegeneratedBeforeDistillation(t *testing.
 	// Write distillation-proposals.md
 	var mdBuf strings.Builder
 	fmt.Fprintf(&mdBuf, "# Distillation Proposals\n\n")
-	fmt.Fprintf(&mdBuf, "**Run:** %s | **Outcome:** %s | **Model:** %s\n\n", result.RunID, result.Outcome, result.ModelTier)
-	fmt.Fprintf(&mdBuf, "## Summary\n\n%s\n\n", result.Summary)
-	for i, p := range result.Proposals {
-		fmt.Fprintf(&mdBuf, "### %d. [%s] %s\n\n", i+1, p.Type, p.Title)
-		fmt.Fprintf(&mdBuf, "%s\n\n", p.Content)
-		fmt.Fprintf(&mdBuf, "**Confidence:** %.2f — %s\n\n", p.Confidence, p.ConfidenceRationale)
+	fmt.Fprintf(&mdBuf, "**Run:** %s | **Outcome:** %s | **Model Tier:** %s\n\n", result.RunID, result.Outcome, result.ModelTier)
+	fmt.Fprintf(&mdBuf, "**Generated:** %s\n\n", result.CreatedAt.Format("2006-01-02 15:04:05 UTC"))
+	fmt.Fprintf(&mdBuf, "## Summary\n\nDistilled %s review outcome into %d improvement proposals.\n\n", result.Outcome, len(result.Proposals))
+	for _, p := range result.Proposals {
+		fmt.Fprintf(&mdBuf, "---\n\n")
+		fmt.Fprintf(&mdBuf, "## %s\n\n", p.Title)
+		fmt.Fprintf(&mdBuf, "**Type:** %s\n", p.Type)
+		fmt.Fprintf(&mdBuf, "**Confidence:** %s\n\n", p.Confidence)
+		fmt.Fprintf(&mdBuf, "### What Happened\n\n%s\n\n", p.WhatHappened)
+		fmt.Fprintf(&mdBuf, "### What Was Missing\n\n%s\n\n", p.WhatWasMissing)
+		fmt.Fprintf(&mdBuf, "### Proposed Change\n\n%s\n\n", p.ProposedChange)
+		fmt.Fprintf(&mdBuf, "### Rationale\n\n%s\n\n", p.Rationale)
+		fmt.Fprintf(&mdBuf, "**Confidence Rationale:** %s\n\n", p.ConfidenceRationale)
+		if len(p.EvidenceReferences) > 0 {
+			fmt.Fprintf(&mdBuf, "### Evidence References\n\n")
+			for _, ref := range p.EvidenceReferences {
+				fmt.Fprintf(&mdBuf, "- %s\n", ref)
+			}
+			fmt.Fprintf(&mdBuf, "\n")
+		}
 	}
 	markdownPath := filepath.Join(evidenceDir, "distillation-proposals.md")
 	if err := os.WriteFile(markdownPath, []byte(mdBuf.String()), 0o644); err != nil {
@@ -202,12 +264,8 @@ func TestScenario_MissingReviewPacketIsRegeneratedBeforeDistillation(t *testing.
 	// === Assert ===
 
 	// 1. Regenerated product-review.json is parseable and has expected fields
-	productData, err := os.ReadFile(filepath.Join(evidenceDir, "product-review.json"))
-	if err != nil {
-		t.Fatalf("read product-review.json: %v", err)
-	}
 	var productReview map[string]interface{}
-	if err := json.Unmarshal(productData, &productReview); err != nil {
+	if err := json.Unmarshal(productDataBytes, &productReview); err != nil {
 		t.Fatalf("parse product-review.json: %v", err)
 	}
 	if productReview["run_id"] != "run-105" {
@@ -218,12 +276,8 @@ func TestScenario_MissingReviewPacketIsRegeneratedBeforeDistillation(t *testing.
 	}
 
 	// 2. Regenerated process-review.json is parseable and has trust_level
-	processData, err := os.ReadFile(filepath.Join(evidenceDir, "process-review.json"))
-	if err != nil {
-		t.Fatalf("read process-review.json: %v", err)
-	}
 	var processReview map[string]interface{}
-	if err := json.Unmarshal(processData, &processReview); err != nil {
+	if err := json.Unmarshal(processDataBytes, &processReview); err != nil {
 		t.Fatalf("parse process-review.json: %v", err)
 	}
 	if processReview["trust_level"] == nil || processReview["trust_level"] == "" {
@@ -231,12 +285,8 @@ func TestScenario_MissingReviewPacketIsRegeneratedBeforeDistillation(t *testing.
 	}
 
 	// 3. Regenerated manual-checklist.json is parseable
-	manualData, err := os.ReadFile(filepath.Join(evidenceDir, "manual-checklist.json"))
-	if err != nil {
-		t.Fatalf("read manual-checklist.json: %v", err)
-	}
 	var manualChecklist map[string]interface{}
-	if err := json.Unmarshal(manualData, &manualChecklist); err != nil {
+	if err := json.Unmarshal(checklistDataBytes, &manualChecklist); err != nil {
 		t.Fatalf("parse manual-checklist.json: %v", err)
 	}
 
@@ -245,7 +295,7 @@ func TestScenario_MissingReviewPacketIsRegeneratedBeforeDistillation(t *testing.
 	if err != nil {
 		t.Fatalf("read distillation-proposals.json: %v", err)
 	}
-	var parsed distillResult
+	var parsed reviewdistiller.DistillationResult
 	if err := json.Unmarshal(rawJSON, &parsed); err != nil {
 		t.Fatalf("parse distillation-proposals.json: %v", err)
 	}
@@ -292,23 +342,27 @@ func TestScenario_MissingReviewPacketIsRegeneratedBeforeDistillation(t *testing.
 		if p.Title == "" {
 			t.Errorf("proposal[%d]: expected non-empty Title", i)
 		}
-		if p.Content == "" {
-			t.Errorf("proposal[%d]: expected non-empty Content", i)
+		if p.WhatHappened == "" {
+			t.Errorf("proposal[%d]: expected non-empty WhatHappened", i)
 		}
-		if p.Confidence == 0 {
-			t.Errorf("proposal[%d]: expected non-zero Confidence", i)
+		if p.WhatWasMissing == "" {
+			t.Errorf("proposal[%d]: expected non-empty WhatWasMissing", i)
+		}
+		if p.ProposedChange == "" {
+			t.Errorf("proposal[%d]: expected non-empty ProposedChange", i)
+		}
+		if p.Rationale == "" {
+			t.Errorf("proposal[%d]: expected non-empty Rationale", i)
+		}
+		if p.Confidence == "" {
+			t.Errorf("proposal[%d]: expected non-empty Confidence", i)
 		}
 		if p.ConfidenceRationale == "" {
 			t.Errorf("proposal[%d]: expected non-empty ConfidenceRationale", i)
 		}
 	}
 
-	// 10. Metadata records that packet was regenerated
-	if parsed.Metadata["packet_regenerated"] != "true" {
-		t.Error("expected metadata.packet_regenerated to be 'true'")
-	}
-
-	// 11. distillation-proposals.md exists and contains expected content
+	// 10. distillation-proposals.md exists and contains expected content
 	mdData, err := os.ReadFile(markdownPath)
 	if err != nil {
 		t.Fatalf("read distillation-proposals.md: %v", err)
@@ -326,7 +380,7 @@ func TestScenario_MissingReviewPacketIsRegeneratedBeforeDistillation(t *testing.
 		t.Error("distillation-proposals.md should mention backpressure")
 	}
 
-	// 12. Original raw evidence files are unmodified
+	// 11. Original raw evidence files are unmodified
 	for _, name := range []string{"review-outcome.json", "validation.json", "acceptance.json", "review.json"} {
 		path := filepath.Join(evidenceDir, name)
 		if _, err := os.Stat(path); err != nil {

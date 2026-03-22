@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -12,7 +13,15 @@ import (
 func TestReviewCommand_UsesNewPipelineDeps(t *testing.T) {
 	t.Parallel()
 
-	reviewPath := filepath.Join(".", "review.go")
+	// Use runtime.Caller to get the absolute path of this test file,
+	// then derive the review.go path from there. This avoids issues
+	// with relative paths when t.Parallel() races with os.Chdir in other tests.
+	_, testFile, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("runtime.Caller failed")
+	}
+	testDir := filepath.Dir(testFile)
+	reviewPath := filepath.Join(testDir, "review.go")
 	content, err := os.ReadFile(reviewPath)
 	if err != nil {
 		t.Fatalf("reading review.go: %v", err)

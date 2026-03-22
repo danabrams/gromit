@@ -1,14 +1,29 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/danabrams/gromit/internal/next/reviewdistiller"
 	"github.com/danabrams/gromit/internal/next/runstore"
 )
+
+// failingLLMCompleter is a mock LLMCompleter that returns an error to simulate
+// LLM endpoint failures (e.g., connection refused, rate limit, etc.).
+type failingLLMCompleter struct {
+	failureMsg string
+}
+
+func (f *failingLLMCompleter) Complete(_ context.Context, _ string) (string, error) {
+	return "", errors.New(f.failureMsg)
+}
+
+var _ reviewdistiller.LLMCompleter = (*failingLLMCompleter)(nil)
 
 func TestScenario_DistillationFailureDoesNotBlockOutcomeRecording(t *testing.T) {
 	// === Seed ===
@@ -37,6 +52,16 @@ func TestScenario_DistillationFailureDoesNotBlockOutcomeRecording(t *testing.T) 
 	evidenceDir := store.RunEvidenceDir("run-104")
 	if err := os.MkdirAll(evidenceDir, 0o755); err != nil {
 		t.Fatalf("mkdir evidence: %v", err)
+	}
+
+	// Seed run directory with spec.md (required by attemptDistillation)
+	runDir := store.RunDir("run-104")
+	if err := os.MkdirAll(runDir, 0o755); err != nil {
+		t.Fatalf("mkdir run: %v", err)
+	}
+	specContent := "# Auth Refactor Spec\n\nRefactor authentication middleware for performance and security."
+	if err := os.WriteFile(filepath.Join(runDir, "spec.md"), []byte(specContent), 0o644); err != nil {
+		t.Fatalf("write spec.md: %v", err)
 	}
 
 	productReview := map[string]interface{}{
@@ -70,13 +95,22 @@ func TestScenario_DistillationFailureDoesNotBlockOutcomeRecording(t *testing.T) 
 	}
 	writeJSON(t, filepath.Join(evidenceDir, "validation.json"), validationData)
 
-	// === Invoke ===
-	// Simulate outcome recording succeeding (review-outcome.json written)
-	// followed by distillation failing (LLM endpoint unreachable).
-	//
-	// The integration point is: persist outcome → attempt distillation → log error on failure.
-	// We simulate this by writing the outcome file and then NOT writing distillation files,
-	// which is exactly what happens when the LLM call fails.
+	acceptanceData := map[string]interface{}{
+		"pass":          true,
+		"criteria_pass": 5,
+		"criteria_fail": 0,
+		"summary":       "All acceptance criteria satisfied",
+	}
+	writeJSON(t, filepath.Join(evidenceDir, "acceptance.json"), acceptanceData)
+
+	reviewData := map[string]interface{}{
+		"issues":           0,
+		"warnings":         0,
+		"code_quality":     "high",
+		"machine_verdicts": "pass",
+		"summary":          "Code review passed with no issues",
+	}
+	writeJSON(t, filepath.Join(evidenceDir, "review.json"), reviewData)
 
 	reviewOutcome := map[string]interface{}{
 		"run_id":      "run-104",
@@ -87,19 +121,21 @@ func TestScenario_DistillationFailureDoesNotBlockOutcomeRecording(t *testing.T) 
 			{"id": "check-1", "result": "pass", "notes": ""},
 		},
 	}
-	outcomeData, err := json.MarshalIndent(reviewOutcome, "", "  ")
-	if err != nil {
-		t.Fatalf("marshal review outcome: %v", err)
-	}
+	writeJSON(t, filepath.Join(evidenceDir, "review-outcome.json"), reviewOutcome)
+
 	outcomeFile := filepath.Join(evidenceDir, "review-outcome.json")
-	if err := os.WriteFile(outcomeFile, outcomeData, 0o644); err != nil {
-		t.Fatalf("write review-outcome.json: %v", err)
+
+	// === Invoke ===
+	// Call attemptDistillation with a failing LLMCompleter.
+	// The distillation should fail, but review-outcome.json should remain intact.
+	failingCompleter := &failingLLMCompleter{
+		failureMsg: "LLM endpoint unreachable: connection refused",
 	}
 
-	// Distillation is attempted but fails (LLM unreachable).
-	// The error is logged; no distillation files are written.
-	distillErr := "distillation failed: LLM endpoint unreachable: connection refused"
-	_ = distillErr // In production this would be logged via log.Printf or similar
+	distillErr := attemptDistillation("run-104", tmp, reviewdistiller.TierMedium, failingCompleter)
+	if distillErr == nil {
+		t.Fatalf("expected attemptDistillation to return an error, got nil")
+	}
 
 	// === Assert ===
 
@@ -156,7 +192,7 @@ func TestScenario_DistillationFailureDoesNotBlockOutcomeRecording(t *testing.T) 
 	}
 
 	// 9. Other evidence files are unaffected by the distillation failure
-	for _, name := range []string{"product-review.json", "process-review.json", "manual-checklist.json", "validation.json"} {
+	for _, name := range []string{"product-review.json", "process-review.json", "manual-checklist.json", "validation.json", "acceptance.json", "review.json"} {
 		path := filepath.Join(evidenceDir, name)
 		if _, err := os.Stat(path); err != nil {
 			t.Errorf("evidence file %s should still exist after distillation failure: %v", name, err)

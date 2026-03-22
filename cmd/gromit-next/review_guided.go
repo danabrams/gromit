@@ -5,13 +5,19 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"github.com/danabrams/gromit/internal/claude"
+	"github.com/danabrams/gromit/internal/next/execpolicy"
+	"github.com/danabrams/gromit/internal/next/llmadapter"
+	"github.com/danabrams/gromit/internal/next/reviewdistiller"
 	"github.com/danabrams/gromit/internal/next/reviewpacket"
 	"github.com/danabrams/gromit/internal/next/reviewsession"
 	"github.com/danabrams/gromit/internal/next/runstore"
+	"github.com/danabrams/gromit/internal/provider"
 	"github.com/spf13/cobra"
 )
 
@@ -194,9 +200,29 @@ func reviewGuided(runID string, storeDir string, input io.Reader, out io.Writer)
 		return fmt.Errorf("marshal review outcome: %w", err)
 	}
 
-	outcomeFile := filepath.Join(evidenceDir, "review-outcome.json")
-	if err := os.WriteFile(outcomeFile, outcomeData, 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(evidenceDir, "review-outcome.json"), outcomeData, 0o644); err != nil {
 		return fmt.Errorf("write review-outcome.json: %w", err)
+	}
+
+	// Load project config to get configured distiller tier (non-blocking, defaults to TierMedium)
+	distillerTier := getDistillerTier(storeDir)
+
+	// Attempt automatic distillation (non-blocking)
+	const defaultClaudeBinary = "claude"
+	defaultPolicy := execpolicy.DefaultPolicy()
+	client, err := claude.NewClient(defaultClaudeBinary, []string{"--dangerously-skip-permissions"}, defaultPolicy.Budgets.MaxTaskDurationSeconds)
+	if err != nil {
+		log.Printf("distillation skipped: failed to create claude client: %v", err)
+	} else {
+		prov := provider.NewClaudeProvider(client, provider.DefaultTierToModelMap)
+		adapter := llmadapter.New(prov, llmadapter.Config{
+			Phase: "review",
+			Tier:  string(distillerTier),
+		})
+		completer := NewInvokerAdapter(adapter)
+		if err := attemptDistillation(runID, storeDir, distillerTier, completer); err != nil {
+			log.Printf("distillation failed (non-blocking): %v", err)
+		}
 	}
 
 	// Print summary
@@ -211,6 +237,18 @@ func reviewGuided(runID string, storeDir string, input io.Reader, out io.Writer)
 	fmt.Fprintln(out, "Review saved to review-outcome.json")
 
 	return nil
+}
+
+// getDistillerTier loads the configured distiller tier from project config,
+// defaulting to TierMedium and logging if the config load fails (non-blocking).
+func getDistillerTier(storeDir string) reviewdistiller.Tier {
+	tier := reviewdistiller.TierMedium
+	cfg, err := LoadProjectConfig(storeDir)
+	if err != nil {
+		log.Printf("load project config failed, using default tier: %v", err)
+		return tier
+	}
+	return reviewdistiller.Tier(cfg.DistillerTier)
 }
 
 func init() {

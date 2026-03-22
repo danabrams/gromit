@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -9,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/danabrams/gromit/internal/next/reviewdistiller"
 	"github.com/danabrams/gromit/internal/next/runstore"
 )
 
@@ -67,96 +69,113 @@ func TestScenario_DistillerTruncatesExcessProposals(t *testing.T) {
 	writeJSON(t, filepath.Join(evidenceDir, "validation.json"), validationData)
 
 	// === Invoke ===
-	// Simulate LLM returning 7 proposals. The distiller's parse-and-validate
-	// step must silently truncate to the first 5 (acceptance criterion #11).
-	allSevenProposals := []distillProposal{
-		{
-			ID:                  fmt.Sprintf("run-111-doctrine_rule-%d", 1),
-			Type:                "doctrine_rule",
-			Title:               "Enforce interface segregation for refactored modules",
-			Content:             "Large modules should expose narrow interfaces after refactoring",
-			Confidence:          0.91,
-			ConfidenceRationale: "Pattern confirmed across 4 accepted refactor runs",
-		},
-		{
-			ID:                  fmt.Sprintf("run-111-planner_heuristic-%d", 2),
-			Type:                "planner_heuristic",
-			Title:               "Decompose refactors by dependency layer",
-			Content:             "Plan refactoring tasks bottom-up through the dependency graph",
-			Confidence:          0.88,
-			ConfidenceRationale: "Bottom-up ordering reduced merge conflicts in prior runs",
-		},
-		{
-			ID:                  fmt.Sprintf("run-111-validation_gap-%d", 3),
-			Type:                "validation_gap",
-			Title:               "Add regression tests for moved functions",
-			Content:             "Functions relocated during refactoring need regression coverage at their new location",
-			Confidence:          0.85,
-			ConfidenceRationale: "Two prior refactors missed relocated-function regressions",
-		},
-		{
-			ID:                  fmt.Sprintf("run-111-doctrine_rule-%d", 4),
-			Type:                "doctrine_rule",
-			Title:               "Preserve public API surface during internal refactors",
-			Content:             "Internal refactors must not change exported function signatures",
-			Confidence:          0.93,
-			ConfidenceRationale: "API breakage caused downstream failures in 3 projects",
-		},
-		{
-			ID:                  fmt.Sprintf("run-111-planner_heuristic-%d", 5),
-			Type:                "planner_heuristic",
-			Title:               "Time-box exploratory refactoring spikes",
-			Content:             "Spike tasks for refactoring should have explicit time bounds",
-			Confidence:          0.79,
-			ConfidenceRationale: "Unbounded spikes correlated with 2x cost overruns",
-		},
-		{
-			ID:                  fmt.Sprintf("run-111-info-%d", 6),
-			Type:                "info",
-			Title:               "Sixth proposal — should be truncated",
-			Content:             "This proposal exceeds the 5-proposal cap and must be dropped",
-			Confidence:          0.70,
-			ConfidenceRationale: "Lower confidence observation",
-		},
-		{
-			ID:                  fmt.Sprintf("run-111-info-%d", 7),
-			Type:                "info",
-			Title:               "Seventh proposal — should be truncated",
-			Content:             "This proposal also exceeds the cap",
-			Confidence:          0.65,
-			ConfidenceRationale: "Marginal observation",
-		},
+	// Mock LLM returns 7 proposals; distiller must truncate to first 5.
+	mockCompleter := &mockDistillerLLM{
+		response: `{
+  "proposals": [
+    {
+      "type": "doctrine_rule",
+      "title": "Enforce interface segregation for refactored modules",
+      "what_happened": "Large modules were refactored without clear interface boundaries",
+      "what_was_missing": "A doctrine rule on interface segregation after refactoring",
+      "proposed_change": "Add doctrine rule: refactored modules must expose narrow interfaces",
+      "rationale": "Large interfaces increase coupling and maintainability burden",
+      "confidence": "high",
+      "confidence_rationale": "Pattern confirmed across 4 accepted refactor runs",
+      "evidence_references": []
+    },
+    {
+      "type": "planner_heuristic",
+      "title": "Decompose refactors by dependency layer",
+      "what_happened": "Refactors were planned top-down, causing merge conflicts",
+      "what_was_missing": "A heuristic for planning refactors bottom-up through dependency graph",
+      "proposed_change": "Add planner heuristic: decompose refactoring bottom-up by layer",
+      "rationale": "Bottom-up reduces merge conflicts and enables incremental testing",
+      "confidence": "high",
+      "confidence_rationale": "Bottom-up ordering reduced merge conflicts in prior runs",
+      "evidence_references": []
+    },
+    {
+      "type": "validation_gap",
+      "title": "Add regression tests for moved functions",
+      "what_happened": "Functions were moved during refactoring, regression coverage was missed",
+      "what_was_missing": "Regression testing at new function locations",
+      "proposed_change": "Add validation gap: moved functions require regression coverage at new location",
+      "rationale": "Prevents silent breakage of relocated functionality",
+      "confidence": "high",
+      "confidence_rationale": "Two prior refactors missed relocated-function regressions",
+      "evidence_references": []
+    },
+    {
+      "type": "doctrine_rule",
+      "title": "Preserve public API surface during internal refactors",
+      "what_happened": "Internal refactoring inadvertently changed exported function signatures",
+      "what_was_missing": "A doctrine rule protecting exported APIs during refactoring",
+      "proposed_change": "Add doctrine rule: internal refactors must preserve exported function signatures",
+      "rationale": "Public API stability is critical for downstream projects",
+      "confidence": "high",
+      "confidence_rationale": "API breakage caused downstream failures in 3 projects",
+      "evidence_references": []
+    },
+    {
+      "type": "planner_heuristic",
+      "title": "Time-box exploratory refactoring spikes",
+      "what_happened": "Refactoring spike tasks had no explicit time bound and exceeded estimates",
+      "what_was_missing": "A heuristic for bounded refactoring spikes",
+      "proposed_change": "Add planner heuristic: spike tasks for refactoring should have explicit time bounds",
+      "rationale": "Prevents unbounded exploration and scope creep",
+      "confidence": "medium",
+      "confidence_rationale": "Unbounded spikes correlated with 2x cost overruns",
+      "evidence_references": []
+    },
+    {
+      "type": "refinement_guidance",
+      "title": "Sixth proposal — should be truncated",
+      "what_happened": "This is a sixth observation",
+      "what_was_missing": "Irrelevant",
+      "proposed_change": "This proposal exceeds the 5-proposal cap and must be dropped",
+      "rationale": "Lower confidence observation",
+      "confidence": "low",
+      "confidence_rationale": "Marginal evidence",
+      "evidence_references": []
+    },
+    {
+      "type": "refinement_guidance",
+      "title": "Seventh proposal — should be truncated",
+      "what_happened": "This is a seventh observation",
+      "what_was_missing": "Irrelevant",
+      "proposed_change": "This proposal also exceeds the cap and must be dropped",
+      "rationale": "Even lower confidence",
+      "confidence": "low",
+      "confidence_rationale": "Very marginal evidence",
+      "evidence_references": []
+    }
+  ]
+}`,
 	}
 
-	// Apply the truncation rule: keep first 5
-	const maxProposals = 5
-	truncated := allSevenProposals
-	if len(truncated) > maxProposals {
-		truncated = truncated[:maxProposals]
+	reviewOutcomeJSON, _ := json.Marshal(reviewOutcome)
+	reviewDataJSON, _ := json.Marshal(reviewData)
+
+	inputs := &reviewdistiller.DistillerInputs{
+		RunID:         "run-111",
+		SpecID:        "spec-complex-refactor",
+		SpecContent:   "# Test Spec",
+		ReviewOutcome: reviewOutcomeJSON,
+		MachineReview: reviewDataJSON,
 	}
 
-	now := time.Now().UTC()
-	result := distillResult{
-		RunID:     "run-111",
-		SpecID:    "spec-complex-refactor",
-		Outcome:   "accepted",
-		ModelTier: "opus",
-		Summary:   "Complex refactor yielded many improvement proposals, truncated to cap",
-		CreatedAt: now,
-		Metadata: map[string]string{
-			"run_id":  "run-111",
-			"spec_id": "spec-complex-refactor",
-			"model":   "opus",
-		},
-		Proposals: truncated,
+	result, err := reviewdistiller.Distill(inputs, mockCompleter, reviewdistiller.TierHigh)
+	if err != nil {
+		t.Fatalf("distillation failed: %v", err)
 	}
 
 	// Write distillation-proposals.json
+	proposalsPath := filepath.Join(evidenceDir, "distillation-proposals.json")
 	proposalsJSON, err := json.MarshalIndent(result, "", "  ")
 	if err != nil {
 		t.Fatalf("marshal result: %v", err)
 	}
-	proposalsPath := filepath.Join(evidenceDir, "distillation-proposals.json")
 	if err := os.WriteFile(proposalsPath, proposalsJSON, 0o644); err != nil {
 		t.Fatalf("write distillation-proposals.json: %v", err)
 	}
@@ -165,11 +184,10 @@ func TestScenario_DistillerTruncatesExcessProposals(t *testing.T) {
 	var mdBuf strings.Builder
 	fmt.Fprintf(&mdBuf, "# Distillation Proposals\n\n")
 	fmt.Fprintf(&mdBuf, "**Run:** %s | **Outcome:** %s | **Model:** %s\n\n", result.RunID, result.Outcome, result.ModelTier)
-	fmt.Fprintf(&mdBuf, "## Summary\n\n%s\n\n", result.Summary)
+	fmt.Fprintf(&mdBuf, "## Summary\n\nDistilled %s review outcome into %d improvement proposals.\n\n", result.Outcome, len(result.Proposals))
 	for i, p := range result.Proposals {
 		fmt.Fprintf(&mdBuf, "### %d. [%s] %s\n\n", i+1, p.Type, p.Title)
-		fmt.Fprintf(&mdBuf, "%s\n\n", p.Content)
-		fmt.Fprintf(&mdBuf, "**Confidence:** %.2f — %s\n\n", p.Confidence, p.ConfidenceRationale)
+		fmt.Fprintf(&mdBuf, "**Confidence:** %s — %s\n\n", p.Confidence, p.ConfidenceRationale)
 	}
 	markdownPath := filepath.Join(evidenceDir, "distillation-proposals.md")
 	if err := os.WriteFile(markdownPath, []byte(mdBuf.String()), 0o644); err != nil {
@@ -183,7 +201,7 @@ func TestScenario_DistillerTruncatesExcessProposals(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read distillation-proposals.json: %v", err)
 	}
-	var parsed distillResult
+	var parsed reviewdistiller.DistillationResult
 	if err := json.Unmarshal(rawJSON, &parsed); err != nil {
 		t.Fatalf("parse distillation-proposals.json: %v", err)
 	}
@@ -237,11 +255,11 @@ func TestScenario_DistillerTruncatesExcessProposals(t *testing.T) {
 		if p.Title == "" {
 			t.Errorf("proposal[%d]: expected non-empty Title", i)
 		}
-		if p.Content == "" {
-			t.Errorf("proposal[%d]: expected non-empty Content", i)
+		if p.WhatHappened == "" {
+			t.Errorf("proposal[%d]: expected non-empty WhatHappened", i)
 		}
-		if p.Confidence == 0 {
-			t.Errorf("proposal[%d]: expected non-zero Confidence", i)
+		if p.Confidence == "" {
+			t.Errorf("proposal[%d]: expected non-empty Confidence", i)
 		}
 		if p.ConfidenceRationale == "" {
 			t.Errorf("proposal[%d]: expected non-empty ConfidenceRationale", i)
@@ -280,4 +298,14 @@ func TestScenario_DistillerTruncatesExcessProposals(t *testing.T) {
 	if strings.Contains(mdStr, "Seventh proposal") {
 		t.Error("distillation-proposals.md should not mention truncated 7th proposal")
 	}
+}
+
+// mockDistillerLLM is a test stub for reviewdistiller.LLMCompleter.
+// It returns a canned JSON response with 7 proposals.
+type mockDistillerLLM struct {
+	response string
+}
+
+func (m *mockDistillerLLM) Complete(ctx context.Context, prompt string) (string, error) {
+	return m.response, nil
 }

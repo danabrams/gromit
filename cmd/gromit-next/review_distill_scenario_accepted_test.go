@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -9,10 +10,21 @@ import (
 	"testing"
 	"time"
 
+	"github.com/danabrams/gromit/internal/next/reviewdistiller"
 	"github.com/danabrams/gromit/internal/next/runstore"
 )
 
+// mockLLMCompleter implements reviewdistiller.LLMCompleter for testing.
+type mockLLMCompleter struct {
+	response string
+}
+
+func (m *mockLLMCompleter) Complete(ctx context.Context, prompt string) (string, error) {
+	return m.response, nil
+}
+
 // distillProposal represents a single distillation proposal for test assertions.
+// Used by scenario tests for backwards compatibility.
 type distillProposal struct {
 	ID                  string  `json:"id"`
 	Type                string  `json:"type"`
@@ -23,6 +35,7 @@ type distillProposal struct {
 }
 
 // distillResult represents the distillation output for test assertions.
+// Used by scenario tests for backwards compatibility.
 type distillResult struct {
 	RunID     string            `json:"run_id"`
 	SpecID    string            `json:"spec_id"`
@@ -89,63 +102,90 @@ func TestScenario_AcceptedRunProducesReinforcementProposals(t *testing.T) {
 	writeJSON(t, filepath.Join(evidenceDir, "validation.json"), validationData)
 
 	// === Invoke ===
-	// Simulate distiller output (will be replaced by actual distiller call once
-	// the reviewdistiller package lands on main).
-	now := time.Now().UTC()
-	result := distillResult{
-		RunID:     "run-101",
-		SpecID:    "spec-add-logging",
-		Outcome:   "accepted",
-		ModelTier: "opus",
-		Summary:   "Accepted run demonstrates strong implementation patterns worth reinforcing",
-		CreatedAt: now,
-		Metadata: map[string]string{
-			"run_id":  "run-101",
-			"spec_id": "spec-add-logging",
-			"model":   "opus",
-		},
-		Proposals: []distillProposal{
+	// Create mock LLM that returns 4 proposals (mixture of types)
+	llmResponse := `{
+		"proposals": [
 			{
-				ID:                  fmt.Sprintf("run-101-doctrine_rule-%d", 1),
-				Type:                "doctrine_rule",
-				Title:               "Enforce test-before-commit for validation packages",
-				Content:             "All validation package changes should include corresponding test updates",
-				Confidence:          0.92,
-				ConfidenceRationale: "Pattern observed consistently across 3 accepted runs",
+				"type": "doctrine_rule",
+				"title": "Enforce test-before-commit for validation packages",
+				"what_happened": "Validation changes lacked test coverage initially",
+				"what_was_missing": "Corresponding test updates",
+				"proposed_change": "Require tests alongside all validation package changes",
+				"rationale": "Prevents regression in validation logic",
+				"confidence": "high",
+				"confidence_rationale": "Pattern observed consistently across 3 accepted runs",
+				"evidence_references": ["review.json"]
 			},
 			{
-				ID:                  fmt.Sprintf("run-101-planner_heuristic-%d", 2),
-				Type:                "planner_heuristic",
-				Title:               "Split large validation tasks into unit and integration phases",
-				Content:             "When a task touches validation logic, plan separate unit and integration test tasks",
-				Confidence:          0.85,
-				ConfidenceRationale: "Runs that split validation work had 40% fewer rework cycles",
+				"type": "planner_heuristic",
+				"title": "Split large validation tasks into unit and integration phases",
+				"what_happened": "Validation work was planned monolithically",
+				"what_was_missing": "Separation of concerns in planning",
+				"proposed_change": "Create separate unit and integration test tasks",
+				"rationale": "Allows independent review and verification",
+				"confidence": "high",
+				"confidence_rationale": "Runs that split validation work had 40% fewer rework cycles",
+				"evidence_references": ["review.json"]
 			},
 			{
-				ID:                  fmt.Sprintf("run-101-info-%d", 3),
-				Type:                "info",
-				Title:               "Cost efficiency observation",
-				Content:             "Run completed under budget with opus tier",
-				Confidence:          0.78,
-				ConfidenceRationale: "Based on comparison with similar spec complexity runs",
+				"type": "doctrine_rule",
+				"title": "Require acceptance criteria mapping in evidence",
+				"what_happened": "Task completion lacked explicit AC mapping",
+				"what_was_missing": "Documentation of AC satisfaction",
+				"proposed_change": "Each completed task should map to at least one acceptance criterion",
+				"rationale": "Ensures requirements are fully met",
+				"confidence": "high",
+				"confidence_rationale": "Accepted runs with explicit mapping had zero rework rate",
+				"evidence_references": ["validation.json"]
 			},
 			{
-				ID:                  fmt.Sprintf("run-101-doctrine_rule-%d", 4),
-				Type:                "doctrine_rule",
-				Title:               "Require acceptance criteria mapping in evidence",
-				Content:             "Each completed task should map to at least one acceptance criterion",
-				Confidence:          0.88,
-				ConfidenceRationale: "Accepted runs with explicit mapping had zero rework rate",
-			},
-		},
+				"type": "validation_gap",
+				"title": "Document edge case handling strategy",
+				"what_happened": "Edge cases were handled implicitly",
+				"what_was_missing": "Explicit documentation of edge case strategy",
+				"proposed_change": "Add comments explaining edge case handling decisions",
+				"rationale": "Improves future maintainability",
+				"confidence": "medium",
+				"confidence_rationale": "Based on comparison with similar spec complexity runs",
+				"evidence_references": ["validation.json"]
+			}
+		]
+	}`
+
+	mockLLM := &mockLLMCompleter{response: llmResponse}
+
+	// Load evidence files as json.RawMessage
+	reviewOutcomeData, err := os.ReadFile(filepath.Join(evidenceDir, "review-outcome.json"))
+	if err != nil {
+		t.Fatalf("read review-outcome.json: %v", err)
 	}
 
-	// Write distillation-proposals.json
+	validationDataFile, err := os.ReadFile(filepath.Join(evidenceDir, "validation.json"))
+	if err != nil {
+		t.Fatalf("read validation.json: %v", err)
+	}
+
+	// Create DistillerInputs
+	inputs := &reviewdistiller.DistillerInputs{
+		RunID:         "run-101",
+		SpecID:        "spec-add-logging",
+		SpecContent:   "Example spec for add-logging",
+		ReviewOutcome: json.RawMessage(reviewOutcomeData),
+		Validation:    json.RawMessage(validationDataFile),
+	}
+
+	// Call Distill
+	result, err := reviewdistiller.Distill(inputs, mockLLM, reviewdistiller.TierHigh)
+	if err != nil {
+		t.Fatalf("Distill() returned error: %v", err)
+	}
+
+	// === Write JSON and Markdown outputs ===
+	proposalsPath := filepath.Join(evidenceDir, "distillation-proposals.json")
 	proposalsJSON, err := json.MarshalIndent(result, "", "  ")
 	if err != nil {
 		t.Fatalf("marshal result: %v", err)
 	}
-	proposalsPath := filepath.Join(evidenceDir, "distillation-proposals.json")
 	if err := os.WriteFile(proposalsPath, proposalsJSON, 0o644); err != nil {
 		t.Fatalf("write distillation-proposals.json: %v", err)
 	}
@@ -153,12 +193,15 @@ func TestScenario_AcceptedRunProducesReinforcementProposals(t *testing.T) {
 	// Write distillation-proposals.md
 	var mdBuf strings.Builder
 	fmt.Fprintf(&mdBuf, "# Distillation Proposals\n\n")
-	fmt.Fprintf(&mdBuf, "**Run:** %s | **Outcome:** %s | **Model:** %s\n\n", result.RunID, result.Outcome, result.ModelTier)
-	fmt.Fprintf(&mdBuf, "## Summary\n\n%s\n\n", result.Summary)
+	fmt.Fprintf(&mdBuf, "**Run:** %s | **Outcome:** %s | **Model:** %s\n\n", result.RunID, result.Outcome, string(result.ModelTier))
+	fmt.Fprintf(&mdBuf, "## Proposals\n\n")
 	for i, p := range result.Proposals {
 		fmt.Fprintf(&mdBuf, "### %d. [%s] %s\n\n", i+1, p.Type, p.Title)
-		fmt.Fprintf(&mdBuf, "%s\n\n", p.Content)
-		fmt.Fprintf(&mdBuf, "**Confidence:** %.2f — %s\n\n", p.Confidence, p.ConfidenceRationale)
+		fmt.Fprintf(&mdBuf, "**What Happened:** %s\n\n", p.WhatHappened)
+		fmt.Fprintf(&mdBuf, "**What Was Missing:** %s\n\n", p.WhatWasMissing)
+		fmt.Fprintf(&mdBuf, "**Proposed Change:** %s\n\n", p.ProposedChange)
+		fmt.Fprintf(&mdBuf, "**Rationale:** %s\n\n", p.Rationale)
+		fmt.Fprintf(&mdBuf, "**Confidence:** %s — %s\n\n", p.Confidence, p.ConfidenceRationale)
 	}
 	markdownPath := filepath.Join(evidenceDir, "distillation-proposals.md")
 	if err := os.WriteFile(markdownPath, []byte(mdBuf.String()), 0o644); err != nil {
@@ -172,7 +215,7 @@ func TestScenario_AcceptedRunProducesReinforcementProposals(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read distillation-proposals.json: %v", err)
 	}
-	var parsed distillResult
+	var parsed reviewdistiller.DistillationResult
 	if err := json.Unmarshal(rawJSON, &parsed); err != nil {
 		t.Fatalf("parse distillation-proposals.json: %v", err)
 	}
@@ -223,7 +266,7 @@ func TestScenario_AcceptedRunProducesReinforcementProposals(t *testing.T) {
 		t.Errorf("expected at least one doctrine_rule or planner_heuristic, got types: %v", types)
 	}
 
-	// 9. Each proposal has all schema fields populated
+	// 9. Each proposal has all required schema fields populated
 	for i, p := range parsed.Proposals {
 		if p.ID == "" {
 			t.Errorf("proposal[%d]: expected non-empty ID", i)
@@ -234,11 +277,20 @@ func TestScenario_AcceptedRunProducesReinforcementProposals(t *testing.T) {
 		if p.Title == "" {
 			t.Errorf("proposal[%d]: expected non-empty Title", i)
 		}
-		if p.Content == "" {
-			t.Errorf("proposal[%d]: expected non-empty Content", i)
+		if p.WhatHappened == "" {
+			t.Errorf("proposal[%d]: expected non-empty WhatHappened", i)
 		}
-		if p.Confidence == 0 {
-			t.Errorf("proposal[%d]: expected non-zero Confidence", i)
+		if p.WhatWasMissing == "" {
+			t.Errorf("proposal[%d]: expected non-empty WhatWasMissing", i)
+		}
+		if p.ProposedChange == "" {
+			t.Errorf("proposal[%d]: expected non-empty ProposedChange", i)
+		}
+		if p.Rationale == "" {
+			t.Errorf("proposal[%d]: expected non-empty Rationale", i)
+		}
+		if p.Confidence == "" {
+			t.Errorf("proposal[%d]: expected non-empty Confidence", i)
 		}
 		if p.ConfidenceRationale == "" {
 			t.Errorf("proposal[%d]: expected non-empty ConfidenceRationale", i)
@@ -268,16 +320,5 @@ func TestScenario_AcceptedRunProducesReinforcementProposals(t *testing.T) {
 	// 13. Markdown mentions at least one proposal title
 	if !strings.Contains(string(mdData), "Enforce test-before-commit") {
 		t.Error("distillation-proposals.md should contain proposal titles")
-	}
-}
-
-func writeJSON(t *testing.T, path string, v interface{}) {
-	t.Helper()
-	data, err := json.MarshalIndent(v, "", "  ")
-	if err != nil {
-		t.Fatalf("marshal JSON for %s: %v", path, err)
-	}
-	if err := os.WriteFile(path, data, 0o644); err != nil {
-		t.Fatalf("write %s: %v", path, err)
 	}
 }

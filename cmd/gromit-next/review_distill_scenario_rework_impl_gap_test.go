@@ -9,31 +9,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/danabrams/gromit/internal/next/reviewdistiller"
 	"github.com/danabrams/gromit/internal/next/runstore"
 )
-
-// reworkProposal extends the proposal schema with evidence_references.
-type reworkProposal struct {
-	ID                  string   `json:"id"`
-	Type                string   `json:"type"`
-	Title               string   `json:"title"`
-	Content             string   `json:"content,omitempty"`
-	Confidence          float64  `json:"confidence,omitempty"`
-	ConfidenceRationale string   `json:"confidence_rationale,omitempty"`
-	EvidenceReferences  []string `json:"evidence_references,omitempty"`
-}
-
-// reworkDistillResult represents the distillation output for rework scenario assertions.
-type reworkDistillResult struct {
-	RunID     string            `json:"run_id"`
-	SpecID    string            `json:"spec_id"`
-	Outcome   string            `json:"outcome"`
-	ModelTier string            `json:"model_tier"`
-	Summary   string            `json:"summary"`
-	Proposals []reworkProposal  `json:"proposals"`
-	CreatedAt time.Time         `json:"created_at"`
-	Metadata  map[string]string `json:"metadata,omitempty"`
-}
 
 func TestScenario_ReworkImplementationGapProducesGuardrailProposals(t *testing.T) {
 	// === Seed ===
@@ -104,59 +82,91 @@ func TestScenario_ReworkImplementationGapProducesGuardrailProposals(t *testing.T
 	writeJSON(t, filepath.Join(evidenceDir, "validation.json"), validationData)
 
 	// === Invoke ===
-	// Simulate distiller output (will be replaced by actual distiller call once
-	// the reviewdistiller package lands on main).
-	now := time.Now().UTC()
-	result := reworkDistillResult{
-		RunID:     "run-102",
-		SpecID:    "spec-keyboard-nav",
-		Outcome:   "rework_implementation_gap",
-		ModelTier: "sonnet",
-		Summary:   "Implementation gap detected: keyboard navigation not functional in modal component despite passing automated tests",
-		CreatedAt: now,
-		Metadata: map[string]string{
-			"run_id":  "run-102",
-			"spec_id": "spec-keyboard-nav",
-			"model":   "sonnet",
-		},
-		Proposals: []reworkProposal{
+	// Create LLM response JSON with 4 proposals including validation_gap, doctrine_rule, and planner_heuristic
+	llmResponse := `{
+		"proposals": [
 			{
-				ID:                  fmt.Sprintf("run-102-validation_gap-%d", 1),
-				Type:                "validation_gap",
-				Title:               "Add keyboard navigation integration tests for modal components",
-				Content:             "Automated tests did not cover keyboard navigation flows; add integration tests that simulate Tab, Escape, and Enter key interactions within modals",
-				Confidence:          0.95,
-				ConfidenceRationale: "Manual check explicitly failed on keyboard nav — no automated equivalent exists",
-				EvidenceReferences:  []string{"review-outcome.json", "check-a11y-keyboard", "process-review.json"},
+				"type": "validation_gap",
+				"title": "Add keyboard navigation integration tests for modal components",
+				"what_happened": "Automated tests did not cover keyboard navigation flows",
+				"what_was_missing": "Integration tests that simulate Tab, Escape, and Enter key interactions",
+				"proposed_change": "Create integration tests for modal keyboard navigation patterns",
+				"rationale": "Manual check explicitly failed on keyboard nav — no automated equivalent exists",
+				"confidence": "high",
+				"confidence_rationale": "Clear failure pattern with defined remediation",
+				"evidence_references": ["review-outcome.json", "check-a11y-keyboard", "process-review.json"]
 			},
 			{
-				ID:                  fmt.Sprintf("run-102-doctrine_rule-%d", 2),
-				Type:                "doctrine_rule",
-				Title:               "Require a11y checks for all interactive UI components",
-				Content:             "Any spec touching interactive UI must include accessibility validation as an acceptance criterion",
-				Confidence:          0.88,
-				ConfidenceRationale: "Failed manual check indicates systematic gap in acceptance criteria",
-				EvidenceReferences:  []string{"review-outcome.json", "check-a11y-keyboard"},
+				"type": "doctrine_rule",
+				"title": "Require a11y checks for all interactive UI components",
+				"what_happened": "Keyboard navigation acceptance criteria were not included",
+				"what_was_missing": "Systematic a11y validation requirements in spec",
+				"proposed_change": "Add a11y checks as mandatory acceptance criteria for all interactive UI specs",
+				"rationale": "Failed manual check indicates systematic gap in acceptance criteria",
+				"confidence": "high",
+				"confidence_rationale": "Consistent pattern across similar failures",
+				"evidence_references": ["review-outcome.json", "check-a11y-keyboard"]
 			},
 			{
-				ID:                  fmt.Sprintf("run-102-planner_heuristic-%d", 3),
-				Type:                "planner_heuristic",
-				Title:               "Split UI tasks into visual and interaction sub-tasks",
-				Content:             "When a task involves interactive UI, create separate sub-tasks for visual rendering and keyboard/screen-reader interaction to prevent interaction gaps",
-				Confidence:          0.82,
-				ConfidenceRationale: "Implementation focused on visual correctness but missed interaction layer",
-				EvidenceReferences:  []string{"review-outcome.json", "check-a11y-keyboard", "validation.json"},
+				"type": "planner_heuristic",
+				"title": "Split UI tasks into visual and interaction sub-tasks",
+				"what_happened": "Task focused on visual rendering without explicit interaction layer validation",
+				"what_was_missing": "Separate sub-task planning for keyboard and screen-reader interactions",
+				"proposed_change": "When planning interactive UI tasks, create separate sub-tasks for visual rendering and interaction validation",
+				"rationale": "Implementation focused on visual correctness but missed interaction layer",
+				"confidence": "medium",
+				"confidence_rationale": "Empirical pattern from this failure, helps prevent recurrence",
+				"evidence_references": ["review-outcome.json", "check-a11y-keyboard", "validation.json"]
 			},
 			{
-				ID:                  fmt.Sprintf("run-102-validation_gap-%d", 4),
-				Type:                "validation_gap",
-				Title:               "Add focus-trap validation for modal dialogs",
-				Content:             "Modal components should trap focus within the dialog and return focus on close; add automated validation for this pattern",
-				Confidence:          0.79,
-				ConfidenceRationale: "Common a11y pattern missing from validation suite, related to keyboard nav failure",
-				EvidenceReferences:  []string{"check-a11y-keyboard", "process-review.json"},
-			},
-		},
+				"type": "validation_gap",
+				"title": "Add focus-trap validation for modal dialogs",
+				"what_happened": "Modal implementation did not include focus management",
+				"what_was_missing": "Automated focus-trap validation in test suite",
+				"proposed_change": "Add automated tests for focus trapping and restoration patterns in modals",
+				"rationale": "Common a11y pattern missing from validation suite, related to keyboard nav failure",
+				"confidence": "medium",
+				"confidence_rationale": "Standard a11y pattern, observable through manual testing",
+				"evidence_references": ["check-a11y-keyboard", "process-review.json"]
+			}
+		]
+	}`
+
+	// Create DistillerInputs from evidence data
+	reviewOutcomeBytes, err := json.Marshal(reviewOutcome)
+	if err != nil {
+		t.Fatalf("marshal review outcome: %v", err)
+	}
+
+	productReviewBytes, err := json.Marshal(productReview)
+	if err != nil {
+		t.Fatalf("marshal product review: %v", err)
+	}
+
+	processReviewBytes, err := json.Marshal(processReview)
+	if err != nil {
+		t.Fatalf("marshal process review: %v", err)
+	}
+
+	validationBytes, err := json.Marshal(validationData)
+	if err != nil {
+		t.Fatalf("marshal validation: %v", err)
+	}
+
+	inputs := &reviewdistiller.DistillerInputs{
+		RunID:         "run-102",
+		SpecID:        "spec-keyboard-nav",
+		ReviewOutcome: json.RawMessage(reviewOutcomeBytes),
+		ProductReview: json.RawMessage(productReviewBytes),
+		ProcessReview: json.RawMessage(processReviewBytes),
+		Validation:    json.RawMessage(validationBytes),
+	}
+
+	// Create mock LLM and call Distill
+	mock := &mockLLMCompleter{response: llmResponse}
+	result, err := reviewdistiller.Distill(inputs, mock, reviewdistiller.TierMedium)
+	if err != nil {
+		t.Fatalf("Distill() returned error: %v", err)
 	}
 
 	// Write distillation-proposals.json
@@ -173,11 +183,13 @@ func TestScenario_ReworkImplementationGapProducesGuardrailProposals(t *testing.T
 	var mdBuf strings.Builder
 	fmt.Fprintf(&mdBuf, "# Distillation Proposals\n\n")
 	fmt.Fprintf(&mdBuf, "**Run:** %s | **Outcome:** %s | **Model:** %s\n\n", result.RunID, result.Outcome, result.ModelTier)
-	fmt.Fprintf(&mdBuf, "## Summary\n\n%s\n\n", result.Summary)
 	for i, p := range result.Proposals {
 		fmt.Fprintf(&mdBuf, "### %d. [%s] %s\n\n", i+1, p.Type, p.Title)
-		fmt.Fprintf(&mdBuf, "%s\n\n", p.Content)
-		fmt.Fprintf(&mdBuf, "**Confidence:** %.2f — %s\n\n", p.Confidence, p.ConfidenceRationale)
+		fmt.Fprintf(&mdBuf, "**What Happened:** %s\n\n", p.WhatHappened)
+		fmt.Fprintf(&mdBuf, "**What Was Missing:** %s\n\n", p.WhatWasMissing)
+		fmt.Fprintf(&mdBuf, "**Proposed Change:** %s\n\n", p.ProposedChange)
+		fmt.Fprintf(&mdBuf, "**Rationale:** %s\n\n", p.Rationale)
+		fmt.Fprintf(&mdBuf, "**Confidence:** %s — %s\n\n", p.Confidence, p.ConfidenceRationale)
 		if len(p.EvidenceReferences) > 0 {
 			fmt.Fprintf(&mdBuf, "**Evidence:** %s\n\n", strings.Join(p.EvidenceReferences, ", "))
 		}
@@ -189,50 +201,51 @@ func TestScenario_ReworkImplementationGapProducesGuardrailProposals(t *testing.T
 
 	// === Assert ===
 
-	// 1. distillation-proposals.json exists and is parseable
-	rawJSON, err := os.ReadFile(proposalsPath)
-	if err != nil {
-		t.Fatalf("read distillation-proposals.json: %v", err)
+	// 1. Result is not nil and has correct RunID/SpecID/Outcome
+	if result == nil {
+		t.Fatal("expected non-nil result from Distill()")
 	}
-	var parsed reworkDistillResult
-	if err := json.Unmarshal(rawJSON, &parsed); err != nil {
-		t.Fatalf("parse distillation-proposals.json: %v", err)
+	if result.RunID != "run-102" {
+		t.Errorf("expected RunID 'run-102', got %q", result.RunID)
 	}
-
-	// 2. run_id is "run-102"
-	if parsed.RunID != "run-102" {
-		t.Errorf("expected run_id 'run-102', got %q", parsed.RunID)
+	if result.SpecID != "spec-keyboard-nav" {
+		t.Errorf("expected SpecID 'spec-keyboard-nav', got %q", result.SpecID)
 	}
-
-	// 3. Outcome is "rework_implementation_gap"
-	if parsed.Outcome != "rework_implementation_gap" {
-		t.Errorf("expected outcome 'rework_implementation_gap', got %q", parsed.Outcome)
+	if result.Outcome != "rework_implementation_gap" {
+		t.Errorf("expected Outcome 'rework_implementation_gap', got %q", result.Outcome)
 	}
 
-	// 4. 3-5 proposals
-	if len(parsed.Proposals) < 3 || len(parsed.Proposals) > 5 {
-		t.Errorf("expected 3-5 proposals, got %d", len(parsed.Proposals))
+	// 2. 3-5 proposals
+	if len(result.Proposals) < 3 || len(result.Proposals) > 5 {
+		t.Errorf("expected 3-5 proposals, got %d", len(result.Proposals))
+	}
+
+	// 3. Verify ModelTier is set
+	if result.ModelTier != reviewdistiller.TierMedium {
+		t.Errorf("expected ModelTier TierMedium, got %q", result.ModelTier)
+	}
+
+	// 4. Verify CreatedAt is set
+	if result.CreatedAt.IsZero() {
+		t.Error("expected non-zero CreatedAt")
 	}
 
 	// 5. At least one validation_gap, doctrine_rule, or planner_heuristic
-	hasGuardrailType := false
-	for _, p := range parsed.Proposals {
-		if p.Type == "validation_gap" || p.Type == "doctrine_rule" || p.Type == "planner_heuristic" {
-			hasGuardrailType = true
-			break
-		}
+	guardrailTypes := map[string]int{}
+	for _, p := range result.Proposals {
+		guardrailTypes[p.Type]++
 	}
-	if !hasGuardrailType {
-		types := make([]string, len(parsed.Proposals))
-		for i, p := range parsed.Proposals {
-			types[i] = p.Type
+	if guardrailTypes["validation_gap"] == 0 && guardrailTypes["doctrine_rule"] == 0 && guardrailTypes["planner_heuristic"] == 0 {
+		types := make([]string, 0, len(guardrailTypes))
+		for t := range guardrailTypes {
+			types = append(types, t)
 		}
-		t.Errorf("expected at least one validation_gap, doctrine_rule, or planner_heuristic, got types: %v", types)
+		t.Errorf("expected at least one validation_gap, doctrine_rule, or planner_heuristic, got: %v", types)
 	}
 
 	// 6. At least one proposal references the failed manual check item "check-a11y-keyboard"
 	hasFailedCheckRef := false
-	for _, p := range parsed.Proposals {
+	for _, p := range result.Proposals {
 		for _, ref := range p.EvidenceReferences {
 			if ref == "check-a11y-keyboard" {
 				hasFailedCheckRef = true
@@ -244,10 +257,10 @@ func TestScenario_ReworkImplementationGapProducesGuardrailProposals(t *testing.T
 		}
 	}
 	if !hasFailedCheckRef {
-		t.Error("expected at least one proposal to reference the failed manual check item 'check-a11y-keyboard' in evidence_references")
+		t.Error("expected at least one proposal to reference 'check-a11y-keyboard' in evidence_references")
 	}
 
-	// 7. At least one proposal references an evidence file in evidence_references
+	// 7. At least one proposal references an evidence file
 	hasEvidenceFileRef := false
 	evidenceFiles := map[string]bool{
 		"review-outcome.json": true,
@@ -255,7 +268,7 @@ func TestScenario_ReworkImplementationGapProducesGuardrailProposals(t *testing.T
 		"validation.json":     true,
 		"product-review.json": true,
 	}
-	for _, p := range parsed.Proposals {
+	for _, p := range result.Proposals {
 		for _, ref := range p.EvidenceReferences {
 			if evidenceFiles[ref] {
 				hasEvidenceFileRef = true
@@ -271,7 +284,7 @@ func TestScenario_ReworkImplementationGapProducesGuardrailProposals(t *testing.T
 	}
 
 	// 8. Each proposal has required schema fields populated
-	for i, p := range parsed.Proposals {
+	for i, p := range result.Proposals {
 		if p.ID == "" {
 			t.Errorf("proposal[%d]: expected non-empty ID", i)
 		}
@@ -281,11 +294,20 @@ func TestScenario_ReworkImplementationGapProducesGuardrailProposals(t *testing.T
 		if p.Title == "" {
 			t.Errorf("proposal[%d]: expected non-empty Title", i)
 		}
-		if p.Content == "" {
-			t.Errorf("proposal[%d]: expected non-empty Content", i)
+		if p.WhatHappened == "" {
+			t.Errorf("proposal[%d]: expected non-empty WhatHappened", i)
 		}
-		if p.Confidence == 0 {
-			t.Errorf("proposal[%d]: expected non-zero Confidence", i)
+		if p.WhatWasMissing == "" {
+			t.Errorf("proposal[%d]: expected non-empty WhatWasMissing", i)
+		}
+		if p.ProposedChange == "" {
+			t.Errorf("proposal[%d]: expected non-empty ProposedChange", i)
+		}
+		if p.Rationale == "" {
+			t.Errorf("proposal[%d]: expected non-empty Rationale", i)
+		}
+		if p.Confidence == "" {
+			t.Errorf("proposal[%d]: expected non-empty Confidence", i)
 		}
 		if p.ConfidenceRationale == "" {
 			t.Errorf("proposal[%d]: expected non-empty ConfidenceRationale", i)
@@ -296,22 +318,16 @@ func TestScenario_ReworkImplementationGapProducesGuardrailProposals(t *testing.T
 	}
 
 	// 9. evidence_references field present in raw JSON
+	rawJSON, err := os.ReadFile(proposalsPath)
+	if err != nil {
+		t.Fatalf("read distillation-proposals.json: %v", err)
+	}
 	jsonStr := string(rawJSON)
 	if !strings.Contains(jsonStr, "evidence_references") {
 		t.Error("expected evidence_references field in JSON output")
 	}
 
-	// 10. model_tier is populated
-	if parsed.ModelTier == "" {
-		t.Error("expected non-empty model_tier")
-	}
-
-	// 11. CreatedAt is non-zero
-	if parsed.CreatedAt.IsZero() {
-		t.Error("expected non-zero created_at")
-	}
-
-	// 12. distillation-proposals.md exists and contains outcome
+	// 10. distillation-proposals.md exists and contains outcome
 	mdData, err := os.ReadFile(markdownPath)
 	if err != nil {
 		t.Fatalf("read distillation-proposals.md: %v", err)
@@ -319,17 +335,18 @@ func TestScenario_ReworkImplementationGapProducesGuardrailProposals(t *testing.T
 	if len(mdData) == 0 {
 		t.Error("expected non-empty distillation-proposals.md")
 	}
-	if !strings.Contains(string(mdData), "rework_implementation_gap") {
-		t.Error("distillation-proposals.md should mention rework_implementation_gap outcome")
+	mdContent := string(mdData)
+	if !strings.Contains(mdContent, "What Happened") && !strings.Contains(mdContent, "what_happened") {
+		t.Error("distillation-proposals.md should mention what happened")
 	}
 
-	// 13. Markdown references the failed check
-	if !strings.Contains(string(mdData), "check-a11y-keyboard") {
+	// 11. Markdown references the failed check
+	if !strings.Contains(mdContent, "check-a11y-keyboard") {
 		t.Error("distillation-proposals.md should reference the failed check item")
 	}
 
-	// 14. Markdown mentions keyboard nav content
-	if !strings.Contains(string(mdData), "keyboard navigation") {
-		t.Error("distillation-proposals.md should mention keyboard navigation")
+	// 12. Markdown mentions keyboard nav content
+	if !strings.Contains(mdContent, "keyboard") {
+		t.Error("distillation-proposals.md should mention keyboard-related content")
 	}
 }

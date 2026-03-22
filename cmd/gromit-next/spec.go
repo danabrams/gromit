@@ -21,8 +21,9 @@ var specCmd = &cobra.Command{
 
 // ProjectConfig holds project configuration loaded from project.json.
 type ProjectConfig struct {
-	RepoPath string `json:"repo_path"`
-	SpecsDir string `json:"specs_dir"`
+	RepoPath      string `json:"repo_path"`
+	SpecsDir      string `json:"specs_dir"`
+	DistillerTier string `json:"distiller_tier"`
 }
 
 // LoadProjectConfig loads a ProjectConfig from project.json in the given directory.
@@ -35,6 +36,9 @@ func LoadProjectConfig(dir string) (*ProjectConfig, error) {
 	var cfg ProjectConfig
 	if err := json.Unmarshal(data, &cfg); err != nil {
 		return nil, fmt.Errorf("parse project config: %w", err)
+	}
+	if cfg.DistillerTier == "" {
+		cfg.DistillerTier = "medium"
 	}
 	return &cfg, nil
 }
