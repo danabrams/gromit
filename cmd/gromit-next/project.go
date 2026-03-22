@@ -170,7 +170,8 @@ var guideCmd = &cobra.Command{
 		}
 
 		// Load doctrine and convert to guide local types
-		doc, err := docStore.Load(filepath.Join(cell.CellPath, "doctrine"))
+		docStore.Dir = filepath.Join(cell.CellPath, "doctrine")
+		doc, err := docStore.Load()
 		if err != nil {
 			return fmt.Errorf("load doctrine: %w", err)
 		}

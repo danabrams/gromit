@@ -17,10 +17,15 @@ func helperCreateRunWithProposals(t *testing.T, rootDir string, projectID string
 	store := runstore.NewStore(rootDir)
 
 	// Create a run state
+	specID := "test-spec"
+	if proposals != nil {
+		specID = proposals.SpecID
+	}
+
 	rs := &runstore.RunState{
 		RunID:     runID,
 		ProjectID: projectID,
-		SpecID:    "test-spec",
+		SpecID:    specID,
 		Status:    "completed",
 		StartedAt: time.Now(),
 	}
@@ -61,6 +66,49 @@ func TestDiscoverPending_NoRuns(t *testing.T) {
 
 	if err != nil {
 		t.Fatalf("DiscoverPending should not error with no runs, got: %v", err)
+	}
+	if pending == nil {
+		t.Fatal("DiscoverPending should return empty slice, not nil")
+	}
+	if len(pending) != 0 {
+		t.Fatalf("DiscoverPending should return empty slice, got %d pending proposals", len(pending))
+	}
+}
+
+func TestDiscoverPending_EmptyRunsDir(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create runs subdirectory but leave it empty
+	runsDir := filepath.Join(tmpDir, "runs")
+	if err := os.MkdirAll(runsDir, 0755); err != nil {
+		t.Fatalf("failed to create runs directory: %v", err)
+	}
+
+	pending, err := DiscoverPending(tmpDir, "test-project", nil, nil)
+
+	if err != nil {
+		t.Fatalf("DiscoverPending should not error with empty runs dir, got: %v", err)
+	}
+	if pending == nil {
+		t.Fatal("DiscoverPending should return empty slice, not nil")
+	}
+	if len(pending) != 0 {
+		t.Fatalf("DiscoverPending should return empty slice, got %d pending proposals", len(pending))
+	}
+}
+
+func TestDiscoverPending_NoRunsDirectory(t *testing.T) {
+	tmpDir := t.TempDir()
+	// Explicitly verify that we don't create any runs/ subdirectory at all
+	runsDir := filepath.Join(tmpDir, "runs")
+	if _, err := os.Stat(runsDir); !os.IsNotExist(err) {
+		t.Fatalf("test setup error: runs directory should not exist")
+	}
+
+	pending, err := DiscoverPending(tmpDir, "test-project", nil, nil)
+
+	if err != nil {
+		t.Fatalf("DiscoverPending should not error when runs/ directory does not exist, got: %v", err)
 	}
 	if pending == nil {
 		t.Fatal("DiscoverPending should return empty slice, not nil")
@@ -287,6 +335,111 @@ func TestDiscoverPending_FilterByRunID(t *testing.T) {
 
 	if pending[0].RunID != "run-1" {
 		t.Errorf("pending proposal RunID mismatch, got %q, want %q", pending[0].RunID, "run-1")
+	}
+}
+
+func TestDiscoverPending_NoDecisions_ReturnsAllPending(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Run 1: has distillation-proposals.json with 2 proposals, NO proposal-decisions.json
+	proposals1 := &reviewdistiller.DistillationResult{
+		RunID:     "run-1",
+		SpecID:    "spec-1",
+		Outcome:   "accepted",
+		ModelTier: reviewdistiller.TierHigh,
+		Proposals: []reviewdistiller.Proposal{
+			{
+				ID:             "run-1-proposal-1",
+				Type:           "doctrine_rule",
+				Title:          "Proposal 1",
+				ProposedChange: "Change 1",
+			},
+			{
+				ID:             "run-1-proposal-2",
+				Type:           "validation_gap",
+				Title:          "Proposal 2",
+				ProposedChange: "Change 2",
+			},
+		},
+		CreatedAt: time.Date(2026, 3, 20, 10, 0, 0, 0, time.UTC),
+	}
+
+	// Run 2: has distillation-proposals.json with 2 proposals, NO proposal-decisions.json
+	proposals2 := &reviewdistiller.DistillationResult{
+		RunID:     "run-2",
+		SpecID:    "spec-2",
+		Outcome:   "accepted",
+		ModelTier: reviewdistiller.TierHigh,
+		Proposals: []reviewdistiller.Proposal{
+			{
+				ID:             "run-2-proposal-1",
+				Type:           "doctrine_rule",
+				Title:          "Proposal 3",
+				ProposedChange: "Change 3",
+			},
+			{
+				ID:             "run-2-proposal-2",
+				Type:           "validation_gap",
+				Title:          "Proposal 4",
+				ProposedChange: "Change 4",
+			},
+		},
+		CreatedAt: time.Date(2026, 3, 21, 10, 0, 0, 0, time.UTC),
+	}
+
+	// Create runs without decisions (pass nil for decisions)
+	helperCreateRunWithProposals(t, tmpDir, "test-project", "run-1", proposals1, nil)
+	helperCreateRunWithProposals(t, tmpDir, "test-project", "run-2", proposals2, nil)
+
+	// Discover pending proposals
+	pending, err := DiscoverPending(tmpDir, "test-project", nil, nil)
+
+	if err != nil {
+		t.Fatalf("DiscoverPending failed: %v", err)
+	}
+
+	// Verify all 4 proposals are returned
+	if len(pending) != 4 {
+		t.Fatalf("expected 4 pending proposals, got %d", len(pending))
+	}
+
+	// Build a map to verify proposals
+	foundProposals := make(map[string]*PendingProposal)
+	for i := range pending {
+		foundProposals[pending[i].Proposal.ID] = &pending[i]
+	}
+
+	// Verify all expected proposal IDs are present
+	expectedIDs := []string{"run-1-proposal-1", "run-1-proposal-2", "run-2-proposal-1", "run-2-proposal-2"}
+	for _, expectedID := range expectedIDs {
+		if _, found := foundProposals[expectedID]; !found {
+			t.Errorf("expected to find proposal %s", expectedID)
+		}
+	}
+
+	// Verify RunID, SpecID, and CreatedAt are correctly populated
+	if pp := foundProposals["run-1-proposal-1"]; pp != nil {
+		if pp.RunID != "run-1" {
+			t.Errorf("expected RunID 'run-1', got %s", pp.RunID)
+		}
+		if pp.SpecID != "spec-1" {
+			t.Errorf("expected SpecID 'spec-1', got %s", pp.SpecID)
+		}
+		if pp.CreatedAt != proposals1.CreatedAt {
+			t.Errorf("expected CreatedAt %v, got %v", proposals1.CreatedAt, pp.CreatedAt)
+		}
+	}
+
+	if pp := foundProposals["run-2-proposal-1"]; pp != nil {
+		if pp.RunID != "run-2" {
+			t.Errorf("expected RunID 'run-2', got %s", pp.RunID)
+		}
+		if pp.SpecID != "spec-2" {
+			t.Errorf("expected SpecID 'spec-2', got %s", pp.SpecID)
+		}
+		if pp.CreatedAt != proposals2.CreatedAt {
+			t.Errorf("expected CreatedAt %v, got %v", proposals2.CreatedAt, pp.CreatedAt)
+		}
 	}
 }
 
@@ -1029,5 +1182,228 @@ func TestDiscoverPending_MalformedJSON(t *testing.T) {
 
 	if pending[0].Proposal.ID != "run-1-proposal-1" {
 		t.Errorf("expected proposal run-1-proposal-1, got %q", pending[0].Proposal.ID)
+	}
+}
+
+func TestDiscoverPending_WithDecisions_FiltersPending(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create run with 3 proposals
+	proposals := &reviewdistiller.DistillationResult{
+		RunID:     "run-1",
+		SpecID:    "spec-1",
+		Outcome:   "accepted",
+		ModelTier: reviewdistiller.TierHigh,
+		Proposals: []reviewdistiller.Proposal{
+			{
+				ID:             "run-1-proposal-1",
+				Type:           "doctrine_rule",
+				Title:          "Proposal 1",
+				ProposedChange: "Change 1",
+			},
+			{
+				ID:             "run-1-proposal-2",
+				Type:           "validation_gap",
+				Title:          "Proposal 2",
+				ProposedChange: "Change 2",
+			},
+			{
+				ID:             "run-1-proposal-3",
+				Type:           "doctrine_rule",
+				Title:          "Proposal 3",
+				ProposedChange: "Change 3",
+			},
+		},
+		CreatedAt: time.Date(2026, 3, 20, 10, 0, 0, 0, time.UTC),
+	}
+
+	// Create decisions for 2 of them
+	decisions := []Decision{
+		{
+			ProposalID: "run-1-proposal-1",
+			Action:     "accepted",
+		},
+		{
+			ProposalID: "run-1-proposal-2",
+			Action:     "rejected",
+		},
+	}
+
+	helperCreateRunWithProposals(t, tmpDir, "test-project", "run-1", proposals, decisions)
+
+	// Discover pending proposals
+	pending, err := DiscoverPending(tmpDir, "test-project", nil, nil)
+
+	if err != nil {
+		t.Fatalf("DiscoverPending failed: %v", err)
+	}
+
+	// Should return only 1 pending proposal (the one without a decision)
+	if len(pending) != 1 {
+		t.Fatalf("expected 1 pending proposal, got %d", len(pending))
+	}
+
+	// Verify it's the undecided proposal
+	if pending[0].Proposal.ID != "run-1-proposal-3" {
+		t.Errorf("expected pending proposal to be run-1-proposal-3, got %s", pending[0].Proposal.ID)
+	}
+
+	// Verify RunID and SpecID
+	if pending[0].RunID != "run-1" {
+		t.Errorf("expected RunID run-1, got %s", pending[0].RunID)
+	}
+	if pending[0].SpecID != "spec-1" {
+		t.Errorf("expected SpecID spec-1, got %s", pending[0].SpecID)
+	}
+}
+
+func TestDiscoverPending_SortedByCreatedAtDescending(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create run 1 with earliest creation time
+	proposals1 := &reviewdistiller.DistillationResult{
+		RunID:     "run-1",
+		SpecID:    "spec-1",
+		Outcome:   "accepted",
+		ModelTier: reviewdistiller.TierHigh,
+		Proposals: []reviewdistiller.Proposal{
+			{
+				ID:    "run-1-proposal-1",
+				Type:  "doctrine_rule",
+				Title: "Proposal 1",
+			},
+		},
+		CreatedAt: time.Date(2026, 3, 19, 10, 0, 0, 0, time.UTC),
+	}
+
+	// Create run 2 with middle creation time
+	proposals2 := &reviewdistiller.DistillationResult{
+		RunID:     "run-2",
+		SpecID:    "spec-2",
+		Outcome:   "accepted",
+		ModelTier: reviewdistiller.TierHigh,
+		Proposals: []reviewdistiller.Proposal{
+			{
+				ID:    "run-2-proposal-1",
+				Type:  "doctrine_rule",
+				Title: "Proposal 2",
+			},
+		},
+		CreatedAt: time.Date(2026, 3, 20, 10, 0, 0, 0, time.UTC),
+	}
+
+	// Create run 3 with latest creation time
+	proposals3 := &reviewdistiller.DistillationResult{
+		RunID:     "run-3",
+		SpecID:    "spec-3",
+		Outcome:   "accepted",
+		ModelTier: reviewdistiller.TierHigh,
+		Proposals: []reviewdistiller.Proposal{
+			{
+				ID:    "run-3-proposal-1",
+				Type:  "doctrine_rule",
+				Title: "Proposal 3",
+			},
+		},
+		CreatedAt: time.Date(2026, 3, 21, 10, 0, 0, 0, time.UTC),
+	}
+
+	helperCreateRunWithProposals(t, tmpDir, "test-project", "run-1", proposals1, nil)
+	helperCreateRunWithProposals(t, tmpDir, "test-project", "run-2", proposals2, nil)
+	helperCreateRunWithProposals(t, tmpDir, "test-project", "run-3", proposals3, nil)
+
+	// Discover pending proposals
+	pending, err := DiscoverPending(tmpDir, "test-project", nil, nil)
+
+	if err != nil {
+		t.Fatalf("DiscoverPending failed: %v", err)
+	}
+
+	if len(pending) != 3 {
+		t.Fatalf("expected 3 pending proposals, got %d", len(pending))
+	}
+
+	// Should be sorted descending by creation time (run-3 first, then run-2, then run-1)
+	if pending[0].RunID != "run-3" {
+		t.Errorf("first pending proposal RunID mismatch, got %q, want %q", pending[0].RunID, "run-3")
+	}
+	if pending[1].RunID != "run-2" {
+		t.Errorf("second pending proposal RunID mismatch, got %q, want %q", pending[1].RunID, "run-2")
+	}
+	if pending[2].RunID != "run-1" {
+		t.Errorf("third pending proposal RunID mismatch, got %q, want %q", pending[2].RunID, "run-1")
+	}
+}
+
+func TestDiscoverPending_MalformedJSON_Skipped(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Run 1: has VALID proposals
+	proposals1 := &reviewdistiller.DistillationResult{
+		RunID:     "run-1",
+		SpecID:    "spec-1",
+		Outcome:   "accepted",
+		ModelTier: reviewdistiller.TierHigh,
+		Proposals: []reviewdistiller.Proposal{
+			{
+				ID:             "run-1-proposal-1",
+				Type:           "doctrine_rule",
+				Title:          "Valid Proposal",
+				ProposedChange: "Valid Change",
+			},
+		},
+		CreatedAt: time.Date(2026, 3, 20, 10, 0, 0, 0, time.UTC),
+	}
+
+	// Run 1: create with valid proposals
+	helperCreateRunWithProposals(t, tmpDir, "test-project", "run-1", proposals1, nil)
+
+	// Run 2: manually create with MALFORMED JSON in distillation-proposals.json
+	store := runstore.NewStore(tmpDir)
+	rs := &runstore.RunState{
+		RunID:     "run-2",
+		ProjectID: "test-project",
+		SpecID:    "spec-2",
+		Status:    "completed",
+		StartedAt: time.Now(),
+	}
+	rs.NormalizeNilFields()
+	if err := store.Save(rs); err != nil {
+		t.Fatalf("failed to save run state: %v", err)
+	}
+
+	// Write malformed JSON to distillation-proposals.json
+	evidenceDir := store.RunEvidenceDir("run-2")
+	if err := os.MkdirAll(evidenceDir, 0755); err != nil {
+		t.Fatalf("failed to create evidence dir: %v", err)
+	}
+	malformedJSON := `{"RunID": "run-2", "Proposals": [{"ID": "incomplete-proposal"` // incomplete JSON
+	if err := os.WriteFile(filepath.Join(evidenceDir, "distillation-proposals.json"), []byte(malformedJSON), 0644); err != nil {
+		t.Fatalf("failed to write malformed proposals: %v", err)
+	}
+
+	// Discover pending proposals
+	pending, err := DiscoverPending(tmpDir, "test-project", nil, nil)
+
+	// Should not error even though run-2 has malformed JSON
+	if err != nil {
+		t.Fatalf("DiscoverPending should not error with malformed JSON, got: %v", err)
+	}
+
+	// Should only return proposals from run-1 (run-2 should be skipped)
+	if pending == nil {
+		t.Fatal("DiscoverPending should return empty slice, not nil")
+	}
+
+	if len(pending) != 1 {
+		t.Fatalf("expected 1 pending proposal from run-1, got %d", len(pending))
+	}
+
+	// Verify the proposal is from run-1
+	if pending[0].RunID != "run-1" {
+		t.Errorf("expected proposal from run-1, got from %s", pending[0].RunID)
+	}
+	if pending[0].Proposal.ID != "run-1-proposal-1" {
+		t.Errorf("expected proposal run-1-proposal-1, got %s", pending[0].Proposal.ID)
 	}
 }

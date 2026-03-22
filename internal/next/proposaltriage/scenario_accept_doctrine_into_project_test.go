@@ -13,19 +13,7 @@ import (
 	"github.com/danabrams/gromit/internal/next/reviewdistiller"
 )
 
-// TestScenario_AcceptDoctrineRuleIntoProjectLocalStore tests the end-to-end flow:
-// Given: run-201 has distillation-proposals.json with 4 proposals, one doctrine_rule
-//
-//	with ID run-201-proposal-a1b2c3d4.
-//
-// When:  Accept is called for run-201-proposal-a1b2c3d4.
-// Then:  A new rule appears in doctrine/rules.json with ID promoted-<hash>,
-//
-//	the proposal's title as summary, and source promoted:run-201-proposal-a1b2c3d4;
-//	proposal-decisions.json in run-201's evidence directory contains an accepted decision;
-//	the proposal no longer appears in DiscoverPending results.
 func TestScenario_AcceptDoctrineRuleIntoProjectLocalStore(t *testing.T) {
-	// === Seed ===
 	tmpDir := t.TempDir()
 	projectID := "test-project"
 	runID := "run-201"
@@ -95,7 +83,6 @@ func TestScenario_AcceptDoctrineRuleIntoProjectLocalStore(t *testing.T) {
 
 	helperCreateRunWithProposals(t, tmpDir, projectID, runID, proposals, nil)
 
-	// Verify all 4 proposals are pending before acceptance
 	pendingBefore, err := DiscoverPending(tmpDir, projectID, nil, nil)
 	if err != nil {
 		t.Fatalf("DiscoverPending before acceptance: %v", err)
@@ -104,7 +91,6 @@ func TestScenario_AcceptDoctrineRuleIntoProjectLocalStore(t *testing.T) {
 		t.Fatalf("expected 4 pending proposals before acceptance, got %d", len(pendingBefore))
 	}
 
-	// Find the target proposal
 	var targetPP *PendingProposal
 	for i := range pendingBefore {
 		if pendingBefore[i].Proposal.ID == targetProposalID {
@@ -120,21 +106,18 @@ func TestScenario_AcceptDoctrineRuleIntoProjectLocalStore(t *testing.T) {
 		t.Fatal("target proposal not found in pending proposals")
 	}
 
-	// === Invoke ===
 	doctrineStore := doctrine.NewFSStore()
+	doctrineStore.Dir = doctrineDir
 	playbookStore := &playbook.Store{Dir: playbookDir}
 	evidenceDir := filepath.Join(tmpDir, "runs", runID, "evidence")
 
-	decision, err := Accept(
+	decision, err := Promote(
 		targetPP,
 		"", // no title override
 		"", // no change override
 		"", // no rationale override
 		doctrineStore,
 		playbookStore,
-		doctrineDir,
-		playbookDir,
-		evidenceDir,
 	)
 	if err != nil {
 		t.Fatalf("Accept failed: %v", err)
@@ -143,14 +126,10 @@ func TestScenario_AcceptDoctrineRuleIntoProjectLocalStore(t *testing.T) {
 		t.Fatal("Accept returned nil decision")
 	}
 
-	// Save the decision to the run's evidence directory
 	if err := SaveDecisions(evidenceDir, []Decision{*decision}); err != nil {
 		t.Fatalf("SaveDecisions failed: %v", err)
 	}
 
-	// === Assert ===
-
-	// 1. New rule appears in doctrine/rules.json with promoted-<hash> ID
 	doctrineData, err := os.ReadFile(filepath.Join(doctrineDir, "rules.json"))
 	if err != nil {
 		t.Fatalf("read doctrine/rules.json: %v", err)
@@ -167,33 +146,27 @@ func TestScenario_AcceptDoctrineRuleIntoProjectLocalStore(t *testing.T) {
 
 	rule := loadedDoctrine.Rules[0]
 
-	// Rule ID starts with "promoted-"
 	if !strings.HasPrefix(rule.ID, "promoted-") {
 		t.Errorf("rule ID should start with 'promoted-', got %q", rule.ID)
 	}
 
-	// Rule ID matches decision's MaterializedID
 	if rule.ID != decision.MaterializedID {
 		t.Errorf("rule ID %q does not match decision MaterializedID %q", rule.ID, decision.MaterializedID)
 	}
 
-	// Rule summary is the proposal's title
 	if rule.Summary != targetTitle {
 		t.Errorf("rule summary: got %q, want %q", rule.Summary, targetTitle)
 	}
 
-	// Rule source is promoted:<proposal-id>
 	expectedSource := "promoted:" + targetProposalID
 	if rule.Source != expectedSource {
 		t.Errorf("rule source: got %q, want %q", rule.Source, expectedSource)
 	}
 
-	// Rule status is active
 	if rule.Status != "active" {
 		t.Errorf("rule status: got %q, want %q", rule.Status, "active")
 	}
 
-	// 2. proposal-decisions.json in run-201's evidence directory contains an accepted decision
 	decisionsData, err := os.ReadFile(filepath.Join(evidenceDir, "proposal-decisions.json"))
 	if err != nil {
 		t.Fatalf("read proposal-decisions.json: %v", err)
@@ -225,7 +198,6 @@ func TestScenario_AcceptDoctrineRuleIntoProjectLocalStore(t *testing.T) {
 		t.Errorf("decision DuplicateOf should be empty for new proposal, got %q", d.DuplicateOf)
 	}
 
-	// 3. The accepted proposal no longer appears in DiscoverPending, but the other 3 still do
 	pendingAfter, err := DiscoverPending(tmpDir, projectID, nil, nil)
 	if err != nil {
 		t.Fatalf("DiscoverPending after acceptance: %v", err)
@@ -241,7 +213,6 @@ func TestScenario_AcceptDoctrineRuleIntoProjectLocalStore(t *testing.T) {
 		}
 	}
 
-	// Verify the remaining 3 proposals are the non-accepted ones
 	remainingIDs := make(map[string]bool)
 	for _, p := range pendingAfter {
 		remainingIDs[p.Proposal.ID] = true
@@ -256,7 +227,6 @@ func TestScenario_AcceptDoctrineRuleIntoProjectLocalStore(t *testing.T) {
 		}
 	}
 
-	// 4. DiscoverAll shows the accepted proposal with its decision
 	allAfter, err := DiscoverAll(tmpDir, projectID, nil, nil)
 	if err != nil {
 		t.Fatalf("DiscoverAll after acceptance: %v", err)

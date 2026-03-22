@@ -27,20 +27,20 @@ func TestSaveDecisions_RoundTrip(t *testing.T) {
 	// Create test decisions
 	original := []Decision{
 		{
-			ProposalID:       "prop-1",
-			Action:           "accepted",
-			Reason:           "looks good",
-			ApprovedTitle:    "Title 1",
-			ApprovedChange:   "Change 1",
+			ProposalID:        "prop-1",
+			Action:            "accepted",
+			Reason:            "looks good",
+			ApprovedTitle:     "Title 1",
+			ApprovedChange:    "Change 1",
 			ApprovedRationale: "Rationale 1",
-			DecidedAt:        time.Date(2026, 3, 21, 10, 0, 0, 0, time.UTC),
+			DecidedAt:         time.Date(2026, 3, 21, 10, 0, 0, 0, time.UTC),
 		},
 		{
-			ProposalID:       "prop-2",
-			Action:           "rejected",
-			Reason:           "needs work",
-			DuplicateOf:      "prop-3",
-			DecidedAt:        time.Date(2026, 3, 21, 11, 0, 0, 0, time.UTC),
+			ProposalID:  "prop-2",
+			Action:      "rejected",
+			Reason:      "needs work",
+			DuplicateOf: "prop-3",
+			DecidedAt:   time.Date(2026, 3, 21, 11, 0, 0, 0, time.UTC),
 		},
 	}
 

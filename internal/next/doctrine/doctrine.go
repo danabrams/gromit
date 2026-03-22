@@ -35,6 +35,15 @@ type Rule struct {
 
 	// SupersededBy holds the ID of the decision that superseded this rule.
 	SupersededBy string `json:"superseded_by"`
+
+	// SourceProposalID is the ID of the proposal that created this rule.
+	SourceProposalID string `json:"source_proposal_id,omitempty"`
+
+	// SourceRunID is the ID of the run that created this rule.
+	SourceRunID string `json:"source_run_id,omitempty"`
+
+	// SourceSpecID is the ID of the spec that created this rule.
+	SourceSpecID string `json:"source_spec_id,omitempty"`
 }
 
 // NewRule creates a Rule with Source set to "declared" and CreatedAt set to now.
@@ -64,34 +73,36 @@ func (d *Doctrine) NormalizeNilFields() {
 
 // Store is the interface for persisting and loading doctrine.
 type Store interface {
-	Save(doctrineDir string, d Doctrine) error
-	Load(doctrineDir string) (Doctrine, error)
+	Save(d Doctrine) error
+	Load() (Doctrine, error)
 }
 
 // FSStore implements Store using the local filesystem.
-type FSStore struct{}
+type FSStore struct {
+	Dir string
+}
 
 // NewFSStore returns a new filesystem-backed doctrine store.
 func NewFSStore() *FSStore {
 	return &FSStore{}
 }
 
-// Save writes the doctrine to doctrineDir/rules.json.
-func (s *FSStore) Save(doctrineDir string, d Doctrine) error {
+// Save writes the doctrine to Dir/rules.json.
+func (s *FSStore) Save(d Doctrine) error {
 	data, err := json.MarshalIndent(d, "", "  ")
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(doctrineDir, 0o755); err != nil {
+	if err := os.MkdirAll(s.Dir, 0o755); err != nil {
 		return err
 	}
-	return os.WriteFile(filepath.Join(doctrineDir, "rules.json"), data, 0o644)
+	return os.WriteFile(filepath.Join(s.Dir, "rules.json"), data, 0o644)
 }
 
-// Load reads the doctrine from doctrineDir/rules.json. Returns an empty
+// Load reads the doctrine from Dir/rules.json. Returns an empty
 // Doctrine if the file does not exist.
-func (s *FSStore) Load(doctrineDir string) (Doctrine, error) {
-	data, err := os.ReadFile(filepath.Join(doctrineDir, "rules.json"))
+func (s *FSStore) Load() (Doctrine, error) {
+	data, err := os.ReadFile(filepath.Join(s.Dir, "rules.json"))
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return Doctrine{Rules: []Rule{}}, nil

@@ -11,6 +11,7 @@ import (
 	"github.com/danabrams/gromit/internal/next/doctrine"
 	"github.com/danabrams/gromit/internal/next/llmadapter"
 	"github.com/danabrams/gromit/internal/next/playbook"
+	"github.com/danabrams/gromit/internal/next/promptrender"
 	"github.com/danabrams/gromit/internal/next/runstore"
 	"github.com/danabrams/gromit/internal/provider"
 )
@@ -96,9 +97,18 @@ func FileTaskContextProvider(workDirFn func() string, runDir string, cellPath st
 		if cellPath != "" {
 			doctrineDir := filepath.Join(cellPath, "doctrine")
 			store := doctrine.NewFSStore()
-			doc, err := store.Load(doctrineDir)
+			store.Dir = doctrineDir
+			doc, err := store.Load()
 			if err == nil {
-				tc.Doctrine = playbook.FormatDoctrineForPrompt(doc.Rules)
+				// Filter to active rules only (exclude superseded).
+				// Treat empty Status as active for backward compatibility with pre-existing rules.
+				var activeRules []doctrine.Rule
+				for _, r := range doc.Rules {
+					if (r.Status == "active" || r.Status == "") && r.SupersededBy == "" {
+						activeRules = append(activeRules, r)
+					}
+				}
+				tc.Doctrine = promptrender.FormatDoctrineForPrompt(activeRules)
 			} else if !os.IsNotExist(err) {
 				log.Printf("warning: failed to load doctrine from %s: %v", doctrineDir, err)
 			}

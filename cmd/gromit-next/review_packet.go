@@ -62,7 +62,6 @@ func newReviewRecordCmd() *cobra.Command {
 
 func init() {
 	reviewCmd.AddCommand(newReviewRecordCmd())
-	reviewCmd.AddCommand(proposalsCmd)
 }
 
 // loadRunAndEnsurePacket loads the run from store, checks IsTerminal,

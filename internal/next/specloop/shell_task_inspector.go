@@ -11,6 +11,7 @@ import (
 // ShellTaskInspector implements TaskInspector by running proof checks via shell commands.
 type ShellTaskInspector struct {
 	workDirFn func() string
+	KnownGaps string // known validation gaps for prompt guidance
 }
 
 // NewShellTaskInspector creates a ShellTaskInspector that runs proof checks in
@@ -28,7 +29,9 @@ func (s *ShellTaskInspector) Inspect(ctx context.Context, task runstore.Task) In
 		return InspectResult{Pass: true}
 	}
 
-	results, err := validator.NewRunner().RunTargeted(ctx, task.ProofChecks, s.workDirFn())
+	r := validator.NewRunner()
+	r.KnownGaps = s.KnownGaps
+	results, err := r.RunTargeted(ctx, task.ProofChecks, s.workDirFn())
 	if err != nil {
 		return InspectResult{Pass: false, Failures: []string{err.Error()}}
 	}
@@ -44,4 +47,9 @@ func (s *ShellTaskInspector) Inspect(ctx context.Context, task runstore.Task) In
 		Pass:     results.AllPass(),
 		Failures: failures,
 	}
+}
+
+// SetKnownGaps sets validation gaps for prompt guidance.
+func (s *ShellTaskInspector) SetKnownGaps(gaps string) {
+	s.KnownGaps = gaps
 }

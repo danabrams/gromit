@@ -26,6 +26,7 @@ type Entry struct {
 	SupersededBy     string    `json:"superseded_by"`
 }
 
+// See CLAUDE.md nil-field normalization visibility convention: exported — cross-package boundary type
 // NormalizeNilFields normalizes nil fields to empty values.
 func (e *Entry) NormalizeNilFields() {
 	// Entry struct has no slice or map fields, so nothing to normalize.
@@ -76,6 +77,31 @@ func (s *Store) Save(entries []Entry) error {
 	}
 
 	return nil
+}
+
+// UpdateStatus marks an entry as superseded by another entry.
+// Returns an error if the entry is not found.
+func (s *Store) UpdateStatus(id, supersededBy string) error {
+	entries, err := s.Load()
+	if err != nil {
+		return err
+	}
+
+	found := false
+	for i := range entries {
+		if entries[i].ID == id {
+			entries[i].Status = "superseded"
+			entries[i].SupersededBy = supersededBy
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		return fmt.Errorf("entry not found: %s", id)
+	}
+
+	return s.Save(entries)
 }
 
 // ComputeID generates a playbook entry ID from type and content.

@@ -2,9 +2,14 @@ package stages
 
 import (
 	"context"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/danabrams/gromit/internal/next/execpolicy"
+	"github.com/danabrams/gromit/internal/next/playbook"
 	"github.com/danabrams/gromit/internal/next/runstore"
 	"github.com/danabrams/gromit/internal/next/specloop"
 )
@@ -309,5 +314,211 @@ func TestExecuteStage_NoEscalationWhenThresholdNotMet(t *testing.T) {
 	// Verify the task received the original ModelTier (no escalation)
 	if validatingRunner.receivedTier != "medium" {
 		t.Fatalf("expected task to receive ModelTier 'medium' (no escalation), got %q", validatingRunner.receivedTier)
+	}
+}
+
+func TestExecuteStage_LoadsPlaybookValidationGaps(t *testing.T) {
+	tmpDir := t.TempDir()
+	playbookDir := filepath.Join(tmpDir, "playbook")
+	if err := os.MkdirAll(playbookDir, 0755); err != nil {
+		t.Fatalf("failed to create playbook dir: %v", err)
+	}
+
+	// Create playbook with validation_gap entries
+	entries := []playbook.Entry{
+		{
+			ID:      "pb-001",
+			Type:    "validation_gap",
+			Title:   "Check for error handling",
+			Content: "Always verify error cases are handled",
+			Status:  "active",
+		},
+		{
+			ID:      "pb-002",
+			Type:    "validation_gap",
+			Title:   "Check for nil pointers",
+			Content: "Verify nil checks before dereferencing",
+			Status:  "active",
+		},
+		{
+			ID:      "pb-003",
+			Type:    "planner_heuristic",
+			Title:   "Prefer small tasks",
+			Content: "Smaller tasks are easier to fix",
+			Status:  "active",
+		},
+		{
+			ID:      "pb-004",
+			Type:    "validation_gap",
+			Title:   "Superseded gap",
+			Content: "This is old",
+			Status:  "superseded",
+		},
+	}
+	store := &playbook.Store{Dir: playbookDir}
+	if err := store.Save(entries); err != nil {
+		t.Fatalf("failed to save playbook entries: %v", err)
+	}
+
+	// Create a mock ShellTaskInspector
+	inspector := &specloop.ShellTaskInspector{}
+
+	runner := &fakeTaskRunner{
+		results: []specloop.TaskResult{
+			{Status: "done"},
+		},
+	}
+
+	stage := NewExecuteStage(runner, ExecuteStageConfig{
+		MaxRetries: 0,
+		CellPath:   tmpDir,
+		Inspector:  inspector,
+		Escalation: execpolicy.EscalationConfig{},
+	})
+
+	rs := runstore.NewRunState("spec-001", "proj-001")
+	rs.Tasks = []runstore.Task{
+		{TaskID: "t-001", Status: "pending", Objective: "test"},
+	}
+
+	_, err := stage.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Verify KnownGaps were set on the inspector
+	if inspector.KnownGaps == "" {
+		t.Fatal("expected KnownGaps to be set, got empty string")
+	}
+
+	// Verify KnownGaps contains active validation_gap entries
+	if !strings.Contains(inspector.KnownGaps, "Check for error handling") {
+		t.Errorf("expected 'Check for error handling' in KnownGaps, got %q", inspector.KnownGaps)
+	}
+	if !strings.Contains(inspector.KnownGaps, "Check for nil pointers") {
+		t.Errorf("expected 'Check for nil pointers' in KnownGaps, got %q", inspector.KnownGaps)
+	}
+
+	// Verify planner_heuristic is NOT included
+	if strings.Contains(inspector.KnownGaps, "Prefer small tasks") {
+		t.Errorf("should not include planner_heuristic in KnownGaps, got %q", inspector.KnownGaps)
+	}
+
+	// Verify superseded entry is NOT included
+	if strings.Contains(inspector.KnownGaps, "Superseded gap") {
+		t.Errorf("should not include superseded entries in KnownGaps, got %q", inspector.KnownGaps)
+	}
+}
+
+func TestExecuteStage_NoCellPath_SkipsPlaybookLoading(t *testing.T) {
+	inspector := &specloop.ShellTaskInspector{}
+
+	runner := &fakeTaskRunner{
+		results: []specloop.TaskResult{
+			{Status: "done"},
+		},
+	}
+
+	stage := NewExecuteStage(runner, ExecuteStageConfig{
+		MaxRetries: 0,
+		CellPath:   "", // Empty CellPath
+		Inspector:  inspector,
+	})
+
+	rs := runstore.NewRunState("spec-001", "proj-001")
+	rs.Tasks = []runstore.Task{
+		{TaskID: "t-001", Status: "pending", Objective: "test"},
+	}
+
+	_, err := stage.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Verify KnownGaps were NOT set
+	if inspector.KnownGaps != "" {
+		t.Errorf("expected KnownGaps to be empty when CellPath is empty, got %q", inspector.KnownGaps)
+	}
+}
+
+func TestExecuteStage_NoPlaybookFile_NoError(t *testing.T) {
+	tmpDir := t.TempDir()
+	// Do NOT create playbook directory or file
+
+	inspector := &specloop.ShellTaskInspector{}
+
+	runner := &fakeTaskRunner{
+		results: []specloop.TaskResult{
+			{Status: "done"},
+		},
+	}
+
+	stage := NewExecuteStage(runner, ExecuteStageConfig{
+		MaxRetries: 0,
+		CellPath:   tmpDir,
+		Inspector:  inspector,
+	})
+
+	rs := runstore.NewRunState("spec-001", "proj-001")
+	rs.Tasks = []runstore.Task{
+		{TaskID: "t-001", Status: "pending", Objective: "test"},
+	}
+
+	_, err := stage.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Should handle gracefully and not set KnownGaps
+	if inspector.KnownGaps != "" {
+		t.Errorf("expected KnownGaps to be empty when playbook doesn't exist, got %q", inspector.KnownGaps)
+	}
+}
+
+func TestExecuteStage_NoInspector_NoError(t *testing.T) {
+	tmpDir := t.TempDir()
+	playbookDir := filepath.Join(tmpDir, "playbook")
+	if err := os.MkdirAll(playbookDir, 0755); err != nil {
+		t.Fatalf("failed to create playbook dir: %v", err)
+	}
+
+	// Create playbook with validation_gap entry
+	entries := []playbook.Entry{
+		{
+			ID:        "pb-001",
+			Type:      "validation_gap",
+			Title:     "Check for errors",
+			Content:   "Always handle errors",
+			Status:    "active",
+			CreatedAt: time.Now(),
+		},
+	}
+	store := &playbook.Store{Dir: playbookDir}
+	if err := store.Save(entries); err != nil {
+		t.Fatalf("failed to save playbook entries: %v", err)
+	}
+
+	runner := &fakeTaskRunner{
+		results: []specloop.TaskResult{
+			{Status: "done"},
+		},
+	}
+
+	// No Inspector provided
+	stage := NewExecuteStage(runner, ExecuteStageConfig{
+		MaxRetries: 0,
+		CellPath:   tmpDir,
+		Inspector:  nil,
+	})
+
+	rs := runstore.NewRunState("spec-001", "proj-001")
+	rs.Tasks = []runstore.Task{
+		{TaskID: "t-001", Status: "pending", Objective: "test"},
+	}
+
+	// Should not panic
+	_, err := stage.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }

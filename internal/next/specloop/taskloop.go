@@ -20,6 +20,7 @@ type TaskRunner interface {
 // TaskInspector validates a task after execution.
 type TaskInspector interface {
 	Inspect(ctx context.Context, task runstore.Task) InspectResult
+	SetKnownGaps(gaps string)
 }
 
 // TaskDecomposer splits a task into smaller sub-tasks.

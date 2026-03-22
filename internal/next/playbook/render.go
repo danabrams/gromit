@@ -3,24 +3,7 @@ package playbook
 import (
 	"fmt"
 	"strings"
-
-	"github.com/danabrams/gromit/internal/next/doctrine"
 )
-
-// FormatDoctrineForPrompt renders a slice of doctrine rules as a markdown list
-// suitable for prompt injection. Format: `- **<summary>** (scope: <scope>)`
-func FormatDoctrineForPrompt(rules []doctrine.Rule) string {
-	if len(rules) == 0 {
-		return ""
-	}
-
-	var sb strings.Builder
-	for _, rule := range rules {
-		sb.WriteString(fmt.Sprintf("- **%s** (scope: %s)\n", rule.Summary, rule.Scope))
-	}
-
-	return strings.TrimSuffix(sb.String(), "\n")
-}
 
 // FormatPlaybookForPrompt renders a slice of playbook entries as a markdown list
 // suitable for prompt injection. Format: `- **<title>**: <content>` with rationale on the next line.
@@ -42,4 +25,12 @@ func FormatPlaybookForPrompt(entries []Entry) string {
 	}
 
 	return strings.TrimSuffix(sb.String(), "\n")
+}
+
+// RenderPlaybookSection renders a slice of active playbook entries as a markdown-formatted
+// string with title, content, and rationale per entry. Suitable for prompt injection.
+// Only includes entries with status="active" and excludes superseded entries.
+func RenderPlaybookSection(entries []Entry) string {
+	active := ActiveEntries(entries)
+	return FormatPlaybookForPrompt(active)
 }

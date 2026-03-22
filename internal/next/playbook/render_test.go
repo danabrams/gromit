@@ -3,9 +3,6 @@ package playbook
 import (
 	"strings"
 	"testing"
-	"time"
-
-	"github.com/danabrams/gromit/internal/next/doctrine"
 )
 
 func TestFormatPlaybookForPrompt_EmptySlice(t *testing.T) {
@@ -218,147 +215,164 @@ func TestFormatPlaybookForPrompt_NoTrailingNewline(t *testing.T) {
 	}
 }
 
-func TestFormatDoctrineForPrompt_EmptySlice(t *testing.T) {
-	result := FormatDoctrineForPrompt([]doctrine.Rule{})
+// Tests for RenderPlaybookSection - verifies filtering to active entries only
+
+func TestRenderPlaybookSection_EmptySlice(t *testing.T) {
+	result := RenderPlaybookSection([]Entry{})
 
 	if result != "" {
-		t.Errorf("FormatDoctrineForPrompt empty slice: got %q, want empty string", result)
+		t.Errorf("RenderPlaybookSection empty slice: got %q, want empty string", result)
 	}
 }
 
-func TestFormatDoctrineForPrompt_SingleRule(t *testing.T) {
-	rules := []doctrine.Rule{
+func TestRenderPlaybookSection_NoActiveEntries(t *testing.T) {
+	entries := []Entry{
 		{
-			ID:        "rule-001",
-			Summary:   "Use explicit error handling",
-			Scope:     "code",
-			Source:    "declared",
-			CreatedAt: time.Now(),
-			Status:    "active",
+			ID:      "pb-11111111",
+			Type:    "pattern",
+			Title:   "Inactive Pattern",
+			Content: "This is inactive",
+			Status:  "archived",
+		},
+		{
+			ID:           "pb-22222222",
+			Type:         "insight",
+			Title:        "Superseded Insight",
+			Content:      "This is superseded",
+			Status:       "active",
+			SupersededBy: "pb-33333333",
 		},
 	}
 
-	result := FormatDoctrineForPrompt(rules)
+	result := RenderPlaybookSection(entries)
 
-	expected := "- **Use explicit error handling** (scope: code)"
-	if result != expected {
-		t.Errorf("Single rule:\ngot:  %q\nwant: %q", result, expected)
+	if result != "" {
+		t.Errorf("RenderPlaybookSection with no active entries: got %q, want empty string", result)
 	}
 }
 
-func TestFormatDoctrineForPrompt_MultipleRules(t *testing.T) {
-	rules := []doctrine.Rule{
+func TestRenderPlaybookSection_FiltersInactiveEntries(t *testing.T) {
+	entries := []Entry{
 		{
-			ID:        "rule-001",
-			Summary:   "Use explicit error handling",
-			Scope:     "code",
-			Status:    "active",
+			ID:      "pb-11111111",
+			Type:    "pattern",
+			Title:   "Active Pattern",
+			Content: "This is active",
+			Status:  "active",
 		},
 		{
-			ID:        "rule-002",
-			Summary:   "Write tests for all public functions",
-			Scope:     "tests",
-			Status:    "active",
+			ID:      "pb-22222222",
+			Type:    "insight",
+			Title:   "Archived Insight",
+			Content: "This is archived",
+			Status:  "archived",
 		},
 		{
-			ID:        "rule-003",
-			Summary:   "Document all API endpoints",
-			Scope:     "*",
-			Status:    "active",
-		},
-	}
-
-	result := FormatDoctrineForPrompt(rules)
-
-	// Check all rules are present
-	if !strings.Contains(result, "- **Use explicit error handling** (scope: code)") {
-		t.Errorf("Rule 1 not found in result: %q", result)
-	}
-	if !strings.Contains(result, "- **Write tests for all public functions** (scope: tests)") {
-		t.Errorf("Rule 2 not found in result: %q", result)
-	}
-	if !strings.Contains(result, "- **Document all API endpoints** (scope: *)") {
-		t.Errorf("Rule 3 not found in result: %q", result)
-	}
-
-	// Check proper formatting with newlines
-	lines := strings.Split(result, "\n")
-	if len(lines) != 3 {
-		t.Errorf("Expected 3 lines, got %d: %q", len(lines), result)
-	}
-}
-
-func TestFormatDoctrineForPrompt_SpecialCharactersInSummary(t *testing.T) {
-	rules := []doctrine.Rule{
-		{
-			ID:      "rule-001",
-			Summary: "Use **bold** and `code` in summaries",
-			Scope:   "code",
+			ID:      "pb-33333333",
+			Type:    "pattern",
+			Title:   "Another Active",
+			Content: "Also active",
 			Status:  "active",
 		},
 	}
 
-	result := FormatDoctrineForPrompt(rules)
+	result := RenderPlaybookSection(entries)
 
-	// Should preserve special characters
-	if !strings.Contains(result, "Use **bold** and `code` in summaries") {
-		t.Errorf("Special characters in summary not preserved: %q", result)
+	// Should include active entries
+	if !strings.Contains(result, "Active Pattern") {
+		t.Errorf("Active entry not included: %q", result)
+	}
+	if !strings.Contains(result, "Another Active") {
+		t.Errorf("Second active entry not included: %q", result)
+	}
+	// Should exclude archived entries
+	if strings.Contains(result, "Archived Insight") {
+		t.Errorf("Archived entry was included but should be filtered: %q", result)
 	}
 }
 
-func TestFormatDoctrineForPrompt_SpecialCharactersInScope(t *testing.T) {
-	rules := []doctrine.Rule{
+func TestRenderPlaybookSection_FiltersSupersededEntries(t *testing.T) {
+	entries := []Entry{
 		{
-			ID:      "rule-001",
-			Summary: "Test rule",
-			Scope:   "tests/*",
+			ID:      "pb-11111111",
+			Type:    "pattern",
+			Title:   "Active Pattern",
+			Content: "This is active",
 			Status:  "active",
 		},
+		{
+			ID:           "pb-22222222",
+			Type:         "pattern",
+			Title:        "Superseded Pattern",
+			Content:      "This is superseded",
+			Status:       "active",
+			SupersededBy: "pb-11111111",
+		},
 	}
 
-	result := FormatDoctrineForPrompt(rules)
+	result := RenderPlaybookSection(entries)
 
-	expected := "- **Test rule** (scope: tests/*)"
+	// Should include non-superseded active entry
+	if !strings.Contains(result, "Active Pattern") {
+		t.Errorf("Active non-superseded entry not included: %q", result)
+	}
+	// Should exclude superseded entry even if status is active
+	if strings.Contains(result, "Superseded Pattern") {
+		t.Errorf("Superseded entry was included but should be filtered: %q", result)
+	}
+}
+
+func TestRenderPlaybookSection_SingleActiveEntry(t *testing.T) {
+	entries := []Entry{
+		{
+			ID:        "pb-11111111",
+			Type:      "pattern",
+			Title:     "Test Pattern",
+			Content:   "This is test content",
+			Rationale: "Why this matters",
+			Status:    "active",
+		},
+	}
+
+	result := RenderPlaybookSection(entries)
+
+	expected := "- **Test Pattern**: This is test content\n  Rationale: Why this matters"
 	if result != expected {
-		t.Errorf("Special characters in scope:\ngot:  %q\nwant: %q", result, expected)
+		t.Errorf("Single active entry:\ngot:  %q\nwant: %q", result, expected)
 	}
 }
 
-func TestFormatDoctrineForPrompt_NoTrailingNewline(t *testing.T) {
-	rules := []doctrine.Rule{
+func TestRenderPlaybookSection_MultipleActiveEntries(t *testing.T) {
+	entries := []Entry{
 		{
-			ID:      "rule-001",
-			Summary: "Rule one",
-			Scope:   "code",
+			ID:        "pb-11111111",
+			Type:      "pattern",
+			Title:     "First Pattern",
+			Content:   "First content",
+			Rationale: "First reason",
+			Status:    "active",
 		},
 		{
-			ID:      "rule-002",
-			Summary: "Rule two",
-			Scope:   "tests",
+			ID:      "pb-22222222",
+			Type:    "insight",
+			Title:   "Inactive Insight",
+			Content: "This is inactive",
+			Status:  "archived",
 		},
-	}
-
-	result := FormatDoctrineForPrompt(rules)
-
-	// Should not end with newline
-	if strings.HasSuffix(result, "\n") {
-		t.Errorf("Result ends with newline, should not: %q", result)
-	}
-}
-
-func TestFormatDoctrineForPrompt_LongSummary(t *testing.T) {
-	longSummary := "This is a very long summary that explains a complex rule about error handling and validation in great detail"
-	rules := []doctrine.Rule{
 		{
-			ID:      "rule-001",
-			Summary: longSummary,
-			Scope:   "code",
+			ID:        "pb-33333333",
+			Type:      "pattern",
+			Title:     "Second Pattern",
+			Content:   "Second content",
+			Rationale: "Second reason",
+			Status:    "active",
 		},
 	}
 
-	result := FormatDoctrineForPrompt(rules)
+	result := RenderPlaybookSection(entries)
 
-	if !strings.Contains(result, longSummary) {
-		t.Errorf("Long summary not preserved: %q", result)
+	expected := "- **First Pattern**: First content\n  Rationale: First reason\n\n- **Second Pattern**: Second content\n  Rationale: Second reason"
+	if result != expected {
+		t.Errorf("Multiple entries with filtering:\ngot:  %q\nwant: %q", result, expected)
 	}
 }

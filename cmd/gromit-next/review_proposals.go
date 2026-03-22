@@ -194,6 +194,7 @@ The decision is saved and the materialized entry ID is reported.`,
 
 			// Create stores
 			doctrineStore := doctrine.NewFSStore()
+			doctrineStore.Dir = doctrineDir
 			playbookStore := &playbook.Store{Dir: playbookDir}
 
 			// Create pending proposal wrapper for Accept
@@ -203,25 +204,23 @@ The decision is saved and the materialized entry ID is reported.`,
 				SpecID:   targetProposal.SpecID,
 			}
 
-			// Call Accept to create decision
-			decision, err := proposaltriage.Accept(
+			// Call Promote to create decision
+			decision, err := proposaltriage.Promote(
 				pp,
 				overrideTitle,
 				overrideChange,
 				overrideRationale,
 				doctrineStore,
 				playbookStore,
-				doctrineDir,
-				playbookDir,
-				"", // evidenceDir not used in current implementation
 			)
 			if err != nil {
 				return fmt.Errorf("accept proposal: %w", err)
 			}
 
-			// Save decision to project's proposal-decisions.json
-			decisionsDir := filepath.Join(projectDir, "evidence")
-			if err := proposaltriage.SaveDecisions(decisionsDir, []proposaltriage.Decision{*decision}); err != nil {
+			// Save decision to run's evidence directory
+			runStore := runstore.NewStore(storeDir)
+			runEvidenceDir := runStore.RunEvidenceDir(targetProposal.RunID)
+			if err := proposaltriage.SaveDecisions(runEvidenceDir, []proposaltriage.Decision{*decision}); err != nil {
 				return fmt.Errorf("save decision: %w", err)
 			}
 
@@ -314,12 +313,12 @@ is marked as superseded. The decision is saved and the result is reported.`,
 			projectDir := filepath.Join(storeDir, "projects", projectID)
 			doctrineDir := filepath.Join(projectDir, "doctrine")
 			playbookDir := filepath.Join(projectDir, "playbook")
-			decisionsDir := filepath.Join(projectDir, "evidence")
 
 			// If the proposal was previously accepted, call RejectAfterAccept to supersede
 			if targetProposal.Decision != nil && targetProposal.Decision.Action == "accepted" {
 				// Create stores for superseding
 				doctrineStore := doctrine.NewFSStore()
+				doctrineStore.Dir = doctrineDir
 				playbookStore := &playbook.Store{Dir: playbookDir}
 
 				if err := proposaltriage.RejectAfterAccept(
@@ -327,8 +326,6 @@ is marked as superseded. The decision is saved and the result is reported.`,
 					rejectionDecision,
 					doctrineStore,
 					playbookStore,
-					doctrineDir,
-					playbookDir,
 				); err != nil {
 					return fmt.Errorf("reject after accept: %w", err)
 				}
@@ -337,8 +334,9 @@ is marked as superseded. The decision is saved and the result is reported.`,
 				return fmt.Errorf("proposal %q already has a decision: %s", proposalID, targetProposal.Decision.Action)
 			}
 
-			// Save the rejection decision to project's evidence directory
-			if err := proposaltriage.SaveDecisions(decisionsDir, []proposaltriage.Decision{*rejectionDecision}); err != nil {
+			// Save the rejection decision to run's evidence directory
+			runEvidenceDir := runstore.NewStore(storeDir).RunEvidenceDir(targetProposal.RunID)
+			if err := proposaltriage.SaveDecisions(runEvidenceDir, []proposaltriage.Decision{*rejectionDecision}); err != nil {
 				return fmt.Errorf("save decision: %w", err)
 			}
 
@@ -354,8 +352,8 @@ is marked as superseded. The decision is saved and the result is reported.`,
 	}
 
 	cmd.Flags().String("store-dir", "", "Override store directory (default: .gromit-next)")
-	cmd.MarkFlagRequired("reason")
 	cmd.Flags().String("reason", "", "Reason for rejecting the proposal (required)")
+	cmd.MarkFlagRequired("reason")
 
 	return cmd
 }

@@ -1030,27 +1030,27 @@ func TestRenderContextSections_Doctrine(t *testing.T) {
 
 func TestRenderContextSections_KnownGaps(t *testing.T) {
 	testCases := []struct {
-		name       string
-		includeSpec bool
-		knownGaps  string
+		name          string
+		includeSpec   bool
+		knownGaps     string
 		shouldInclude bool
 	}{
 		{
-			name:        "fix task with known gaps",
-			includeSpec: true,
-			knownGaps:   "Database connection may fail under high load.",
+			name:          "fix task with known gaps",
+			includeSpec:   true,
+			knownGaps:     "Database connection may fail under high load.",
 			shouldInclude: true,
 		},
 		{
-			name:        "original task with known gaps (should be omitted)",
-			includeSpec: false,
-			knownGaps:   "Database connection may fail under high load.",
+			name:          "original task with known gaps (should be omitted)",
+			includeSpec:   false,
+			knownGaps:     "Database connection may fail under high load.",
 			shouldInclude: false,
 		},
 		{
-			name:        "fix task without known gaps",
-			includeSpec: true,
-			knownGaps:   "",
+			name:          "fix task without known gaps",
+			includeSpec:   true,
+			knownGaps:     "",
 			shouldInclude: false,
 		},
 	}
@@ -1347,9 +1347,9 @@ func TestRenderContextSections_ValidationGapsOnlyInRepairContext(t *testing.T) {
 	validationGapText := "- **Test gap**: Missing test coverage"
 
 	tests := []struct {
-		name       string
+		name        string
 		includeSpec bool
-		expectGaps bool
+		expectGaps  bool
 	}{
 		{
 			name:        "includeSpec=true (repair task)",
@@ -1385,5 +1385,99 @@ func TestRenderContextSections_ValidationGapsOnlyInRepairContext(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestFileTaskContextProvider_FiltersSuperseededDoctrineRules(t *testing.T) {
+	workDir := t.TempDir()
+	runDir := t.TempDir()
+	cellPath := t.TempDir()
+	doctrineDir := filepath.Join(cellPath, "doctrine")
+
+	os.MkdirAll(doctrineDir, 0o755)
+
+	// Create doctrine rules with both active and superseded rules
+	doctrineJSON := `{
+  "rules": [
+    {
+      "id": "rule-1",
+      "summary": "Use meaningful variable names",
+      "scope": "*",
+      "source": "declared",
+      "created_at": "2026-03-01T00:00:00Z",
+      "status": "active",
+      "superseded_by": ""
+    },
+    {
+      "id": "rule-2",
+      "summary": "Old naming convention",
+      "scope": "*",
+      "source": "declared",
+      "created_at": "2026-03-01T00:00:00Z",
+      "status": "active",
+      "superseded_by": "rule-1"
+    }
+  ]
+}`
+	os.WriteFile(filepath.Join(doctrineDir, "rules.json"), []byte(doctrineJSON), 0o644)
+
+	provider := FileTaskContextProvider(func() string { return workDir }, runDir, cellPath)
+	tc := provider()
+
+	// Active rule should be included
+	if !strings.Contains(tc.Doctrine, "Use meaningful variable names") {
+		t.Error("prompt should contain active doctrine rule")
+	}
+
+	// Superseded rule should NOT be included
+	if strings.Contains(tc.Doctrine, "Old naming convention") {
+		t.Error("prompt should NOT contain superseded doctrine rule")
+	}
+}
+
+func TestFileTaskContextProvider_TreatsEmptyStatusAsActive(t *testing.T) {
+	workDir := t.TempDir()
+	runDir := t.TempDir()
+	cellPath := t.TempDir()
+	doctrineDir := filepath.Join(cellPath, "doctrine")
+
+	os.MkdirAll(doctrineDir, 0o755)
+
+	// Create doctrine rules with one having empty status (pre-existing rule) and one explicit active
+	doctrineJSON := `{
+  "rules": [
+    {
+      "id": "rule-legacy",
+      "summary": "Pre-existing rule with no status field",
+      "scope": "*",
+      "source": "declared",
+      "created_at": "2026-03-01T00:00:00Z",
+      "status": "",
+      "superseded_by": ""
+    },
+    {
+      "id": "rule-new",
+      "summary": "Explicitly active rule",
+      "scope": "*",
+      "source": "declared",
+      "created_at": "2026-03-02T00:00:00Z",
+      "status": "active",
+      "superseded_by": ""
+    }
+  ]
+}`
+	os.WriteFile(filepath.Join(doctrineDir, "rules.json"), []byte(doctrineJSON), 0o644)
+
+	provider := FileTaskContextProvider(func() string { return workDir }, runDir, cellPath)
+	tc := provider()
+
+	// Empty status rule should be included for backward compatibility
+	if !strings.Contains(tc.Doctrine, "Pre-existing rule with no status field") {
+		t.Error("prompt should contain pre-existing rule with empty status (backward compatibility)")
+	}
+
+	// Explicit active rule should also be included
+	if !strings.Contains(tc.Doctrine, "Explicitly active rule") {
+		t.Error("prompt should contain explicitly active rule")
 	}
 }

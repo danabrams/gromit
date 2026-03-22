@@ -2,8 +2,12 @@ package stages
 
 import (
 	"context"
+	"log"
+	"os"
+	"path/filepath"
 
 	"github.com/danabrams/gromit/internal/next/execpolicy"
+	"github.com/danabrams/gromit/internal/next/playbook"
 	"github.com/danabrams/gromit/internal/next/runstore"
 	"github.com/danabrams/gromit/internal/next/specloop"
 )
@@ -76,6 +80,29 @@ func (s *ExecuteStage) Run(ctx context.Context, rs *runstore.RunState) (specloop
 					break
 				}
 			}
+		}
+	}
+
+	// Load active validation_gap entries from playbook store and set on validator.
+	// This ensures known validation gaps appear in proof check prompts.
+	if s.cfg.CellPath != "" && s.cfg.Inspector != nil {
+		playbookDir := filepath.Join(s.cfg.CellPath, "playbook")
+		store := &playbook.Store{Dir: playbookDir}
+		entries, err := store.Load()
+		if err == nil {
+			// Filter to active validation_gap entries only
+			var validationGaps []playbook.Entry
+			for _, e := range entries {
+				if e.Type == "validation_gap" && e.Status == "active" && e.SupersededBy == "" {
+					validationGaps = append(validationGaps, e)
+				}
+			}
+			// Format and set KnownGaps on the inspector
+			if len(validationGaps) > 0 {
+				s.cfg.Inspector.SetKnownGaps(playbook.FormatPlaybookForPrompt(validationGaps))
+			}
+		} else if !os.IsNotExist(err) {
+			log.Printf("warning: failed to load playbook from %s: %v", playbookDir, err)
 		}
 	}
 

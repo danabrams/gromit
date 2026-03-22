@@ -11,22 +11,19 @@ import (
 	"github.com/danabrams/gromit/internal/next/playbook"
 )
 
-// Accept promotes a PendingProposal to a Decision, routing to the appropriate store
+// Promote promotes a PendingProposal to a Decision, routing to the appropriate store
 // (doctrine for doctrine_rule proposals, playbook for others).
 // Field overrides (title, change, rationale) are used if non-empty; otherwise defaults from proposal are used.
 // Before materializing, checks if an entry with the computed materialized ID already exists and is active.
 // If a duplicate is found, skips materialization and sets DuplicateOf in the decision.
 // Returns a Decision with materialized_id set based on proposal type and approved change text.
-func Accept(
+func Promote(
 	pp *PendingProposal,
 	overrideTitle string,
 	overrideChange string,
 	overrideRationale string,
 	doctrineStore doctrine.Store,
 	playbookStore *playbook.Store,
-	doctrineDir string,
-	playbookDir string,
-	evidenceDir string,
 ) (*Decision, error) {
 	if pp == nil || pp.Proposal == nil {
 		return nil, fmt.Errorf("pending proposal is nil")
@@ -53,20 +50,26 @@ func Accept(
 	var duplicateOf string
 	switch pp.Proposal.Type {
 	case "doctrine_rule":
+		if doctrineStore == nil {
+			return nil, fmt.Errorf("doctrineStore is required for doctrine_rule proposals")
+		}
 		materializedID = computeDoctrineID(pp.Proposal.Type, approvedChange)
 		// Check for duplicates in doctrine store
-		if existingDoctrine, err := doctrineStore.Load(doctrineDir); err == nil {
+		if existingDoctrine, err := doctrineStore.Load(); err == nil {
 			if isDuplicateInDoctrine(&existingDoctrine, materializedID) {
 				duplicateOf = materializedID
 			}
 		}
 		// Save to doctrine store only if not a duplicate
 		if duplicateOf == "" {
-			if err := promoteToDoctrine(pp, approvedTitle, approvedChange, approvedRationale, doctrineStore, doctrineDir); err != nil {
+			if err := promoteToDoctrine(pp, approvedTitle, approvedChange, approvedRationale, doctrineStore); err != nil {
 				return nil, fmt.Errorf("failed to promote to doctrine: %w", err)
 			}
 		}
 	default:
+		if playbookStore == nil {
+			return nil, fmt.Errorf("playbookStore is required for non-doctrine proposals")
+		}
 		materializedID = computePlaybookID(pp.Proposal.Type, approvedChange)
 		// Check for duplicates in playbook store
 		if existingEntries, err := playbookStore.Load(); err == nil {
@@ -76,7 +79,7 @@ func Accept(
 		}
 		// Save to playbook store only if not a duplicate
 		if duplicateOf == "" {
-			if err := promoteToPlaybook(pp, approvedTitle, approvedChange, approvedRationale, playbookStore, playbookDir); err != nil {
+			if err := promoteToPlaybook(pp, approvedTitle, approvedChange, approvedRationale, playbookStore); err != nil {
 				return nil, fmt.Errorf("failed to promote to playbook: %w", err)
 			}
 		}
@@ -121,10 +124,9 @@ func promoteToDoctrine(
 	change string,
 	rationale string,
 	store doctrine.Store,
-	doctrineDir string,
 ) error {
 	// Load existing doctrine
-	existingDoctrine, err := store.Load(doctrineDir)
+	existingDoctrine, err := store.Load()
 	if err != nil {
 		return fmt.Errorf("failed to load doctrine: %w", err)
 	}
@@ -139,12 +141,15 @@ func promoteToDoctrine(
 	// Set provenance fields for promoted rules
 	rule.Source = fmt.Sprintf("promoted:%s", pp.Proposal.ID)
 	rule.Status = "active"
+	rule.SourceProposalID = pp.Proposal.ID
+	rule.SourceRunID = pp.RunID
+	rule.SourceSpecID = pp.SpecID
 
 	// Add the rule to existing doctrine
 	existingDoctrine.Rules = append(existingDoctrine.Rules, rule)
 
 	// Save back to store
-	return store.Save(doctrineDir, existingDoctrine)
+	return store.Save(existingDoctrine)
 }
 
 // promoteToPlaybook saves the proposal as a playbook entry.
@@ -154,7 +159,6 @@ func promoteToPlaybook(
 	change string,
 	rationale string,
 	store *playbook.Store,
-	playbookDir string,
 ) error {
 	// Load existing entries
 	existingEntries, err := store.Load()
@@ -183,13 +187,13 @@ func promoteToPlaybook(
 	return store.Save(existingEntries)
 }
 
-// isDuplicateInDoctrine checks if a rule with the given ID already exists.
+// isDuplicateInDoctrine checks if a rule with the given ID already exists and is active.
 func isDuplicateInDoctrine(doc *doctrine.Doctrine, materializedID string) bool {
 	if doc == nil {
 		return false
 	}
 	for _, rule := range doc.Rules {
-		if rule.ID == materializedID {
+		if rule.ID == materializedID && rule.Status == "active" {
 			return true
 		}
 	}
@@ -204,105 +208,4 @@ func isDuplicateInPlaybook(entries []playbook.Entry, materializedID string) bool
 		}
 	}
 	return false
-}
-
-// Reject creates a Decision with action=rejected for a PendingProposal.
-// Records the rejection reason and current timestamp.
-func Reject(pp *PendingProposal, reason string) (*Decision, error) {
-	if pp == nil || pp.Proposal == nil {
-		return nil, fmt.Errorf("pending proposal is nil")
-	}
-
-	decision := &Decision{
-		ProposalID: pp.Proposal.ID,
-		Action:     "rejected",
-		Reason:     reason,
-		DecidedAt:  time.Now(),
-	}
-
-	return decision, nil
-}
-
-// RejectAfterAccept supersedes a previously accepted entry and records the rejection.
-// It looks up the entry by the materialized ID from the accepted decision,
-// marks it as superseded with the rejection proposal ID, and saves both stores.
-func RejectAfterAccept(
-	acceptedDecision *Decision,
-	rejectionDecision *Decision,
-	doctrineStore doctrine.Store,
-	playbookStore *playbook.Store,
-	doctrineDir string,
-	playbookDir string,
-) error {
-	if acceptedDecision == nil || rejectionDecision == nil {
-		return fmt.Errorf("decisions cannot be nil")
-	}
-
-	materializedID := acceptedDecision.MaterializedID
-	if materializedID == "" {
-		return fmt.Errorf("accepted decision has no materialized ID")
-	}
-
-	// Determine which store to update based on materialized ID prefix
-	if strings.HasPrefix(materializedID, "promoted-") {
-		// Update doctrine store
-		if doctrineStore == nil {
-			return fmt.Errorf("doctrine store required for promoted entry")
-		}
-
-		existingDoctrine, err := doctrineStore.Load(doctrineDir)
-		if err != nil {
-			return fmt.Errorf("failed to load doctrine: %w", err)
-		}
-
-		// Find and update the rule
-		found := false
-		for i, rule := range existingDoctrine.Rules {
-			if rule.ID == materializedID {
-				existingDoctrine.Rules[i].Status = "superseded"
-				existingDoctrine.Rules[i].SupersededBy = rejectionDecision.ProposalID
-				found = true
-				break
-			}
-		}
-
-		if !found {
-			return fmt.Errorf("no doctrine rule found with ID %s", materializedID)
-		}
-
-		if err := doctrineStore.Save(doctrineDir, existingDoctrine); err != nil {
-			return fmt.Errorf("failed to save doctrine: %w", err)
-		}
-	} else {
-		// Update playbook store
-		if playbookStore == nil {
-			return fmt.Errorf("playbook store required for playbook entry")
-		}
-
-		existingEntries, err := playbookStore.Load()
-		if err != nil {
-			return fmt.Errorf("failed to load playbook entries: %w", err)
-		}
-
-		// Find and update the entry
-		found := false
-		for i, entry := range existingEntries {
-			if entry.ID == materializedID {
-				existingEntries[i].Status = "superseded"
-				existingEntries[i].SupersededBy = rejectionDecision.ProposalID
-				found = true
-				break
-			}
-		}
-
-		if !found {
-			return fmt.Errorf("no playbook entry found with ID %s", materializedID)
-		}
-
-		if err := playbookStore.Save(existingEntries); err != nil {
-			return fmt.Errorf("failed to save playbook entries: %w", err)
-		}
-	}
-
-	return nil
 }

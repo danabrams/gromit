@@ -140,16 +140,14 @@ func TestScenario_AcceptDoctrineRuleProposalIntoProjectLocalStore(t *testing.T) 
 
 	// === Invoke ===
 	doctrineStore := doctrine.NewFSStore()
+	doctrineStore.Dir = doctrineDir
 	playbookStore := &playbook.Store{Dir: playbookDir}
 
-	decision, err := proposaltriage.Accept(
+	decision, err := proposaltriage.Promote(
 		targetPP,
 		"", "", "", // no field overrides — use proposal defaults
 		doctrineStore,
 		playbookStore,
-		doctrineDir,
-		playbookDir,
-		evidenceDir,
 	)
 	if err != nil {
 		t.Fatalf("Accept failed: %v", err)
@@ -166,7 +164,8 @@ func TestScenario_AcceptDoctrineRuleProposalIntoProjectLocalStore(t *testing.T) 
 	// === Assert ===
 
 	// 1. New rule appears in project cell's doctrine/rules.json
-	loadedDoctrine, err := doctrineStore.Load(doctrineDir)
+	doctrineStore.Dir = doctrineDir
+	loadedDoctrine, err := doctrineStore.Load()
 	if err != nil {
 		t.Fatalf("load doctrine: %v", err)
 	}

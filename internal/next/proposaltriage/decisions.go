@@ -83,3 +83,9 @@ func SaveDecisions(dir string, newDecisions []Decision) error {
 
 	return nil
 }
+
+// SaveDecision saves a single decision to the proposal-decisions.json file in the given directory.
+// It updates existing decisions for the same proposal ID and preserves others.
+func SaveDecision(dir string, decision Decision) error {
+	return SaveDecisions(dir, []Decision{decision})
+}

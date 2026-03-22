@@ -12,13 +12,6 @@ import (
 	"github.com/danabrams/gromit/internal/next/reviewdistiller"
 )
 
-// TestScenario_AcceptDoctrineRule tests the end-to-end flow of accepting a doctrine_rule proposal.
-// Setup: temp store with run containing distillation-proposals.json with a doctrine_rule proposal.
-// Action: Call Accept on the pending proposal.
-// Verify:
-// - Rule appears in doctrine/rules.json with promoted-<hash> ID
-// - Decision appears in proposal-decisions.json with action=accepted
-// - Proposal no longer appears in DiscoverPending results
 func TestScenario_AcceptDoctrineRule(t *testing.T) {
 	tmpDir := t.TempDir()
 	projectID := "test-project"
@@ -26,7 +19,6 @@ func TestScenario_AcceptDoctrineRule(t *testing.T) {
 	doctrineDir := filepath.Join(tmpDir, "doctrine")
 	playbookDir := filepath.Join(tmpDir, "playbook")
 
-	// Setup: Create run with a doctrine_rule proposal
 	proposals := &reviewdistiller.DistillationResult{
 		RunID:     runID,
 		SpecID:    "spec-123",
@@ -46,7 +38,6 @@ func TestScenario_AcceptDoctrineRule(t *testing.T) {
 
 	helperCreateRunWithProposals(t, tmpDir, projectID, runID, proposals, nil)
 
-	// Verify proposal exists as pending before acceptance
 	pendingBefore, err := DiscoverPending(tmpDir, projectID, nil, nil)
 	if err != nil {
 		t.Fatalf("DiscoverPending before acceptance failed: %v", err)
@@ -60,11 +51,11 @@ func TestScenario_AcceptDoctrineRule(t *testing.T) {
 		SpecID:   pendingBefore[0].SpecID,
 	}
 
-	// Action: Call Accept
 	doctrineStore := doctrine.NewFSStore()
+	doctrineStore.Dir = doctrineDir
 	playbookStore := &playbook.Store{Dir: playbookDir}
 
-	decision, err := Accept(pp, "", "", "", doctrineStore, playbookStore, doctrineDir, playbookDir, filepath.Join(tmpDir, "runs", runID, "evidence"))
+	decision, err := Promote(pp, "", "", "", doctrineStore, playbookStore)
 	if err != nil {
 		t.Fatalf("Accept failed: %v", err)
 	}
@@ -73,13 +64,11 @@ func TestScenario_AcceptDoctrineRule(t *testing.T) {
 		t.Fatal("Accept returned nil decision")
 	}
 
-	// Save the decision
 	evidenceDir := filepath.Join(tmpDir, "runs", runID, "evidence")
 	if err := SaveDecisions(evidenceDir, []Decision{*decision}); err != nil {
 		t.Fatalf("SaveDecisions failed: %v", err)
 	}
 
-	// Verify 1: Rule appears in doctrine/rules.json with promoted-<hash> ID
 	doctrineData, err := os.ReadFile(filepath.Join(doctrineDir, "rules.json"))
 	if err != nil {
 		t.Fatalf("failed to read doctrine/rules.json: %v", err)
@@ -105,7 +94,6 @@ func TestScenario_AcceptDoctrineRule(t *testing.T) {
 		t.Errorf("rule status should be active, got %q", rule.Status)
 	}
 
-	// Verify 2: Decision appears in proposal-decisions.json with action=accepted
 	decisionsData, err := os.ReadFile(filepath.Join(evidenceDir, "proposal-decisions.json"))
 	if err != nil {
 		t.Fatalf("failed to read proposal-decisions.json: %v", err)
@@ -131,7 +119,6 @@ func TestScenario_AcceptDoctrineRule(t *testing.T) {
 		t.Errorf("decision MaterializedID mismatch with rule ID, got %q, want %q", savedDecision.MaterializedID, rule.ID)
 	}
 
-	// Verify 3: Proposal no longer appears in DiscoverPending results
 	pendingAfter, err := DiscoverPending(tmpDir, projectID, nil, nil)
 	if err != nil {
 		t.Fatalf("DiscoverPending after acceptance failed: %v", err)
@@ -141,7 +128,6 @@ func TestScenario_AcceptDoctrineRule(t *testing.T) {
 	}
 }
 
-// isPromotedID is a helper to check if an ID is a promoted doctrine ID.
 func isPromotedID(id string) bool {
 	return len(id) > 9 && id[:9] == "promoted-"
 }

@@ -35,9 +35,9 @@ func TestEntry_Creation(t *testing.T) {
 
 func TestComputeID(t *testing.T) {
 	tests := []struct {
-		name     string
-		typ      string
-		content  string
+		name       string
+		typ        string
+		content    string
 		wantPrefix string
 	}{
 		{
@@ -64,7 +64,7 @@ func TestComputeID(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			id := ComputeID(tt.typ, tt.content)
 
-			if len(id) != len("pb-") + 8 {
+			if len(id) != len("pb-")+8 {
 				t.Errorf("ID length wrong: got %d chars, want %d", len(id), len("pb-")+8)
 			}
 
@@ -146,6 +146,72 @@ func TestComputeID_WhitespaceNormalization(t *testing.T) {
 	}
 	if id1 != id5 {
 		t.Errorf("Tabs not normalized: %s != %s", id1, id5)
+	}
+}
+
+func TestComputeEntryID(t *testing.T) {
+	// Test ComputeID function directly with entry data
+	tests := []struct {
+		name                string
+		typ                 string
+		content             string
+		expectDeterministic bool
+	}{
+		{
+			name:                "compute entry ID for pattern",
+			typ:                 "pattern",
+			content:             "Always prefer simple solutions over complex ones",
+			expectDeterministic: true,
+		},
+		{
+			name:                "compute entry ID for insight",
+			typ:                 "insight",
+			content:             "Documentation reduces debugging time by 40%",
+			expectDeterministic: true,
+		},
+		{
+			name:                "compute entry ID for decision",
+			typ:                 "decision",
+			content:             "Use PostgreSQL for persistence",
+			expectDeterministic: true,
+		},
+		{
+			name:                "whitespace normalization before hashing",
+			typ:                 "pattern",
+			content:             "Same   content  with\n\nvarious   whitespace",
+			expectDeterministic: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			id := ComputeID(tt.typ, tt.content)
+
+			// Verify ID format: pb- prefix followed by 8 hex characters
+			if len(id) != 11 {
+				t.Errorf("ID length: got %d, want 11", len(id))
+			}
+
+			if id[:3] != "pb-" {
+				t.Errorf("ID prefix: got %s, want pb-", id[:3])
+			}
+
+			// Verify hex characters
+			for i := 3; i < len(id); i++ {
+				ch := id[i]
+				if !((ch >= '0' && ch <= '9') || (ch >= 'a' && ch <= 'f')) {
+					t.Errorf("ID contains non-hex character at position %d: %c", i, ch)
+				}
+			}
+
+			// Verify determinism
+			if tt.expectDeterministic {
+				id2 := ComputeID(tt.typ, tt.content)
+				if id != id2 {
+					t.Errorf("ID not deterministic: %s != %s", id, id2)
+				}
+			}
+		})
 	}
 }
 
@@ -257,7 +323,6 @@ func TestStore_Load_CorruptedJSON(t *testing.T) {
 		t.Error("Load from corrupted JSON should error, but got nil")
 	}
 }
-
 
 func TestActiveEntries_Empty(t *testing.T) {
 	entries := []Entry{
@@ -594,16 +659,16 @@ func TestNormalizeNilFields(t *testing.T) {
 
 func TestActiveEntries(t *testing.T) {
 	tests := []struct {
-		name     string
-		entries  []Entry
-		wantIDs  []string
-		wantLen  int
+		name    string
+		entries []Entry
+		wantIDs []string
+		wantLen int
 	}{
 		{
-			name:     "empty list",
-			entries:  []Entry{},
-			wantIDs:  []string{},
-			wantLen:  0,
+			name:    "empty list",
+			entries: []Entry{},
+			wantIDs: []string{},
+			wantLen: 0,
 		},
 		{
 			name: "single active entry",

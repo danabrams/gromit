@@ -74,6 +74,7 @@ func TestReject_RecordsReason(t *testing.T) {
 
 	// Create initial stores with content
 	docStore := doctrine.NewFSStore()
+	docStore.Dir = tmpDir
 	initialDoctrine := doctrine.Doctrine{
 		Rules: []doctrine.Rule{
 			{
@@ -83,7 +84,7 @@ func TestReject_RecordsReason(t *testing.T) {
 			},
 		},
 	}
-	if err := docStore.Save(tmpDir, initialDoctrine); err != nil {
+	if err := docStore.Save(initialDoctrine); err != nil {
 		t.Fatalf("Failed to save initial doctrine: %v", err)
 	}
 
@@ -130,7 +131,7 @@ func TestReject_RecordsReason(t *testing.T) {
 	}
 
 	// Verify doctrine store is NOT modified
-	loadedDoctrine, err := docStore.Load(tmpDir)
+	loadedDoctrine, err := docStore.Load()
 	if err != nil {
 		t.Fatalf("Failed to load doctrine: %v", err)
 	}
@@ -194,8 +195,6 @@ func TestRejectAfterAccept_SupersededPlaybookEntry(t *testing.T) {
 		rejectionDecision,
 		nil, // doctrineStore not needed for playbook
 		pbStore,
-		"", // doctrineDir not needed for playbook
-		tmpDir,
 	)
 
 	if err != nil {
@@ -234,6 +233,7 @@ func TestRejectAfterAccept_SupersededDoctrineRule(t *testing.T) {
 
 	// Create existing doctrine with that rule
 	docStore := doctrine.NewFSStore()
+	docStore.Dir = tmpDir
 	existingDoctrine := doctrine.Doctrine{
 		Rules: []doctrine.Rule{
 			{
@@ -243,7 +243,7 @@ func TestRejectAfterAccept_SupersededDoctrineRule(t *testing.T) {
 			},
 		},
 	}
-	if err := docStore.Save(tmpDir, existingDoctrine); err != nil {
+	if err := docStore.Save(existingDoctrine); err != nil {
 		t.Fatalf("Failed to save doctrine: %v", err)
 	}
 
@@ -260,8 +260,6 @@ func TestRejectAfterAccept_SupersededDoctrineRule(t *testing.T) {
 		rejectionDecision,
 		docStore,
 		nil, // playbookStore not needed for doctrine
-		tmpDir,
-		"", // playbookDir not needed for doctrine
 	)
 
 	if err != nil {
@@ -269,7 +267,7 @@ func TestRejectAfterAccept_SupersededDoctrineRule(t *testing.T) {
 	}
 
 	// Verify doctrine rule is superseded
-	loadedDoctrine, err := docStore.Load(tmpDir)
+	loadedDoctrine, err := docStore.Load()
 	if err != nil {
 		t.Fatalf("Failed to load doctrine: %v", err)
 	}
@@ -306,27 +304,25 @@ func TestAccept_DoctrineRule(t *testing.T) {
 
 	// Create doctrine store
 	docStore := doctrine.NewFSStore()
+	docStore.Dir = tmpDir
 
-	// Call Accept with doctrine_rule proposal
-	decision, err := Accept(
+	// Call Promote with doctrine_rule proposal
+	decision, err := Promote(
 		pp,
 		"", // no title override
 		"", // no change override
 		"", // no rationale override
 		docStore,
 		nil, // playbookStore not needed for doctrine_rule
-		tmpDir,
-		"", // playbookDir not needed for doctrine_rule
-		"", // evidenceDir not needed for this test
 	)
 
 	// Verify decision was created successfully
 	if err != nil {
-		t.Fatalf("Accept failed: %v", err)
+		t.Fatalf("Promote failed: %v", err)
 	}
 
 	if decision == nil {
-		t.Fatal("Accept returned nil decision")
+		t.Fatal("Promote returned nil decision")
 	}
 
 	// Verify decision fields
@@ -352,7 +348,7 @@ func TestAccept_DoctrineRule(t *testing.T) {
 	}
 
 	// Load doctrine and verify rule was materialized
-	loadedDoctrine, err := docStore.Load(tmpDir)
+	loadedDoctrine, err := docStore.Load()
 	if err != nil {
 		t.Fatalf("Failed to load doctrine: %v", err)
 	}
@@ -409,26 +405,23 @@ func TestAccept_PlannerHeuristic(t *testing.T) {
 	// Create playbook store
 	pbStore := &playbook.Store{Dir: tmpDir}
 
-	// Call Accept with planner_heuristic proposal
-	decision, err := Accept(
+	// Call Promote with planner_heuristic proposal
+	decision, err := Promote(
 		pp,
-		"", // no title override
-		"", // no change override
-		"", // no rationale override
+		"",  // no title override
+		"",  // no change override
+		"",  // no rationale override
 		nil, // doctrineStore not needed for planner_heuristic
 		pbStore,
-		"", // doctrineDir not needed for planner_heuristic
-		tmpDir,
-		"", // evidenceDir not needed for this test
 	)
 
 	// Verify decision was created successfully
 	if err != nil {
-		t.Fatalf("Accept failed: %v", err)
+		t.Fatalf("Promote failed: %v", err)
 	}
 
 	if decision == nil {
-		t.Fatal("Accept returned nil decision")
+		t.Fatal("Promote returned nil decision")
 	}
 
 	// Verify decision fields
@@ -526,8 +519,6 @@ func TestRejectAfterAccept_UnknownMaterializedIDReturnsError(t *testing.T) {
 		rejectionDecision,
 		nil,
 		pbStore,
-		"",
-		tmpDir,
 	)
 
 	if err == nil {
@@ -554,26 +545,23 @@ func TestAccept_FieldOverrides(t *testing.T) {
 	// Create playbook store
 	pbStore := &playbook.Store{Dir: tmpDir}
 
-	// Call Accept with field overrides
-	decision, err := Accept(
+	// Call Promote with field overrides
+	decision, err := Promote(
 		pp,
-		"Overridden Title",           // override title
-		"Overridden change text",     // override change
-		"Overridden rationale",       // override rationale
-		nil,                          // doctrineStore not needed
+		"Overridden Title",       // override title
+		"Overridden change text", // override change
+		"Overridden rationale",   // override rationale
+		nil,                      // doctrineStore not needed
 		pbStore,
-		"",                           // doctrineDir not needed
-		tmpDir,
-		"",                           // evidenceDir not needed
 	)
 
 	// Verify decision was created successfully
 	if err != nil {
-		t.Fatalf("Accept failed: %v", err)
+		t.Fatalf("Promote failed: %v", err)
 	}
 
 	if decision == nil {
-		t.Fatal("Accept returned nil decision")
+		t.Fatal("Promote returned nil decision")
 	}
 
 	// Verify decision action
@@ -665,6 +653,7 @@ func TestAccept_DuplicateDetection_Doctrine(t *testing.T) {
 
 	// Create doctrine store with an existing active rule with the same ID
 	docStore := doctrine.NewFSStore()
+	docStore.Dir = tmpDir
 	existingDoctrine := doctrine.Doctrine{
 		Rules: []doctrine.Rule{
 			{
@@ -674,30 +663,27 @@ func TestAccept_DuplicateDetection_Doctrine(t *testing.T) {
 			},
 		},
 	}
-	if err := docStore.Save(tmpDir, existingDoctrine); err != nil {
+	if err := docStore.Save(existingDoctrine); err != nil {
 		t.Fatalf("Failed to save doctrine: %v", err)
 	}
 
-	// Call Accept with a proposal that would compute to the same ID
-	decision, err := Accept(
+	// Call Promote with a proposal that would compute to the same ID
+	decision, err := Promote(
 		pp,
 		"", // no title override
 		"", // no change override
 		"", // no rationale override
 		docStore,
 		nil, // playbookStore not needed
-		tmpDir,
-		"", // playbookDir not needed
-		"", // evidenceDir not needed
 	)
 
 	// Verify decision was created successfully
 	if err != nil {
-		t.Fatalf("Accept failed: %v", err)
+		t.Fatalf("Promote failed: %v", err)
 	}
 
 	if decision == nil {
-		t.Fatal("Accept returned nil decision")
+		t.Fatal("Promote returned nil decision")
 	}
 
 	// Verify action is accepted
@@ -716,7 +702,7 @@ func TestAccept_DuplicateDetection_Doctrine(t *testing.T) {
 	}
 
 	// Verify that no new rule was created (should still have only 1 rule)
-	loadedDoctrine, err := docStore.Load(tmpDir)
+	loadedDoctrine, err := docStore.Load()
 	if err != nil {
 		t.Fatalf("Failed to load doctrine: %v", err)
 	}
@@ -791,26 +777,23 @@ func TestAccept_DuplicateDetection_Playbook(t *testing.T) {
 		t.Fatalf("Failed to save playbook entries: %v", err)
 	}
 
-	// Call Accept with the proposal that would compute to the same ID
-	decision, err := Accept(
+	// Call Promote with the proposal that would compute to the same ID
+	decision, err := Promote(
 		pp,
-		"", // no title override
-		"", // no change override
-		"", // no rationale override
+		"",  // no title override
+		"",  // no change override
+		"",  // no rationale override
 		nil, // doctrineStore not needed
 		pbStore,
-		"", // doctrineDir not needed
-		tmpDir,
-		"", // evidenceDir not needed
 	)
 
 	// Verify decision was created successfully
 	if err != nil {
-		t.Fatalf("Accept failed: %v", err)
+		t.Fatalf("Promote failed: %v", err)
 	}
 
 	if decision == nil {
-		t.Fatal("Accept returned nil decision")
+		t.Fatal("Promote returned nil decision")
 	}
 
 	// Verify action is accepted
@@ -886,8 +869,6 @@ func TestRejectAfterAccept_Supersedes(t *testing.T) {
 		rejectionDecision,
 		nil, // doctrineStore not needed for playbook
 		pbStore,
-		"", // doctrineDir not needed for playbook
-		tmpDir,
 	)
 
 	if err != nil {
@@ -929,5 +910,640 @@ func TestRejectAfterAccept_Supersedes(t *testing.T) {
 	// Verify rejection decision reason is preserved
 	if rejectionDecision.Reason != "better approach found" {
 		t.Errorf("Rejection decision Reason = %q, want %q", rejectionDecision.Reason, "better approach found")
+	}
+}
+
+func TestPromote_DoctrineRule(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	pp := &PendingProposal{
+		Proposal: &reviewdistiller.Proposal{
+			ID:             "prop-doctrine-001",
+			Type:           "doctrine_rule",
+			Title:          "Use consistent error handling",
+			ProposedChange: "All errors must be logged and wrapped with context",
+			Rationale:      "Helps with debugging and error tracking",
+		},
+		RunID:  "run-001",
+		SpecID: "spec-001",
+	}
+
+	docStore := doctrine.NewFSStore()
+	docStore.Dir = tmpDir
+
+	decision, err := Promote(
+		pp,
+		"", // no override
+		"", // no override
+		"", // no override
+		docStore,
+		nil, // playbook not needed
+	)
+
+	if err != nil {
+		t.Fatalf("Promote failed: %v", err)
+	}
+
+	// Verify decision created
+	if decision == nil {
+		t.Fatal("Promote returned nil decision")
+	}
+
+	if decision.Action != "accepted" {
+		t.Errorf("Action = %q, want %q", decision.Action, "accepted")
+	}
+
+	// Verify materialized ID has promoted- prefix
+	if !strings.HasPrefix(decision.MaterializedID, "promoted-") {
+		t.Errorf("MaterializedID %q should start with 'promoted-'", decision.MaterializedID)
+	}
+
+	// Verify rule was saved to doctrine store with correct ID and provenance
+	loadedDoctrine, err := docStore.Load()
+	if err != nil {
+		t.Fatalf("Failed to load doctrine: %v", err)
+	}
+
+	if len(loadedDoctrine.Rules) != 1 {
+		t.Fatalf("Expected 1 rule, got %d", len(loadedDoctrine.Rules))
+	}
+
+	rule := loadedDoctrine.Rules[0]
+	if rule.ID != decision.MaterializedID {
+		t.Errorf("Rule ID = %q, want %q", rule.ID, decision.MaterializedID)
+	}
+
+	// Verify source provenance is set correctly
+	expectedSource := "promoted:prop-doctrine-001"
+	if rule.Source != expectedSource {
+		t.Errorf("Source = %q, want %q", rule.Source, expectedSource)
+	}
+
+	if rule.Status != "active" {
+		t.Errorf("Status = %q, want %q", rule.Status, "active")
+	}
+}
+
+func TestPromote_DoctrineRule_ProvenanceFields(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	pp := &PendingProposal{
+		Proposal: &reviewdistiller.Proposal{
+			ID:             "prop-provenance-001",
+			Type:           "doctrine_rule",
+			Title:          "Always document public APIs",
+			ProposedChange: "Every public function must have clear documentation explaining parameters and return values",
+			Rationale:      "Improves API usability and reduces misuse",
+		},
+		RunID:  "run-provenance-001",
+		SpecID: "spec-provenance-001",
+	}
+
+	docStore := doctrine.NewFSStore()
+	docStore.Dir = tmpDir
+
+	decision, err := Promote(
+		pp,
+		"", // no title override
+		"", // no change override
+		"", // no rationale override
+		docStore,
+		nil, // playbookStore not needed for doctrine_rule
+	)
+
+	if err != nil {
+		t.Fatalf("Promote failed: %v", err)
+	}
+
+	if decision == nil {
+		t.Fatal("Promote returned nil decision")
+	}
+
+	// Load doctrine and verify rule was materialized with provenance fields
+	loadedDoctrine, err := docStore.Load()
+	if err != nil {
+		t.Fatalf("Failed to load doctrine: %v", err)
+	}
+
+	if len(loadedDoctrine.Rules) != 1 {
+		t.Fatalf("Expected 1 rule, got %d", len(loadedDoctrine.Rules))
+	}
+
+	rule := loadedDoctrine.Rules[0]
+
+	// Verify provenance fields are set correctly
+	if rule.SourceProposalID != "prop-provenance-001" {
+		t.Errorf("SourceProposalID = %q, want %q", rule.SourceProposalID, "prop-provenance-001")
+	}
+
+	if rule.SourceRunID != "run-provenance-001" {
+		t.Errorf("SourceRunID = %q, want %q", rule.SourceRunID, "run-provenance-001")
+	}
+
+	if rule.SourceSpecID != "spec-provenance-001" {
+		t.Errorf("SourceSpecID = %q, want %q", rule.SourceSpecID, "spec-provenance-001")
+	}
+}
+
+func TestPromote_PlaybookEntry(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	pp := &PendingProposal{
+		Proposal: &reviewdistiller.Proposal{
+			ID:             "prop-pb-001",
+			Type:           "optimization_strategy",
+			Title:          "Use connection pooling",
+			ProposedChange: "Implement connection pool for database queries",
+			Rationale:      "Reduces connection overhead",
+		},
+		RunID:  "run-pb-001",
+		SpecID: "spec-pb-001",
+	}
+
+	pbStore := &playbook.Store{Dir: tmpDir}
+
+	decision, err := Promote(
+		pp,
+		"",
+		"",
+		"",
+		nil, // doctrine not needed
+		pbStore,
+	)
+
+	if err != nil {
+		t.Fatalf("Promote failed: %v", err)
+	}
+
+	if decision == nil {
+		t.Fatal("Promote returned nil decision")
+	}
+
+	if decision.Action != "accepted" {
+		t.Errorf("Action = %q, want %q", decision.Action, "accepted")
+	}
+
+	// Verify materialized entry was saved to playbook store
+	loadedEntries, err := pbStore.Load()
+	if err != nil {
+		t.Fatalf("Failed to load playbook: %v", err)
+	}
+
+	if len(loadedEntries) != 1 {
+		t.Fatalf("Expected 1 entry, got %d", len(loadedEntries))
+	}
+
+	entry := loadedEntries[0]
+	if entry.ID != decision.MaterializedID {
+		t.Errorf("Entry ID = %q, want %q", entry.ID, decision.MaterializedID)
+	}
+
+	if entry.Type != "optimization_strategy" {
+		t.Errorf("Type = %q, want %q", entry.Type, "optimization_strategy")
+	}
+
+	if entry.Title != "Use connection pooling" {
+		t.Errorf("Title = %q, want %q", entry.Title, "Use connection pooling")
+	}
+
+	if entry.Status != "active" {
+		t.Errorf("Status = %q, want %q", entry.Status, "active")
+	}
+}
+
+func TestPromote_FieldOverrides(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	pp := &PendingProposal{
+		Proposal: &reviewdistiller.Proposal{
+			ID:             "prop-override-001",
+			Type:           "design_pattern",
+			Title:          "Original Title",
+			ProposedChange: "Original change description",
+			Rationale:      "Original rationale",
+		},
+		RunID:  "run-override-001",
+		SpecID: "spec-override-001",
+	}
+
+	pbStore := &playbook.Store{Dir: tmpDir}
+
+	decision, err := Promote(
+		pp,
+		"Refined Title",       // override title
+		"Refined change text", // override change
+		"Refined rationale",   // override rationale
+		nil,
+		pbStore,
+	)
+
+	if err != nil {
+		t.Fatalf("Promote failed: %v", err)
+	}
+
+	// Verify decision records overridden values
+	if decision.ApprovedTitle != "Refined Title" {
+		t.Errorf("ApprovedTitle = %q, want %q", decision.ApprovedTitle, "Refined Title")
+	}
+
+	if decision.ApprovedChange != "Refined change text" {
+		t.Errorf("ApprovedChange = %q, want %q", decision.ApprovedChange, "Refined change text")
+	}
+
+	if decision.ApprovedRationale != "Refined rationale" {
+		t.Errorf("ApprovedRationale = %q, want %q", decision.ApprovedRationale, "Refined rationale")
+	}
+
+	// Verify playbook entry uses overridden values
+	loadedEntries, err := pbStore.Load()
+	if err != nil {
+		t.Fatalf("Failed to load playbook: %v", err)
+	}
+
+	if len(loadedEntries) != 1 {
+		t.Fatalf("Expected 1 entry, got %d", len(loadedEntries))
+	}
+
+	entry := loadedEntries[0]
+	if entry.Title != "Refined Title" {
+		t.Errorf("Entry Title = %q, want %q", entry.Title, "Refined Title")
+	}
+
+	if entry.Content != "Refined change text" {
+		t.Errorf("Entry Content = %q, want %q", entry.Content, "Refined change text")
+	}
+
+	if entry.Rationale != "Refined rationale" {
+		t.Errorf("Entry Rationale = %q, want %q", entry.Rationale, "Refined rationale")
+	}
+}
+
+func TestPromote_Duplicate(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	pp := &PendingProposal{
+		Proposal: &reviewdistiller.Proposal{
+			ID:             "prop-dup-test-001",
+			Type:           "doctrine_rule",
+			Title:          "Never share database connections",
+			ProposedChange: "Database connections must be isolated per request",
+			Rationale:      "Prevents data leaks",
+		},
+		RunID:  "run-dup-test-001",
+		SpecID: "spec-dup-test-001",
+	}
+
+	// Compute the materialized ID
+	normalized := regexp.MustCompile(`\s+`).ReplaceAllString(pp.Proposal.ProposedChange, " ")
+	normalized = strings.TrimSpace(normalized)
+	hashInput := fmt.Sprintf("%s:%s", pp.Proposal.Type, normalized)
+	hash := sha256.Sum256([]byte(hashInput))
+	hexStr := fmt.Sprintf("%x", hash)
+	expectedMaterializedID := "promoted-" + hexStr[:8]
+
+	// Pre-populate doctrine store with a rule having the same materialized ID
+	docStore := doctrine.NewFSStore()
+	docStore.Dir = tmpDir
+	existingDoctrine := doctrine.Doctrine{
+		Rules: []doctrine.Rule{
+			{
+				ID:      expectedMaterializedID,
+				Summary: "Existing rule with this ID",
+				Status:  "active",
+			},
+		},
+	}
+	if err := docStore.Save(existingDoctrine); err != nil {
+		t.Fatalf("Failed to save doctrine: %v", err)
+	}
+
+	decision, err := Promote(
+		pp,
+		"",
+		"",
+		"",
+		docStore,
+		nil,
+	)
+
+	if err != nil {
+		t.Fatalf("Promote failed: %v", err)
+	}
+
+	// Verify duplicate was detected and recorded
+	if decision.DuplicateOf != expectedMaterializedID {
+		t.Errorf("DuplicateOf = %q, want %q", decision.DuplicateOf, expectedMaterializedID)
+	}
+
+	if decision.MaterializedID != expectedMaterializedID {
+		t.Errorf("MaterializedID = %q, want %q", decision.MaterializedID, expectedMaterializedID)
+	}
+
+	// Verify no new rule was materialized (store should still have only 1 rule)
+	loadedDoctrine, err := docStore.Load()
+	if err != nil {
+		t.Fatalf("Failed to load doctrine: %v", err)
+	}
+
+	if len(loadedDoctrine.Rules) != 1 {
+		t.Fatalf("Expected 1 rule (no duplicate materialized), got %d", len(loadedDoctrine.Rules))
+	}
+
+	// Verify original rule is unchanged
+	rule := loadedDoctrine.Rules[0]
+	if rule.Summary != "Existing rule with this ID" {
+		t.Errorf("Rule was modified during duplicate check")
+	}
+}
+
+func TestPromote_NilDoctrineStoreForDoctrineRule(t *testing.T) {
+	pp := &PendingProposal{
+		Proposal: &reviewdistiller.Proposal{
+			ID:             "prop-nil-doc-test",
+			Type:           "doctrine_rule",
+			Title:          "Test Rule",
+			ProposedChange: "Test change text",
+			Rationale:      "Test rationale",
+		},
+		RunID:  "run-nil-doc-test",
+		SpecID: "spec-nil-doc-test",
+	}
+
+	// Call Promote with nil doctrineStore for a doctrine_rule proposal
+	decision, err := Promote(
+		pp,
+		"",
+		"",
+		"",
+		nil, // doctrineStore is nil
+		nil,
+	)
+
+	if err == nil {
+		t.Fatal("Promote should error when doctrineStore is nil for doctrine_rule proposal")
+	}
+
+	if decision != nil {
+		t.Error("Promote should return nil decision on error")
+	}
+
+	// Verify the error message mentions the doctrineStore requirement
+	if !strings.Contains(err.Error(), "doctrineStore is required") {
+		t.Errorf("Error message = %q, should mention doctrineStore requirement", err.Error())
+	}
+}
+
+func TestPromote_NilPlaybookStoreForPlaybookType(t *testing.T) {
+	pp := &PendingProposal{
+		Proposal: &reviewdistiller.Proposal{
+			ID:             "prop-nil-pb-test",
+			Type:           "planner_heuristic",
+			Title:          "Test Heuristic",
+			ProposedChange: "Test change text",
+			Rationale:      "Test rationale",
+		},
+		RunID:  "run-nil-pb-test",
+		SpecID: "spec-nil-pb-test",
+	}
+
+	// Call Promote with nil playbookStore for a non-doctrine proposal type
+	decision, err := Promote(
+		pp,
+		"",
+		"",
+		"",
+		nil,
+		nil, // playbookStore is nil
+	)
+
+	if err == nil {
+		t.Fatal("Promote should error when playbookStore is nil for non-doctrine proposal")
+	}
+
+	if decision != nil {
+		t.Error("Promote should return nil decision on error")
+	}
+
+	// Verify the error message mentions the playbookStore requirement
+	if !strings.Contains(err.Error(), "playbookStore is required") {
+		t.Errorf("Error message = %q, should mention playbookStore requirement", err.Error())
+	}
+}
+
+// TestAccept_DuplicateDetection_Doctrine_SupersededDoesNotBlock verifies that accepting a proposal
+// whose ID matches a superseded doctrine rule does NOT treat it as a duplicate and materializes a new active rule.
+// This tests AC11: duplicates are only detected for "active" entries, not "superseded" ones.
+func TestAccept_DuplicateDetection_Doctrine_SupersededDoesNotBlock(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Define a proposal with specific change text
+	pp := &PendingProposal{
+		Proposal: &reviewdistiller.Proposal{
+			ID:             "prop-dup-superseded-001",
+			Type:           "doctrine_rule",
+			Title:          "Avoid global state",
+			ProposedChange: "Never use global state in module scope",
+			Rationale:      "Improves testability",
+		},
+		RunID:  "run-dup-superseded-001",
+		SpecID: "spec-dup-superseded-001",
+	}
+
+	// Pre-compute the materialized ID
+	normalized := regexp.MustCompile(`\s+`).ReplaceAllString(pp.Proposal.ProposedChange, " ")
+	normalized = strings.TrimSpace(normalized)
+	hashInput := fmt.Sprintf("%s:%s", pp.Proposal.Type, normalized)
+	hash := sha256.Sum256([]byte(hashInput))
+	hexStr := fmt.Sprintf("%x", hash)
+	expectedMaterializedID := "promoted-" + hexStr[:8]
+
+	// Create doctrine store with an existing SUPERSEDED rule with the same ID
+	docStore := doctrine.NewFSStore()
+	docStore.Dir = tmpDir
+	existingDoctrine := doctrine.Doctrine{
+		Rules: []doctrine.Rule{
+			{
+				ID:           expectedMaterializedID,
+				Summary:      "Old Rule (Superseded)",
+				Status:       "superseded",
+				SupersededBy: "promoted-newer-id",
+			},
+		},
+	}
+	if err := docStore.Save(existingDoctrine); err != nil {
+		t.Fatalf("Failed to save doctrine: %v", err)
+	}
+
+	// Call Promote - should NOT treat as duplicate since the existing rule is superseded
+	decision, err := Promote(
+		pp,
+		"", // no title override
+		"", // no change override
+		"", // no rationale override
+		docStore,
+		nil, // playbookStore not needed
+	)
+
+	if err != nil {
+		t.Fatalf("Promote failed: %v", err)
+	}
+
+	if decision == nil {
+		t.Fatal("Promote returned nil decision")
+	}
+
+	// Verify action is accepted
+	if decision.Action != "accepted" {
+		t.Errorf("Action = %q, want %q", decision.Action, "accepted")
+	}
+
+	// Verify MaterializedID is correct
+	if decision.MaterializedID != expectedMaterializedID {
+		t.Errorf("MaterializedID = %q, want %q", decision.MaterializedID, expectedMaterializedID)
+	}
+
+	// KEY: Verify DuplicateOf is EMPTY (not set) - this is the critical check for AC11
+	// The existing rule is superseded, so it should NOT block the new promotion
+	if decision.DuplicateOf != "" {
+		t.Errorf("DuplicateOf = %q, want empty string (superseded rule should not block)", decision.DuplicateOf)
+	}
+
+	// Verify that a NEW rule WAS created (should now have 2 rules: the old superseded one and the new active one)
+	loadedDoctrine, err := docStore.Load()
+	if err != nil {
+		t.Fatalf("Failed to load doctrine: %v", err)
+	}
+
+	if len(loadedDoctrine.Rules) != 2 {
+		t.Fatalf("Expected 2 rules (old superseded + new active), got %d", len(loadedDoctrine.Rules))
+	}
+
+	// Find the new active rule
+	var newRule *doctrine.Rule
+	var foundSuperseded bool
+	for i := range loadedDoctrine.Rules {
+		if loadedDoctrine.Rules[i].Status == "superseded" {
+			foundSuperseded = true
+		} else if loadedDoctrine.Rules[i].Status == "active" && loadedDoctrine.Rules[i].ID == expectedMaterializedID {
+			newRule = &loadedDoctrine.Rules[i]
+		}
+	}
+
+	if !foundSuperseded {
+		t.Error("Expected to find the old superseded rule still in store")
+	}
+
+	if newRule == nil {
+		t.Error("Expected to find new active rule with same ID as superseded rule")
+	} else {
+		if newRule.Status != "active" {
+			t.Errorf("New rule status = %q, want %q", newRule.Status, "active")
+		}
+	}
+}
+
+// TestAccept_DuplicateDetection_Playbook_SupersededDoesNotBlock verifies that accepting a proposal
+// whose ID matches a superseded playbook entry does NOT treat it as a duplicate and materializes a new active entry.
+// This tests AC11 for playbook entries: duplicates are only detected for "active" entries, not "superseded" ones.
+func TestAccept_DuplicateDetection_Playbook_SupersededDoesNotBlock(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Define a proposal
+	pp := &PendingProposal{
+		Proposal: &reviewdistiller.Proposal{
+			ID:             "prop-dup-pb-superseded-001",
+			Type:           "planner_heuristic",
+			Title:          "Prefer async operations",
+			ProposedChange: "Use async/await for I/O operations to avoid blocking",
+			Rationale:      "Improves responsiveness",
+		},
+		RunID:  "run-dup-pb-superseded-001",
+		SpecID: "spec-dup-pb-superseded-001",
+	}
+
+	// Compute what the ID will be
+	expectedMaterializedID := playbook.ComputeID(pp.Proposal.Type, pp.Proposal.ProposedChange)
+
+	// Create playbook store with an existing SUPERSEDED entry with the same ID
+	pbStore := &playbook.Store{Dir: tmpDir}
+	existingEntries := []playbook.Entry{
+		{
+			ID:           expectedMaterializedID,
+			Type:         pp.Proposal.Type,
+			Title:        "Old Heuristic (Superseded)",
+			Content:      pp.Proposal.ProposedChange,
+			Status:       "superseded",
+			SupersededBy: "pb-newer-id",
+		},
+	}
+	if err := pbStore.Save(existingEntries); err != nil {
+		t.Fatalf("Failed to save playbook entries: %v", err)
+	}
+
+	// Call Promote - should NOT treat as duplicate since the existing entry is superseded
+	decision, err := Promote(
+		pp,
+		"",  // no title override
+		"",  // no change override
+		"",  // no rationale override
+		nil, // doctrineStore not needed
+		pbStore,
+	)
+
+	if err != nil {
+		t.Fatalf("Promote failed: %v", err)
+	}
+
+	if decision == nil {
+		t.Fatal("Promote returned nil decision")
+	}
+
+	// Verify action is accepted
+	if decision.Action != "accepted" {
+		t.Errorf("Action = %q, want %q", decision.Action, "accepted")
+	}
+
+	// Verify MaterializedID is correct
+	if decision.MaterializedID != expectedMaterializedID {
+		t.Errorf("MaterializedID = %q, want %q", decision.MaterializedID, expectedMaterializedID)
+	}
+
+	// KEY: Verify DuplicateOf is EMPTY (not set) - this is the critical check for AC11
+	// The existing entry is superseded, so it should NOT block the new promotion
+	if decision.DuplicateOf != "" {
+		t.Errorf("DuplicateOf = %q, want empty string (superseded entry should not block)", decision.DuplicateOf)
+	}
+
+	// Verify that a NEW entry WAS created (should now have 2 entries: the old superseded one and the new active one)
+	loadedEntries, err := pbStore.Load()
+	if err != nil {
+		t.Fatalf("Failed to load playbook entries: %v", err)
+	}
+
+	if len(loadedEntries) != 2 {
+		t.Fatalf("Expected 2 entries (old superseded + new active), got %d", len(loadedEntries))
+	}
+
+	// Find the new active entry
+	var newEntry *playbook.Entry
+	var foundSuperseded bool
+	for i := range loadedEntries {
+		if loadedEntries[i].Status == "superseded" {
+			foundSuperseded = true
+		} else if loadedEntries[i].Status == "active" && loadedEntries[i].ID == expectedMaterializedID {
+			newEntry = &loadedEntries[i]
+		}
+	}
+
+	if !foundSuperseded {
+		t.Error("Expected to find the old superseded entry still in store")
+	}
+
+	if newEntry == nil {
+		t.Error("Expected to find new active entry with same ID as superseded entry")
+	} else {
+		if newEntry.Status != "active" {
+			t.Errorf("New entry status = %q, want %q", newEntry.Status, "active")
+		}
 	}
 }

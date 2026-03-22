@@ -126,6 +126,11 @@ func buildPrompt(category EnrichmentCategory, observed []fact.Fact, input Enrich
 		fmt.Fprintf(&b, "## Validation Commands\n\n%s\n\n", input.Validation)
 	}
 
+	// Refinement guidance context — pre-rendered playbook.Entry data
+	// The RefinementGuidance field accepts formatted playbook.Entry content for type refinement_guidance
+	if input.RefinementGuidance != "" {
+		fmt.Fprintf(&b, "## Refinement Guidance\n\n%s\n\n", input.RefinementGuidance)
+	}
 	// Observed facts — cap to avoid exceeding context limits.
 	if len(observed) > 0 {
 		fmt.Fprintf(&b, "## Observed Facts\n\n")

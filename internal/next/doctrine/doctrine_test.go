@@ -13,6 +13,7 @@ func TestDoctrine_NormalizeNilFields(t *testing.T) {
 func TestFSStore_SaveAndLoad(t *testing.T) {
 	dir := t.TempDir()
 	store := NewFSStore()
+	store.Dir = dir
 
 	original := Doctrine{
 		Rules: []Rule{
@@ -21,11 +22,11 @@ func TestFSStore_SaveAndLoad(t *testing.T) {
 		},
 	}
 
-	if err := store.Save(dir, original); err != nil {
+	if err := store.Save(original); err != nil {
 		t.Fatalf("Save: %v", err)
 	}
 
-	loaded, err := store.Load(dir)
+	loaded, err := store.Load()
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
@@ -54,8 +55,9 @@ func TestFSStore_SaveAndLoad(t *testing.T) {
 func TestFSStore_LoadEmpty(t *testing.T) {
 	dir := t.TempDir()
 	store := NewFSStore()
+	store.Dir = dir
 
-	d, err := store.Load(dir)
+	d, err := store.Load()
 	if err != nil {
 		t.Fatalf("Load from empty dir: %v", err)
 	}

@@ -24,9 +24,10 @@ func DiscoverPending(rootDir, projectID string, proposalTypes *[]string, runIDs 
 	for _, ap := range all {
 		if ap.Decision == nil {
 			pending = append(pending, PendingProposal{
-				Proposal: ap.Proposal,
-				RunID:    ap.RunID,
-				SpecID:   ap.SpecID,
+				Proposal:  ap.Proposal,
+				RunID:     ap.RunID,
+				SpecID:    ap.SpecID,
+				CreatedAt: ap.CreatedAt,
 			})
 		}
 	}
@@ -36,6 +37,15 @@ func DiscoverPending(rootDir, projectID string, proposalTypes *[]string, runIDs 
 	}
 
 	return pending, nil
+}
+
+// AllProposal wraps a reviewdistiller.Proposal with its run, spec context, and optional decision.
+type AllProposal struct {
+	Proposal  *reviewdistiller.Proposal `json:"proposal"`
+	RunID     string                    `json:"run_id"`
+	SpecID    string                    `json:"spec_id"`
+	CreatedAt time.Time                 `json:"created_at"`
+	Decision  *Decision                 `json:"decision,omitempty"`
 }
 
 // DiscoverAll lists all proposals (pending and decided) in runs.
@@ -94,18 +104,19 @@ func DiscoverAll(rootDir, projectID string, proposalTypes *[]string, runIDs *[]s
 		// Cache the creation time for this run
 		createdTimeMap[run.RunID] = distResult.CreatedAt
 
-		// Load decisions from proposal-decisions.json for this run
+		// Load decisions from proposal-decisions.json for this run, if it exists
 		decisions, err := LoadDecisions(evidenceDir)
-		if err != nil {
-			// Skip if we can't load decisions
+		if err != nil && !os.IsNotExist(err) {
+			// Skip only on real errors (not just missing file)
 			continue
 		}
 
-		// Build decision map by proposal ID
+		// Build decision map by proposal ID (empty if file doesn't exist)
 		decisionMap := make(map[string]*Decision)
-		for i, d := range decisions {
-			d.NormalizeNilFields()
-			decisionMap[d.ProposalID] = &decisions[i]
+		if err == nil && decisions != nil {
+			for i, d := range decisions {
+				decisionMap[d.ProposalID] = &decisions[i]
+			}
 		}
 
 		// Process each proposal
@@ -115,11 +126,13 @@ func DiscoverAll(rootDir, projectID string, proposalTypes *[]string, runIDs *[]s
 				continue
 			}
 
+			propCopy := prop
 			ap := AllProposal{
-				Proposal: &prop,
-				RunID:    run.RunID,
-				SpecID:   run.SpecID,
-				Decision: decisionMap[prop.ID],
+				Proposal:  &propCopy,
+				RunID:     run.RunID,
+				SpecID:    run.SpecID,
+				CreatedAt: distResult.CreatedAt,
+				Decision:  decisionMap[prop.ID],
 			}
 
 			proposals = append(proposals, ap)

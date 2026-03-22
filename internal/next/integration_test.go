@@ -100,7 +100,8 @@ func TestIntegration_FullProjectCellFlow(t *testing.T) {
 		},
 	}
 	docStore := doctrine.NewFSStore()
-	if err := docStore.Save(filepath.Join(cell.CellPath, "doctrine"), testDoc); err != nil {
+	docStore.Dir = filepath.Join(cell.CellPath, "doctrine")
+	if err := docStore.Save(testDoc); err != nil {
 		t.Fatalf("save doctrine: %v", err)
 	}
 	// Also write doctrine as artifact for context compiler
@@ -146,7 +147,8 @@ func TestIntegration_FullProjectCellFlow(t *testing.T) {
 	}
 
 	// 6. Render agent guide
-	doc, _ := docStore.Load(filepath.Join(cell.CellPath, "doctrine"))
+	docStore.Dir = filepath.Join(cell.CellPath, "doctrine")
+	doc, _ := docStore.Load()
 
 	renderer := guide.NewMarkdownRenderer()
 

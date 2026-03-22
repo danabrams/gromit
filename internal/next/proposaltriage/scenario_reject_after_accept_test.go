@@ -11,20 +11,12 @@ import (
 	"github.com/danabrams/gromit/internal/next/reviewdistiller"
 )
 
-// TestScenario_RejectAfterAccept tests the end-to-end flow of accepting a proposal and then rejecting it.
-// Setup: temp store with run containing a planner_heuristic proposal.
-// Action: Call Accept to materialize the proposal, then Reject and RejectAfterAccept to supersede it.
-// Verify:
-// - After accept: entry appears in playbook with status=active and in ActiveEntries()
-// - After reject: decision is created with action=rejected
-// - After RejectAfterAccept: entry status is superseded, decision is overwritten, entry no longer in ActiveEntries()
 func TestScenario_RejectAfterAccept(t *testing.T) {
 	tmpDir := t.TempDir()
 	projectID := "test-project"
 	runID := "run-reject-001"
 	playbookDir := filepath.Join(tmpDir, "playbook")
 
-	// Setup: Create run with a planner_heuristic proposal
 	proposals := &reviewdistiller.DistillationResult{
 		RunID:     runID,
 		SpecID:    "spec-123",
@@ -44,7 +36,6 @@ func TestScenario_RejectAfterAccept(t *testing.T) {
 
 	helperCreateRunWithProposals(t, tmpDir, projectID, runID, proposals, nil)
 
-	// Verify proposal exists as pending before acceptance
 	pendingBefore, err := DiscoverPending(tmpDir, projectID, nil, nil)
 	if err != nil {
 		t.Fatalf("DiscoverPending before acceptance failed: %v", err)
@@ -58,9 +49,8 @@ func TestScenario_RejectAfterAccept(t *testing.T) {
 		SpecID:   pendingBefore[0].SpecID,
 	}
 
-	// Action 1: Call Accept to materialize the proposal
 	pbStore := &playbook.Store{Dir: playbookDir}
-	acceptedDecision, err := Accept(pp, "", "", "", nil, pbStore, "", playbookDir, filepath.Join(tmpDir, "runs", runID, "evidence"))
+	acceptedDecision, err := Promote(pp, "", "", "", nil, pbStore)
 	if err != nil {
 		t.Fatalf("Accept failed: %v", err)
 	}
@@ -69,13 +59,11 @@ func TestScenario_RejectAfterAccept(t *testing.T) {
 		t.Fatal("Accept returned nil decision")
 	}
 
-	// Save the accepted decision
 	evidenceDir := filepath.Join(tmpDir, "runs", runID, "evidence")
 	if err := SaveDecisions(evidenceDir, []Decision{*acceptedDecision}); err != nil {
 		t.Fatalf("SaveDecisions failed: %v", err)
 	}
 
-	// Verify 1: Entry appears in playbook with status=active
 	playbookData, err := os.ReadFile(filepath.Join(playbookDir, "entries.json"))
 	if err != nil {
 		t.Fatalf("failed to read playbook entries.json: %v", err)
@@ -104,13 +92,11 @@ func TestScenario_RejectAfterAccept(t *testing.T) {
 		t.Errorf("entry title mismatch, got %q", entry.Title)
 	}
 
-	// Verify 2: Entry appears in ActiveEntries()
 	activeEntries := playbook.ActiveEntries(entries)
 	if len(activeEntries) != 1 {
 		t.Fatalf("expected 1 active entry, got %d", len(activeEntries))
 	}
 
-	// Verify 3: Proposal no longer appears in DiscoverPending after acceptance
 	pendingAfterAccept, err := DiscoverPending(tmpDir, projectID, nil, nil)
 	if err != nil {
 		t.Fatalf("DiscoverPending after acceptance failed: %v", err)
@@ -119,7 +105,6 @@ func TestScenario_RejectAfterAccept(t *testing.T) {
 		t.Fatalf("expected 0 pending proposals after acceptance, got %d", len(pendingAfterAccept))
 	}
 
-	// Action 2: Create a rejection decision and call RejectAfterAccept
 	rejectionPP := &PendingProposal{
 		Proposal: &reviewdistiller.Proposal{
 			ID:    "run-reject-001-proposal-heur2",
@@ -138,18 +123,15 @@ func TestScenario_RejectAfterAccept(t *testing.T) {
 		t.Fatal("Reject returned nil decision")
 	}
 
-	// Call RejectAfterAccept to supersede the entry
-	err = RejectAfterAccept(acceptedDecision, rejectionDecision, nil, pbStore, "", playbookDir)
+	err = RejectAfterAccept(acceptedDecision, rejectionDecision, nil, pbStore)
 	if err != nil {
 		t.Fatalf("RejectAfterAccept failed: %v", err)
 	}
 
-	// Save the rejection decision
 	if err := SaveDecisions(evidenceDir, []Decision{*acceptedDecision, *rejectionDecision}); err != nil {
 		t.Fatalf("SaveDecisions failed: %v", err)
 	}
 
-	// Verify 4: Entry status is now superseded
 	playbookDataAfter, err := os.ReadFile(filepath.Join(playbookDir, "entries.json"))
 	if err != nil {
 		t.Fatalf("failed to read playbook entries.json after rejection: %v", err)
@@ -173,13 +155,11 @@ func TestScenario_RejectAfterAccept(t *testing.T) {
 		t.Errorf("entry SupersededBy should be %q, got %q", rejectionDecision.ProposalID, entryAfter.SupersededBy)
 	}
 
-	// Verify 5: Entry no longer appears in ActiveEntries()
 	activeEntriesAfter := playbook.ActiveEntries(entriesAfter)
 	if len(activeEntriesAfter) != 0 {
 		t.Fatalf("expected 0 active entries after rejection, got %d", len(activeEntriesAfter))
 	}
 
-	// Verify 6: Decision is overwritten with rejection
 	decisionsData, err := os.ReadFile(filepath.Join(evidenceDir, "proposal-decisions.json"))
 	if err != nil {
 		t.Fatalf("failed to read proposal-decisions.json: %v", err)

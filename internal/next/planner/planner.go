@@ -24,7 +24,7 @@ type Agent interface {
 // PlanRequest contains everything needed to generate a plan.
 type PlanRequest struct {
 	SpecPacket         string
-	PlaybookHeuristics string
+	PlaybookHeuristics string // pre-rendered active playbook.Entry heuristics (only active entries; superseded excluded)
 	RefinementGuidance string
 	Cycle              int
 	CompletedTasks     []string
@@ -85,10 +85,10 @@ type FixPlanRequest struct {
 	Failures           []string        `json:"failures"`
 	CurrentDiff        string          `json:"current_diff"`
 	Cycle              int             `json:"cycle"`
-	PriorMaxTaskID     string          `json:"prior_max_task_id,omitempty"`    // e.g. "t-004"; if set, fix plan task IDs must be greater
-	SpecConstraints    string          `json:"spec_constraints,omitempty"`     // Out-of-Scope + Architectural Constraints from spec.md
-	SpecPacket         string          `json:"spec_packet,omitempty"`          // full spec packet for context (requirements, scope, acceptance criteria)
-	PlaybookHeuristics string          `json:"playbook_heuristics,omitempty"` // Playbook heuristics to guide fix plan strategy
+	PriorMaxTaskID     string          `json:"prior_max_task_id,omitempty"`   // e.g. "t-004"; if set, fix plan task IDs must be greater
+	SpecConstraints    string          `json:"spec_constraints,omitempty"`    // Out-of-Scope + Architectural Constraints from spec.md
+	SpecPacket         string          `json:"spec_packet,omitempty"`         // full spec packet for context (requirements, scope, acceptance criteria)
+	PlaybookHeuristics string          `json:"playbook_heuristics,omitempty"` // pre-rendered active playbook.Entry heuristics to guide fix plan strategy (only active entries; superseded excluded)
 }
 
 // CreateFixPlan invokes the agent to produce a fix plan addressing failures.

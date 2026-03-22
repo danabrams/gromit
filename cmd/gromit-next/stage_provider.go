@@ -31,7 +31,7 @@ type RealStageProviderConfig struct {
 	StoreDir       string
 	SpecPath       string
 	PolicyPath     string
-	ProjectsDir    string // path to projects directory (for cell path resolution)
+	ProjectsDir    string            // path to projects directory (for cell path resolution)
 	Provider       provider.Provider // LLM provider (0002c: Claude only; 0002d: replaced by Router). Nil falls back to noops.
 	ClaudeProvider provider.Provider
 	CodexProvider  provider.Provider
