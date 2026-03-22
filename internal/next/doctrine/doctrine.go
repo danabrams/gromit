@@ -29,6 +29,12 @@ type Rule struct {
 
 	// CreatedAt is when this rule was created.
 	CreatedAt time.Time `json:"created_at"`
+
+	// Status indicates the rule's lifecycle state (active, superseded).
+	Status string `json:"status"`
+
+	// SupersededBy holds the ID of the decision that superseded this rule.
+	SupersededBy string `json:"superseded_by"`
 }
 
 // NewRule creates a Rule with Source set to "declared" and CreatedAt set to now.

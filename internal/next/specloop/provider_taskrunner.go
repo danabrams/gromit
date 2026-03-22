@@ -8,7 +8,9 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/danabrams/gromit/internal/next/doctrine"
 	"github.com/danabrams/gromit/internal/next/llmadapter"
+	"github.com/danabrams/gromit/internal/next/playbook"
 	"github.com/danabrams/gromit/internal/next/runstore"
 	"github.com/danabrams/gromit/internal/provider"
 )
@@ -22,6 +24,12 @@ type TaskContext struct {
 	// SpecContent is the full spec text (from spec.md in the run directory).
 	// Empty string means no spec was available.
 	SpecContent string
+	// Doctrine is the operational doctrine/guidelines text.
+	// Empty string means no doctrine was found.
+	Doctrine string
+	// KnownGaps contains known validation gaps for fix/repair tasks.
+	// Empty string means no known gaps were documented.
+	KnownGaps string
 }
 
 // TaskContextProviderFunc loads TaskContext at call time. It is called once per
@@ -54,9 +62,10 @@ func (r *ProviderTaskRunner) SetContextProvider(fn TaskContextProviderFunc) {
 }
 
 // FileTaskContextProvider returns a TaskContextProviderFunc that reads CLAUDE.md
-// from the work directory root and spec.md from the run directory. Both are
-// best-effort: if a file is missing, its field is left empty.
-func FileTaskContextProvider(workDirFn func() string, runDir string) TaskContextProviderFunc {
+// from the work directory root, spec.md from the run directory, and loads doctrine
+// and validation_gap playbook entries from cellPath. All are best-effort: if a file
+// is missing, its field is left empty.
+func FileTaskContextProvider(workDirFn func() string, runDir string, cellPath string) TaskContextProviderFunc {
 	return func() TaskContext {
 		var tc TaskContext
 
@@ -80,6 +89,37 @@ func FileTaskContextProvider(workDirFn func() string, runDir string) TaskContext
 				tc.SpecContent = string(data)
 			} else if !os.IsNotExist(err) {
 				log.Printf("warning: failed to read spec.md at %s: %v", specPath, err)
+			}
+		}
+
+		// Load doctrine rules from cellPath (best-effort).
+		if cellPath != "" {
+			doctrineDir := filepath.Join(cellPath, "doctrine")
+			store := doctrine.NewFSStore()
+			doc, err := store.Load(doctrineDir)
+			if err == nil {
+				tc.Doctrine = playbook.FormatDoctrineForPrompt(doc.Rules)
+			} else if !os.IsNotExist(err) {
+				log.Printf("warning: failed to load doctrine from %s: %v", doctrineDir, err)
+			}
+		}
+
+		// Load validation_gap playbook entries from cellPath (best-effort).
+		if cellPath != "" {
+			playbookDir := filepath.Join(cellPath, "playbook")
+			store := &playbook.Store{Dir: playbookDir}
+			entries, err := store.Load()
+			if err == nil {
+				// Filter to validation_gap entries only and get active ones.
+				var validationGaps []playbook.Entry
+				for _, e := range entries {
+					if e.Type == "validation_gap" && e.Status == "active" && e.SupersededBy == "" {
+						validationGaps = append(validationGaps, e)
+					}
+				}
+				tc.KnownGaps = playbook.FormatPlaybookForPrompt(validationGaps)
+			} else if !os.IsNotExist(err) {
+				log.Printf("warning: failed to load playbook from %s: %v", playbookDir, err)
 			}
 		}
 
@@ -146,10 +186,22 @@ func renderContextSections(b *strings.Builder, tc TaskContext, includeSpec bool)
 		b.WriteString("\n\n")
 	}
 
+	if tc.Doctrine != "" {
+		b.WriteString("### Doctrine\n")
+		b.WriteString(tc.Doctrine)
+		b.WriteString("\n\n")
+	}
+
 	if includeSpec && tc.SpecContent != "" {
 		b.WriteString("### Full Spec\n")
 		b.WriteString("The following is the full specification for this work. Use it for context but focus on your specific task objective.\n\n")
 		b.WriteString(tc.SpecContent)
+		b.WriteString("\n\n")
+	}
+
+	if includeSpec && tc.KnownGaps != "" {
+		b.WriteString("### Known Validation Gaps\n")
+		b.WriteString(tc.KnownGaps)
 		b.WriteString("\n\n")
 	}
 }

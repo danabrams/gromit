@@ -21,6 +21,7 @@ type ExecuteStageConfig struct {
 	EventLog               *runstore.EventLog
 	DetectFilesChanged     specloop.FilesChangedFunc // optional; populates TaskResult.FilesChanged
 	Escalation             execpolicy.EscalationConfig
+	CellPath               string // optional; cell path for loading doctrine and playbook
 }
 
 // ExecuteStage runs the task loop on all tasks in the run state.

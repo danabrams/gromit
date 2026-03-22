@@ -1,0 +1,537 @@
+package main
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"sort"
+	"text/tabwriter"
+
+	"github.com/danabrams/gromit/internal/next/doctrine"
+	"github.com/danabrams/gromit/internal/next/playbook"
+	"github.com/danabrams/gromit/internal/next/proposaltriage"
+	"github.com/danabrams/gromit/internal/next/runstore"
+	"github.com/spf13/cobra"
+)
+
+var proposalsCmd = &cobra.Command{
+	Use:   "proposals",
+	Short: "Review and triage improvement proposals",
+}
+
+// newReviewProposalsListCmd creates the `review proposals list` command.
+func newReviewProposalsListCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "list",
+		Short: "List improvement proposals for review",
+		Long: `List improvement proposals from distillation across runs.
+By default, shows only pending proposals. Use --all to include accepted and rejected proposals.
+Filter by --type and --run as needed.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			storeDir, _ := cmd.Flags().GetString("store-dir")
+			typeStr, _ := cmd.Flags().GetString("type")
+			runID, _ := cmd.Flags().GetString("run")
+			showAll, _ := cmd.Flags().GetBool("all")
+
+			if storeDir == "" {
+				storeDir = ".gromit-next"
+			}
+
+			// Load project ID from store
+			projectID := loadProjectID(storeDir)
+			if projectID == "" {
+				return fmt.Errorf("could not determine project ID from store")
+			}
+
+			// Build filters
+			var typeFilter *[]string
+			if typeStr != "" {
+				typeFilter = &[]string{typeStr}
+			}
+
+			var runFilter *[]string
+			if runID != "" {
+				runFilter = &[]string{runID}
+			}
+
+			// Discover proposals
+			var proposals interface{}
+
+			if showAll {
+				allProposals, err := proposaltriage.DiscoverAll(storeDir, projectID, typeFilter, runFilter)
+				if err != nil {
+					return fmt.Errorf("discover proposals: %w", err)
+				}
+				proposals = allProposals
+			} else {
+				pendingProposals, err := proposaltriage.DiscoverPending(storeDir, projectID, typeFilter, runFilter)
+				if err != nil {
+					return fmt.Errorf("discover proposals: %w", err)
+				}
+				proposals = pendingProposals
+			}
+
+			// Display results
+			if showAll {
+				return displayAllProposals(proposals.([]proposaltriage.AllProposal))
+			} else {
+				return displayPendingProposals(proposals.([]proposaltriage.PendingProposal))
+			}
+		},
+	}
+
+	cmd.Flags().String("store-dir", "", "Override store directory (default: .gromit-next)")
+	cmd.Flags().String("type", "", "Filter by proposal type (doctrine_rule, validation_gap, planner_heuristic, refinement_guidance)")
+	cmd.Flags().String("run", "", "Filter by source run ID")
+	cmd.Flags().Bool("all", false, "Show all proposals including accepted and rejected")
+
+	return cmd
+}
+
+// newReviewProposalsShowCmd creates the `review proposals show <id>` command.
+func newReviewProposalsShowCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "show <proposal-id>",
+		Short: "Show full details of a proposal",
+		Long:  `Display complete details of a proposal including all fields, source run context, and any decision.`,
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			proposalID := args[0]
+			storeDir, _ := cmd.Flags().GetString("store-dir")
+
+			if storeDir == "" {
+				storeDir = ".gromit-next"
+			}
+
+			// Load project ID from store
+			projectID := loadProjectID(storeDir)
+			if projectID == "" {
+				return fmt.Errorf("could not determine project ID from store")
+			}
+
+			// Discover all proposals to find the matching one
+			allProposals, err := proposaltriage.DiscoverAll(storeDir, projectID, nil, nil)
+			if err != nil {
+				return fmt.Errorf("discover proposals: %w", err)
+			}
+
+			// Find the proposal matching the given ID
+			var targetProposal *proposaltriage.AllProposal
+			for i := range allProposals {
+				if allProposals[i].Proposal.ID == proposalID {
+					targetProposal = &allProposals[i]
+					break
+				}
+			}
+
+			if targetProposal == nil {
+				return fmt.Errorf("proposal with ID %q not found", proposalID)
+			}
+
+			return displayProposalDetail(targetProposal)
+		},
+	}
+
+	cmd.Flags().String("store-dir", "", "Override store directory (default: .gromit-next)")
+
+	return cmd
+}
+
+// newReviewProposalsAcceptCmd creates the `review proposals accept <proposal-id>` command.
+func newReviewProposalsAcceptCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "accept <proposal-id>",
+		Short: "Accept an improvement proposal",
+		Long: `Accept a proposal and materialize it into doctrine or playbook.
+Optionally override fields with --title, --change, or --rationale flags.
+The decision is saved and the materialized entry ID is reported.`,
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			proposalID := args[0]
+			storeDir, _ := cmd.Flags().GetString("store-dir")
+			overrideTitle, _ := cmd.Flags().GetString("title")
+			overrideChange, _ := cmd.Flags().GetString("change")
+			overrideRationale, _ := cmd.Flags().GetString("rationale")
+
+			if storeDir == "" {
+				storeDir = ".gromit-next"
+			}
+
+			// Load project ID from store
+			projectID := loadProjectID(storeDir)
+			if projectID == "" {
+				return fmt.Errorf("could not determine project ID from store")
+			}
+
+			// Discover all proposals to find the matching one
+			allProposals, err := proposaltriage.DiscoverAll(storeDir, projectID, nil, nil)
+			if err != nil {
+				return fmt.Errorf("discover proposals: %w", err)
+			}
+
+			// Find the proposal matching the given ID
+			var targetProposal *proposaltriage.AllProposal
+			for i := range allProposals {
+				if allProposals[i].Proposal.ID == proposalID {
+					targetProposal = &allProposals[i]
+					break
+				}
+			}
+
+			if targetProposal == nil {
+				return fmt.Errorf("proposal with ID %q not found", proposalID)
+			}
+
+			// Check if proposal is already decided
+			if targetProposal.Decision != nil {
+				return fmt.Errorf("proposal %q already has a decision: %s", proposalID, targetProposal.Decision.Action)
+			}
+
+			// Resolve project cell paths for doctrine and playbook stores
+			projectDir := filepath.Join(storeDir, "projects", projectID)
+			doctrineDir := filepath.Join(projectDir, "doctrine")
+			playbookDir := filepath.Join(projectDir, "playbook")
+
+			// Create stores
+			doctrineStore := doctrine.NewFSStore()
+			playbookStore := &playbook.Store{Dir: playbookDir}
+
+			// Create pending proposal wrapper for Accept
+			pp := &proposaltriage.PendingProposal{
+				Proposal: targetProposal.Proposal,
+				RunID:    targetProposal.RunID,
+				SpecID:   targetProposal.SpecID,
+			}
+
+			// Call Accept to create decision
+			decision, err := proposaltriage.Accept(
+				pp,
+				overrideTitle,
+				overrideChange,
+				overrideRationale,
+				doctrineStore,
+				playbookStore,
+				doctrineDir,
+				playbookDir,
+				"", // evidenceDir not used in current implementation
+			)
+			if err != nil {
+				return fmt.Errorf("accept proposal: %w", err)
+			}
+
+			// Save decision to project's proposal-decisions.json
+			decisionsDir := filepath.Join(projectDir, "evidence")
+			if err := proposaltriage.SaveDecisions(decisionsDir, []proposaltriage.Decision{*decision}); err != nil {
+				return fmt.Errorf("save decision: %w", err)
+			}
+
+			// Determine target store based on proposal type
+			targetStore := "playbook"
+			if targetProposal.Proposal.Type == "doctrine_rule" {
+				targetStore = "doctrine"
+			}
+
+			// Report results
+			fmt.Printf("Proposal %q accepted\n", proposalID)
+			fmt.Printf("Materialized ID: %s\n", decision.MaterializedID)
+			fmt.Printf("Target store: %s\n", targetStore)
+			if decision.DuplicateOf != "" {
+				fmt.Printf("Note: Duplicate of existing entry %s (not materialized)\n", decision.DuplicateOf)
+			}
+
+			return nil
+		},
+	}
+
+	cmd.Flags().String("store-dir", "", "Override store directory (default: .gromit-next)")
+	cmd.Flags().String("title", "", "Override proposal title")
+	cmd.Flags().String("change", "", "Override proposed change description")
+	cmd.Flags().String("rationale", "", "Override rationale")
+
+	return cmd
+}
+
+// newReviewProposalsRejectCmd creates the `review proposals reject <proposal-id>` command.
+func newReviewProposalsRejectCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "reject <proposal-id>",
+		Short: "Reject an improvement proposal",
+		Long: `Reject a proposal. If the proposal was previously accepted, the materialized entry
+is marked as superseded. The decision is saved and the result is reported.`,
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			proposalID := args[0]
+			storeDir, _ := cmd.Flags().GetString("store-dir")
+			reason, _ := cmd.Flags().GetString("reason")
+
+			if storeDir == "" {
+				storeDir = ".gromit-next"
+			}
+
+			// Reason is required
+			if reason == "" {
+				return fmt.Errorf("--reason flag is required")
+			}
+
+			// Load project ID from store
+			projectID := loadProjectID(storeDir)
+			if projectID == "" {
+				return fmt.Errorf("could not determine project ID from store")
+			}
+
+			// Discover all proposals to find the matching one
+			allProposals, err := proposaltriage.DiscoverAll(storeDir, projectID, nil, nil)
+			if err != nil {
+				return fmt.Errorf("discover proposals: %w", err)
+			}
+
+			// Find the proposal matching the given ID
+			var targetProposal *proposaltriage.AllProposal
+			for i := range allProposals {
+				if allProposals[i].Proposal.ID == proposalID {
+					targetProposal = &allProposals[i]
+					break
+				}
+			}
+
+			if targetProposal == nil {
+				return fmt.Errorf("proposal with ID %q not found", proposalID)
+			}
+
+			// Create rejection decision
+			pp := &proposaltriage.PendingProposal{
+				Proposal: targetProposal.Proposal,
+				RunID:    targetProposal.RunID,
+				SpecID:   targetProposal.SpecID,
+			}
+
+			rejectionDecision, err := proposaltriage.Reject(pp, reason)
+			if err != nil {
+				return fmt.Errorf("create rejection decision: %w", err)
+			}
+
+			// Resolve project cell paths for doctrine and playbook stores
+			projectDir := filepath.Join(storeDir, "projects", projectID)
+			doctrineDir := filepath.Join(projectDir, "doctrine")
+			playbookDir := filepath.Join(projectDir, "playbook")
+			decisionsDir := filepath.Join(projectDir, "evidence")
+
+			// If the proposal was previously accepted, call RejectAfterAccept to supersede
+			if targetProposal.Decision != nil && targetProposal.Decision.Action == "accepted" {
+				// Create stores for superseding
+				doctrineStore := doctrine.NewFSStore()
+				playbookStore := &playbook.Store{Dir: playbookDir}
+
+				if err := proposaltriage.RejectAfterAccept(
+					targetProposal.Decision,
+					rejectionDecision,
+					doctrineStore,
+					playbookStore,
+					doctrineDir,
+					playbookDir,
+				); err != nil {
+					return fmt.Errorf("reject after accept: %w", err)
+				}
+			} else if targetProposal.Decision != nil {
+				// Proposal already has a decision but it's not accepted
+				return fmt.Errorf("proposal %q already has a decision: %s", proposalID, targetProposal.Decision.Action)
+			}
+
+			// Save the rejection decision to project's evidence directory
+			if err := proposaltriage.SaveDecisions(decisionsDir, []proposaltriage.Decision{*rejectionDecision}); err != nil {
+				return fmt.Errorf("save decision: %w", err)
+			}
+
+			// Report results
+			fmt.Printf("Proposal %q rejected\n", proposalID)
+			fmt.Printf("Reason: %s\n", reason)
+			if targetProposal.Decision != nil && targetProposal.Decision.Action == "accepted" {
+				fmt.Printf("Note: Previously accepted entry %s marked as superseded\n", targetProposal.Decision.MaterializedID)
+			}
+
+			return nil
+		},
+	}
+
+	cmd.Flags().String("store-dir", "", "Override store directory (default: .gromit-next)")
+	cmd.MarkFlagRequired("reason")
+	cmd.Flags().String("reason", "", "Reason for rejecting the proposal (required)")
+
+	return cmd
+}
+
+// displayPendingProposals renders pending proposals in a table format.
+func displayPendingProposals(proposals []proposaltriage.PendingProposal) error {
+	if len(proposals) == 0 {
+		fmt.Println("No pending proposals found.")
+		return nil
+	}
+
+	// Sort by creation time descending (already sorted by discover, but ensure here)
+	sort.Slice(proposals, func(i, j int) bool {
+		return proposals[i].RunID > proposals[j].RunID
+	})
+
+	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+	fmt.Fprintln(w, "ID\tTYPE\tRUN\tCONFIDENCE\tTITLE")
+
+	for _, p := range proposals {
+		// Truncate ID for display
+		displayID := p.Proposal.ID
+		if len(displayID) > 12 {
+			displayID = displayID[:12]
+		}
+
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n",
+			displayID,
+			p.Proposal.Type,
+			p.RunID,
+			p.Proposal.Confidence,
+			p.Proposal.Title,
+		)
+	}
+
+	return w.Flush()
+}
+
+// displayAllProposals renders all proposals (pending and decided) in a table format.
+func displayAllProposals(proposals []proposaltriage.AllProposal) error {
+	if len(proposals) == 0 {
+		fmt.Println("No proposals found.")
+		return nil
+	}
+
+	// Sort by creation time descending
+	sort.Slice(proposals, func(i, j int) bool {
+		return proposals[i].RunID > proposals[j].RunID
+	})
+
+	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+	fmt.Fprintln(w, "ID\tTYPE\tRUN\tCONFIDENCE\tTITLE\tSTATUS")
+
+	for _, p := range proposals {
+		// Truncate ID for display
+		displayID := p.Proposal.ID
+		if len(displayID) > 12 {
+			displayID = displayID[:12]
+		}
+
+		status := "pending"
+		if p.Decision != nil {
+			status = p.Decision.Action
+		}
+
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n",
+			displayID,
+			p.Proposal.Type,
+			p.RunID,
+			p.Proposal.Confidence,
+			p.Proposal.Title,
+			status,
+		)
+	}
+
+	return w.Flush()
+}
+
+// displayProposalDetail renders a single proposal with all its details.
+func displayProposalDetail(ap *proposaltriage.AllProposal) error {
+	p := ap.Proposal
+
+	fmt.Println("=== Proposal Detail ===")
+	fmt.Printf("ID: %s\n", p.ID)
+	fmt.Printf("Type: %s\n", p.Type)
+	fmt.Printf("Title: %s\n", p.Title)
+	fmt.Printf("Confidence: %s\n", p.Confidence)
+	fmt.Println()
+
+	fmt.Println("--- What Happened ---")
+	fmt.Println(p.WhatHappened)
+	fmt.Println()
+
+	fmt.Println("--- What Was Missing ---")
+	fmt.Println(p.WhatWasMissing)
+	fmt.Println()
+
+	fmt.Println("--- Proposed Change ---")
+	fmt.Println(p.ProposedChange)
+	fmt.Println()
+
+	fmt.Println("--- Rationale ---")
+	fmt.Println(p.Rationale)
+	fmt.Println()
+
+	fmt.Println("--- Confidence Rationale ---")
+	fmt.Println(p.ConfidenceRationale)
+	fmt.Println()
+
+	if len(p.EvidenceReferences) > 0 {
+		fmt.Println("--- Evidence References ---")
+		for i, ref := range p.EvidenceReferences {
+			fmt.Printf("%d. %s\n", i+1, ref)
+		}
+		fmt.Println()
+	}
+
+	fmt.Println("--- Source Context ---")
+	fmt.Printf("Run ID: %s\n", ap.RunID)
+	fmt.Printf("Spec ID: %s\n", ap.SpecID)
+	fmt.Println()
+
+	if ap.Decision != nil {
+		fmt.Println("--- Decision ---")
+		fmt.Printf("Status: %s\n", ap.Decision.Action)
+		fmt.Printf("Reason: %s\n", ap.Decision.Reason)
+		if ap.Decision.ApprovedTitle != "" {
+			fmt.Printf("Approved Title: %s\n", ap.Decision.ApprovedTitle)
+		}
+		if ap.Decision.ApprovedChange != "" {
+			fmt.Printf("Approved Change: %s\n", ap.Decision.ApprovedChange)
+		}
+		if ap.Decision.ApprovedRationale != "" {
+			fmt.Printf("Approved Rationale: %s\n", ap.Decision.ApprovedRationale)
+		}
+		if ap.Decision.MaterializedID != "" {
+			fmt.Printf("Materialized ID: %s\n", ap.Decision.MaterializedID)
+		}
+		if ap.Decision.DuplicateOf != "" {
+			fmt.Printf("Duplicate Of: %s\n", ap.Decision.DuplicateOf)
+		}
+		fmt.Printf("Decided At: %s\n", ap.Decision.DecidedAt.Format("2006-01-02 15:04:05"))
+	} else {
+		fmt.Println("--- Decision ---")
+		fmt.Println("Status: pending")
+	}
+
+	return nil
+}
+
+// loadProjectID attempts to load the project ID from the store configuration.
+func loadProjectID(storeDir string) string {
+	// Try to load from .gromit-next/projects/ directory
+	projectsDir := filepath.Join(storeDir, "projects")
+	if entries, err := os.ReadDir(projectsDir); err == nil && len(entries) > 0 {
+		// Return the first (and typically only) project directory
+		for _, entry := range entries {
+			if entry.IsDir() {
+				return entry.Name()
+			}
+		}
+	}
+
+	// Try to load from run store metadata
+	store := runstore.NewStore(storeDir)
+	runs, err := store.List("")
+	if err == nil && len(runs) > 0 {
+		return runs[0].ProjectID
+	}
+
+	return ""
+}
+
+func init() {
+	proposalsCmd.AddCommand(newReviewProposalsListCmd())
+	proposalsCmd.AddCommand(newReviewProposalsShowCmd())
+	proposalsCmd.AddCommand(newReviewProposalsAcceptCmd())
+	proposalsCmd.AddCommand(newReviewProposalsRejectCmd())
+}

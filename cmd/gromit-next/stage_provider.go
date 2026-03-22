@@ -15,6 +15,7 @@ import (
 	"github.com/danabrams/gromit/internal/next/execpolicy"
 	"github.com/danabrams/gromit/internal/next/llmadapter"
 	"github.com/danabrams/gromit/internal/next/planner"
+	"github.com/danabrams/gromit/internal/next/projectcell"
 	"github.com/danabrams/gromit/internal/next/review"
 	"github.com/danabrams/gromit/internal/next/runstore"
 	"github.com/danabrams/gromit/internal/next/specloop"
@@ -30,6 +31,7 @@ type RealStageProviderConfig struct {
 	StoreDir       string
 	SpecPath       string
 	PolicyPath     string
+	ProjectsDir    string // path to projects directory (for cell path resolution)
 	Provider       provider.Provider // LLM provider (0002c: Claude only; 0002d: replaced by Router). Nil falls back to noops.
 	ClaudeProvider provider.Provider
 	CodexProvider  provider.Provider
@@ -115,6 +117,16 @@ func (p *RealStageProvider) BuildStages(policy execpolicy.Policy, rs *runstore.R
 		diffProv           review.DiffProvider = &noopDiffProvider{}
 	)
 
+	// Resolve cellPath for loading doctrine and playbook if ProjectsDir is available.
+	cellPath := ""
+	if p.cfg.ProjectsDir != "" && rs.ProjectID != "" {
+		cellPathResolver := NewProjectCellPathResolver(p.cfg.ProjectsDir)
+		resolved, err := cellPathResolver.ResolveCellPath(rs.ProjectID)
+		if err == nil {
+			cellPath = resolved
+		}
+	}
+
 	if p.claudeProvider != nil {
 		router := p.buildRouter(policy)
 		costCallback := func(c float64) { budget.AddCost(c) }
@@ -146,7 +158,7 @@ func (p *RealStageProvider) BuildStages(policy execpolicy.Policy, rs *runstore.R
 			return p.cfg.WorkDir
 		}
 		ptr := specloop.NewProviderTaskRunner(execAdapter, workDirFn)
-		ptr.SetContextProvider(specloop.FileTaskContextProvider(workDirFn, store.RunDir(rs.RunID)))
+		ptr.SetContextProvider(specloop.FileTaskContextProvider(workDirFn, store.RunDir(rs.RunID), cellPath))
 		taskRunner = ptr
 
 		finalVal = validator.NewShellValidator(validator.NewRunner())
@@ -238,6 +250,11 @@ func (p *RealStageProvider) BuildStages(policy execpolicy.Policy, rs *runstore.R
 			planStage.SetFixPlanner(fp)
 		}
 	}
+	// Wire cell path resolver for playbook and doctrine loading
+	if p.cfg.ProjectsDir != "" {
+		cellPathResolver := NewProjectCellPathResolver(p.cfg.ProjectsDir)
+		planStage.SetCellPathResolver(cellPathResolver)
+	}
 
 	var decomposer specloop.TaskDecomposer
 	if p.claudeProvider != nil && policy.Budgets.MaxRedecompositionPasses > 0 {
@@ -264,6 +281,7 @@ func (p *RealStageProvider) BuildStages(policy execpolicy.Policy, rs *runstore.R
 		Budget:                 budget,
 		DetectFilesChanged:     specloop.GitFilesChanged(),
 		EventLog:               eventLog,
+		CellPath:               cellPath,
 	})
 
 	evidenceDir := store.RunEvidenceDir(rs.RunID)
@@ -406,6 +424,29 @@ func (p *RealStageProvider) buildRouter(policy execpolicy.Policy) *provider.Rout
 	cooldown := time.Duration(policy.Routing.CooldownSeconds) * time.Second
 
 	return provider.NewRouter(providers, preferences, ratio, cooldown, p.stateFn, p.circuitBreaker)
+}
+
+// ProjectCellPathResolver implements stages.CellPathResolver using the project cell store.
+type ProjectCellPathResolver struct {
+	projectsDir string
+}
+
+// NewProjectCellPathResolver creates a new ProjectCellPathResolver.
+func NewProjectCellPathResolver(projectsDir string) *ProjectCellPathResolver {
+	return &ProjectCellPathResolver{projectsDir: projectsDir}
+}
+
+// ResolveCellPath returns the cell path for the given project ID.
+func (r *ProjectCellPathResolver) ResolveCellPath(projectID string) (string, error) {
+	if r.projectsDir == "" || projectID == "" {
+		return "", nil
+	}
+	store := projectcell.NewFSStore(r.projectsDir)
+	cell, err := store.Get(projectID)
+	if err != nil {
+		return "", nil
+	}
+	return cell.CellPath, nil
 }
 
 // noopCompiler satisfies SpecCompiler with a no-op.

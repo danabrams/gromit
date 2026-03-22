@@ -187,8 +187,8 @@ func TestScenario_StandaloneDistillRerunsWithTierOverride(t *testing.T) {
 		t.Fatalf("write distillation-proposals.json: %v", err)
 	}
 
-	// Write distillation-proposals.md using renderDistillationMarkdown
-	markdown := renderDistillationMarkdown(result)
+	// Write distillation-proposals.md using reviewdistiller.RenderMarkdown
+	markdown := reviewdistiller.RenderMarkdown(result)
 	if err := os.WriteFile(markdownPath, []byte(markdown), 0o644); err != nil {
 		t.Fatalf("write distillation-proposals.md: %v", err)
 	}
