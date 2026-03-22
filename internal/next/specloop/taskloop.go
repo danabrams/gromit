@@ -115,6 +115,7 @@ type TaskResult struct {
 	Cost            float64
 	DurationMs      int64
 	FilesChanged    []string
+	Failures        []string // annotated failure messages when Status == "failed"
 	Model           string
 	Tier            string
 	TargetedChecks  CheckSummary
@@ -127,6 +128,9 @@ type TaskResult struct {
 func (tr *TaskResult) NormalizeNilFields() {
 	if tr.FilesChanged == nil {
 		tr.FilesChanged = []string{}
+	}
+	if tr.Failures == nil {
+		tr.Failures = []string{}
 	}
 }
 
@@ -373,6 +377,7 @@ func RunTaskLoop(ctx context.Context, tasks []runstore.Task, runner TaskRunner, 
 				// checks are failing while build checks all pass.
 				if !ir.Pass {
 					ir.Failures = annotateSuspectProofChecks(entry.task.ProofChecks, ir.Failures)
+					result.Failures = ir.Failures
 					result.Status = "failed"
 				}
 			}

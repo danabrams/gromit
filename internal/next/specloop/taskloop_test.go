@@ -3,6 +3,7 @@ package specloop
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -79,11 +80,15 @@ func (f *fakeTaskRunner) RepairTask(ctx context.Context, task runstore.Task, fai
 }
 
 type fakeInspector struct {
-	pass bool
-	fn   func() bool
+	pass     bool
+	fn       func() bool
+	resultFn func() InspectResult
 }
 
 func (f *fakeInspector) Inspect(_ context.Context, _ runstore.Task) InspectResult {
+	if f.resultFn != nil {
+		return f.resultFn()
+	}
 	if f.fn != nil {
 		return InspectResult{Pass: f.fn()}
 	}
@@ -891,6 +896,52 @@ func TestTaskLoop_DecomposedParentAppearsInResultsAsDecomposed(t *testing.T) {
 	}
 	if parentResult.Status != "decomposed" {
 		t.Fatalf("expected parent status 'decomposed', got %q", parentResult.Status)
+	}
+}
+
+// TestRunTaskLoop_PopulatesFailuresOnInspectionFailure verifies that when
+// inspection fails after all retries, TaskResult.Failures contains the
+// annotated failure messages.
+func TestRunTaskLoop_PopulatesFailuresOnInspectionFailure(t *testing.T) {
+	runner := &fakeTaskRunner{fn: func(_ context.Context, task runstore.Task) (TaskResult, error) {
+		return TaskResult{Status: "done"}, nil
+	}}
+	// Inspector always fails with a grep failure
+	inspector := &fakeInspector{
+		resultFn: func() InspectResult {
+			return InspectResult{
+				Pass:     false,
+				Failures: []string{"grep -q 'func Foo' foo.go: exit status 1"},
+			}
+		},
+	}
+	tasks := []runstore.Task{{
+		TaskID:      "t-001",
+		Status:      "pending",
+		ProofChecks: []string{"go build ./...", "grep -q 'func Foo' foo.go"},
+	}}
+
+	results, err := RunTaskLoop(context.Background(), tasks, runner, TaskLoopConfig{
+		MaxRetries: 1,
+		Inspector:  inspector,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(results))
+	}
+	r := results[0]
+	if r.Status != "failed" {
+		t.Errorf("expected failed, got %s", r.Status)
+	}
+	if len(r.Failures) == 0 {
+		t.Error("expected Failures to be populated, got empty slice")
+	}
+	for _, f := range r.Failures {
+		if !strings.HasPrefix(f, "[suspect-proof-check]") {
+			t.Errorf("expected [suspect-proof-check] prefix, got: %s", f)
+		}
 	}
 }
 
