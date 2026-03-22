@@ -118,7 +118,7 @@ func DefaultPolicy() Policy {
 		Routing: RoutingConfig{
 			// "validate" is intentionally absent: the validate stage uses ShellValidator (no LLM provider).
 			Preferences:     map[string]string{"plan": "any", "execute": "any", "review": "any", "accept": "any"},
-			Ratio:           map[string]int{"claude": 100},
+			Ratio:           map[string]int{"codex": 90, "claude": 10},
 			CooldownSeconds: 300,
 		},
 		Escalation: EscalationConfig{
