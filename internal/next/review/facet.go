@@ -26,8 +26,11 @@ const basePromptBody = `
 {{.DiffSummary}}
 
 {{if .PriorFindings}}
-## Prior Findings (from previous cycles)
-Label each current finding as "new" or "pre-existing" by comparing against these:
+## Prior Findings (previously identified — verify before re-raising)
+The following issues were flagged in prior review cycles. Many have since been addressed.
+IMPORTANT: Do NOT re-raise a prior finding unless you can confirm it STILL EXISTS in the current diff or current code.
+If a prior issue appears fixed (file deleted, code changed, symbol removed), do NOT generate a new finding for it — even if a related file has a similar name.
+Only include a finding as "pre-existing" if you are re-raising it because the problem genuinely still exists.
 {{range .PriorFindings}}- [{{.Severity}}] {{.File}}: {{.Description}}
 {{end}}
 {{end}}
