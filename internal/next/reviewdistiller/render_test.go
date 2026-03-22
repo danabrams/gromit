@@ -6,6 +6,15 @@ import (
 	"time"
 )
 
+// TestRenderMarkdownNilResult verifies RenderMarkdown handles nil input gracefully.
+func TestRenderMarkdownNilResult(t *testing.T) {
+	output := RenderMarkdown(nil)
+
+	if output != "" {
+		t.Errorf("RenderMarkdown(nil) = %q, want empty string", output)
+	}
+}
+
 // TestRenderMarkdownBasicWithSingleProposal verifies RenderMarkdown includes run ID, outcome, and model tier.
 func TestRenderMarkdownBasicWithSingleProposal(t *testing.T) {
 	result := &DistillationResult{

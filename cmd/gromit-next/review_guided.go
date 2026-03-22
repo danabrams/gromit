@@ -77,13 +77,6 @@ func reviewGuided(runID string, storeDir string, input io.Reader, out io.Writer)
 		return fmt.Errorf("load packet outputs: %w", err)
 	}
 
-	// Load project config to get configured distiller tier
-	cfg, err := LoadProjectConfig(storeDir)
-	if err != nil {
-		return fmt.Errorf("load project config: %w", err)
-	}
-	distillerTier := reviewdistiller.Tier(cfg.DistillerTier)
-
 	// Render and display product review
 	rendered := reviewpacket.RenderProductReview(outputs.ProductReview)
 	fmt.Fprintln(out, rendered)
@@ -209,6 +202,15 @@ func reviewGuided(runID string, storeDir string, input io.Reader, out io.Writer)
 
 	if err := os.WriteFile(filepath.Join(evidenceDir, "review-outcome.json"), outcomeData, 0o644); err != nil {
 		return fmt.Errorf("write review-outcome.json: %w", err)
+	}
+
+	// Load project config to get configured distiller tier (non-blocking, defaults to TierMedium)
+	distillerTier := reviewdistiller.TierMedium
+	cfg, err := LoadProjectConfig(storeDir)
+	if err != nil {
+		log.Printf("load project config failed, using default tier: %v", err)
+	} else {
+		distillerTier = reviewdistiller.Tier(cfg.DistillerTier)
 	}
 
 	// Attempt automatic distillation (non-blocking)

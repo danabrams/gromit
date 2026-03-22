@@ -10,6 +10,10 @@ import (
 // The output includes a header with run metadata and per-proposal sections detailing
 // each proposal's type, confidence, narrative fields, and evidence references.
 func RenderMarkdown(result *DistillationResult) string {
+	if result == nil {
+		return ""
+	}
+
 	var buf bytes.Buffer
 
 	// Write header

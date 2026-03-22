@@ -72,6 +72,9 @@ func TestScenario_UnrecognizedOutcomeTypeReturnsError(t *testing.T) {
 
 	// Seed spec.md in run directory
 	runDir := store.RunDir("run-112")
+	if err := os.MkdirAll(runDir, 0o755); err != nil {
+		t.Fatalf("mkdir runDir: %v", err)
+	}
 	specContent := "# Widget Refactor\n\nRefactor widget rendering.\n"
 	if err := os.WriteFile(filepath.Join(runDir, "spec.md"), []byte(specContent), 0o644); err != nil {
 		t.Fatalf("write spec.md: %v", err)
