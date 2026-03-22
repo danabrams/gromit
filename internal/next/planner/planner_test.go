@@ -601,6 +601,19 @@ func TestBuildPlanPrompt_ContainsRuntimeOverSourceGrepRule(t *testing.T) {
 	}
 }
 
+func TestBuildFixPlanPrompt_ContainsRuntimeOverSourceGrepRule(t *testing.T) {
+	prompt := buildFixPlanPrompt(FixPlanRequest{
+		Cycle:    2,
+		Failures: []string{"some failure"},
+	})
+	if !strings.Contains(prompt, "Runtime over source-grep") {
+		t.Fatal("buildFixPlanPrompt must contain 'Runtime over source-grep' rule")
+	}
+	if !strings.Contains(prompt, "--help") {
+		t.Fatal("buildFixPlanPrompt must contain '--help' example in runtime-over-source-grep rule")
+	}
+}
+
 func TestBuildFixPlanPrompt_ProofCheckQualityGuidelines(t *testing.T) {
 	prompt := buildFixPlanPrompt(FixPlanRequest{
 		OriginalPlan: Plan{SpecID: "s1", Cycle: 1},

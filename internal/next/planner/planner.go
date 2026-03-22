@@ -256,6 +256,7 @@ func buildFixPlanPrompt(req FixPlanRequest) string {
 	b.WriteString("    - For config flow, verify the config field is READ where it is used (e.g. `grep -q 'cfg\\.Field' consumer.go`).\n")
 	b.WriteString("    - For integration wiring, verify the function CALL, not just the import (e.g. `grep -q 'svc\\.Run(' caller.go`).\n")
 	b.WriteString("    - For `*_test.go` in `expected_touched_area`, include a proof check verifying new test content exists. Do NOT rely solely on `go test ./...`.\n")
+	b.WriteString("    - **Runtime over source-grep for behavioral properties**: For CLI flags, subcommands, or user-visible behaviors, check the built binary: `./binary subcommand --help | grep -q -- '--flag-name'`. Source patterns vary by language/framework. Use source grep only for call sites and ordering where no runtime check is possible.\n")
 	b.WriteString("  - parent_cycle: integer (the cycle being fixed)\n")
 	b.WriteString("  - failures_addressed: array of strings (subset of failures this task fixes)\n")
 	b.WriteString("  - fixes: string (optional) the task_id of the failed task this fix task addresses (e.g. \"t-001\"). Include this when your fix directly addresses a specific prior task's failure.\n")
