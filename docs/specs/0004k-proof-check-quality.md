@@ -19,7 +19,7 @@ Four changes, deployed as a unit:
 
 3. **`annotateSuspectProofChecks`**: When all build checks in a task's `ProofChecks` list pass but only pattern-matching checks are failing, each failure message is prefixed with `[suspect-proof-check]` and a human-readable explanation.
 
-4. **Failure propagation and fix-planner instruction**: Annotated failure strings are stored in `TaskResult.Failures`, collected by the execute stage into `FailureContext.Failures` (suppressing the generic `"all tasks failed"` fallback when per-task failures are available), and the fix-planning prompt instructs the fix planner to respond to `[suspect-proof-check]` failures by rewriting the proof check rather than re-implementing code.
+4. **Failure propagation and fix-planner instruction**: Annotated failure strings are stored in `TaskResult.Failures`, collected by the execute stage into `FailureContext.Failures` (suppressing the generic `"all tasks failed"` fallback when at least one per-task failure string is available), and the fix-planning prompt instructs the fix planner to respond to `[suspect-proof-check]` failures by rewriting the proof check rather than re-implementing code.
 
 ## Goals
 
@@ -64,14 +64,16 @@ Returns false for test runners, grep, awk, sed, and runtime binary invocations.
 
 Called after all inspection retries are exhausted. Algorithm:
 
+The `failures` parameter contains inspection failure messages, typically formatted as `<proof-check-command>: <error output>` (e.g. `"go build ./...: exit status 1"`). Step 2 relies on this format for its substring check.
+
 1. If `proofChecks` is empty or `failures` is empty → return failures unchanged
-2. If any entry in `proofChecks` that `isBuildCheck` classifies as a build check appears as a substring of any failure message → return failures unchanged (a build check is failing; not a suspect-proof-check situation)
-3. If no build check exists in `proofChecks` → return failures unchanged (without build evidence, the passing-build inference cannot be drawn). Note: reaching this step implies that any build checks present are *not* failing (by elimination from step 2).
+2. If any proof check that `isBuildCheck` classifies as a build check has its command string appear as a substring of any failure message → return failures unchanged (a build check is failing; not a suspect-proof-check situation)
+3. If no build check exists in `proofChecks` → return failures unchanged (without build evidence, the passing-build inference cannot be drawn). Note: reaching this step means no build check command string was found in any failure message — i.e., all build checks in the task either passed or did not run.
 4. Otherwise: prefix every failure with `[suspect-proof-check] All build checks pass but pattern-matching checks failed. The implementation may be correct; proof checks may be testing source structure rather than behavior. `
 
 ### `TaskResult.Failures []string` (`taskloop.go`)
 
-New field on `TaskResult`, populated immediately after `annotateSuspectProofChecks`. `NormalizeNilFields` maps nil to `[]string{}` for JSON consistency.
+New field on `TaskResult`, populated immediately after `annotateSuspectProofChecks` — only when inspection fails after all retries. If the task fails at the runner level (execution error before inspection), `Failures` remains empty, and the `execute` stage falls back to `"all tasks failed"` in `FailureContext`. `NormalizeNilFields` maps nil to `[]string{}` for JSON consistency.
 
 ### Failure collection in execute stage (`execute.go`)
 
@@ -93,7 +95,7 @@ In `buildFixPlanPrompt`'s `## Instructions` block, a new bullet:
 
 4. When a task has `ProofChecks: ["go build ./...", "grep -q '--title' cmd/foo.go"]` and only the grep check fails (build passes), all failure messages are prefixed with `[suspect-proof-check]`.
 
-5. When a task has the same setup but a failure message contains `go build ./...` as a substring (e.g. `"go build ./...: exit status 1"`), no annotation is added.
+5. When a task has `ProofChecks: ["go build ./...", "grep -q '--title' cmd/foo.go"]` and a failure message contains `go build ./...` as a substring (meaning the build check is also failing, e.g. `"go build ./...: exit status 1"`), no annotation is added.
 
 6. When a task has no build check in `ProofChecks`, no annotation is added.
 
@@ -124,7 +126,7 @@ In `buildFixPlanPrompt`'s `## Instructions` block, a new bullet:
 **And:** both `go build ./...` and the grep check appear in failures
 **When:** the task loop exhausts retries
 **Then:** `TaskResult.Failures` contains the failure messages without `[suspect-proof-check]` prefix
-**And:** the fix planner generates a code implementation task (normal fix path)
+**And:** no `[suspect-proof-check]` annotation appears in `FailureContext.Failures`
 
 ### Scenario: No build check in task — no annotation
 
@@ -141,6 +143,8 @@ In `buildFixPlanPrompt`'s `## Instructions` block, a new bullet:
 **Then:** the fix plan contains a task with objective describing a proof-check rewrite
 **And:** the fix task's `proof_checks` uses a behavioral check: `./binary subcommand --help | grep -q -- '--title'`
 **And:** no task is created to re-implement the CLI flag registration
+
+*Note: This scenario is validated by prompt review, not automated test. The `buildFixPlanPrompt` instruction (AC10) provides the mechanism; LLM compliance with the instruction is not unit-testable.*
 
 ### Scenario: Every task result is "failed" with per-task failures — specific strings reach planner
 
