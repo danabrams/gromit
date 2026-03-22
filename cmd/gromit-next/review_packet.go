@@ -10,7 +10,6 @@ import (
 	"github.com/danabrams/gromit/internal/claude"
 	"github.com/danabrams/gromit/internal/next/execpolicy"
 	"github.com/danabrams/gromit/internal/next/llmadapter"
-	"github.com/danabrams/gromit/internal/next/reviewdistiller"
 	"github.com/danabrams/gromit/internal/next/reviewpacket"
 	"github.com/danabrams/gromit/internal/next/reviewsession"
 	"github.com/danabrams/gromit/internal/next/runstore"
@@ -192,13 +191,8 @@ func reviewRecord(runID string, storeDir string, outcome string, summary string,
 		return fmt.Errorf("write review-outcome.json: %w", err)
 	}
 
-	// Load project config to get configured distiller tier
-	cfg, err := LoadProjectConfig(storeDir)
-	if err != nil {
-		log.Printf("distillation skipped: failed to load project config: %v", err)
-		return nil
-	}
-	distillerTier := reviewdistiller.Tier(cfg.DistillerTier)
+	// Load project config to get configured distiller tier (non-blocking, defaults to TierMedium)
+	distillerTier := getDistillerTier(storeDir)
 
 	// Attempt automatic distillation (non-blocking on error)
 	const defaultClaudeBinary = "claude"

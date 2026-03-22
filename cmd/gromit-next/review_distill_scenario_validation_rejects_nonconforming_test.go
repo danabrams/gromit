@@ -88,7 +88,11 @@ func TestScenario_DistillCommandRejectsUnrecognizedOutcomeType(t *testing.T) {
 	writeJSON(t, filepath.Join(evidenceDir, "validation.json"), validationData)
 
 	// Seed spec.md in the run directory (required by distiller)
-	specPath := filepath.Join(store.RunDir("run-112"), "spec.md")
+	runDir := store.RunDir("run-112")
+	if err := os.MkdirAll(runDir, 0o755); err != nil {
+		t.Fatalf("mkdir run: %v", err)
+	}
+	specPath := filepath.Join(runDir, "spec.md")
 	specContent := `# Widget Refactor Spec
 
 ## Vision
