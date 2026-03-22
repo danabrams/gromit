@@ -401,13 +401,8 @@ func reviewRecordWithCompleter(runID string, storeDir string, outcome string, su
 		return fmt.Errorf("write review-outcome.json: %w", err)
 	}
 
-	// Load project config to get configured distiller tier
-	cfg, err := LoadProjectConfig(storeDir)
-	if err != nil {
-		log.Printf("distillation skipped: failed to load project config: %v", err)
-		return nil
-	}
-	distillerTier := reviewdistiller.Tier(cfg.DistillerTier)
+	// Load configured distiller tier (non-blocking, defaults to TierMedium)
+	distillerTier := getDistillerTier(storeDir)
 
 	// Attempt automatic distillation with the test completer (non-blocking on error)
 	if err := attemptDistillation(runID, storeDir, distillerTier, completer); err != nil {

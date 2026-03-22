@@ -95,6 +95,23 @@ func TestScenario_DistillationFailureDoesNotBlockOutcomeRecording(t *testing.T) 
 	}
 	writeJSON(t, filepath.Join(evidenceDir, "validation.json"), validationData)
 
+	acceptanceData := map[string]interface{}{
+		"pass":          true,
+		"criteria_pass": 5,
+		"criteria_fail": 0,
+		"summary":       "All acceptance criteria satisfied",
+	}
+	writeJSON(t, filepath.Join(evidenceDir, "acceptance.json"), acceptanceData)
+
+	reviewData := map[string]interface{}{
+		"issues":           0,
+		"warnings":         0,
+		"code_quality":     "high",
+		"machine_verdicts": "pass",
+		"summary":          "Code review passed with no issues",
+	}
+	writeJSON(t, filepath.Join(evidenceDir, "review.json"), reviewData)
+
 	reviewOutcome := map[string]interface{}{
 		"run_id":      "run-104",
 		"outcome":     "accepted",
@@ -175,7 +192,7 @@ func TestScenario_DistillationFailureDoesNotBlockOutcomeRecording(t *testing.T) 
 	}
 
 	// 9. Other evidence files are unaffected by the distillation failure
-	for _, name := range []string{"product-review.json", "process-review.json", "manual-checklist.json", "validation.json"} {
+	for _, name := range []string{"product-review.json", "process-review.json", "manual-checklist.json", "validation.json", "acceptance.json", "review.json"} {
 		path := filepath.Join(evidenceDir, name)
 		if _, err := os.Stat(path); err != nil {
 			t.Errorf("evidence file %s should still exist after distillation failure: %v", name, err)
