@@ -588,6 +588,19 @@ func TestBuildPlanPrompt_ProofCheckQualityGuidelines(t *testing.T) {
 	}
 }
 
+func TestBuildPlanPrompt_ContainsRuntimeOverSourceGrepRule(t *testing.T) {
+	prompt := buildPlanPrompt(PlanRequest{
+		SpecPacket: "build a thing",
+		Cycle:      1,
+	})
+	if !strings.Contains(prompt, "Runtime over source-grep") {
+		t.Fatal("buildPlanPrompt must include rule 7 about runtime over source-grep for behavioral properties")
+	}
+	if !strings.Contains(prompt, "--help") {
+		t.Fatal("buildPlanPrompt rule 7 must include --help example for runtime verification")
+	}
+}
+
 func TestBuildFixPlanPrompt_ProofCheckQualityGuidelines(t *testing.T) {
 	prompt := buildFixPlanPrompt(FixPlanRequest{
 		OriginalPlan: Plan{SpecID: "s1", Cycle: 1},
