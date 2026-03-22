@@ -60,36 +60,3 @@ func TestCompileTaskPacket_OmitsDoctrineWhenEmpty(t *testing.T) {
 		t.Fatal("packet must not contain Doctrine section when empty")
 	}
 }
-
-func TestCompileTaskPacket_IncludesRefinementGuidanceWhenProvided(t *testing.T) {
-	pkt, err := CompileTaskPacket(TaskPacketInput{
-		SpecPacket:         "build feature X",
-		TaskID:             "t-001",
-		Objective:          "implement parser",
-		RefinementGuidance: "Focus on edge cases. Validate input thoroughly.",
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(pkt, "## Refinement Guidance") {
-		t.Fatal("packet must contain Refinement Guidance header")
-	}
-	if !strings.Contains(pkt, "Focus on edge cases. Validate input thoroughly.") {
-		t.Fatal("packet must contain refinement guidance content")
-	}
-}
-
-func TestCompileTaskPacket_OmitsRefinementGuidanceWhenEmpty(t *testing.T) {
-	pkt, err := CompileTaskPacket(TaskPacketInput{
-		SpecPacket:         "build feature X",
-		TaskID:             "t-001",
-		Objective:          "implement parser",
-		RefinementGuidance: "",
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if strings.Contains(pkt, "Refinement Guidance") {
-		t.Fatal("packet must not contain Refinement Guidance section when empty")
-	}
-}

@@ -62,7 +62,7 @@ func Promote(
 		}
 		// Save to doctrine store only if not a duplicate
 		if duplicateOf == "" {
-			if err := promoteToDoctrine(pp, approvedTitle, approvedChange, approvedRationale, doctrineStore); err != nil {
+			if err := promoteToDoctrine(pp, approvedTitle, approvedChange, doctrineStore); err != nil {
 				return nil, fmt.Errorf("failed to promote to doctrine: %w", err)
 			}
 		}
@@ -122,7 +122,6 @@ func promoteToDoctrine(
 	pp *PendingProposal,
 	title string,
 	change string,
-	rationale string,
 	store doctrine.Store,
 ) error {
 	// Load existing doctrine

@@ -7,14 +7,13 @@ import (
 
 // TaskPacketInput holds all the data needed to compile a task prompt packet.
 type TaskPacketInput struct {
-	SpecPacket         string
-	TaskID             string
-	Objective          string
-	ProofChecks        []string
-	ExpectedArea       []string
-	RefinementGuidance string
-	PriorContext       string
-	Doctrine           string
+	SpecPacket   string
+	TaskID       string
+	Objective    string
+	ProofChecks  []string
+	ExpectedArea []string
+	PriorContext string
+	Doctrine     string
 }
 
 // CompileTaskPacket renders a task prompt packet from the given input.
@@ -45,12 +44,6 @@ func CompileTaskPacket(input TaskPacketInput) (string, error) {
 			b.WriteString(fmt.Sprintf("- %s\n", area))
 		}
 		b.WriteString("\n")
-	}
-
-	if input.RefinementGuidance != "" {
-		b.WriteString("## Refinement Guidance\n\n")
-		b.WriteString(input.RefinementGuidance)
-		b.WriteString("\n\n")
 	}
 
 	if input.Doctrine != "" {

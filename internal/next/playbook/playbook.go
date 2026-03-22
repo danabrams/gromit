@@ -79,31 +79,6 @@ func (s *Store) Save(entries []Entry) error {
 	return nil
 }
 
-// UpdateStatus marks an entry as superseded by another entry.
-// Returns an error if the entry is not found.
-func (s *Store) UpdateStatus(id, supersededBy string) error {
-	entries, err := s.Load()
-	if err != nil {
-		return err
-	}
-
-	found := false
-	for i := range entries {
-		if entries[i].ID == id {
-			entries[i].Status = "superseded"
-			entries[i].SupersededBy = supersededBy
-			found = true
-			break
-		}
-	}
-
-	if !found {
-		return fmt.Errorf("entry not found: %s", id)
-	}
-
-	return s.Save(entries)
-}
-
 // ComputeID generates a playbook entry ID from type and content.
 // Uses SHA-256 hash of normalized content, takes first 8 hex chars,
 // and prefixes with "pb-".
