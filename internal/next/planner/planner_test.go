@@ -641,3 +641,14 @@ func TestBuildFixPlanPrompt_ProofCheckQualityGuidelines(t *testing.T) {
 		t.Fatal("buildFixPlanPrompt must emphasize verifying function calls not just imports")
 	}
 }
+
+func TestBuildFixPlanPrompt_ContainsSuspectProofCheckInstruction(t *testing.T) {
+	req := FixPlanRequest{Cycle: 2, Failures: []string{"[suspect-proof-check] grep failed"}}
+	prompt := buildFixPlanPrompt(req)
+	if !strings.Contains(prompt, "[suspect-proof-check]") {
+		t.Error("expected buildFixPlanPrompt to contain suspect-proof-check instruction")
+	}
+	if !strings.Contains(prompt, "proof-check rewrite") {
+		t.Error("expected instruction to mention proof-check rewrite task")
+	}
+}

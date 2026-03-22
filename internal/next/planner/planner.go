@@ -230,7 +230,8 @@ func buildFixPlanPrompt(req FixPlanRequest) string {
 	b.WriteString("- Each fix task objective must reference which failure(s) or review finding(s) it addresses.\n")
 	b.WriteString("- Only touch files that are relevant to the listed issues.\n")
 	b.WriteString("- NEVER create tasks that touch files prohibited by spec constraints (e.g., existing test files if the spec says not to modify them).\n")
-	b.WriteString("- If a failure can ONLY be fixed by modifying a prohibited file, skip that failure entirely — do not create a task for it.\n\n")
+	b.WriteString("- If a failure can ONLY be fixed by modifying a prohibited file, skip that failure entirely — do not create a task for it.\n")
+	b.WriteString("- If a failure message starts with `[suspect-proof-check]`, do NOT create a code implementation task. Instead, create a proof-check rewrite task that replaces the failing pattern-matching check with a behavioral check (e.g. `./binary subcommand --help | grep -q -- '--flag-name'`).\n\n")
 
 	b.WriteString("## Task Granularity\n")
 	b.WriteString("Each task should touch at most 3-4 files in expected_touched_area. If a fix requires more files, split it into multiple tasks.\n")
