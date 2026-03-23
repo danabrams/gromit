@@ -13,6 +13,7 @@ import (
 	"github.com/danabrams/gromit/internal/next/reviewpacket"
 	"github.com/danabrams/gromit/internal/next/reviewsession"
 	"github.com/danabrams/gromit/internal/next/runstore"
+	"github.com/danabrams/gromit/internal/next/workspace"
 	"github.com/danabrams/gromit/internal/provider"
 	"github.com/spf13/cobra"
 )
@@ -34,6 +35,8 @@ func newReviewRecordCmd() *cobra.Command {
 			override, _ := cmd.Flags().GetString("override")
 			storeDir, _ := cmd.Flags().GetString("store-dir")
 			runFlag, _ := cmd.Flags().GetString("run")
+			specsDir, _ := cmd.Flags().GetString("specs-dir")
+			project, _ := cmd.Flags().GetString("project")
 
 			if outcome == "" {
 				return fmt.Errorf("--outcome flag is required")
@@ -49,7 +52,47 @@ func newReviewRecordCmd() *cobra.Command {
 				return fmt.Errorf("run ID is required (provide via --run flag or positional argument)")
 			}
 
-			return reviewRecord(runID, storeDir, outcome, summary, override)
+			// Resolve specsDir if not explicitly provided
+			if specsDir == "" && project != "" {
+				resolver := workspace.NewEnvResolver()
+				root, err := resolver.Resolve()
+				if err != nil {
+					return fmt.Errorf("resolve workspace root: %w", err)
+				}
+				projectDir, err := ResolveProjectConfigPath(root, project)
+				if err != nil {
+					return fmt.Errorf("resolve project config: %w", err)
+				}
+				cfg, err := LoadProjectConfig(projectDir)
+				if err != nil {
+					return fmt.Errorf("load project config: %w", err)
+				}
+				specsDir = cfg.SpecsDir
+				if specsDir == "" && cfg.RepoPath != "" {
+					specsDir = filepath.Join(cfg.RepoPath, "docs", "specs")
+				}
+			}
+
+			err := reviewRecord(runID, storeDir, outcome, summary, override)
+			if err != nil {
+				return err
+			}
+
+			// After reviewRecord succeeds, handle remediation spec if accepted
+			if outcome == "accepted" {
+				if specsDir == "" {
+					fmt.Fprintf(cmd.ErrOrStderr(), "warning: skipping remediation spec generation (specs-dir not configured)\n")
+				} else {
+					specPath, err := maybeGenerateRemediationSpec(runID, storeDir, specsDir)
+					if err != nil {
+						fmt.Fprintf(cmd.ErrOrStderr(), "warning: failed to generate remediation spec: %v\n", err)
+					} else if specPath != "" {
+						fmt.Println(specPath)
+					}
+				}
+			}
+
+			return nil
 		},
 	}
 	cmd.Flags().String("outcome", "", "The review outcome (accepted, rework_implementation_gap, rework_vision_change)")
@@ -57,6 +100,8 @@ func newReviewRecordCmd() *cobra.Command {
 	cmd.Flags().String("override", "", "Override reason for accepting a run with unsure items")
 	cmd.Flags().String("store-dir", "", "Run store directory (default: .gromit-next)")
 	cmd.Flags().String("run", "", "Run ID to record (if not specified, uses positional argument)")
+	cmd.Flags().String("specs-dir", "", "Override specs directory (for testing)")
+	cmd.Flags().String("project", "", "Project name for resolving specsDir from config")
 	return cmd
 }
 

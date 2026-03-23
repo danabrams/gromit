@@ -281,7 +281,6 @@ The decision is saved and the materialized entry ID is reported.`,
 				}
 			}
 
-
 			// Resolve store paths based on scope
 			var doctrineDir, playbookDir string
 			if scope == "global" {
