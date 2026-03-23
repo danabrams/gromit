@@ -23,12 +23,12 @@ type RemediationFinding struct {
 
 // RemediationInput contains the input data for generating a remediation spec.
 type RemediationInput struct {
-	SpecID    string                         `json:"spec_id"`
-	Summary   string                         `json:"summary"`
-	Goals     []string                       `json:"goals"`
-	NonGoals  []string                       `json:"non_goals"`
-	DependsOn string                         `json:"depends_on,omitempty"`
-	Findings map[string][]RemediationFinding `json:"findings"`
+	SpecID    string                          `json:"spec_id"`
+	Summary   string                          `json:"summary"`
+	Goals     []string                        `json:"goals"`
+	NonGoals  []string                        `json:"non_goals"`
+	DependsOn string                          `json:"depends_on,omitempty"`
+	Findings  map[string][]RemediationFinding `json:"findings"`
 }
 
 // generateRemediationSpec produces a remediation spec markdown from RemediationInput.

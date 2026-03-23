@@ -21,4 +21,3 @@ func FormatDoctrineForPrompt(rules []doctrine.Rule) string {
 
 	return strings.TrimSuffix(sb.String(), "\n")
 }
-
