@@ -153,6 +153,7 @@ func TestReject_AfterAccept_Playbook(t *testing.T) {
 	pbStore := &playbook.Store{Dir: playbookDir}
 	acceptedDecision, err := Promote(pp, "", "", "", nil, pbStore,
 		"local", // use local scope
+		"",      // evidenceDir
 	)
 	if err != nil {
 		t.Fatalf("Promote failed: %v", err)
@@ -290,6 +291,7 @@ func TestReject_AfterAccept_Doctrine(t *testing.T) {
 	doctrineStore.Dir = doctrineDir
 	acceptedDecision, err := Promote(pp, "", "", "", doctrineStore, nil,
 		"local", // use local scope
+		"",      // evidenceDir
 	)
 	if err != nil {
 		t.Fatalf("Promote failed: %v", err)

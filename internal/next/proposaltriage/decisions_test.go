@@ -176,3 +176,119 @@ func TestSaveDecisions_Overwrite(t *testing.T) {
 		t.Errorf("prop-3 not added: Reason is %q, want %q", prop3.Reason, "new proposal")
 	}
 }
+
+func TestIsTerminalDecision_DismissedReturnsTrue(t *testing.T) {
+	decision := Decision{
+		ProposalID: "prop-1",
+		Action:     "dismissed",
+	}
+
+	if !IsTerminalDecision(decision) {
+		t.Error("IsTerminalDecision should return true for dismissed action")
+	}
+}
+
+func TestIsTerminalDecision_AcceptedReturnsFalse(t *testing.T) {
+	decision := Decision{
+		ProposalID: "prop-1",
+		Action:     "accepted",
+	}
+
+	if IsTerminalDecision(decision) {
+		t.Error("IsTerminalDecision should return false for accepted action")
+	}
+}
+
+func TestIsTerminalDecision_RejectedReturnsFalse(t *testing.T) {
+	decision := Decision{
+		ProposalID: "prop-1",
+		Action:     "rejected",
+	}
+
+	if IsTerminalDecision(decision) {
+		t.Error("IsTerminalDecision should return false for rejected action")
+	}
+}
+
+func TestIsTerminalDecision_EmptyActionReturnsFalse(t *testing.T) {
+	decision := Decision{
+		ProposalID: "prop-1",
+		Action:     "",
+	}
+
+	if IsTerminalDecision(decision) {
+		t.Error("IsTerminalDecision should return false for empty action")
+	}
+}
+
+func TestFindExistingDecision_MatchingDecision(t *testing.T) {
+	decisions := []Decision{
+		{
+			ProposalID: "prop-1",
+			Action:     "accepted",
+			Reason:     "looks good",
+		},
+		{
+			ProposalID: "prop-2",
+			Action:     "rejected",
+			Reason:     "needs work",
+		},
+		{
+			ProposalID: "prop-3",
+			Action:     "dismissed",
+			Reason:     "duplicate",
+		},
+	}
+
+	decision, found := FindExistingDecision("prop-2", decisions)
+
+	if !found {
+		t.Error("FindExistingDecision should return true when decision is found")
+	}
+	if decision.ProposalID != "prop-2" {
+		t.Errorf("FindExistingDecision returned wrong decision: ProposalID is %q, want %q", decision.ProposalID, "prop-2")
+	}
+	if decision.Action != "rejected" {
+		t.Errorf("FindExistingDecision returned wrong decision: Action is %q, want %q", decision.Action, "rejected")
+	}
+	if decision.Reason != "needs work" {
+		t.Errorf("FindExistingDecision returned wrong decision: Reason is %q, want %q", decision.Reason, "needs work")
+	}
+}
+
+func TestFindExistingDecision_NotFound(t *testing.T) {
+	decisions := []Decision{
+		{
+			ProposalID: "prop-1",
+			Action:     "accepted",
+			Reason:     "looks good",
+		},
+		{
+			ProposalID: "prop-2",
+			Action:     "rejected",
+			Reason:     "needs work",
+		},
+	}
+
+	decision, found := FindExistingDecision("prop-999", decisions)
+
+	if found {
+		t.Error("FindExistingDecision should return false when decision is not found")
+	}
+	if decision.ProposalID != "" {
+		t.Errorf("FindExistingDecision should return zero Decision when not found, got ProposalID %q", decision.ProposalID)
+	}
+}
+
+func TestFindExistingDecision_EmptySlice(t *testing.T) {
+	decisions := []Decision{}
+
+	decision, found := FindExistingDecision("prop-1", decisions)
+
+	if found {
+		t.Error("FindExistingDecision should return false for empty slice")
+	}
+	if decision.ProposalID != "" {
+		t.Errorf("FindExistingDecision should return zero Decision for empty slice, got ProposalID %q", decision.ProposalID)
+	}
+}

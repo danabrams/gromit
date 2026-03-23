@@ -79,6 +79,7 @@ func TestScenario_DuplicateProposal(t *testing.T) {
 
 	decision1, err := Promote(pp1, "", "", "", stores.doctrine, stores.playbook,
 		"local", // use local scope
+		"",      // evidenceDir
 	)
 	if err != nil {
 		t.Fatalf("Accept for first proposal failed: %v", err)
@@ -118,6 +119,7 @@ func TestScenario_DuplicateProposal(t *testing.T) {
 
 	decision2, err := Promote(pp2, "", "", "", stores.doctrine, stores.playbook,
 		"local", // use local scope
+		"",      // evidenceDir
 	)
 	if err != nil {
 		t.Fatalf("Accept for second proposal failed: %v", err)

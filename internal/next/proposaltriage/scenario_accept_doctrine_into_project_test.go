@@ -120,6 +120,7 @@ func TestScenario_AcceptDoctrineRuleIntoProjectLocalStore(t *testing.T) {
 		playbookStore,
 
 		"local", // use local scope
+		"",      // evidenceDir
 	)
 	if err != nil {
 		t.Fatalf("Accept failed: %v", err)

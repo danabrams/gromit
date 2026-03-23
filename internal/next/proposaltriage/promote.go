@@ -51,6 +51,7 @@ func Promote(
 	doctrineStore doctrine.Store,
 	playbookStore *playbook.Store,
 	scope string,
+	evidenceDir string,
 ) (*Decision, error) {
 	if pp == nil || pp.Proposal == nil {
 		return nil, fmt.Errorf("pending proposal is nil")
@@ -59,6 +60,20 @@ func Promote(
 	// Validate scope: must be "local", "global", or empty (defaults to "*")
 	if scope != "" && scope != "local" && scope != "global" {
 		return nil, fmt.Errorf("invalid scope %q: must be 'local', 'global', or empty", scope)
+	}
+
+	// Load existing decisions and check if this proposal has a terminal decision
+	decisions, err := LoadDecisions(evidenceDir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load decisions: %w", err)
+	}
+
+	// Find existing decision for this proposal
+	if existingDecision, found := FindExistingDecision(pp.Proposal.ID, decisions); found {
+		// Check if it's a terminal decision
+		if IsTerminalDecision(existingDecision) {
+			return nil, fmt.Errorf("proposal %q cannot be re-decided: it has been dismissed", pp.Proposal.ID)
+		}
 	}
 
 	// Apply field overrides

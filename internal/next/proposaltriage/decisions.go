@@ -89,3 +89,19 @@ func SaveDecisions(dir string, newDecisions []Decision) error {
 func SaveDecision(dir string, decision Decision) error {
 	return SaveDecisions(dir, []Decision{decision})
 }
+
+// IsTerminalDecision checks if a Decision has a terminal action (dismissed).
+func IsTerminalDecision(d Decision) bool {
+	return d.Action == "dismissed"
+}
+
+// FindExistingDecision searches for a decision with the given proposal ID in the slice.
+// Returns the matching Decision and true if found, or a zero Decision and false if not found.
+func FindExistingDecision(proposalID string, decisions []Decision) (Decision, bool) {
+	for _, d := range decisions {
+		if d.ProposalID == proposalID {
+			return d, true
+		}
+	}
+	return Decision{}, false
+}

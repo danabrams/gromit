@@ -67,6 +67,7 @@ func TestScenario_AcceptWithFieldOverrides(t *testing.T) {
 		pbStore,
 
 		"local", // use local scope
+		"",      // evidenceDir
 	)
 	if err != nil {
 		t.Fatalf("Accept failed: %v", err)

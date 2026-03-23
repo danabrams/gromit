@@ -149,6 +149,7 @@ func TestScenario_AcceptDoctrineRuleProposalIntoProjectLocalStore(t *testing.T) 
 		doctrineStore,
 		playbookStore,
 		"local", // use local scope
+		"",      // evidenceDir
 	)
 	if err != nil {
 		t.Fatalf("Accept failed: %v", err)

@@ -117,6 +117,7 @@ func TestScenario_AcceptProposalIntoGlobalPlaybook(t *testing.T) {
 		doctrineStore,
 		playbookStore,
 		pp.Scope,
+		"", // evidenceDir
 	)
 	if err != nil {
 		t.Fatalf("Promote failed: %v", err)

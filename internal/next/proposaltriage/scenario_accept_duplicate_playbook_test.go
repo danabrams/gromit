@@ -57,6 +57,7 @@ func TestScenario_AcceptDuplicateProposalDoesNotCreateDuplicateMemory(t *testing
 		pbStore,
 
 		"local", // use local scope
+		"",      // evidenceDir
 	)
 
 	if err != nil {

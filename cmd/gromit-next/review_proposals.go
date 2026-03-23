@@ -303,6 +303,9 @@ The decision is saved and the materialized entry ID is reported.`,
 				RunID:    targetProposal.RunID,
 				SpecID:   targetProposal.SpecID,
 			}
+			// Get evidence directory before promoting
+			runStore := runstore.NewStore(storeDir)
+			runEvidenceDir := runStore.RunEvidenceDir(targetProposal.RunID)
 
 			// Call Promote to create decision
 			decision, err := proposaltriage.Promote(
@@ -313,14 +316,13 @@ The decision is saved and the materialized entry ID is reported.`,
 				doctrineStore,
 				playbookStore,
 				scope,
+				runEvidenceDir,
 			)
 			if err != nil {
 				return fmt.Errorf("accept proposal: %w", err)
 			}
 
 			// Save decision to run's evidence directory
-			runStore := runstore.NewStore(storeDir)
-			runEvidenceDir := runStore.RunEvidenceDir(targetProposal.RunID)
 			if err := proposaltriage.SaveDecisions(runEvidenceDir, []proposaltriage.Decision{*decision}); err != nil {
 				return fmt.Errorf("save decision: %w", err)
 			}

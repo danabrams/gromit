@@ -52,6 +52,7 @@ func TestScenario_RejectAfterAccept(t *testing.T) {
 	pbStore := &playbook.Store{Dir: playbookDir}
 	acceptedDecision, err := Promote(pp, "", "", "", nil, pbStore,
 		"local", // use local scope
+		"",      // evidenceDir
 	)
 	if err != nil {
 		t.Fatalf("Accept failed: %v", err)

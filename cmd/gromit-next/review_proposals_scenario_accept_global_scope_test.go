@@ -110,6 +110,7 @@ func TestScenario_AcceptCLIWithGlobalScopePlaybook(t *testing.T) {
 		nil, // no doctrine store needed for planner_heuristic
 		playbookStore,
 		"global", // use global scope
+		"",       // evidenceDir
 	)
 	if err != nil {
 		t.Fatalf("Accept failed: %v", err)
@@ -335,6 +336,7 @@ func TestScenario_AcceptCLIWithLocalScopeDefault(t *testing.T) {
 		doctrineStore,
 		nil, // no playbook store needed for doctrine_rule
 		"",  // empty scope — should default to "*"
+		"",  // evidenceDir
 	)
 	if err != nil {
 		t.Fatalf("Accept failed: %v", err)
@@ -534,6 +536,7 @@ func TestScenario_AcceptCLIRejectsInvalidScope(t *testing.T) {
 		nil, // no doctrine store needed for planner_heuristic
 		playbookStore,
 		"invalid-value", // invalid scope — should be "local" or "global"
+		"",              // evidenceDir
 	)
 
 	// === Assert ===

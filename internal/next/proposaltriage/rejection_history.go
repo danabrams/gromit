@@ -2,6 +2,7 @@ package proposaltriage
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 
@@ -35,7 +36,7 @@ func LoadRejectedProposals(storeDir, projectID string) (json.RawMessage, error) 
 		// Load decisions from proposal-decisions.json for this run
 		evidenceDir := store.RunEvidenceDir(run.RunID)
 		decisions, err := LoadDecisions(evidenceDir)
-		if err != nil && !os.IsNotExist(err) {
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
 			// Skip runs with real errors (not just missing file)
 			continue
 		}

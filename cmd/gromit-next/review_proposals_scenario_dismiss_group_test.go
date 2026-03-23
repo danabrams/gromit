@@ -134,6 +134,7 @@ func TestScenario_AcceptWithDismissGroupClearsSiblings(t *testing.T) {
 		doctrineStore,
 		playbookStore,
 		"local",
+		"", // evidenceDir
 	)
 	if err != nil {
 		t.Fatalf("Promote failed: %v", err)

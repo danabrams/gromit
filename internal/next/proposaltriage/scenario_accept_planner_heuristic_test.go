@@ -55,6 +55,7 @@ func TestScenario_AcceptPlannerHeuristicIntoPlaybook(t *testing.T) {
 
 	decision, err := Promote(pp, "", "", "", nil, pbStore,
 		"local", // use local scope
+		"",      // evidenceDir
 	)
 	if err != nil {
 		t.Fatalf("Accept failed: %v", err)

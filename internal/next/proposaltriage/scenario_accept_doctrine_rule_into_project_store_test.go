@@ -93,6 +93,7 @@ func TestScenario_AcceptDoctrineRuleIntoProjectStore(t *testing.T) {
 
 	decision, err := Promote(targetPP, "", "", "", doctrineStore, playbookStore,
 		"local", // use local scope
+		"",      // evidenceDir
 	)
 	if err != nil {
 		t.Fatalf("Accept failed: %v", err)
