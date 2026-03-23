@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -240,12 +241,15 @@ func reviewGuided(runID string, storeDir string, input io.Reader, out io.Writer)
 }
 
 // getDistillerTier loads the configured distiller tier from project config,
-// defaulting to TierMedium and logging if the config load fails (non-blocking).
+// defaulting to TierMedium. Missing config is expected and silent; other
+// errors are logged as a warning.
 func getDistillerTier(storeDir string) reviewdistiller.Tier {
 	tier := reviewdistiller.TierMedium
 	cfg, err := LoadProjectConfig(storeDir)
 	if err != nil {
-		log.Printf("load project config failed, using default tier: %v", err)
+		if !errors.Is(err, os.ErrNotExist) {
+			log.Printf("load project config failed, using default tier: %v", err)
+		}
 		return tier
 	}
 	return reviewdistiller.Tier(cfg.DistillerTier)
