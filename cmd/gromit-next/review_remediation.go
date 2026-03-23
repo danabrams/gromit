@@ -160,6 +160,10 @@ func maybeGenerateRemediationSpec(runID, storeDir, specsDir string) (string, err
 		return "", fmt.Errorf("load run %q: %w", runID, err)
 	}
 
+	if run == nil {
+		return "", fmt.Errorf("run %q not found", runID)
+	}
+
 	// Read review.json from evidence directory
 	evidenceDir := store.RunEvidenceDir(runID)
 	reviewPath := filepath.Join(evidenceDir, "review.json")
