@@ -113,7 +113,7 @@ func TestScenario_ListTypeFilterWithinGroups(t *testing.T) {
 	}
 
 	// Filter groups by type=validation_gap
-	validationGapGroups := FilterGroupsByType(groups, "validation_gap")
+	validationGapGroups := FilterGroupsByType(groups, []string{"validation_gap"})
 
 	// === Assert ===
 	// Only the 2 validation_gap proposals should survive

@@ -683,7 +683,7 @@ func TestFilterGroupsByType_MixedTypeGroup(t *testing.T) {
 	}
 
 	// Filter by validation_gap
-	filtered := FilterGroupsByType([]ProposalGroup{mixedTypeGroup}, "validation_gap")
+	filtered := FilterGroupsByType([]ProposalGroup{mixedTypeGroup}, []string{"validation_gap"})
 
 	// Group should be retained but with only the 2 validation_gap proposals
 	if len(filtered) != 1 {

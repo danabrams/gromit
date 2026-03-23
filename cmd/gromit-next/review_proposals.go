@@ -124,7 +124,7 @@ Filter by --type and --run as needed.`,
 
 			// Apply type filtering after grouping (so mixed-type clusters can form)
 			if typeFilter != nil && len(*typeFilter) > 0 {
-				groups = proposaltriage.FilterGroupsByType(groups, (*typeFilter)[0])
+				groups = proposaltriage.FilterGroupsByType(groups, *typeFilter)
 			}
 
 			return displayPendingProposals(groups)
@@ -545,6 +545,10 @@ func displayAllProposals(proposals []proposaltriage.AllProposal) error {
 	fmt.Fprintln(w, "ID\tTYPE\tRUN\tCONFIDENCE\tTITLE\tSTATUS")
 
 	for _, p := range proposals {
+		if p.Proposal == nil {
+			continue
+		}
+
 		// Truncate ID for display
 		displayID := p.Proposal.ID
 		if len(displayID) > 12 {
