@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/danabrams/gromit/internal/next/doctrine"
 	"github.com/danabrams/gromit/internal/next/playbook"
@@ -1739,5 +1740,91 @@ func TestPromote_DoctrineRule_DefaultScope(t *testing.T) {
 	// KEY: Verify that Scope defaults to "*" when empty (backward compatible)
 	if rule.Scope != "*" {
 		t.Errorf("Rule Scope = %q, want %q", rule.Scope, "*")
+	}
+}
+
+func TestDismissedProposalCannotBeRedecided(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create a proposal
+	pp := &PendingProposal{
+		Proposal: &reviewdistiller.Proposal{
+			ID:             "prop-dismissed-001",
+			Type:           "doctrine_rule",
+			Title:          "Test Proposal",
+			ProposedChange: "Some test change",
+		},
+		RunID:  "run-001",
+		SpecID: "spec-001",
+	}
+
+	// Create an evidence directory with a dismissed decision for this proposal
+	dismissedDecision := Decision{
+		ProposalID:  "prop-dismissed-001",
+		Action:      "dismissed",
+		DismissedBy: "prop-accepted-001",
+		DecidedAt:   time.Now(),
+	}
+
+	// Save the dismissed decision to the evidence directory
+	err := SaveDecision(tmpDir, dismissedDecision)
+	if err != nil {
+		t.Fatalf("Failed to save dismissed decision: %v", err)
+	}
+
+	// Validate that the proposal cannot be re-decided
+	err = ValidateTerminalState(pp.Proposal.ID, tmpDir)
+
+	// Verify that ValidateTerminalState returns an error
+	if err == nil {
+		t.Fatal("ValidateTerminalState should return an error for dismissed proposals")
+	}
+
+	// Verify the error message mentions dismissed
+	errMsg := err.Error()
+	if !strings.Contains(errMsg, "dismissed") {
+		t.Errorf("Error message should mention 'dismissed', got: %q", errMsg)
+	}
+
+	if !strings.Contains(errMsg, "cannot be re-decided") {
+		t.Errorf("Error message should mention 'cannot be re-decided', got: %q", errMsg)
+	}
+}
+
+func TestValidateTerminalState_NoDecisions(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Validate a proposal with no existing decisions
+	err := ValidateTerminalState("prop-no-decision", tmpDir)
+
+	// Should not return an error since there are no decisions
+	if err != nil {
+		t.Fatalf("ValidateTerminalState should not error when no decisions exist, got: %v", err)
+	}
+}
+
+func TestValidateTerminalState_RejectedProposalCanBeAccepted(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create an evidence directory with a rejected decision for a proposal
+	rejectedDecision := Decision{
+		ProposalID: "prop-rejected-001",
+		Action:     "rejected",
+		Reason:     "Not ready yet",
+		DecidedAt:  time.Now(),
+	}
+
+	// Save the rejected decision
+	err := SaveDecision(tmpDir, rejectedDecision)
+	if err != nil {
+		t.Fatalf("Failed to save rejected decision: %v", err)
+	}
+
+	// Validate that the rejected proposal CAN be re-decided (rejected is not terminal)
+	err = ValidateTerminalState("prop-rejected-001", tmpDir)
+
+	// Should not return an error since rejected is not a terminal state
+	if err != nil {
+		t.Fatalf("ValidateTerminalState should not error for rejected proposals, got: %v", err)
 	}
 }
