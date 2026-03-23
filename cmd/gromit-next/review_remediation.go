@@ -125,7 +125,7 @@ func generateRemediationSpec(input RemediationInput) string {
 				if criteria == "" {
 					criteria = finding.Description
 				}
-				sb.WriteString(fmt.Sprintf("%d. %s: %s\n", criteriaIndex, finding.Type, criteria))
+				sb.WriteString(fmt.Sprintf("%d. [%s] %s\n", criteriaIndex, finding.File, criteria))
 				criteriaIndex++
 			}
 		}
@@ -134,9 +134,8 @@ func generateRemediationSpec(input RemediationInput) string {
 
 	// Validation section
 	sb.WriteString("## Validation\n\n")
-	sb.WriteString("- All identified issues in this remediation spec have been addressed in the code\n")
-	sb.WriteString("- Automated tests pass with no new failures\n")
-	sb.WriteString("- Code review confirms all suggested fixes are applied\n")
+	sb.WriteString("- go test ./... -count=1\n")
+	sb.WriteString("- go vet ./...\n")
 
 	return sb.String()
 }

@@ -147,10 +147,10 @@ func TestGenerateRemediationSpec_PureFunction(t *testing.T) {
 	// Verify one criterion per finding (4 findings = 4 criteria)
 	// Criteria are ordered by category (security, then style) due to map iteration
 	criteria := []string{
-		"1. SQL Injection: Use parameterized queries instead of string concatenation",
-		"2. Missing Validation: Add bounds check before accessing array",
-		"3. Naming Convention: Rename variable from snake_case to camelCase",
-		"4. Comment Quality: Function comment is unclear", // Falls back to description
+		"1. [main.go] Use parameterized queries instead of string concatenation",
+		"2. [utils.go] Add bounds check before accessing array",
+		"3. [main.go] Rename variable from snake_case to camelCase",
+		"4. [utils.go] Function comment is unclear", // Falls back to description
 	}
 
 	for _, criterion := range criteria {
@@ -163,14 +163,11 @@ func TestGenerateRemediationSpec_PureFunction(t *testing.T) {
 	if !strings.Contains(output, "## Validation") {
 		t.Errorf("Validation section header missing")
 	}
-	if !strings.Contains(output, "- All identified issues in this remediation spec have been addressed in the code") {
+	if !strings.Contains(output, "- go test ./... -count=1") {
 		t.Errorf("Validation item 1 missing")
 	}
-	if !strings.Contains(output, "- Automated tests pass with no new failures") {
+	if !strings.Contains(output, "- go vet ./...") {
 		t.Errorf("Validation item 2 missing")
-	}
-	if !strings.Contains(output, "- Code review confirms all suggested fixes are applied") {
-		t.Errorf("Validation item 3 missing")
 	}
 }
 
@@ -196,7 +193,7 @@ func TestGenerateRemediationSpec_UsesDescriptionWhenSuggestedFixEmpty(t *testing
 	output := generateRemediationSpec(input)
 
 	// Verify acceptance criterion uses description when suggested_fix is empty
-	if !strings.Contains(output, "1. Missing Docstring: Function needs proper documentation") {
+	if !strings.Contains(output, "1. [doc.go] Function needs proper documentation") {
 		t.Errorf("Acceptance criterion should use description when suggested_fix is empty, got:\n%s", output)
 	}
 }
@@ -255,7 +252,7 @@ func TestGenerateRemediationSpec_EmptyFindings(t *testing.T) {
 	if !strings.Contains(output, "## Validation") {
 		t.Errorf("Validation section should always be present")
 	}
-	if !strings.Contains(output, "- All identified issues in this remediation spec have been addressed in the code") {
+	if !strings.Contains(output, "- go test ./... -count=1") {
 		t.Errorf("Validation content missing")
 	}
 }
@@ -992,10 +989,10 @@ func TestMaybeGenerateRemediationSpec_SkipsEmptyDescription(t *testing.T) {
 	}
 
 	// Count numbered criteria
-	if !strings.Contains(specContent, "1. Missing Input Validation:") {
+	if !strings.Contains(specContent, "1. [auth.go]") {
 		t.Error("first acceptance criterion missing")
 	}
-	if !strings.Contains(specContent, "2. Naming Convention:") {
+	if !strings.Contains(specContent, "2. [main.go]") {
 		t.Error("second acceptance criterion missing")
 	}
 	if strings.Contains(specContent, "3. ") {

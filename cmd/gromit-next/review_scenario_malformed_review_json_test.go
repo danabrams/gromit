@@ -1,8 +1,8 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -89,24 +89,15 @@ func TestScenario_MalformedReviewJSON_DoesNotFailAccept(t *testing.T) {
 	})
 
 	// Capture stdout and stderr
-	oldStdout := os.Stdout
-	oldStderr := os.Stderr
-	rOut, wOut, _ := os.Pipe()
-	rErr, wErr, _ := os.Pipe()
-	os.Stdout = wOut
-	os.Stderr = wErr
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	cmd.SetOut(&stdout)
+	cmd.SetErr(&stderr)
 
 	err := cmd.Execute()
 
-	wOut.Close()
-	wErr.Close()
-	os.Stdout = oldStdout
-	os.Stderr = oldStderr
-
-	stdoutBytes, _ := io.ReadAll(rOut)
-	stdoutStr := string(stdoutBytes)
-	stderrBytes, _ := io.ReadAll(rErr)
-	stderrStr := string(stderrBytes)
+	stdoutStr := stdout.String()
+	stderrStr := stderr.String()
 
 	// ── Assert ────────────────────────────────────────────────────────────
 

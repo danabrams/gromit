@@ -139,6 +139,15 @@ func TestScenario_AcceptedRunWithFindings_GeneratesRemediationSpec(t *testing.T)
 		t.Error("unexpected 18th acceptance criterion")
 	}
 
+	// Acceptance criteria should be file-path-prefixed in the format "N. [file] description"
+	// Check that criteria are prefixed with file paths in brackets
+	if !strings.Contains(spec, "[internal/next/specloop/stages/build.go]") {
+		t.Error("acceptance criteria missing file path prefix for build.go")
+	}
+	if !strings.Contains(spec, "[internal/next/specloop/stages/validate.go]") {
+		t.Error("acceptance criteria missing file path prefix for validate.go")
+	}
+
 	// All 9 architecture_drift findings present
 	for i := 0; i < 9; i++ {
 		if !strings.Contains(spec, archDriftFacet(i)) {
@@ -151,6 +160,17 @@ func TestScenario_AcceptedRunWithFindings_GeneratesRemediationSpec(t *testing.T)
 		if !strings.Contains(spec, specAlignFacet(i)) {
 			t.Errorf("spec_alignment finding %d facet missing: %s", i, specAlignFacet(i))
 		}
+	}
+
+	// Validation section should contain go test and go vet commands
+	if !strings.Contains(spec, "## Validation") {
+		t.Error("Validation section missing")
+	}
+	if !strings.Contains(spec, "go test ./... -count=1") {
+		t.Error("Validation section missing 'go test ./... -count=1'")
+	}
+	if !strings.Contains(spec, "go vet ./...") {
+		t.Error("Validation section missing 'go vet ./...'")
 	}
 
 	// stdout would contain the file path (tested via specPath return value above)
