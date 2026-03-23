@@ -26,6 +26,7 @@ type PlanRequest struct {
 	SpecPacket         string
 	PlaybookHeuristics string // pre-rendered active playbook.Entry heuristics (only active entries; superseded excluded)
 	RefinementGuidance string
+	DoctrineRules      string // pre-rendered active doctrine rules
 	Cycle              int
 	CompletedTasks     []string
 	Failures           []string
@@ -89,6 +90,7 @@ type FixPlanRequest struct {
 	SpecConstraints    string          `json:"spec_constraints,omitempty"`    // Out-of-Scope + Architectural Constraints from spec.md
 	SpecPacket         string          `json:"spec_packet,omitempty"`         // full spec packet for context (requirements, scope, acceptance criteria)
 	PlaybookHeuristics string          `json:"playbook_heuristics,omitempty"` // pre-rendered active playbook.Entry heuristics to guide fix plan strategy (only active entries; superseded excluded)
+	DoctrineRules      string          `json:"doctrine_rules,omitempty"`      // pre-rendered active doctrine rules to guide fix plan strategy
 }
 
 // CreateFixPlan invokes the agent to produce a fix plan addressing failures.

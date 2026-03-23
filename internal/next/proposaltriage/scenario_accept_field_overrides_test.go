@@ -65,6 +65,8 @@ func TestScenario_AcceptWithFieldOverrides(t *testing.T) {
 		"",  // no rationale override
 		nil, // doctrineStore not needed for validation_gap
 		pbStore,
+
+		"local", // use local scope
 	)
 	if err != nil {
 		t.Fatalf("Accept failed: %v", err)

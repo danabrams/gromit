@@ -1,0 +1,215 @@
+package proposaltriage
+
+import (
+	"os"
+	"path/filepath"
+	"testing"
+	"time"
+
+	"github.com/danabrams/gromit/internal/next/reviewdistiller"
+)
+
+func TestDismissSiblings_DismissesAllExceptAccepted(t *testing.T) {
+	tmpDir := t.TempDir()
+	runID := "run-123"
+
+	// Create a group with 3 proposals
+	group := ProposalGroup{
+		GroupID: "group-1",
+		Proposals: []PendingProposal{
+			{
+				Proposal: &reviewdistiller.Proposal{
+					ID:    "prop-1",
+					Title: "Proposal 1",
+				},
+				RunID:     runID,
+				SpecID:    "spec-1",
+				CreatedAt: time.Now(),
+				GroupID:   "group-1",
+			},
+			{
+				Proposal: &reviewdistiller.Proposal{
+					ID:    "prop-2",
+					Title: "Proposal 2",
+				},
+				RunID:     runID,
+				SpecID:    "spec-1",
+				CreatedAt: time.Now(),
+				GroupID:   "group-1",
+			},
+			{
+				Proposal: &reviewdistiller.Proposal{
+					ID:    "prop-3",
+					Title: "Proposal 3",
+				},
+				RunID:     runID,
+				SpecID:    "spec-1",
+				CreatedAt: time.Now(),
+				GroupID:   "group-1",
+			},
+		},
+		GroupReason: "same file",
+	}
+
+	// Accept prop-1, dismiss prop-2 and prop-3
+	acceptedProposalID := "prop-1"
+	decisions, err := DismissSiblings(acceptedProposalID, group, tmpDir)
+
+	if err != nil {
+		t.Fatalf("DismissSiblings failed: %v", err)
+	}
+
+	// Should return 2 decisions (for prop-2 and prop-3)
+	if len(decisions) != 2 {
+		t.Fatalf("expected 2 dismissed decisions, got %d", len(decisions))
+	}
+
+	// Verify decisions were created correctly
+	for i, decision := range decisions {
+		if decision.Action != "dismissed" {
+			t.Errorf("decision %d: Action should be 'dismissed', got %q", i, decision.Action)
+		}
+		if decision.DismissedBy != acceptedProposalID {
+			t.Errorf("decision %d: DismissedBy should be %q, got %q", i, acceptedProposalID, decision.DismissedBy)
+		}
+		if decision.DecidedAt.IsZero() {
+			t.Errorf("decision %d: DecidedAt should not be zero", i)
+		}
+		// ProposalID should be one of the siblings
+		if decision.ProposalID != "prop-2" && decision.ProposalID != "prop-3" {
+			t.Errorf("decision %d: ProposalID should be prop-2 or prop-3, got %q", i, decision.ProposalID)
+		}
+	}
+
+	// Verify decisions were saved to the correct evidence directories
+	for _, decision := range decisions {
+		evidenceDir := filepath.Join(tmpDir, "runs", runID, "evidence")
+		loaded, err := LoadDecisions(evidenceDir)
+		if err != nil {
+			t.Fatalf("LoadDecisions failed: %v", err)
+		}
+
+		// Find the decision for this proposal
+		found := false
+		for _, d := range loaded {
+			if d.ProposalID == decision.ProposalID {
+				found = true
+				if d.Action != "dismissed" {
+					t.Errorf("saved decision for %s: Action should be 'dismissed', got %q", decision.ProposalID, d.Action)
+				}
+				if d.DismissedBy != acceptedProposalID {
+					t.Errorf("saved decision for %s: DismissedBy should be %q, got %q", decision.ProposalID, acceptedProposalID, d.DismissedBy)
+				}
+				break
+			}
+		}
+		if !found {
+			t.Errorf("decision for %q was not saved to evidence directory", decision.ProposalID)
+		}
+	}
+}
+
+func TestDismissSiblings_EmptyGroupReturnsEmptySlice(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Single proposal group (no siblings)
+	group := ProposalGroup{
+		GroupID: "group-1",
+		Proposals: []PendingProposal{
+			{
+				Proposal: &reviewdistiller.Proposal{
+					ID:    "prop-1",
+					Title: "Proposal 1",
+				},
+				RunID:     "run-123",
+				SpecID:    "spec-1",
+				CreatedAt: time.Now(),
+				GroupID:   "group-1",
+			},
+		},
+		GroupReason: "single proposal",
+	}
+
+	acceptedProposalID := "prop-1"
+	decisions, err := DismissSiblings(acceptedProposalID, group, tmpDir)
+
+	if err != nil {
+		t.Fatalf("DismissSiblings failed: %v", err)
+	}
+
+	if len(decisions) != 0 {
+		t.Fatalf("expected 0 decisions for single-proposal group, got %d", len(decisions))
+	}
+}
+
+func TestDismissSiblings_MultipleRuns(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create a group with proposals from different runs
+	group := ProposalGroup{
+		GroupID: "group-1",
+		Proposals: []PendingProposal{
+			{
+				Proposal: &reviewdistiller.Proposal{
+					ID:    "prop-1",
+					Title: "Proposal 1",
+				},
+				RunID:     "run-1",
+				SpecID:    "spec-1",
+				CreatedAt: time.Now(),
+				GroupID:   "group-1",
+			},
+			{
+				Proposal: &reviewdistiller.Proposal{
+					ID:    "prop-2",
+					Title: "Proposal 2",
+				},
+				RunID:     "run-2",
+				SpecID:    "spec-1",
+				CreatedAt: time.Now(),
+				GroupID:   "group-1",
+			},
+		},
+		GroupReason: "same file, different runs",
+	}
+
+	acceptedProposalID := "prop-1"
+	decisions, err := DismissSiblings(acceptedProposalID, group, tmpDir)
+
+	if err != nil {
+		t.Fatalf("DismissSiblings failed: %v", err)
+	}
+
+	if len(decisions) != 1 {
+		t.Fatalf("expected 1 decision, got %d", len(decisions))
+	}
+
+	// Verify decision was saved to the correct evidence directory for run-2
+	evidenceDir := filepath.Join(tmpDir, "runs", "run-2", "evidence")
+	loaded, err := LoadDecisions(evidenceDir)
+	if err != nil {
+		t.Fatalf("LoadDecisions failed: %v", err)
+	}
+
+	if len(loaded) != 1 {
+		t.Fatalf("expected 1 decision in run-2 evidence, got %d", len(loaded))
+	}
+
+	if loaded[0].ProposalID != "prop-2" {
+		t.Errorf("expected decision for prop-2, got %q", loaded[0].ProposalID)
+	}
+
+	// Verify run-1 evidence directory does not have any decisions
+	evidenceDirRun1 := filepath.Join(tmpDir, "runs", "run-1", "evidence")
+	_, err = os.Stat(evidenceDirRun1)
+	if err == nil {
+		// Directory exists, check it's empty
+		loaded, err := LoadDecisions(evidenceDirRun1)
+		if err != nil {
+			t.Fatalf("LoadDecisions failed: %v", err)
+		}
+		if len(loaded) != 0 {
+			t.Errorf("run-1 evidence should be empty, got %d decisions", len(loaded))
+		}
+	}
+}

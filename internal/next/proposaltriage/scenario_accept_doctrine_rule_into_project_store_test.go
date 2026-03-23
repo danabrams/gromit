@@ -91,7 +91,9 @@ func TestScenario_AcceptDoctrineRuleIntoProjectStore(t *testing.T) {
 	playbookStore := &playbook.Store{Dir: playbookDir}
 	evidenceDir := filepath.Join(tmpDir, "runs", runID, "evidence")
 
-	decision, err := Promote(targetPP, "", "", "", doctrineStore, playbookStore)
+	decision, err := Promote(targetPP, "", "", "", doctrineStore, playbookStore,
+		"local", // use local scope
+	)
 	if err != nil {
 		t.Fatalf("Accept failed: %v", err)
 	}

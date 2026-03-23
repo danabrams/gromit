@@ -11,8 +11,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/danabrams/gromit/internal/next/doctrine"
 	"github.com/danabrams/gromit/internal/next/planner"
 	"github.com/danabrams/gromit/internal/next/playbook"
+	"github.com/danabrams/gromit/internal/next/promptrender"
 	"github.com/danabrams/gromit/internal/next/runstore"
 	"github.com/danabrams/gromit/internal/next/specloop"
 )
@@ -63,6 +65,7 @@ type PlanStage struct {
 	store            *runstore.Store
 	eventLog         *runstore.EventLog
 	cellPathResolver CellPathResolver
+	storeRootDir     string
 }
 
 // NewPlanStage creates a new PlanStage.
@@ -80,27 +83,48 @@ func (s *PlanStage) SetCellPathResolver(resolver CellPathResolver) {
 	s.cellPathResolver = resolver
 }
 
+// SetStoreRootDir sets the store root directory for loading merged global and local playbooks.
+func (s *PlanStage) SetStoreRootDir(dir string) {
+	s.storeRootDir = dir
+}
+
 // Name returns the stage name.
 func (s *PlanStage) Name() string { return "plan" }
 
 // loadPlaybookAndDoctrine loads the playbook and doctrine stores and returns
-// formatted heuristics and refinement guidance for prompt injection.
-// Both strings are empty if the cell path cannot be resolved or stores don't exist.
-func (s *PlanStage) loadPlaybookAndDoctrine(rs *runstore.RunState) (heuristics, guidance string) {
+// formatted heuristics, refinement guidance, and doctrine rules for prompt injection.
+// All strings are empty if the cell path cannot be resolved or stores don't exist.
+// If storeRootDir is set, loads merged global and local playbbooks and doctrine.
+// If storeRootDir is empty, falls back to local-only loading for backward compatibility.
+func (s *PlanStage) loadPlaybookAndDoctrine(rs *runstore.RunState) (heuristics, guidance, doctrineText string) {
 	if s.cellPathResolver == nil {
-		return "", ""
+		return "", "", ""
 	}
 
 	cellPath, err := s.cellPathResolver.ResolveCellPath(rs.ProjectID)
 	if err != nil || cellPath == "" {
-		return "", ""
+		return "", "", ""
 	}
 
-	// Load playbook entries
-	playbookStore := &playbook.Store{Dir: filepath.Join(cellPath, "playbook")}
-	entries, err := playbookStore.Load()
-	if err != nil {
-		return "", ""
+	localPlaybookDir := filepath.Join(cellPath, "playbook")
+	var entries []playbook.Entry
+
+	// Load playbook entries: merged (if storeRootDir set) or local-only (backward compat)
+	if s.storeRootDir != "" {
+		globalPlaybookDir := filepath.Join(s.storeRootDir, "global", "playbook")
+		var mergeErr error
+		entries, mergeErr = playbook.MergedPlaybook(globalPlaybookDir, localPlaybookDir)
+		if mergeErr != nil {
+			return "", "", ""
+		}
+	} else {
+		// Backward compatibility: local-only loading
+		playbookStore := &playbook.Store{Dir: localPlaybookDir}
+		var loadErr error
+		entries, loadErr = playbookStore.Load()
+		if loadErr != nil {
+			return "", "", ""
+		}
 	}
 
 	// Filter to only active entries
@@ -120,11 +144,35 @@ func (s *PlanStage) loadPlaybookAndDoctrine(rs *runstore.RunState) (heuristics, 
 		}
 	}
 
-	// Format for prompt injection
+	// Format playbook for prompt injection
 	heuristics = playbook.FormatPlaybookForPrompt(heuristicEntries)
 	guidance = playbook.FormatPlaybookForPrompt(guidanceEntries)
 
-	return heuristics, guidance
+	// Load doctrine: merged (if storeRootDir set) or local-only (backward compat)
+	localDoctrineDir := filepath.Join(cellPath, "doctrine")
+	var doctrineRules []doctrine.Rule
+
+	if s.storeRootDir != "" {
+		globalDoctrineDir := filepath.Join(s.storeRootDir, "global", "doctrine")
+		var mergeErr error
+		doctrineRules, mergeErr = doctrine.MergedDoctrine(globalDoctrineDir, localDoctrineDir)
+		if mergeErr != nil {
+			return heuristics, guidance, ""
+		}
+	} else {
+		// Backward compatibility: local-only loading
+		doctrineStore := &doctrine.FSStore{Dir: localDoctrineDir}
+		doctrineData, loadErr := doctrineStore.Load()
+		if loadErr != nil {
+			return heuristics, guidance, ""
+		}
+		doctrineRules = doctrineData.Rules
+	}
+
+	// Format doctrine for prompt injection
+	doctrineText = promptrender.FormatDoctrineForPrompt(doctrineRules)
+
+	return heuristics, guidance, doctrineText
 }
 
 // Run executes the plan stage.
@@ -155,7 +203,7 @@ func (s *PlanStage) Run(ctx context.Context, rs *runstore.RunState) (specloop.Ne
 	var validationErr error
 
 	// Load playbook and doctrine for prompt injection
-	heuristics, guidance := s.loadPlaybookAndDoctrine(rs)
+	heuristics, guidance, doctrineText := s.loadPlaybookAndDoctrine(rs)
 
 	if isFixCycle && s.fixPlanner != nil {
 		fixReq := planner.FixPlanRequest{
@@ -167,6 +215,7 @@ func (s *PlanStage) Run(ctx context.Context, rs *runstore.RunState) (specloop.Ne
 			CompletedTasks:     completedTaskSummaries(rs.Tasks),
 			CurrentDiff:        worktreeDiff(rs.WorktreePath),
 			PlaybookHeuristics: heuristics,
+			DoctrineRules:      doctrineText,
 		}
 		// Try up to 2 times (initial + 1 retry)
 		allFiltered := false
@@ -214,6 +263,7 @@ func (s *PlanStage) Run(ctx context.Context, rs *runstore.RunState) (specloop.Ne
 			Failures:           rs.ReplanContext,
 			PlaybookHeuristics: heuristics,
 			RefinementGuidance: guidance,
+			DoctrineRules:      doctrineText,
 		}
 		// Try up to 2 times (initial + 1 retry)
 		for attempt := 0; attempt < 2; attempt++ {

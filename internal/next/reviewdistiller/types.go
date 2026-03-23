@@ -47,18 +47,19 @@ type DistillationResult struct {
 // This is an in-memory data transfer object — it is not serialized.
 // The caller loads files; the distiller never touches the filesystem.
 type DistillerInputs struct {
-	RunID           string
-	SpecID          string
-	SpecContent     string
-	ReviewOutcome   json.RawMessage // review-outcome.json
-	ProductReview   json.RawMessage // product-review.json
-	ProcessReview   json.RawMessage // process-review.json
-	ManualChecklist json.RawMessage // manual-checklist.json (generated template)
-	Validation      json.RawMessage // validation.json
-	Acceptance      json.RawMessage // acceptance.json
-	MachineReview   json.RawMessage // review.json
-	TaskResults     json.RawMessage // task-results.json (if available)
-	RunMetadata     json.RawMessage // serialized subset of run state
+	RunID             string
+	SpecID            string
+	SpecContent       string
+	ReviewOutcome     json.RawMessage // review-outcome.json
+	ProductReview     json.RawMessage // product-review.json
+	ProcessReview     json.RawMessage // process-review.json
+	ManualChecklist   json.RawMessage // manual-checklist.json (generated template)
+	Validation        json.RawMessage // validation.json
+	Acceptance        json.RawMessage // acceptance.json
+	MachineReview     json.RawMessage // review.json
+	TaskResults       json.RawMessage // task-results.json (if available)
+	RunMetadata       json.RawMessage // serialized subset of run state
+	RejectedProposals json.RawMessage // previously rejected proposals with rejection reasons
 }
 
 // LLMCompleter abstracts the model call so the distiller is testable.

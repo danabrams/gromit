@@ -831,3 +831,113 @@ func TestPlanStage_PlaybookHeuristics_EmptyWhenNoEntries(t *testing.T) {
 		t.Fatalf("expected empty PlaybookHeuristics, got %q", req.PlaybookHeuristics)
 	}
 }
+
+func TestPlanStage_MergedPlaybook_LocalWinsForOverlappingIDAndIncludesAllNonOverlapping(t *testing.T) {
+	tmp := t.TempDir()
+	store := runstore.NewStore(tmp)
+	rs := runstore.NewRunState("spec-001", "proj-001")
+	runDir := store.RunDir(rs.RunID)
+	os.MkdirAll(runDir, 0o755)
+	os.WriteFile(filepath.Join(runDir, "spec-packet.md"), []byte("spec content"), 0o644)
+
+	// Create global playbook entries: 3 heuristics with IDs pb-global-1, pb-global-2, pb-global-3
+	// Global playbook lives at storeRootDir/global/playbook
+	storeRootDir := t.TempDir()
+	globalPlaybookDir := filepath.Join(storeRootDir, "global", "playbook")
+	os.MkdirAll(globalPlaybookDir, 0o755)
+	globalStore := &playbook.Store{Dir: globalPlaybookDir}
+	globalEntries := []playbook.Entry{
+		{
+			ID:      "pb-global-1",
+			Type:    "planner_heuristic",
+			Title:   "Global Heuristic 1",
+			Content: "Global content 1",
+			Status:  "active",
+		},
+		{
+			ID:      "pb-global-2",
+			Type:    "planner_heuristic",
+			Title:   "Global Heuristic 2",
+			Content: "Global content 2",
+			Status:  "active",
+		},
+		{
+			ID:      "pb-global-3",
+			Type:    "planner_heuristic",
+			Title:   "Global Heuristic 3",
+			Content: "Global content 3",
+			Status:  "active",
+		},
+	}
+	if err := globalStore.Save(globalEntries); err != nil {
+		t.Fatalf("failed to save global playbook: %v", err)
+	}
+
+	// Create local playbook entries:
+	// - pb-global-2 with different content (should override global)
+	// - pb-local-4 new local entry (should be included)
+	cellPath := t.TempDir()
+	localPlaybookDir := filepath.Join(cellPath, "playbook")
+	os.MkdirAll(localPlaybookDir, 0o755)
+	localStore := &playbook.Store{Dir: localPlaybookDir}
+	localEntries := []playbook.Entry{
+		{
+			ID:      "pb-global-2",
+			Type:    "planner_heuristic",
+			Title:   "Local Override for Heuristic 2",
+			Content: "Local override content 2",
+			Status:  "active",
+		},
+		{
+			ID:      "pb-local-4",
+			Type:    "planner_heuristic",
+			Title:   "Local Heuristic 4",
+			Content: "Local content 4",
+			Status:  "active",
+		},
+	}
+	if err := localStore.Save(localEntries); err != nil {
+		t.Fatalf("failed to save local playbook: %v", err)
+	}
+
+	// Set up PlanStage with merged playbook loading
+	fp := &fakePlanner{plans: []planner.Plan{validPlan()}}
+	stage := NewPlanStage(fp, store, nil)
+	stage.SetCellPathResolver(&fakeCellPathResolver{path: cellPath})
+	stage.SetStoreRootDir(storeRootDir)
+
+	action, err := stage.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if action.Kind != specloop.Continue {
+		t.Fatalf("expected Continue, got %v", action.Kind)
+	}
+
+	// Verify the PlanRequest was populated with merged heuristics
+	if len(fp.reqs) != 1 {
+		t.Fatalf("expected 1 plan request, got %d", len(fp.reqs))
+	}
+	req := fp.reqs[0]
+
+	// The PlaybookHeuristics should contain:
+	// - pb-global-1 (non-overlapping global entry)
+	// - pb-global-2 but with LOCAL content (local wins for overlapping IDs)
+	// - pb-global-3 (non-overlapping global entry)
+	// - pb-local-4 (new local entry)
+	if !strings.Contains(req.PlaybookHeuristics, "Global Heuristic 1") {
+		t.Fatalf("expected 'Global Heuristic 1' (non-overlapping global) in merged heuristics, got: %q", req.PlaybookHeuristics)
+	}
+	if !strings.Contains(req.PlaybookHeuristics, "Local Override for Heuristic 2") {
+		t.Fatalf("expected 'Local Override for Heuristic 2' (local version of overlapping entry) in merged heuristics, got: %q", req.PlaybookHeuristics)
+	}
+	if strings.Contains(req.PlaybookHeuristics, "Global Heuristic 2") && !strings.Contains(req.PlaybookHeuristics, "Local Override for Heuristic 2") {
+		t.Fatalf("expected LOCAL version of Heuristic 2 to override GLOBAL version in merged heuristics, got: %q", req.PlaybookHeuristics)
+	}
+	if !strings.Contains(req.PlaybookHeuristics, "Global Heuristic 3") {
+		t.Fatalf("expected 'Global Heuristic 3' (non-overlapping global) in merged heuristics, got: %q", req.PlaybookHeuristics)
+	}
+	if !strings.Contains(req.PlaybookHeuristics, "Local Heuristic 4") {
+		t.Fatalf("expected 'Local Heuristic 4' (new local entry) in merged heuristics, got: %q", req.PlaybookHeuristics)
+	}
+}

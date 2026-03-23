@@ -77,7 +77,9 @@ func TestScenario_DuplicateProposal(t *testing.T) {
 		SpecID:   pendingBefore[0].SpecID,
 	}
 
-	decision1, err := Promote(pp1, "", "", "", stores.doctrine, stores.playbook)
+	decision1, err := Promote(pp1, "", "", "", stores.doctrine, stores.playbook,
+		"local", // use local scope
+	)
 	if err != nil {
 		t.Fatalf("Accept for first proposal failed: %v", err)
 	}
@@ -114,7 +116,9 @@ func TestScenario_DuplicateProposal(t *testing.T) {
 		SpecID:   pendingBefore[1].SpecID,
 	}
 
-	decision2, err := Promote(pp2, "", "", "", stores.doctrine, stores.playbook)
+	decision2, err := Promote(pp2, "", "", "", stores.doctrine, stores.playbook,
+		"local", // use local scope
+	)
 	if err != nil {
 		t.Fatalf("Accept for second proposal failed: %v", err)
 	}

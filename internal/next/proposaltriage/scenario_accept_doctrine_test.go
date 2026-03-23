@@ -55,7 +55,9 @@ func TestScenario_AcceptDoctrineRule(t *testing.T) {
 	doctrineStore.Dir = doctrineDir
 	playbookStore := &playbook.Store{Dir: playbookDir}
 
-	decision, err := Promote(pp, "", "", "", doctrineStore, playbookStore)
+	decision, err := Promote(pp, "", "", "", doctrineStore, playbookStore,
+		"local", // use local scope
+	)
 	if err != nil {
 		t.Fatalf("Accept failed: %v", err)
 	}

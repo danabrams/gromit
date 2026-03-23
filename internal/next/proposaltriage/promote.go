@@ -11,12 +11,17 @@ import (
 	"github.com/danabrams/gromit/internal/next/playbook"
 )
 
+// SourceRunID string represents the run identifier from which a proposal originated.
+type SourceRunID string
+
 // Promote promotes a PendingProposal to a Decision, routing to the appropriate store
 // (doctrine for doctrine_rule proposals, playbook for others).
 // Field overrides (title, change, rationale) are used if non-empty; otherwise defaults from proposal are used.
 // Before materializing, checks if an entry with the computed materialized ID already exists and is active.
 // If a duplicate is found, skips materialization and sets DuplicateOf in the decision.
 // Returns a Decision with materialized_id set based on proposal type and approved change text.
+// scope ("local" or "global") is used to set the Scope field on materialized entries.
+// Empty scope defaults to "*" for backward compatibility.
 func Promote(
 	pp *PendingProposal,
 	overrideTitle string,
@@ -24,9 +29,15 @@ func Promote(
 	overrideRationale string,
 	doctrineStore doctrine.Store,
 	playbookStore *playbook.Store,
+	scope string,
 ) (*Decision, error) {
 	if pp == nil || pp.Proposal == nil {
 		return nil, fmt.Errorf("pending proposal is nil")
+	}
+
+	// Validate scope: must be "local", "global", or empty (defaults to "*")
+	if scope != "" && scope != "local" && scope != "global" {
+		return nil, fmt.Errorf("invalid scope %q: must be 'local', 'global', or empty", scope)
 	}
 
 	// Apply field overrides
@@ -62,7 +73,7 @@ func Promote(
 		}
 		// Save to doctrine store only if not a duplicate
 		if duplicateOf == "" {
-			if err := promoteToDoctrine(pp, approvedTitle, approvedChange, doctrineStore); err != nil {
+			if err := promoteToDoctrine(pp, approvedTitle, approvedChange, doctrineStore, scope); err != nil {
 				return nil, fmt.Errorf("failed to promote to doctrine: %w", err)
 			}
 		}
@@ -79,7 +90,7 @@ func Promote(
 		}
 		// Save to playbook store only if not a duplicate
 		if duplicateOf == "" {
-			if err := promoteToPlaybook(pp, approvedTitle, approvedChange, approvedRationale, playbookStore); err != nil {
+			if err := promoteToPlaybook(pp, approvedTitle, approvedChange, approvedRationale, playbookStore, scope); err != nil {
 				return nil, fmt.Errorf("failed to promote to playbook: %w", err)
 			}
 		}
@@ -126,6 +137,7 @@ func promoteToDoctrine(
 	title string,
 	change string,
 	store doctrine.Store,
+	scope string,
 ) error {
 	// Load existing doctrine
 	existingDoctrine, err := store.Load()
@@ -133,11 +145,17 @@ func promoteToDoctrine(
 		return fmt.Errorf("failed to load doctrine: %w", err)
 	}
 
+	// Default scope to "*" if empty (backward compatible)
+	ruleScope := scope
+	if ruleScope == "" {
+		ruleScope = "*"
+	}
+
 	// Create a new rule
 	rule := doctrine.NewRule(
 		computeDoctrineID(pp.Proposal.Type, change),
 		title,
-		"*", // Scope defaults to all
+		ruleScope,
 	)
 
 	// Set provenance fields for promoted rules
@@ -161,6 +179,7 @@ func promoteToPlaybook(
 	change string,
 	rationale string,
 	store *playbook.Store,
+	scope string,
 ) error {
 	// Load existing entries
 	existingEntries, err := store.Load()
@@ -180,6 +199,7 @@ func promoteToPlaybook(
 		SourceRunID:      pp.RunID,
 		SourceSpecID:     pp.SpecID,
 		CreatedAt:        time.Now(),
+		Scope:            scope,
 	}
 
 	// Add the entry to existing playbook

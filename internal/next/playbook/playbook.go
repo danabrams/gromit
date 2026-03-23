@@ -24,6 +24,7 @@ type Entry struct {
 	SourceSpecID     string    `json:"source_spec_id"`
 	CreatedAt        time.Time `json:"created_at"`
 	SupersededBy     string    `json:"superseded_by"`
+	Scope            string    `json:"scope"`
 }
 
 // See CLAUDE.md nil-field normalization visibility convention: exported — cross-package boundary type

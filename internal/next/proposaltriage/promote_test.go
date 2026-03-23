@@ -313,7 +313,8 @@ func TestAccept_DoctrineRule(t *testing.T) {
 		"", // no change override
 		"", // no rationale override
 		docStore,
-		nil, // playbookStore not needed for doctrine_rule
+		nil,     // playbookStore not needed for doctrine_rule
+		"local", // use local scope
 	)
 
 	// Verify decision was created successfully
@@ -413,6 +414,7 @@ func TestAccept_PlannerHeuristic(t *testing.T) {
 		"",  // no rationale override
 		nil, // doctrineStore not needed for planner_heuristic
 		pbStore,
+		"local", // use local scope
 	)
 
 	// Verify decision was created successfully
@@ -553,6 +555,7 @@ func TestAccept_FieldOverrides(t *testing.T) {
 		"Overridden rationale",   // override rationale
 		nil,                      // doctrineStore not needed
 		pbStore,
+		"local", // use local scope
 	)
 
 	// Verify decision was created successfully
@@ -674,7 +677,8 @@ func TestAccept_DuplicateDetection_Doctrine(t *testing.T) {
 		"", // no change override
 		"", // no rationale override
 		docStore,
-		nil, // playbookStore not needed
+		nil,     // playbookStore not needed
+		"local", // use local scope
 	)
 
 	// Verify decision was created successfully
@@ -785,6 +789,7 @@ func TestAccept_DuplicateDetection_Playbook(t *testing.T) {
 		"",  // no rationale override
 		nil, // doctrineStore not needed
 		pbStore,
+		"local", // use local scope
 	)
 
 	// Verify decision was created successfully
@@ -937,7 +942,8 @@ func TestPromote_DoctrineRule(t *testing.T) {
 		"", // no override
 		"", // no override
 		docStore,
-		nil, // playbook not needed
+		nil,     // playbook not needed
+		"local", // use local scope
 	)
 
 	if err != nil {
@@ -1008,7 +1014,8 @@ func TestPromote_DoctrineRule_ProvenanceFields(t *testing.T) {
 		"", // no change override
 		"", // no rationale override
 		docStore,
-		nil, // playbookStore not needed for doctrine_rule
+		nil,     // playbookStore not needed for doctrine_rule
+		"local", // use local scope
 	)
 
 	if err != nil {
@@ -1069,6 +1076,7 @@ func TestPromote_PlaybookEntry(t *testing.T) {
 		"",
 		nil, // doctrine not needed
 		pbStore,
+		"local", // use local scope
 	)
 
 	if err != nil {
@@ -1135,6 +1143,7 @@ func TestPromote_FieldOverrides(t *testing.T) {
 		"Refined rationale",   // override rationale
 		nil,
 		pbStore,
+		"local", // use local scope
 	)
 
 	if err != nil {
@@ -1224,6 +1233,7 @@ func TestPromote_Duplicate(t *testing.T) {
 		"",
 		docStore,
 		nil,
+		"local", // use local scope
 	)
 
 	if err != nil {
@@ -1277,6 +1287,7 @@ func TestPromote_NilDoctrineStoreForDoctrineRule(t *testing.T) {
 		"",
 		nil, // doctrineStore is nil
 		nil,
+		"local", // use local scope
 	)
 
 	if err == nil {
@@ -1313,7 +1324,8 @@ func TestPromote_NilPlaybookStoreForPlaybookType(t *testing.T) {
 		"",
 		"",
 		nil,
-		nil, // playbookStore is nil
+		nil,     // playbookStore is nil
+		"local", // use local scope
 	)
 
 	if err == nil {
@@ -1381,7 +1393,8 @@ func TestAccept_DuplicateDetection_Doctrine_SupersededDoesNotBlock(t *testing.T)
 		"", // no change override
 		"", // no rationale override
 		docStore,
-		nil, // playbookStore not needed
+		nil,     // playbookStore not needed
+		"local", // use local scope
 	)
 
 	if err != nil {
@@ -1488,6 +1501,7 @@ func TestAccept_DuplicateDetection_Playbook_SupersededDoesNotBlock(t *testing.T)
 		"",  // no rationale override
 		nil, // doctrineStore not needed
 		pbStore,
+		"local", // use local scope
 	)
 
 	if err != nil {
@@ -1545,5 +1559,185 @@ func TestAccept_DuplicateDetection_Playbook_SupersededDoesNotBlock(t *testing.T)
 		if newEntry.Status != "active" {
 			t.Errorf("New entry status = %q, want %q", newEntry.Status, "active")
 		}
+	}
+}
+
+// TestPromote_DoctrineRule_WithGlobalScope verifies that when PendingProposal.Scope is 'global',
+// the materialized doctrine Rule has Scope='global'.
+func TestPromote_DoctrineRule_WithGlobalScope(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	pp := &PendingProposal{
+		Proposal: &reviewdistiller.Proposal{
+			ID:             "prop-global-scope-001",
+			Type:           "doctrine_rule",
+			Title:          "Use global configuration approach",
+			ProposedChange: "All config should be globally accessible via a singleton pattern",
+			Rationale:      "Simplifies dependency passing",
+		},
+		RunID:  "run-global-scope-001",
+		SpecID: "spec-global-scope-001",
+		Scope:  "global",
+	}
+
+	docStore := doctrine.NewFSStore()
+	docStore.Dir = tmpDir
+
+	decision, err := Promote(
+		pp,
+		"", // no override
+		"", // no override
+		"", // no override
+		docStore,
+		nil,      // playbook not needed
+		"global", // use global scope
+	)
+
+	if err != nil {
+		t.Fatalf("Promote failed: %v", err)
+	}
+
+	if decision == nil {
+		t.Fatal("Promote returned nil decision")
+	}
+
+	if decision.Action != "accepted" {
+		t.Errorf("Action = %q, want %q", decision.Action, "accepted")
+	}
+
+	// Load doctrine store and verify rule has global scope
+	loadedDoctrine, err := docStore.Load()
+	if err != nil {
+		t.Fatalf("Failed to load doctrine: %v", err)
+	}
+
+	if len(loadedDoctrine.Rules) != 1 {
+		t.Fatalf("Expected 1 rule, got %d", len(loadedDoctrine.Rules))
+	}
+
+	rule := loadedDoctrine.Rules[0]
+
+	// KEY: Verify that Scope is 'global', not the default '*'
+	if rule.Scope != "global" {
+		t.Errorf("Rule Scope = %q, want %q", rule.Scope, "global")
+	}
+}
+
+// TestPromote_PlaybookEntry_WithGlobalScope verifies that when PendingProposal.Scope is 'global',
+// the materialized playbook Entry has Scope='global'.
+func TestPromote_PlaybookEntry_WithGlobalScope(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	pp := &PendingProposal{
+		Proposal: &reviewdistiller.Proposal{
+			ID:             "prop-global-pb-001",
+			Type:           "backend_pattern",
+			Title:          "Use dependency injection globally",
+			ProposedChange: "All backend services should use dependency injection for loose coupling",
+			Rationale:      "Improves testability and maintainability across all services",
+		},
+		RunID:  "run-global-pb-001",
+		SpecID: "spec-global-pb-001",
+		Scope:  "global",
+	}
+
+	pbStore := &playbook.Store{Dir: tmpDir}
+
+	decision, err := Promote(
+		pp,
+		"",  // no override
+		"",  // no override
+		"",  // no override
+		nil, // doctrineStore not needed
+		pbStore,
+		"global", // use global scope
+	)
+
+	if err != nil {
+		t.Fatalf("Promote failed: %v", err)
+	}
+
+	if decision == nil {
+		t.Fatal("Promote returned nil decision")
+	}
+
+	if decision.Action != "accepted" {
+		t.Errorf("Action = %q, want %q", decision.Action, "accepted")
+	}
+
+	// Load playbook store and verify entry has global scope
+	loadedEntries, err := pbStore.Load()
+	if err != nil {
+		t.Fatalf("Failed to load playbook entries: %v", err)
+	}
+
+	if len(loadedEntries) != 1 {
+		t.Fatalf("Expected 1 entry, got %d", len(loadedEntries))
+	}
+
+	entry := loadedEntries[0]
+
+	// KEY: Verify that Scope is 'global'
+	if entry.Scope != "global" {
+		t.Errorf("Entry Scope = %q, want %q", entry.Scope, "global")
+	}
+}
+
+func TestPromote_DoctrineRule_DefaultScope(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create a pending proposal with type "doctrine_rule" and empty Scope
+	pp := &PendingProposal{
+		Proposal: &reviewdistiller.Proposal{
+			ID:             "prop-default-scope",
+			Type:           "doctrine_rule",
+			Title:          "Use clear naming conventions",
+			ProposedChange: "Enforce descriptive variable names across the codebase",
+			Rationale:      "Improves code readability and maintainability",
+		},
+		RunID:  "run-default-scope",
+		SpecID: "spec-default-scope",
+		Scope:  "", // Empty scope - should default to "*"
+	}
+
+	// Create doctrine store
+	docStore := doctrine.NewFSStore()
+	docStore.Dir = tmpDir
+
+	// Call Promote with empty scope parameter for backward compatibility
+	decision, err := Promote(
+		pp,
+		"", // no title override
+		"", // no change override
+		"", // no rationale override
+		docStore,
+		nil, // playbookStore not needed for doctrine_rule
+		"",  // empty scope parameter - should default to "*"
+	)
+
+	// Verify decision was created successfully
+	if err != nil {
+		t.Fatalf("Promote failed: %v", err)
+	}
+
+	if decision == nil {
+		t.Fatal("Promote returned nil decision")
+	}
+
+	// Load doctrine and verify rule was materialized
+	loadedDoctrine, err := docStore.Load()
+	if err != nil {
+		t.Fatalf("Failed to load doctrine: %v", err)
+	}
+
+	if len(loadedDoctrine.Rules) != 1 {
+		t.Fatalf("Expected 1 rule, got %d", len(loadedDoctrine.Rules))
+	}
+
+	rule := loadedDoctrine.Rules[0]
+
+	// KEY: Verify that Scope defaults to "*" when empty (backward compatible)
+	if rule.Scope != "*" {
+		t.Errorf("Rule Scope = %q, want %q", rule.Scope, "*")
 	}
 }
