@@ -73,8 +73,18 @@ func (g *WorktreeGuard) Run(ctx context.Context, rs *runstore.RunState) (NextAct
 	if len(newFiles) > 0 {
 		sort.Strings(newFiles)
 		if rs.WorktreePath != "" {
-			if err := moveFilesToWorktree(g.RepoDir, rs.WorktreePath, newFiles); err == nil {
-				return action, runErr
+			// Only auto-move untracked files ("??") — moving tracked modified files
+			// would overwrite the worktree's newer versions with stale main-repo content.
+			untrackedAfter := ParseUntrackedStatusLines(after)
+			untrackedNew := diffSets(beforeSet, untrackedAfter)
+			if len(untrackedNew) > 0 {
+				sort.Strings(untrackedNew)
+				if err := moveFilesToWorktree(g.RepoDir, rs.WorktreePath, untrackedNew); err == nil {
+					// Only skip blocking if ALL new files were untracked and moved.
+					if len(untrackedNew) == len(newFiles) {
+						return action, runErr
+					}
+				}
 			}
 		}
 		msg := fmt.Sprintf("worktree guard: stage %q modified main repo files: %v", g.Inner.Name(), newFiles)
@@ -90,6 +100,7 @@ func (g *WorktreeGuard) Run(ctx context.Context, rs *runstore.RunState) (NextAct
 }
 
 // ParseStatusLines splits `git status --porcelain` output into a set of file paths.
+// All statuses are included so that modifications to tracked files are also detected.
 func ParseStatusLines(output string) map[string]struct{} {
 	set := make(map[string]struct{})
 	for _, line := range strings.Split(output, "\n") {
@@ -98,6 +109,24 @@ func ParseStatusLines(output string) map[string]struct{} {
 		// since position 0 can be a space (e.g. " M file.go" = unstaged modification).
 		line = strings.TrimRight(line, "\r\n")
 		if len(line) < 4 {
+			continue
+		}
+		set[line[3:]] = struct{}{}
+	}
+	return set
+}
+
+// ParseUntrackedStatusLines returns only "??" (untracked) file paths from git status output.
+// Use this when deciding what to auto-move; tracked files must not be moved because
+// the worktree may have newer versions of those same files.
+func ParseUntrackedStatusLines(output string) map[string]struct{} {
+	set := make(map[string]struct{})
+	for _, line := range strings.Split(output, "\n") {
+		line = strings.TrimRight(line, "\r\n")
+		if len(line) < 4 {
+			continue
+		}
+		if line[:2] != "??" {
 			continue
 		}
 		set[line[3:]] = struct{}{}
