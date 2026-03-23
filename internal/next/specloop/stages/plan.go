@@ -115,6 +115,8 @@ func (s *PlanStage) loadPlaybookAndDoctrine(rs *runstore.RunState) (heuristics, 
 		var mergeErr error
 		entries, mergeErr = playbook.MergedPlaybook(globalPlaybookDir, localPlaybookDir)
 		if mergeErr != nil {
+			// MergedPlaybook handles os.ErrNotExist gracefully, so if it returns
+			// an error, it's a real problem (JSON parse, permission, etc.)
 			return "", "", ""
 		}
 	} else {
@@ -123,7 +125,11 @@ func (s *PlanStage) loadPlaybookAndDoctrine(rs *runstore.RunState) (heuristics, 
 		var loadErr error
 		entries, loadErr = playbookStore.Load()
 		if loadErr != nil {
-			return "", "", ""
+			// Treat missing directory as empty store; other errors return empty
+			if !os.IsNotExist(loadErr) {
+				return "", "", ""
+			}
+			entries = []playbook.Entry{}
 		}
 	}
 
@@ -157,6 +163,8 @@ func (s *PlanStage) loadPlaybookAndDoctrine(rs *runstore.RunState) (heuristics, 
 		var mergeErr error
 		doctrineRules, mergeErr = doctrine.MergedDoctrine(globalDoctrineDir, localDoctrineDir)
 		if mergeErr != nil {
+			// MergedDoctrine handles os.ErrNotExist gracefully, so if it returns
+			// an error, it's a real problem (JSON parse, permission, etc.)
 			return heuristics, guidance, ""
 		}
 	} else {
@@ -164,9 +172,14 @@ func (s *PlanStage) loadPlaybookAndDoctrine(rs *runstore.RunState) (heuristics, 
 		doctrineStore := &doctrine.FSStore{Dir: localDoctrineDir}
 		doctrineData, loadErr := doctrineStore.Load()
 		if loadErr != nil {
-			return heuristics, guidance, ""
+			// Treat missing directory as empty store; other errors return empty
+			if !os.IsNotExist(loadErr) {
+				return heuristics, guidance, ""
+			}
+			doctrineRules = []doctrine.Rule{}
+		} else {
+			doctrineRules = doctrineData.Rules
 		}
-		doctrineRules = doctrineData.Rules
 	}
 
 	// Format doctrine for prompt injection

@@ -92,11 +92,11 @@ func DefaultPolicy() Policy {
 			{Name: "gofmt", Command: "gofmt -w .", Type: "format"},
 		},
 		Budgets: Budgets{
-			MaxSpecCycles:            3,
+			MaxSpecCycles:            30,
 			MaxTaskRetries:           1,
 			MaxRedecompositionPasses: 1,
 			MaxTaskDurationSeconds:   300,
-			MaxRunDurationSeconds:    3600,
+			MaxRunDurationSeconds:    21600,
 			MaxRunCostUSD:            50.0,
 		},
 		Models: Models{

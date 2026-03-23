@@ -1,14 +1,15 @@
 package proposaltriage
 
 import (
-	"path/filepath"
 	"time"
+
+	"github.com/danabrams/gromit/internal/next/runstore"
 )
 
 // DismissSiblings creates dismissed decisions for all proposals in a group
 // except the accepted one. Decisions are saved to each sibling's run evidence directory.
 // Returns the slice of created decisions.
-func DismissSiblings(acceptedProposalID string, group ProposalGroup, storeDir string) ([]Decision, error) {
+func DismissSiblings(acceptedProposalID string, group ProposalGroup, store *runstore.Store) ([]Decision, error) {
 	var decisions []Decision
 
 	for _, sibling := range group.Proposals {
@@ -31,7 +32,7 @@ func DismissSiblings(acceptedProposalID string, group ProposalGroup, storeDir st
 		}
 
 		// Save to the sibling's run evidence directory
-		evidenceDir := filepath.Join(storeDir, "runs", sibling.RunID, "evidence")
+		evidenceDir := store.RunEvidenceDir(sibling.RunID)
 		if err := SaveDecision(evidenceDir, decision); err != nil {
 			return nil, err
 		}

@@ -9,14 +9,14 @@ import (
 
 func TestDefaultPolicy_HasExpectedBudgets(t *testing.T) {
 	p := DefaultPolicy()
-	if p.Budgets.MaxSpecCycles != 3 {
-		t.Fatalf("want MaxSpecCycles=3, got %d", p.Budgets.MaxSpecCycles)
+	if p.Budgets.MaxSpecCycles != 30 {
+		t.Fatalf("want MaxSpecCycles=30, got %d", p.Budgets.MaxSpecCycles)
 	}
 	if p.Budgets.MaxTaskRetries != 1 {
 		t.Fatalf("want MaxTaskRetries=1, got %d", p.Budgets.MaxTaskRetries)
 	}
-	if p.Budgets.MaxRunDurationSeconds != 3600 {
-		t.Fatalf("want MaxRunDurationSeconds=3600, got %d", p.Budgets.MaxRunDurationSeconds)
+	if p.Budgets.MaxRunDurationSeconds != 21600 {
+		t.Fatalf("want MaxRunDurationSeconds=21600, got %d", p.Budgets.MaxRunDurationSeconds)
 	}
 	if p.Models.Planner != "high" {
 		t.Fatalf("want Planner=high, got %s", p.Models.Planner)
@@ -70,7 +70,7 @@ func TestLoadPolicy_FileNotFound_ReturnsDefault(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if p.Budgets.MaxSpecCycles != 3 {
+	if p.Budgets.MaxSpecCycles != 30 {
 		t.Fatal("expected default when file missing")
 	}
 }

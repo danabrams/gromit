@@ -323,7 +323,7 @@ The decision is saved and the materialized entry ID is reported.`,
 
 			// Dismiss siblings if group was found
 			if dismissGroup && acceptedGroup != nil {
-				dismissedDecisions, err := proposaltriage.DismissSiblings(proposalID, *acceptedGroup, storeDir)
+				dismissedDecisions, err := proposaltriage.DismissSiblings(proposalID, *acceptedGroup, runStore)
 				if err != nil {
 					return fmt.Errorf("dismiss siblings: %w", err)
 				}

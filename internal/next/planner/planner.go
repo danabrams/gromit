@@ -160,6 +160,12 @@ func buildFixPlanPrompt(req FixPlanRequest) string {
 		b.WriteString("\n\n")
 	}
 
+	if req.DoctrineRules != "" {
+		b.WriteString("## Doctrine Rules\n")
+		b.WriteString(req.DoctrineRules)
+		b.WriteString("\n\n")
+	}
+
 	if len(req.CompletedTasks) > 0 {
 		b.WriteString("## Completed Tasks\n")
 		for _, ct := range req.CompletedTasks {
@@ -292,6 +298,13 @@ func buildPlanPrompt(req PlanRequest) string {
 		b.WriteString(req.RefinementGuidance)
 		b.WriteString("\n\n")
 	}
+
+	if req.DoctrineRules != "" {
+		b.WriteString("## Doctrine Rules\n")
+		b.WriteString(req.DoctrineRules)
+		b.WriteString("\n\n")
+	}
+
 	b.WriteString(fmt.Sprintf("## Cycle: %d\n\n", req.Cycle))
 
 	if len(req.CompletedTasks) > 0 {

@@ -255,6 +255,7 @@ func (p *RealStageProvider) BuildStages(policy execpolicy.Policy, rs *runstore.R
 		cellPathResolver := NewProjectCellPathResolver(p.cfg.ProjectsDir)
 		planStage.SetCellPathResolver(cellPathResolver)
 	}
+	planStage.SetStoreRootDir(p.cfg.StoreDir)
 
 	var decomposer specloop.TaskDecomposer
 	if p.claudeProvider != nil && policy.Budgets.MaxRedecompositionPasses > 0 {

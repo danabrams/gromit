@@ -1,5 +1,10 @@
 package doctrine
 
+import (
+	"errors"
+	"os"
+)
+
 // MergedDoctrine loads rules from global and local directories and merges them
 // with local-wins semantics: for matching IDs, the local rule takes precedence.
 // If a local rule has Status="superseded", it masks (excludes) the corresponding
@@ -9,14 +14,20 @@ func MergedDoctrine(globalDir, localDir string) ([]Rule, error) {
 	globalStore := &FSStore{Dir: globalDir}
 	globalDoctrine, err := globalStore.Load()
 	if err != nil {
-		return nil, err
+		if !errors.Is(err, os.ErrNotExist) {
+			return nil, err
+		}
+		globalDoctrine = Doctrine{Rules: []Rule{}}
 	}
 
 	// Load local rules
 	localStore := &FSStore{Dir: localDir}
 	localDoctrine, err := localStore.Load()
 	if err != nil {
-		return nil, err
+		if !errors.Is(err, os.ErrNotExist) {
+			return nil, err
+		}
+		localDoctrine = Doctrine{Rules: []Rule{}}
 	}
 
 	// Build a map of local rules by ID

@@ -7,10 +7,12 @@ import (
 	"time"
 
 	"github.com/danabrams/gromit/internal/next/reviewdistiller"
+	"github.com/danabrams/gromit/internal/next/runstore"
 )
 
 func TestDismissSiblings_DismissesAllExceptAccepted(t *testing.T) {
 	tmpDir := t.TempDir()
+	store := runstore.NewStore(tmpDir)
 	runID := "run-123"
 
 	// Create a group with 3 proposals
@@ -53,7 +55,7 @@ func TestDismissSiblings_DismissesAllExceptAccepted(t *testing.T) {
 
 	// Accept prop-1, dismiss prop-2 and prop-3
 	acceptedProposalID := "prop-1"
-	decisions, err := DismissSiblings(acceptedProposalID, group, tmpDir)
+	decisions, err := DismissSiblings(acceptedProposalID, group, store)
 
 	if err != nil {
 		t.Fatalf("DismissSiblings failed: %v", err)
@@ -111,6 +113,7 @@ func TestDismissSiblings_DismissesAllExceptAccepted(t *testing.T) {
 
 func TestDismissSiblings_EmptyGroupReturnsEmptySlice(t *testing.T) {
 	tmpDir := t.TempDir()
+	store := runstore.NewStore(tmpDir)
 
 	// Single proposal group (no siblings)
 	group := ProposalGroup{
@@ -131,7 +134,7 @@ func TestDismissSiblings_EmptyGroupReturnsEmptySlice(t *testing.T) {
 	}
 
 	acceptedProposalID := "prop-1"
-	decisions, err := DismissSiblings(acceptedProposalID, group, tmpDir)
+	decisions, err := DismissSiblings(acceptedProposalID, group, store)
 
 	if err != nil {
 		t.Fatalf("DismissSiblings failed: %v", err)
@@ -144,6 +147,7 @@ func TestDismissSiblings_EmptyGroupReturnsEmptySlice(t *testing.T) {
 
 func TestDismissSiblings_MultipleRuns(t *testing.T) {
 	tmpDir := t.TempDir()
+	store := runstore.NewStore(tmpDir)
 
 	// Create a group with proposals from different runs
 	group := ProposalGroup{
@@ -174,7 +178,7 @@ func TestDismissSiblings_MultipleRuns(t *testing.T) {
 	}
 
 	acceptedProposalID := "prop-1"
-	decisions, err := DismissSiblings(acceptedProposalID, group, tmpDir)
+	decisions, err := DismissSiblings(acceptedProposalID, group, store)
 
 	if err != nil {
 		t.Fatalf("DismissSiblings failed: %v", err)
@@ -216,6 +220,7 @@ func TestDismissSiblings_MultipleRuns(t *testing.T) {
 
 func TestDismissSiblings_SkipsNilProposal(t *testing.T) {
 	tmpDir := t.TempDir()
+	store := runstore.NewStore(tmpDir)
 
 	// Create a group with one nil Proposal and one valid Proposal
 	group := ProposalGroup{
@@ -242,7 +247,7 @@ func TestDismissSiblings_SkipsNilProposal(t *testing.T) {
 	}
 
 	acceptedProposalID := "accepted"
-	decisions, err := DismissSiblings(acceptedProposalID, group, tmpDir)
+	decisions, err := DismissSiblings(acceptedProposalID, group, store)
 
 	if err != nil {
 		t.Fatalf("DismissSiblings failed: %v", err)

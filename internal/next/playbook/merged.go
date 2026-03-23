@@ -1,5 +1,10 @@
 package playbook
 
+import (
+	"errors"
+	"os"
+)
+
 // MergedPlaybook loads entries from both global and local directories,
 // merges them with local-wins semantics, and returns the merged slice.
 //
@@ -12,14 +17,20 @@ func MergedPlaybook(globalDir, localDir string) ([]Entry, error) {
 	globalStore := Store{Dir: globalDir}
 	globalEntries, err := globalStore.Load()
 	if err != nil {
-		return nil, err
+		if !errors.Is(err, os.ErrNotExist) {
+			return nil, err
+		}
+		globalEntries = []Entry{}
 	}
 
 	// Load local entries
 	localStore := Store{Dir: localDir}
 	localEntries, err := localStore.Load()
 	if err != nil {
-		return nil, err
+		if !errors.Is(err, os.ErrNotExist) {
+			return nil, err
+		}
+		localEntries = []Entry{}
 	}
 
 	// Build a map of local entries by ID for quick lookup

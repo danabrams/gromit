@@ -153,7 +153,7 @@ func TestScenario_AcceptWithDismissGroup_ClearsSiblings(t *testing.T) {
 	dismissedDecisions, err := proposaltriage.DismissSiblings(
 		"run-302-proposal-11223344",
 		groups[0],
-		tmp,
+		store,
 	)
 	if err != nil {
 		t.Fatalf("DismissSiblings failed: %v", err)
