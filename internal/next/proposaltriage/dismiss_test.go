@@ -262,3 +262,98 @@ func TestDismissSiblings_SkipsNilProposal(t *testing.T) {
 		t.Errorf("expected decision for prop-2, got %q", decisions[0].ProposalID)
 	}
 }
+
+func TestDismissSiblings_PartialSaveFailure(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := runstore.NewStore(tmpDir)
+
+	// Create a group with proposals from two different runs
+	group := ProposalGroup{
+		GroupID: "group-1",
+		Proposals: []PendingProposal{
+			{
+				Proposal: &reviewdistiller.Proposal{
+					ID:    "prop-1",
+					Title: "Proposal 1",
+				},
+				RunID:     "run-success",
+				SpecID:    "spec-1",
+				CreatedAt: time.Now(),
+				GroupID:   "group-1",
+			},
+			{
+				Proposal: &reviewdistiller.Proposal{
+					ID:    "prop-2",
+					Title: "Proposal 2",
+				},
+				RunID:     "run-fail",
+				SpecID:    "spec-1",
+				CreatedAt: time.Now(),
+				GroupID:   "group-1",
+			},
+			{
+				Proposal: &reviewdistiller.Proposal{
+					ID:    "prop-3",
+					Title: "Proposal 3",
+				},
+				RunID:     "run-success",
+				SpecID:    "spec-1",
+				CreatedAt: time.Now(),
+				GroupID:   "group-1",
+			},
+		},
+		GroupReason: "partial save failure test",
+	}
+
+	// Make the run-fail evidence directory read-only before calling DismissSiblings
+	// This will force SaveDecisions to fail for run-fail but succeed for run-success
+	failEvidenceDir := filepath.Join(tmpDir, "runs", "run-fail", "evidence")
+	if err := os.MkdirAll(failEvidenceDir, 0o755); err != nil {
+		t.Fatalf("failed to create fail evidence dir: %v", err)
+	}
+	if err := os.Chmod(failEvidenceDir, 0o444); err != nil { // read-only
+		t.Fatalf("failed to chmod fail evidence dir: %v", err)
+	}
+
+	// Cleanup: restore permissions after test
+	t.Cleanup(func() {
+		os.Chmod(failEvidenceDir, 0o755)
+	})
+
+	acceptedProposalID := "prop-1"
+	decisions, err := DismissSiblings(acceptedProposalID, group, store)
+
+	// Should return 2 decisions (for prop-2 and prop-3), even though one save failed
+	if len(decisions) != 2 {
+		t.Fatalf("expected 2 decisions to be created, got %d", len(decisions))
+	}
+
+	// Should return a non-nil error due to the failed save
+	if err == nil {
+		t.Fatalf("expected a combined error from failed save, got nil")
+	}
+
+	// Verify that decisions for run-success were actually saved
+	successEvidenceDir := filepath.Join(tmpDir, "runs", "run-success", "evidence")
+	loaded, err := LoadDecisions(successEvidenceDir)
+	if err != nil {
+		t.Fatalf("LoadDecisions for run-success failed: %v", err)
+	}
+
+	// Should have 1 decision (prop-3; prop-1 is the accepted one)
+	if len(loaded) != 1 {
+		t.Fatalf("expected 1 decision in run-success evidence, got %d", len(loaded))
+	}
+
+	if loaded[0].ProposalID != "prop-3" {
+		t.Errorf("expected decision for prop-3, got %q", loaded[0].ProposalID)
+	}
+
+	if loaded[0].Action != "dismissed" {
+		t.Errorf("expected dismissed action, got %q", loaded[0].Action)
+	}
+
+	if loaded[0].DismissedBy != acceptedProposalID {
+		t.Errorf("expected DismissedBy=%q, got %q", acceptedProposalID, loaded[0].DismissedBy)
+	}
+}
