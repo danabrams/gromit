@@ -287,3 +287,65 @@ func TestMergedPlaybook_NewProjectInheritsAllGlobalEntries(t *testing.T) {
 		t.Errorf("Expected third entry to be global validation gap, got ID=%s Type=%s Title=%s", merged[2].ID, merged[2].Type, merged[2].Title)
 	}
 }
+
+func TestMergedPlaybook_LocalOnlySupersededExcluded(t *testing.T) {
+	globalDir := t.TempDir()
+	localDir := t.TempDir()
+
+	// Create global entry
+	globalStore := Store{Dir: globalDir}
+	globalEntries := []Entry{
+		{
+			ID:        "pb-11111111",
+			Type:      "pattern",
+			Title:     "Global Pattern",
+			Content:   "Global content",
+			Status:    "active",
+			CreatedAt: time.Now(),
+		},
+	}
+	if err := globalStore.Save(globalEntries); err != nil {
+		t.Fatalf("Failed to save global entries: %v", err)
+	}
+
+	// Create local entries - one matches global, one is new and superseded
+	localStore := Store{Dir: localDir}
+	localEntries := []Entry{
+		{
+			ID:        "pb-11111111",
+			Type:      "pattern",
+			Title:     "Local Override",
+			Content:   "Local content",
+			Status:    "active",
+			CreatedAt: time.Now(),
+		},
+		{
+			ID:        "pb-44444444",
+			Type:      "insight",
+			Title:     "Local Superseded (No Global)",
+			Content:   "Local superseded content",
+			Status:    "superseded",
+			CreatedAt: time.Now(),
+		},
+	}
+	if err := localStore.Save(localEntries); err != nil {
+		t.Fatalf("Failed to save local entries: %v", err)
+	}
+
+	// Call MergedPlaybook
+	merged, err := MergedPlaybook(globalDir, localDir)
+	if err != nil {
+		t.Fatalf("MergedPlaybook failed: %v", err)
+	}
+
+	// Should have 1 entry: only the overridden global entry
+	// The local-only superseded entry should be excluded
+	if len(merged) != 1 {
+		t.Errorf("Expected 1 entry, got %d", len(merged))
+	}
+
+	// Verify it's the overridden global entry
+	if merged[0].ID != "pb-11111111" || merged[0].Title != "Local Override" {
+		t.Errorf("Expected entry to be local override, got ID=%s Title=%s", merged[0].ID, merged[0].Title)
+	}
+}

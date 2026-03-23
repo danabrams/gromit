@@ -74,7 +74,9 @@ func MergedPlaybook(globalDir, localDir string) ([]Entry, error) {
 	for _, localEntry := range localEntries {
 		if !globalIDs[localEntry.ID] {
 			// This local entry is new (not in global)
-			merged = append(merged, localEntry)
+			if localEntry.Status != "superseded" {
+				merged = append(merged, localEntry)
+			}
 		}
 	}
 
