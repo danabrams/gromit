@@ -1,6 +1,7 @@
 package proposaltriage
 
 import (
+	"errors"
 	"time"
 
 	"github.com/danabrams/gromit/internal/next/runstore"
@@ -39,12 +40,15 @@ func DismissSiblings(acceptedProposalID string, group ProposalGroup, store *runs
 		decisions = append(decisions, decision)
 	}
 
-	// Step 2: Save each batch of decisions for its run directory
+	// Step 2: Save each batch of decisions for its run directory.
+	// This operation has upsert semantics (deduplicates by ProposalID),
+	// making retries safe if this function is called again.
+	var saveErrors []error
 	for evidenceDir, runDecisions := range decisionsByRunDir {
 		if err := SaveDecisions(evidenceDir, runDecisions); err != nil {
-			return nil, err
+			saveErrors = append(saveErrors, err)
 		}
 	}
 
-	return decisions, nil
+	return decisions, errors.Join(saveErrors...)
 }
