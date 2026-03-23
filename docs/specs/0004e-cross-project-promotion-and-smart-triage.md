@@ -1,3 +1,4 @@
+DONE 2026-03-23
 # Spec 0004e — Cross-Project Promotion and Smart Triage
 
 ## spec_id

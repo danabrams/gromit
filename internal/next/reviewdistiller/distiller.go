@@ -93,9 +93,58 @@ func Distill(inputs *DistillerInputs, llm LLMCompleter, tier Tier) (*Distillatio
 	return result, nil
 }
 
+// extractJSON extracts the first complete JSON array or object from s,
+// stripping markdown code fences and ignoring surrounding prose.
+func extractJSON(s string) string {
+	// Strip markdown code fences (```json ... ``` or ``` ... ```)
+	s = strings.TrimSpace(s)
+	if idx := strings.Index(s, "```"); idx != -1 {
+		s = s[idx+3:]
+		if strings.HasPrefix(s, "json") {
+			s = s[4:]
+		}
+		if end := strings.Index(s, "```"); end != -1 {
+			s = s[:end]
+		}
+	}
+	s = strings.TrimSpace(s)
+
+	// Find the first '[' or '{' and the matching closing bracket.
+	start := strings.IndexAny(s, "[{")
+	if start == -1 {
+		return s
+	}
+	open := rune(s[start])
+	close := map[rune]rune{'[': ']', '{': '}'}[open]
+	depth := 0
+	inStr := false
+	escape := false
+	for i, ch := range s[start:] {
+		switch {
+		case escape:
+			escape = false
+		case ch == '\\' && inStr:
+			escape = true
+		case ch == '"':
+			inStr = !inStr
+		case !inStr && ch == open:
+			depth++
+		case !inStr && ch == close:
+			depth--
+			if depth == 0 {
+				return s[start : start+i+1]
+			}
+		}
+	}
+	return s[start:]
+}
+
 // parseProposalsFromJSON parses a JSON response from the LLM into a slice of Proposal structs.
-// Expects a JSON array or an object with a "proposals" field containing an array.
+// Handles markdown code fences and prose surrounding the JSON, and accepts either a
+// JSON array or an object with a "proposals" field.
 func parseProposalsFromJSON(jsonStr string) ([]Proposal, error) {
+	jsonStr = extractJSON(jsonStr)
+
 	var proposals []Proposal
 
 	// First, try to parse as a direct array

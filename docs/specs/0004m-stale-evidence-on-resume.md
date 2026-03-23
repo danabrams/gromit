@@ -25,23 +25,22 @@ When resuming a run, `exec.go` reads `review.json` into `RunState.PriorReviewFin
 ## Non-goals
 - Changing the diff scope (full branch diff against `main` is intentional)
 - Stage-level file lifecycle management
-- Automated verification of whether a finding was fixed (LLM judgment)
+- Deterministic or programmatic verification of whether a finding was fixed (the LLM judges from the diff)
 
 ## Architecture
 
 ### `RunState` — new field
 
-`RunState` gains `PriorReviewFindings json.RawMessage` (omitempty). Using raw JSON avoids a new import dependency between `runstore` and `review`. The exec layer writes the raw bytes from `review.json`; the stage unmarshals them.
+`RunState` gains a `PriorReviewFindings json.RawMessage` field, serialized with `omitempty`. Using raw JSON avoids a new import dependency between `runstore` and `review`. The exec layer writes the raw bytes from `review.json`; the stage unmarshals them.
 
 ### Resume path in `exec.go`
 
 When resuming a run (`resumeRunID != ""`), before stages execute:
 
-1. If `review.json` exists in the run's evidence directory, read it and store raw bytes into `rs.PriorReviewFindings`
-2. Delete all files in the evidence directory **except** `review-outcome.json`
-3. Deletion is best-effort — missing files are ignored
+1. If `review.json` exists in the run's evidence directory, read it and store raw bytes into `rs.PriorReviewFindings`. If `review.json` is missing or cannot be read, leave `PriorReviewFindings` empty and continue.
+2. Delete all files in the evidence directory **except** `review-outcome.json`. If the directory does not exist, skip deletion. If deleting an individual file fails because it no longer exists, ignore the error and continue.
 
-This runs unconditionally on resume, not only after rework outcomes. The stage handles the empty-prior-findings case gracefully.
+The read-and-delete process runs unconditionally whenever `resumeRunID != ""`, not only after rework outcomes. `ReviewStage` handles the empty-prior-findings case gracefully.
 
 ### `ReviewStage` — source prior findings from `RunState`
 
@@ -55,21 +54,23 @@ The review prompt gains an instruction when `PriorFindings` is non-empty:
 
 ## Acceptance Criteria
 
-1. When a run is resumed and `review.json` exists in the evidence directory, `rs.PriorReviewFindings` is populated with its raw contents before any stage executes.
+1. `RunState` has a `PriorReviewFindings json.RawMessage` field serialized with `omitempty`.
 
-2. When a run is resumed, all files in the evidence directory are deleted except `review-outcome.json`.
+2. When a run is resumed and `review.json` exists in the evidence directory, `rs.PriorReviewFindings` is populated with its raw contents before any stage executes.
 
-3. When a run is resumed and the evidence directory contains no files (or is missing), no error is returned.
+3. When a run is resumed, the resume path attempts to read `review.json` into `rs.PriorReviewFindings` (AC 2), then unconditionally deletes all files in the evidence directory except `review-outcome.json`, regardless of whether `review.json` was present.
 
-4. `ReviewStage.Run()` populates `priorFindings` from `rs.PriorReviewFindings` when non-empty, and passes them to the runner via `RunInput.PriorFindings`.
+4. When a run is resumed and the evidence directory contains no files (or is missing), no error is returned.
 
-5. When `RunInput.PriorFindings` is non-empty, the review prompt includes an instruction to carry forward unresolved findings as `"pre-existing"`, omit resolved findings, and mark new findings as `"new"`.
+5. `ReviewStage.Run()` populates `priorFindings` from `rs.PriorReviewFindings` when non-empty, and passes them to the runner via `RunInput.PriorFindings`. When `rs.PriorReviewFindings` is empty, `priorFindings` is left as its zero value (nil or empty slice).
 
-6. When `RunInput.PriorFindings` is empty, the review prompt contains no prior-finding triage instruction.
+6. When `RunInput.PriorFindings` is non-empty, the review prompt includes an instruction to carry forward unresolved findings as `"pre-existing"`, omit resolved findings, and mark new findings as `"new"`.
 
-7. `review-outcome.json` is never deleted by the resume path.
+7. When `RunInput.PriorFindings` is empty, the review prompt contains no prior-finding triage instruction.
 
-8. All existing tests pass.
+8. `review-outcome.json` is never deleted by the resume path.
+
+9. All existing tests pass.
 
 ## Scenarios
 
@@ -85,14 +86,14 @@ The review prompt gains an instruction when `PriorFindings` is non-empty:
 
 ### Scenario: Resume after rework — unfixed finding is retained
 
-**Given:** the same run with an additional finding: `os.IsNotExist` at `rejection_history.go:55`
+**Given:** a run in `ready_for_review` with `review.json` containing a finding: `os.IsNotExist` at `rejection_history.go:55` with `disposition: "new"`
 **And:** the rework did not fix the `os.IsNotExist` issue
 **When:** the run is resumed and the review stage executes
 **Then:** the new `review.json` contains the `os.IsNotExist` finding with `disposition: "pre-existing"`
 
 ### Scenario: Resume with no prior review.json
 
-**Given:** a run that is resumed but has an empty evidence directory (e.g. first resume, stages haven't completed)
+**Given:** a run that is resumed but `review.json` does not exist in the evidence directory (e.g. first resume, stages haven't completed yet)
 **When:** the resume path executes
 **Then:** `rs.PriorReviewFindings` is empty
 **And:** no error is returned
