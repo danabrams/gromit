@@ -62,18 +62,9 @@ func Promote(
 		return nil, fmt.Errorf("invalid scope %q: must be 'local', 'global', or empty", scope)
 	}
 
-	// Load existing decisions and check if this proposal has a terminal decision
-	decisions, err := LoadDecisions(evidenceDir)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load decisions: %w", err)
-	}
-
-	// Find existing decision for this proposal
-	if existingDecision, found := FindExistingDecision(pp.Proposal.ID, decisions); found {
-		// Check if it's a terminal decision
-		if IsTerminalDecision(existingDecision) {
-			return nil, fmt.Errorf("proposal %q cannot be re-decided: it has been dismissed", pp.Proposal.ID)
-		}
+	// Validate that the proposal is not in a terminal state
+	if err := ValidateTerminalState(pp.Proposal.ID, evidenceDir); err != nil {
+		return nil, err
 	}
 
 	// Apply field overrides
