@@ -356,3 +356,233 @@ func TestClusterSemantically_FiltersNilProposals(t *testing.T) {
 		t.Errorf("expected description 'Null pointer safety checks', got '%s'", groups[0].GroupReason)
 	}
 }
+
+// TestClusterSemantically_NilLLMReturnsSingletons directly calls ClusterSemantically with nil LLM completer
+// and verifies it returns singleton groups with GroupReason='singleton' and a non-nil error.
+func TestClusterSemantically_NilLLMReturnsSingletons(t *testing.T) {
+	ctx := context.TODO()
+	now := time.Now()
+
+	// Create 3 proposals
+	proposal1 := &reviewdistiller.Proposal{
+		ID:             "p1",
+		Type:           "validation_gap",
+		Title:          "Missing null check",
+		ProposedChange: "Add null check before dereferencing pointer",
+		Confidence:     "high",
+	}
+
+	proposal2 := &reviewdistiller.Proposal{
+		ID:             "p2",
+		Type:           "doctrine_rule",
+		Title:          "Input validation",
+		ProposedChange: "Add validation for all external inputs",
+		Confidence:     "medium",
+	}
+
+	proposal3 := &reviewdistiller.Proposal{
+		ID:             "p3",
+		Type:           "error_handling",
+		Title:          "Missing error check",
+		ProposedChange: "Add error check after function call",
+		Confidence:     "medium",
+	}
+
+	pending1 := PendingProposal{
+		Proposal:  proposal1,
+		RunID:     "run1",
+		SpecID:    "spec1",
+		CreatedAt: now,
+	}
+
+	pending2 := PendingProposal{
+		Proposal:  proposal2,
+		RunID:     "run2",
+		SpecID:    "spec1",
+		CreatedAt: now.Add(time.Minute),
+	}
+
+	pending3 := PendingProposal{
+		Proposal:  proposal3,
+		RunID:     "run3",
+		SpecID:    "spec1",
+		CreatedAt: now.Add(2 * time.Minute),
+	}
+
+	// Call ClusterSemantically with nil LLM
+	groups, err := ClusterSemantically(ctx, []PendingProposal{pending1, pending2, pending3}, nil)
+
+	// Verify non-nil error is returned
+	if err == nil {
+		t.Errorf("expected non-nil error when LLM is nil, got nil")
+	}
+
+	// Verify all 3 proposals are returned as singletons
+	if len(groups) != 3 {
+		t.Errorf("expected 3 singleton groups when LLM is nil, got %d", len(groups))
+	}
+
+	// Verify each group is a singleton with correct GroupReason
+	for _, group := range groups {
+		if len(group.Proposals) != 1 {
+			t.Errorf("expected singleton group, got %d proposals", len(group.Proposals))
+		}
+
+		if group.GroupReason != "singleton" {
+			t.Errorf("expected GroupReason='singleton', got '%s'", group.GroupReason)
+		}
+
+		// Verify GroupID is properly formatted as "singleton-<proposalID>"
+		if group.Proposals[0].Proposal != nil {
+			expectedID := fmt.Sprintf("singleton-%s", group.Proposals[0].Proposal.ID)
+			if group.GroupID != expectedID {
+				t.Errorf("expected GroupID '%s', got '%s'", expectedID, group.GroupID)
+			}
+		}
+	}
+
+	// Verify all proposal IDs are present
+	proposalIDs := make(map[string]bool)
+	for _, group := range groups {
+		for _, pp := range group.Proposals {
+			if pp.Proposal != nil {
+				proposalIDs[pp.Proposal.ID] = true
+			}
+		}
+	}
+
+	expectedIDs := map[string]bool{"p1": true, "p2": true, "p3": true}
+	if len(proposalIDs) != len(expectedIDs) {
+		t.Errorf("expected 3 unique proposal IDs, got %d: %v", len(proposalIDs), proposalIDs)
+	}
+
+	for id := range expectedIDs {
+		if !proposalIDs[id] {
+			t.Errorf("missing expected proposal ID: %s", id)
+		}
+	}
+}
+
+// TestClusterSemantically_InvalidJSONResponseDegradeGracefully verifies that when the LLM
+// returns invalid JSON, ClusterSemantically degrades gracefully by returning all proposals
+// as singleton groups and returning a non-nil error for logging.
+func TestClusterSemantically_InvalidJSONResponseDegradeGracefully(t *testing.T) {
+	ctx := context.TODO()
+	now := time.Now()
+
+	// Create 4 proposals
+	proposal1 := &reviewdistiller.Proposal{
+		ID:             "p1",
+		Type:           "validation_gap",
+		Title:          "Missing null check",
+		ProposedChange: "Add null check before dereferencing pointer",
+		Confidence:     "high",
+	}
+
+	proposal2 := &reviewdistiller.Proposal{
+		ID:             "p2",
+		Type:           "validation_gap",
+		Title:          "Null pointer dereference risk",
+		ProposedChange: "Check for nil before using pointer",
+		Confidence:     "high",
+	}
+
+	proposal3 := &reviewdistiller.Proposal{
+		ID:             "p3",
+		Type:           "doctrine_rule",
+		Title:          "Input validation",
+		ProposedChange: "Add validation for all external inputs",
+		Confidence:     "medium",
+	}
+
+	proposal4 := &reviewdistiller.Proposal{
+		ID:             "p4",
+		Type:           "error_handling",
+		Title:          "Missing error check",
+		ProposedChange: "Add error check after function call",
+		Confidence:     "medium",
+	}
+
+	pending1 := PendingProposal{
+		Proposal:  proposal1,
+		RunID:     "run1",
+		SpecID:    "spec1",
+		CreatedAt: now,
+	}
+
+	pending2 := PendingProposal{
+		Proposal:  proposal2,
+		RunID:     "run2",
+		SpecID:    "spec1",
+		CreatedAt: now.Add(time.Minute),
+	}
+
+	pending3 := PendingProposal{
+		Proposal:  proposal3,
+		RunID:     "run3",
+		SpecID:    "spec1",
+		CreatedAt: now.Add(2 * time.Minute),
+	}
+
+	pending4 := PendingProposal{
+		Proposal:  proposal4,
+		RunID:     "run4",
+		SpecID:    "spec1",
+		CreatedAt: now.Add(3 * time.Minute),
+	}
+
+	// LLM stub that returns invalid JSON
+	llm := &stubLLMCompleter{
+		response: "not valid json",
+	}
+
+	groups, err := ClusterSemantically(ctx, []PendingProposal{pending1, pending2, pending3, pending4}, llm)
+
+	// Verify non-nil error is returned (caller should log as warning)
+	if err == nil {
+		t.Errorf("expected non-nil error when LLM returns invalid JSON, got nil")
+	}
+
+	// Verify all 4 proposals are returned as singletons
+	if len(groups) != 4 {
+		t.Errorf("expected 4 singleton groups on invalid JSON, got %d", len(groups))
+	}
+
+	// Verify each group is a singleton with correct GroupReason
+	for _, group := range groups {
+		if len(group.Proposals) != 1 {
+			t.Errorf("expected singleton group, got %d proposals", len(group.Proposals))
+		}
+
+		if group.GroupReason != "singleton" {
+			t.Errorf("expected GroupReason='singleton', got '%s'", group.GroupReason)
+		}
+
+		// Verify GroupID is properly formatted as "singleton-<proposalID>"
+		expectedID := fmt.Sprintf("singleton-%s", group.Proposals[0].Proposal.ID)
+		if group.GroupID != expectedID {
+			t.Errorf("expected GroupID '%s', got '%s'", expectedID, group.GroupID)
+		}
+	}
+
+	// Verify all proposal IDs are present
+	proposalIDs := make(map[string]bool)
+	for _, group := range groups {
+		for _, pp := range group.Proposals {
+			if pp.Proposal != nil {
+				proposalIDs[pp.Proposal.ID] = true
+			}
+		}
+	}
+
+	expectedIDs := map[string]bool{"p1": true, "p2": true, "p3": true, "p4": true}
+	if len(proposalIDs) != len(expectedIDs) {
+		t.Errorf("expected 4 unique proposal IDs, got %d: %v", len(proposalIDs), proposalIDs)
+	}
+
+	for id := range expectedIDs {
+		if !proposalIDs[id] {
+			t.Errorf("missing expected proposal ID: %s", id)
+		}
+	}
+}

@@ -623,3 +623,56 @@ func TestGroupProposals_NilLLMSkipsClustering(t *testing.T) {
 		t.Errorf("expected warning about nil LLM, got warnings: %v", warnings)
 	}
 }
+
+func TestFilterGroupsByType_MixedTypeGroup(t *testing.T) {
+	// A group with proposals of different types should be excluded when filtering by a single type.
+	// This ensures that group-level filtering respects the constraint that all proposals in a group
+	// must match the requested type.
+	now := time.Now()
+
+	proposal1 := &reviewdistiller.Proposal{
+		ID:             "p1",
+		Type:           "doctrine_rule",
+		Title:          "First proposal",
+		ProposedChange: "Add validation for email",
+		Rationale:      "Prevent invalid emails",
+		Confidence:     "high",
+	}
+
+	proposal2 := &reviewdistiller.Proposal{
+		ID:             "p2",
+		Type:           "validation_gap",
+		Title:          "Second proposal",
+		ProposedChange: "Add bounds checking",
+		Rationale:      "Prevent array overflow",
+		Confidence:     "high",
+	}
+
+	// Mixed-type group: contains both doctrine_rule and validation_gap
+	mixedTypeGroup := ProposalGroup{
+		GroupID:     "mixed-group-1",
+		GroupReason: "semantic_cluster",
+		Proposals: []PendingProposal{
+			{
+				Proposal:  proposal1,
+				RunID:     "run1",
+				SpecID:    "spec1",
+				CreatedAt: now,
+			},
+			{
+				Proposal:  proposal2,
+				RunID:     "run2",
+				SpecID:    "spec1",
+				CreatedAt: now.Add(time.Minute),
+			},
+		},
+	}
+
+	// Filter by doctrine_rule
+	filtered := FilterGroupsByType([]ProposalGroup{mixedTypeGroup}, "doctrine_rule")
+
+	// Mixed-type group should be excluded because not all proposals are doctrine_rule
+	if len(filtered) != 0 {
+		t.Errorf("expected 0 groups when filtering mixed-type group by single type, got %d", len(filtered))
+	}
+}

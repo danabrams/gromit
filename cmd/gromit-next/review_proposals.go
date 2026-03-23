@@ -252,7 +252,7 @@ The decision is saved and the materialized entry ID is reported.`,
 				// Find the accepted proposal's group
 				for i := range groups {
 					for _, pp := range groups[i].Proposals {
-						if pp.Proposal.ID == proposalID {
+						if pp.Proposal != nil && pp.Proposal.ID == proposalID {
 							acceptedGroup = &groups[i]
 							break
 						}

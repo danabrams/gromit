@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/danabrams/gromit/internal/next/reviewdistiller"
@@ -137,6 +138,9 @@ func clustersToGroups(clusters *clusterResponse, proposals []PendingProposal) ([
 
 	var groups []ProposalGroup
 	for _, cluster := range clusters.Clusters {
+		// Sort proposal IDs to ensure deterministic GroupID regardless of LLM response order
+		sort.Strings(cluster.ProposalIDs)
+
 		var groupProposals []PendingProposal
 		for _, proposalID := range cluster.ProposalIDs {
 			if pp, exists := idToProposal[proposalID]; exists {
