@@ -1,18 +1,60 @@
 package main
 
 import (
+	"context"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"sort"
 	"text/tabwriter"
 
+	"github.com/danabrams/gromit/internal/claude"
 	"github.com/danabrams/gromit/internal/next/doctrine"
+	"github.com/danabrams/gromit/internal/next/execpolicy"
+	"github.com/danabrams/gromit/internal/next/llmadapter"
 	"github.com/danabrams/gromit/internal/next/playbook"
 	"github.com/danabrams/gromit/internal/next/proposaltriage"
+	"github.com/danabrams/gromit/internal/next/reviewdistiller"
 	"github.com/danabrams/gromit/internal/next/runstore"
+	"github.com/danabrams/gromit/internal/provider"
 	"github.com/spf13/cobra"
 )
+
+// buildProposalsCompleter creates an LLMCompleter for proposal grouping.
+// Reads distiller_tier from project config, falling back to TierMedium if config is unavailable.
+// Returns nil if completer creation fails (non-blocking); errors are logged.
+func buildProposalsCompleter(storeDir string) reviewdistiller.LLMCompleter {
+	const defaultClaudeBinary = "claude"
+
+	// Load project ID and construct project directory
+	projectID := loadProjectID(storeDir)
+	tier := reviewdistiller.TierMedium
+	if projectID != "" {
+		projectDir := filepath.Join(storeDir, "projects", projectID)
+		cfg, err := LoadProjectConfig(projectDir)
+		if err != nil {
+			log.Printf("warning: load project config: %v, using default tier", err)
+		} else {
+			tier = reviewdistiller.Tier(cfg.DistillerTier)
+		}
+	}
+
+	defaultPolicy := execpolicy.DefaultPolicy()
+	client, err := claude.NewClient(defaultClaudeBinary, nil, defaultPolicy.Budgets.MaxTaskDurationSeconds)
+	if err != nil {
+		log.Printf("warning: create claude client for proposal grouping: %v", err)
+		return nil
+	}
+
+	prov := provider.NewClaudeProvider(client, provider.DefaultTierToModelMap)
+	adapter := llmadapter.New(prov, llmadapter.Config{
+		Phase: "review",
+		Tier:  string(tier),
+	})
+
+	return NewInvokerAdapter(adapter)
+}
 
 var proposalsCmd = &cobra.Command{
 	Use:   "proposals",
@@ -55,28 +97,37 @@ Filter by --type and --run as needed.`,
 			}
 
 			// Discover proposals
-			var proposals interface{}
-
 			if showAll {
 				allProposals, err := proposaltriage.DiscoverAll(storeDir, projectID, typeFilter, runFilter)
 				if err != nil {
 					return fmt.Errorf("discover proposals: %w", err)
 				}
-				proposals = allProposals
-			} else {
-				pendingProposals, err := proposaltriage.DiscoverPending(storeDir, projectID, typeFilter, runFilter)
-				if err != nil {
-					return fmt.Errorf("discover proposals: %w", err)
-				}
-				proposals = pendingProposals
+				return displayAllProposals(allProposals)
 			}
 
-			// Display results
-			if showAll {
-				return displayAllProposals(proposals.([]proposaltriage.AllProposal))
-			} else {
-				return displayPendingProposals(proposals.([]proposaltriage.PendingProposal))
+			// For pending proposals, apply grouping pipeline
+			pendingProposals, err := proposaltriage.DiscoverPending(storeDir, projectID, nil, runFilter)
+			if err != nil {
+				return fmt.Errorf("discover proposals: %w", err)
 			}
+
+			// Build completer for grouping (non-blocking if it fails)
+			completer := buildProposalsCompleter(storeDir)
+
+			// Run grouping pipeline
+			groups, warnings := proposaltriage.GroupProposals(context.Background(), pendingProposals, completer)
+
+			// Display warnings from LLM clustering failures
+			for _, warning := range warnings {
+				fmt.Fprintf(os.Stderr, "warning: %s\n", warning)
+			}
+
+			// Apply type filtering after grouping (so mixed-type clusters can form)
+			if typeFilter != nil && len(*typeFilter) > 0 {
+				groups = proposaltriage.FilterGroupsByType(groups, *typeFilter)
+			}
+
+			return displayPendingProposals(groups)
 		},
 	}
 
@@ -118,7 +169,7 @@ func newReviewProposalsShowCmd() *cobra.Command {
 			// Find the proposal matching the given ID
 			var targetProposal *proposaltriage.AllProposal
 			for i := range allProposals {
-				if allProposals[i].Proposal.ID == proposalID {
+				if allProposals[i].Proposal != nil && allProposals[i].Proposal.ID == proposalID {
 					targetProposal = &allProposals[i]
 					break
 				}
@@ -144,6 +195,7 @@ func newReviewProposalsAcceptCmd() *cobra.Command {
 		Short: "Accept an improvement proposal",
 		Long: `Accept a proposal and materialize it into doctrine or playbook.
 Optionally override fields with --title, --change, or --rationale flags.
+Use --dismiss-group to also dismiss sibling proposals in the same group.
 The decision is saved and the materialized entry ID is reported.`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -153,6 +205,7 @@ The decision is saved and the materialized entry ID is reported.`,
 			overrideChange, _ := cmd.Flags().GetString("change")
 			overrideRationale, _ := cmd.Flags().GetString("rationale")
 			scope, _ := cmd.Flags().GetString("scope")
+			dismissGroup, _ := cmd.Flags().GetBool("dismiss-group")
 
 			if storeDir == "" {
 				storeDir = ".gromit-next"
@@ -178,7 +231,7 @@ The decision is saved and the materialized entry ID is reported.`,
 			// Find the proposal matching the given ID
 			var targetProposal *proposaltriage.AllProposal
 			for i := range allProposals {
-				if allProposals[i].Proposal.ID == proposalID {
+				if allProposals[i].Proposal != nil && allProposals[i].Proposal.ID == proposalID {
 					targetProposal = &allProposals[i]
 					break
 				}
@@ -192,6 +245,42 @@ The decision is saved and the materialized entry ID is reported.`,
 			if targetProposal.Decision != nil {
 				return fmt.Errorf("proposal %q already has a decision: %s", proposalID, targetProposal.Decision.Action)
 			}
+
+			// Handle --dismiss-group: discover and group BEFORE promoting
+			// (so the accepted proposal is still pending and can be found in its group)
+			var acceptedGroup *proposaltriage.ProposalGroup
+			if dismissGroup {
+				// Discover pending proposals for grouping
+				pendingProposals, err := proposaltriage.DiscoverPending(storeDir, projectID, nil, nil)
+				if err != nil {
+					return fmt.Errorf("discover pending proposals for grouping: %w", err)
+				}
+
+				// Build completer for grouping (non-blocking if it fails)
+				completer := buildProposalsCompleter(storeDir)
+
+				// Run full grouping pipeline (exact hash + LLM semantic clustering)
+				groups, warnings := proposaltriage.GroupProposals(context.Background(), pendingProposals, completer)
+
+				// Log warnings from LLM clustering failures
+				for _, warning := range warnings {
+					fmt.Fprintf(os.Stderr, "warning: %s\n", warning)
+				}
+
+				// Find the accepted proposal's group
+				for i := range groups {
+					for _, pp := range groups[i].Proposals {
+						if pp.Proposal != nil && pp.Proposal.ID == proposalID {
+							acceptedGroup = &groups[i]
+							break
+						}
+					}
+					if acceptedGroup != nil {
+						break
+					}
+				}
+			}
+
 
 			// Resolve store paths based on scope
 			var doctrineDir, playbookDir string
@@ -215,6 +304,9 @@ The decision is saved and the materialized entry ID is reported.`,
 				RunID:    targetProposal.RunID,
 				SpecID:   targetProposal.SpecID,
 			}
+			// Get evidence directory before promoting
+			runStore := runstore.NewStore(storeDir)
+			runEvidenceDir := runStore.RunEvidenceDir(targetProposal.RunID)
 
 			// Set scope when materialization target is global
 			if scope == "global" {
@@ -229,14 +321,14 @@ The decision is saved and the materialized entry ID is reported.`,
 				overrideRationale,
 				doctrineStore,
 				playbookStore,
+				scope,
+				runEvidenceDir,
 			)
 			if err != nil {
 				return fmt.Errorf("accept proposal: %w", err)
 			}
 
 			// Save decision to run's evidence directory
-			runStore := runstore.NewStore(storeDir)
-			runEvidenceDir := runStore.RunEvidenceDir(targetProposal.RunID)
 			if err := proposaltriage.SaveDecisions(runEvidenceDir, []proposaltriage.Decision{*decision}); err != nil {
 				return fmt.Errorf("save decision: %w", err)
 			}
@@ -255,6 +347,21 @@ The decision is saved and the materialized entry ID is reported.`,
 				fmt.Printf("Note: Duplicate of existing entry %s (not materialized)\n", decision.DuplicateOf)
 			}
 
+			// Dismiss siblings if group was found.
+			// NOTE: DismissSiblings is intentionally non-fatal. The accept+materialize operation
+			// (the critical path) has already been persisted to disk. If DismissSiblings fails,
+			// we log a warning and continue, allowing the accept to be reported as successful.
+			// The operator can re-run dismiss-group on any failed siblings without affecting
+			// the already-accepted proposal.
+			if dismissGroup && acceptedGroup != nil {
+				dismissedDecisions, err := proposaltriage.DismissSiblings(proposalID, *acceptedGroup, runStore)
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "warning: dismiss siblings failed: %v (re-run dismiss-group to retry)\n", err)
+				} else {
+					fmt.Printf("Dismissed %d sibling proposal(s) in the same group\n", len(dismissedDecisions))
+				}
+			}
+
 			return nil
 		},
 	}
@@ -264,6 +371,7 @@ The decision is saved and the materialized entry ID is reported.`,
 	cmd.Flags().String("change", "", "Override proposed change description")
 	cmd.Flags().String("rationale", "", "Override rationale")
 	cmd.Flags().String("scope", "local", "Scope for materialization: 'local' (default) or 'global'")
+	cmd.Flags().Bool("dismiss-group", false, "Dismiss sibling proposals in the same group")
 
 	return cmd
 }
@@ -305,7 +413,7 @@ is marked as superseded. The decision is saved and the result is reported.`,
 			// Find the proposal matching the given ID
 			var targetProposal *proposaltriage.AllProposal
 			for i := range allProposals {
-				if allProposals[i].Proposal.ID == proposalID {
+				if allProposals[i].Proposal != nil && allProposals[i].Proposal.ID == proposalID {
 					targetProposal = &allProposals[i]
 					break
 				}
@@ -322,9 +430,18 @@ is marked as superseded. The decision is saved and the result is reported.`,
 				SpecID:   targetProposal.SpecID,
 			}
 
-			rejectionDecision, err := proposaltriage.Reject(pp, reason)
+			rejectionDecision, err := proposaltriage.Reject(pp, reason, targetProposal.Decision)
 			if err != nil {
 				return fmt.Errorf("create rejection decision: %w", err)
+			}
+
+			// Get evidence directory for saving decisions
+			runEvidenceDir := runstore.NewStore(storeDir).RunEvidenceDir(targetProposal.RunID)
+
+			// Load existing decisions for RejectAfterAccept validation
+			existingDecisions, err := proposaltriage.LoadDecisions(runEvidenceDir)
+			if err != nil {
+				return fmt.Errorf("load existing decisions: %w", err)
 			}
 
 			// Resolve project cell paths for doctrine and playbook stores
@@ -342,20 +459,25 @@ is marked as superseded. The decision is saved and the result is reported.`,
 				if err := proposaltriage.RejectAfterAccept(
 					targetProposal.Decision,
 					rejectionDecision,
+					existingDecisions,
 					doctrineStore,
 					playbookStore,
 				); err != nil {
 					return fmt.Errorf("reject after accept: %w", err)
 				}
+
+				// Save the rejection decision to run's evidence directory
+				if err := proposaltriage.SaveDecisions(runEvidenceDir, []proposaltriage.Decision{*rejectionDecision}); err != nil {
+					return fmt.Errorf("save decision: %w", err)
+				}
 			} else if targetProposal.Decision != nil {
 				// Proposal already has a decision but it's not accepted
 				return fmt.Errorf("proposal %q already has a decision: %s", proposalID, targetProposal.Decision.Action)
-			}
-
-			// Save the rejection decision to run's evidence directory
-			runEvidenceDir := runstore.NewStore(storeDir).RunEvidenceDir(targetProposal.RunID)
-			if err := proposaltriage.SaveDecisions(runEvidenceDir, []proposaltriage.Decision{*rejectionDecision}); err != nil {
-				return fmt.Errorf("save decision: %w", err)
+			} else {
+				// Save the rejection decision to run's evidence directory
+				if err := proposaltriage.SaveDecisions(runEvidenceDir, []proposaltriage.Decision{*rejectionDecision}); err != nil {
+					return fmt.Errorf("save decision: %w", err)
+				}
 			}
 
 			// Report results
@@ -376,35 +498,54 @@ is marked as superseded. The decision is saved and the result is reported.`,
 	return cmd
 }
 
-// displayPendingProposals renders pending proposals in a table format.
-func displayPendingProposals(proposals []proposaltriage.PendingProposal) error {
-	if len(proposals) == 0 {
+// displayPendingProposals renders grouped pending proposals.
+// Displays group information (reason, size) followed by proposals in each group.
+func displayPendingProposals(groups []proposaltriage.ProposalGroup) error {
+	if len(groups) == 0 {
 		fmt.Println("No pending proposals found.")
 		return nil
 	}
 
-	// Sort by creation time descending (already sorted by discover, but ensure here)
-	sort.Slice(proposals, func(i, j int) bool {
-		return proposals[i].CreatedAt.After(proposals[j].CreatedAt)
-	})
-
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(w, "ID\tTYPE\tRUN\tCONFIDENCE\tTITLE")
 
-	for _, p := range proposals {
-		// Truncate ID for display
-		displayID := p.Proposal.ID
-		if len(displayID) > 12 {
-			displayID = displayID[:12]
+	for i, group := range groups {
+		// Group header with reason and size
+		fmt.Fprintf(w, "[Group %d] %s (size: %d)\n", i+1, group.GroupReason, len(group.Proposals))
+
+		// Proposals in this group
+		fmt.Fprintln(w, "ID\tTYPE\tRUN\tCONFIDENCE\tTITLE")
+
+		// Sort proposals in group by creation time descending
+		sortedProposals := make([]proposaltriage.PendingProposal, len(group.Proposals))
+		copy(sortedProposals, group.Proposals)
+		sort.Slice(sortedProposals, func(i, j int) bool {
+			return sortedProposals[i].CreatedAt.After(sortedProposals[j].CreatedAt)
+		})
+
+		for _, p := range sortedProposals {
+			if p.Proposal == nil {
+				continue
+			}
+
+			// Truncate ID for display
+			displayID := p.Proposal.ID
+			if len(displayID) > 12 {
+				displayID = displayID[:12]
+			}
+
+			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n",
+				displayID,
+				p.Proposal.Type,
+				p.RunID,
+				p.Proposal.Confidence,
+				p.Proposal.Title,
+			)
 		}
 
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n",
-			displayID,
-			p.Proposal.Type,
-			p.RunID,
-			p.Proposal.Confidence,
-			p.Proposal.Title,
-		)
+		// Blank line between groups
+		if i < len(groups)-1 {
+			fmt.Fprintln(w, "")
+		}
 	}
 
 	return w.Flush()
@@ -426,6 +567,10 @@ func displayAllProposals(proposals []proposaltriage.AllProposal) error {
 	fmt.Fprintln(w, "ID\tTYPE\tRUN\tCONFIDENCE\tTITLE\tSTATUS")
 
 	for _, p := range proposals {
+		if p.Proposal == nil {
+			continue
+		}
+
 		// Truncate ID for display
 		displayID := p.Proposal.ID
 		if len(displayID) > 12 {
@@ -453,6 +598,9 @@ func displayAllProposals(proposals []proposaltriage.AllProposal) error {
 // displayProposalDetail renders a single proposal with all its details.
 func displayProposalDetail(ap *proposaltriage.AllProposal) error {
 	p := ap.Proposal
+	if p == nil {
+		return fmt.Errorf("malformed proposal detail: proposal is missing from distillation file")
+	}
 
 	fmt.Println("=== Proposal Detail ===")
 	fmt.Printf("ID: %s\n", p.ID)

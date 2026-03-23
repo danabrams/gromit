@@ -50,7 +50,10 @@ func TestScenario_RejectAfterAccept(t *testing.T) {
 	}
 
 	pbStore := &playbook.Store{Dir: playbookDir}
-	acceptedDecision, err := Promote(pp, "", "", "", nil, pbStore)
+	acceptedDecision, err := Promote(pp, "", "", "", nil, pbStore,
+		"local", // use local scope
+		"",      // evidenceDir
+	)
 	if err != nil {
 		t.Fatalf("Accept failed: %v", err)
 	}
@@ -114,7 +117,7 @@ func TestScenario_RejectAfterAccept(t *testing.T) {
 		SpecID: "spec-123",
 	}
 
-	rejectionDecision, err := Reject(rejectionPP, "Found more efficient approach with distributed caching")
+	rejectionDecision, err := Reject(rejectionPP, "Found more efficient approach with distributed caching", acceptedDecision)
 	if err != nil {
 		t.Fatalf("Reject failed: %v", err)
 	}
@@ -123,7 +126,7 @@ func TestScenario_RejectAfterAccept(t *testing.T) {
 		t.Fatal("Reject returned nil decision")
 	}
 
-	err = RejectAfterAccept(acceptedDecision, rejectionDecision, nil, pbStore)
+	err = RejectAfterAccept(acceptedDecision, rejectionDecision, []Decision{*acceptedDecision}, nil, pbStore)
 	if err != nil {
 		t.Fatalf("RejectAfterAccept failed: %v", err)
 	}

@@ -51,7 +51,10 @@ func TestScenario_RejectPreviouslyAcceptedProposal_SupersedesMaterializedEntry(t
 	}
 
 	pbStore := &playbook.Store{Dir: playbookDir}
-	acceptedDecision, err := Promote(pp, "", "", "", nil, pbStore)
+	acceptedDecision, err := Promote(pp, "", "", "", nil, pbStore,
+		"local", // use local scope
+		"",      // evidenceDir
+	)
 	if err != nil {
 		t.Fatalf("Accept: %v", err)
 	}
@@ -91,12 +94,12 @@ func TestScenario_RejectPreviouslyAcceptedProposal_SupersedesMaterializedEntry(t
 
 	rejectionReason := "Turned out to cause worse task splits"
 
-	rejectionDecision, err := Reject(pp, rejectionReason)
+	rejectionDecision, err := Reject(pp, rejectionReason, acceptedDecision)
 	if err != nil {
 		t.Fatalf("Reject: %v", err)
 	}
 
-	err = RejectAfterAccept(acceptedDecision, rejectionDecision, nil, pbStore)
+	err = RejectAfterAccept(acceptedDecision, rejectionDecision, []Decision{*acceptedDecision}, nil, pbStore)
 	if err != nil {
 		t.Fatalf("RejectAfterAccept: %v", err)
 	}

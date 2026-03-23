@@ -95,6 +95,9 @@ func TestScenario_AcceptDoctrineRuleFromFourProposals(t *testing.T) {
 		"", // no rationale override
 		doctrineStore,
 		playbookStore,
+
+		"local", // use local scope
+		"",      // evidenceDir
 	)
 	if err != nil {
 		t.Fatalf("Accept failed: %v", err)

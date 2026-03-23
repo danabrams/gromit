@@ -9,6 +9,7 @@ import (
 
 	"github.com/danabrams/gromit/internal/claude"
 	"github.com/danabrams/gromit/internal/next/llmadapter"
+	"github.com/danabrams/gromit/internal/next/proposaltriage"
 	"github.com/danabrams/gromit/internal/next/reviewdistiller"
 	"github.com/danabrams/gromit/internal/next/runstore"
 	"github.com/danabrams/gromit/internal/provider"
@@ -215,6 +216,13 @@ func attemptDistillation(runID string, storeDir string, tier reviewdistiller.Tie
 		return fmt.Errorf("marshal run metadata: %w", err)
 	}
 	inputs.RunMetadata = json.RawMessage(metadataJSON)
+
+	// Load previously rejected proposals for this project
+	rejectedProposals, err := proposaltriage.LoadRejectedProposals(storeDir, run.ProjectID)
+	if err == nil {
+		inputs.RejectedProposals = rejectedProposals
+	}
+	// If loading fails, continue without rejection history (non-blocking)
 
 	// Invoke distiller
 	result, err := reviewdistiller.Distill(inputs, completer, tier)

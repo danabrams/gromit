@@ -2,6 +2,7 @@ package proposaltriage
 
 import (
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -9,6 +10,74 @@ import (
 	"github.com/danabrams/gromit/internal/next/playbook"
 	"github.com/danabrams/gromit/internal/next/reviewdistiller"
 )
+
+func TestReject_DismissedProposal(t *testing.T) {
+	tmpDir := t.TempDir()
+	projectID := "test-project"
+	runID := "run-reject-dismissed-001"
+
+	proposals := &reviewdistiller.DistillationResult{
+		RunID:     runID,
+		SpecID:    "spec-123",
+		Outcome:   "accepted",
+		ModelTier: reviewdistiller.TierHigh,
+		Proposals: []reviewdistiller.Proposal{
+			{
+				ID:             "run-reject-dismissed-001-proposal-gap1",
+				Type:           "validation_gap",
+				Title:          "Contract assertion pitfall",
+				ProposedChange: "Avoid file-path-specific contract assertions when behavior can be verified by scenario tests",
+				Rationale:      "File paths break during refactoring",
+			},
+		},
+		CreatedAt: time.Now(),
+	}
+
+	helperCreateRunWithProposals(t, tmpDir, projectID, runID, proposals, nil)
+
+	pendingProposals, err := DiscoverPending(tmpDir, projectID, nil, nil)
+	if err != nil {
+		t.Fatalf("DiscoverPending failed: %v", err)
+	}
+
+	if len(pendingProposals) != 1 {
+		t.Fatalf("expected 1 pending proposal, got %d", len(pendingProposals))
+	}
+
+	// Create a dismissed decision for the proposal
+	dismissedDecision := Decision{
+		ProposalID:  pendingProposals[0].Proposal.ID,
+		Action:      "dismissed",
+		Reason:      "Out of scope for this release",
+		DismissedBy: "project-manager",
+		DecidedAt:   time.Now(),
+	}
+
+	// Create the pending proposal for rejection
+	rejectionPP := &PendingProposal{
+		Proposal: pendingProposals[0].Proposal,
+		RunID:    runID,
+		SpecID:   pendingProposals[0].SpecID,
+	}
+
+	// Try to reject a proposal that already has a dismissed decision
+	rejectionDecision, err := Reject(rejectionPP, "This should fail", &dismissedDecision)
+
+	// Verify that Reject returns an error
+	if err == nil {
+		t.Fatal("Reject should return an error for dismissed proposal")
+	}
+
+	// Verify the error message contains the expected text
+	if !strings.Contains(err.Error(), "dismissed") && !strings.Contains(err.Error(), "terminal state") {
+		t.Errorf("error should contain 'dismissed' or 'terminal state', got: %v", err)
+	}
+
+	// Verify that no decision was returned
+	if rejectionDecision != nil {
+		t.Fatal("Reject should return nil decision for dismissed proposal")
+	}
+}
 
 func TestReject_NeverAccepted(t *testing.T) {
 	tmpDir := t.TempDir()
@@ -50,7 +119,7 @@ func TestReject_NeverAccepted(t *testing.T) {
 		SpecID:   pendingProposals[0].SpecID,
 	}
 
-	rejectionDecision, err := Reject(rejectionPP, "Too specific to this one-off migration")
+	rejectionDecision, err := Reject(rejectionPP, "Too specific to this one-off migration", nil)
 	if err != nil {
 		t.Fatalf("Reject failed: %v", err)
 	}
@@ -151,7 +220,10 @@ func TestReject_AfterAccept_Playbook(t *testing.T) {
 	}
 
 	pbStore := &playbook.Store{Dir: playbookDir}
-	acceptedDecision, err := Promote(pp, "", "", "", nil, pbStore)
+	acceptedDecision, err := Promote(pp, "", "", "", nil, pbStore,
+		"local", // use local scope
+		"",      // evidenceDir
+	)
 	if err != nil {
 		t.Fatalf("Promote failed: %v", err)
 	}
@@ -180,7 +252,7 @@ func TestReject_AfterAccept_Playbook(t *testing.T) {
 	}
 
 	// Now reject the previously accepted proposal
-	rejectionDecision, err := Reject(pp, "Found more efficient approach with distributed caching")
+	rejectionDecision, err := Reject(pp, "Found more efficient approach with distributed caching", acceptedDecision)
 	if err != nil {
 		t.Fatalf("Reject failed: %v", err)
 	}
@@ -190,7 +262,7 @@ func TestReject_AfterAccept_Playbook(t *testing.T) {
 	}
 
 	// Call RejectAfterAccept
-	err = RejectAfterAccept(acceptedDecision, rejectionDecision, nil, pbStore)
+	err = RejectAfterAccept(acceptedDecision, rejectionDecision, []Decision{*acceptedDecision}, nil, pbStore)
 	if err != nil {
 		t.Fatalf("RejectAfterAccept failed: %v", err)
 	}
@@ -286,7 +358,10 @@ func TestReject_AfterAccept_Doctrine(t *testing.T) {
 
 	doctrineStore := doctrine.NewFSStore()
 	doctrineStore.Dir = doctrineDir
-	acceptedDecision, err := Promote(pp, "", "", "", doctrineStore, nil)
+	acceptedDecision, err := Promote(pp, "", "", "", doctrineStore, nil,
+		"local", // use local scope
+		"",      // evidenceDir
+	)
 	if err != nil {
 		t.Fatalf("Promote failed: %v", err)
 	}
@@ -315,7 +390,7 @@ func TestReject_AfterAccept_Doctrine(t *testing.T) {
 	}
 
 	// Now reject the previously accepted proposal
-	rejectionDecision, err := Reject(pp, "Incompatible with current dev process")
+	rejectionDecision, err := Reject(pp, "Incompatible with current dev process", acceptedDecision)
 	if err != nil {
 		t.Fatalf("Reject failed: %v", err)
 	}
@@ -325,7 +400,7 @@ func TestReject_AfterAccept_Doctrine(t *testing.T) {
 	}
 
 	// Call RejectAfterAccept
-	err = RejectAfterAccept(acceptedDecision, rejectionDecision, doctrineStore, nil)
+	err = RejectAfterAccept(acceptedDecision, rejectionDecision, []Decision{*acceptedDecision}, doctrineStore, nil)
 	if err != nil {
 		t.Fatalf("RejectAfterAccept failed: %v", err)
 	}
@@ -411,7 +486,7 @@ func TestReject_InvalidInputs(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			decision, err := Reject(tt.pp, tt.reason)
+			decision, err := Reject(tt.pp, tt.reason, nil)
 
 			if tt.expectError {
 				if err == nil {
@@ -484,7 +559,7 @@ func TestRejectAfterAccept_InvalidInputs(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := RejectAfterAccept(tt.acceptedDec, tt.rejectionDec, tt.doctrineStore, tt.playbookStore)
+			err := RejectAfterAccept(tt.acceptedDec, tt.rejectionDec, []Decision{}, tt.doctrineStore, tt.playbookStore)
 
 			if tt.expectError {
 				if err == nil {
@@ -497,5 +572,289 @@ func TestRejectAfterAccept_InvalidInputs(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestReject_DismissedProposalReturnsError(t *testing.T) {
+	tmpDir := t.TempDir()
+	projectID := "test-project"
+	runID := "run-reject-dismissed-001"
+
+	proposals := &reviewdistiller.DistillationResult{
+		RunID:     runID,
+		SpecID:    "spec-123",
+		Outcome:   "accepted",
+		ModelTier: reviewdistiller.TierHigh,
+		Proposals: []reviewdistiller.Proposal{
+			{
+				ID:             "run-reject-dismissed-001-proposal-gap1",
+				Type:           "validation_gap",
+				Title:          "Error handling gap",
+				ProposedChange: "Add nil check before accessing field",
+				Rationale:      "Prevents runtime panics",
+			},
+		},
+		CreatedAt: time.Now(),
+	}
+
+	helperCreateRunWithProposals(t, tmpDir, projectID, runID, proposals, nil)
+
+	pendingProposals, err := DiscoverPending(tmpDir, projectID, nil, nil)
+	if err != nil {
+		t.Fatalf("DiscoverPending failed: %v", err)
+	}
+
+	if len(pendingProposals) != 1 {
+		t.Fatalf("expected 1 pending proposal, got %d", len(pendingProposals))
+	}
+
+	pp := &PendingProposal{
+		Proposal: pendingProposals[0].Proposal,
+		RunID:    runID,
+		SpecID:   pendingProposals[0].SpecID,
+	}
+
+	evidenceDir := filepath.Join(tmpDir, "runs", runID, "evidence")
+
+	// Create a dismissed decision for the proposal
+	dismissedDecision := &Decision{
+		ProposalID:  pp.Proposal.ID,
+		Action:      "dismissed",
+		DismissedBy: "some-other-proposal-id",
+		DecidedAt:   time.Now(),
+	}
+
+	// Save the dismissed decision
+	if err := SaveDecisions(evidenceDir, []Decision{*dismissedDecision}); err != nil {
+		t.Fatalf("SaveDecisions failed: %v", err)
+	}
+
+	// Now try to reject the dismissed proposal
+	decisions, err := LoadDecisions(evidenceDir)
+	if err != nil {
+		t.Fatalf("LoadDecisions failed: %v", err)
+	}
+	// Find the existing decision for this proposal
+	existingDecision, found := FindExistingDecision(pp.Proposal.ID, decisions)
+	var existingDecPtr *Decision
+	if found {
+		existingDecPtr = &existingDecision
+	}
+	rejectionDecision, err := Reject(pp, "Some rejection reason", existingDecPtr)
+
+	// Should return an error because the proposal is in a terminal state (dismissed)
+	if err == nil {
+		t.Fatal("expected error when rejecting a dismissed proposal, got nil")
+	}
+
+	// Verify the error message mentions dismissed
+	if !strings.Contains(err.Error(), "dismissed") {
+		t.Errorf("error should mention dismissed, got: %v", err)
+	}
+
+	// Verify no decision was returned
+	if rejectionDecision != nil {
+		t.Errorf("expected nil decision, got: %v", rejectionDecision)
+	}
+}
+
+func TestRejectAfterAccept_DismissedProposal(t *testing.T) {
+	tmpDir := t.TempDir()
+	projectID := "test-project"
+	runID := "run-reject-after-dismissed-001"
+	playbookDir := filepath.Join(tmpDir, "playbook")
+
+	proposals := &reviewdistiller.DistillationResult{
+		RunID:     runID,
+		SpecID:    "spec-123",
+		Outcome:   "accepted",
+		ModelTier: reviewdistiller.TierHigh,
+		Proposals: []reviewdistiller.Proposal{
+			{
+				ID:             "run-reject-after-dismissed-001-proposal-heur1",
+				Type:           "planner_heuristic",
+				Title:          "Add caching layer",
+				ProposedChange: "Implement a caching layer for frequent queries",
+				Rationale:      "Improves performance for repeated queries",
+			},
+		},
+		CreatedAt: time.Now(),
+	}
+
+	helperCreateRunWithProposals(t, tmpDir, projectID, runID, proposals, nil)
+
+	pendingProposals, err := DiscoverPending(tmpDir, projectID, nil, nil)
+	if err != nil {
+		t.Fatalf("DiscoverPending failed: %v", err)
+	}
+
+	if len(pendingProposals) != 1 {
+		t.Fatalf("expected 1 pending proposal, got %d", len(pendingProposals))
+	}
+
+	// Accept the proposal
+	pp := &PendingProposal{
+		Proposal: pendingProposals[0].Proposal,
+		RunID:    pendingProposals[0].RunID,
+		SpecID:   pendingProposals[0].SpecID,
+	}
+
+	pbStore := &playbook.Store{Dir: playbookDir}
+	acceptedDecision, err := Promote(pp, "", "", "", nil, pbStore,
+		"local", // use local scope
+		"",      // evidenceDir
+	)
+	if err != nil {
+		t.Fatalf("Promote failed: %v", err)
+	}
+
+	if acceptedDecision == nil {
+		t.Fatal("Promote returned nil decision")
+	}
+
+	evidenceDir := filepath.Join(tmpDir, "runs", runID, "evidence")
+	if err := SaveDecisions(evidenceDir, []Decision{*acceptedDecision}); err != nil {
+		t.Fatalf("SaveDecisions (accept) failed: %v", err)
+	}
+
+	// Create a dismissed decision for the same proposal
+	dismissedDecision := Decision{
+		ProposalID:  pp.Proposal.ID,
+		Action:      "dismissed",
+		Reason:      "Out of scope for this release",
+		DismissedBy: "project-manager",
+		DecidedAt:   time.Now(),
+	}
+
+	// Create a rejection decision
+	rejectionDecision, err := Reject(pp, "Change of mind on approach", acceptedDecision)
+	if err != nil {
+		t.Fatalf("Reject failed: %v", err)
+	}
+
+	if rejectionDecision == nil {
+		t.Fatal("Reject returned nil decision")
+	}
+
+	// Try to call RejectAfterAccept with both accepted and dismissed decisions
+	// This should return an error because the proposal is in a terminal state (dismissed)
+	// Pass dismissed decision first so it's found by FindExistingDecision
+	err = RejectAfterAccept(acceptedDecision, rejectionDecision, []Decision{dismissedDecision, *acceptedDecision}, nil, pbStore)
+
+	// Verify that RejectAfterAccept returns an error
+	if err == nil {
+		t.Fatal("RejectAfterAccept should return an error for dismissed proposal")
+	}
+
+	// Verify the error message contains the expected text
+	if !strings.Contains(err.Error(), "dismissed") && !strings.Contains(err.Error(), "terminal state") {
+		t.Errorf("error should contain 'dismissed' or 'terminal state', got: %v", err)
+	}
+}
+
+func TestRejectAfterAccept_DismissedProposal_AcceptedFirst(t *testing.T) {
+	// Variant of TestRejectAfterAccept_DismissedProposal where the accepted decision
+	// comes FIRST in the decisions slice (dismissed second). This documents that
+	// ValidateTerminalState uses first-match semantics: when the accepted entry is
+	// found first the terminal-state check does not fire, so RejectAfterAccept
+	// proceeds and supersedes the playbook entry without error.
+	//
+	// Contrast with TestRejectAfterAccept_DismissedProposal where dismissed comes
+	// first and the call returns an error. Callers must ensure dismissed decisions
+	// appear before accepted ones in the slice when they want the guard to trigger.
+	tmpDir := t.TempDir()
+	projectID := "test-project"
+	runID := "run-reject-after-dismissed-002"
+	playbookDir := filepath.Join(tmpDir, "playbook")
+
+	proposals := &reviewdistiller.DistillationResult{
+		RunID:     runID,
+		SpecID:    "spec-123",
+		Outcome:   "accepted",
+		ModelTier: reviewdistiller.TierHigh,
+		Proposals: []reviewdistiller.Proposal{
+			{
+				ID:             "run-reject-after-dismissed-002-proposal-heur1",
+				Type:           "planner_heuristic",
+				Title:          "Add caching layer variant",
+				ProposedChange: "Implement a caching layer for frequent queries (variant)",
+				Rationale:      "Improves performance",
+			},
+		},
+		CreatedAt: time.Now(),
+	}
+
+	helperCreateRunWithProposals(t, tmpDir, projectID, runID, proposals, nil)
+
+	pendingProposals, err := DiscoverPending(tmpDir, projectID, nil, nil)
+	if err != nil {
+		t.Fatalf("DiscoverPending failed: %v", err)
+	}
+
+	if len(pendingProposals) != 1 {
+		t.Fatalf("expected 1 pending proposal, got %d", len(pendingProposals))
+	}
+
+	// Accept the proposal
+	pp := &PendingProposal{
+		Proposal: pendingProposals[0].Proposal,
+		RunID:    pendingProposals[0].RunID,
+		SpecID:   pendingProposals[0].SpecID,
+	}
+
+	pbStore := &playbook.Store{Dir: playbookDir}
+	acceptedDecision, err := Promote(pp, "", "", "", nil, pbStore,
+		"local",
+		"",
+	)
+	if err != nil {
+		t.Fatalf("Promote failed: %v", err)
+	}
+
+	if acceptedDecision == nil {
+		t.Fatal("Promote returned nil decision")
+	}
+
+	// Create a dismissed decision for the same proposal
+	dismissedDecision := Decision{
+		ProposalID:  pp.Proposal.ID,
+		Action:      "dismissed",
+		Reason:      "Reconsidered",
+		DismissedBy: "tech-lead",
+		DecidedAt:   time.Now(),
+	}
+
+	// Create a rejection decision (Reject sees acceptedDecision, not dismissed, so it succeeds)
+	rejectionDecision, err := Reject(pp, "Approach abandoned", acceptedDecision)
+	if err != nil {
+		t.Fatalf("Reject failed: %v", err)
+	}
+
+	if rejectionDecision == nil {
+		t.Fatal("Reject returned nil decision")
+	}
+
+	// Pass accepted decision FIRST, dismissed second.
+	// FindExistingDecision returns the first match (accepted), so ValidateTerminalState
+	// does NOT fire. RejectAfterAccept should succeed and supersede the playbook entry.
+	err = RejectAfterAccept(acceptedDecision, rejectionDecision, []Decision{*acceptedDecision, dismissedDecision}, nil, pbStore)
+
+	// With accepted first, the terminal-state guard does not trigger.
+	if err != nil {
+		t.Fatalf("expected RejectAfterAccept to succeed when accepted decision comes first, got: %v", err)
+	}
+
+	// Verify the playbook entry is now superseded (the rejection was applied)
+	entriesAfter, err := pbStore.Load()
+	if err != nil {
+		t.Fatalf("failed to load playbook entries: %v", err)
+	}
+
+	if len(entriesAfter) != 1 {
+		t.Fatalf("expected 1 playbook entry, got %d", len(entriesAfter))
+	}
+
+	if entriesAfter[0].Status != "superseded" {
+		t.Errorf("expected entry status 'superseded', got %q", entriesAfter[0].Status)
 	}
 }

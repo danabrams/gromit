@@ -2,13 +2,17 @@ package proposaltriage
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 )
 
 // LoadDecisions reads decisions from the proposal-decisions.json file in the given directory.
-// Returns an empty slice if the file doesn't exist.
+// Returns an empty slice if the file doesn't exist or if dir is empty.
 func LoadDecisions(dir string) ([]Decision, error) {
+	if dir == "" {
+		return []Decision{}, nil
+	}
 	filePath := filepath.Join(dir, "proposal-decisions.json")
 
 	data, err := os.ReadFile(filePath)
@@ -30,7 +34,11 @@ func LoadDecisions(dir string) ([]Decision, error) {
 // SaveDecisions writes decisions to the proposal-decisions.json file in the given directory.
 // It overwrites existing decisions for the same proposal IDs and preserves others.
 // Creates the directory if it doesn't exist.
+// Returns an error if dir is empty to prevent accidental writes to the current working directory.
 func SaveDecisions(dir string, newDecisions []Decision) error {
+	if dir == "" {
+		return fmt.Errorf("SaveDecisions: evidenceDir must not be empty")
+	}
 	// Load existing decisions
 	existing, err := LoadDecisions(dir)
 	if err != nil {
@@ -88,4 +96,30 @@ func SaveDecisions(dir string, newDecisions []Decision) error {
 // It updates existing decisions for the same proposal ID and preserves others.
 func SaveDecision(dir string, decision Decision) error {
 	return SaveDecisions(dir, []Decision{decision})
+}
+
+// IsTerminalDecision checks if a Decision has a terminal action (dismissed).
+func IsTerminalDecision(d Decision) bool {
+	return d.Action == "dismissed"
+}
+
+// FindExistingDecision searches for a decision with the given proposal ID in the slice.
+// Returns the matching Decision and true if found, or a zero Decision and false if not found.
+func FindExistingDecision(proposalID string, decisions []Decision) (Decision, bool) {
+	for _, d := range decisions {
+		if d.ProposalID == proposalID {
+			return d, true
+		}
+	}
+	return Decision{}, false
+}
+
+// ValidateTerminalState checks if a proposal ID already has a terminal decision.
+// Returns an error if a dismissed decision exists for that proposal.
+func ValidateTerminalState(proposalID string, decisions []Decision) error {
+	decision, found := FindExistingDecision(proposalID, decisions)
+	if found && IsTerminalDecision(decision) {
+		return fmt.Errorf("proposal %q cannot be re-decided: it has been dismissed", proposalID)
+	}
+	return nil
 }

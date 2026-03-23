@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/danabrams/gromit/internal/next/doctrine"
 	"github.com/danabrams/gromit/internal/next/playbook"
@@ -22,7 +23,7 @@ func TestReject_CreatesRejectionDecision(t *testing.T) {
 		SpecID: "spec-789",
 	}
 
-	decision, err := Reject(pp, "not ready for promotion")
+	decision, err := Reject(pp, "not ready for promotion", nil)
 
 	if err != nil {
 		t.Fatalf("Reject failed: %v", err)
@@ -50,7 +51,7 @@ func TestReject_CreatesRejectionDecision(t *testing.T) {
 }
 
 func TestReject_NilProposalReturnsError(t *testing.T) {
-	_, err := Reject(nil, "some reason")
+	_, err := Reject(nil, "some reason", nil)
 
 	if err == nil {
 		t.Fatal("Reject should error on nil proposal")
@@ -62,7 +63,7 @@ func TestReject_NilInternalProposalReturnsError(t *testing.T) {
 		Proposal: nil,
 	}
 
-	_, err := Reject(pp, "some reason")
+	_, err := Reject(pp, "some reason", nil)
 
 	if err == nil {
 		t.Fatal("Reject should error on nil internal proposal")
@@ -111,7 +112,7 @@ func TestReject_RecordsReason(t *testing.T) {
 	}
 
 	testReason := "insufficient evidence for change"
-	decision, err := Reject(pp, testReason)
+	decision, err := Reject(pp, testReason, nil)
 
 	if err != nil {
 		t.Fatalf("Reject failed: %v", err)
@@ -193,6 +194,7 @@ func TestRejectAfterAccept_SupersededPlaybookEntry(t *testing.T) {
 	err := RejectAfterAccept(
 		acceptedDecision,
 		rejectionDecision,
+		[]Decision{*acceptedDecision},
 		nil, // doctrineStore not needed for playbook
 		pbStore,
 	)
@@ -258,6 +260,7 @@ func TestRejectAfterAccept_SupersededDoctrineRule(t *testing.T) {
 	err := RejectAfterAccept(
 		acceptedDecision,
 		rejectionDecision,
+		[]Decision{*acceptedDecision},
 		docStore,
 		nil, // playbookStore not needed for doctrine
 	)
@@ -313,7 +316,9 @@ func TestAccept_DoctrineRule(t *testing.T) {
 		"", // no change override
 		"", // no rationale override
 		docStore,
-		nil, // playbookStore not needed for doctrine_rule
+		nil,     // playbookStore not needed for doctrine_rule
+		"local", // use local scope
+		tmpDir,
 	)
 
 	// Verify decision was created successfully
@@ -413,6 +418,8 @@ func TestAccept_PlannerHeuristic(t *testing.T) {
 		"",  // no rationale override
 		nil, // doctrineStore not needed for planner_heuristic
 		pbStore,
+		"local", // use local scope
+		tmpDir,
 	)
 
 	// Verify decision was created successfully
@@ -517,6 +524,7 @@ func TestRejectAfterAccept_UnknownMaterializedIDReturnsError(t *testing.T) {
 	err := RejectAfterAccept(
 		acceptedDecision,
 		rejectionDecision,
+		[]Decision{},
 		nil,
 		pbStore,
 	)
@@ -553,6 +561,8 @@ func TestAccept_FieldOverrides(t *testing.T) {
 		"Overridden rationale",   // override rationale
 		nil,                      // doctrineStore not needed
 		pbStore,
+		"local", // use local scope
+		tmpDir,
 	)
 
 	// Verify decision was created successfully
@@ -674,7 +684,9 @@ func TestAccept_DuplicateDetection_Doctrine(t *testing.T) {
 		"", // no change override
 		"", // no rationale override
 		docStore,
-		nil, // playbookStore not needed
+		nil,     // playbookStore not needed
+		"local", // use local scope
+		"",      // evidenceDir
 	)
 
 	// Verify decision was created successfully
@@ -785,6 +797,8 @@ func TestAccept_DuplicateDetection_Playbook(t *testing.T) {
 		"",  // no rationale override
 		nil, // doctrineStore not needed
 		pbStore,
+		"local", // use local scope
+		"",      // evidenceDir
 	)
 
 	// Verify decision was created successfully
@@ -867,6 +881,7 @@ func TestRejectAfterAccept_Supersedes(t *testing.T) {
 	err := RejectAfterAccept(
 		acceptedDecision,
 		rejectionDecision,
+		[]Decision{*acceptedDecision},
 		nil, // doctrineStore not needed for playbook
 		pbStore,
 	)
@@ -937,7 +952,9 @@ func TestPromote_DoctrineRule(t *testing.T) {
 		"", // no override
 		"", // no override
 		docStore,
-		nil, // playbook not needed
+		nil,     // playbook not needed
+		"local", // use local scope
+		tmpDir,
 	)
 
 	if err != nil {
@@ -1008,7 +1025,9 @@ func TestPromote_DoctrineRule_ProvenanceFields(t *testing.T) {
 		"", // no change override
 		"", // no rationale override
 		docStore,
-		nil, // playbookStore not needed for doctrine_rule
+		nil,     // playbookStore not needed for doctrine_rule
+		"local", // use local scope
+		tmpDir,
 	)
 
 	if err != nil {
@@ -1069,6 +1088,8 @@ func TestPromote_PlaybookEntry(t *testing.T) {
 		"",
 		nil, // doctrine not needed
 		pbStore,
+		"local", // use local scope
+		tmpDir,
 	)
 
 	if err != nil {
@@ -1135,6 +1156,8 @@ func TestPromote_FieldOverrides(t *testing.T) {
 		"Refined rationale",   // override rationale
 		nil,
 		pbStore,
+		"local", // use local scope
+		tmpDir,
 	)
 
 	if err != nil {
@@ -1224,6 +1247,8 @@ func TestPromote_Duplicate(t *testing.T) {
 		"",
 		docStore,
 		nil,
+		"local", // use local scope
+		"",      // evidenceDir
 	)
 
 	if err != nil {
@@ -1277,6 +1302,8 @@ func TestPromote_NilDoctrineStoreForDoctrineRule(t *testing.T) {
 		"",
 		nil, // doctrineStore is nil
 		nil,
+		"local", // use local scope
+		"",      // evidenceDir
 	)
 
 	if err == nil {
@@ -1313,7 +1340,9 @@ func TestPromote_NilPlaybookStoreForPlaybookType(t *testing.T) {
 		"",
 		"",
 		nil,
-		nil, // playbookStore is nil
+		nil,     // playbookStore is nil
+		"local", // use local scope
+		"",      // evidenceDir
 	)
 
 	if err == nil {
@@ -1381,7 +1410,9 @@ func TestAccept_DuplicateDetection_Doctrine_SupersededDoesNotBlock(t *testing.T)
 		"", // no change override
 		"", // no rationale override
 		docStore,
-		nil, // playbookStore not needed
+		nil,     // playbookStore not needed
+		"local", // use local scope
+		"",      // evidenceDir
 	)
 
 	if err != nil {
@@ -1488,6 +1519,8 @@ func TestAccept_DuplicateDetection_Playbook_SupersededDoesNotBlock(t *testing.T)
 		"",  // no rationale override
 		nil, // doctrineStore not needed
 		pbStore,
+		"local", // use local scope
+		"",      // evidenceDir
 	)
 
 	if err != nil {
@@ -1545,5 +1578,486 @@ func TestAccept_DuplicateDetection_Playbook_SupersededDoesNotBlock(t *testing.T)
 		if newEntry.Status != "active" {
 			t.Errorf("New entry status = %q, want %q", newEntry.Status, "active")
 		}
+	}
+}
+
+// TestPromote_DoctrineRule_WithGlobalScope verifies that when PendingProposal.Scope is 'global',
+// the materialized doctrine Rule has Scope='global'.
+func TestPromote_DoctrineRule_WithGlobalScope(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	pp := &PendingProposal{
+		Proposal: &reviewdistiller.Proposal{
+			ID:             "prop-global-scope-001",
+			Type:           "doctrine_rule",
+			Title:          "Use global configuration approach",
+			ProposedChange: "All config should be globally accessible via a singleton pattern",
+			Rationale:      "Simplifies dependency passing",
+		},
+		RunID:  "run-global-scope-001",
+		SpecID: "spec-global-scope-001",
+		Scope:  "global",
+	}
+
+	docStore := doctrine.NewFSStore()
+	docStore.Dir = tmpDir
+
+	decision, err := Promote(
+		pp,
+		"", // no override
+		"", // no override
+		"", // no override
+		docStore,
+		nil,      // playbook not needed
+		"global", // use global scope
+		tmpDir,
+	)
+
+	if err != nil {
+		t.Fatalf("Promote failed: %v", err)
+	}
+
+	if decision == nil {
+		t.Fatal("Promote returned nil decision")
+	}
+
+	if decision.Action != "accepted" {
+		t.Errorf("Action = %q, want %q", decision.Action, "accepted")
+	}
+
+	// Load doctrine store and verify rule has global scope
+	loadedDoctrine, err := docStore.Load()
+	if err != nil {
+		t.Fatalf("Failed to load doctrine: %v", err)
+	}
+
+	if len(loadedDoctrine.Rules) != 1 {
+		t.Fatalf("Expected 1 rule, got %d", len(loadedDoctrine.Rules))
+	}
+
+	rule := loadedDoctrine.Rules[0]
+
+	// KEY: Verify that Scope is 'global', not the default '*'
+	if rule.Scope != "global" {
+		t.Errorf("Rule Scope = %q, want %q", rule.Scope, "global")
+	}
+}
+
+// TestPromote_PlaybookEntry_WithGlobalScope verifies that when PendingProposal.Scope is 'global',
+// the materialized playbook Entry has Scope='global'.
+func TestPromote_PlaybookEntry_WithGlobalScope(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	pp := &PendingProposal{
+		Proposal: &reviewdistiller.Proposal{
+			ID:             "prop-global-pb-001",
+			Type:           "backend_pattern",
+			Title:          "Use dependency injection globally",
+			ProposedChange: "All backend services should use dependency injection for loose coupling",
+			Rationale:      "Improves testability and maintainability across all services",
+		},
+		RunID:  "run-global-pb-001",
+		SpecID: "spec-global-pb-001",
+		Scope:  "global",
+	}
+
+	pbStore := &playbook.Store{Dir: tmpDir}
+
+	decision, err := Promote(
+		pp,
+		"",  // no override
+		"",  // no override
+		"",  // no override
+		nil, // doctrineStore not needed
+		pbStore,
+		"global", // use global scope
+		tmpDir,
+	)
+
+	if err != nil {
+		t.Fatalf("Promote failed: %v", err)
+	}
+
+	if decision == nil {
+		t.Fatal("Promote returned nil decision")
+	}
+
+	if decision.Action != "accepted" {
+		t.Errorf("Action = %q, want %q", decision.Action, "accepted")
+	}
+
+	// Load playbook store and verify entry has global scope
+	loadedEntries, err := pbStore.Load()
+	if err != nil {
+		t.Fatalf("Failed to load playbook entries: %v", err)
+	}
+
+	if len(loadedEntries) != 1 {
+		t.Fatalf("Expected 1 entry, got %d", len(loadedEntries))
+	}
+
+	entry := loadedEntries[0]
+
+	// KEY: Verify that Scope is 'global'
+	if entry.Scope != "global" {
+		t.Errorf("Entry Scope = %q, want %q", entry.Scope, "global")
+	}
+}
+
+func TestPromote_DoctrineRule_DefaultScope(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create a pending proposal with type "doctrine_rule" and empty Scope
+	pp := &PendingProposal{
+		Proposal: &reviewdistiller.Proposal{
+			ID:             "prop-default-scope",
+			Type:           "doctrine_rule",
+			Title:          "Use clear naming conventions",
+			ProposedChange: "Enforce descriptive variable names across the codebase",
+			Rationale:      "Improves code readability and maintainability",
+		},
+		RunID:  "run-default-scope",
+		SpecID: "spec-default-scope",
+		Scope:  "", // Empty scope - should default to "*"
+	}
+
+	// Create doctrine store
+	docStore := doctrine.NewFSStore()
+	docStore.Dir = tmpDir
+
+	// Call Promote with empty scope parameter for backward compatibility
+	decision, err := Promote(
+		pp,
+		"", // no title override
+		"", // no change override
+		"", // no rationale override
+		docStore,
+		nil, // playbookStore not needed for doctrine_rule
+		"",  // empty scope parameter - should default to "*"
+		"",  // evidenceDir
+	)
+
+	// Verify decision was created successfully
+	if err != nil {
+		t.Fatalf("Promote failed: %v", err)
+	}
+
+	if decision == nil {
+		t.Fatal("Promote returned nil decision")
+	}
+
+	// Load doctrine and verify rule was materialized
+	loadedDoctrine, err := docStore.Load()
+	if err != nil {
+		t.Fatalf("Failed to load doctrine: %v", err)
+	}
+
+	if len(loadedDoctrine.Rules) != 1 {
+		t.Fatalf("Expected 1 rule, got %d", len(loadedDoctrine.Rules))
+	}
+
+	rule := loadedDoctrine.Rules[0]
+
+	// KEY: Verify that Scope defaults to "*" when empty (backward compatible)
+	if rule.Scope != "*" {
+		t.Errorf("Rule Scope = %q, want %q", rule.Scope, "*")
+	}
+}
+
+func TestDismissedProposalCannotBeRedecided(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create a proposal
+	pp := &PendingProposal{
+		Proposal: &reviewdistiller.Proposal{
+			ID:             "prop-dismissed-001",
+			Type:           "doctrine_rule",
+			Title:          "Test Proposal",
+			ProposedChange: "Some test change",
+		},
+		RunID:  "run-001",
+		SpecID: "spec-001",
+	}
+
+	// Create an evidence directory with a dismissed decision for this proposal
+	dismissedDecision := Decision{
+		ProposalID:  "prop-dismissed-001",
+		Action:      "dismissed",
+		DismissedBy: "prop-accepted-001",
+		DecidedAt:   time.Now(),
+	}
+
+	// Save the dismissed decision to the evidence directory
+	err := SaveDecision(tmpDir, dismissedDecision)
+	if err != nil {
+		t.Fatalf("Failed to save dismissed decision: %v", err)
+	}
+
+	// Load decisions and validate that the proposal cannot be re-decided
+	decisions, err := LoadDecisions(tmpDir)
+	if err != nil {
+		t.Fatalf("Failed to load decisions: %v", err)
+	}
+	err = ValidateTerminalState(pp.Proposal.ID, decisions)
+
+	// Verify that ValidateTerminalState returns an error
+	if err == nil {
+		t.Fatal("ValidateTerminalState should return an error for dismissed proposals")
+	}
+
+	// Verify the error message mentions dismissed
+	errMsg := err.Error()
+	if !strings.Contains(errMsg, "dismissed") {
+		t.Errorf("Error message should mention 'dismissed', got: %q", errMsg)
+	}
+
+	if !strings.Contains(errMsg, "cannot be re-decided") {
+		t.Errorf("Error message should mention 'cannot be re-decided', got: %q", errMsg)
+	}
+}
+
+func TestValidateTerminalState_NoDecisions(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Load decisions (empty since nothing was saved)
+	decisions, err := LoadDecisions(tmpDir)
+	if err != nil {
+		t.Fatalf("Failed to load decisions: %v", err)
+	}
+
+	// Validate a proposal with no existing decisions
+	err = ValidateTerminalState("prop-no-decision", decisions)
+
+	// Should not return an error since there are no decisions
+	if err != nil {
+		t.Fatalf("ValidateTerminalState should not error when no decisions exist, got: %v", err)
+	}
+}
+
+func TestValidateTerminalState_RejectedProposalCanBeAccepted(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create an evidence directory with a rejected decision for a proposal
+	rejectedDecision := Decision{
+		ProposalID: "prop-rejected-001",
+		Action:     "rejected",
+		Reason:     "Not ready yet",
+		DecidedAt:  time.Now(),
+	}
+
+	// Save the rejected decision
+	err := SaveDecision(tmpDir, rejectedDecision)
+	if err != nil {
+		t.Fatalf("Failed to save rejected decision: %v", err)
+	}
+
+	// Load decisions and validate that the rejected proposal CAN be re-decided (rejected is not terminal)
+	decisions, err := LoadDecisions(tmpDir)
+	if err != nil {
+		t.Fatalf("Failed to load decisions: %v", err)
+	}
+	err = ValidateTerminalState("prop-rejected-001", decisions)
+
+	// Should not return an error since rejected is not a terminal state
+	if err != nil {
+		t.Fatalf("ValidateTerminalState should not error for rejected proposals, got: %v", err)
+	}
+}
+
+func TestPromote_DismissedProposal_ReturnsError(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create stores
+	docStore := doctrine.NewFSStore()
+	docStore.Dir = tmpDir
+
+	pbStore := &playbook.Store{Dir: tmpDir}
+
+	// Create a dismissed decision for a proposal in the evidence directory
+	dismissedDecision := Decision{
+		ProposalID:  "prop-dismissed-123",
+		Action:      "dismissed",
+		DismissedBy: "prop-accepted-999",
+		DecidedAt:   time.Now(),
+	}
+
+	// Save the dismissed decision to the evidence directory
+	err := SaveDecision(tmpDir, dismissedDecision)
+	if err != nil {
+		t.Fatalf("Failed to save dismissed decision: %v", err)
+	}
+
+	// Create a pending proposal with the same ID as the dismissed decision
+	pp := &PendingProposal{
+		Proposal: &reviewdistiller.Proposal{
+			ID:             "prop-dismissed-123",
+			Type:           "doctrine_rule",
+			Title:          "Test Proposal",
+			ProposedChange: "Some test change",
+		},
+		RunID:  "run-001",
+		SpecID: "spec-001",
+	}
+
+	// Call Promote - should fail because the proposal has a dismissed decision
+	decision, err := Promote(
+		pp,
+		"",
+		"",
+		"",
+		docStore,
+		pbStore,
+		"",
+		tmpDir, // evidenceDir
+	)
+
+	// Verify that Promote returns an error
+	if err == nil {
+		t.Fatal("Promote should return an error for dismissed proposals")
+	}
+
+	// Verify that decision is nil
+	if decision != nil {
+		t.Errorf("Promote should return nil decision for dismissed proposals, got: %v", decision)
+	}
+
+	// Verify the error message mentions dismissed
+	errMsg := err.Error()
+	if !strings.Contains(errMsg, "dismissed") {
+		t.Errorf("Error message should mention 'dismissed', got: %q", errMsg)
+	}
+
+	if !strings.Contains(errMsg, "cannot be re-decided") {
+		t.Errorf("Error message should mention 'cannot be re-decided', got: %q", errMsg)
+	}
+}
+
+func TestPromote_AcceptedProposal_AllowsRePromotion(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	proposalID := "prop-already-accepted-123"
+
+	// Pre-populate evidence dir with an accepted decision for this proposal
+	existingDecision := Decision{
+		ProposalID: proposalID,
+		Action:     "accepted",
+		DecidedAt:  time.Now(),
+	}
+	if err := SaveDecision(tmpDir, existingDecision); err != nil {
+		t.Fatalf("Failed to save existing decision: %v", err)
+	}
+
+	// Create initial stores
+	docStore := doctrine.NewFSStore()
+	docStore.Dir = tmpDir
+	initialDoctrine := doctrine.Doctrine{
+		Rules: []doctrine.Rule{},
+	}
+	if err := docStore.Save(initialDoctrine); err != nil {
+		t.Fatalf("Failed to save initial doctrine: %v", err)
+	}
+
+	pbStore := &playbook.Store{Dir: tmpDir}
+	if err := pbStore.Save([]playbook.Entry{}); err != nil {
+		t.Fatalf("Failed to save initial playbook entries: %v", err)
+	}
+
+	// Create a proposal with the same ID that already has an accepted decision
+	pp := &PendingProposal{
+		Proposal: &reviewdistiller.Proposal{
+			ID:             proposalID,
+			Title:          "Test Proposal",
+			ProposedChange: "implement feature",
+			Type:           "playbook_rule",
+		},
+		RunID:  "run-123",
+		SpecID: "spec-456",
+	}
+
+	// Call Promote - should succeed because accepted is not terminal
+	decision, err := Promote(
+		pp,
+		"",
+		"",
+		"",
+		docStore,
+		pbStore,
+		"",
+		tmpDir, // evidenceDir
+	)
+
+	if err != nil {
+		t.Fatalf("Promote failed with accepted existing decision: %v", err)
+	}
+
+	if decision == nil {
+		t.Fatal("Promote returned nil decision")
+	}
+
+	if decision.ProposalID != proposalID {
+		t.Errorf("ProposalID = %q, want %q", decision.ProposalID, proposalID)
+	}
+
+	if decision.Action != "accepted" {
+		t.Errorf("Action = %q, want %q", decision.Action, "accepted")
+	}
+}
+
+func TestPromote_EmptyEvidenceDirDoesNotLoadFromRelativePath(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create initial stores
+	docStore := doctrine.NewFSStore()
+	docStore.Dir = tmpDir
+	initialDoctrine := doctrine.Doctrine{
+		Rules: []doctrine.Rule{},
+	}
+	if err := docStore.Save(initialDoctrine); err != nil {
+		t.Fatalf("Failed to save initial doctrine: %v", err)
+	}
+
+	pbStore := &playbook.Store{Dir: tmpDir}
+	if err := pbStore.Save([]playbook.Entry{}); err != nil {
+		t.Fatalf("Failed to save initial playbook entries: %v", err)
+	}
+
+	// Create a proposal
+	pp := &PendingProposal{
+		Proposal: &reviewdistiller.Proposal{
+			ID:             "prop-test-empty-evidence",
+			Title:          "Test Proposal",
+			ProposedChange: "implement feature",
+			Type:           "playbook_rule",
+		},
+		RunID:  "run-123",
+		SpecID: "spec-456",
+	}
+
+	// Call Promote with empty evidenceDir - should NOT attempt to load from cwd
+	decision, err := Promote(
+		pp,
+		"",
+		"",
+		"",
+		docStore,
+		pbStore,
+		"",
+		"", // empty evidenceDir - must not load from relative path
+	)
+
+	if err != nil {
+		t.Fatalf("Promote failed with empty evidenceDir: %v", err)
+	}
+
+	if decision == nil {
+		t.Fatal("Promote returned nil decision")
+	}
+
+	if decision.ProposalID != "prop-test-empty-evidence" {
+		t.Errorf("ProposalID = %q, want %q", decision.ProposalID, "prop-test-empty-evidence")
+	}
+
+	if decision.Action != "accepted" {
+		t.Errorf("Action = %q, want %q", decision.Action, "accepted")
 	}
 }

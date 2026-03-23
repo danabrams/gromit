@@ -148,6 +148,8 @@ func TestScenario_AcceptDoctrineRuleProposalIntoProjectLocalStore(t *testing.T) 
 		"", "", "", // no field overrides — use proposal defaults
 		doctrineStore,
 		playbookStore,
+		"local", // use local scope
+		"",      // evidenceDir
 	)
 	if err != nil {
 		t.Fatalf("Accept failed: %v", err)

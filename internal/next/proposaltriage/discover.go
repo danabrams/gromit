@@ -22,6 +22,7 @@ func DiscoverPending(rootDir, projectID string, proposalTypes *[]string, runIDs 
 
 	var pending []PendingProposal
 	for _, ap := range all {
+		// Include only proposals without decisions (excludes accepted, rejected, and dismissed)
 		if ap.Decision == nil {
 			pending = append(pending, PendingProposal{
 				Proposal:  ap.Proposal,

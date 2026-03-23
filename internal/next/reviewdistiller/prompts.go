@@ -49,19 +49,21 @@ func buildPreamble(inputs *DistillerInputs) string {
 {{.TaskResultsJSON}}
 
 ## Run Metadata
-{{.RunMetadataJSON}}`
+{{.RunMetadataJSON}}
+{{.PreviouslyRejectedProposals}}`
 
 	data := map[string]string{
-		"SpecContent":         inputs.SpecContent,
-		"ReviewOutcomeJSON":   formatJSON(inputs.ReviewOutcome),
-		"ProductReviewJSON":   formatJSON(inputs.ProductReview),
-		"ProcessReviewJSON":   formatJSON(inputs.ProcessReview),
-		"ManualChecklistJSON": formatJSON(inputs.ManualChecklist),
-		"ValidationJSON":      formatJSON(inputs.Validation),
-		"AcceptanceJSON":      formatJSON(inputs.Acceptance),
-		"MachineReviewJSON":   formatJSON(inputs.MachineReview),
-		"TaskResultsJSON":     formatJSON(inputs.TaskResults),
-		"RunMetadataJSON":     formatJSON(inputs.RunMetadata),
+		"SpecContent":                 inputs.SpecContent,
+		"ReviewOutcomeJSON":           formatJSON(inputs.ReviewOutcome),
+		"ProductReviewJSON":           formatJSON(inputs.ProductReview),
+		"ProcessReviewJSON":           formatJSON(inputs.ProcessReview),
+		"ManualChecklistJSON":         formatJSON(inputs.ManualChecklist),
+		"ValidationJSON":              formatJSON(inputs.Validation),
+		"AcceptanceJSON":              formatJSON(inputs.Acceptance),
+		"MachineReviewJSON":           formatJSON(inputs.MachineReview),
+		"TaskResultsJSON":             formatJSON(inputs.TaskResults),
+		"RunMetadataJSON":             formatJSON(inputs.RunMetadata),
+		"PreviouslyRejectedProposals": formatRejectedProposals(inputs.RejectedProposals),
 	}
 
 	tmpl := template.Must(template.New("preamble").Parse(preambleTmpl))
@@ -98,7 +100,10 @@ to doctrine, heuristics, or process that should inform future implementations.
 - doctrine_rule: Fundamental principles or rules that should guide future work
 - planner_heuristic: Planning shortcuts or heuristics that improve efficiency
 
-Extract at least one proposal of these types from the review feedback.`
+Extract at least one proposal of these types from the review feedback.
+
+## Important Constraint
+Do not re-propose guidance that matches previously rejected proposals unless circumstances have materially changed. If proposing something similar, explain what is different.`
 }
 
 // buildReworkImplementationGapInstructions returns instructions for the rework_implementation_gap outcome.
@@ -114,7 +119,10 @@ The spec or vision was clear, but execution fell short.
 - doctrine_rule: Fundamental principles or rules that were violated
 - planner_heuristic: Planning or process issues that contributed to the gap
 
-Extract at least one proposal of these types from the review feedback.`
+Extract at least one proposal of these types from the review feedback.
+
+## Important Constraint
+Do not re-propose guidance that matches previously rejected proposals unless circumstances have materially changed. If proposing something similar, explain what is different.`
 }
 
 // buildReworkVisionChangeInstructions returns instructions for the rework_vision_change outcome.
@@ -128,7 +136,10 @@ The original approach was sound, but the target has shifted.
 ## Proposal Types Required
 - refinement_guidance: Guidance on how to refine the vision or adjust scope
 
-Extract at least one proposal of this type from the review feedback.`
+Extract at least one proposal of this type from the review feedback.
+
+## Important Constraint
+Do not re-propose guidance that matches previously rejected proposals unless circumstances have materially changed. If proposing something similar, explain what is different.`
 }
 
 // formatJSON formats a JSON RawMessage for inclusion in prompts.
@@ -138,4 +149,43 @@ func formatJSON(data json.RawMessage) string {
 		return "(no data)"
 	}
 	return string(data)
+}
+
+// formatRejectedProposals formats rejected proposals as a markdown section.
+// Returns an empty string if there are no rejected proposals.
+func formatRejectedProposals(rejectedProposals json.RawMessage) string {
+	if len(rejectedProposals) == 0 {
+		return ""
+	}
+
+	var proposals []map[string]interface{}
+	if err := json.Unmarshal(rejectedProposals, &proposals); err != nil {
+		return ""
+	}
+
+	if len(proposals) == 0 {
+		return ""
+	}
+
+	var result bytes.Buffer
+	result.WriteString("\n# Previously Rejected Proposals\n\n")
+
+	for _, p := range proposals {
+		propType := getStringField(p, "type")
+		title := getStringField(p, "title")
+		change := getStringField(p, "proposed_change")
+		reason := getStringField(p, "rejection_reason")
+
+		result.WriteString(fmt.Sprintf("- **%s** %s: %s (Reason: %s)\n", propType, title, change, reason))
+	}
+
+	return result.String()
+}
+
+// getStringField extracts a string field from a map, returning empty string if not found.
+func getStringField(m map[string]interface{}, key string) string {
+	if v, ok := m[key]; ok {
+		return fmt.Sprintf("%v", v)
+	}
+	return ""
 }

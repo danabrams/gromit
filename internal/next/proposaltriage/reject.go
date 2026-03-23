@@ -11,9 +11,15 @@ import (
 
 // Reject creates a Decision with action=rejected for a PendingProposal.
 // Records the rejection reason and current timestamp.
-func Reject(pp *PendingProposal, reason string) (*Decision, error) {
+// Returns an error if the proposal is in a terminal state (dismissed).
+func Reject(pp *PendingProposal, reason string, existingDecision *Decision) (*Decision, error) {
 	if pp == nil || pp.Proposal == nil {
 		return nil, fmt.Errorf("pending proposal is nil")
+	}
+
+	// Validate terminal state
+	if existingDecision != nil && IsTerminalDecision(*existingDecision) {
+		return nil, fmt.Errorf("proposal %q cannot be re-decided: it has been dismissed", pp.Proposal.ID)
 	}
 
 	decision := &Decision{
@@ -29,14 +35,21 @@ func Reject(pp *PendingProposal, reason string) (*Decision, error) {
 // RejectAfterAccept supersedes a previously accepted entry and records the rejection.
 // It looks up the entry by the materialized ID from the accepted decision,
 // marks it as superseded with the rejection proposal ID, and saves both stores.
+// Returns an error if the accepted proposal is in a terminal state (dismissed).
 func RejectAfterAccept(
 	acceptedDecision *Decision,
 	rejectionDecision *Decision,
+	decisions []Decision,
 	doctrineStore doctrine.Store,
 	playbookStore *playbook.Store,
 ) error {
 	if acceptedDecision == nil || rejectionDecision == nil {
 		return fmt.Errorf("decisions cannot be nil")
+	}
+
+	// Validate terminal state of the accepted proposal
+	if err := ValidateTerminalState(acceptedDecision.ProposalID, decisions); err != nil {
+		return err
 	}
 
 	materializedID := acceptedDecision.MaterializedID

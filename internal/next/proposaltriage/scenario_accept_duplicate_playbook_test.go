@@ -55,6 +55,9 @@ func TestScenario_AcceptDuplicateProposalDoesNotCreateDuplicateMemory(t *testing
 		"",  // no rationale override
 		nil, // doctrineStore not needed for playbook type
 		pbStore,
+
+		"local", // use local scope
+		"",      // evidenceDir
 	)
 
 	if err != nil {
