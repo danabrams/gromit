@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 
 	"github.com/danabrams/gromit/internal/claude"
-	"github.com/danabrams/gromit/internal/next/execpolicy"
 	"github.com/danabrams/gromit/internal/next/llmadapter"
 	"github.com/danabrams/gromit/internal/next/reviewdistiller"
 	"github.com/danabrams/gromit/internal/next/runstore"
@@ -285,9 +284,9 @@ func tierToModel(tier reviewdistiller.Tier) string {
 // It builds a provider, wraps it in an LLMAdapter, and adapts it to LLMCompleter.
 func buildDistillationCompleter(tier reviewdistiller.Tier) (reviewdistiller.LLMCompleter, error) {
 	const defaultClaudeBinary = "claude"
+	const distillationTimeoutSeconds = 1800 // distillation is a single LLM call, not a task loop
 
-	defaultPolicy := execpolicy.DefaultPolicy()
-	client, err := claude.NewClient(defaultClaudeBinary, []string{"--dangerously-skip-permissions"}, defaultPolicy.Budgets.MaxTaskDurationSeconds)
+	client, err := claude.NewClient(defaultClaudeBinary, []string{"--dangerously-skip-permissions"}, distillationTimeoutSeconds)
 	if err != nil {
 		return nil, fmt.Errorf("create claude client: %w", err)
 	}
