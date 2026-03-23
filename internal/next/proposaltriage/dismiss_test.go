@@ -246,20 +246,62 @@ func TestDismissSiblings_SkipsNilProposal(t *testing.T) {
 		GroupReason: "one nil proposal",
 	}
 
-	acceptedProposalID := "accepted"
+	acceptedProposalID := "prop-2"
 	decisions, err := DismissSiblings(acceptedProposalID, group, store)
 
 	if err != nil {
 		t.Fatalf("DismissSiblings failed: %v", err)
 	}
 
-	// Should return 1 decision (only for the non-nil proposal)
-	if len(decisions) != 1 {
-		t.Fatalf("expected 1 decision, got %d", len(decisions))
+	// Should return 0 decisions (nil proposal is skipped, prop-2 is the accepted one)
+	if len(decisions) != 0 {
+		t.Fatalf("expected 0 decisions, got %d", len(decisions))
+	}
+}
+
+func TestDismissSiblings_AcceptedProposalNotFound(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := runstore.NewStore(tmpDir)
+
+	// Create a group with two proposals
+	group := ProposalGroup{
+		GroupID: "group-1",
+		Proposals: []PendingProposal{
+			{
+				Proposal: &reviewdistiller.Proposal{
+					ID:    "prop-1",
+					Title: "Proposal 1",
+				},
+				RunID:     "run-1",
+				SpecID:    "spec-1",
+				CreatedAt: time.Now(),
+				GroupID:   "group-1",
+			},
+			{
+				Proposal: &reviewdistiller.Proposal{
+					ID:    "prop-2",
+					Title: "Proposal 2",
+				},
+				RunID:     "run-2",
+				SpecID:    "spec-1",
+				CreatedAt: time.Now(),
+				GroupID:   "group-1",
+			},
+		},
+		GroupReason: "test accepted not found",
 	}
 
-	if decisions[0].ProposalID != "prop-2" {
-		t.Errorf("expected decision for prop-2, got %q", decisions[0].ProposalID)
+	// Try to accept a proposal ID that doesn't exist in the group
+	acceptedProposalID := "nonexistent-id"
+	decisions, err := DismissSiblings(acceptedProposalID, group, store)
+
+	// Should return an error and no decisions
+	if err == nil {
+		t.Fatalf("DismissSiblings should return an error when acceptedProposalID not found")
+	}
+
+	if decisions != nil && len(decisions) > 0 {
+		t.Errorf("expected no decisions when acceptedProposalID not found, got %d", len(decisions))
 	}
 }
 
@@ -355,5 +397,105 @@ func TestDismissSiblings_PartialSaveFailure(t *testing.T) {
 
 	if loaded[0].DismissedBy != acceptedProposalID {
 		t.Errorf("expected DismissedBy=%q, got %q", acceptedProposalID, loaded[0].DismissedBy)
+	}
+}
+
+func TestDismissSiblings_Idempotent(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := runstore.NewStore(tmpDir)
+
+	// Create a group with 3 proposals
+	group := ProposalGroup{
+		GroupID: "group-1",
+		Proposals: []PendingProposal{
+			{
+				Proposal: &reviewdistiller.Proposal{
+					ID:    "prop-1",
+					Title: "Proposal 1",
+				},
+				RunID:     "run-123",
+				SpecID:    "spec-1",
+				CreatedAt: time.Now(),
+				GroupID:   "group-1",
+			},
+			{
+				Proposal: &reviewdistiller.Proposal{
+					ID:    "prop-2",
+					Title: "Proposal 2",
+				},
+				RunID:     "run-123",
+				SpecID:    "spec-1",
+				CreatedAt: time.Now(),
+				GroupID:   "group-1",
+			},
+			{
+				Proposal: &reviewdistiller.Proposal{
+					ID:    "prop-3",
+					Title: "Proposal 3",
+				},
+				RunID:     "run-123",
+				SpecID:    "spec-1",
+				CreatedAt: time.Now(),
+				GroupID:   "group-1",
+			},
+		},
+		GroupReason: "idempotency test",
+	}
+
+	acceptedProposalID := "prop-1"
+
+	// First call to DismissSiblings
+	decisions1, err := DismissSiblings(acceptedProposalID, group, store)
+	if err != nil {
+		t.Fatalf("first DismissSiblings call failed: %v", err)
+	}
+
+	if len(decisions1) != 2 {
+		t.Fatalf("first call: expected 2 decisions, got %d", len(decisions1))
+	}
+
+	// Load decisions from evidence directory after first call
+	evidenceDir := filepath.Join(tmpDir, "runs", "run-123", "evidence")
+	loadedAfterFirst, err := LoadDecisions(evidenceDir)
+	if err != nil {
+		t.Fatalf("LoadDecisions after first call failed: %v", err)
+	}
+
+	if len(loadedAfterFirst) != 2 {
+		t.Fatalf("first call: expected 2 decisions in evidence, got %d", len(loadedAfterFirst))
+	}
+
+	// Retry: call DismissSiblings again with the same parameters
+	// This simulates a retry after partial failure
+	decisions2, err := DismissSiblings(acceptedProposalID, group, store)
+	if err != nil {
+		t.Fatalf("second DismissSiblings call failed: %v", err)
+	}
+
+	if len(decisions2) != 2 {
+		t.Fatalf("second call: expected 2 decisions, got %d", len(decisions2))
+	}
+
+	// Load decisions from evidence directory after second call
+	loadedAfterSecond, err := LoadDecisions(evidenceDir)
+	if err != nil {
+		t.Fatalf("LoadDecisions after second call failed: %v", err)
+	}
+
+	// Critical: verify that decisions were NOT duplicated.
+	// SaveDecisions uses load-merge-save with deduplication by ProposalID,
+	// so retrying should result in the same number of decisions.
+	if len(loadedAfterSecond) != 2 {
+		t.Fatalf("second call: expected 2 decisions in evidence (not duplicated), got %d", len(loadedAfterSecond))
+	}
+
+	// Verify the decisions are the same (by ProposalID)
+	decisionMap := make(map[string]bool)
+	for _, d := range loadedAfterSecond {
+		decisionMap[d.ProposalID] = true
+	}
+
+	if !decisionMap["prop-2"] || !decisionMap["prop-3"] {
+		t.Errorf("expected decisions for prop-2 and prop-3, got proposal IDs: %v", decisionMap)
 	}
 }

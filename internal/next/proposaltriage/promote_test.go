@@ -2002,3 +2002,62 @@ func TestPromote_AcceptedProposal_AllowsRePromotion(t *testing.T) {
 		t.Errorf("Action = %q, want %q", decision.Action, "accepted")
 	}
 }
+
+func TestPromote_EmptyEvidenceDirDoesNotLoadFromRelativePath(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create initial stores
+	docStore := doctrine.NewFSStore()
+	docStore.Dir = tmpDir
+	initialDoctrine := doctrine.Doctrine{
+		Rules: []doctrine.Rule{},
+	}
+	if err := docStore.Save(initialDoctrine); err != nil {
+		t.Fatalf("Failed to save initial doctrine: %v", err)
+	}
+
+	pbStore := &playbook.Store{Dir: tmpDir}
+	if err := pbStore.Save([]playbook.Entry{}); err != nil {
+		t.Fatalf("Failed to save initial playbook entries: %v", err)
+	}
+
+	// Create a proposal
+	pp := &PendingProposal{
+		Proposal: &reviewdistiller.Proposal{
+			ID:             "prop-test-empty-evidence",
+			Title:          "Test Proposal",
+			ProposedChange: "implement feature",
+			Type:           "playbook_rule",
+		},
+		RunID:  "run-123",
+		SpecID: "spec-456",
+	}
+
+	// Call Promote with empty evidenceDir - should NOT attempt to load from cwd
+	decision, err := Promote(
+		pp,
+		"",
+		"",
+		"",
+		docStore,
+		pbStore,
+		"",
+		"", // empty evidenceDir - must not load from relative path
+	)
+
+	if err != nil {
+		t.Fatalf("Promote failed with empty evidenceDir: %v", err)
+	}
+
+	if decision == nil {
+		t.Fatal("Promote returned nil decision")
+	}
+
+	if decision.ProposalID != "prop-test-empty-evidence" {
+		t.Errorf("ProposalID = %q, want %q", decision.ProposalID, "prop-test-empty-evidence")
+	}
+
+	if decision.Action != "accepted" {
+		t.Errorf("Action = %q, want %q", decision.Action, "accepted")
+	}
+}

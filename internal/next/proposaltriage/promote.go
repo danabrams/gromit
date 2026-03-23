@@ -42,9 +42,13 @@ func Promote(
 	}
 
 	// Validate that the proposal is not in a terminal state
-	decisions, err := LoadDecisions(evidenceDir)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load decisions: %w", err)
+	var decisions []Decision
+	if evidenceDir != "" {
+		var err error
+		decisions, err = LoadDecisions(evidenceDir)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load decisions: %w", err)
+		}
 	}
 	if err := ValidateTerminalState(pp.Proposal.ID, decisions); err != nil {
 		return nil, err

@@ -11,6 +11,18 @@ import (
 // except the accepted one. Decisions are saved to each sibling's run evidence directory.
 // Returns the slice of created decisions.
 func DismissSiblings(acceptedProposalID string, group ProposalGroup, store *runstore.Store) ([]Decision, error) {
+	// Validate that acceptedProposalID exists in the group
+	found := false
+	for _, proposal := range group.Proposals {
+		if proposal.Proposal != nil && proposal.Proposal.ID == acceptedProposalID {
+			found = true
+			break
+		}
+	}
+	if !found {
+		return nil, errors.New("acceptedProposalID not found in group")
+	}
+
 	// Step 1: Collect all decisions grouped by run evidence directory
 	decisionsByRunDir := make(map[string][]Decision)
 	var decisions []Decision
@@ -41,8 +53,10 @@ func DismissSiblings(acceptedProposalID string, group ProposalGroup, store *runs
 	}
 
 	// Step 2: Save each batch of decisions for its run directory.
-	// This operation has upsert semantics (deduplicates by ProposalID),
-	// making retries safe if this function is called again.
+	// SaveDecisions provides true upsert semantics: it loads existing decisions,
+	// merges new ones by deduplicating on ProposalID, and saves the combined result.
+	// This load-merge-save pattern makes DismissSiblings idempotent—retrying after
+	// a partial failure will not duplicate dismissed decisions.
 	var saveErrors []error
 	for evidenceDir, runDecisions := range decisionsByRunDir {
 		if err := SaveDecisions(evidenceDir, runDecisions); err != nil {
