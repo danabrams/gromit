@@ -150,13 +150,11 @@ func clustersToGroups(clusters *clusterResponse, proposals []PendingProposal) ([
 		}
 
 		if len(groupProposals) > 0 {
-			// Generate consistent group ID from first sorted proposal ID's hash.
-			// Use the first sorted proposal ID (not first in groupProposals) to ensure determinism
-			// even if some proposals are missing from idToProposal.
-			firstProposalID := cluster.ProposalIDs[0]
+			// Generate consistent group ID from first proposal in groupProposals.
+			// groupProposals is guaranteed non-empty here, and each proposal has non-nil Proposal field.
 			groupID := fmt.Sprintf("cluster-%s", computeProposalHash(
-				idToProposal[firstProposalID].Proposal.Type,
-				idToProposal[firstProposalID].Proposal.ProposedChange,
+				groupProposals[0].Proposal.Type,
+				groupProposals[0].Proposal.ProposedChange,
 			))
 
 			groups = append(groups, ProposalGroup{

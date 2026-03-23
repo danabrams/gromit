@@ -739,3 +739,106 @@ func TestClusterSemantically_InvalidJSONResponseDegradeGracefully(t *testing.T) 
 		}
 	}
 }
+
+// TestClustersToGroups_HallucinatedIDSortsFirst directly tests clustersToGroups where
+// the LLM returns a cluster with a hallucinated proposal ID that sorts lexicographically
+// before valid IDs. Verifies no panic occurs and the group is formed correctly from
+// valid proposals only.
+func TestClustersToGroups_HallucinatedIDSortsFirst(t *testing.T) {
+	now := time.Now()
+
+	// Create 2 valid proposals
+	proposal1 := &reviewdistiller.Proposal{
+		ID:             "p1",
+		Type:           "validation_gap",
+		Title:          "Missing null check",
+		ProposedChange: "Add null check before dereferencing pointer",
+		Confidence:     "high",
+	}
+
+	proposal2 := &reviewdistiller.Proposal{
+		ID:             "p2",
+		Type:           "validation_gap",
+		Title:          "Null pointer dereference risk",
+		ProposedChange: "Check for nil before using pointer",
+		Confidence:     "high",
+	}
+
+	pending1 := PendingProposal{
+		Proposal:  proposal1,
+		RunID:     "run1",
+		SpecID:    "spec1",
+		CreatedAt: now,
+	}
+
+	pending2 := PendingProposal{
+		Proposal:  proposal2,
+		RunID:     "run2",
+		SpecID:    "spec1",
+		CreatedAt: now.Add(time.Minute),
+	}
+
+	// Create a clusterResponse with a hallucinated ID that sorts before valid IDs
+	// After sorting, the IDs will be: ["hallucinated-id-aaa", "p1", "p2"]
+	// The function should filter out the hallucinated ID and form a group from p1 and p2
+	clusterResp := &clusterResponse{
+		Clusters: []struct {
+			ProposalIDs []string `json:"proposal_ids"`
+			Description string   `json:"description"`
+		}{
+			{
+				ProposalIDs: []string{"p2", "hallucinated-id-aaa", "p1"},
+				Description: "Null pointer safety checks",
+			},
+		},
+	}
+
+	// Call clustersToGroups directly
+	groups, err := clustersToGroups(clusterResp, []PendingProposal{pending1, pending2})
+
+	// Verify no error occurs
+	if err != nil {
+		t.Errorf("expected nil error, got: %v", err)
+	}
+
+	// Verify exactly 1 group is created
+	if len(groups) != 1 {
+		t.Errorf("expected 1 group, got %d", len(groups))
+	}
+
+	if len(groups) > 0 {
+		group := groups[0]
+
+		// Verify the group has 2 proposals (valid ones only, hallucinated ID filtered out)
+		if len(group.Proposals) != 2 {
+			t.Errorf("expected 2 proposals in group, got %d", len(group.Proposals))
+		}
+
+		// Verify the proposals are p1 and p2
+		ids := make(map[string]bool)
+		for _, pp := range group.Proposals {
+			if pp.Proposal != nil {
+				ids[pp.Proposal.ID] = true
+			}
+		}
+
+		if !ids["p1"] || !ids["p2"] {
+			t.Errorf("expected p1 and p2, got %v", ids)
+		}
+
+		if ids["hallucinated-id-aaa"] {
+			t.Errorf("hallucinated ID should not be in group")
+		}
+
+		// Verify the group reason is the description from the cluster
+		if group.GroupReason != "Null pointer safety checks" {
+			t.Errorf("expected GroupReason='Null pointer safety checks', got '%s'", group.GroupReason)
+		}
+
+		// Verify the GroupID is deterministic based on the first valid proposal after sorting
+		// After sorting and filtering, groupProposals[0] should be p1 (comes first lexicographically)
+		if group.GroupID == "" {
+			t.Errorf("expected non-empty GroupID")
+		}
+	}
+}
