@@ -163,10 +163,10 @@ func TestGenerateRemediationSpec_PureFunction(t *testing.T) {
 	if !strings.Contains(output, "## Validation") {
 		t.Errorf("Validation section header missing")
 	}
-	if !strings.Contains(output, "- go test ./... -count=1") {
+	if !strings.Contains(output, "go test ./... -count=1") {
 		t.Errorf("Validation item 1 missing")
 	}
-	if !strings.Contains(output, "- go vet ./...") {
+	if !strings.Contains(output, "go vet ./...") {
 		t.Errorf("Validation item 2 missing")
 	}
 }
@@ -252,7 +252,10 @@ func TestGenerateRemediationSpec_EmptyFindings(t *testing.T) {
 	if !strings.Contains(output, "## Validation") {
 		t.Errorf("Validation section should always be present")
 	}
-	if !strings.Contains(output, "- go test ./... -count=1") {
+	if !strings.Contains(output, "go test ./... -count=1") {
+		t.Errorf("Validation content missing")
+	}
+	if !strings.Contains(output, "go vet ./...") {
 		t.Errorf("Validation content missing")
 	}
 }

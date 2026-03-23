@@ -71,13 +71,9 @@ func TestScenario_EmptySuggestedFixUsesDescription(t *testing.T) {
 	}
 	spec := string(content)
 
-	// The acceptance criterion must use the description text, not be empty
-	if !strings.Contains(spec, "1. [internal/scanner.go] regexp compiled inside function body") {
-		t.Errorf("acceptance criterion should use description when suggested_fix is empty, got:\n%s", spec)
-	}
-
-	// Verify it does NOT contain an empty criterion like "1. [internal/scanner.go] \n"
-	if strings.Contains(spec, "[internal/scanner.go] \n") {
-		t.Error("acceptance criterion has empty text after bracket")
+	// The acceptance criterion must use the description text in file-path-prefixed format
+	expectedCriterion := "1. [internal/scanner.go] regexp compiled inside function body"
+	if !strings.Contains(spec, expectedCriterion) {
+		t.Errorf("acceptance criterion should use description when suggested_fix is empty.\nExpected substring: %q\nGot:\n%s", expectedCriterion, spec)
 	}
 }

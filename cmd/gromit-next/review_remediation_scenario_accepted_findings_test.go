@@ -124,28 +124,25 @@ func TestScenario_AcceptedRunWithFindings_GeneratesRemediationSpec(t *testing.T)
 		t.Errorf("summary should mention 2 categories, got:\n%s", spec)
 	}
 
-	// Acceptance Criteria section exists with exactly 17 numbered items
+	// Acceptance Criteria section exists with exactly 17 numbered items in file-path-prefixed format
 	if !strings.Contains(spec, "## Acceptance Criteria") {
 		t.Error("Acceptance Criteria section missing")
 	}
-	for i := 1; i <= 17; i++ {
-		prefix := strings.Replace("N. ", "N", strings.TrimSpace(strings.Repeat(" ", 0)+itoa(i)), 1)
-		if !strings.Contains(spec, prefix) {
-			t.Errorf("acceptance criterion %d missing", i)
+	// Check that all 9 build.go criteria are present with file path prefix
+	for i := 1; i <= 9; i++ {
+		if !strings.Contains(spec, fmt.Sprintf("%d. [internal/next/specloop/stages/build.go]", i)) {
+			t.Errorf("acceptance criterion %d for build.go missing with file path prefix", i)
+		}
+	}
+	// Check that all 8 validate.go criteria are present with file path prefix
+	for i := 10; i <= 17; i++ {
+		if !strings.Contains(spec, fmt.Sprintf("%d. [internal/next/specloop/stages/validate.go]", i)) {
+			t.Errorf("acceptance criterion %d for validate.go missing with file path prefix", i)
 		}
 	}
 	// No 18th criterion
 	if strings.Contains(spec, "18. ") {
 		t.Error("unexpected 18th acceptance criterion")
-	}
-
-	// Acceptance criteria should be file-path-prefixed in the format "N. [file] description"
-	// Check that criteria are prefixed with file paths in brackets
-	if !strings.Contains(spec, "[internal/next/specloop/stages/build.go]") {
-		t.Error("acceptance criteria missing file path prefix for build.go")
-	}
-	if !strings.Contains(spec, "[internal/next/specloop/stages/validate.go]") {
-		t.Error("acceptance criteria missing file path prefix for validate.go")
 	}
 
 	// All 9 architecture_drift findings present

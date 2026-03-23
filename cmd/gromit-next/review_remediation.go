@@ -134,8 +134,10 @@ func generateRemediationSpec(input RemediationInput) string {
 
 	// Validation section
 	sb.WriteString("## Validation\n\n")
-	sb.WriteString("- go test ./... -count=1\n")
-	sb.WriteString("- go vet ./...\n")
+	sb.WriteString("```\n")
+	sb.WriteString("go test ./... -count=1\n")
+	sb.WriteString("go vet ./...\n")
+	sb.WriteString("```\n")
 
 	return sb.String()
 }

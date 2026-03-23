@@ -113,20 +113,21 @@ func TestScenario_MalformedReviewJSON_DoesNotFailAccept(t *testing.T) {
 	}
 
 	// stderr warns about unparseable review.json
-	if !strings.Contains(stderrStr, "warning") {
-		t.Errorf("expected warning in stderr, got:\n%s", stderrStr)
+	if !strings.Contains(stderrStr, "warning:") || !strings.Contains(stderrStr, "remediation spec") {
+		t.Errorf("expected warning about remediation spec in stderr, got:\n%s", stderrStr)
 	}
-	if !strings.Contains(stderrStr, "remediation spec") || !strings.Contains(stderrStr, "review.json") || !strings.Contains(stderrStr, "parse") {
-		// The warning format is: "warning: failed to generate remediation spec: <error mentioning review.json or parse>"
-		if !strings.Contains(stderrStr, "failed to generate remediation spec") {
-			t.Errorf("expected stderr to warn about failed remediation spec generation, got:\n%s", stderrStr)
-		}
+	if !strings.Contains(stderrStr, "review.json") {
+		t.Errorf("expected warning to mention review.json, got:\n%s", stderrStr)
 	}
 
 	// No remediation spec is generated
 	expectedSpecPath := filepath.Join(specsDir, "spec-0042-remediation.md")
-	if _, err := os.Stat(expectedSpecPath); err == nil {
-		t.Error("remediation spec file should not be created when review.json is malformed")
+	if _, err := os.Stat(expectedSpecPath); !os.IsNotExist(err) {
+		if err == nil {
+			t.Error("remediation spec file should not be created when review.json is malformed")
+		} else {
+			t.Errorf("unexpected error checking remediation spec: %v", err)
+		}
 	}
 
 	// stdout should NOT contain a spec path
