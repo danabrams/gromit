@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/exec"
 	"path/filepath"
 
 	"github.com/danabrams/gromit/internal/claude"
@@ -52,7 +53,8 @@ func newReviewRecordCmd() *cobra.Command {
 				return fmt.Errorf("run ID is required (provide via --run flag or positional argument)")
 			}
 
-			// Resolve specsDir if not explicitly provided
+			// Resolve specsDir from project config if not explicitly provided
+			// (same pattern as exec_complete.go lines 38-56)
 			if specsDir == "" && project != "" {
 				resolver := workspace.NewEnvResolver()
 				root, _ := resolver.Resolve()
@@ -236,18 +238,25 @@ func reviewRecord(runID string, storeDir string, outcome string, summary string,
 	// Attempt automatic distillation (non-blocking on error)
 	const defaultClaudeBinary = "claude"
 	defaultPolicy := execpolicy.DefaultPolicy()
-	client, err := claude.NewClient(defaultClaudeBinary, []string{"--dangerously-skip-permissions"}, defaultPolicy.Budgets.MaxTaskDurationSeconds)
+
+	// Check if claude binary is available before attempting distillation
+	claudePath, err := exec.LookPath(defaultClaudeBinary)
 	if err != nil {
-		log.Printf("distillation skipped: failed to create claude client: %v", err)
+		log.Printf("distillation skipped: %q not found in PATH", defaultClaudeBinary)
 	} else {
-		prov := provider.NewClaudeProvider(client, provider.DefaultTierToModelMap)
-		adapter := llmadapter.New(prov, llmadapter.Config{
-			Phase: "review",
-			Tier:  string(distillerTier),
-		})
-		completer := NewInvokerAdapter(adapter)
-		if err := attemptDistillation(runID, storeDir, distillerTier, completer); err != nil {
-			log.Printf("distillation failed (non-blocking): %v", err)
+		client, err := claude.NewClient(claudePath, []string{"--dangerously-skip-permissions"}, defaultPolicy.Budgets.MaxTaskDurationSeconds)
+		if err != nil {
+			log.Printf("distillation skipped: failed to create claude client: %v", err)
+		} else {
+			prov := provider.NewClaudeProvider(client, provider.DefaultTierToModelMap)
+			adapter := llmadapter.New(prov, llmadapter.Config{
+				Phase: "review",
+				Tier:  string(distillerTier),
+			})
+			completer := NewInvokerAdapter(adapter)
+			if err := attemptDistillation(runID, storeDir, distillerTier, completer); err != nil {
+				log.Printf("distillation failed (non-blocking): %v", err)
+			}
 		}
 	}
 
