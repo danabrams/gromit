@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -1068,28 +1067,18 @@ func TestReviewRecordCmd_AcceptedCallsRemediation(t *testing.T) {
 	})
 
 	// Capture stdout and stderr
-	oldStdout := os.Stdout
-	oldStderr := os.Stderr
-	rOut, wOut, _ := os.Pipe()
-	rErr, wErr, _ := os.Pipe()
-	os.Stdout = wOut
-	os.Stderr = wErr
+	var stdout, stderr strings.Builder
+	cmd.SetOut(&stdout)
+	cmd.SetErr(&stderr)
 
 	err = cmd.Execute()
-
-	wOut.Close()
-	wErr.Close()
-	os.Stdout = oldStdout
-	os.Stderr = oldStderr
 
 	if err != nil {
 		t.Fatalf("command failed: %v", err)
 	}
 
-	stdoutBytes, _ := io.ReadAll(rOut)
-	stdoutStr := string(stdoutBytes)
-	stderrBytes, _ := io.ReadAll(rErr)
-	stderrStr := string(stderrBytes)
+	stdoutStr := stdout.String()
+	stderrStr := stderr.String()
 
 	// === Assert ===
 
@@ -1188,26 +1177,17 @@ func TestReviewRecordCmd_ReworkSkipsRemediation(t *testing.T) {
 	})
 
 	// Capture stdout and stderr
-	oldStdout := os.Stdout
-	oldStderr := os.Stderr
-	rOut, wOut, _ := os.Pipe()
-	_, wErr, _ := os.Pipe()
-	os.Stdout = wOut
-	os.Stderr = wErr
+	var stdout, stderr strings.Builder
+	cmd.SetOut(&stdout)
+	cmd.SetErr(&stderr)
 
 	err = cmd.Execute()
-
-	wOut.Close()
-	wErr.Close()
-	os.Stdout = oldStdout
-	os.Stderr = oldStderr
 
 	if err != nil {
 		t.Fatalf("command failed: %v", err)
 	}
 
-	stdoutBytes, _ := io.ReadAll(rOut)
-	stdoutStr := string(stdoutBytes)
+	stdoutStr := stdout.String()
 
 	// === Assert ===
 
@@ -1314,18 +1294,13 @@ func TestReviewRecordCmd_NoSpecsDirWarns(t *testing.T) {
 		// No --specs-dir, no --project
 	})
 
-	// Capture os.Stderr to verify warning is printed
-	oldStderr := os.Stderr
-	rErr, wErr, _ := os.Pipe()
-	os.Stderr = wErr
+	// Capture stderr to verify warning is printed
+	var stderr strings.Builder
+	cmd.SetErr(&stderr)
 
 	err = cmd.Execute()
 
-	wErr.Close()
-	os.Stderr = oldStderr
-
-	stderrBytes, _ := io.ReadAll(rErr)
-	stderrStr := string(stderrBytes)
+	stderrStr := stderr.String()
 
 	// === Assert ===
 

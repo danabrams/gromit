@@ -87,7 +87,7 @@ func newReviewRecordCmd() *cobra.Command {
 					if err != nil {
 						fmt.Fprintf(cmd.ErrOrStderr(), "warning: failed to generate remediation spec: %v\n", err)
 					} else if specPath != "" {
-						fmt.Println(specPath)
+						fmt.Fprintln(cmd.OutOrStdout(), specPath)
 					}
 				}
 			}
