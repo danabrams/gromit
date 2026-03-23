@@ -424,9 +424,18 @@ is marked as superseded. The decision is saved and the result is reported.`,
 				SpecID:   targetProposal.SpecID,
 			}
 
-			rejectionDecision, err := proposaltriage.Reject(pp, reason)
+			rejectionDecision, err := proposaltriage.Reject(pp, reason, targetProposal.Decision)
 			if err != nil {
 				return fmt.Errorf("create rejection decision: %w", err)
+			}
+
+			// Get evidence directory for saving decisions
+			runEvidenceDir := runstore.NewStore(storeDir).RunEvidenceDir(targetProposal.RunID)
+
+			// Load existing decisions for RejectAfterAccept validation
+			existingDecisions, err := proposaltriage.LoadDecisions(runEvidenceDir)
+			if err != nil {
+				return fmt.Errorf("load existing decisions: %w", err)
 			}
 
 			// Resolve project cell paths for doctrine and playbook stores
@@ -444,20 +453,25 @@ is marked as superseded. The decision is saved and the result is reported.`,
 				if err := proposaltriage.RejectAfterAccept(
 					targetProposal.Decision,
 					rejectionDecision,
+					existingDecisions,
 					doctrineStore,
 					playbookStore,
 				); err != nil {
 					return fmt.Errorf("reject after accept: %w", err)
 				}
+
+				// Save the rejection decision to run's evidence directory
+				if err := proposaltriage.SaveDecisions(runEvidenceDir, []proposaltriage.Decision{*rejectionDecision}); err != nil {
+					return fmt.Errorf("save decision: %w", err)
+				}
 			} else if targetProposal.Decision != nil {
 				// Proposal already has a decision but it's not accepted
 				return fmt.Errorf("proposal %q already has a decision: %s", proposalID, targetProposal.Decision.Action)
-			}
-
-			// Save the rejection decision to run's evidence directory
-			runEvidenceDir := runstore.NewStore(storeDir).RunEvidenceDir(targetProposal.RunID)
-			if err := proposaltriage.SaveDecisions(runEvidenceDir, []proposaltriage.Decision{*rejectionDecision}); err != nil {
-				return fmt.Errorf("save decision: %w", err)
+			} else {
+				// Save the rejection decision to run's evidence directory
+				if err := proposaltriage.SaveDecisions(runEvidenceDir, []proposaltriage.Decision{*rejectionDecision}); err != nil {
+					return fmt.Errorf("save decision: %w", err)
+				}
 			}
 
 			// Report results

@@ -23,7 +23,7 @@ func TestReject_CreatesRejectionDecision(t *testing.T) {
 		SpecID: "spec-789",
 	}
 
-	decision, err := Reject(pp, "not ready for promotion")
+	decision, err := Reject(pp, "not ready for promotion", nil)
 
 	if err != nil {
 		t.Fatalf("Reject failed: %v", err)
@@ -51,7 +51,7 @@ func TestReject_CreatesRejectionDecision(t *testing.T) {
 }
 
 func TestReject_NilProposalReturnsError(t *testing.T) {
-	_, err := Reject(nil, "some reason")
+	_, err := Reject(nil, "some reason", nil)
 
 	if err == nil {
 		t.Fatal("Reject should error on nil proposal")
@@ -63,7 +63,7 @@ func TestReject_NilInternalProposalReturnsError(t *testing.T) {
 		Proposal: nil,
 	}
 
-	_, err := Reject(pp, "some reason")
+	_, err := Reject(pp, "some reason", nil)
 
 	if err == nil {
 		t.Fatal("Reject should error on nil internal proposal")
@@ -112,7 +112,7 @@ func TestReject_RecordsReason(t *testing.T) {
 	}
 
 	testReason := "insufficient evidence for change"
-	decision, err := Reject(pp, testReason)
+	decision, err := Reject(pp, testReason, nil)
 
 	if err != nil {
 		t.Fatalf("Reject failed: %v", err)
@@ -194,6 +194,7 @@ func TestRejectAfterAccept_SupersededPlaybookEntry(t *testing.T) {
 	err := RejectAfterAccept(
 		acceptedDecision,
 		rejectionDecision,
+		[]Decision{*acceptedDecision},
 		nil, // doctrineStore not needed for playbook
 		pbStore,
 	)
@@ -259,6 +260,7 @@ func TestRejectAfterAccept_SupersededDoctrineRule(t *testing.T) {
 	err := RejectAfterAccept(
 		acceptedDecision,
 		rejectionDecision,
+		[]Decision{*acceptedDecision},
 		docStore,
 		nil, // playbookStore not needed for doctrine
 	)
@@ -522,6 +524,7 @@ func TestRejectAfterAccept_UnknownMaterializedIDReturnsError(t *testing.T) {
 	err := RejectAfterAccept(
 		acceptedDecision,
 		rejectionDecision,
+		[]Decision{},
 		nil,
 		pbStore,
 	)
@@ -878,6 +881,7 @@ func TestRejectAfterAccept_Supersedes(t *testing.T) {
 	err := RejectAfterAccept(
 		acceptedDecision,
 		rejectionDecision,
+		[]Decision{*acceptedDecision},
 		nil, // doctrineStore not needed for playbook
 		pbStore,
 	)
@@ -1789,8 +1793,12 @@ func TestDismissedProposalCannotBeRedecided(t *testing.T) {
 		t.Fatalf("Failed to save dismissed decision: %v", err)
 	}
 
-	// Validate that the proposal cannot be re-decided
-	err = ValidateTerminalState(pp.Proposal.ID, tmpDir)
+	// Load decisions and validate that the proposal cannot be re-decided
+	decisions, err := LoadDecisions(tmpDir)
+	if err != nil {
+		t.Fatalf("Failed to load decisions: %v", err)
+	}
+	err = ValidateTerminalState(pp.Proposal.ID, decisions)
 
 	// Verify that ValidateTerminalState returns an error
 	if err == nil {
@@ -1811,8 +1819,14 @@ func TestDismissedProposalCannotBeRedecided(t *testing.T) {
 func TestValidateTerminalState_NoDecisions(t *testing.T) {
 	tmpDir := t.TempDir()
 
+	// Load decisions (empty since nothing was saved)
+	decisions, err := LoadDecisions(tmpDir)
+	if err != nil {
+		t.Fatalf("Failed to load decisions: %v", err)
+	}
+
 	// Validate a proposal with no existing decisions
-	err := ValidateTerminalState("prop-no-decision", tmpDir)
+	err = ValidateTerminalState("prop-no-decision", decisions)
 
 	// Should not return an error since there are no decisions
 	if err != nil {
@@ -1837,8 +1851,12 @@ func TestValidateTerminalState_RejectedProposalCanBeAccepted(t *testing.T) {
 		t.Fatalf("Failed to save rejected decision: %v", err)
 	}
 
-	// Validate that the rejected proposal CAN be re-decided (rejected is not terminal)
-	err = ValidateTerminalState("prop-rejected-001", tmpDir)
+	// Load decisions and validate that the rejected proposal CAN be re-decided (rejected is not terminal)
+	decisions, err := LoadDecisions(tmpDir)
+	if err != nil {
+		t.Fatalf("Failed to load decisions: %v", err)
+	}
+	err = ValidateTerminalState("prop-rejected-001", decisions)
 
 	// Should not return an error since rejected is not a terminal state
 	if err != nil {

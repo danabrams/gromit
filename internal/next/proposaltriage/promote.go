@@ -14,27 +14,6 @@ import (
 // SourceRunID string represents the run identifier from which a proposal originated.
 type SourceRunID string
 
-// ValidateTerminalState checks if a proposal has a terminal-state decision (dismissed).
-// Returns an error if the proposal cannot be re-decided, nil otherwise.
-// A terminal state decision is one with action="dismissed".
-func ValidateTerminalState(proposalID string, evidenceDir string) error {
-	decisions, err := LoadDecisions(evidenceDir)
-	if err != nil {
-		return fmt.Errorf("failed to load decisions: %w", err)
-	}
-
-	for _, d := range decisions {
-		if d.ProposalID == proposalID {
-			// Check if decision has a terminal-state action
-			if d.Action == "dismissed" {
-				return fmt.Errorf("proposal %q cannot be re-decided: it has been dismissed", proposalID)
-			}
-		}
-	}
-
-	return nil
-}
-
 // Promote promotes a PendingProposal to a Decision, routing to the appropriate store
 // (doctrine for doctrine_rule proposals, playbook for others).
 // Field overrides (title, change, rationale) are used if non-empty; otherwise defaults from proposal are used.
@@ -63,7 +42,11 @@ func Promote(
 	}
 
 	// Validate that the proposal is not in a terminal state
-	if err := ValidateTerminalState(pp.Proposal.ID, evidenceDir); err != nil {
+	decisions, err := LoadDecisions(evidenceDir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load decisions: %w", err)
+	}
+	if err := ValidateTerminalState(pp.Proposal.ID, decisions); err != nil {
 		return nil, err
 	}
 

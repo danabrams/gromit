@@ -292,3 +292,80 @@ func TestFindExistingDecision_EmptySlice(t *testing.T) {
 		t.Errorf("FindExistingDecision should return zero Decision for empty slice, got ProposalID %q", decision.ProposalID)
 	}
 }
+
+func TestValidateTerminalState_NoDecisionsReturnsNil(t *testing.T) {
+	decisions := []Decision{}
+
+	err := ValidateTerminalState("prop-1", decisions)
+
+	if err != nil {
+		t.Errorf("ValidateTerminalState should return nil when no decisions exist, got: %v", err)
+	}
+}
+
+func TestValidateTerminalState_AcceptedDecisionReturnsNil(t *testing.T) {
+	decisions := []Decision{
+		{
+			ProposalID: "prop-1",
+			Action:     "accepted",
+			Reason:     "looks good",
+		},
+	}
+
+	err := ValidateTerminalState("prop-1", decisions)
+
+	if err != nil {
+		t.Errorf("ValidateTerminalState should return nil for accepted decision, got: %v", err)
+	}
+}
+
+func TestValidateTerminalState_RejectedDecisionReturnsNil(t *testing.T) {
+	decisions := []Decision{
+		{
+			ProposalID: "prop-1",
+			Action:     "rejected",
+			Reason:     "needs work",
+		},
+	}
+
+	err := ValidateTerminalState("prop-1", decisions)
+
+	if err != nil {
+		t.Errorf("ValidateTerminalState should return nil for rejected decision, got: %v", err)
+	}
+}
+
+func TestValidateTerminalState_DismissedDecisionReturnsError(t *testing.T) {
+	decisions := []Decision{
+		{
+			ProposalID: "prop-1",
+			Action:     "dismissed",
+			Reason:     "duplicate",
+		},
+	}
+
+	err := ValidateTerminalState("prop-1", decisions)
+
+	if err == nil {
+		t.Error("ValidateTerminalState should return error for dismissed decision")
+	}
+	if err != nil && err.Error() != `proposal "prop-1" cannot be re-decided: it has been dismissed` {
+		t.Errorf("ValidateTerminalState returned unexpected error message: %v", err)
+	}
+}
+
+func TestValidateTerminalState_DifferentProposalDismissedReturnsNil(t *testing.T) {
+	decisions := []Decision{
+		{
+			ProposalID: "prop-2",
+			Action:     "dismissed",
+			Reason:     "duplicate",
+		},
+	}
+
+	err := ValidateTerminalState("prop-1", decisions)
+
+	if err != nil {
+		t.Errorf("ValidateTerminalState should return nil when different proposal is dismissed, got: %v", err)
+	}
+}

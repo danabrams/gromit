@@ -100,7 +100,7 @@ func TestScenario_RejectProposalWithReason(t *testing.T) {
 	}
 
 	rejectionReason := "Too specific to this one-off migration"
-	decision, err := Reject(pp, rejectionReason)
+	decision, err := Reject(pp, rejectionReason, nil)
 	if err != nil {
 		t.Fatalf("Reject failed: %v", err)
 	}

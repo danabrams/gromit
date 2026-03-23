@@ -2,6 +2,7 @@ package proposaltriage
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 )
@@ -104,4 +105,14 @@ func FindExistingDecision(proposalID string, decisions []Decision) (Decision, bo
 		}
 	}
 	return Decision{}, false
+}
+
+// ValidateTerminalState checks if a proposal ID already has a terminal decision.
+// Returns an error if a dismissed decision exists for that proposal.
+func ValidateTerminalState(proposalID string, decisions []Decision) error {
+	decision, found := FindExistingDecision(proposalID, decisions)
+	if found && IsTerminalDecision(decision) {
+		return fmt.Errorf("proposal %q cannot be re-decided: it has been dismissed", proposalID)
+	}
+	return nil
 }
