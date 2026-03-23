@@ -97,7 +97,7 @@ func GroupProposals(ctx context.Context, proposals []PendingProposal, llm review
 	var semanticGroups []ProposalGroup
 	if len(singletons) > 0 {
 		if llm == nil {
-			// If LLM is nil, make all singletons into singleton groups with warning
+			// When LLM is nil, create singleton groups with a warning
 			for _, pp := range singletons {
 				if pp.Proposal != nil {
 					semanticGroups = append(semanticGroups, ProposalGroup{
@@ -111,6 +111,7 @@ func GroupProposals(ctx context.Context, proposals []PendingProposal, llm review
 		} else {
 			clustered, err := ClusterSemantically(ctx, singletons, llm)
 			if err != nil {
+				// Log warning for any clustering failure
 				warnings = append(warnings, fmt.Sprintf("semantic clustering failed: %v", err))
 			}
 			semanticGroups = clustered

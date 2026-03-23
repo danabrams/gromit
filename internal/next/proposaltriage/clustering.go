@@ -17,18 +17,6 @@ func ClusterSemantically(ctx context.Context, proposals []PendingProposal, llm r
 		return []ProposalGroup{}, nil
 	}
 
-	// Guard against nil LLM
-	if llm == nil {
-		// Filter out nil proposals before returning singletons
-		var validProposals []PendingProposal
-		for _, pp := range proposals {
-			if pp.Proposal != nil {
-				validProposals = append(validProposals, pp)
-			}
-		}
-		return makeSingletonGroups(validProposals), fmt.Errorf("LLM completer is nil")
-	}
-
 	// Filter out nil proposals
 	var validProposals []PendingProposal
 	for _, pp := range proposals {
@@ -39,6 +27,11 @@ func ClusterSemantically(ctx context.Context, proposals []PendingProposal, llm r
 
 	if len(validProposals) == 0 {
 		return []ProposalGroup{}, nil
+	}
+
+	// Guard against nil LLM
+	if llm == nil {
+		return makeSingletonGroups(validProposals), fmt.Errorf("LLM completer is nil")
 	}
 
 	// Build prompt for LLM clustering
