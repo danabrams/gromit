@@ -36,9 +36,13 @@ func TestScenario_ExistingRemediationSpecIsOverwritten(t *testing.T) {
 		t.Fatalf("mkdir specs: %v", err)
 	}
 
-	oldSpec := `# Remediation Spec: my-spec-remediation
+	oldSpec := `## spec_id
 
-**Depends on:** my-spec
+my-spec-remediation
+
+## Depends on
+
+my-spec
 
 ## Summary
 
