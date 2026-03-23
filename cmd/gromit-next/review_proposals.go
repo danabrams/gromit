@@ -169,7 +169,7 @@ func newReviewProposalsShowCmd() *cobra.Command {
 			// Find the proposal matching the given ID
 			var targetProposal *proposaltriage.AllProposal
 			for i := range allProposals {
-				if allProposals[i].Proposal.ID == proposalID {
+				if allProposals[i].Proposal != nil && allProposals[i].Proposal.ID == proposalID {
 					targetProposal = &allProposals[i]
 					break
 				}
@@ -231,7 +231,7 @@ The decision is saved and the materialized entry ID is reported.`,
 			// Find the proposal matching the given ID
 			var targetProposal *proposaltriage.AllProposal
 			for i := range allProposals {
-				if allProposals[i].Proposal.ID == proposalID {
+				if allProposals[i].Proposal != nil && allProposals[i].Proposal.ID == proposalID {
 					targetProposal = &allProposals[i]
 					break
 				}
@@ -405,7 +405,7 @@ is marked as superseded. The decision is saved and the result is reported.`,
 			// Find the proposal matching the given ID
 			var targetProposal *proposaltriage.AllProposal
 			for i := range allProposals {
-				if allProposals[i].Proposal.ID == proposalID {
+				if allProposals[i].Proposal != nil && allProposals[i].Proposal.ID == proposalID {
 					targetProposal = &allProposals[i]
 					break
 				}
@@ -576,6 +576,9 @@ func displayAllProposals(proposals []proposaltriage.AllProposal) error {
 // displayProposalDetail renders a single proposal with all its details.
 func displayProposalDetail(ap *proposaltriage.AllProposal) error {
 	p := ap.Proposal
+	if p == nil {
+		return fmt.Errorf("malformed proposal detail: proposal is missing from distillation file")
+	}
 
 	fmt.Println("=== Proposal Detail ===")
 	fmt.Printf("ID: %s\n", p.ID)
