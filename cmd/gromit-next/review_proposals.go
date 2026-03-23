@@ -22,10 +22,23 @@ import (
 )
 
 // buildProposalsCompleter creates an LLMCompleter for proposal grouping.
+// Reads distiller_tier from project config, falling back to TierMedium if config is unavailable.
 // Returns nil if completer creation fails (non-blocking); errors are logged.
-func buildProposalsCompleter() reviewdistiller.LLMCompleter {
+func buildProposalsCompleter(storeDir string) reviewdistiller.LLMCompleter {
 	const defaultClaudeBinary = "claude"
-	const defaultTier = reviewdistiller.TierMedium
+
+	// Load project ID and construct project directory
+	projectID := loadProjectID(storeDir)
+	tier := reviewdistiller.TierMedium
+	if projectID != "" {
+		projectDir := filepath.Join(storeDir, "projects", projectID)
+		cfg, err := LoadProjectConfig(projectDir)
+		if err != nil {
+			log.Printf("warning: load project config: %v, using default tier", err)
+		} else {
+			tier = reviewdistiller.Tier(cfg.DistillerTier)
+		}
+	}
 
 	defaultPolicy := execpolicy.DefaultPolicy()
 	client, err := claude.NewClient(defaultClaudeBinary, nil, defaultPolicy.Budgets.MaxTaskDurationSeconds)
@@ -37,7 +50,7 @@ func buildProposalsCompleter() reviewdistiller.LLMCompleter {
 	prov := provider.NewClaudeProvider(client, provider.DefaultTierToModelMap)
 	adapter := llmadapter.New(prov, llmadapter.Config{
 		Phase: "review",
-		Tier:  string(defaultTier),
+		Tier:  string(tier),
 	})
 
 	return NewInvokerAdapter(adapter)
@@ -99,7 +112,7 @@ Filter by --type and --run as needed.`,
 			}
 
 			// Build completer for grouping (non-blocking if it fails)
-			completer := buildProposalsCompleter()
+			completer := buildProposalsCompleter(storeDir)
 
 			// Run grouping pipeline
 			groups, warnings := proposaltriage.GroupProposals(context.Background(), pendingProposals, completer)
@@ -244,7 +257,7 @@ The decision is saved and the materialized entry ID is reported.`,
 				}
 
 				// Build completer for grouping (non-blocking if it fails)
-				completer := buildProposalsCompleter()
+				completer := buildProposalsCompleter(storeDir)
 
 				// Run full grouping pipeline (exact hash + LLM semantic clustering)
 				groups, warnings := proposaltriage.GroupProposals(context.Background(), pendingProposals, completer)
@@ -326,13 +339,19 @@ The decision is saved and the materialized entry ID is reported.`,
 				fmt.Printf("Note: Duplicate of existing entry %s (not materialized)\n", decision.DuplicateOf)
 			}
 
-			// Dismiss siblings if group was found
+			// Dismiss siblings if group was found.
+			// NOTE: DismissSiblings is intentionally non-fatal. The accept+materialize operation
+			// (the critical path) has already been persisted to disk. If DismissSiblings fails,
+			// we log a warning and continue, allowing the accept to be reported as successful.
+			// The operator can re-run dismiss-group on any failed siblings without affecting
+			// the already-accepted proposal.
 			if dismissGroup && acceptedGroup != nil {
 				dismissedDecisions, err := proposaltriage.DismissSiblings(proposalID, *acceptedGroup, runStore)
 				if err != nil {
-					return fmt.Errorf("dismiss siblings: %w", err)
+					fmt.Fprintf(os.Stderr, "warning: dismiss siblings failed: %v (re-run dismiss-group to retry)\n", err)
+				} else {
+					fmt.Printf("Dismissed %d sibling proposal(s) in the same group\n", len(dismissedDecisions))
 				}
-				fmt.Printf("Dismissed %d sibling proposal(s) in the same group\n", len(dismissedDecisions))
 			}
 
 			return nil
