@@ -10,6 +10,8 @@ import (
 // except the accepted one. Decisions are saved to each sibling's run evidence directory.
 // Returns the slice of created decisions.
 func DismissSiblings(acceptedProposalID string, group ProposalGroup, store *runstore.Store) ([]Decision, error) {
+	// Step 1: Collect all decisions grouped by run evidence directory
+	decisionsByRunDir := make(map[string][]Decision)
 	var decisions []Decision
 
 	for _, sibling := range group.Proposals {
@@ -31,13 +33,17 @@ func DismissSiblings(acceptedProposalID string, group ProposalGroup, store *runs
 			DecidedAt:   time.Now(),
 		}
 
-		// Save to the sibling's run evidence directory
+		// Group by run evidence directory
 		evidenceDir := store.RunEvidenceDir(sibling.RunID)
-		if err := SaveDecision(evidenceDir, decision); err != nil {
+		decisionsByRunDir[evidenceDir] = append(decisionsByRunDir[evidenceDir], decision)
+		decisions = append(decisions, decision)
+	}
+
+	// Step 2: Save each batch of decisions for its run directory
+	for evidenceDir, runDecisions := range decisionsByRunDir {
+		if err := SaveDecisions(evidenceDir, runDecisions); err != nil {
 			return nil, err
 		}
-
-		decisions = append(decisions, decision)
 	}
 
 	return decisions, nil
