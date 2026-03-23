@@ -93,7 +93,7 @@ Filter by --type and --run as needed.`,
 			}
 
 			// For pending proposals, apply grouping pipeline
-			pendingProposals, err := proposaltriage.DiscoverPending(storeDir, projectID, typeFilter, runFilter)
+			pendingProposals, err := proposaltriage.DiscoverPending(storeDir, projectID, nil, runFilter)
 			if err != nil {
 				return fmt.Errorf("discover proposals: %w", err)
 			}
@@ -107,6 +107,11 @@ Filter by --type and --run as needed.`,
 			// Display warnings from LLM clustering failures
 			for _, warning := range warnings {
 				fmt.Fprintf(os.Stderr, "warning: %s\n", warning)
+			}
+
+			// Apply type filtering after grouping (so mixed-type clusters can form)
+			if typeFilter != nil && len(*typeFilter) > 0 {
+				groups = proposaltriage.FilterGroupsByType(groups, (*typeFilter)[0])
 			}
 
 			return displayPendingProposals(groups)
