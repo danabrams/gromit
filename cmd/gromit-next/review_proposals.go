@@ -228,6 +228,41 @@ The decision is saved and the materialized entry ID is reported.`,
 				return fmt.Errorf("proposal %q already has a decision: %s", proposalID, targetProposal.Decision.Action)
 			}
 
+			// Handle --dismiss-group: discover and group BEFORE promoting
+			// (so the accepted proposal is still pending and can be found in its group)
+			var acceptedGroup *proposaltriage.ProposalGroup
+			if dismissGroup {
+				// Discover pending proposals for grouping
+				pendingProposals, err := proposaltriage.DiscoverPending(storeDir, projectID, nil, nil)
+				if err != nil {
+					return fmt.Errorf("discover pending proposals for grouping: %w", err)
+				}
+
+				// Build completer for grouping (non-blocking if it fails)
+				completer := buildProposalsCompleter()
+
+				// Run full grouping pipeline (exact hash + LLM semantic clustering)
+				groups, warnings := proposaltriage.GroupProposals(context.Background(), pendingProposals, completer)
+
+				// Log warnings from LLM clustering failures
+				for _, warning := range warnings {
+					fmt.Fprintf(os.Stderr, "warning: %s\n", warning)
+				}
+
+				// Find the accepted proposal's group
+				for i := range groups {
+					for _, pp := range groups[i].Proposals {
+						if pp.Proposal.ID == proposalID {
+							acceptedGroup = &groups[i]
+							break
+						}
+					}
+					if acceptedGroup != nil {
+						break
+					}
+				}
+			}
+
 			// Resolve store paths based on scope
 			var doctrineDir, playbookDir string
 			if scope == "global" {
@@ -286,39 +321,13 @@ The decision is saved and the materialized entry ID is reported.`,
 				fmt.Printf("Note: Duplicate of existing entry %s (not materialized)\n", decision.DuplicateOf)
 			}
 
-			// Handle --dismiss-group
-			if dismissGroup {
-				// Discover pending proposals for grouping
-				pendingProposals, err := proposaltriage.DiscoverPending(storeDir, projectID, nil, nil)
+			// Dismiss siblings if group was found
+			if dismissGroup && acceptedGroup != nil {
+				dismissedDecisions, err := proposaltriage.DismissSiblings(proposalID, *acceptedGroup, storeDir)
 				if err != nil {
-					return fmt.Errorf("discover pending proposals for grouping: %w", err)
+					return fmt.Errorf("dismiss siblings: %w", err)
 				}
-
-				// Group by content hash
-				groups := proposaltriage.GroupByContentHash(pendingProposals)
-
-				// Find the accepted proposal's group
-				var acceptedGroup *proposaltriage.ProposalGroup
-				for i := range groups {
-					for _, pp := range groups[i].Proposals {
-						if pp.Proposal.ID == proposalID {
-							acceptedGroup = &groups[i]
-							break
-						}
-					}
-					if acceptedGroup != nil {
-						break
-					}
-				}
-
-				// Dismiss siblings if group found
-				if acceptedGroup != nil {
-					dismissedDecisions, err := proposaltriage.DismissSiblings(proposalID, *acceptedGroup, storeDir)
-					if err != nil {
-						return fmt.Errorf("dismiss siblings: %w", err)
-					}
-					fmt.Printf("Dismissed %d sibling proposal(s) in the same group\n", len(dismissedDecisions))
-				}
+				fmt.Printf("Dismissed %d sibling proposal(s) in the same group\n", len(dismissedDecisions))
 			}
 
 			return nil

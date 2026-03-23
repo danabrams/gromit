@@ -266,3 +266,93 @@ func TestClusterSemanticallyDegradeOnLLMError(t *testing.T) {
 		}
 	}
 }
+
+// TestClusterSemantically_FiltersNilProposals verifies that nil proposals are filtered out before clustering.
+// This ensures that proposals with nil Proposal fields don't cause panics or errors during LLM clustering.
+func TestClusterSemantically_FiltersNilProposals(t *testing.T) {
+	ctx := context.TODO()
+	now := time.Now()
+
+	// Create valid proposals
+	proposal1 := &reviewdistiller.Proposal{
+		ID:             "p1",
+		Type:           "validation_gap",
+		Title:          "Missing null check",
+		ProposedChange: "Add null check before dereferencing pointer",
+		Confidence:     "high",
+	}
+
+	proposal2 := &reviewdistiller.Proposal{
+		ID:             "p2",
+		Type:           "validation_gap",
+		Title:          "Null pointer dereference risk",
+		ProposedChange: "Check for nil before using pointer",
+		Confidence:     "high",
+	}
+
+	pending1 := PendingProposal{
+		Proposal:  proposal1,
+		RunID:     "run1",
+		SpecID:    "spec1",
+		CreatedAt: now,
+	}
+
+	// Proposal with nil Proposal field (should be filtered out)
+	pendingNil := PendingProposal{
+		Proposal:  nil,
+		RunID:     "run-nil",
+		SpecID:    "spec1",
+		CreatedAt: now.Add(time.Minute),
+	}
+
+	pending2 := PendingProposal{
+		Proposal:  proposal2,
+		RunID:     "run2",
+		SpecID:    "spec1",
+		CreatedAt: now.Add(2 * time.Minute),
+	}
+
+	// LLM stub that expects to receive only valid proposals (p1 and p2)
+	llm := &stubLLMCompleter{
+		response: `{
+  "clusters": [
+    {
+      "proposal_ids": ["p1", "p2"],
+      "description": "Null pointer safety checks"
+    }
+  ]
+}`,
+	}
+
+	// Pass mix of valid and nil proposals
+	groups, err := ClusterSemantically(ctx, []PendingProposal{pending1, pendingNil, pending2}, llm)
+
+	if err != nil {
+		t.Errorf("expected nil error when filtering valid proposals, got: %v", err)
+	}
+
+	// Should only have 1 cluster (p1 and p2 clustered together)
+	if len(groups) != 1 {
+		t.Errorf("expected 1 cluster (nil proposal filtered out), got %d groups", len(groups))
+	}
+
+	if len(groups[0].Proposals) != 2 {
+		t.Errorf("expected 2 proposals in cluster, got %d", len(groups[0].Proposals))
+	}
+
+	// Verify the 2 proposals are p1 and p2 (nil proposal was filtered)
+	ids := make(map[string]bool)
+	for _, pp := range groups[0].Proposals {
+		if pp.Proposal != nil {
+			ids[pp.Proposal.ID] = true
+		}
+	}
+
+	if !ids["p1"] || !ids["p2"] {
+		t.Errorf("cluster expected p1 and p2 (nil filtered out), got %v", ids)
+	}
+
+	if groups[0].GroupReason != "Null pointer safety checks" {
+		t.Errorf("expected description 'Null pointer safety checks', got '%s'", groups[0].GroupReason)
+	}
+}

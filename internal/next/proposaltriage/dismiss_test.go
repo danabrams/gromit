@@ -213,3 +213,47 @@ func TestDismissSiblings_MultipleRuns(t *testing.T) {
 		}
 	}
 }
+
+func TestDismissSiblings_SkipsNilProposal(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create a group with one nil Proposal and one valid Proposal
+	group := ProposalGroup{
+		GroupID: "group-1",
+		Proposals: []PendingProposal{
+			{
+				Proposal: nil, // nil Proposal should be skipped
+				RunID:    "run-1",
+				SpecID:   "spec-1",
+				GroupID:  "group-1",
+			},
+			{
+				Proposal: &reviewdistiller.Proposal{
+					ID:    "prop-2",
+					Title: "Proposal 2",
+				},
+				RunID:     "run-2",
+				SpecID:    "spec-1",
+				CreatedAt: time.Now(),
+				GroupID:   "group-1",
+			},
+		},
+		GroupReason: "one nil proposal",
+	}
+
+	acceptedProposalID := "accepted"
+	decisions, err := DismissSiblings(acceptedProposalID, group, tmpDir)
+
+	if err != nil {
+		t.Fatalf("DismissSiblings failed: %v", err)
+	}
+
+	// Should return 1 decision (only for the non-nil proposal)
+	if len(decisions) != 1 {
+		t.Fatalf("expected 1 decision, got %d", len(decisions))
+	}
+
+	if decisions[0].ProposalID != "prop-2" {
+		t.Errorf("expected decision for prop-2, got %q", decisions[0].ProposalID)
+	}
+}

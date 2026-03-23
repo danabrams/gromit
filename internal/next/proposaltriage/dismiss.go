@@ -12,6 +12,11 @@ func DismissSiblings(acceptedProposalID string, group ProposalGroup, storeDir st
 	var decisions []Decision
 
 	for _, sibling := range group.Proposals {
+		// Skip siblings with nil Proposal
+		if sibling.Proposal == nil {
+			continue
+		}
+
 		// Skip the accepted proposal
 		if sibling.Proposal.ID == acceptedProposalID {
 			continue

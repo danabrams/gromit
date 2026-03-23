@@ -3,6 +3,7 @@ package proposaltriage
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -536,5 +537,89 @@ func TestGroupProposals_LLMFailureGeneratesWarning(t *testing.T) {
 	// Warning should be collected when LLM fails
 	if len(warnings) == 0 {
 		t.Errorf("expected at least 1 warning when LLM fails, got %d", len(warnings))
+	}
+}
+
+func TestGroupProposals_NilLLMSkipsClustering(t *testing.T) {
+	// When LLM is nil, ungrouped proposals should become singletons with a warning
+	ctx := testContext(t)
+	now := time.Now()
+
+	// Two exact matches
+	proposal1 := &reviewdistiller.Proposal{
+		ID:             "p1",
+		Type:           "doctrine_rule",
+		Title:          "Email validation 1",
+		ProposedChange: "Add validation for email format",
+		Confidence:     "high",
+	}
+
+	proposal2 := &reviewdistiller.Proposal{
+		ID:             "p2",
+		Type:           "doctrine_rule",
+		Title:          "Email validation 2",
+		ProposedChange: "Add validation for email format", // exact match
+		Confidence:     "medium",
+	}
+
+	// One ungrouped proposal
+	proposal3 := &reviewdistiller.Proposal{
+		ID:             "p3",
+		Type:           "validation_gap",
+		Title:          "Null check",
+		ProposedChange: "Add nil check",
+		Confidence:     "high",
+	}
+
+	pending1 := PendingProposal{Proposal: proposal1, RunID: "run1", SpecID: "spec1", CreatedAt: now}
+	pending2 := PendingProposal{Proposal: proposal2, RunID: "run2", SpecID: "spec1", CreatedAt: now.Add(time.Minute)}
+	pending3 := PendingProposal{Proposal: proposal3, RunID: "run3", SpecID: "spec1", CreatedAt: now.Add(2 * time.Minute)}
+
+	// Pass nil LLM
+	groups, warnings := GroupProposals(ctx, []PendingProposal{pending1, pending2, pending3}, nil)
+
+	// Expected: 2 groups (one exact match of p1+p2, one singleton p3)
+	if len(groups) != 2 {
+		t.Errorf("expected 2 groups, got %d", len(groups))
+	}
+
+	// Check exact match group
+	var exactMatchGroup *ProposalGroup
+	var singletonGroup *ProposalGroup
+	for i := range groups {
+		if groups[i].GroupReason == "exact_match" {
+			exactMatchGroup = &groups[i]
+		} else if groups[i].GroupReason == "singleton" {
+			singletonGroup = &groups[i]
+		}
+	}
+
+	if exactMatchGroup == nil {
+		t.Errorf("expected exact_match group, got none")
+	} else {
+		if len(exactMatchGroup.Proposals) != 2 {
+			t.Errorf("exact_match group: expected 2 proposals, got %d", len(exactMatchGroup.Proposals))
+		}
+	}
+
+	if singletonGroup == nil {
+		t.Errorf("expected singleton group when LLM is nil, got none")
+	}
+
+	// Warning should be collected when LLM is nil
+	if len(warnings) == 0 {
+		t.Errorf("expected at least 1 warning when LLM is nil, got %d", len(warnings))
+	}
+
+	// Check warning message mentions nil LLM
+	found := false
+	for _, w := range warnings {
+		if strings.Contains(w, "LLM completer is nil") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected warning about nil LLM, got warnings: %v", warnings)
 	}
 }

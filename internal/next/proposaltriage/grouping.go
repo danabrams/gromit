@@ -95,11 +95,25 @@ func GroupProposals(ctx context.Context, proposals []PendingProposal, llm review
 
 	// Step 3: Cluster singletons semantically
 	var semanticGroups []ProposalGroup
-	var err error
 	if len(singletons) > 0 {
-		semanticGroups, err = ClusterSemantically(ctx, singletons, llm)
-		if err != nil {
-			warnings = append(warnings, fmt.Sprintf("semantic clustering failed: %v", err))
+		if llm == nil {
+			// If LLM is nil, make all singletons into singleton groups with warning
+			for _, pp := range singletons {
+				if pp.Proposal != nil {
+					semanticGroups = append(semanticGroups, ProposalGroup{
+						GroupID:     fmt.Sprintf("singleton-%s", pp.Proposal.ID),
+						Proposals:   []PendingProposal{pp},
+						GroupReason: "singleton",
+					})
+				}
+			}
+			warnings = append(warnings, "semantic clustering skipped: LLM completer is nil")
+		} else {
+			clustered, err := ClusterSemantically(ctx, singletons, llm)
+			if err != nil {
+				warnings = append(warnings, fmt.Sprintf("semantic clustering failed: %v", err))
+			}
+			semanticGroups = clustered
 		}
 	}
 
