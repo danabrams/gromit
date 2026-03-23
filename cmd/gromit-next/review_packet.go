@@ -55,21 +55,15 @@ func newReviewRecordCmd() *cobra.Command {
 			// Resolve specsDir if not explicitly provided
 			if specsDir == "" && project != "" {
 				resolver := workspace.NewEnvResolver()
-				root, err := resolver.Resolve()
-				if err != nil {
-					return fmt.Errorf("resolve workspace root: %w", err)
-				}
-				projectDir, err := ResolveProjectConfigPath(root, project)
-				if err != nil {
-					return fmt.Errorf("resolve project config: %w", err)
-				}
-				cfg, err := LoadProjectConfig(projectDir)
-				if err != nil {
-					return fmt.Errorf("load project config: %w", err)
-				}
-				specsDir = cfg.SpecsDir
-				if specsDir == "" && cfg.RepoPath != "" {
-					specsDir = filepath.Join(cfg.RepoPath, "docs", "specs")
+				root, _ := resolver.Resolve()
+				if root != "" {
+					projectDir, _ := ResolveProjectConfigPath(root, project)
+					if cfg, err := LoadProjectConfig(projectDir); err == nil {
+						specsDir = cfg.SpecsDir
+						if specsDir == "" && cfg.RepoPath != "" {
+							specsDir = filepath.Join(cfg.RepoPath, "docs", "specs")
+						}
+					}
 				}
 			}
 
