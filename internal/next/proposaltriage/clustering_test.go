@@ -740,6 +740,102 @@ func TestClusterSemantically_InvalidJSONResponseDegradeGracefully(t *testing.T) 
 	}
 }
 
+// TestClusterSemantically_SingleMemberCluster verifies that when the LLM returns a cluster
+// containing exactly one proposal ID, that proposal is grouped correctly (not treated as
+// multi-member) and remaining proposals become singletons as normal.
+func TestClusterSemantically_SingleMemberCluster(t *testing.T) {
+	ctx := context.TODO()
+	now := time.Now()
+
+	proposal1 := &reviewdistiller.Proposal{
+		ID:             "p1",
+		Type:           "doctrine_rule",
+		Title:          "Always validate input",
+		ProposedChange: "Add validation for all external inputs",
+		Confidence:     "medium",
+	}
+
+	proposal2 := &reviewdistiller.Proposal{
+		ID:             "p2",
+		Type:           "validation_gap",
+		Title:          "Null check missing",
+		ProposedChange: "Add nil check before dereferencing pointer",
+		Confidence:     "high",
+	}
+
+	pending1 := PendingProposal{
+		Proposal:  proposal1,
+		RunID:     "run1",
+		SpecID:    "spec1",
+		CreatedAt: now,
+	}
+
+	pending2 := PendingProposal{
+		Proposal:  proposal2,
+		RunID:     "run2",
+		SpecID:    "spec1",
+		CreatedAt: now.Add(time.Minute),
+	}
+
+	// LLM returns a cluster with exactly one proposal ID entry
+	llm := &stubLLMCompleter{
+		response: `{
+  "clusters": [
+    {
+      "proposal_ids": ["p1"],
+      "description": "Input validation guidance"
+    }
+  ]
+}`,
+	}
+
+	groups, err := ClusterSemantically(ctx, []PendingProposal{pending1, pending2}, llm)
+
+	if err != nil {
+		t.Errorf("expected nil error, got: %v", err)
+	}
+
+	// Should have 2 groups: the single-member cluster for p1 and a singleton for p2
+	if len(groups) != 2 {
+		t.Errorf("expected 2 groups (1 single-member cluster + 1 singleton), got %d", len(groups))
+	}
+
+	// Find the single-member cluster group and the singleton
+	var clusterGroup, singletonGroup *ProposalGroup
+	for i := range groups {
+		if groups[i].GroupReason == "Input validation guidance" {
+			clusterGroup = &groups[i]
+		} else if groups[i].GroupReason == "singleton" {
+			singletonGroup = &groups[i]
+		}
+	}
+
+	if clusterGroup == nil {
+		t.Errorf("expected a group with description 'Input validation guidance', got none")
+	} else {
+		if len(clusterGroup.Proposals) != 1 {
+			t.Errorf("single-member cluster: expected 1 proposal, got %d", len(clusterGroup.Proposals))
+		}
+		if clusterGroup.Proposals[0].Proposal == nil || clusterGroup.Proposals[0].Proposal.ID != "p1" {
+			t.Errorf("single-member cluster: expected proposal ID 'p1'")
+		}
+		if clusterGroup.GroupID == "" {
+			t.Errorf("single-member cluster: expected non-empty GroupID")
+		}
+	}
+
+	if singletonGroup == nil {
+		t.Errorf("expected a singleton group for p2, got none")
+	} else {
+		if len(singletonGroup.Proposals) != 1 {
+			t.Errorf("singleton group: expected 1 proposal, got %d", len(singletonGroup.Proposals))
+		}
+		if singletonGroup.Proposals[0].Proposal == nil || singletonGroup.Proposals[0].Proposal.ID != "p2" {
+			t.Errorf("singleton group: expected proposal ID 'p2'")
+		}
+	}
+}
+
 // TestClustersToGroups_HallucinatedIDSortsFirst directly tests clustersToGroups where
 // the LLM returns a cluster with a hallucinated proposal ID that sorts lexicographically
 // before valid IDs. Verifies no panic occurs and the group is formed correctly from

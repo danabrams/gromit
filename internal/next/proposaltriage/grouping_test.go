@@ -624,6 +624,90 @@ func TestGroupProposals_NilLLMSkipsClustering(t *testing.T) {
 	}
 }
 
+func TestFilterGroupsByType_EmptyProposalTypes(t *testing.T) {
+	// When proposalTypes is empty, typeSet is empty — every proposal fails
+	// membership check, so the result must be empty.
+	now := time.Now()
+
+	proposal1 := &reviewdistiller.Proposal{
+		ID:             "p1",
+		Type:           "doctrine_rule",
+		Title:          "Some rule",
+		ProposedChange: "Do something",
+		Rationale:      "Because",
+		Confidence:     "high",
+	}
+
+	group := ProposalGroup{
+		GroupID:     "group-1",
+		GroupReason: "exact_match",
+		Proposals: []PendingProposal{
+			{
+				Proposal:  proposal1,
+				RunID:     "run1",
+				SpecID:    "spec1",
+				CreatedAt: now,
+			},
+		},
+	}
+
+	// Pass empty proposalTypes slice — no type will match
+	filtered := FilterGroupsByType([]ProposalGroup{group}, []string{})
+
+	if len(filtered) != 0 {
+		t.Errorf("expected 0 groups when proposalTypes is empty, got %d", len(filtered))
+	}
+}
+
+func TestGroupByContentHash_NilProposalField(t *testing.T) {
+	// A PendingProposal with nil Proposal field must not cause a panic.
+	now := time.Now()
+
+	proposal1 := &reviewdistiller.Proposal{
+		ID:             "p1",
+		Type:           "doctrine_rule",
+		Title:          "Valid proposal",
+		ProposedChange: "Do something valid",
+		Rationale:      "Good reason",
+		Confidence:     "high",
+	}
+
+	// Mix of valid and nil Proposal fields
+	pending1 := PendingProposal{
+		Proposal:  proposal1,
+		RunID:     "run1",
+		SpecID:    "spec1",
+		CreatedAt: now,
+	}
+
+	pendingNil := PendingProposal{
+		Proposal:  nil,
+		RunID:     "run-nil",
+		SpecID:    "spec1",
+		CreatedAt: now.Add(time.Minute),
+	}
+
+	// Must not panic
+	groups := GroupByContentHash([]PendingProposal{pending1, pendingNil})
+
+	// Only the valid proposal should be grouped; nil is silently skipped
+	if len(groups) != 1 {
+		t.Errorf("expected 1 group (nil proposal skipped), got %d", len(groups))
+	}
+
+	if len(groups[0].Proposals) != 1 {
+		t.Errorf("expected 1 proposal in group, got %d", len(groups[0].Proposals))
+	}
+
+	if groups[0].Proposals[0].Proposal == nil {
+		t.Errorf("expected non-nil proposal in group")
+	}
+
+	if groups[0].Proposals[0].Proposal.ID != "p1" {
+		t.Errorf("expected proposal ID 'p1', got %q", groups[0].Proposals[0].Proposal.ID)
+	}
+}
+
 func TestFilterGroupsByType_MixedTypeGroup(t *testing.T) {
 	// A group with mixed proposal types should be retained with only matching proposals.
 	// This aligns with spec scenario: "list filters by type within groups"

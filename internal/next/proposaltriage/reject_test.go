@@ -751,3 +751,110 @@ func TestRejectAfterAccept_DismissedProposal(t *testing.T) {
 		t.Errorf("error should contain 'dismissed' or 'terminal state', got: %v", err)
 	}
 }
+
+func TestRejectAfterAccept_DismissedProposal_AcceptedFirst(t *testing.T) {
+	// Variant of TestRejectAfterAccept_DismissedProposal where the accepted decision
+	// comes FIRST in the decisions slice (dismissed second). This documents that
+	// ValidateTerminalState uses first-match semantics: when the accepted entry is
+	// found first the terminal-state check does not fire, so RejectAfterAccept
+	// proceeds and supersedes the playbook entry without error.
+	//
+	// Contrast with TestRejectAfterAccept_DismissedProposal where dismissed comes
+	// first and the call returns an error. Callers must ensure dismissed decisions
+	// appear before accepted ones in the slice when they want the guard to trigger.
+	tmpDir := t.TempDir()
+	projectID := "test-project"
+	runID := "run-reject-after-dismissed-002"
+	playbookDir := filepath.Join(tmpDir, "playbook")
+
+	proposals := &reviewdistiller.DistillationResult{
+		RunID:     runID,
+		SpecID:    "spec-123",
+		Outcome:   "accepted",
+		ModelTier: reviewdistiller.TierHigh,
+		Proposals: []reviewdistiller.Proposal{
+			{
+				ID:             "run-reject-after-dismissed-002-proposal-heur1",
+				Type:           "planner_heuristic",
+				Title:          "Add caching layer variant",
+				ProposedChange: "Implement a caching layer for frequent queries (variant)",
+				Rationale:      "Improves performance",
+			},
+		},
+		CreatedAt: time.Now(),
+	}
+
+	helperCreateRunWithProposals(t, tmpDir, projectID, runID, proposals, nil)
+
+	pendingProposals, err := DiscoverPending(tmpDir, projectID, nil, nil)
+	if err != nil {
+		t.Fatalf("DiscoverPending failed: %v", err)
+	}
+
+	if len(pendingProposals) != 1 {
+		t.Fatalf("expected 1 pending proposal, got %d", len(pendingProposals))
+	}
+
+	// Accept the proposal
+	pp := &PendingProposal{
+		Proposal: pendingProposals[0].Proposal,
+		RunID:    pendingProposals[0].RunID,
+		SpecID:   pendingProposals[0].SpecID,
+	}
+
+	pbStore := &playbook.Store{Dir: playbookDir}
+	acceptedDecision, err := Promote(pp, "", "", "", nil, pbStore,
+		"local",
+		"",
+	)
+	if err != nil {
+		t.Fatalf("Promote failed: %v", err)
+	}
+
+	if acceptedDecision == nil {
+		t.Fatal("Promote returned nil decision")
+	}
+
+	// Create a dismissed decision for the same proposal
+	dismissedDecision := Decision{
+		ProposalID:  pp.Proposal.ID,
+		Action:      "dismissed",
+		Reason:      "Reconsidered",
+		DismissedBy: "tech-lead",
+		DecidedAt:   time.Now(),
+	}
+
+	// Create a rejection decision (Reject sees acceptedDecision, not dismissed, so it succeeds)
+	rejectionDecision, err := Reject(pp, "Approach abandoned", acceptedDecision)
+	if err != nil {
+		t.Fatalf("Reject failed: %v", err)
+	}
+
+	if rejectionDecision == nil {
+		t.Fatal("Reject returned nil decision")
+	}
+
+	// Pass accepted decision FIRST, dismissed second.
+	// FindExistingDecision returns the first match (accepted), so ValidateTerminalState
+	// does NOT fire. RejectAfterAccept should succeed and supersede the playbook entry.
+	err = RejectAfterAccept(acceptedDecision, rejectionDecision, []Decision{*acceptedDecision, dismissedDecision}, nil, pbStore)
+
+	// With accepted first, the terminal-state guard does not trigger.
+	if err != nil {
+		t.Fatalf("expected RejectAfterAccept to succeed when accepted decision comes first, got: %v", err)
+	}
+
+	// Verify the playbook entry is now superseded (the rejection was applied)
+	entriesAfter, err := pbStore.Load()
+	if err != nil {
+		t.Fatalf("failed to load playbook entries: %v", err)
+	}
+
+	if len(entriesAfter) != 1 {
+		t.Fatalf("expected 1 playbook entry, got %d", len(entriesAfter))
+	}
+
+	if entriesAfter[0].Status != "superseded" {
+		t.Errorf("expected entry status 'superseded', got %q", entriesAfter[0].Status)
+	}
+}

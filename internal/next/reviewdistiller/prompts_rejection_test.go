@@ -6,6 +6,36 @@ import (
 	"testing"
 )
 
+func TestBuildPrompt_NilRejectedProposals_DoesNotIncludeSection(t *testing.T) {
+	inputs := &DistillerInputs{
+		RunID:             "run-nil",
+		SpecID:            "spec-nil",
+		SpecContent:       "spec content",
+		RejectedProposals: nil,
+	}
+
+	prompt := BuildPrompt(inputs, "accepted")
+
+	if strings.Contains(prompt, "Previously Rejected Proposals") {
+		t.Errorf("prompt should NOT include 'Previously Rejected Proposals' section when RejectedProposals is nil")
+	}
+}
+
+func TestBuildPrompt_EmptyArrayRejectedProposals_DoesNotIncludeSection(t *testing.T) {
+	inputs := &DistillerInputs{
+		RunID:             "run-empty",
+		SpecID:            "spec-empty",
+		SpecContent:       "spec content",
+		RejectedProposals: []byte(`[]`),
+	}
+
+	prompt := BuildPrompt(inputs, "accepted")
+
+	if strings.Contains(prompt, "Previously Rejected Proposals") {
+		t.Errorf("prompt should NOT include 'Previously Rejected Proposals' section when RejectedProposals is an empty JSON array")
+	}
+}
+
 func TestBuildPrompt_IncludesRejectedProposalsInPrompt(t *testing.T) {
 	// Create two rejected proposals
 	rejectedProposals := []map[string]interface{}{

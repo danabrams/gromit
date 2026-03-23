@@ -150,6 +150,11 @@ func clustersToGroups(clusters *clusterResponse, proposals []PendingProposal) ([
 		}
 
 		if len(groupProposals) > 0 {
+			// Sort groupProposals by ProposalID so the GroupID is always based on the
+			// lexicographically smallest ProposalID, regardless of LLM output ordering.
+			sort.Slice(groupProposals, func(i, j int) bool {
+				return groupProposals[i].Proposal.ID < groupProposals[j].Proposal.ID
+			})
 			// Generate consistent group ID from first proposal in groupProposals.
 			// groupProposals is guaranteed non-empty here, and each proposal has non-nil Proposal field.
 			groupID := fmt.Sprintf("cluster-%s", computeProposalHash(

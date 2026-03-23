@@ -5,6 +5,42 @@ import (
 	"time"
 )
 
+func TestMergedDoctrine_LocalOnlyWhenNoGlobalRulesJSON(t *testing.T) {
+	globalDir := t.TempDir() // no rules.json written — simulates absent global config
+	localDir := t.TempDir()
+
+	localStore := &FSStore{Dir: localDir}
+	localRules := Doctrine{
+		Rules: []Rule{
+			{ID: "l1", Summary: "Local only rule 1", Scope: "*", Status: "active", CreatedAt: time.Now()},
+			{ID: "l2", Summary: "Local only rule 2", Scope: "api", Status: "active", CreatedAt: time.Now()},
+		},
+	}
+	if err := localStore.Save(localRules); err != nil {
+		t.Fatalf("Save local rules: %v", err)
+	}
+
+	merged, err := MergedDoctrine(globalDir, localDir)
+	if err != nil {
+		t.Fatalf("MergedDoctrine: %v", err)
+	}
+
+	if len(merged) != 2 {
+		t.Errorf("expected 2 rules, got %d", len(merged))
+	}
+
+	ids := make(map[string]bool)
+	for _, rule := range merged {
+		ids[rule.ID] = true
+	}
+	if !ids["l1"] {
+		t.Error("l1 should be present")
+	}
+	if !ids["l2"] {
+		t.Error("l2 should be present")
+	}
+}
+
 func TestMergedDoctrine_GlobalRulesWhenNoLocal(t *testing.T) {
 	globalDir := t.TempDir()
 	localDir := t.TempDir()

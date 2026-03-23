@@ -11,9 +11,6 @@ import (
 	"github.com/danabrams/gromit/internal/next/playbook"
 )
 
-// SourceRunID string represents the run identifier from which a proposal originated.
-type SourceRunID string
-
 // Promote promotes a PendingProposal to a Decision, routing to the appropriate store
 // (doctrine for doctrine_rule proposals, playbook for others).
 // Field overrides (title, change, rationale) are used if non-empty; otherwise defaults from proposal are used.
