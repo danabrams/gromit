@@ -124,20 +124,28 @@ func GroupProposals(ctx context.Context, proposals []PendingProposal, llm review
 	return allGroups, warnings
 }
 
-// FilterGroupsByType filters proposal groups to only include groups where all proposals match the specified type.
+// FilterGroupsByType filters proposal groups to only include proposals matching the specified type.
+// Groups are retained if they contain at least one matching proposal; non-matching proposals are removed.
 func FilterGroupsByType(groups []ProposalGroup, proposalType string) []ProposalGroup {
 	var filtered []ProposalGroup
 	for _, group := range groups {
-		// Check if all proposals in this group match the requested type
-		allMatch := true
+		// Filter proposals within this group to only include matching type
+		var matchingProposals []PendingProposal
 		for _, pp := range group.Proposals {
-			if pp.Proposal == nil || pp.Proposal.Type != proposalType {
-				allMatch = false
-				break
+			if pp.Proposal != nil && pp.Proposal.Type == proposalType {
+				matchingProposals = append(matchingProposals, pp)
 			}
 		}
-		if allMatch && len(group.Proposals) > 0 {
-			filtered = append(filtered, group)
+
+		// Keep the group if it has at least one matching proposal
+		if len(matchingProposals) > 0 {
+			// Create a new group with only the matching proposals
+			filteredGroup := ProposalGroup{
+				GroupID:     group.GroupID,
+				Proposals:   matchingProposals,
+				GroupReason: group.GroupReason,
+			}
+			filtered = append(filtered, filteredGroup)
 		}
 	}
 	return filtered

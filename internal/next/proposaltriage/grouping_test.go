@@ -625,9 +625,8 @@ func TestGroupProposals_NilLLMSkipsClustering(t *testing.T) {
 }
 
 func TestFilterGroupsByType_MixedTypeGroup(t *testing.T) {
-	// A group with proposals of different types should be excluded when filtering by a single type.
-	// This ensures that group-level filtering respects the constraint that all proposals in a group
-	// must match the requested type.
+	// A group with mixed proposal types should be retained with only matching proposals.
+	// This aligns with spec scenario: "list filters by type within groups"
 	now := time.Now()
 
 	proposal1 := &reviewdistiller.Proposal{
@@ -648,7 +647,16 @@ func TestFilterGroupsByType_MixedTypeGroup(t *testing.T) {
 		Confidence:     "high",
 	}
 
-	// Mixed-type group: contains both doctrine_rule and validation_gap
+	proposal3 := &reviewdistiller.Proposal{
+		ID:             "p3",
+		Type:           "validation_gap",
+		Title:          "Third proposal",
+		ProposedChange: "Add nil check",
+		Rationale:      "Prevent null dereference",
+		Confidence:     "high",
+	}
+
+	// Mixed-type group: contains doctrine_rule and 2 validation_gap
 	mixedTypeGroup := ProposalGroup{
 		GroupID:     "mixed-group-1",
 		GroupReason: "semantic_cluster",
@@ -665,14 +673,39 @@ func TestFilterGroupsByType_MixedTypeGroup(t *testing.T) {
 				SpecID:    "spec1",
 				CreatedAt: now.Add(time.Minute),
 			},
+			{
+				Proposal:  proposal3,
+				RunID:     "run3",
+				SpecID:    "spec1",
+				CreatedAt: now.Add(2 * time.Minute),
+			},
 		},
 	}
 
-	// Filter by doctrine_rule
-	filtered := FilterGroupsByType([]ProposalGroup{mixedTypeGroup}, "doctrine_rule")
+	// Filter by validation_gap
+	filtered := FilterGroupsByType([]ProposalGroup{mixedTypeGroup}, "validation_gap")
 
-	// Mixed-type group should be excluded because not all proposals are doctrine_rule
-	if len(filtered) != 0 {
-		t.Errorf("expected 0 groups when filtering mixed-type group by single type, got %d", len(filtered))
+	// Group should be retained but with only the 2 validation_gap proposals
+	if len(filtered) != 1 {
+		t.Errorf("expected 1 group (retained with filtered proposals), got %d", len(filtered))
+	}
+
+	if len(filtered[0].Proposals) != 2 {
+		t.Errorf("expected 2 matching proposals in filtered group, got %d", len(filtered[0].Proposals))
+	}
+
+	// Verify the remaining proposals are the validation_gap ones
+	for i, pp := range filtered[0].Proposals {
+		if pp.Proposal.Type != "validation_gap" {
+			t.Errorf("proposal %d: expected type 'validation_gap', got '%s'", i, pp.Proposal.Type)
+		}
+	}
+
+	// Group metadata should be preserved
+	if filtered[0].GroupID != "mixed-group-1" {
+		t.Errorf("expected GroupID 'mixed-group-1', got '%s'", filtered[0].GroupID)
+	}
+	if filtered[0].GroupReason != "semantic_cluster" {
+		t.Errorf("expected GroupReason 'semantic_cluster', got '%s'", filtered[0].GroupReason)
 	}
 }

@@ -477,6 +477,10 @@ func displayPendingProposals(groups []proposaltriage.ProposalGroup) error {
 		})
 
 		for _, p := range sortedProposals {
+			if p.Proposal == nil {
+				continue
+			}
+
 			// Truncate ID for display
 			displayID := p.Proposal.ID
 			if len(displayID) > 12 {

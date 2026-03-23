@@ -463,6 +463,159 @@ func TestClusterSemantically_NilLLMReturnsSingletons(t *testing.T) {
 	}
 }
 
+// TestClusterSemantically_DeterministicGroupIDRegardlessOfOrder verifies that the GroupID
+// for a semantic cluster is deterministic even when the LLM returns proposal IDs in different orders.
+// This ensures that the same cluster will always have the same GroupID regardless of LLM response order.
+func TestClusterSemantically_DeterministicGroupIDRegardlessOfOrder(t *testing.T) {
+	ctx := context.TODO()
+	now := time.Now()
+
+	// Create 3 proposals
+	proposal1 := &reviewdistiller.Proposal{
+		ID:             "p1",
+		Type:           "validation_gap",
+		Title:          "Missing null check",
+		ProposedChange: "Add null check before dereferencing pointer",
+		Confidence:     "high",
+	}
+
+	proposal2 := &reviewdistiller.Proposal{
+		ID:             "p2",
+		Type:           "validation_gap",
+		Title:          "Null pointer dereference risk",
+		ProposedChange: "Check for nil before using pointer",
+		Confidence:     "high",
+	}
+
+	proposal3 := &reviewdistiller.Proposal{
+		ID:             "p3",
+		Type:           "doctrine_rule",
+		Title:          "Input validation",
+		ProposedChange: "Add validation for all external inputs",
+		Confidence:     "medium",
+	}
+
+	pending1 := PendingProposal{
+		Proposal:  proposal1,
+		RunID:     "run1",
+		SpecID:    "spec1",
+		CreatedAt: now,
+	}
+
+	pending2 := PendingProposal{
+		Proposal:  proposal2,
+		RunID:     "run2",
+		SpecID:    "spec1",
+		CreatedAt: now.Add(time.Minute),
+	}
+
+	pending3 := PendingProposal{
+		Proposal:  proposal3,
+		RunID:     "run3",
+		SpecID:    "spec1",
+		CreatedAt: now.Add(2 * time.Minute),
+	}
+
+	// First clustering: LLM returns proposal IDs in order [p2, p1]
+	llm1 := &stubLLMCompleter{
+		response: `{
+  "clusters": [
+    {
+      "proposal_ids": ["p2", "p1"],
+      "description": "Null pointer safety checks"
+    }
+  ]
+}`,
+	}
+
+	groups1, err1 := ClusterSemantically(ctx, []PendingProposal{pending1, pending2, pending3}, llm1)
+
+	if err1 != nil {
+		t.Errorf("first clustering: expected nil error, got: %v", err1)
+	}
+
+	if len(groups1) != 2 {
+		t.Errorf("first clustering: expected 2 groups (1 cluster + 1 singleton), got %d", len(groups1))
+	}
+
+	// Second clustering: LLM returns proposal IDs in order [p1, p2] (reversed)
+	llm2 := &stubLLMCompleter{
+		response: `{
+  "clusters": [
+    {
+      "proposal_ids": ["p1", "p2"],
+      "description": "Null pointer safety checks"
+    }
+  ]
+}`,
+	}
+
+	groups2, err2 := ClusterSemantically(ctx, []PendingProposal{pending1, pending2, pending3}, llm2)
+
+	if err2 != nil {
+		t.Errorf("second clustering: expected nil error, got: %v", err2)
+	}
+
+	if len(groups2) != 2 {
+		t.Errorf("second clustering: expected 2 groups (1 cluster + 1 singleton), got %d", len(groups2))
+	}
+
+	// Find the cluster group (non-singleton) in both results
+	var cluster1, cluster2 *ProposalGroup
+	for i := range groups1 {
+		if len(groups1[i].Proposals) == 2 {
+			cluster1 = &groups1[i]
+			break
+		}
+	}
+
+	for i := range groups2 {
+		if len(groups2[i].Proposals) == 2 {
+			cluster2 = &groups2[i]
+			break
+		}
+	}
+
+	if cluster1 == nil {
+		t.Errorf("first clustering: did not find expected 2-proposal cluster")
+	}
+
+	if cluster2 == nil {
+		t.Errorf("second clustering: did not find expected 2-proposal cluster")
+	}
+
+	// Verify the GroupIDs are identical despite different LLM response order
+	if cluster1 != nil && cluster2 != nil && cluster1.GroupID != cluster2.GroupID {
+		t.Errorf("GroupID not deterministic: first clustering got '%s', second clustering got '%s'",
+			cluster1.GroupID, cluster2.GroupID)
+	}
+
+	// Verify both clusters have the same proposals (p1 and p2)
+	if cluster1 != nil {
+		ids1 := make(map[string]bool)
+		for _, pp := range cluster1.Proposals {
+			if pp.Proposal != nil {
+				ids1[pp.Proposal.ID] = true
+			}
+		}
+		if !ids1["p1"] || !ids1["p2"] {
+			t.Errorf("first cluster expected p1 and p2, got %v", ids1)
+		}
+	}
+
+	if cluster2 != nil {
+		ids2 := make(map[string]bool)
+		for _, pp := range cluster2.Proposals {
+			if pp.Proposal != nil {
+				ids2[pp.Proposal.ID] = true
+			}
+		}
+		if !ids2["p1"] || !ids2["p2"] {
+			t.Errorf("second cluster expected p1 and p2, got %v", ids2)
+		}
+	}
+}
+
 // TestClusterSemantically_InvalidJSONResponseDegradeGracefully verifies that when the LLM
 // returns invalid JSON, ClusterSemantically degrades gracefully by returning all proposals
 // as singleton groups and returning a non-nil error for logging.
