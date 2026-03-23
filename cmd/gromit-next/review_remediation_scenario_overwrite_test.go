@@ -176,13 +176,19 @@ func TestScenario_ExistingRemediationSpecIsOverwritten(t *testing.T) {
 	}
 
 	// New spec_id header is correct
-	if !strings.Contains(spec, "# Remediation Spec: my-spec-remediation") {
+	if !strings.Contains(spec, "## spec_id") {
 		t.Error("new spec_id header missing or wrong")
+	}
+	if !strings.Contains(spec, "my-spec-remediation") {
+		t.Error("new spec_id value missing or wrong")
 	}
 
 	// Depends on points to parent spec
-	if !strings.Contains(spec, "**Depends on:** my-spec") {
-		t.Error("Depends on missing or wrong")
+	if !strings.Contains(spec, "## Depends on") {
+		t.Error("Depends on header missing or wrong")
+	}
+	if !strings.Contains(spec, "my-spec") {
+		t.Error("Depends on value missing or wrong")
 	}
 
 	// Summary mentions 5 findings and 3 categories

@@ -101,13 +101,19 @@ func TestScenario_AcceptedRunWithFindings_GeneratesRemediationSpec(t *testing.T)
 	spec := string(content)
 
 	// spec_id is correct
-	if !strings.Contains(spec, "# Remediation Spec: 0004f-contract-specificity-validation-remediation") {
+	if !strings.Contains(spec, "## spec_id") {
 		t.Error("spec_id header missing or wrong")
+	}
+	if !strings.Contains(spec, "0004f-contract-specificity-validation-remediation") {
+		t.Error("spec_id value missing or wrong")
 	}
 
 	// Depends on points to parent spec
-	if !strings.Contains(spec, "**Depends on:** 0004f-contract-specificity-validation") {
-		t.Error("Depends on missing or wrong")
+	if !strings.Contains(spec, "## Depends on") {
+		t.Error("Depends on header missing or wrong")
+	}
+	if !strings.Contains(spec, "0004f-contract-specificity-validation") {
+		t.Error("Depends on value missing or wrong")
 	}
 
 	// Summary mentions 17 findings and 2 categories

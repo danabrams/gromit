@@ -37,12 +37,16 @@ type RemediationInput struct {
 func generateRemediationSpec(input RemediationInput) string {
 	var sb strings.Builder
 
-	// spec_id header
-	sb.WriteString(fmt.Sprintf("# Remediation Spec: %s\n\n", input.SpecID))
+	// spec_id section
+	sb.WriteString("## spec_id\n\n")
+	sb.WriteString(input.SpecID)
+	sb.WriteString("\n\n")
 
 	// Depends on section (if present)
 	if input.DependsOn != "" {
-		sb.WriteString(fmt.Sprintf("**Depends on:** %s\n\n", input.DependsOn))
+		sb.WriteString("## Depends on\n\n")
+		sb.WriteString(input.DependsOn)
+		sb.WriteString("\n\n")
 	}
 
 	// Summary section

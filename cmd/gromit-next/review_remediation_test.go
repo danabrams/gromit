@@ -62,13 +62,19 @@ func TestGenerateRemediationSpec_PureFunction(t *testing.T) {
 	output := generateRemediationSpec(input)
 
 	// Verify spec_id header is present
-	if !strings.Contains(output, "# Remediation Spec: spec-0001") {
-		t.Errorf("spec_id header missing: expected '# Remediation Spec: spec-0001', got:\n%s", output)
+	if !strings.Contains(output, "## spec_id") {
+		t.Errorf("spec_id header missing: expected '## spec_id'")
+	}
+	if !strings.Contains(output, "spec-0001") {
+		t.Errorf("spec ID missing: expected 'spec-0001' in output")
 	}
 
 	// Verify Depends on section
-	if !strings.Contains(output, "**Depends on:** spec-0000") {
-		t.Errorf("Depends on section missing: expected '**Depends on:** spec-0000', got:\n%s", output)
+	if !strings.Contains(output, "## Depends on") {
+		t.Errorf("Depends on section missing: expected '## Depends on'")
+	}
+	if !strings.Contains(output, "spec-0000") {
+		t.Errorf("Depends on value missing: expected 'spec-0000' in output")
 	}
 
 	// Verify Summary section with counts
@@ -208,12 +214,12 @@ func TestGenerateRemediationSpec_EmptyFindings(t *testing.T) {
 	output := generateRemediationSpec(input)
 
 	// Verify spec_id header is present
-	if !strings.Contains(output, "# Remediation Spec: spec-0011") {
+	if !strings.Contains(output, "## spec_id") || !strings.Contains(output, "spec-0011") {
 		t.Errorf("spec_id header missing in output with empty findings")
 	}
 
 	// Verify Depends on section is present
-	if !strings.Contains(output, "**Depends on:** spec-0010") {
+	if !strings.Contains(output, "## Depends on") || !strings.Contains(output, "spec-0010") {
 		t.Errorf("Depends on section missing")
 	}
 
@@ -364,12 +370,12 @@ func TestMaybeGenerateRemediationSpec_AcceptedWithFindings(t *testing.T) {
 	specContent := string(content)
 
 	// Verify correct spec_id
-	if !strings.Contains(specContent, "# Remediation Spec: spec-0004-remediation") {
+	if !strings.Contains(specContent, "## spec_id") || !strings.Contains(specContent, "spec-0004-remediation") {
 		t.Error("spec_id header not found or incorrect")
 	}
 
 	// Verify Depends on section
-	if !strings.Contains(specContent, "**Depends on:** spec-0004") {
+	if !strings.Contains(specContent, "## Depends on") || !strings.Contains(specContent, "spec-0004") {
 		t.Error("DependsOn section not found")
 	}
 
@@ -695,7 +701,7 @@ func TestMaybeGenerateRemediationSpec_OverwritesExisting(t *testing.T) {
 	}
 
 	// Verify new content is present
-	if !strings.Contains(newContentStr, "# Remediation Spec: spec-0008-remediation") {
+	if !strings.Contains(newContentStr, "## spec_id") || !strings.Contains(newContentStr, "spec-0008-remediation") {
 		t.Error("new spec_id header not found")
 	}
 	if !strings.Contains(newContentStr, "CORS Misconfiguration") {
@@ -1100,7 +1106,7 @@ func TestReviewRecordCmd_AcceptedCallsRemediation(t *testing.T) {
 	}
 	specStr := string(specContent)
 
-	if !strings.Contains(specStr, "# Remediation Spec: spec-0005-remediation") {
+	if !strings.Contains(specStr, "## spec_id") || !strings.Contains(specStr, "spec-0005-remediation") {
 		t.Error("remediation spec header missing")
 	}
 
