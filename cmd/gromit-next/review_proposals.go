@@ -152,9 +152,15 @@ The decision is saved and the materialized entry ID is reported.`,
 			overrideTitle, _ := cmd.Flags().GetString("title")
 			overrideChange, _ := cmd.Flags().GetString("change")
 			overrideRationale, _ := cmd.Flags().GetString("rationale")
+			scope, _ := cmd.Flags().GetString("scope")
 
 			if storeDir == "" {
 				storeDir = ".gromit-next"
+			}
+
+			// Validate scope
+			if scope != "local" && scope != "global" {
+				return fmt.Errorf("invalid scope %q: must be 'local' or 'global'", scope)
 			}
 
 			// Load project ID from store
@@ -187,10 +193,16 @@ The decision is saved and the materialized entry ID is reported.`,
 				return fmt.Errorf("proposal %q already has a decision: %s", proposalID, targetProposal.Decision.Action)
 			}
 
-			// Resolve project cell paths for doctrine and playbook stores
-			projectDir := filepath.Join(storeDir, "projects", projectID)
-			doctrineDir := filepath.Join(projectDir, "doctrine")
-			playbookDir := filepath.Join(projectDir, "playbook")
+			// Resolve store paths based on scope
+			var doctrineDir, playbookDir string
+			if scope == "global" {
+				doctrineDir = filepath.Join(storeDir, "global", "doctrine")
+				playbookDir = filepath.Join(storeDir, "global", "playbook")
+			} else {
+				projectDir := filepath.Join(storeDir, "projects", projectID)
+				doctrineDir = filepath.Join(projectDir, "doctrine")
+				playbookDir = filepath.Join(projectDir, "playbook")
+			}
 
 			// Create stores
 			doctrineStore := doctrine.NewFSStore()
@@ -202,6 +214,11 @@ The decision is saved and the materialized entry ID is reported.`,
 				Proposal: targetProposal.Proposal,
 				RunID:    targetProposal.RunID,
 				SpecID:   targetProposal.SpecID,
+			}
+
+			// Set scope when materialization target is global
+			if scope == "global" {
+				pp.Scope = scope
 			}
 
 			// Call Promote to create decision
@@ -246,6 +263,7 @@ The decision is saved and the materialized entry ID is reported.`,
 	cmd.Flags().String("title", "", "Override proposal title")
 	cmd.Flags().String("change", "", "Override proposed change description")
 	cmd.Flags().String("rationale", "", "Override rationale")
+	cmd.Flags().String("scope", "local", "Scope for materialization: 'local' (default) or 'global'")
 
 	return cmd
 }
