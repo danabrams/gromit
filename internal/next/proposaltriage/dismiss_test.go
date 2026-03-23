@@ -259,7 +259,7 @@ func TestDismissSiblings_SkipsNilProposal(t *testing.T) {
 	}
 }
 
-func TestDismissSiblings_AcceptedProposalNotFound(t *testing.T) {
+func TestDismissSiblings_AcceptedIDNotInGroup(t *testing.T) {
 	tmpDir := t.TempDir()
 	store := runstore.NewStore(tmpDir)
 

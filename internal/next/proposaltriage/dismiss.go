@@ -52,10 +52,10 @@ func DismissSiblings(acceptedProposalID string, group ProposalGroup, store *runs
 		decisions = append(decisions, decision)
 	}
 
-	// Step 2: Save each batch of decisions for its run directory.
-	// SaveDecisions provides true upsert semantics: it loads existing decisions,
-	// merges new ones by deduplicating on ProposalID, and saves the combined result.
-	// This load-merge-save pattern makes DismissSiblings idempotent—retrying after
+	// Step 2: Save all collected decisions to their run directories.
+	// Each batch of decisions is saved using upsert semantics: loading existing decisions,
+	// deduplicating on ProposalID, and saving the combined result. This load-merge-save
+	// pattern makes DismissSiblings idempotent—retrying the dismiss-group operation after
 	// a partial failure will not duplicate dismissed decisions.
 	var saveErrors []error
 	for evidenceDir, runDecisions := range decisionsByRunDir {

@@ -369,3 +369,49 @@ func TestValidateTerminalState_DifferentProposalDismissedReturnsNil(t *testing.T
 		t.Errorf("ValidateTerminalState should return nil when different proposal is dismissed, got: %v", err)
 	}
 }
+
+func TestSaveDecisions_Idempotent(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create a decision
+	decision := []Decision{
+		{
+			ProposalID:        "prop-1",
+			Action:            "dismissed",
+			Reason:            "duplicate",
+			ApprovedTitle:     "Title 1",
+			ApprovedChange:    "Change 1",
+			ApprovedRationale: "Rationale 1",
+			DecidedAt:         time.Date(2026, 3, 21, 10, 0, 0, 0, time.UTC),
+		},
+	}
+
+	// Save the decision twice
+	if err := SaveDecisions(tmpDir, decision); err != nil {
+		t.Fatalf("SaveDecisions (first call) failed: %v", err)
+	}
+
+	if err := SaveDecisions(tmpDir, decision); err != nil {
+		t.Fatalf("SaveDecisions (second call) failed: %v", err)
+	}
+
+	// Load and verify exactly one entry exists
+	loaded, err := LoadDecisions(tmpDir)
+	if err != nil {
+		t.Fatalf("LoadDecisions failed: %v", err)
+	}
+
+	if len(loaded) != 1 {
+		t.Fatalf("expected exactly 1 decision after idempotent saves, got %d", len(loaded))
+	}
+
+	if loaded[0].ProposalID != "prop-1" {
+		t.Errorf("decision ProposalID mismatch, got %q, want %q", loaded[0].ProposalID, "prop-1")
+	}
+	if loaded[0].Action != "dismissed" {
+		t.Errorf("decision Action mismatch, got %q, want %q", loaded[0].Action, "dismissed")
+	}
+	if loaded[0].Reason != "duplicate" {
+		t.Errorf("decision Reason mismatch, got %q, want %q", loaded[0].Reason, "duplicate")
+	}
+}
