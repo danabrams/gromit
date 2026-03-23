@@ -28,7 +28,7 @@ func buildProposalsCompleter() reviewdistiller.LLMCompleter {
 	const defaultTier = reviewdistiller.TierMedium
 
 	defaultPolicy := execpolicy.DefaultPolicy()
-	client, err := claude.NewClient(defaultClaudeBinary, []string{"--dangerously-skip-permissions"}, defaultPolicy.Budgets.MaxTaskDurationSeconds)
+	client, err := claude.NewClient(defaultClaudeBinary, nil, defaultPolicy.Budgets.MaxTaskDurationSeconds)
 	if err != nil {
 		log.Printf("warning: create claude client for proposal grouping: %v", err)
 		return nil
