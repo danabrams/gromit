@@ -192,6 +192,12 @@ Basename matching in contract correction...
 			if !strings.Contains(typedEv.Reason, "write_contracts_test.go") {
 				t.Errorf("expected reason to mention original file 'write_contracts_test.go', got %q", typedEv.Reason)
 			}
+			if typedEv.OldPath != "internal/next/specloop/stages/write_contracts_test.go" {
+				t.Errorf("expected OldPath %q, got %q", "internal/next/specloop/stages/write_contracts_test.go", typedEv.OldPath)
+			}
+			if typedEv.CandidatePath != "internal/next/specloop/stages/alternative_test.go" {
+				t.Errorf("expected CandidatePath %q, got %q", "internal/next/specloop/stages/alternative_test.go", typedEv.CandidatePath)
+			}
 		}
 	}
 
