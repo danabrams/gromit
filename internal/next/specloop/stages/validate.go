@@ -40,6 +40,7 @@ type ValidateStageConfig struct {
 	EvidenceDir      string
 	RepoDir          string
 	SearchExtensions []string // file extensions to search for contract correction (e.g. [".go"])
+	SpecText         string
 }
 
 // ValidateStage runs final validation checks.
@@ -309,6 +310,19 @@ func (s *ValidateStage) attemptContractCorrection(
 					continue
 				}
 
+				// Guard clause: if the old path is mentioned in the spec's Acceptance Criteria,
+				// reject the correction (don't accept a sibling-file correction for spec-mentioned paths)
+				if specACMentionsPath(s.cfg.SpecText, oldPath) {
+					remaining = append(remaining, failure)
+					if s.eventLog != nil {
+						s.eventLog.Append(runstore.ContractCorrectionRejectedEvent{
+							BaseEvent:    runstore.BaseEvent{Type: "contract_correction_rejected", Timestamp: time.Now()},
+							ScenarioName: scenario.Name,
+							Reason:       fmt.Sprintf("oldPath %q mentioned in spec acceptance criteria", oldPath),
+						})
+					}
+					continue
+				}
 				// Found a sibling file with the pattern, update the contract
 				for assertionIdx, assertion := range scenario.Assertions {
 					if assertion.FileContains != nil && assertion.FileContains.Path == oldPath && assertion.FileContains.Pattern == pat {
@@ -336,6 +350,31 @@ func (s *ValidateStage) attemptContractCorrection(
 	}
 
 	return corrected, remaining
+}
+
+// specACMentionsPath extracts the Acceptance Criteria section from the spec markdown
+// and checks if the basename of the given file path is mentioned in that section.
+func specACMentionsPath(spec string, filePath string) bool {
+	// Extract the Acceptance Criteria section from the spec
+	acStart := strings.Index(spec, "Acceptance Criteria")
+	if acStart == -1 {
+		return false
+	}
+
+	// Find where the AC section ends (next heading or EOF)
+	acContent := spec[acStart:]
+	nextHeading := strings.Index(acContent[len("Acceptance Criteria"):], "\n#")
+
+	var acSection string
+	if nextHeading == -1 {
+		acSection = acContent
+	} else {
+		acSection = acContent[:len("Acceptance Criteria")+nextHeading]
+	}
+
+	// Check if the file's basename is mentioned in the AC section
+	baseName := filepath.Base(filePath)
+	return strings.Contains(acSection, baseName)
 }
 
 // extractFileAndPattern extracts the file path and pattern from a ContractFailure's

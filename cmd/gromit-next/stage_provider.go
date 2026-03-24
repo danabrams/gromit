@@ -316,6 +316,7 @@ func (p *RealStageProvider) BuildStages(policy execpolicy.Policy, rs *runstore.R
 		EvidenceDir:      evidenceDir,
 		RepoDir:          repoDir,
 		SearchExtensions: []string{".go"},
+		SpecText:         string(specContent),
 	}, eventLog, contractEvaluator, gitOps)
 
 	reviewStage := stages.NewReviewStage(reviewRunner, stages.ReviewStageConfig{
