@@ -206,8 +206,8 @@ func attemptDistillation(runID string, storeDir string, tier reviewdistiller.Tie
 	runMetadata := map[string]interface{}{
 		"status":          run.Status,
 		"cycle":           run.Cycle,
-		"blocker_summary": run.BlockerSummary,
-		"replan_context":  run.ReplanContext,
+		"blocker_summary": truncateString(run.BlockerSummary, 500),
+		"replan_context":  truncateStringSlice(run.ReplanContext, 3, 300),
 		"failure_history": run.FailureHistory,
 		"task_lineage":    run.Tasks,
 	}
@@ -271,6 +271,27 @@ func (ia *invokerAdapter) Complete(ctx context.Context, prompt string) (string, 
 }
 
 var _ reviewdistiller.LLMCompleter = (*invokerAdapter)(nil)
+
+// truncateString returns s truncated to maxLen characters, with "..." appended if truncated.
+func truncateString(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	return s[:maxLen] + "..."
+}
+
+// truncateStringSlice returns the last n entries of slice, each truncated to maxLen characters.
+func truncateStringSlice(slice []string, n int, maxLen int) []string {
+	if len(slice) > n {
+		slice = slice[len(slice)-n:]
+	}
+	result := make([]string, len(slice))
+	for i, s := range result {
+		result[i] = truncateString(slice[i], maxLen)
+		_ = s
+	}
+	return result
+}
 
 // tierToModel converts a tier designation to a concrete model name.
 // This function serves as the boundary between the abstract tier system
