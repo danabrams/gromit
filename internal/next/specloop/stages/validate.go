@@ -203,10 +203,10 @@ func (s *ValidateStage) Run(ctx context.Context, rs *runstore.RunState) (specloo
 
 	// Collect shell check failures.
 	for _, cr := range result.AlwaysRun.FailedChecks() {
-		failures = append(failures, fmt.Sprintf("always-run check %q failed: %s", cr.Name, cr.Output))
+		failures = append(failures, fmt.Sprintf("always-run check %q failed: %s", cr.Name, filterPassingTestLines(cr.Output)))
 	}
 	for _, cr := range result.ProjectChecks.FailedChecks() {
-		failures = append(failures, fmt.Sprintf("project check %q failed: %s", cr.Name, cr.Output))
+		failures = append(failures, fmt.Sprintf("project check %q failed: %s", cr.Name, filterPassingTestLines(cr.Output)))
 	}
 
 	// Detect I/O leak infrastructure failures before classifying as test logic failures.
@@ -599,6 +599,32 @@ func detectIOLeakFailure(result validator.FinalResult) string {
 		}
 	}
 	return ""
+}
+
+// filterPassingTestLines removes passing-package and no-test-files lines from
+// go test output, keeping only lines relevant to failures. This reduces noise
+// for the replanner without truncating any failure details.
+//
+// Lines removed:
+//   - "ok  \t..." — passing packages
+//   - "?   \t..." — packages with no test files
+//
+// If filtering produces an empty string (shouldn't happen for a failed check),
+// the original string is returned unchanged as a fallback.
+func filterPassingTestLines(s string) string {
+	lines := strings.Split(s, "\n")
+	filtered := lines[:0]
+	for _, line := range lines {
+		if strings.HasPrefix(line, "ok  \t") || strings.HasPrefix(line, "?   \t") {
+			continue
+		}
+		filtered = append(filtered, line)
+	}
+	result := strings.Join(filtered, "\n")
+	if strings.TrimSpace(result) == "" {
+		return s
+	}
+	return result
 }
 
 // slicesEqual returns true if a and b have the same length and identical
