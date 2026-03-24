@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/exec"
 	"path/filepath"
 
 	"github.com/danabrams/gromit/internal/claude"
@@ -13,6 +14,7 @@ import (
 	"github.com/danabrams/gromit/internal/next/reviewpacket"
 	"github.com/danabrams/gromit/internal/next/reviewsession"
 	"github.com/danabrams/gromit/internal/next/runstore"
+	"github.com/danabrams/gromit/internal/next/workspace"
 	"github.com/danabrams/gromit/internal/provider"
 	"github.com/spf13/cobra"
 )
@@ -34,6 +36,8 @@ func newReviewRecordCmd() *cobra.Command {
 			override, _ := cmd.Flags().GetString("override")
 			storeDir, _ := cmd.Flags().GetString("store-dir")
 			runFlag, _ := cmd.Flags().GetString("run")
+			specsDir, _ := cmd.Flags().GetString("specs-dir")
+			project, _ := cmd.Flags().GetString("project")
 
 			if outcome == "" {
 				return fmt.Errorf("--outcome flag is required")
@@ -49,7 +53,42 @@ func newReviewRecordCmd() *cobra.Command {
 				return fmt.Errorf("run ID is required (provide via --run flag or positional argument)")
 			}
 
-			return reviewRecord(runID, storeDir, outcome, summary, override)
+			// Resolve specsDir from project config if not explicitly provided
+			// (same pattern as exec_complete.go lines 38-56)
+			if specsDir == "" && project != "" {
+				resolver := workspace.NewEnvResolver()
+				root, _ := resolver.Resolve()
+				if root != "" {
+					projectDir, _ := ResolveProjectConfigPath(root, project)
+					if cfg, err := LoadProjectConfig(projectDir); err == nil {
+						specsDir = cfg.SpecsDir
+						if specsDir == "" && cfg.RepoPath != "" {
+							specsDir = filepath.Join(cfg.RepoPath, "docs", "specs")
+						}
+					}
+				}
+			}
+
+			err := reviewRecord(runID, storeDir, outcome, summary, override)
+			if err != nil {
+				return err
+			}
+
+			// After reviewRecord succeeds, handle remediation spec if accepted
+			if outcome == "accepted" {
+				if specsDir == "" {
+					fmt.Fprintf(cmd.ErrOrStderr(), "warning: skipping remediation spec generation (specs-dir not configured)\n")
+				} else {
+					specPath, err := maybeGenerateRemediationSpec(runID, storeDir, specsDir)
+					if err != nil {
+						fmt.Fprintf(cmd.ErrOrStderr(), "warning: failed to generate remediation spec: %v\n", err)
+					} else if specPath != "" {
+						fmt.Fprintln(cmd.OutOrStdout(), specPath)
+					}
+				}
+			}
+
+			return nil
 		},
 	}
 	cmd.Flags().String("outcome", "", "The review outcome (accepted, rework_implementation_gap, rework_vision_change)")
@@ -57,6 +96,8 @@ func newReviewRecordCmd() *cobra.Command {
 	cmd.Flags().String("override", "", "Override reason for accepting a run with unsure items")
 	cmd.Flags().String("store-dir", "", "Run store directory (default: .gromit-next)")
 	cmd.Flags().String("run", "", "Run ID to record (if not specified, uses positional argument)")
+	cmd.Flags().String("specs-dir", "", "Override specs directory (for testing)")
+	cmd.Flags().String("project", "", "Project name for resolving specsDir from config")
 	return cmd
 }
 
@@ -197,18 +238,25 @@ func reviewRecord(runID string, storeDir string, outcome string, summary string,
 	// Attempt automatic distillation (non-blocking on error)
 	const defaultClaudeBinary = "claude"
 	defaultPolicy := execpolicy.DefaultPolicy()
-	client, err := claude.NewClient(defaultClaudeBinary, []string{"--dangerously-skip-permissions"}, defaultPolicy.Budgets.MaxTaskDurationSeconds)
+
+	// Check if claude binary is available before attempting distillation
+	claudePath, err := exec.LookPath(defaultClaudeBinary)
 	if err != nil {
-		log.Printf("distillation skipped: failed to create claude client: %v", err)
+		log.Printf("distillation skipped: %q not found in PATH", defaultClaudeBinary)
 	} else {
-		prov := provider.NewClaudeProvider(client, provider.DefaultTierToModelMap)
-		adapter := llmadapter.New(prov, llmadapter.Config{
-			Phase: "review",
-			Tier:  string(distillerTier),
-		})
-		completer := NewInvokerAdapter(adapter)
-		if err := attemptDistillation(runID, storeDir, distillerTier, completer); err != nil {
-			log.Printf("distillation failed (non-blocking): %v", err)
+		client, err := claude.NewClient(claudePath, []string{"--dangerously-skip-permissions"}, defaultPolicy.Budgets.MaxTaskDurationSeconds)
+		if err != nil {
+			log.Printf("distillation skipped: failed to create claude client: %v", err)
+		} else {
+			prov := provider.NewClaudeProvider(client, provider.DefaultTierToModelMap)
+			adapter := llmadapter.New(prov, llmadapter.Config{
+				Phase: "review",
+				Tier:  string(distillerTier),
+			})
+			completer := NewInvokerAdapter(adapter)
+			if err := attemptDistillation(runID, storeDir, distillerTier, completer); err != nil {
+				log.Printf("distillation failed (non-blocking): %v", err)
+			}
 		}
 	}
 

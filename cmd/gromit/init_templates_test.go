@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -22,7 +23,12 @@ type profileExpectation struct {
 // TestInitGoLogicFileIsShort verifies that init.go stays under 500 lines (template constants moved to separate file)
 func TestInitGoLogicFileIsShort(t *testing.T) {
 	t.Parallel()
-	file, err := os.Open("init.go")
+	// Get the directory of this test file and construct path to init.go
+	_, testFile, _, _ := runtime.Caller(0)
+	testDir := filepath.Dir(testFile)
+	initFile := filepath.Join(testDir, "init.go")
+
+	file, err := os.Open(initFile)
 	if err != nil {
 		t.Fatalf("failed to open init.go: %v", err)
 	}

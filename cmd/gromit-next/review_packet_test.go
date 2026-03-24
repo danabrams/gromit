@@ -1,12 +1,14 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/next/reviewpacket"
+	"github.com/danabrams/gromit/internal/next/reviewsession"
 	"github.com/danabrams/gromit/internal/next/runstore"
 )
 
@@ -242,5 +244,138 @@ func TestLoadRunAndEnsurePacket_SkipsRegenerationWhenArtifactsExist(t *testing.T
 	}
 	if returnedEvidenceDir != runEvidenceDir {
 		t.Fatalf("returned evidence dir mismatch: got %q, want %q", returnedEvidenceDir, runEvidenceDir)
+	}
+}
+
+// TestScenario_WorkspaceResolutionFailureIsSoftFail verifies that when GROMIT_WORKSPACE is unset
+// and --project flag is provided with --outcome accepted, the command succeeds (returns nil),
+// writes review-outcome.json, and prints a warning to stderr about skipping remediation spec generation.
+// This tests the RunE closure path through the workspace resolver.
+func TestScenario_WorkspaceResolutionFailureIsSoftFail(t *testing.T) {
+	// Ensure GROMIT_WORKSPACE is unset for this test
+	oldWorkspace := os.Getenv("GROMIT_WORKSPACE")
+	os.Unsetenv("GROMIT_WORKSPACE")
+	defer func() {
+		if oldWorkspace != "" {
+			os.Setenv("GROMIT_WORKSPACE", oldWorkspace)
+		}
+	}()
+
+	storeDir := t.TempDir()
+	store := runstore.NewStore(storeDir)
+
+	// Create a run in ready_for_review state
+	rs := runstore.NewRunState("my-spec", "my-project")
+	rs.Status = runstore.StatusReadyForReview
+	if err := store.Save(rs); err != nil {
+		t.Fatalf("save run: %v", err)
+	}
+
+	runID := rs.RunID
+	runEvidenceDir := store.RunEvidenceDir(runID)
+
+	// Create evidence directory with required artifacts
+	if err := os.MkdirAll(runEvidenceDir, 0o755); err != nil {
+		t.Fatalf("create evidence directory: %v", err)
+	}
+
+	// Write spec.md
+	specContent := `# Test Spec
+
+## Acceptance Criteria
+- Criterion 1
+`
+	runDir := store.RunDir(runID)
+	if err := os.MkdirAll(runDir, 0o755); err != nil {
+		t.Fatalf("create run directory: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(runDir, "spec.md"), []byte(specContent), 0o644); err != nil {
+		t.Fatalf("write spec.md: %v", err)
+	}
+
+	// Write validation.json
+	validation := map[string]interface{}{
+		"passed": true,
+		"checks": []map[string]interface{}{},
+	}
+	validationData, err := json.MarshalIndent(validation, "", "  ")
+	if err != nil {
+		t.Fatalf("marshal validation: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(runEvidenceDir, "validation.json"), validationData, 0o644); err != nil {
+		t.Fatalf("write validation.json: %v", err)
+	}
+
+	// Write acceptance.json
+	acceptance := map[string]interface{}{
+		"passed":  1,
+		"failed":  0,
+		"unclear": 0,
+	}
+	acceptanceData, err := json.MarshalIndent(acceptance, "", "  ")
+	if err != nil {
+		t.Fatalf("marshal acceptance: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(runEvidenceDir, "acceptance.json"), acceptanceData, 0o644); err != nil {
+		t.Fatalf("write acceptance.json: %v", err)
+	}
+
+	// Write review.json
+	review := map[string]interface{}{
+		"findings": map[string]interface{}{},
+	}
+	reviewData, err := json.MarshalIndent(review, "", "  ")
+	if err != nil {
+		t.Fatalf("marshal review: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(runEvidenceDir, "review.json"), reviewData, 0o644); err != nil {
+		t.Fatalf("write review.json: %v", err)
+	}
+
+	// Create the review record command
+	cmd := newReviewRecordCmd()
+
+	// Set up flags
+	cmd.Flags().Set("store-dir", storeDir)
+	cmd.Flags().Set("run", runID)
+	cmd.Flags().Set("outcome", "accepted")
+	cmd.Flags().Set("project", "foo")
+
+	// Capture stderr output
+	stderrBuf := &bytes.Buffer{}
+	cmd.SetErr(stderrBuf)
+
+	// Execute the RunE function
+	err = cmd.RunE(cmd, []string{})
+
+	// Verify command succeeded (returned nil)
+	if err != nil {
+		t.Fatalf("RunE returned error: %v", err)
+	}
+
+	// Verify review-outcome.json was written
+	outcomeFile := filepath.Join(runEvidenceDir, "review-outcome.json")
+	if _, err := os.Stat(outcomeFile); err != nil {
+		t.Fatalf("review-outcome.json not written: %v", err)
+	}
+
+	// Verify review-outcome.json contains valid data
+	outcomeData, err := os.ReadFile(outcomeFile)
+	if err != nil {
+		t.Fatalf("read review-outcome.json: %v", err)
+	}
+	var outcome reviewsession.ReviewOutcome
+	if err := json.Unmarshal(outcomeData, &outcome); err != nil {
+		t.Fatalf("parse review-outcome.json: %v", err)
+	}
+	if outcome.Outcome != "accepted" {
+		t.Fatalf("outcome mismatch: got %q, want %q", outcome.Outcome, "accepted")
+	}
+
+	// Verify warning about skipping remediation spec generation appears on stderr
+	stderrOutput := stderrBuf.String()
+	expectedWarning := "warning: skipping remediation spec generation (specs-dir not configured)\n"
+	if expectedWarning != stderrOutput {
+		t.Fatalf("stderr mismatch: got %q, want %q", stderrOutput, expectedWarning)
 	}
 }
