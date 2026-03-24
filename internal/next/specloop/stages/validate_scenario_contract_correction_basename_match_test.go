@@ -195,8 +195,8 @@ Basename matching in contract correction...
 			if typedEv.OldPath != "internal/next/specloop/stages/write_contracts_test.go" {
 				t.Errorf("expected OldPath %q, got %q", "internal/next/specloop/stages/write_contracts_test.go", typedEv.OldPath)
 			}
-			if typedEv.CandidatePath != "internal/next/specloop/stages/alternative_test.go" {
-				t.Errorf("expected CandidatePath %q, got %q", "internal/next/specloop/stages/alternative_test.go", typedEv.CandidatePath)
+			if typedEv.CandidatePath != "alternative_test.go" {
+				t.Errorf("expected CandidatePath %q, got %q", "alternative_test.go", typedEv.CandidatePath)
 			}
 		}
 	}

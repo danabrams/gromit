@@ -319,7 +319,7 @@ func (s *ValidateStage) attemptContractCorrection(
 							BaseEvent:     runstore.BaseEvent{Type: "contract_correction_rejected", Timestamp: time.Now()},
 							ScenarioName:  scenario.Name,
 							OldPath:       oldPath,
-							CandidatePath: found,
+							CandidatePath: filepath.Base(found),
 							Reason:        fmt.Sprintf("oldPath %q mentioned in spec acceptance criteria", oldPath),
 						})
 					}

@@ -69,7 +69,6 @@ func TestSelectProfilePrefersExplicitOverride(t *testing.T) {
 }
 
 func TestSelectProfileUsesExistingConfig(t *testing.T) {
-	t.Parallel()
 	dir := t.TempDir()
 	content := `project:
   profile: "node"
@@ -80,6 +79,12 @@ func TestSelectProfileUsesExistingConfig(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "package.json"), []byte("{}"), 0644); err != nil {
 		t.Fatalf("write package.json: %v", err)
 	}
+
+	prevProfile := initProfile
+	initProfile = ""
+	defer func() {
+		initProfile = prevProfile
+	}()
 
 	profile, err := selectInitProfile(dir)
 	if err != nil {
