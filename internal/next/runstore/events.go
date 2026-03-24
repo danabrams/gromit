@@ -173,8 +173,10 @@ type ContractCorrectedEvent struct {
 
 type ContractCorrectionRejectedEvent struct {
 	BaseEvent
-	ScenarioName string `json:"scenario_name"`
-	Reason       string `json:"reason"`
+	ScenarioName  string `json:"scenario_name"`
+	Reason        string `json:"reason"`
+	OldPath       string `json:"old_path"`
+	CandidatePath string `json:"candidate_path"`
 }
 
 type ContractDeferredEvent struct {

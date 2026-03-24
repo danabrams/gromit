@@ -162,6 +162,12 @@ Contract correction guard when AC names the original file...
 			if !strings.Contains(typedEv.Reason, "write_contracts_test.go") {
 				t.Errorf("expected rejection reason to mention 'write_contracts_test.go', got %q", typedEv.Reason)
 			}
+			if typedEv.OldPath != "write_contracts_test.go" {
+				t.Errorf("expected OldPath to be 'write_contracts_test.go', got %q", typedEv.OldPath)
+			}
+			if typedEv.CandidatePath != "stages_scenario_structural_regression_test.go" {
+				t.Errorf("expected CandidatePath to be 'stages_scenario_structural_regression_test.go', got %q", typedEv.CandidatePath)
+			}
 		}
 	}
 

@@ -316,9 +316,11 @@ func (s *ValidateStage) attemptContractCorrection(
 					remaining = append(remaining, failure)
 					if s.eventLog != nil {
 						s.eventLog.Append(runstore.ContractCorrectionRejectedEvent{
-							BaseEvent:    runstore.BaseEvent{Type: "contract_correction_rejected", Timestamp: time.Now()},
-							ScenarioName: scenario.Name,
-							Reason:       fmt.Sprintf("oldPath %q mentioned in spec acceptance criteria", oldPath),
+							BaseEvent:     runstore.BaseEvent{Type: "contract_correction_rejected", Timestamp: time.Now()},
+							ScenarioName:  scenario.Name,
+							OldPath:       oldPath,
+							CandidatePath: found,
+							Reason:        fmt.Sprintf("oldPath %q mentioned in spec acceptance criteria", oldPath),
 						})
 					}
 					continue
@@ -355,6 +357,11 @@ func (s *ValidateStage) attemptContractCorrection(
 // specACMentionsPath extracts the Acceptance Criteria section from the spec markdown
 // and checks if the basename of the given file path is mentioned in that section.
 func specACMentionsPath(spec string, filePath string) bool {
+	// Empty filePath should always return false
+	if filePath == "" {
+		return false
+	}
+
 	// Extract the Acceptance Criteria section from the spec
 	acStart := strings.Index(spec, "Acceptance Criteria")
 	if acStart == -1 {

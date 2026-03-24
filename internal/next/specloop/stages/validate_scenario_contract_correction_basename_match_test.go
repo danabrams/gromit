@@ -38,6 +38,28 @@ func (f *fakeContractEvaluatorBasenameMatch) Evaluate(ctx context.Context, c *co
 	}, nil
 }
 
+// TestUnit_SpecACMentionsPathWithEmptyFilePath verifies that specACMentionsPath returns false
+// when given an empty filePath, even if the AC section contains "." or other characters.
+// This covers the edge case at validate.go:376 where filepath.Base("") returns "."
+func TestUnit_SpecACMentionsPathWithEmptyFilePath(t *testing.T) {
+	spec := `# Spec 0004h
+
+## Vision
+Some vision text with dots . in it
+
+## Acceptance Criteria
+
+1. Keep the test in some_test.go
+2. Don't touch other files.
+3. This section has dots . and more dots . everywhere
+`
+
+	result := specACMentionsPath(spec, "")
+	if result {
+		t.Fatalf("expected specACMentionsPath to return false for empty filePath, got true")
+	}
+}
+
 // TestScenario_ContractCorrectionRejectedViaBasenameMatchOnFullPath verifies that when a spec's
 // acceptance criteria text contains the basename of a full relative path (e.g., "write_contracts_test.go"),
 // the contract correction is rejected even though the contract failure path contains a full relative path
@@ -192,5 +214,56 @@ Basename matching in contract correction...
 	}
 	if strings.Contains(string(contractContent), "alternative_test.go") {
 		t.Fatal("contract should not be corrected to alternative_test.go")
+	}
+}
+
+// TestScenario_BasenameMatching verifies the basename matching behavior of specACMentionsPath
+// across various scenarios including empty filePath, basename-only matches, and full paths.
+func TestScenario_BasenameMatching(t *testing.T) {
+	tests := []struct {
+		name     string
+		spec     string
+		filePath string
+		want     bool
+	}{
+		{
+			name:     "empty filePath returns false",
+			spec:     "## Acceptance Criteria\nkeep tests in some_test.go",
+			filePath: "",
+			want:     false,
+		},
+		{
+			name:     "basename match with full path",
+			spec:     "## Acceptance Criteria\nkeep tests in write_contracts_test.go",
+			filePath: "internal/next/specloop/stages/write_contracts_test.go",
+			want:     true,
+		},
+		{
+			name:     "basename match with short path",
+			spec:     "## Acceptance Criteria\nensure test_file.go has content",
+			filePath: "test_file.go",
+			want:     true,
+		},
+		{
+			name:     "no match when basename not in AC",
+			spec:     "## Acceptance Criteria\nkeep main tests in primary_test.go",
+			filePath: "secondary_test.go",
+			want:     false,
+		},
+		{
+			name:     "empty AC section returns false",
+			spec:     "## Vision\nSome vision",
+			filePath: "test_file.go",
+			want:     false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := specACMentionsPath(tt.spec, tt.filePath)
+			if got != tt.want {
+				t.Errorf("specACMentionsPath(%q, %q) = %v, want %v", tt.spec, tt.filePath, got, tt.want)
+			}
+		})
 	}
 }
