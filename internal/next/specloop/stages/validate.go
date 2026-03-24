@@ -363,20 +363,20 @@ func specACMentionsPath(spec string, filePath string) bool {
 	}
 
 	// Extract the Acceptance Criteria section from the spec
-	acStart := strings.Index(spec, "Acceptance Criteria")
+	acStart := strings.Index(spec, "## Acceptance Criteria")
 	if acStart == -1 {
 		return false
 	}
 
 	// Find where the AC section ends (next heading or EOF)
 	acContent := spec[acStart:]
-	nextHeading := strings.Index(acContent[len("Acceptance Criteria"):], "\n#")
+	nextHeading := strings.Index(acContent[len("## Acceptance Criteria"):], "\n##")
 
 	var acSection string
 	if nextHeading == -1 {
 		acSection = acContent
 	} else {
-		acSection = acContent[:len("Acceptance Criteria")+nextHeading]
+		acSection = acContent[:len("## Acceptance Criteria")+nextHeading]
 	}
 
 	// Check if the file's basename is mentioned in the AC section
