@@ -127,6 +127,16 @@ type ReviewResultEvent struct {
 	ErroredFacets      []string       `json:"errored_facets,omitempty"`
 }
 
+type ReviewFindingVerifiedEvent struct {
+	BaseEvent
+	File        string `json:"file"`
+	Line        int    `json:"line"`
+	Severity    string `json:"severity"`
+	Description string `json:"description"`
+	Disposition string `json:"disposition"`
+	Reason      string `json:"reason"`
+}
+
 type AcceptanceResultEvent struct {
 	BaseEvent
 	TotalCriteria int `json:"total_criteria"`
@@ -343,6 +353,9 @@ func unmarshalEvent(data []byte) (TypedEvent, error) {
 		ev = &e
 	case "review_result":
 		var e ReviewResultEvent
+		ev = &e
+	case "review_finding_verified":
+		var e ReviewFindingVerifiedEvent
 		ev = &e
 	case "acceptance_result":
 		var e AcceptanceResultEvent

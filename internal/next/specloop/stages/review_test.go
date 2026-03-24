@@ -2,7 +2,9 @@ package stages
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -733,5 +735,320 @@ func TestReviewStage_DiffUnavailable_NilProvider_NoEvent(t *testing.T) {
 		if ev.EventType() == "diff_unavailable" {
 			t.Fatal("expected no DiffUnavailableEvent when DiffProvider is nil")
 		}
+	}
+}
+
+func TestReviewStage_NilVerifierBackwardCompat(t *testing.T) {
+	// When cfg.Verifier is nil, blocking findings should not be verified/filtered.
+	// This ensures backward compatibility with pre-verifier behavior.
+	blockingFinding := review.Finding{
+		Severity:    review.SeverityError,
+		File:        "handler.go",
+		Line:        42,
+		Description: "missing validation",
+	}
+
+	runner := &mockReviewRunner{
+		result: &review.RunResult{
+			AllFindings:         []review.Finding{blockingFinding},
+			BlockingFindings:    []review.Finding{blockingFinding},
+			HasBlockingFindings: true,
+		},
+	}
+
+	// Create ReviewStage with nil Verifier (backward compat mode)
+	stage := NewReviewStage(runner, ReviewStageConfig{
+		DiffProvider: &fakeDiffProvider{diff: "some diff"},
+		Verifier:     nil, // Nil verifier - no verification should occur
+	}, nil)
+
+	rs := runstore.NewRunState("test-spec", "test-project")
+	rs.Cycle = 1
+
+	action, err := stage.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	// Should return ReplanFrom (finding is blocking)
+	if action.Kind != specloop.ReplanFrom {
+		t.Errorf("expected ReplanFrom, got %v", action.Kind)
+	}
+
+	// Should have failure context with the finding
+	if action.Context == nil {
+		t.Fatal("expected FailureContext")
+	}
+	if len(action.Context.Failures) == 0 {
+		t.Error("expected at least one failure message")
+	}
+
+	// Verify the finding is in the failures (unchanged by verifier)
+	foundFinding := false
+	for _, failure := range action.Context.Failures {
+		if strings.Contains(failure, "missing validation") {
+			foundFinding = true
+			break
+		}
+	}
+	if !foundFinding {
+		t.Error("expected blocking finding in ReplanFrom failures (unchanged by nil verifier)")
+	}
+}
+
+// TestReviewStage_VerifierAuditLog verifies JSON audit log is written with required fields (AC 9)
+func TestReviewStage_VerifierAuditLog(t *testing.T) {
+	evidenceDir := t.TempDir()
+	eventLogPath := filepath.Join(evidenceDir, "events.jsonl")
+	eventLog := runstore.NewEventLog(eventLogPath)
+
+	blockingFinding := review.Finding{
+		Facet:       "test_facet",
+		Severity:    review.SeverityError,
+		File:        "unmodified.go",
+		Line:        42,
+		Description: "out of date code",
+		Cycle:       1,
+	}
+
+	stubVerifier := &stubFindingVerifier{
+		disposition: review.DispositionFixed,
+		reason:      "already fixed in main",
+	}
+
+	runner := &mockReviewRunner{
+		result: &review.RunResult{
+			AllFindings:         []review.Finding{blockingFinding},
+			BlockingFindings:    []review.Finding{blockingFinding},
+			HasBlockingFindings: true,
+			FindingsByFacet: map[string][]review.Finding{
+				"test_facet": {blockingFinding},
+			},
+		},
+	}
+
+	stage := NewReviewStage(runner, ReviewStageConfig{
+		Verifier:     stubVerifier,
+		EvidenceDir:  evidenceDir,
+		DiffProvider: &fakeDiffProvider{diff: ""},
+		WorkDir:      t.TempDir(),
+	}, eventLog)
+
+	rs := runstore.NewRunState("test-spec", "test-project")
+	rs.Cycle = 1
+
+	action, err := stage.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	if action.Kind != specloop.Continue {
+		t.Errorf("expected Continue after fixed dispositions, got %v", action.Kind)
+	}
+
+	auditPath := filepath.Join(evidenceDir, "verifier-audit.jsonl")
+	data, err := os.ReadFile(auditPath)
+	if err != nil {
+		t.Fatalf("read verifier-audit.jsonl: %v", err)
+	}
+
+	rawJSON := string(data)
+
+	// Check raw JSON bytes for lowercase snake_case field names (AC 9)
+	// json.Unmarshal is case-insensitive, so we must verify field names in raw bytes
+	requiredFields := []string{
+		`"file":`,
+		`"line":`,
+		`"severity":`,
+		`"description":`,
+		`"disposition":`,
+		`"reason":`,
+		`"file_excerpt":`,
+	}
+	for _, fieldName := range requiredFields {
+		if !strings.Contains(rawJSON, fieldName) {
+			t.Errorf("raw JSON missing required field %q\nJSON: %s", fieldName, rawJSON)
+		}
+	}
+
+	var auditEntry review.VerifierAuditEntry
+	if err := json.Unmarshal(data, &auditEntry); err != nil {
+		t.Fatalf("parse audit entry: %v", err)
+	}
+
+	if auditEntry.File != "unmodified.go" {
+		t.Errorf("expected File=unmodified.go, got %q", auditEntry.File)
+	}
+	if auditEntry.Line != 42 {
+		t.Errorf("expected Line=42, got %d", auditEntry.Line)
+	}
+	if auditEntry.Disposition != string(review.DispositionFixed) {
+		t.Errorf("expected Disposition=fixed, got %q", auditEntry.Disposition)
+	}
+	if auditEntry.Reason != "already fixed in main" {
+		t.Errorf("expected Reason, got %q", auditEntry.Reason)
+	}
+}
+
+// TestReviewStage_VerifiedEventEmitted verifies review_finding_verified event is emitted with correct disposition (AC 10)
+func TestReviewStage_VerifiedEventEmitted(t *testing.T) {
+	eventLogPath := filepath.Join(t.TempDir(), "events.jsonl")
+	eventLog := runstore.NewEventLog(eventLogPath)
+
+	blockingFinding := review.Finding{
+		Facet:       "test_facet",
+		Severity:    review.SeverityError,
+		File:        "unmodified.go",
+		Line:        10,
+		Description: "confirmed issue",
+		Cycle:       1,
+	}
+
+	stubVerifier := &stubFindingVerifier{
+		disposition: review.DispositionConfirmed,
+		reason:      "issue is real",
+	}
+
+	runner := &mockReviewRunner{
+		result: &review.RunResult{
+			AllFindings:         []review.Finding{blockingFinding},
+			BlockingFindings:    []review.Finding{blockingFinding},
+			HasBlockingFindings: true,
+			FindingsByFacet: map[string][]review.Finding{
+				"test_facet": {blockingFinding},
+			},
+		},
+	}
+
+	stage := NewReviewStage(runner, ReviewStageConfig{
+		Verifier:     stubVerifier,
+		DiffProvider: &fakeDiffProvider{diff: ""},
+		WorkDir:      t.TempDir(),
+	}, eventLog)
+
+	rs := runstore.NewRunState("test-spec", "test-project")
+	rs.Cycle = 1
+
+	action, err := stage.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	if action.Kind != specloop.ReplanFrom {
+		t.Errorf("expected ReplanFrom, got %v", action.Kind)
+	}
+
+	events, err := eventLog.ReadAll()
+	if err != nil {
+		t.Fatalf("ReadAll: %v", err)
+	}
+
+	var foundEvent *runstore.ReviewFindingVerifiedEvent
+	for _, ev := range events {
+		if ev.EventType() == "review_finding_verified" {
+			if rfv, ok := ev.(*runstore.ReviewFindingVerifiedEvent); ok {
+				foundEvent = rfv
+				break
+			}
+		}
+	}
+
+	if foundEvent == nil {
+		t.Fatal("expected review_finding_verified event to be emitted")
+	}
+
+	if foundEvent.Disposition != "confirmed" {
+		t.Errorf("expected Disposition=confirmed, got %q", foundEvent.Disposition)
+	}
+	if foundEvent.File != "unmodified.go" {
+		t.Errorf("expected File=unmodified.go, got %q", foundEvent.File)
+	}
+	if foundEvent.Line != 10 {
+		t.Errorf("expected Line=10, got %d", foundEvent.Line)
+	}
+	if foundEvent.Reason != "issue is real" {
+		t.Errorf("expected Reason=issue is real, got %q", foundEvent.Reason)
+	}
+}
+
+// TestReviewStage_PostVerificationBlockingCount verifies ReviewResultEvent.blocking_findings matches post-verification count (AC 11)
+func TestReviewStage_PostVerificationBlockingCount(t *testing.T) {
+	eventLogPath := filepath.Join(t.TempDir(), "events.jsonl")
+	eventLog := runstore.NewEventLog(eventLogPath)
+
+	finding1 := review.Finding{
+		Facet:       "test_facet",
+		Severity:    review.SeverityError,
+		File:        "file1.go",
+		Line:        1,
+		Description: "will be fixed",
+		Cycle:       1,
+	}
+	finding2 := review.Finding{
+		Facet:       "test_facet",
+		Severity:    review.SeverityError,
+		File:        "file2.go",
+		Line:        2,
+		Description: "will be confirmed",
+		Cycle:       1,
+	}
+
+	stubVerifier := &stubFindingVerifierByFile{
+		dispositionsByFile: map[string]review.VerifierDisposition{
+			"file1.go": review.DispositionFixed,
+			"file2.go": review.DispositionConfirmed,
+		},
+	}
+
+	runner := &mockReviewRunner{
+		result: &review.RunResult{
+			AllFindings:         []review.Finding{finding1, finding2},
+			BlockingFindings:    []review.Finding{finding1, finding2},
+			HasBlockingFindings: true,
+			FindingsByFacet: map[string][]review.Finding{
+				"test_facet": {finding1, finding2},
+			},
+		},
+	}
+
+	stage := NewReviewStage(runner, ReviewStageConfig{
+		Verifier:     stubVerifier,
+		DiffProvider: &fakeDiffProvider{diff: ""},
+		WorkDir:      t.TempDir(),
+	}, eventLog)
+
+	rs := runstore.NewRunState("test-spec", "test-project")
+	rs.Cycle = 1
+
+	action, err := stage.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	if action.Kind != specloop.ReplanFrom {
+		t.Errorf("expected ReplanFrom, got %v", action.Kind)
+	}
+
+	events, err := eventLog.ReadAll()
+	if err != nil {
+		t.Fatalf("ReadAll: %v", err)
+	}
+
+	var resultEvent *runstore.ReviewResultEvent
+	for _, ev := range events {
+		if ev.EventType() == "review_result" {
+			if rre, ok := ev.(*runstore.ReviewResultEvent); ok {
+				resultEvent = rre
+				break
+			}
+		}
+	}
+
+	if resultEvent == nil {
+		t.Fatal("expected review_result event to be emitted")
+	}
+
+	if resultEvent.BlockingFindings != 1 {
+		t.Errorf("expected BlockingFindings=1 (post-verification count), got %d", resultEvent.BlockingFindings)
 	}
 }

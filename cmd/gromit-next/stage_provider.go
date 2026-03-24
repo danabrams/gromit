@@ -115,6 +115,7 @@ func (p *RealStageProvider) BuildStages(policy execpolicy.Policy, rs *runstore.R
 		contractWriter     contract.ContractWriter
 		scenarioTestWriter contract.ScenarioTestWriter
 		diffProv           review.DiffProvider = &noopDiffProvider{}
+		verifier           review.FindingVerifier
 	)
 
 	// Resolve cellPath for loading doctrine and playbook if ProjectsDir is available.
@@ -180,6 +181,14 @@ func (p *RealStageProvider) BuildStages(policy execpolicy.Policy, rs *runstore.R
 			Threshold:  threshold,
 			FacetTiers: policy.Review.Tiers,
 		})
+
+		// Verifier adapter with FallbackAdapter (low tier).
+		verifierAdapter := llmadapter.NewFallbackAdapter(
+			router, "verify",
+			llmadapter.Config{Tier: "low", OnCost: costCallback, OnInvocation: invocationCallback},
+			"low",
+		)
+		verifier = review.NewLLMFindingVerifier(verifierAdapter)
 
 		// Accept adapter with FallbackAdapter.
 		acceptAdapter := llmadapter.NewFallbackAdapter(
@@ -319,6 +328,11 @@ func (p *RealStageProvider) BuildStages(policy execpolicy.Policy, rs *runstore.R
 		SpecText:         string(specContent),
 	}, eventLog, contractEvaluator, gitOps)
 
+	reviewStageWorkDir := p.cfg.WorkDir
+	if rs.WorktreePath != "" {
+		reviewStageWorkDir = rs.WorktreePath
+	}
+
 	reviewStage := stages.NewReviewStage(reviewRunner, stages.ReviewStageConfig{
 		SpecContent:  string(specContent),
 		EvidenceDir:  evidenceDir,
@@ -326,6 +340,8 @@ func (p *RealStageProvider) BuildStages(policy execpolicy.Policy, rs *runstore.R
 		BaseBranch:   "main",
 		DefaultTier:  policy.Models.Evaluator,
 		FacetTiers:   policy.Review.Tiers,
+		Verifier:     verifier,
+		WorkDir:      reviewStageWorkDir,
 	}, eventLog)
 
 	acceptStage := stages.NewAcceptStage(acceptEval, stages.AcceptStageConfig{

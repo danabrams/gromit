@@ -2,7 +2,10 @@ package stages
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -26,6 +29,8 @@ type ReviewStageConfig struct {
 	BaseBranch   string
 	DefaultTier  string
 	FacetTiers   map[string]string
+	Verifier     review.FindingVerifier
+	WorkDir      string
 }
 
 // ReviewStage runs faceted code review and decides whether findings block progress.
@@ -87,39 +92,6 @@ func (s *ReviewStage) Run(ctx context.Context, rs *runstore.RunState) (specloop.
 		return specloop.NextAction{}, fmt.Errorf("review run: %w", err)
 	}
 
-	// Emit review_result event (fire-and-forget, consistent with SpecLoop.emitEvent)
-	if s.eventLog != nil {
-		facetSet := make(map[string]bool)
-		for f := range result.FindingsByFacet {
-			facetSet[f] = true
-		}
-		for f := range result.ErroredFacets {
-			facetSet[f] = true
-		}
-		var facets []string
-		for f := range facetSet {
-			facets = append(facets, f)
-		}
-		sort.Strings(facets)
-		var erroredFacetNames []string
-		for f := range result.ErroredFacets {
-			erroredFacetNames = append(erroredFacetNames, f)
-		}
-		sort.Strings(erroredFacetNames)
-		findingsBySeverity := make(map[string]int)
-		for _, f := range result.AllFindings {
-			findingsBySeverity[f.Severity.String()]++
-		}
-		s.eventLog.Append(runstore.ReviewResultEvent{
-			BaseEvent:          runstore.BaseEvent{Type: "review_result", Timestamp: time.Now()},
-			TotalFindings:      len(result.AllFindings),
-			BlockingFindings:   len(result.BlockingFindings),
-			FindingsBySeverity: findingsBySeverity,
-			FacetsReviewed:     facets,
-			ErroredFacets:      erroredFacetNames,
-		})
-	}
-
 	// Handle all-facets-errored case
 	if result.AllFacetsErrored {
 		var errMsgs []string
@@ -157,6 +129,124 @@ func (s *ReviewStage) Run(ctx context.Context, rs *runstore.RunState) (specloop.
 		if err := s.bundler.WriteReviewFindings(output); err != nil {
 			return specloop.NextAction{}, fmt.Errorf("write review findings: %w", err)
 		}
+	}
+
+	// Verify blocking findings and filter based on verification results.
+	// Findings in the diff are kept unchanged; out-of-diff findings are
+	// verified and filtered based on disposition (confirmed/downgraded/fixed).
+	if s.cfg.Verifier != nil && len(result.BlockingFindings) > 0 {
+		diffFiles := review.FilesInDiff(diffSummary)
+		kept, verifierResults := review.VerifyBlockingFindings(ctx, result.BlockingFindings, diffFiles, s.cfg.Verifier, s.cfg.WorkDir)
+
+		// Emit review_finding_verified events and append to audit log
+		if s.eventLog != nil || s.cfg.EvidenceDir != "" {
+			// Open audit file once before the loop (Fix 3 & 5: guard and open outside loop)
+			var auditFile *os.File
+			if s.cfg.EvidenceDir != "" {
+				auditPath := filepath.Join(s.cfg.EvidenceDir, "verifier-audit.jsonl")
+				var openErr error
+				auditFile, openErr = os.OpenFile(auditPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+				if openErr != nil {
+					fmt.Fprintf(os.Stderr, "review stage: open verifier audit log: %v\n", openErr)
+				} else {
+					defer auditFile.Close()
+				}
+			}
+
+			for _, vr := range verifierResults {
+				// Emit event
+				if s.eventLog != nil {
+					s.eventLog.Append(runstore.ReviewFindingVerifiedEvent{
+						BaseEvent:   runstore.BaseEvent{Type: "review_finding_verified", Timestamp: time.Now()},
+						File:        vr.Finding.File,
+						Line:        vr.Finding.Line,
+						Severity:    vr.Finding.Severity.String(),
+						Description: vr.Finding.Description,
+						Disposition: string(vr.Disposition),
+						Reason:      vr.Reason,
+					})
+				}
+
+				// Best-effort append to audit file (Fix 4: capture json.Marshal error)
+				if auditFile != nil {
+					entry := review.VerifierAuditEntry{
+						File:        vr.Finding.File,
+						Line:        vr.Finding.Line,
+						Severity:    vr.Finding.Severity.String(),
+						Description: vr.Finding.Description,
+						Disposition: string(vr.Disposition),
+						Reason:      vr.Reason,
+						FileExcerpt: vr.FileExcerpt,
+					}
+					data, marshalErr := json.Marshal(entry)
+					if marshalErr != nil {
+						fmt.Fprintf(os.Stderr, "review stage: marshal verifier audit entry: %v\n", marshalErr)
+					}
+					if data != nil {
+						fmt.Fprintf(auditFile, "%s\n", string(data))
+					}
+				}
+			}
+		}
+
+		// Update blocking findings (Fix 1: store all kept findings, not just SeverityError).
+		// HasBlockingFindings reflects whether any kept finding is still Error severity;
+		// downgraded findings (Warning) are retained in BlockingFindings for evidence
+		// but do not block progress.
+		result.BlockingFindings = kept
+		hasBlocking := false
+		for _, kf := range kept {
+			if kf.Severity == review.SeverityError {
+				hasBlocking = true
+				break
+			}
+		}
+		result.HasBlockingFindings = hasBlocking
+
+		// Fix 2: sync AllFindings severities to reflect any downgrading done by VerifyBlockingFindings.
+		keptByKey := make(map[string]review.Finding, len(kept))
+		for _, kf := range kept {
+			keptByKey[kf.File+"\x00"+fmt.Sprint(kf.Line)+"\x00"+kf.Description] = kf
+		}
+		for i, af := range result.AllFindings {
+			key := af.File + "\x00" + fmt.Sprint(af.Line) + "\x00" + af.Description
+			if kf, ok := keptByKey[key]; ok && kf.Severity != af.Severity {
+				result.AllFindings[i].Severity = kf.Severity
+			}
+		}
+	}
+
+	// Emit review_result event AFTER verification to capture post-verification counts
+	if s.eventLog != nil {
+		facetSet := make(map[string]bool)
+		for f := range result.FindingsByFacet {
+			facetSet[f] = true
+		}
+		for f := range result.ErroredFacets {
+			facetSet[f] = true
+		}
+		var facets []string
+		for f := range facetSet {
+			facets = append(facets, f)
+		}
+		sort.Strings(facets)
+		var erroredFacetNames []string
+		for f := range result.ErroredFacets {
+			erroredFacetNames = append(erroredFacetNames, f)
+		}
+		sort.Strings(erroredFacetNames)
+		findingsBySeverity := make(map[string]int)
+		for _, f := range result.AllFindings {
+			findingsBySeverity[f.Severity.String()]++
+		}
+		s.eventLog.Append(runstore.ReviewResultEvent{
+			BaseEvent:          runstore.BaseEvent{Type: "review_result", Timestamp: time.Now()},
+			TotalFindings:      len(result.AllFindings),
+			BlockingFindings:   len(result.BlockingFindings),
+			FindingsBySeverity: findingsBySeverity,
+			FacetsReviewed:     facets,
+			ErroredFacets:      erroredFacetNames,
+		})
 	}
 
 	if result.HasBlockingFindings {
