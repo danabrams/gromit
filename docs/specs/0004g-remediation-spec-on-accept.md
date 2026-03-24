@@ -162,7 +162,7 @@ The remediation spec ID is `<parent-spec-id>-remediation`. If a file already exi
 4. The remediation spec follows the standard gromit-next spec format with sections: spec_id, Depends on, Summary, Goals, Non-goals, Architecture, Acceptance Criteria, Validation
 5. Each non-blocking finding produces one acceptance criterion in the remediation spec, using `suggested_fix` if non-empty, otherwise `description`
 6. The remediation spec's `Depends on` field references the parent spec ID
-7. The path to the generated remediation spec is printed to stdout
+7. The path to the generated remediation spec is printed to stdout with the prefix `Created remediation spec: ` (i.e., `fmt.Fprintf(cmd.OutOrStdout(), "Created remediation spec: %s\n", path)`)
 8. If the specs directory cannot be resolved (no `--specs-dir` and no `--project` flag), the accept still succeeds and a warning is printed to stderr
 9. If a remediation spec already exists at the target path, it is overwritten
 10. The `review record` command accepts `--specs-dir` and `--project` flags for resolving the specs directory
@@ -170,6 +170,11 @@ The remediation spec ID is `<parent-spec-id>-remediation`. If a file already exi
 12. Findings with empty `description` are skipped
 13. `generateRemediationSpec` is a pure function — it takes `RemediationInput` and returns a string, with no I/O
 14. All existing `review record` tests continue to pass
+15. The Validation section of the generated remediation spec contains executable shell commands — specifically `go test ./... -count=1` and `go vet ./...` — not prose checklist items. The generated spec must be runnable by the gromit-next validation runner.
+16. Each acceptance criterion in the remediation spec is prefixed with the **file path** (not the facet type). Format: `N. <file-path>: <text>`
+17. The Architecture section of the generated remediation spec uses `suggested_fix` text when non-empty, falling back to `description` — same fallback logic as the Acceptance Criteria section
+18. Workspace resolution failure when `--project` is provided is a soft-fail: the accept and `review-outcome.json` still succeed, and a warning is printed. Uses the blank-identifier pattern (`root, _ := resolver.Resolve()`) matching the pattern in `exec_complete.go`.
+19. Findings with an empty `file` field are skipped (not accumulated into a `### ` heading with no filename)
 
 ## Scenarios
 
@@ -212,6 +217,31 @@ The remediation spec ID is `<parent-spec-id>-remediation`. If a file already exi
 **Given:** `docs/specs/my-spec-remediation.md` already exists with 3 acceptance criteria from a prior run
 **When:** A new accept generates a remediation spec with 5 acceptance criteria for the same spec
 **Then:** The file is overwritten with the new 5-criteria spec
+
+### Scenario: validation section contains executable commands
+**Given:** A terminal run with one `architecture_drift` warning finding
+**When:** The remediation spec is generated
+**Then:** The `## Validation` section of the generated spec contains `go test ./... -count=1` and `go vet ./...` as bullet items, not prose sentences like "All identified issues have been addressed"
+
+### Scenario: acceptance criteria prefixed with file path
+**Given:** A terminal run with `review.json` containing one finding with `"file": "cmd/gromit-next/review_remediation.go"` and `"facet": "architecture_drift"`
+**When:** The remediation spec is generated
+**Then:** The acceptance criterion reads `1. cmd/gromit-next/review_remediation.go: <text>` — prefixed with the file path, not the facet name `architecture_drift`
+
+### Scenario: architecture section prefers suggested_fix over description
+**Given:** A terminal run with one finding where `"description": "prose description"` and `"suggested_fix": "Replace X with Y"`
+**When:** The remediation spec is generated
+**Then:** The Architecture section for that finding's file contains `Replace X with Y`, not `prose description`
+
+### Scenario: project flag workspace resolution failure is soft-fail
+**Given:** The `GROMIT_WORKSPACE` env var is unset (workspace resolver returns an error), and `review record` is called with `--project foo --outcome accepted`
+**When:** The command runs
+**Then:** The accept still succeeds, `review-outcome.json` is written, and stderr warns about skipping remediation spec generation — the command does not return an error
+
+### Scenario: findings with empty file field are skipped
+**Given:** A terminal run with `review.json` containing one finding where `"file": ""` and one finding where `"file": "cmd/gromit-next/foo.go"`
+**When:** The remediation spec is generated
+**Then:** The Architecture section contains only the `### cmd/gromit-next/foo.go` subsection; no `### ` (empty heading) appears in the output
 
 ## Validation
 
