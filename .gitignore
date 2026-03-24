@@ -73,6 +73,12 @@ cmd/gromit/.gromit/benchmarks/results/
 .beads/remotes/
 .worktrees/
 .gromit-next/
+!.gromit-next/projects/
+!.gromit-next/projects/*/
+!.gromit-next/projects/*/doctrine/
+!.gromit-next/projects/*/doctrine/*.json
+!.gromit-next/projects/*/playbook/
+!.gromit-next/projects/*/playbook/*.json
 
 # Fixture repos (nested git repos for testing)
 test/fixture-repos/
