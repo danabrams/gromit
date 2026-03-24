@@ -41,8 +41,14 @@ func LoadRejectedProposals(storeDir, projectID string) (json.RawMessage, error) 
 			continue
 		}
 
-		// Load proposals from distillation-proposals.json
+		// Load proposals from distillation-proposals.json; fall back to proposals.json.
 		distProposalsPath := filepath.Join(evidenceDir, "distillation-proposals.json")
+		if _, err := os.Stat(distProposalsPath); os.IsNotExist(err) {
+			legacyPath := filepath.Join(evidenceDir, "proposals.json")
+			if _, lerr := os.Stat(legacyPath); lerr == nil {
+				distProposalsPath = legacyPath
+			}
+		}
 		data, err := os.ReadFile(distProposalsPath)
 		if err != nil {
 			// Skip runs without proposals

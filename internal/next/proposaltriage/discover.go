@@ -86,9 +86,17 @@ func DiscoverAll(rootDir, projectID string, proposalTypes *[]string, runIDs *[]s
 			continue
 		}
 
-		// Load proposals from evidence directory
+		// Load proposals from evidence directory.
+		// Prefer distillation-proposals.json; fall back to proposals.json for
+		// runs where the distillation step wrote to the legacy filename.
 		evidenceDir := store.RunEvidenceDir(run.RunID)
 		distProposalsPath := filepath.Join(evidenceDir, "distillation-proposals.json")
+		if _, err := os.Stat(distProposalsPath); os.IsNotExist(err) {
+			legacyPath := filepath.Join(evidenceDir, "proposals.json")
+			if _, lerr := os.Stat(legacyPath); lerr == nil {
+				distProposalsPath = legacyPath
+			}
+		}
 
 		data, err := os.ReadFile(distProposalsPath)
 		if err != nil {
