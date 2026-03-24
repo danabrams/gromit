@@ -203,10 +203,10 @@ func (s *ValidateStage) Run(ctx context.Context, rs *runstore.RunState) (specloo
 
 	// Collect shell check failures.
 	for _, cr := range result.AlwaysRun.FailedChecks() {
-		failures = append(failures, fmt.Sprintf("always-run check %q failed: %s", cr.Name, truncateBlocker(cr.Output)))
+		failures = append(failures, fmt.Sprintf("always-run check %q failed: %s", cr.Name, cr.Output))
 	}
 	for _, cr := range result.ProjectChecks.FailedChecks() {
-		failures = append(failures, fmt.Sprintf("project check %q failed: %s", cr.Name, truncateBlocker(cr.Output)))
+		failures = append(failures, fmt.Sprintf("project check %q failed: %s", cr.Name, cr.Output))
 	}
 
 	// Detect I/O leak infrastructure failures before classifying as test logic failures.
@@ -599,17 +599,6 @@ func detectIOLeakFailure(result validator.FinalResult) string {
 		}
 	}
 	return ""
-}
-
-// truncateBlocker caps blocker/failure strings to 2000 characters to prevent
-// run JSON bloat when test output is large. The cap is enough to show which
-// tests failed and why without storing full multi-package test output.
-func truncateBlocker(s string) string {
-	const maxLen = 2000
-	if len(s) <= maxLen {
-		return s
-	}
-	return s[:maxLen] + "\n[truncated]"
 }
 
 // slicesEqual returns true if a and b have the same length and identical
