@@ -573,6 +573,11 @@ func newExecSpecCmdWithProvider(provider StageProvider) *cobra.Command {
 				}
 				claudeProv := providerPkg.NewClaudeProvider(claudeClient, tierModels)
 				codexProv := providerPkg.NewCodexProvider("codex", nil, providerPkg.DefaultCodexTierToModelMap)
+				codexProv.SetReasoningEffort(map[string]string{
+					"low":    "high",
+					"medium": "low",
+					"high":   "high",
+				})
 				p = NewRealStageProvider(RealStageProviderConfig{
 					WorkDir:        workDir,
 					StoreDir:       storeDir,
