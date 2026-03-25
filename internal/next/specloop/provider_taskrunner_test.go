@@ -210,6 +210,103 @@ func TestProviderTaskRunner_RepairTask_PromptIncludesFailures(t *testing.T) {
 	}
 }
 
+func TestProviderTaskRunner_TaskPrompt_WithArchitectureConstraints(t *testing.T) {
+	inv := &mockInvoker{
+		result: &provider.Result{
+			Success:  true,
+			Model:    "sonnet",
+			Duration: 1 * time.Second,
+		},
+	}
+	runner := NewProviderTaskRunner(inv, func() string { return "" })
+	runner.SetContextProvider(func() TaskContext {
+		return TaskContext{
+			ArchitectureConstraints: []string{"use NormalizeNilFields for cross-package types", "separate validation in haiku invocation"},
+		}
+	})
+	task := runstore.Task{
+		TaskID:          "t-arch-1",
+		Objective:       "implement with conventions",
+		SpecConstraints: "- do not modify existing test files",
+	}
+
+	_, err := runner.RunTask(context.Background(), task)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if !strings.Contains(inv.capturedPrompt, "### Architecture Conventions") {
+		t.Error("prompt does not contain '### Architecture Conventions' section header")
+	}
+	if !strings.Contains(inv.capturedPrompt, "- use NormalizeNilFields for cross-package types") {
+		t.Error("prompt does not contain first architecture constraint with '- ' prefix")
+	}
+	if !strings.Contains(inv.capturedPrompt, "- separate validation in haiku invocation") {
+		t.Error("prompt does not contain second architecture constraint with '- ' prefix")
+	}
+	specIdx := strings.Index(inv.capturedPrompt, "### Spec Constraints")
+	archIdx := strings.Index(inv.capturedPrompt, "### Architecture Conventions")
+	if specIdx == -1 {
+		t.Error("prompt does not contain '### Spec Constraints' section")
+	} else if archIdx <= specIdx {
+		t.Errorf("expected '### Architecture Conventions' (idx %d) to appear after '### Spec Constraints' (idx %d)", archIdx, specIdx)
+	}
+}
+
+func TestProviderTaskRunner_TaskPrompt_WithoutArchitectureConstraints(t *testing.T) {
+	inv := &mockInvoker{
+		result: &provider.Result{
+			Success:  true,
+			Model:    "sonnet",
+			Duration: 1 * time.Second,
+		},
+	}
+	runner := NewProviderTaskRunner(inv, func() string { return "" })
+
+	// Test with nil ArchitectureConstraints (no context provider set)
+	taskNil := runstore.Task{
+		TaskID:    "t-arch-2",
+		Objective: "implement without constraints",
+	}
+
+	_, err := runner.RunTask(context.Background(), taskNil)
+	if err != nil {
+		t.Fatalf("unexpected error with nil constraints: %v", err)
+	}
+
+	if strings.Contains(inv.capturedPrompt, "### Architecture Conventions") {
+		t.Error("prompt should not contain '### Architecture Conventions' when constraints are nil")
+	}
+
+	// Test with empty ArchitectureConstraints
+	inv2 := &mockInvoker{
+		result: &provider.Result{
+			Success:  true,
+			Model:    "sonnet",
+			Duration: 1 * time.Second,
+		},
+	}
+	runner2 := NewProviderTaskRunner(inv2, func() string { return "" })
+	runner2.SetContextProvider(func() TaskContext {
+		return TaskContext{
+			ArchitectureConstraints: []string{},
+		}
+	})
+	taskEmpty := runstore.Task{
+		TaskID:    "t-arch-3",
+		Objective: "implement without constraints",
+	}
+
+	_, err = runner2.RunTask(context.Background(), taskEmpty)
+	if err != nil {
+		t.Fatalf("unexpected error with empty constraints: %v", err)
+	}
+
+	if strings.Contains(inv2.capturedPrompt, "### Architecture Conventions") {
+		t.Error("prompt should not contain '### Architecture Conventions' when constraints are empty")
+	}
+}
+
 func TestProviderTaskRunner_RepairTask_MapsResultCorrectly(t *testing.T) {
 	inv := &mockInvoker{
 		result: &provider.Result{
@@ -443,7 +540,7 @@ func TestProviderTaskRunner_RunTask_UsesInvokeWhenWorkDirEmpty(t *testing.T) {
 	}
 }
 
-func TestRenderTaskPrompt_SpecConstraintsIncluded(t *testing.T) {
+func TestTaskPrompt_SpecConstraintsIncluded(t *testing.T) {
 	inv := &mockInvoker{
 		result: &provider.Result{
 			Success:  true,
@@ -471,7 +568,7 @@ func TestRenderTaskPrompt_SpecConstraintsIncluded(t *testing.T) {
 	}
 }
 
-func TestRenderTaskPrompt_NoSpecConstraintsWhenEmpty(t *testing.T) {
+func TestTaskPrompt_NoSpecConstraintsWhenEmpty(t *testing.T) {
 	inv := &mockInvoker{
 		result: &provider.Result{
 			Success:  true,
@@ -524,7 +621,7 @@ func TestRenderRepairPrompt_SpecConstraintsIncluded(t *testing.T) {
 	}
 }
 
-func TestRenderTaskPrompt_SpecConstraintsAppearBeforeProofChecks(t *testing.T) {
+func TestTaskPrompt_SpecConstraintsAppearBeforeProofChecks(t *testing.T) {
 	inv := &mockInvoker{
 		result: &provider.Result{
 			Success:  true,
@@ -558,7 +655,7 @@ func TestRenderTaskPrompt_SpecConstraintsAppearBeforeProofChecks(t *testing.T) {
 	}
 }
 
-func TestRenderTaskPrompt_ConstraintPreambleMentionsDeletion(t *testing.T) {
+func TestTaskPrompt_ConstraintPreambleMentionsDeletion(t *testing.T) {
 	inv := &mockInvoker{
 		result: &provider.Result{
 			Success:  true,
@@ -649,7 +746,7 @@ func TestProviderTaskRunner_LazyWorkDirResolution(t *testing.T) {
 
 // --- TaskContext tests ---
 
-func TestRenderTaskPrompt_IncludesProjectConventions(t *testing.T) {
+func TestTaskPrompt_IncludesProjectConventions(t *testing.T) {
 	task := runstore.Task{TaskID: "t-ctx-1", Objective: "implement feature"}
 	tc := TaskContext{ProjectConventions: "# Gromit\nUse Go idioms.\n"}
 	prompt := renderTaskPrompt(task, tc, "")
@@ -662,7 +759,7 @@ func TestRenderTaskPrompt_IncludesProjectConventions(t *testing.T) {
 	}
 }
 
-func TestRenderTaskPrompt_OriginalTaskOmitsSpec(t *testing.T) {
+func TestTaskPrompt_OriginalTaskOmitsSpec(t *testing.T) {
 	task := runstore.Task{TaskID: "t-ctx-2", Objective: "implement feature"}
 	tc := TaskContext{SpecContent: "# Spec 0042\nBuild the frobnicator.\n"}
 	prompt := renderTaskPrompt(task, tc, "")
@@ -672,7 +769,7 @@ func TestRenderTaskPrompt_OriginalTaskOmitsSpec(t *testing.T) {
 	}
 }
 
-func TestRenderTaskPrompt_FixTaskIncludesSpec(t *testing.T) {
+func TestTaskPrompt_FixTaskIncludesSpec(t *testing.T) {
 	task := runstore.Task{TaskID: "t-ctx-2b", Kind: "fix", Objective: "fix the frobnicator"}
 	tc := TaskContext{SpecContent: "# Spec 0042\nBuild the frobnicator.\n"}
 	prompt := renderTaskPrompt(task, tc, "")
@@ -685,7 +782,7 @@ func TestRenderTaskPrompt_FixTaskIncludesSpec(t *testing.T) {
 	}
 }
 
-func TestRenderTaskPrompt_ConventionsAppearBeforeTask(t *testing.T) {
+func TestTaskPrompt_ConventionsAppearBeforeTask(t *testing.T) {
 	task := runstore.Task{TaskID: "t-ctx-3", Objective: "do work"}
 	tc := TaskContext{ProjectConventions: "conventions here"}
 	prompt := renderTaskPrompt(task, tc, "")
@@ -701,7 +798,7 @@ func TestRenderTaskPrompt_ConventionsAppearBeforeTask(t *testing.T) {
 	}
 }
 
-func TestRenderTaskPrompt_FixTaskSpecAppearsBeforeTask(t *testing.T) {
+func TestTaskPrompt_FixTaskSpecAppearsBeforeTask(t *testing.T) {
 	task := runstore.Task{TaskID: "t-ctx-3b", Kind: "fix", Objective: "fix work"}
 	tc := TaskContext{
 		ProjectConventions: "conventions here",
@@ -724,7 +821,7 @@ func TestRenderTaskPrompt_FixTaskSpecAppearsBeforeTask(t *testing.T) {
 	}
 }
 
-func TestRenderTaskPrompt_EmptyContextOmitsSections(t *testing.T) {
+func TestTaskPrompt_EmptyContextOmitsSections(t *testing.T) {
 	task := runstore.Task{TaskID: "t-ctx-4", Objective: "do work"}
 	tc := TaskContext{} // empty
 	prompt := renderTaskPrompt(task, tc, "")
@@ -919,7 +1016,7 @@ func TestShellTaskInspector_LazyWorkDirResolution(t *testing.T) {
 
 // --- renderCurrentFileContents tests ---
 
-func TestRenderTaskPrompt_IncludesExistingFileContents(t *testing.T) {
+func TestTaskPrompt_IncludesExistingFileContents(t *testing.T) {
 	workDir := t.TempDir()
 
 	// Create a file that exists in the worktree.
@@ -1081,7 +1178,7 @@ func TestRenderContextSections_KnownGaps(t *testing.T) {
 	}
 }
 
-func TestRenderTaskPrompt_IncludesDoctrine(t *testing.T) {
+func TestTaskPrompt_IncludesDoctrine(t *testing.T) {
 	testCases := []struct {
 		name string
 		kind string
@@ -1479,5 +1576,205 @@ func TestFileTaskContextProvider_TreatsEmptyStatusAsActive(t *testing.T) {
 	// Explicit active rule should also be included
 	if !strings.Contains(tc.Doctrine, "Explicitly active rule") {
 		t.Error("prompt should contain explicitly active rule")
+	}
+}
+
+// TestApplyRunStateConstraints_NilRS verifies that ApplyRunStateConstraints returns
+// the TaskContext unchanged when rs is nil.
+func TestApplyRunStateConstraints_NilRS(t *testing.T) {
+	tc := TaskContext{
+		ProjectConventions: "some conventions",
+	}
+	result := ApplyRunStateConstraints(tc, nil)
+	if result.ProjectConventions != tc.ProjectConventions {
+		t.Error("ApplyRunStateConstraints with nil rs should return tc unchanged")
+	}
+	if len(result.ArchitectureConstraints) != 0 {
+		t.Error("ApplyRunStateConstraints with nil rs should not set ArchitectureConstraints")
+	}
+}
+
+// TestApplyRunStateConstraints_NilConstraints verifies that ApplyRunStateConstraints
+// returns the TaskContext unchanged when constraints is nil.
+func TestApplyRunStateConstraints_NilConstraints(t *testing.T) {
+	tc := TaskContext{
+		ProjectConventions: "some conventions",
+	}
+	result := ApplyRunStateConstraints(tc, nil)
+	if result.ProjectConventions != tc.ProjectConventions {
+		t.Error("ApplyRunStateConstraints with nil constraints should return tc unchanged")
+	}
+	if len(result.ArchitectureConstraints) != 0 {
+		t.Error("ApplyRunStateConstraints with nil constraints should not set ArchitectureConstraints")
+	}
+}
+
+// TestApplyRunStateConstraints_EmptyConstraints verifies that ApplyRunStateConstraints
+// returns the TaskContext unchanged when constraints is empty.
+func TestApplyRunStateConstraints_EmptyConstraints(t *testing.T) {
+	tc := TaskContext{
+		ProjectConventions: "some conventions",
+	}
+	result := ApplyRunStateConstraints(tc, []string{})
+	if result.ProjectConventions != tc.ProjectConventions {
+		t.Error("ApplyRunStateConstraints with empty constraints should return tc unchanged")
+	}
+	if len(result.ArchitectureConstraints) != 0 {
+		t.Error("ApplyRunStateConstraints with empty constraints should not set ArchitectureConstraints")
+	}
+}
+
+// TestApplyRunStateConstraints_PreExistingConstraintsPreserved verifies that
+// ApplyRunStateConstraints preserves pre-existing constraints in TaskContext
+// when the passed constraints slice is empty.
+func TestApplyRunStateConstraints_PreExistingConstraintsPreserved(t *testing.T) {
+	tc := TaskContext{ArchitectureConstraints: []string{"pre-existing"}}
+	result := ApplyRunStateConstraints(tc, []string{})
+	if len(result.ArchitectureConstraints) != 1 {
+		t.Errorf("expected 1 constraint, got %d", len(result.ArchitectureConstraints))
+	}
+	if result.ArchitectureConstraints[0] != "pre-existing" {
+		t.Errorf("expected 'pre-existing', got %q", result.ArchitectureConstraints[0])
+	}
+}
+
+// TestApplyRunStateConstraints_NonEmptyConstraints verifies that ApplyRunStateConstraints
+// appends constraints when tc has no pre-existing constraints.
+func TestApplyRunStateConstraints_NonEmptyConstraints(t *testing.T) {
+	tc := TaskContext{
+		ProjectConventions: "some conventions",
+	}
+	constraints := []string{"use NormalizeNilFields for cross-package types", "separate validation in haiku"}
+	result := ApplyRunStateConstraints(tc, constraints)
+	if result.ProjectConventions != tc.ProjectConventions {
+		t.Error("ApplyRunStateConstraints should preserve ProjectConventions")
+	}
+	if len(result.ArchitectureConstraints) != len(constraints) {
+		t.Errorf("ApplyRunStateConstraints should append ArchitectureConstraints; got %d, want %d", len(result.ArchitectureConstraints), len(constraints))
+	}
+	for i, c := range constraints {
+		if result.ArchitectureConstraints[i] != c {
+			t.Errorf("ApplyRunStateConstraints constraint mismatch at index %d: got %q, want %q", i, result.ArchitectureConstraints[i], c)
+		}
+	}
+}
+
+// TestApplyRunStateConstraints_MergeWithExisting verifies that ApplyRunStateConstraints
+// merges constraints, appending and deduplicating.
+func TestApplyRunStateConstraints_MergeWithExisting(t *testing.T) {
+	tc := TaskContext{
+		ProjectConventions:      "some conventions",
+		ArchitectureConstraints: []string{"existing constraint 1", "existing constraint 2"},
+	}
+	constraints := []string{"existing constraint 2", "new constraint 3", "new constraint 4"}
+	result := ApplyRunStateConstraints(tc, constraints)
+	if result.ProjectConventions != tc.ProjectConventions {
+		t.Error("ApplyRunStateConstraints should preserve ProjectConventions")
+	}
+	// Should have: existing 1, existing 2, new 3, new 4 (deduplicated)
+	expected := []string{"existing constraint 1", "existing constraint 2", "new constraint 3", "new constraint 4"}
+	if len(result.ArchitectureConstraints) != len(expected) {
+		t.Errorf("ApplyRunStateConstraints should merge constraints with dedup; got %d, want %d", len(result.ArchitectureConstraints), len(expected))
+	}
+	for i, c := range expected {
+		if result.ArchitectureConstraints[i] != c {
+			t.Errorf("ApplyRunStateConstraints constraint mismatch at index %d: got %q, want %q", i, result.ArchitectureConstraints[i], c)
+		}
+	}
+}
+
+// TestProviderTaskRunner_RepairTask_WithArchitectureConstraints verifies that the
+// repair prompt includes Architecture Conventions when they are present in TaskContext.
+func TestProviderTaskRunner_RepairTask_WithArchitectureConstraints(t *testing.T) {
+	inv := &mockInvoker{
+		result: &provider.Result{
+			Success:  true,
+			Model:    "sonnet",
+			Duration: 1 * time.Second,
+		},
+	}
+	runner := NewProviderTaskRunner(inv, func() string { return "" })
+	runner.SetContextProvider(func() TaskContext {
+		return TaskContext{
+			ArchitectureConstraints: []string{"Config.Tier always receives a tier label", "LLMCompleter.Complete uses context.Context as first parameter"},
+		}
+	})
+	task := runstore.Task{
+		TaskID:    "t-repair-arch-1",
+		Objective: "repair with conventions",
+	}
+	failures := []string{"type mismatch in Config.Tier", "missing context.Context parameter"}
+
+	_, err := runner.RepairTask(context.Background(), task, failures)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if !strings.Contains(inv.capturedPrompt, "### Architecture Conventions") {
+		t.Error("repair prompt does not contain '### Architecture Conventions' section header")
+	}
+	if !strings.Contains(inv.capturedPrompt, "- Config.Tier always receives a tier label") {
+		t.Error("repair prompt does not contain first architecture constraint with '- ' prefix")
+	}
+	if !strings.Contains(inv.capturedPrompt, "- LLMCompleter.Complete uses context.Context as first parameter") {
+		t.Error("repair prompt does not contain second architecture constraint with '- ' prefix")
+	}
+}
+
+// TestProviderTaskRunner_RepairTask_WithoutArchitectureConstraints verifies that the
+// repair prompt does NOT include an Architecture Conventions section when constraints are empty or nil.
+func TestProviderTaskRunner_RepairTask_WithoutArchitectureConstraints(t *testing.T) {
+	inv := &mockInvoker{
+		result: &provider.Result{
+			Success:  true,
+			Model:    "sonnet",
+			Duration: 1 * time.Second,
+		},
+	}
+	runner := NewProviderTaskRunner(inv, func() string { return "" })
+
+	// Test with nil ArchitectureConstraints (no context provider set)
+	taskNil := runstore.Task{
+		TaskID:    "t-repair-arch-2",
+		Objective: "repair without constraints",
+	}
+	failuresNil := []string{"test failed"}
+
+	_, err := runner.RepairTask(context.Background(), taskNil, failuresNil)
+	if err != nil {
+		t.Fatalf("unexpected error with nil constraints: %v", err)
+	}
+
+	if strings.Contains(inv.capturedPrompt, "### Architecture Conventions") {
+		t.Error("repair prompt should not contain '### Architecture Conventions' when constraints are nil")
+	}
+
+	// Test with empty ArchitectureConstraints
+	inv2 := &mockInvoker{
+		result: &provider.Result{
+			Success:  true,
+			Model:    "sonnet",
+			Duration: 1 * time.Second,
+		},
+	}
+	runner2 := NewProviderTaskRunner(inv2, func() string { return "" })
+	runner2.SetContextProvider(func() TaskContext {
+		return TaskContext{
+			ArchitectureConstraints: []string{},
+		}
+	})
+	taskEmpty := runstore.Task{
+		TaskID:    "t-repair-arch-3",
+		Objective: "repair with empty constraints",
+	}
+	failuresEmpty := []string{"test failed"}
+
+	_, err = runner2.RepairTask(context.Background(), taskEmpty, failuresEmpty)
+	if err != nil {
+		t.Fatalf("unexpected error with empty constraints: %v", err)
+	}
+
+	if strings.Contains(inv2.capturedPrompt, "### Architecture Conventions") {
+		t.Error("repair prompt should not contain '### Architecture Conventions' when constraints are empty")
 	}
 }

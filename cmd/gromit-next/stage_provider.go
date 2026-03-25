@@ -159,7 +159,12 @@ func (p *RealStageProvider) BuildStages(policy execpolicy.Policy, rs *runstore.R
 			return p.cfg.WorkDir
 		}
 		ptr := specloop.NewProviderTaskRunner(execAdapter, workDirFn)
-		ptr.SetContextProvider(specloop.FileTaskContextProvider(workDirFn, store.RunDir(rs.RunID), cellPath))
+		baseCtxFn := specloop.FileTaskContextProvider(workDirFn, store.RunDir(rs.RunID), cellPath)
+		// rs is a pointer, so mutations made by the plan stage before tasks run are visible
+		// through this closure when the context provider is invoked during task execution.
+		ptr.SetContextProvider(func() specloop.TaskContext {
+			return specloop.ApplyRunStateConstraints(baseCtxFn(), rs.ArchitectureConstraints)
+		})
 		taskRunner = ptr
 
 		finalVal = validator.NewShellValidator(validator.NewRunner())

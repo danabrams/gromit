@@ -13,6 +13,7 @@ import (
 	"github.com/danabrams/gromit/internal/next/playbook"
 	"github.com/danabrams/gromit/internal/next/runstore"
 	"github.com/danabrams/gromit/internal/next/specloop"
+	"github.com/danabrams/gromit/internal/provider"
 )
 
 type fakePlanner struct {
@@ -55,6 +56,27 @@ func (f *fakeFixPlanner) CreateFixPlan(ctx context.Context, req planner.FixPlanR
 	return planner.Plan{}, errors.New("no more plans")
 }
 
+// mockInvoker captures the prompt and returns a configured result.
+type mockInvoker struct {
+	capturedPrompt  string
+	capturedDir     string
+	usedInvokeInDir bool
+	result          *provider.Result
+	err             error
+}
+
+func (m *mockInvoker) Invoke(_ context.Context, prompt string) (*provider.Result, error) {
+	m.capturedPrompt = prompt
+	return m.result, m.err
+}
+
+func (m *mockInvoker) InvokeInDir(_ context.Context, prompt string, dir string) (*provider.Result, error) {
+	m.capturedPrompt = prompt
+	m.capturedDir = dir
+	m.usedInvokeInDir = true
+	return m.result, m.err
+}
+
 // Verify PlanStage satisfies the Stage interface.
 var _ specloop.Stage = (*PlanStage)(nil)
 
@@ -78,6 +100,12 @@ func validPlan() planner.Plan {
 			},
 		},
 	}
+}
+
+func planWithArchitectureDecisions(decisions []string) planner.Plan {
+	p := validPlan()
+	p.ArchitectureDecisions = decisions
+	return p
 }
 
 func invalidPlan() planner.Plan {
@@ -939,5 +967,304 @@ func TestPlanStage_MergedPlaybook_LocalWinsForOverlappingIDAndIncludesAllNonOver
 	}
 	if !strings.Contains(req.PlaybookHeuristics, "Local Heuristic 4") {
 		t.Fatalf("expected 'Local Heuristic 4' (new local entry) in merged heuristics, got: %q", req.PlaybookHeuristics)
+	}
+}
+
+func TestPlanStage_InitialPlan_RetryPopulatesArchitectureConstraints(t *testing.T) {
+	tmp := t.TempDir()
+	store := runstore.NewStore(tmp)
+	rs := runstore.NewRunState("spec-001", "proj-001")
+	runDir := store.RunDir(rs.RunID)
+	os.MkdirAll(runDir, 0o755)
+	os.WriteFile(filepath.Join(runDir, "spec-packet.md"), []byte("spec content"), 0o644)
+
+	// First plan is invalid (empty tasks), second is valid with ArchitectureDecisions
+	decisions := []string{"Config.Tier always receives a tier label"}
+	fp := &fakePlanner{
+		plans: []planner.Plan{
+			invalidPlan(),
+			planWithArchitectureDecisions(decisions),
+		},
+	}
+	stage := NewPlanStage(fp, store, nil)
+
+	action, err := stage.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if action.Kind != specloop.Continue {
+		t.Fatalf("expected Continue, got %v", action.Kind)
+	}
+	if fp.calls != 2 {
+		t.Fatalf("expected 2 planner calls, got %d", fp.calls)
+	}
+
+	// Verify rs.ArchitectureConstraints matches the valid plan's ArchitectureDecisions
+	if len(rs.ArchitectureConstraints) != len(decisions) {
+		t.Fatalf("expected %d architecture constraints, got %d", len(decisions), len(rs.ArchitectureConstraints))
+	}
+	for i, expected := range decisions {
+		if rs.ArchitectureConstraints[i] != expected {
+			t.Fatalf("expected constraint[%d] %q, got %q", i, expected, rs.ArchitectureConstraints[i])
+		}
+	}
+}
+
+func TestPlanStage_FixCycle_DedupArchitectureDecisions(t *testing.T) {
+	tmp := t.TempDir()
+	store := runstore.NewStore(tmp)
+	rs := runstore.NewRunState("spec-001", "proj-001")
+	rs.Cycle = 2
+	rs.ReplanContext = []string{"test failure in pkg/foo"}
+	// Pre-populate with cycle 1 tasks
+	rs.Tasks = []runstore.Task{
+		{TaskID: "t-001", Status: "done", Cycle: 1, Kind: "original"},
+	}
+	// Pre-populate with an existing constraint
+	rs.ArchitectureConstraints = []string{"Config.Tier always receives a tier label"}
+	runDir := store.RunDir(rs.RunID)
+	os.MkdirAll(runDir, 0o755)
+	os.WriteFile(filepath.Join(runDir, "spec-packet.md"), []byte("spec content"), 0o644)
+
+	// Fix planner returns a plan with the SAME constraint plus a new one
+	fixPlan := planner.Plan{
+		SpecID: "spec-001",
+		Cycle:  2,
+		Kind:   "fix",
+		Tasks: []planner.TaskDef{
+			{
+				TaskID:              "t-002",
+				Objective:           "Fix the failure",
+				ExpectedTouchedArea: []string{"pkg/foo"},
+				ProofChecks:         []string{"go test ./pkg/foo/..."},
+				ParentCycle:         1,
+				FailuresAddressed:   []string{"test failure in pkg/foo"},
+			},
+		},
+		// ArchitectureDecisions includes the same constraint + one new constraint
+		ArchitectureDecisions: []string{
+			"Config.Tier always receives a tier label",                          // Already exists
+			"LLMCompleter.Complete must use context.Context as first parameter", // New
+		},
+	}
+
+	ffp := &fakeFixPlanner{plans: []planner.Plan{fixPlan}}
+	fp := &fakePlanner{plans: []planner.Plan{validPlan()}}
+	stage := NewPlanStage(fp, store, nil)
+	stage.SetFixPlanner(ffp)
+
+	action, err := stage.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if action.Kind != specloop.Continue {
+		t.Fatalf("expected Continue, got %v", action.Kind)
+	}
+
+	// Verify the fix planner request received the pre-existing ArchitectureConstraints
+	if len(ffp.reqs) < 1 {
+		t.Fatalf("expected at least 1 fix planner request, got %d", len(ffp.reqs))
+	}
+	if len(ffp.reqs[0].ArchitectureConstraints) != 1 {
+		t.Fatalf("expected fix planner request to have 1 ArchitectureConstraint, got %d: %v", len(ffp.reqs[0].ArchitectureConstraints), ffp.reqs[0].ArchitectureConstraints)
+	}
+	if ffp.reqs[0].ArchitectureConstraints[0] != "Config.Tier always receives a tier label" {
+		t.Fatalf("expected fix planner request constraint 'Config.Tier always receives a tier label', got %q", ffp.reqs[0].ArchitectureConstraints[0])
+	}
+
+	// Verify rs.ArchitectureConstraints has exactly 2 entries (deduped: existing + new)
+	if len(rs.ArchitectureConstraints) != 2 {
+		t.Fatalf("expected 2 architecture constraints after dedup, got %d: %v", len(rs.ArchitectureConstraints), rs.ArchitectureConstraints)
+	}
+
+	// Verify the first constraint is the original one
+	if rs.ArchitectureConstraints[0] != "Config.Tier always receives a tier label" {
+		t.Fatalf("expected first constraint 'Config.Tier always receives a tier label', got %q", rs.ArchitectureConstraints[0])
+	}
+
+	// Verify the second constraint is the new one
+	if rs.ArchitectureConstraints[1] != "LLMCompleter.Complete must use context.Context as first parameter" {
+		t.Fatalf("expected second constraint 'LLMCompleter.Complete must use context.Context as first parameter', got %q", rs.ArchitectureConstraints[1])
+	}
+}
+
+func TestPlanStage_FixCycle_AllFiltered_ArchitectureDecisions(t *testing.T) {
+	tmp := t.TempDir()
+	store := runstore.NewStore(tmp)
+	rs := runstore.NewRunState("spec-001", "proj-001")
+	rs.Cycle = 2
+	rs.ReplanContext = []string{"test failure in pkg/foo"}
+	rs.SpecConstraints = "## Out-of-Scope\n- Do NOT modify any existing test files\n"
+	// Pre-populate with cycle 1 tasks
+	rs.Tasks = []runstore.Task{
+		{TaskID: "t-001", Status: "done", Cycle: 1, Kind: "original"},
+	}
+	runDir := store.RunDir(rs.RunID)
+	os.MkdirAll(runDir, 0o755)
+	os.WriteFile(filepath.Join(runDir, "spec-packet.md"), []byte("spec content"), 0o644)
+
+	// Fix planner returns a plan with a task that will be filtered and ArchitectureDecisions
+	fixPlan := planner.Plan{
+		SpecID: "spec-001",
+		Cycle:  2,
+		Kind:   "fix",
+		Tasks:  []planner.TaskDef{{TaskID: "t-002", Objective: "fix test", ExpectedTouchedArea: []string{"internal/pkg/foo_test.go"}, ProofChecks: []string{"go build ./..."}}},
+		ArchitectureDecisions: []string{
+			"NewConstraint: all fix tasks were filtered but the convention still applies",
+		},
+	}
+
+	ffp := &fakeFixPlanner{plans: []planner.Plan{fixPlan}}
+	fp := &fakePlanner{plans: []planner.Plan{validPlan()}}
+	stage := NewPlanStage(fp, store, nil)
+	stage.SetFixPlanner(ffp)
+
+	action, err := stage.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if action.Kind != specloop.Continue {
+		t.Fatalf("expected Continue, got %v", action.Kind)
+	}
+
+	// Verify the fix planner request received empty ArchitectureConstraints (not pre-populated in this test)
+	if len(ffp.reqs) < 1 {
+		t.Fatalf("expected at least 1 fix planner request, got %d", len(ffp.reqs))
+	}
+	if len(ffp.reqs[0].ArchitectureConstraints) != 0 {
+		t.Fatalf("expected fix planner request to have 0 ArchitectureConstraints, got %d: %v", len(ffp.reqs[0].ArchitectureConstraints), ffp.reqs[0].ArchitectureConstraints)
+	}
+
+	// Verify rs.ArchitectureConstraints contains the new constraint even though allFiltered=true
+	if len(rs.ArchitectureConstraints) != 1 {
+		t.Fatalf("expected 1 architecture constraint (allFiltered case), got %d: %v", len(rs.ArchitectureConstraints), rs.ArchitectureConstraints)
+	}
+	if rs.ArchitectureConstraints[0] != "NewConstraint: all fix tasks were filtered but the convention still applies" {
+		t.Fatalf("expected constraint 'NewConstraint: all fix tasks were filtered but the convention still applies', got %q", rs.ArchitectureConstraints[0])
+	}
+
+	// Verify no new tasks were added (all were filtered)
+	if len(rs.Tasks) != 1 {
+		t.Fatalf("expected 1 task (no new tasks added), got %d", len(rs.Tasks))
+	}
+}
+
+func TestPlanStage_FixCycle_LLMError_NoArchConstraintsAccumulated(t *testing.T) {
+	tmp := t.TempDir()
+	store := runstore.NewStore(tmp)
+	rs := runstore.NewRunState("spec-001", "proj-001")
+	rs.Cycle = 2
+	rs.ReplanContext = []string{"test failure in pkg/foo"}
+	// Pre-populate with cycle 1 tasks
+	rs.Tasks = []runstore.Task{
+		{TaskID: "t-001", Status: "done", Cycle: 1, Kind: "original"},
+	}
+	runDir := store.RunDir(rs.RunID)
+	os.MkdirAll(runDir, 0o755)
+	os.WriteFile(filepath.Join(runDir, "spec-packet.md"), []byte("spec content"), 0o644)
+
+	ffp := &fakeFixPlanner{errs: []error{errors.New("LLM API error")}}
+	fp := &fakePlanner{plans: []planner.Plan{validPlan()}}
+	stage := NewPlanStage(fp, store, nil)
+	stage.SetFixPlanner(ffp)
+
+	action, err := stage.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if action.Kind != specloop.Continue {
+		t.Fatalf("expected Continue, got %v", action.Kind)
+	}
+	if len(rs.ArchitectureConstraints) != 0 {
+		t.Fatalf("expected 0 architecture constraints (LLM error case), got %d: %v", len(rs.ArchitectureConstraints), rs.ArchitectureConstraints)
+	}
+}
+
+func TestPlanStage_InitialPlan_ValidationFailure_ConstraintsNotSet(t *testing.T) {
+	tmp := t.TempDir()
+	store := runstore.NewStore(tmp)
+	rs := runstore.NewRunState("spec-001", "proj-001")
+	rs.Cycle = 1
+	runDir := store.RunDir(rs.RunID)
+	os.MkdirAll(runDir, 0o755)
+	os.WriteFile(filepath.Join(runDir, "spec-packet.md"), []byte("spec content"), 0o644)
+
+	// Planner returns invalid plans both times (validation will fail)
+	fp := &fakePlanner{plans: []planner.Plan{invalidPlan(), invalidPlan()}}
+	stage := NewPlanStage(fp, store, nil)
+
+	action, err := stage.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if action.Kind != specloop.Blocked {
+		t.Fatalf("expected Blocked when plan validation fails after retries, got %v", action.Kind)
+	}
+
+	// Verify rs.ArchitectureConstraints is nil or empty (not set on validation failure)
+	if len(rs.ArchitectureConstraints) != 0 {
+		t.Fatalf("expected empty ArchitectureConstraints on validation failure, got %d entries: %v", len(rs.ArchitectureConstraints), rs.ArchitectureConstraints)
+	}
+}
+
+func TestPlanStage_FixCycle_ValidationFailure_ArchitectureDecisionsNotAccumulated(t *testing.T) {
+	tmp := t.TempDir()
+	store := runstore.NewStore(tmp)
+	rs := runstore.NewRunState("spec-001", "proj-001")
+	rs.Cycle = 2
+	rs.ReplanContext = []string{"test failure in pkg/foo"}
+	// Pre-populate with cycle 1 tasks
+	rs.Tasks = []runstore.Task{
+		{TaskID: "t-001", Status: "done", Cycle: 1, Kind: "original"},
+	}
+	// Pre-populate with an existing constraint
+	rs.ArchitectureConstraints = []string{"Config.Tier always receives a tier label"}
+	runDir := store.RunDir(rs.RunID)
+	os.MkdirAll(runDir, 0o755)
+	os.WriteFile(filepath.Join(runDir, "spec-packet.md"), []byte("spec content"), 0o644)
+
+	// Fix planner returns plans with tasks but missing required fields (Objective)
+	// This will fail ValidatePlan but pass the empty task check
+	invalidFixPlan := planner.Plan{
+		SpecID: "spec-001",
+		Cycle:  2,
+		Kind:   "fix",
+		Tasks: []planner.TaskDef{
+			{
+				TaskID:              "t-002",
+				Objective:           "", // Missing objective - will fail validation
+				ExpectedTouchedArea: []string{"pkg/foo"},
+				ProofChecks:         []string{"go test ./pkg/foo/..."},
+			},
+		},
+		ArchitectureDecisions: []string{
+			"InvalidPlanConstraint: should NOT be accumulated",
+		},
+	}
+	ffp := &fakeFixPlanner{plans: []planner.Plan{invalidFixPlan, invalidFixPlan}}
+	fp := &fakePlanner{plans: []planner.Plan{validPlan()}}
+	stage := NewPlanStage(fp, store, nil)
+	stage.SetFixPlanner(ffp)
+
+	action, err := stage.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if action.Kind != specloop.Continue {
+		t.Fatalf("expected Continue (no viable fix this cycle), got %v", action.Kind)
+	}
+
+	// Verify the fix planner was called twice (both retries failed validation)
+	if ffp.calls != 2 {
+		t.Fatalf("expected 2 fix planner calls (initial + 1 retry), got %d", ffp.calls)
+	}
+
+	// Verify rs.ArchitectureConstraints still has ONLY the original constraint
+	// The invalid plan's ArchitectureDecisions must NOT be accumulated
+	if len(rs.ArchitectureConstraints) != 1 {
+		t.Fatalf("expected 1 architecture constraint (original only), got %d: %v", len(rs.ArchitectureConstraints), rs.ArchitectureConstraints)
+	}
+	if rs.ArchitectureConstraints[0] != "Config.Tier always receives a tier label" {
+		t.Fatalf("expected original constraint 'Config.Tier always receives a tier label', got %q", rs.ArchitectureConstraints[0])
 	}
 }

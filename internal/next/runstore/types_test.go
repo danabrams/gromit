@@ -2,6 +2,7 @@ package runstore
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 )
 
@@ -197,5 +198,87 @@ func TestRunState_NormalizeNilFields_DoesNotPreCreateLineageEntries(t *testing.T
 		if _, exists := rs.TaskLineage[task.TaskID]; exists {
 			t.Errorf("TaskLineage should NOT have pre-created entry for task %s (lazy creation only)", task.TaskID)
 		}
+	}
+}
+
+func TestRunState_ArchitectureConstraints_JSONMarshal(t *testing.T) {
+	rs := NewRunState("spec-001", "proj-1")
+	rs.ArchitectureConstraints = []string{"constraint-1", "constraint-2"}
+
+	data, err := json.Marshal(rs)
+	if err != nil {
+		t.Fatalf("json.Marshal failed: %v", err)
+	}
+
+	// Check that architecture_constraints key is present in JSON
+	if !strings.Contains(string(data), `"architecture_constraints"`) {
+		t.Error("JSON should contain 'architecture_constraints' key when non-empty")
+	}
+
+	// Unmarshal back and assert actual values
+	rs2 := &RunState{}
+	if err := json.Unmarshal(data, rs2); err != nil {
+		t.Fatalf("json.Unmarshal failed: %v", err)
+	}
+
+	if len(rs2.ArchitectureConstraints) != 2 {
+		t.Errorf("expected 2 constraints after round-trip, got %d", len(rs2.ArchitectureConstraints))
+	}
+	if rs2.ArchitectureConstraints[0] != "constraint-1" {
+		t.Errorf("expected first constraint to be 'constraint-1', got %q", rs2.ArchitectureConstraints[0])
+	}
+	if rs2.ArchitectureConstraints[1] != "constraint-2" {
+		t.Errorf("expected second constraint to be 'constraint-2', got %q", rs2.ArchitectureConstraints[1])
+	}
+}
+
+func TestRunState_ArchitectureConstraints_JSONUnmarshal(t *testing.T) {
+	jsonData := []byte(`{
+		"run_id": "run-test",
+		"spec_id": "spec-001",
+		"project_id": "proj-1",
+		"status": "running",
+		"cycle": 0,
+		"started_at": "2026-03-24T00:00:00Z",
+		"tasks": [],
+		"accumulated_cost": 0,
+		"final_validation_passed": false,
+		"final_review_passed": false,
+		"final_acceptance_passed": false,
+		"contracts_written": false,
+		"scenario_tests_written": false,
+		"architecture_constraints": ["constraint-a", "constraint-b"]
+	}`)
+
+	var rs RunState
+	if err := json.Unmarshal(jsonData, &rs); err != nil {
+		t.Fatalf("json.Unmarshal failed: %v", err)
+	}
+
+	if len(rs.ArchitectureConstraints) != 2 {
+		t.Errorf("expected 2 constraints, got %d", len(rs.ArchitectureConstraints))
+	}
+	if rs.ArchitectureConstraints[0] != "constraint-a" {
+		t.Errorf("expected first constraint to be 'constraint-a', got %q", rs.ArchitectureConstraints[0])
+	}
+	if rs.ArchitectureConstraints[1] != "constraint-b" {
+		t.Errorf("expected second constraint to be 'constraint-b', got %q", rs.ArchitectureConstraints[1])
+	}
+}
+
+func TestRunState_NormalizeNilFields_ArchitectureConstraints(t *testing.T) {
+	rs := &RunState{}
+	// Verify precondition
+	if rs.ArchitectureConstraints != nil {
+		t.Fatal("precondition: ArchitectureConstraints should be nil before normalize")
+	}
+
+	rs.NormalizeNilFields()
+
+	if rs.ArchitectureConstraints == nil {
+		t.Error("ArchitectureConstraints should be non-nil empty slice after NormalizeNilFields")
+	}
+	if len(rs.ArchitectureConstraints) != 0 {
+		t.Errorf("ArchitectureConstraints should be empty, got %d", len(rs.ArchitectureConstraints))
 	}
 }

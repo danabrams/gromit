@@ -990,3 +990,56 @@ func TestBuildStages_WriteScenarioTestsStageWired(t *testing.T) {
 		t.Fatal("expected write_scenario_tests stage not found in BuildStages output")
 	}
 }
+
+// TestContextProviderClosure_DynamicPointerCapture verifies that the context
+// provider closure captures rs by pointer, so mutations to rs.ArchitectureConstraints
+// made after closure creation are visible at invocation time.
+func TestContextProviderClosure_DynamicPointerCapture(t *testing.T) {
+	// Create a RunState with empty ArchitectureConstraints.
+	rs := runstore.NewRunState("test-spec", "test-project")
+	if len(rs.ArchitectureConstraints) != 0 {
+		t.Fatalf("expected empty ArchitectureConstraints, got %d", len(rs.ArchitectureConstraints))
+	}
+
+	// Create a base context provider that returns an empty TaskContext.
+	baseCtxFn := func() specloop.TaskContext {
+		return specloop.TaskContext{}
+	}
+
+	// Build the closure that applies RunState constraints.
+	// rs is captured by pointer, so mutations to rs are visible at call time.
+	contextProvider := func() specloop.TaskContext {
+		return specloop.ApplyRunStateConstraints(baseCtxFn(), rs.ArchitectureConstraints)
+	}
+
+	// At this point, rs.ArchitectureConstraints is empty.
+	ctx1 := contextProvider()
+	if len(ctx1.ArchitectureConstraints) != 0 {
+		t.Errorf("expected empty constraints before mutation, got %d", len(ctx1.ArchitectureConstraints))
+	}
+
+	// Mutate rs.ArchitectureConstraints after closure creation.
+	constraint := "Config.Tier always receives a tier label, never a resolved model name"
+	rs.ArchitectureConstraints = append(rs.ArchitectureConstraints, constraint)
+
+	// Invoke the closure and verify the mutation is visible.
+	ctx2 := contextProvider()
+	if len(ctx2.ArchitectureConstraints) != 1 {
+		t.Fatalf("expected 1 constraint after mutation, got %d", len(ctx2.ArchitectureConstraints))
+	}
+	if ctx2.ArchitectureConstraints[0] != constraint {
+		t.Errorf("expected constraint %q, got %q", constraint, ctx2.ArchitectureConstraints[0])
+	}
+
+	// Verify pointer capture by appending another constraint.
+	constraint2 := "LLMCompleter.Complete must use context.Context as first parameter"
+	rs.ArchitectureConstraints = append(rs.ArchitectureConstraints, constraint2)
+
+	ctx3 := contextProvider()
+	if len(ctx3.ArchitectureConstraints) != 2 {
+		t.Fatalf("expected 2 constraints after second mutation, got %d", len(ctx3.ArchitectureConstraints))
+	}
+	if ctx3.ArchitectureConstraints[1] != constraint2 {
+		t.Errorf("expected second constraint %q, got %q", constraint2, ctx3.ArchitectureConstraints[1])
+	}
+}

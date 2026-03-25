@@ -47,6 +47,14 @@ func NewPlanner(agent Agent, plannerTier string) *Planner {
 
 // CreatePlan invokes the agent to produce a plan from the given request.
 // On parse/validation failure, it retries up to MaxPlanRetries additional times.
+//
+// RunState Lifecycle (caller responsibility):
+// After CreatePlan returns, callers must propagate architecture decisions to the RunState:
+//
+//	ArchitectureConstraints = plan.ArchitectureDecisions
+//
+// This ensures cross-cutting conventions captured during planning are available to all
+// executor tasks and carried forward through fix cycles.
 func (p *Planner) CreatePlan(ctx context.Context, req PlanRequest) (Plan, error) {
 	basePrompt := buildPlanPrompt(req)
 	attempts := p.MaxPlanRetries + 1
@@ -81,16 +89,17 @@ type CompletedTask struct {
 
 // FixPlanRequest contains everything needed to generate a fix plan.
 type FixPlanRequest struct {
-	OriginalPlan       Plan            `json:"original_plan"`
-	CompletedTasks     []CompletedTask `json:"completed_tasks"`
-	Failures           []string        `json:"failures"`
-	CurrentDiff        string          `json:"current_diff"`
-	Cycle              int             `json:"cycle"`
-	PriorMaxTaskID     string          `json:"prior_max_task_id,omitempty"`   // e.g. "t-004"; if set, fix plan task IDs must be greater
-	SpecConstraints    string          `json:"spec_constraints,omitempty"`    // Out-of-Scope + Architectural Constraints from spec.md
-	SpecPacket         string          `json:"spec_packet,omitempty"`         // full spec packet for context (requirements, scope, acceptance criteria)
-	PlaybookHeuristics string          `json:"playbook_heuristics,omitempty"` // pre-rendered active playbook.Entry heuristics to guide fix plan strategy (only active entries; superseded excluded)
-	DoctrineRules      string          `json:"doctrine_rules,omitempty"`      // pre-rendered active doctrine rules to guide fix plan strategy
+	OriginalPlan            Plan            `json:"original_plan"`
+	CompletedTasks          []CompletedTask `json:"completed_tasks"`
+	Failures                []string        `json:"failures"`
+	CurrentDiff             string          `json:"current_diff"`
+	Cycle                   int             `json:"cycle"`
+	PriorMaxTaskID          string          `json:"prior_max_task_id,omitempty"`        // e.g. "t-004"; if set, fix plan task IDs must be greater
+	SpecConstraints         string          `json:"spec_constraints,omitempty"`         // Out-of-Scope + Architectural Constraints from spec.md
+	ArchitectureConstraints []string        `json:"architecture_constraints,omitempty"` // cross-cutting conventions and constraints to enforce in fix tasks
+	SpecPacket              string          `json:"spec_packet,omitempty"`              // full spec packet for context (requirements, scope, acceptance criteria)
+	PlaybookHeuristics      string          `json:"playbook_heuristics,omitempty"`      // pre-rendered active playbook.Entry heuristics to guide fix plan strategy (only active entries; superseded excluded)
+	DoctrineRules           string          `json:"doctrine_rules,omitempty"`           // pre-rendered active doctrine rules to guide fix plan strategy
 }
 
 // CreateFixPlan invokes the agent to produce a fix plan addressing failures.
@@ -152,6 +161,19 @@ func buildFixPlanPrompt(req FixPlanRequest) string {
 		b.WriteString("It is BETTER to exhaust cycles and hand off to a human than to violate a spec constraint.\n\n")
 		b.WriteString(req.SpecConstraints)
 		b.WriteString("\n\n")
+	}
+
+	if len(req.ArchitectureConstraints) > 0 {
+		b.WriteString("## Architecture Conventions (MUST follow in all fix tasks)\n")
+		b.WriteString("These conventions were established in prior cycles. All fix tasks must comply.\n")
+		b.WriteString("If this fix resolves an architecture_drift finding, add the resolved convention to \"architecture_decisions\" in your output.\n")
+		b.WriteString("\n")
+		for _, ac := range req.ArchitectureConstraints {
+			b.WriteString("- ")
+			b.WriteString(ac)
+			b.WriteString("\n")
+		}
+		b.WriteString("\n")
 	}
 
 	if req.PlaybookHeuristics != "" {
@@ -257,6 +279,7 @@ func buildFixPlanPrompt(req FixPlanRequest) string {
 	b.WriteString("Respond with a JSON object:\n")
 	b.WriteString("- kind: must be \"fix\"\n")
 	b.WriteString("- spec_id, cycle, parent_cycle, failures_addressed (array of strings from the failures above)\n")
+	b.WriteString("- architecture_decisions: array of strings (optional) — new cross-cutting conventions resolved in this cycle, especially when fixing an architecture_drift finding\n")
 	b.WriteString("- tasks: array where each task has:\n")
 	b.WriteString("  - task_id: use \"t-NNN\" format")
 	if req.PriorMaxTaskID != "" {
@@ -336,9 +359,18 @@ func buildPlanPrompt(req PlanRequest) string {
 	b.WriteString("## Task Granularity\n")
 	b.WriteString("Each task should touch at most 3-4 files in expected_touched_area. If a logical unit requires more files, split it into multiple tasks.\n")
 	b.WriteString("Scenario-driven work (e.g. updating multiple test files or implementing multiple independent scenarios) MUST be decomposed as one task per scenario or test file, not bundled into a single aggregate task. Bundling defers failures to later fix cycles.\n\n")
+	b.WriteString("## Architecture Decisions (think before decomposing)\n")
+	b.WriteString("Before decomposing tasks, document cross-cutting conventions and constraints:\n")
+	b.WriteString("- Type semantics: What do core types represent? (e.g., Path is always relative to project root)\n")
+	b.WriteString("- Interface signatures: What contracts must be maintained across packages?\n")
+	b.WriteString("- Naming patterns: What prefix/suffix conventions apply? (e.g., all validators end in _validate)\n")
+	b.WriteString("- Behavioral contracts: What invariants must callers preserve? (e.g., Close must always be called after Open)\n")
+	b.WriteString("If none exist, leave the array empty.\n")
+	b.WriteString("Emit architecture_decisions as an array of short declarative statements in your JSON output.\n\n")
 	b.WriteString("## Output Format\n")
 	b.WriteString("Respond with a JSON object containing spec_id, cycle, kind, and tasks array.\n")
 	b.WriteString("kind must be \"original\" (not \"implementation\" or any other value).\n")
+	b.WriteString("architecture_decisions: array of strings (optional) — cross-cutting conventions this spec introduces (type semantics, interface signatures, naming patterns, behavioral contracts)\n")
 	b.WriteString("task_id must use the format \"t-NNN\" (e.g. \"t-001\", \"t-002\").\n")
 	b.WriteString("expected_touched_area must be an array of strings (e.g. [\"calc/calc.go\"]).\n")
 	b.WriteString("Each task needs: task_id, objective, expected_touched_area, proof_checks.\n")

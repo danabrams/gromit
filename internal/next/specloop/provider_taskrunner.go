@@ -31,6 +31,9 @@ type TaskContext struct {
 	// KnownGaps contains known validation gaps for fix/repair tasks.
 	// Empty string means no known gaps were documented.
 	KnownGaps string
+	// ArchitectureConstraints holds cross-cutting implementation conventions.
+	// Nil or empty means no constraints were established.
+	ArchitectureConstraints []string
 }
 
 // TaskContextProviderFunc loads TaskContext at call time. It is called once per
@@ -155,6 +158,35 @@ func (r *ProviderTaskRunner) taskContext() TaskContext {
 	return TaskContext{}
 }
 
+// ApplyRunStateConstraints merges architecture constraints
+// into a TaskContext, returning an updated TaskContext. Non-duplicate entries
+// from constraints are appended to tc.ArchitectureConstraints.
+func ApplyRunStateConstraints(tc TaskContext, constraints []string) TaskContext {
+	if len(constraints) == 0 {
+		return tc
+	}
+	existing := make(map[string]bool)
+	for _, c := range tc.ArchitectureConstraints {
+		existing[c] = true
+	}
+	for _, c := range constraints {
+		if !existing[c] {
+			tc.ArchitectureConstraints = append(tc.ArchitectureConstraints, c)
+			existing[c] = true
+		}
+	}
+	return tc
+}
+
+// ConstraintsFromRunState extracts architecture constraints from a RunState,
+// checking the length before returning to ensure empty constraints are handled safely.
+func ConstraintsFromRunState(rs *runstore.RunState) []string {
+	if len(rs.ArchitectureConstraints) == 0 {
+		return []string{}
+	}
+	return rs.ArchitectureConstraints
+}
+
 // RunTask renders a task prompt and invokes the LLM. It maps the provider result
 // to a TaskResult. FilesChanged is always empty — the TaskLoop fills that in.
 func (r *ProviderTaskRunner) RunTask(ctx context.Context, task runstore.Task) (TaskResult, error) {
@@ -266,9 +298,10 @@ func renderCurrentFileContents(b *strings.Builder, areas []string, workDir strin
 	}
 }
 
-// renderTaskBody writes the common task sections (Objective, Spec Constraints, Expected Touched Area, Current File Contents, Proof Checks).
+// renderTaskBody writes the common task sections (Objective, Spec Constraints, Architecture Conventions, Expected Touched Area, Current File Contents, Proof Checks).
 // Spec Constraints appear before Proof Checks so the agent anchors on hard limits before reading success criteria.
-func renderTaskBody(b *strings.Builder, task runstore.Task, workDir string) {
+// Architecture Conventions are passed as a separate constraints parameter.
+func renderTaskBody(b *strings.Builder, task runstore.Task, constraints []string, workDir string) {
 	fmt.Fprintf(b, "### Objective\n%s\n\n", task.Objective)
 
 	if task.SpecConstraints != "" {
@@ -277,6 +310,14 @@ func renderTaskBody(b *strings.Builder, task runstore.Task, workDir string) {
 		b.WriteString("'Modify' includes editing, deleting, renaming, or moving a file — any change to an existing file counts as modification.\n\n")
 		b.WriteString(task.SpecConstraints)
 		b.WriteString("\n\n")
+	}
+
+	if len(constraints) > 0 {
+		b.WriteString("### Architecture Conventions\n")
+		for _, constraint := range constraints {
+			fmt.Fprintf(b, "- %s\n", constraint)
+		}
+		b.WriteString("\n")
 	}
 
 	if len(task.ExpectedTouchedArea) > 0 {
@@ -311,7 +352,7 @@ func renderTaskPrompt(task runstore.Task, tc TaskContext, workDir string) string
 	} else {
 		fmt.Fprintf(&b, "## Task: %s\n\n", task.TaskID)
 	}
-	renderTaskBody(&b, task, workDir)
+	renderTaskBody(&b, task, tc.ArchitectureConstraints, workDir)
 
 	if task.Kind == "fix" && len(task.FailuresAddressed) > 0 {
 		b.WriteString("### Failures to Address\n")
@@ -334,7 +375,7 @@ func renderRepairPrompt(task runstore.Task, failures []string, tc TaskContext, w
 	renderContextSections(&b, tc, true)
 
 	fmt.Fprintf(&b, "## Repair Task: %s\n\n", task.TaskID)
-	renderTaskBody(&b, task, workDir)
+	renderTaskBody(&b, task, tc.ArchitectureConstraints, workDir)
 	if len(failures) > 0 {
 		b.WriteString("### Failures to Address\n")
 		for _, f := range failures {

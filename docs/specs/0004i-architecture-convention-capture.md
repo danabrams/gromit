@@ -86,7 +86,7 @@ resolved convention to "architecture_decisions" in your output.
 Executor task prompt (`internal/next/specloop/provider_taskrunner.go`) — adds a section when non-empty:
 
 ```
-## Architecture Conventions
+### Architecture Conventions
 - <constraint>
 ```
 
@@ -130,7 +130,7 @@ Executor task prompt (`internal/next/specloop/provider_taskrunner.go`) — adds 
 
 **Given:** `RunState.ArchitectureConstraints` is `["Config.Tier always receives a tier label"]`
 **When:** the executor builds the prompt for any task in the run
-**Then:** the prompt contains `## Architecture Conventions` followed by the constraint
+**Then:** the prompt contains `### Architecture Conventions` followed by the constraint
 **Notes:** conventions are global to the run, not filtered per-file
 
 ### Scenario: Fix planner inherits and extends conventions

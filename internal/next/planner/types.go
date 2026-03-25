@@ -2,12 +2,13 @@ package planner
 
 // Plan represents a decomposed execution plan for a spec cycle.
 type Plan struct {
-	SpecID            string    `json:"spec_id"`
-	Cycle             int       `json:"cycle"`
-	Tasks             []TaskDef `json:"tasks"`
-	Kind              string    `json:"kind"` // "original" or "fix"
-	ParentCycle       int       `json:"parent_cycle,omitempty"`
-	FailuresAddressed []string  `json:"failures_addressed,omitempty"`
+	SpecID                string    `json:"spec_id"`
+	Cycle                 int       `json:"cycle"`
+	Tasks                 []TaskDef `json:"tasks"`
+	Kind                  string    `json:"kind"` // "original" or "fix"
+	ParentCycle           int       `json:"parent_cycle,omitempty"`
+	FailuresAddressed     []string  `json:"failures_addressed,omitempty"`
+	ArchitectureDecisions []string  `json:"architecture_decisions,omitempty"`
 }
 
 // TaskDef represents a single task within a plan.
@@ -40,6 +41,9 @@ func (p *Plan) NormalizeNilFields() {
 	}
 	if p.FailuresAddressed == nil {
 		p.FailuresAddressed = []string{}
+	}
+	if p.ArchitectureDecisions == nil {
+		p.ArchitectureDecisions = []string{}
 	}
 	for i := range p.Tasks {
 		p.Tasks[i].NormalizeNilFields()
