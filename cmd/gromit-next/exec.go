@@ -572,6 +572,7 @@ func newExecSpecCmdWithProvider(provider StageProvider) *cobra.Command {
 					tierModels = map[string]string{"low": "haiku", "medium": "sonnet", "high": "opus"}
 				}
 				claudeProv := providerPkg.NewClaudeProvider(claudeClient, tierModels)
+				codexProv := providerPkg.NewCodexProvider("codex", nil, providerPkg.DefaultCodexTierToModelMap)
 				p = NewRealStageProvider(RealStageProviderConfig{
 					WorkDir:        workDir,
 					StoreDir:       storeDir,
@@ -579,6 +580,7 @@ func newExecSpecCmdWithProvider(provider StageProvider) *cobra.Command {
 					PolicyPath:     policyPath,
 					ProjectsDir:    filepath.Join(storeDir, "projects"),
 					ClaudeProvider: claudeProv,
+					CodexProvider:  codexProv,
 				})
 			}
 
