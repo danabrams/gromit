@@ -646,7 +646,7 @@ func TestBuildFixPlanPrompt_ContainsSuspectProofCheckInstruction(t *testing.T) {
 	req := FixPlanRequest{Cycle: 2, Failures: []string{"[suspect-proof-check] grep failed"}}
 	prompt := buildFixPlanPrompt(req)
 	if !strings.Contains(prompt, "[suspect-proof-check]") {
-		t.Error("expected buildFixPlanPrompt to contain suspect-proof-check instruction")
+		t.Error("expected BuildFixPlanPrompt to contain suspect-proof-check instruction")
 	}
 	if !strings.Contains(prompt, "proof-check rewrite") {
 		t.Error("expected instruction to mention proof-check rewrite task")
@@ -724,5 +724,115 @@ func TestBuildPlanPrompt_RefinementGuidance(t *testing.T) {
 	})
 	if strings.Contains(prompt, "## Refinement Guidance") {
 		t.Fatal("buildPlanPrompt must omit Refinement Guidance section when field is empty")
+	}
+}
+
+func TestBuildPlanPrompt_ContainsArchitectureDecisions(t *testing.T) {
+	prompt := buildPlanPrompt(PlanRequest{
+		SpecPacket: "build a thing",
+		Cycle:      1,
+	})
+	if !strings.Contains(prompt, "Architecture Decisions") {
+		t.Fatal("buildPlanPrompt must contain 'Architecture Decisions' section with think-step instructions")
+	}
+	archIdx := strings.Index(prompt, "## Architecture Decisions")
+	outputIdx := strings.Index(prompt, "## Output Format")
+	if archIdx == -1 || outputIdx == -1 || archIdx > outputIdx {
+		t.Fatal("buildPlanPrompt: Architecture Decisions section must appear before Output Format section")
+	}
+}
+
+func TestBuildPlanPrompt_ContainsArchitectureDecisionsInOutputFormat(t *testing.T) {
+	prompt := buildPlanPrompt(PlanRequest{
+		SpecPacket: "build a thing",
+		Cycle:      1,
+	})
+	if !strings.Contains(prompt, "architecture_decisions") {
+		t.Fatal("buildPlanPrompt output format must include 'architecture_decisions' field")
+	}
+	if !strings.Contains(prompt, "cross-cutting conventions this spec introduces") {
+		t.Fatal("buildPlanPrompt output format must describe architecture_decisions as 'cross-cutting conventions this spec introduces'")
+	}
+}
+
+func TestBuildPlanPrompt_ContainsEmptyArrayGuidance(t *testing.T) {
+	prompt := buildPlanPrompt(PlanRequest{
+		SpecPacket: "build a thing",
+		Cycle:      1,
+	})
+	if !strings.Contains(prompt, "If none exist, leave the array empty") {
+		t.Fatal("buildPlanPrompt must contain guidance that if none exist, leave the array empty")
+	}
+}
+
+func TestBuildFixPlanPrompt_ContainsArchitectureConventions_WhenConstraintsNonEmpty(t *testing.T) {
+	constraints := []string{
+		"Path semantics: always relative to project root",
+		"Nil-field normalization: exported types use NormalizeNilFields()",
+	}
+	prompt := buildFixPlanPrompt(FixPlanRequest{
+		OriginalPlan:            Plan{SpecID: "s1", Cycle: 1},
+		Failures:                []string{"lint error"},
+		Cycle:                   2,
+		ArchitectureConstraints: constraints,
+	})
+	if !strings.Contains(prompt, "Architecture Conventions") {
+		t.Fatal("buildFixPlanPrompt must contain 'Architecture Conventions' section when ArchitectureConstraints is non-empty")
+	}
+	if !strings.Contains(prompt, "established in prior cycles") {
+		t.Fatal("buildFixPlanPrompt must contain 'established in prior cycles' text")
+	}
+	if !strings.Contains(prompt, "architecture_drift finding") {
+		t.Fatal("buildFixPlanPrompt must contain 'architecture_drift finding' text")
+	}
+	for _, constraint := range constraints {
+		if !strings.Contains(prompt, constraint) {
+			t.Fatalf("buildFixPlanPrompt must include constraint '%s' in output", constraint)
+		}
+	}
+	archIdx := strings.Index(prompt, "## Architecture Conventions")
+	heuristicsIdx := strings.Index(prompt, "## Playbook Heuristics")
+	if heuristicsIdx != -1 && archIdx != -1 && archIdx > heuristicsIdx {
+		t.Fatal("buildFixPlanPrompt: Architecture Conventions section must appear before Playbook Heuristics section")
+	}
+}
+
+func TestBuildFixPlanPrompt_NoArchitectureConventions_WhenConstraintsEmpty(t *testing.T) {
+	// Test with nil ArchitectureConstraints
+	prompt := buildFixPlanPrompt(FixPlanRequest{
+		OriginalPlan: Plan{SpecID: "s1", Cycle: 1},
+		Failures:     []string{"lint error"},
+		Cycle:        2,
+	})
+	if strings.Contains(prompt, "Architecture Conventions") {
+		t.Fatal("buildFixPlanPrompt must NOT contain 'Architecture Conventions' when ArchitectureConstraints is nil")
+	}
+
+	// Test with empty ArchitectureConstraints slice
+	prompt = buildFixPlanPrompt(FixPlanRequest{
+		OriginalPlan:            Plan{SpecID: "s1", Cycle: 1},
+		Failures:                []string{"lint error"},
+		Cycle:                   2,
+		ArchitectureConstraints: []string{},
+	})
+	if strings.Contains(prompt, "Architecture Conventions") {
+		t.Fatal("buildFixPlanPrompt must NOT contain 'Architecture Conventions' when ArchitectureConstraints is empty")
+	}
+}
+
+func TestBuildFixPlanPrompt_ContainsArchitectureDecisionsInOutputFormat(t *testing.T) {
+	prompt := buildFixPlanPrompt(FixPlanRequest{
+		OriginalPlan: Plan{SpecID: "s1", Cycle: 1},
+		Failures:     []string{"lint error"},
+		Cycle:        2,
+	})
+	if !strings.Contains(prompt, "architecture_decisions") {
+		t.Fatal("buildFixPlanPrompt output format must include 'architecture_decisions' field")
+	}
+	if !strings.Contains(prompt, "new cross-cutting conventions resolved in this cycle") {
+		t.Fatal("buildFixPlanPrompt output format must describe architecture_decisions as 'new cross-cutting conventions resolved in this cycle'")
+	}
+	if !strings.Contains(prompt, "architecture_drift finding") {
+		t.Fatal("buildFixPlanPrompt output format must reference 'architecture_drift finding' for architecture_decisions")
 	}
 }

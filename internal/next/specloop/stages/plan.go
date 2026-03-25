@@ -220,19 +220,21 @@ func (s *PlanStage) Run(ctx context.Context, rs *runstore.RunState) (specloop.Ne
 
 	if isFixCycle && s.fixPlanner != nil {
 		fixReq := planner.FixPlanRequest{
-			Failures:           rs.ReplanContext,
-			Cycle:              rs.Cycle,
-			PriorMaxTaskID:     maxTaskID(rs.Tasks),
-			SpecConstraints:    rs.SpecConstraints,
-			SpecPacket:         string(specPacket),
-			CompletedTasks:     completedTaskSummaries(rs.Tasks),
-			CurrentDiff:        worktreeDiff(rs.WorktreePath),
-			PlaybookHeuristics: heuristics,
-			DoctrineRules:      doctrineText,
+			Failures:                rs.ReplanContext,
+			Cycle:                   rs.Cycle,
+			PriorMaxTaskID:          maxTaskID(rs.Tasks),
+			SpecConstraints:         rs.SpecConstraints,
+			SpecPacket:              string(specPacket),
+			CompletedTasks:          completedTaskSummaries(rs.Tasks),
+			CurrentDiff:             worktreeDiff(rs.WorktreePath),
+			PlaybookHeuristics:      heuristics,
+			DoctrineRules:           doctrineText,
+			ArchitectureConstraints: rs.ArchitectureConstraints,
 		}
-		// Try up to 2 times (initial + 1 retry)
+		// Try up to 2 times (initial + 1 retry on validation failure only; LLM errors bail immediately)
 		allFiltered := false
 		for attempt := 0; attempt < 2; attempt++ {
+			validationErr = nil
 			plan, err = s.fixPlanner.CreateFixPlan(ctx, fixReq)
 			if err != nil {
 				// Fix plan generation failed (LLM couldn't produce a valid plan, or
@@ -259,6 +261,22 @@ func (s *PlanStage) Run(ctx context.Context, rs *runstore.RunState) (specloop.Ne
 				break
 			}
 			fixReq.Failures = append(fixReq.Failures, validationErr.Error())
+		}
+		// Accumulate architecture decisions from the fix plan into RunState, skipping exact-string duplicates.
+		// Accumulate when the LLM call succeeded (err == nil). When allFiltered=true due to task filtering
+		// (not LLM error), validationErr is nil because validation never ran — architecture decisions are
+		// still captured since the LLM's convention output is valid even if its task choices were rejected.
+		if err == nil && validationErr == nil {
+			existing := make(map[string]bool, len(rs.ArchitectureConstraints))
+			for _, c := range rs.ArchitectureConstraints {
+				existing[c] = true
+			}
+			for _, decision := range plan.ArchitectureDecisions {
+				if decision != "" && !existing[decision] {
+					rs.ArchitectureConstraints = append(rs.ArchitectureConstraints, decision)
+					existing[decision] = true
+				}
+			}
 		}
 		if allFiltered {
 			// Skip task execution this cycle; specloop will replan until exhausted.
@@ -291,6 +309,17 @@ func (s *PlanStage) Run(ctx context.Context, rs *runstore.RunState) (specloop.Ne
 			}
 			// On first failure, add validation errors to request for retry
 			req.Failures = append(req.Failures, validationErr.Error())
+		}
+		// AC3: Assign architecture decisions from initial plan to RunState.
+		// The PlanStage is responsible for transferring plan.ArchitectureDecisions
+		// into rs.ArchitectureConstraints to carry conventions through fix cycles
+		// and executor task prompts.
+		if validationErr == nil {
+			if plan.ArchitectureDecisions != nil {
+				rs.ArchitectureConstraints = append([]string(nil), plan.ArchitectureDecisions...)
+			} else {
+				rs.ArchitectureConstraints = []string{}
+			}
 		}
 	}
 
