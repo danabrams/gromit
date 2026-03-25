@@ -11,6 +11,7 @@ import (
 	"github.com/danabrams/gromit/internal/next/planner"
 	"github.com/danabrams/gromit/internal/next/runstore"
 	"github.com/danabrams/gromit/internal/next/specloop"
+	"github.com/danabrams/gromit/internal/next/specloop/speclooptest"
 	"github.com/danabrams/gromit/internal/provider"
 )
 
@@ -75,14 +76,14 @@ func TestScenario_NoConventions_NoPromptNoise(t *testing.T) {
 	if len(rs.Tasks) == 0 {
 		t.Fatal("expected at least one task to be created")
 	}
-	inv := &mockInvoker{result: &provider.Result{Success: true, Model: "sonnet", Duration: time.Second}}
+	inv := &speclooptest.MockInvoker{Result: &provider.Result{Success: true, Model: "sonnet", Duration: time.Second}}
 	runner := specloop.NewProviderTaskRunner(inv, func() string { return "" })
 	// Don't set a context provider (or set empty constraints) since no conventions were established
 	if _, err := runner.RunTask(context.Background(), rs.Tasks[0]); err != nil {
 		t.Fatalf("RunTask: %v", err)
 	}
-	if strings.Contains(inv.capturedPrompt, "Architecture Conventions") {
-		t.Errorf("executor task prompt must not contain 'Architecture Conventions' when no constraints are established;\ngot prompt:\n%s", inv.capturedPrompt)
+	if strings.Contains(inv.CapturedPrompt, "Architecture Conventions") {
+		t.Errorf("executor task prompt must not contain 'Architecture Conventions' when no constraints are established;\ngot prompt:\n%s", inv.CapturedPrompt)
 	}
 
 	// === Assert 3: fix plan prompts contain no "Architecture Conventions" section ===

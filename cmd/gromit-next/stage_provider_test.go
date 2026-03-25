@@ -994,6 +994,10 @@ func TestBuildStages_WriteScenarioTestsStageWired(t *testing.T) {
 // TestContextProviderClosure_DynamicPointerCapture verifies that the context
 // provider closure captures rs by pointer, so mutations to rs.ArchitectureConstraints
 // made after closure creation are visible at invocation time.
+//
+// Note: this test verifies the closure contract (pointer capture semantics) but
+// does not test the actual BuildStages wiring. If BuildStages changes to capture
+// rs by value, a separate integration test or manual verification is needed.
 func TestContextProviderClosure_DynamicPointerCapture(t *testing.T) {
 	// Create a RunState with empty ArchitectureConstraints.
 	rs := runstore.NewRunState("test-spec", "test-project")
@@ -1009,7 +1013,7 @@ func TestContextProviderClosure_DynamicPointerCapture(t *testing.T) {
 	// Build the closure that applies RunState constraints.
 	// rs is captured by pointer, so mutations to rs are visible at call time.
 	contextProvider := func() specloop.TaskContext {
-		return specloop.ApplyRunStateConstraints(baseCtxFn(), rs.ArchitectureConstraints)
+		return specloop.MergeArchitectureConstraints(baseCtxFn(), rs.ArchitectureConstraints)
 	}
 
 	// At this point, rs.ArchitectureConstraints is empty.

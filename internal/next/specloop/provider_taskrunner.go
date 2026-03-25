@@ -158,10 +158,12 @@ func (r *ProviderTaskRunner) taskContext() TaskContext {
 	return TaskContext{}
 }
 
-// ApplyRunStateConstraints merges architecture constraints
+// MergeArchitectureConstraints merges architecture constraints
 // into a TaskContext, returning an updated TaskContext. Non-duplicate entries
 // from constraints are appended to tc.ArchitectureConstraints.
-func ApplyRunStateConstraints(tc TaskContext, constraints []string) TaskContext {
+// tc.ArchitectureConstraints is deduplicated against before appending, so callers
+// that pre-populate TaskContext.ArchitectureConstraints will not see duplicates.
+func MergeArchitectureConstraints(tc TaskContext, constraints []string) TaskContext {
 	if len(constraints) == 0 {
 		return tc
 	}
@@ -169,6 +171,7 @@ func ApplyRunStateConstraints(tc TaskContext, constraints []string) TaskContext 
 	for _, c := range tc.ArchitectureConstraints {
 		existing[c] = true
 	}
+	tc.ArchitectureConstraints = append([]string(nil), tc.ArchitectureConstraints...)
 	for _, c := range constraints {
 		if !existing[c] {
 			tc.ArchitectureConstraints = append(tc.ArchitectureConstraints, c)
@@ -176,15 +179,6 @@ func ApplyRunStateConstraints(tc TaskContext, constraints []string) TaskContext 
 		}
 	}
 	return tc
-}
-
-// ConstraintsFromRunState extracts architecture constraints from a RunState,
-// checking the length before returning to ensure empty constraints are handled safely.
-func ConstraintsFromRunState(rs *runstore.RunState) []string {
-	if len(rs.ArchitectureConstraints) == 0 {
-		return []string{}
-	}
-	return rs.ArchitectureConstraints
 }
 
 // RunTask renders a task prompt and invokes the LLM. It maps the provider result

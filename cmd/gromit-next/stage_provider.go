@@ -163,7 +163,7 @@ func (p *RealStageProvider) BuildStages(policy execpolicy.Policy, rs *runstore.R
 		// rs is a pointer, so mutations made by the plan stage before tasks run are visible
 		// through this closure when the context provider is invoked during task execution.
 		ptr.SetContextProvider(func() specloop.TaskContext {
-			return specloop.ApplyRunStateConstraints(baseCtxFn(), rs.ArchitectureConstraints)
+			return specloop.MergeArchitectureConstraints(baseCtxFn(), rs.ArchitectureConstraints)
 		})
 		taskRunner = ptr
 

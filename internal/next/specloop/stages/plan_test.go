@@ -13,7 +13,6 @@ import (
 	"github.com/danabrams/gromit/internal/next/playbook"
 	"github.com/danabrams/gromit/internal/next/runstore"
 	"github.com/danabrams/gromit/internal/next/specloop"
-	"github.com/danabrams/gromit/internal/provider"
 )
 
 type fakePlanner struct {
@@ -54,27 +53,6 @@ func (f *fakeFixPlanner) CreateFixPlan(ctx context.Context, req planner.FixPlanR
 		return f.plans[idx], nil
 	}
 	return planner.Plan{}, errors.New("no more plans")
-}
-
-// mockInvoker captures the prompt and returns a configured result.
-type mockInvoker struct {
-	capturedPrompt  string
-	capturedDir     string
-	usedInvokeInDir bool
-	result          *provider.Result
-	err             error
-}
-
-func (m *mockInvoker) Invoke(_ context.Context, prompt string) (*provider.Result, error) {
-	m.capturedPrompt = prompt
-	return m.result, m.err
-}
-
-func (m *mockInvoker) InvokeInDir(_ context.Context, prompt string, dir string) (*provider.Result, error) {
-	m.capturedPrompt = prompt
-	m.capturedDir = dir
-	m.usedInvokeInDir = true
-	return m.result, m.err
 }
 
 // Verify PlanStage satisfies the Stage interface.
@@ -1010,6 +988,34 @@ func TestPlanStage_InitialPlan_RetryPopulatesArchitectureConstraints(t *testing.
 	}
 }
 
+func TestPlanStage_InitialPlan_NilDecisions_SetsEmptyConstraints(t *testing.T) {
+	tmp := t.TempDir()
+	store := runstore.NewStore(tmp)
+	rs := runstore.NewRunState("spec-001", "proj-001")
+	runDir := store.RunDir(rs.RunID)
+	os.MkdirAll(runDir, 0o755)
+	os.WriteFile(filepath.Join(runDir, "spec-packet.md"), []byte("spec content"), 0o644)
+
+	// Plan with nil ArchitectureDecisions (LLM omitted the field)
+	fp := &fakePlanner{
+		plans: []planner.Plan{validPlan()},
+	}
+	stage := NewPlanStage(fp, store, nil)
+
+	_, err := stage.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// nil ArchitectureDecisions must result in []string{} not nil
+	if rs.ArchitectureConstraints == nil {
+		t.Fatal("expected rs.ArchitectureConstraints to be []string{}, got nil")
+	}
+	if len(rs.ArchitectureConstraints) != 0 {
+		t.Fatalf("expected 0 architecture constraints, got %d: %v", len(rs.ArchitectureConstraints), rs.ArchitectureConstraints)
+	}
+}
+
 func TestPlanStage_FixCycle_DedupArchitectureDecisions(t *testing.T) {
 	tmp := t.TempDir()
 	store := runstore.NewStore(tmp)
@@ -1257,6 +1263,20 @@ func TestPlanStage_FixCycle_ValidationFailure_ArchitectureDecisionsNotAccumulate
 	// Verify the fix planner was called twice (both retries failed validation)
 	if ffp.calls != 2 {
 		t.Fatalf("expected 2 fix planner calls (initial + 1 retry), got %d", ffp.calls)
+	}
+
+	// Verify the retry request (ffp.reqs[1]) contains the validation error from attempt 0 in Failures
+	if len(ffp.reqs) < 2 {
+		t.Fatalf("expected at least 2 fix planner requests, got %d", len(ffp.reqs))
+	}
+	// ffp.reqs[1].Failures should contain the original ReplanContext plus the validation error from attempt 0
+	if len(ffp.reqs[1].Failures) < 2 {
+		t.Fatalf("expected retry request to contain validation error from attempt 0 in Failures, got %d entries: %v", len(ffp.reqs[1].Failures), ffp.reqs[1].Failures)
+	}
+	// The validation error should be the last entry (appended after the original ReplanContext)
+	validationErrorMsg := ffp.reqs[1].Failures[len(ffp.reqs[1].Failures)-1]
+	if !strings.Contains(validationErrorMsg, "t-002") || !strings.Contains(validationErrorMsg, "objective") {
+		t.Fatalf("expected retry request to contain validation error mentioning 't-002' and 'objective', got %q", validationErrorMsg)
 	}
 
 	// Verify rs.ArchitectureConstraints still has ONLY the original constraint

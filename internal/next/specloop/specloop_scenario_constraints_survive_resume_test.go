@@ -49,13 +49,9 @@ func TestScenario_ConstraintsSurviveResume(t *testing.T) {
 	}
 
 	// Invoke: load RunState from run.json (simulating resume) and mark as resumed.
-	raw, err := os.ReadFile(filepath.Join(runDir, "run.json"))
+	resumed, err := store.Get(paused.RunID)
 	if err != nil {
-		t.Fatalf("read run.json: %v", err)
-	}
-	var resumed runstore.RunState
-	if err := json.Unmarshal(raw, &resumed); err != nil {
-		t.Fatalf("unmarshal RunState: %v", err)
+		t.Fatalf("store.Get: %v", err)
 	}
 	resumed.Resumed = true
 

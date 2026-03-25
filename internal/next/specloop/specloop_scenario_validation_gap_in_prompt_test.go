@@ -10,6 +10,7 @@ import (
 
 	"github.com/danabrams/gromit/internal/next/playbook"
 	"github.com/danabrams/gromit/internal/next/runstore"
+	"github.com/danabrams/gromit/internal/next/specloop/speclooptest"
 	"github.com/danabrams/gromit/internal/provider"
 )
 
@@ -49,8 +50,8 @@ func TestScenario_PromotedValidationGapAppearsInValidatorPrompt(t *testing.T) {
 	// Create a FileTaskContextProvider that loads from our seeded cellPath
 	ctxProvider := FileTaskContextProvider(func() string { return workDir }, runDir, cellPath)
 
-	inv := &mockInvoker{
-		result: &provider.Result{
+	inv := &speclooptest.MockInvoker{
+		Result: &provider.Result{
 			Success:  true,
 			Model:    "sonnet",
 			Duration: 1 * time.Second,
@@ -74,7 +75,7 @@ func TestScenario_PromotedValidationGapAppearsInValidatorPrompt(t *testing.T) {
 		t.Fatalf("RunTask: %v", err)
 	}
 
-	prompt := inv.capturedPrompt
+	prompt := inv.CapturedPrompt
 
 	// === Assert ===
 	// The Known Validation Gaps section must appear in the prompt
@@ -128,8 +129,8 @@ func TestScenario_PromotedValidationGapAppearsInRepairPrompt(t *testing.T) {
 	// === Invoke ===
 	ctxProvider := FileTaskContextProvider(func() string { return workDir }, runDir, cellPath)
 
-	inv := &mockInvoker{
-		result: &provider.Result{
+	inv := &speclooptest.MockInvoker{
+		Result: &provider.Result{
 			Success:  true,
 			Model:    "sonnet",
 			Duration: 1 * time.Second,
@@ -152,7 +153,7 @@ func TestScenario_PromotedValidationGapAppearsInRepairPrompt(t *testing.T) {
 		t.Fatalf("RepairTask: %v", err)
 	}
 
-	prompt := inv.capturedPrompt
+	prompt := inv.CapturedPrompt
 
 	// === Assert ===
 	if !strings.Contains(prompt, "### Known Validation Gaps") {
@@ -195,8 +196,8 @@ func TestScenario_ValidationGapOmittedFromOriginalTaskPrompt(t *testing.T) {
 	// === Invoke ===
 	ctxProvider := FileTaskContextProvider(func() string { return workDir }, runDir, cellPath)
 
-	inv := &mockInvoker{
-		result: &provider.Result{
+	inv := &speclooptest.MockInvoker{
+		Result: &provider.Result{
 			Success:  true,
 			Model:    "sonnet",
 			Duration: 1 * time.Second,
@@ -217,7 +218,7 @@ func TestScenario_ValidationGapOmittedFromOriginalTaskPrompt(t *testing.T) {
 		t.Fatalf("RunTask: %v", err)
 	}
 
-	prompt := inv.capturedPrompt
+	prompt := inv.CapturedPrompt
 
 	// === Assert ===
 	// Original tasks should NOT include validation gaps (only fix/repair tasks do)

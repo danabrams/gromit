@@ -12,6 +12,7 @@ import (
 	"github.com/danabrams/gromit/internal/next/planner"
 	"github.com/danabrams/gromit/internal/next/runstore"
 	"github.com/danabrams/gromit/internal/next/specloop"
+	"github.com/danabrams/gromit/internal/next/specloop/speclooptest"
 	"github.com/danabrams/gromit/internal/provider"
 )
 
@@ -135,8 +136,8 @@ model-resolver. It must never hold a resolved model name such as "claude-sonnet-
 	for _, task := range rs.Tasks {
 		t.Run(task.TaskID, func(t *testing.T) {
 			// Create a mock invoker to capture the rendered prompt
-			inv := &mockInvoker{
-				result: &provider.Result{
+			inv := &speclooptest.MockInvoker{
+				Result: &provider.Result{
 					Success:  true,
 					Model:    "sonnet",
 					Duration: 1 * time.Second,
@@ -154,7 +155,7 @@ model-resolver. It must never hold a resolved model name such as "claude-sonnet-
 				t.Fatalf("RunTask failed: %v", err)
 			}
 
-			prompt := inv.capturedPrompt
+			prompt := inv.CapturedPrompt
 
 			// Assert: prompt contains the Architecture Conventions section header
 			if !strings.Contains(prompt, "### Architecture Conventions") {

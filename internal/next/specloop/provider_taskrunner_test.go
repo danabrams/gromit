@@ -11,29 +11,9 @@ import (
 	"time"
 
 	"github.com/danabrams/gromit/internal/next/runstore"
+	"github.com/danabrams/gromit/internal/next/specloop/speclooptest"
 	"github.com/danabrams/gromit/internal/provider"
 )
-
-// mockInvoker captures the prompt and returns a configured result.
-type mockInvoker struct {
-	capturedPrompt  string
-	capturedDir     string
-	usedInvokeInDir bool
-	result          *provider.Result
-	err             error
-}
-
-func (m *mockInvoker) Invoke(_ context.Context, prompt string) (*provider.Result, error) {
-	m.capturedPrompt = prompt
-	return m.result, m.err
-}
-
-func (m *mockInvoker) InvokeInDir(_ context.Context, prompt string, dir string) (*provider.Result, error) {
-	m.capturedPrompt = prompt
-	m.capturedDir = dir
-	m.usedInvokeInDir = true
-	return m.result, m.err
-}
 
 func TestProviderTaskRunner_CompileTimeInterfaceCheck(t *testing.T) {
 	// Compile-time check is in provider_taskrunner.go:
@@ -43,8 +23,8 @@ func TestProviderTaskRunner_CompileTimeInterfaceCheck(t *testing.T) {
 }
 
 func TestProviderTaskRunner_RunTask_SuccessMappedToDone(t *testing.T) {
-	inv := &mockInvoker{
-		result: &provider.Result{
+	inv := &speclooptest.MockInvoker{
+		Result: &provider.Result{
 			Success:      true,
 			Output:       "done",
 			Model:        "sonnet",
@@ -70,8 +50,8 @@ func TestProviderTaskRunner_RunTask_SuccessMappedToDone(t *testing.T) {
 }
 
 func TestProviderTaskRunner_RunTask_FailureMappedToFailed(t *testing.T) {
-	inv := &mockInvoker{
-		result: &provider.Result{
+	inv := &speclooptest.MockInvoker{
+		Result: &provider.Result{
 			Success:      false,
 			Output:       "error occurred",
 			Model:        "sonnet",
@@ -94,8 +74,8 @@ func TestProviderTaskRunner_RunTask_FailureMappedToFailed(t *testing.T) {
 }
 
 func TestProviderTaskRunner_RunTask_TokensUsedIsSum(t *testing.T) {
-	inv := &mockInvoker{
-		result: &provider.Result{
+	inv := &speclooptest.MockInvoker{
+		Result: &provider.Result{
 			Success:      true,
 			Model:        "sonnet",
 			InputTokens:  1234,
@@ -116,8 +96,8 @@ func TestProviderTaskRunner_RunTask_TokensUsedIsSum(t *testing.T) {
 }
 
 func TestProviderTaskRunner_RunTask_PromptIncludesObjectiveAndArea(t *testing.T) {
-	inv := &mockInvoker{
-		result: &provider.Result{
+	inv := &speclooptest.MockInvoker{
+		Result: &provider.Result{
 			Success:  true,
 			Model:    "sonnet",
 			Duration: 1 * time.Second,
@@ -136,20 +116,20 @@ func TestProviderTaskRunner_RunTask_PromptIncludesObjectiveAndArea(t *testing.T)
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if !strings.Contains(inv.capturedPrompt, "implement the frobnicator") {
+	if !strings.Contains(inv.CapturedPrompt, "implement the frobnicator") {
 		t.Error("prompt does not contain task objective")
 	}
-	if !strings.Contains(inv.capturedPrompt, "internal/frob/") {
+	if !strings.Contains(inv.CapturedPrompt, "internal/frob/") {
 		t.Error("prompt does not contain expected touched area")
 	}
-	if !strings.Contains(inv.capturedPrompt, "go test ./internal/frob/...") {
+	if !strings.Contains(inv.CapturedPrompt, "go test ./internal/frob/...") {
 		t.Error("prompt does not contain proof checks")
 	}
 }
 
 func TestProviderTaskRunner_RunTask_MapsAllResultFields(t *testing.T) {
-	inv := &mockInvoker{
-		result: &provider.Result{
+	inv := &speclooptest.MockInvoker{
+		Result: &provider.Result{
 			Success:      true,
 			Model:        "opus",
 			CostUSD:      0.12,
@@ -180,8 +160,8 @@ func TestProviderTaskRunner_RunTask_MapsAllResultFields(t *testing.T) {
 }
 
 func TestProviderTaskRunner_RepairTask_PromptIncludesFailures(t *testing.T) {
-	inv := &mockInvoker{
-		result: &provider.Result{
+	inv := &speclooptest.MockInvoker{
+		Result: &provider.Result{
 			Success:  true,
 			Model:    "sonnet",
 			Duration: 1 * time.Second,
@@ -199,20 +179,20 @@ func TestProviderTaskRunner_RepairTask_PromptIncludesFailures(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if !strings.Contains(inv.capturedPrompt, "test_foo failed: assertion error") {
+	if !strings.Contains(inv.CapturedPrompt, "test_foo failed: assertion error") {
 		t.Error("repair prompt does not contain first failure")
 	}
-	if !strings.Contains(inv.capturedPrompt, "lint: unused variable") {
+	if !strings.Contains(inv.CapturedPrompt, "lint: unused variable") {
 		t.Error("repair prompt does not contain second failure")
 	}
-	if !strings.Contains(inv.capturedPrompt, "fix the widget") {
+	if !strings.Contains(inv.CapturedPrompt, "fix the widget") {
 		t.Error("repair prompt does not contain task objective")
 	}
 }
 
 func TestProviderTaskRunner_TaskPrompt_WithArchitectureConstraints(t *testing.T) {
-	inv := &mockInvoker{
-		result: &provider.Result{
+	inv := &speclooptest.MockInvoker{
+		Result: &provider.Result{
 			Success:  true,
 			Model:    "sonnet",
 			Duration: 1 * time.Second,
@@ -235,17 +215,17 @@ func TestProviderTaskRunner_TaskPrompt_WithArchitectureConstraints(t *testing.T)
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if !strings.Contains(inv.capturedPrompt, "### Architecture Conventions") {
+	if !strings.Contains(inv.CapturedPrompt, "### Architecture Conventions") {
 		t.Error("prompt does not contain '### Architecture Conventions' section header")
 	}
-	if !strings.Contains(inv.capturedPrompt, "- use NormalizeNilFields for cross-package types") {
+	if !strings.Contains(inv.CapturedPrompt, "- use NormalizeNilFields for cross-package types") {
 		t.Error("prompt does not contain first architecture constraint with '- ' prefix")
 	}
-	if !strings.Contains(inv.capturedPrompt, "- separate validation in haiku invocation") {
+	if !strings.Contains(inv.CapturedPrompt, "- separate validation in haiku invocation") {
 		t.Error("prompt does not contain second architecture constraint with '- ' prefix")
 	}
-	specIdx := strings.Index(inv.capturedPrompt, "### Spec Constraints")
-	archIdx := strings.Index(inv.capturedPrompt, "### Architecture Conventions")
+	specIdx := strings.Index(inv.CapturedPrompt, "### Spec Constraints")
+	archIdx := strings.Index(inv.CapturedPrompt, "### Architecture Conventions")
 	if specIdx == -1 {
 		t.Error("prompt does not contain '### Spec Constraints' section")
 	} else if archIdx <= specIdx {
@@ -254,8 +234,8 @@ func TestProviderTaskRunner_TaskPrompt_WithArchitectureConstraints(t *testing.T)
 }
 
 func TestProviderTaskRunner_TaskPrompt_WithoutArchitectureConstraints(t *testing.T) {
-	inv := &mockInvoker{
-		result: &provider.Result{
+	inv := &speclooptest.MockInvoker{
+		Result: &provider.Result{
 			Success:  true,
 			Model:    "sonnet",
 			Duration: 1 * time.Second,
@@ -274,13 +254,13 @@ func TestProviderTaskRunner_TaskPrompt_WithoutArchitectureConstraints(t *testing
 		t.Fatalf("unexpected error with nil constraints: %v", err)
 	}
 
-	if strings.Contains(inv.capturedPrompt, "### Architecture Conventions") {
+	if strings.Contains(inv.CapturedPrompt, "### Architecture Conventions") {
 		t.Error("prompt should not contain '### Architecture Conventions' when constraints are nil")
 	}
 
 	// Test with empty ArchitectureConstraints
-	inv2 := &mockInvoker{
-		result: &provider.Result{
+	inv2 := &speclooptest.MockInvoker{
+		Result: &provider.Result{
 			Success:  true,
 			Model:    "sonnet",
 			Duration: 1 * time.Second,
@@ -302,14 +282,14 @@ func TestProviderTaskRunner_TaskPrompt_WithoutArchitectureConstraints(t *testing
 		t.Fatalf("unexpected error with empty constraints: %v", err)
 	}
 
-	if strings.Contains(inv2.capturedPrompt, "### Architecture Conventions") {
+	if strings.Contains(inv2.CapturedPrompt, "### Architecture Conventions") {
 		t.Error("prompt should not contain '### Architecture Conventions' when constraints are empty")
 	}
 }
 
 func TestProviderTaskRunner_RepairTask_MapsResultCorrectly(t *testing.T) {
-	inv := &mockInvoker{
-		result: &provider.Result{
+	inv := &speclooptest.MockInvoker{
+		Result: &provider.Result{
 			Success:      true,
 			Model:        "opus",
 			CostUSD:      0.08,
@@ -340,9 +320,9 @@ func TestProviderTaskRunner_RepairTask_MapsResultCorrectly(t *testing.T) {
 }
 
 func TestProviderTaskRunner_RunTask_NilResult(t *testing.T) {
-	inv := &mockInvoker{
-		result: nil,
-		err:    nil,
+	inv := &speclooptest.MockInvoker{
+		Result: nil,
+		Err:    nil,
 	}
 	runner := NewProviderTaskRunner(inv, func() string { return "" })
 	task := runstore.Task{TaskID: "t-nil-run", Objective: "should handle nil"}
@@ -370,9 +350,9 @@ func TestProviderTaskRunner_RunTask_NilResult(t *testing.T) {
 }
 
 func TestProviderTaskRunner_RepairTask_NilResult(t *testing.T) {
-	inv := &mockInvoker{
-		result: nil,
-		err:    nil,
+	inv := &speclooptest.MockInvoker{
+		Result: nil,
+		Err:    nil,
 	}
 	runner := NewProviderTaskRunner(inv, func() string { return "" })
 	task := runstore.Task{TaskID: "t-nil-repair", Objective: "should handle nil"}
@@ -403,9 +383,9 @@ func TestProviderTaskRunner_RunTask_ContextCancelled(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	inv := &mockInvoker{
-		result: nil,
-		err:    context.Canceled,
+	inv := &speclooptest.MockInvoker{
+		Result: nil,
+		Err:    context.Canceled,
 	}
 	runner := NewProviderTaskRunner(inv, func() string { return "" })
 	task := runstore.Task{TaskID: "t-ctx", Objective: "should be cancelled"}
@@ -421,8 +401,8 @@ func TestProviderTaskRunner_RunTask_ContextCancelled(t *testing.T) {
 }
 
 func TestProviderTaskRunner_RepairTask_EmptyFailures(t *testing.T) {
-	inv := &mockInvoker{
-		result: &provider.Result{
+	inv := &speclooptest.MockInvoker{
+		Result: &provider.Result{
 			Success:  true,
 			Model:    "sonnet",
 			Duration: 1 * time.Second,
@@ -439,14 +419,14 @@ func TestProviderTaskRunner_RepairTask_EmptyFailures(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if strings.Contains(inv.capturedPrompt, "Failures to Address") {
+	if strings.Contains(inv.CapturedPrompt, "Failures to Address") {
 		t.Error("prompt should not contain 'Failures to Address' header when failures slice is empty")
 	}
 }
 
 func TestProviderTaskRunner_RunTask_MinimalTask(t *testing.T) {
-	inv := &mockInvoker{
-		result: &provider.Result{
+	inv := &speclooptest.MockInvoker{
+		Result: &provider.Result{
 			Success:  true,
 			Model:    "sonnet",
 			Duration: 1 * time.Second,
@@ -463,26 +443,26 @@ func TestProviderTaskRunner_RunTask_MinimalTask(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if strings.Contains(inv.capturedPrompt, "Expected Touched Area") {
+	if strings.Contains(inv.CapturedPrompt, "Expected Touched Area") {
 		t.Error("prompt should not contain 'Expected Touched Area' when ExpectedTouchedArea is empty")
 	}
-	if strings.Contains(inv.capturedPrompt, "Proof Checks") {
+	if strings.Contains(inv.CapturedPrompt, "Proof Checks") {
 		t.Error("prompt should not contain 'Proof Checks' when ProofChecks is empty")
 	}
-	if !strings.Contains(inv.capturedPrompt, "do something simple") {
+	if !strings.Contains(inv.CapturedPrompt, "do something simple") {
 		t.Error("prompt should still contain the objective")
 	}
 }
 
 func TestProviderTaskRunner_InvokerErrorPropagated(t *testing.T) {
 	expectedErr := errors.New("connection timeout")
-	inv := &mockInvoker{
-		result: &provider.Result{
+	inv := &speclooptest.MockInvoker{
+		Result: &provider.Result{
 			InputTokens:  100,
 			OutputTokens: 0,
 			CostUSD:      0.01,
 		},
-		err: expectedErr,
+		Err: expectedErr,
 	}
 	runner := NewProviderTaskRunner(inv, func() string { return "" })
 	task := runstore.Task{TaskID: "t-8", Objective: "something"}
@@ -498,8 +478,8 @@ func TestProviderTaskRunner_InvokerErrorPropagated(t *testing.T) {
 }
 
 func TestProviderTaskRunner_RunTask_UsesInvokeInDirWhenWorkDirSet(t *testing.T) {
-	inv := &mockInvoker{
-		result: &provider.Result{
+	inv := &speclooptest.MockInvoker{
+		Result: &provider.Result{
 			Success:  true,
 			Model:    "sonnet",
 			Duration: 1 * time.Second,
@@ -512,17 +492,17 @@ func TestProviderTaskRunner_RunTask_UsesInvokeInDirWhenWorkDirSet(t *testing.T) 
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if !inv.usedInvokeInDir {
+	if !inv.UsedInvokeInDir {
 		t.Error("expected InvokeInDir to be called when workDir is set")
 	}
-	if inv.capturedDir != "/tmp/workdir" {
-		t.Errorf("expected dir '/tmp/workdir', got %q", inv.capturedDir)
+	if inv.CapturedDir != "/tmp/workdir" {
+		t.Errorf("expected dir '/tmp/workdir', got %q", inv.CapturedDir)
 	}
 }
 
 func TestProviderTaskRunner_RunTask_UsesInvokeWhenWorkDirEmpty(t *testing.T) {
-	inv := &mockInvoker{
-		result: &provider.Result{
+	inv := &speclooptest.MockInvoker{
+		Result: &provider.Result{
 			Success:  true,
 			Model:    "sonnet",
 			Duration: 1 * time.Second,
@@ -535,14 +515,14 @@ func TestProviderTaskRunner_RunTask_UsesInvokeWhenWorkDirEmpty(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if inv.usedInvokeInDir {
+	if inv.UsedInvokeInDir {
 		t.Error("expected Invoke (not InvokeInDir) to be called when workDir is empty")
 	}
 }
 
 func TestTaskPrompt_SpecConstraintsIncluded(t *testing.T) {
-	inv := &mockInvoker{
-		result: &provider.Result{
+	inv := &speclooptest.MockInvoker{
+		Result: &provider.Result{
 			Success:  true,
 			Model:    "sonnet",
 			Duration: 1 * time.Second,
@@ -560,17 +540,17 @@ func TestTaskPrompt_SpecConstraintsIncluded(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if !strings.Contains(inv.capturedPrompt, "Spec Constraints") {
+	if !strings.Contains(inv.CapturedPrompt, "Spec Constraints") {
 		t.Error("prompt does not contain 'Spec Constraints' header")
 	}
-	if !strings.Contains(inv.capturedPrompt, "Do NOT modify any existing test files") {
+	if !strings.Contains(inv.CapturedPrompt, "Do NOT modify any existing test files") {
 		t.Error("prompt does not contain the constraint text")
 	}
 }
 
 func TestTaskPrompt_NoSpecConstraintsWhenEmpty(t *testing.T) {
-	inv := &mockInvoker{
-		result: &provider.Result{
+	inv := &speclooptest.MockInvoker{
+		Result: &provider.Result{
 			Success:  true,
 			Model:    "sonnet",
 			Duration: 1 * time.Second,
@@ -588,14 +568,14 @@ func TestTaskPrompt_NoSpecConstraintsWhenEmpty(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if strings.Contains(inv.capturedPrompt, "Spec Constraints") {
+	if strings.Contains(inv.CapturedPrompt, "Spec Constraints") {
 		t.Error("prompt should not contain 'Spec Constraints' header when SpecConstraints is empty")
 	}
 }
 
 func TestRenderRepairPrompt_SpecConstraintsIncluded(t *testing.T) {
-	inv := &mockInvoker{
-		result: &provider.Result{
+	inv := &speclooptest.MockInvoker{
+		Result: &provider.Result{
 			Success:  true,
 			Model:    "sonnet",
 			Duration: 1 * time.Second,
@@ -613,17 +593,17 @@ func TestRenderRepairPrompt_SpecConstraintsIncluded(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if !strings.Contains(inv.capturedPrompt, "Spec Constraints") {
+	if !strings.Contains(inv.CapturedPrompt, "Spec Constraints") {
 		t.Error("repair prompt does not contain 'Spec Constraints' header")
 	}
-	if !strings.Contains(inv.capturedPrompt, "All code stays in the `calc` package") {
+	if !strings.Contains(inv.CapturedPrompt, "All code stays in the `calc` package") {
 		t.Error("repair prompt does not contain the constraint text")
 	}
 }
 
 func TestTaskPrompt_SpecConstraintsAppearBeforeProofChecks(t *testing.T) {
-	inv := &mockInvoker{
-		result: &provider.Result{
+	inv := &speclooptest.MockInvoker{
+		Result: &provider.Result{
 			Success:  true,
 			Model:    "sonnet",
 			Duration: 1 * time.Second,
@@ -642,8 +622,8 @@ func TestTaskPrompt_SpecConstraintsAppearBeforeProofChecks(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	constraintIdx := strings.Index(inv.capturedPrompt, "Spec Constraints")
-	proofIdx := strings.Index(inv.capturedPrompt, "Proof Checks")
+	constraintIdx := strings.Index(inv.CapturedPrompt, "Spec Constraints")
+	proofIdx := strings.Index(inv.CapturedPrompt, "Proof Checks")
 	if constraintIdx == -1 {
 		t.Fatal("prompt does not contain 'Spec Constraints' header")
 	}
@@ -656,8 +636,8 @@ func TestTaskPrompt_SpecConstraintsAppearBeforeProofChecks(t *testing.T) {
 }
 
 func TestTaskPrompt_ConstraintPreambleMentionsDeletion(t *testing.T) {
-	inv := &mockInvoker{
-		result: &provider.Result{
+	inv := &speclooptest.MockInvoker{
+		Result: &provider.Result{
 			Success:  true,
 			Model:    "sonnet",
 			Duration: 1 * time.Second,
@@ -675,14 +655,14 @@ func TestTaskPrompt_ConstraintPreambleMentionsDeletion(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if !strings.Contains(inv.capturedPrompt, "deleting") {
+	if !strings.Contains(inv.CapturedPrompt, "deleting") {
 		t.Error("constraint preamble should mention 'deleting' as a form of modification")
 	}
 }
 
 func TestProviderTaskRunner_RepairTask_UsesInvokeInDirWhenWorkDirSet(t *testing.T) {
-	inv := &mockInvoker{
-		result: &provider.Result{
+	inv := &speclooptest.MockInvoker{
+		Result: &provider.Result{
 			Success:  true,
 			Model:    "sonnet",
 			Duration: 1 * time.Second,
@@ -695,17 +675,17 @@ func TestProviderTaskRunner_RepairTask_UsesInvokeInDirWhenWorkDirSet(t *testing.
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if !inv.usedInvokeInDir {
+	if !inv.UsedInvokeInDir {
 		t.Error("expected InvokeInDir to be called when workDir is set")
 	}
-	if inv.capturedDir != "/tmp/repair-dir" {
-		t.Errorf("expected dir '/tmp/repair-dir', got %q", inv.capturedDir)
+	if inv.CapturedDir != "/tmp/repair-dir" {
+		t.Errorf("expected dir '/tmp/repair-dir', got %q", inv.CapturedDir)
 	}
 }
 
 func TestProviderTaskRunner_LazyWorkDirResolution(t *testing.T) {
-	inv := &mockInvoker{
-		result: &provider.Result{
+	inv := &speclooptest.MockInvoker{
+		Result: &provider.Result{
 			Success:  true,
 			Model:    "sonnet",
 			Duration: 1 * time.Second,
@@ -722,13 +702,13 @@ func TestProviderTaskRunner_LazyWorkDirResolution(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if inv.usedInvokeInDir {
+	if inv.UsedInvokeInDir {
 		t.Error("expected Invoke (not InvokeInDir) when workDirFn returns empty string")
 	}
 
 	// Change the resolved directory.
-	inv.usedInvokeInDir = false
-	inv.capturedDir = ""
+	inv.UsedInvokeInDir = false
+	inv.CapturedDir = ""
 	currentDir = "/tmp/lazy-worktree"
 
 	// Second call: non-empty dir → should use InvokeInDir with the new value.
@@ -736,11 +716,11 @@ func TestProviderTaskRunner_LazyWorkDirResolution(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if !inv.usedInvokeInDir {
+	if !inv.UsedInvokeInDir {
 		t.Error("expected InvokeInDir when workDirFn returns non-empty string")
 	}
-	if inv.capturedDir != "/tmp/lazy-worktree" {
-		t.Errorf("expected dir '/tmp/lazy-worktree', got %q", inv.capturedDir)
+	if inv.CapturedDir != "/tmp/lazy-worktree" {
+		t.Errorf("expected dir '/tmp/lazy-worktree', got %q", inv.CapturedDir)
 	}
 }
 
@@ -854,8 +834,8 @@ func TestRenderRepairPrompt_IncludesContext(t *testing.T) {
 }
 
 func TestProviderTaskRunner_ContextProviderWired_OriginalTask(t *testing.T) {
-	inv := &mockInvoker{
-		result: &provider.Result{
+	inv := &speclooptest.MockInvoker{
+		Result: &provider.Result{
 			Success:  true,
 			Model:    "sonnet",
 			Duration: 1 * time.Second,
@@ -875,17 +855,17 @@ func TestProviderTaskRunner_ContextProviderWired_OriginalTask(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if !strings.Contains(inv.capturedPrompt, "always write tests") {
+	if !strings.Contains(inv.CapturedPrompt, "always write tests") {
 		t.Error("prompt does not contain project conventions from context provider")
 	}
-	if strings.Contains(inv.capturedPrompt, "build the widget") {
+	if strings.Contains(inv.CapturedPrompt, "build the widget") {
 		t.Error("original task prompt should not contain spec content")
 	}
 }
 
 func TestProviderTaskRunner_ContextProviderWired_FixTask(t *testing.T) {
-	inv := &mockInvoker{
-		result: &provider.Result{
+	inv := &speclooptest.MockInvoker{
+		Result: &provider.Result{
 			Success:  true,
 			Model:    "sonnet",
 			Duration: 1 * time.Second,
@@ -905,17 +885,17 @@ func TestProviderTaskRunner_ContextProviderWired_FixTask(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if !strings.Contains(inv.capturedPrompt, "always write tests") {
+	if !strings.Contains(inv.CapturedPrompt, "always write tests") {
 		t.Error("prompt does not contain project conventions from context provider")
 	}
-	if !strings.Contains(inv.capturedPrompt, "build the widget") {
+	if !strings.Contains(inv.CapturedPrompt, "build the widget") {
 		t.Error("fix task prompt should contain spec content from context provider")
 	}
 }
 
 func TestProviderTaskRunner_NoContextProviderOmitsSections(t *testing.T) {
-	inv := &mockInvoker{
-		result: &provider.Result{
+	inv := &speclooptest.MockInvoker{
+		Result: &provider.Result{
 			Success:  true,
 			Model:    "sonnet",
 			Duration: 1 * time.Second,
@@ -930,10 +910,10 @@ func TestProviderTaskRunner_NoContextProviderOmitsSections(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if strings.Contains(inv.capturedPrompt, "Project Conventions") {
+	if strings.Contains(inv.CapturedPrompt, "Project Conventions") {
 		t.Error("prompt should not contain 'Project Conventions' without context provider")
 	}
-	if strings.Contains(inv.capturedPrompt, "Full Spec") {
+	if strings.Contains(inv.CapturedPrompt, "Full Spec") {
 		t.Error("prompt should not contain 'Full Spec' without context provider")
 	}
 }
@@ -1328,8 +1308,8 @@ func TestTaskPrompt_ValidationGaps(t *testing.T) {
 
 	ctxProvider := FileTaskContextProvider(func() string { return workDir }, runDir, cellPath)
 
-	inv := &mockInvoker{
-		result: &provider.Result{
+	inv := &speclooptest.MockInvoker{
+		Result: &provider.Result{
 			Success:  true,
 			Model:    "sonnet",
 			Duration: 1 * time.Second,
@@ -1350,16 +1330,16 @@ func TestTaskPrompt_ValidationGaps(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if !strings.Contains(inv.capturedPrompt, "### Known Validation Gaps") {
+	if !strings.Contains(inv.CapturedPrompt, "### Known Validation Gaps") {
 		t.Error("prompt should contain 'Known Validation Gaps' section header for fix task")
 	}
-	if !strings.Contains(inv.capturedPrompt, "Error handling incomplete") {
+	if !strings.Contains(inv.CapturedPrompt, "Error handling incomplete") {
 		t.Error("prompt should contain validation gap title")
 	}
-	if !strings.Contains(inv.capturedPrompt, "Add error recovery for network failures") {
+	if !strings.Contains(inv.CapturedPrompt, "Add error recovery for network failures") {
 		t.Error("prompt should contain validation gap content")
 	}
-	if !strings.Contains(inv.capturedPrompt, "Improve robustness") {
+	if !strings.Contains(inv.CapturedPrompt, "Improve robustness") {
 		t.Error("prompt should contain validation gap rationale")
 	}
 }
@@ -1405,8 +1385,8 @@ func TestRenderContextSections_SupersededExcluded(t *testing.T) {
 
 	ctxProvider := FileTaskContextProvider(func() string { return workDir }, runDir, cellPath)
 
-	inv := &mockInvoker{
-		result: &provider.Result{
+	inv := &speclooptest.MockInvoker{
+		Result: &provider.Result{
 			Success:  true,
 			Model:    "sonnet",
 			Duration: 1 * time.Second,
@@ -1427,15 +1407,15 @@ func TestRenderContextSections_SupersededExcluded(t *testing.T) {
 	}
 
 	// Active gap should be included
-	if !strings.Contains(inv.capturedPrompt, "Error handling incomplete") {
+	if !strings.Contains(inv.CapturedPrompt, "Error handling incomplete") {
 		t.Error("prompt should contain active validation gap")
 	}
 
 	// Superseded gap should NOT be included
-	if strings.Contains(inv.capturedPrompt, "Old logging gap") {
+	if strings.Contains(inv.CapturedPrompt, "Old logging gap") {
 		t.Error("prompt should NOT contain superseded validation gap")
 	}
-	if strings.Contains(inv.capturedPrompt, "Previously identified logging issue") {
+	if strings.Contains(inv.CapturedPrompt, "Previously identified logging issue") {
 		t.Error("prompt should NOT contain superseded gap content")
 	}
 }
@@ -1579,57 +1559,42 @@ func TestFileTaskContextProvider_TreatsEmptyStatusAsActive(t *testing.T) {
 	}
 }
 
-// TestApplyRunStateConstraints_NilRS verifies that ApplyRunStateConstraints returns
-// the TaskContext unchanged when rs is nil.
-func TestApplyRunStateConstraints_NilRS(t *testing.T) {
-	tc := TaskContext{
-		ProjectConventions: "some conventions",
-	}
-	result := ApplyRunStateConstraints(tc, nil)
-	if result.ProjectConventions != tc.ProjectConventions {
-		t.Error("ApplyRunStateConstraints with nil rs should return tc unchanged")
-	}
-	if len(result.ArchitectureConstraints) != 0 {
-		t.Error("ApplyRunStateConstraints with nil rs should not set ArchitectureConstraints")
-	}
-}
-
-// TestApplyRunStateConstraints_NilConstraints verifies that ApplyRunStateConstraints
+// TestMergeArchitectureConstraints_NilConstraints verifies that MergeArchitectureConstraints
 // returns the TaskContext unchanged when constraints is nil.
-func TestApplyRunStateConstraints_NilConstraints(t *testing.T) {
+func TestMergeArchitectureConstraints_NilConstraints(t *testing.T) {
 	tc := TaskContext{
 		ProjectConventions: "some conventions",
 	}
-	result := ApplyRunStateConstraints(tc, nil)
+	result := MergeArchitectureConstraints(tc, nil)
 	if result.ProjectConventions != tc.ProjectConventions {
-		t.Error("ApplyRunStateConstraints with nil constraints should return tc unchanged")
+		t.Error("MergeArchitectureConstraints with nil constraints should return tc unchanged")
 	}
 	if len(result.ArchitectureConstraints) != 0 {
-		t.Error("ApplyRunStateConstraints with nil constraints should not set ArchitectureConstraints")
+		t.Error("MergeArchitectureConstraints with nil constraints should not set ArchitectureConstraints")
 	}
 }
 
-// TestApplyRunStateConstraints_EmptyConstraints verifies that ApplyRunStateConstraints
+// TestMergeArchitectureConstraints_EmptyConstraints verifies that MergeArchitectureConstraints
 // returns the TaskContext unchanged when constraints is empty.
-func TestApplyRunStateConstraints_EmptyConstraints(t *testing.T) {
+func TestMergeArchitectureConstraints_EmptyConstraints(t *testing.T) {
 	tc := TaskContext{
 		ProjectConventions: "some conventions",
 	}
-	result := ApplyRunStateConstraints(tc, []string{})
+	result := MergeArchitectureConstraints(tc, []string{})
 	if result.ProjectConventions != tc.ProjectConventions {
-		t.Error("ApplyRunStateConstraints with empty constraints should return tc unchanged")
+		t.Error("MergeArchitectureConstraints with empty constraints should return tc unchanged")
 	}
 	if len(result.ArchitectureConstraints) != 0 {
-		t.Error("ApplyRunStateConstraints with empty constraints should not set ArchitectureConstraints")
+		t.Error("MergeArchitectureConstraints with empty constraints should not set ArchitectureConstraints")
 	}
 }
 
-// TestApplyRunStateConstraints_PreExistingConstraintsPreserved verifies that
-// ApplyRunStateConstraints preserves pre-existing constraints in TaskContext
+// TestMergeArchitectureConstraints_PreExistingConstraintsPreserved verifies that
+// MergeArchitectureConstraints preserves pre-existing constraints in TaskContext
 // when the passed constraints slice is empty.
-func TestApplyRunStateConstraints_PreExistingConstraintsPreserved(t *testing.T) {
+func TestMergeArchitectureConstraints_PreExistingConstraintsPreserved(t *testing.T) {
 	tc := TaskContext{ArchitectureConstraints: []string{"pre-existing"}}
-	result := ApplyRunStateConstraints(tc, []string{})
+	result := MergeArchitectureConstraints(tc, []string{})
 	if len(result.ArchitectureConstraints) != 1 {
 		t.Errorf("expected 1 constraint, got %d", len(result.ArchitectureConstraints))
 	}
@@ -1638,56 +1603,72 @@ func TestApplyRunStateConstraints_PreExistingConstraintsPreserved(t *testing.T) 
 	}
 }
 
-// TestApplyRunStateConstraints_NonEmptyConstraints verifies that ApplyRunStateConstraints
+// TestMergeArchitectureConstraints_NonEmptyConstraints verifies that MergeArchitectureConstraints
 // appends constraints when tc has no pre-existing constraints.
-func TestApplyRunStateConstraints_NonEmptyConstraints(t *testing.T) {
+func TestMergeArchitectureConstraints_NonEmptyConstraints(t *testing.T) {
 	tc := TaskContext{
 		ProjectConventions: "some conventions",
 	}
 	constraints := []string{"use NormalizeNilFields for cross-package types", "separate validation in haiku"}
-	result := ApplyRunStateConstraints(tc, constraints)
+	result := MergeArchitectureConstraints(tc, constraints)
 	if result.ProjectConventions != tc.ProjectConventions {
-		t.Error("ApplyRunStateConstraints should preserve ProjectConventions")
+		t.Error("MergeArchitectureConstraints should preserve ProjectConventions")
 	}
 	if len(result.ArchitectureConstraints) != len(constraints) {
-		t.Errorf("ApplyRunStateConstraints should append ArchitectureConstraints; got %d, want %d", len(result.ArchitectureConstraints), len(constraints))
+		t.Errorf("MergeArchitectureConstraints should append ArchitectureConstraints; got %d, want %d", len(result.ArchitectureConstraints), len(constraints))
 	}
 	for i, c := range constraints {
 		if result.ArchitectureConstraints[i] != c {
-			t.Errorf("ApplyRunStateConstraints constraint mismatch at index %d: got %q, want %q", i, result.ArchitectureConstraints[i], c)
+			t.Errorf("MergeArchitectureConstraints constraint mismatch at index %d: got %q, want %q", i, result.ArchitectureConstraints[i], c)
 		}
 	}
 }
 
-// TestApplyRunStateConstraints_MergeWithExisting verifies that ApplyRunStateConstraints
+// TestMergeArchitectureConstraints_MergeWithExisting verifies that MergeArchitectureConstraints
 // merges constraints, appending and deduplicating.
-func TestApplyRunStateConstraints_MergeWithExisting(t *testing.T) {
+func TestMergeArchitectureConstraints_MergeWithExisting(t *testing.T) {
 	tc := TaskContext{
 		ProjectConventions:      "some conventions",
 		ArchitectureConstraints: []string{"existing constraint 1", "existing constraint 2"},
 	}
 	constraints := []string{"existing constraint 2", "new constraint 3", "new constraint 4"}
-	result := ApplyRunStateConstraints(tc, constraints)
+	result := MergeArchitectureConstraints(tc, constraints)
 	if result.ProjectConventions != tc.ProjectConventions {
-		t.Error("ApplyRunStateConstraints should preserve ProjectConventions")
+		t.Error("MergeArchitectureConstraints should preserve ProjectConventions")
 	}
 	// Should have: existing 1, existing 2, new 3, new 4 (deduplicated)
 	expected := []string{"existing constraint 1", "existing constraint 2", "new constraint 3", "new constraint 4"}
 	if len(result.ArchitectureConstraints) != len(expected) {
-		t.Errorf("ApplyRunStateConstraints should merge constraints with dedup; got %d, want %d", len(result.ArchitectureConstraints), len(expected))
+		t.Errorf("MergeArchitectureConstraints should merge constraints with dedup; got %d, want %d", len(result.ArchitectureConstraints), len(expected))
 	}
 	for i, c := range expected {
 		if result.ArchitectureConstraints[i] != c {
-			t.Errorf("ApplyRunStateConstraints constraint mismatch at index %d: got %q, want %q", i, result.ArchitectureConstraints[i], c)
+			t.Errorf("MergeArchitectureConstraints constraint mismatch at index %d: got %q, want %q", i, result.ArchitectureConstraints[i], c)
 		}
+	}
+}
+
+// TestMergeArchitectureConstraints_AllDuplicates verifies that MergeArchitectureConstraints
+// correctly handles the case where all constraints passed are already in the TaskContext.
+func TestMergeArchitectureConstraints_AllDuplicates(t *testing.T) {
+	tc := TaskContext{
+		ArchitectureConstraints: []string{"a", "b"},
+	}
+	constraints := []string{"a", "b"}
+	result := MergeArchitectureConstraints(tc, constraints)
+	if len(result.ArchitectureConstraints) != 2 {
+		t.Errorf("expected 2 constraints, got %d", len(result.ArchitectureConstraints))
+	}
+	if result.ArchitectureConstraints[0] != "a" || result.ArchitectureConstraints[1] != "b" {
+		t.Errorf("expected ['a', 'b'], got %v", result.ArchitectureConstraints)
 	}
 }
 
 // TestProviderTaskRunner_RepairTask_WithArchitectureConstraints verifies that the
 // repair prompt includes Architecture Conventions when they are present in TaskContext.
 func TestProviderTaskRunner_RepairTask_WithArchitectureConstraints(t *testing.T) {
-	inv := &mockInvoker{
-		result: &provider.Result{
+	inv := &speclooptest.MockInvoker{
+		Result: &provider.Result{
 			Success:  true,
 			Model:    "sonnet",
 			Duration: 1 * time.Second,
@@ -1710,13 +1691,13 @@ func TestProviderTaskRunner_RepairTask_WithArchitectureConstraints(t *testing.T)
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if !strings.Contains(inv.capturedPrompt, "### Architecture Conventions") {
+	if !strings.Contains(inv.CapturedPrompt, "### Architecture Conventions") {
 		t.Error("repair prompt does not contain '### Architecture Conventions' section header")
 	}
-	if !strings.Contains(inv.capturedPrompt, "- Config.Tier always receives a tier label") {
+	if !strings.Contains(inv.CapturedPrompt, "- Config.Tier always receives a tier label") {
 		t.Error("repair prompt does not contain first architecture constraint with '- ' prefix")
 	}
-	if !strings.Contains(inv.capturedPrompt, "- LLMCompleter.Complete uses context.Context as first parameter") {
+	if !strings.Contains(inv.CapturedPrompt, "- LLMCompleter.Complete uses context.Context as first parameter") {
 		t.Error("repair prompt does not contain second architecture constraint with '- ' prefix")
 	}
 }
@@ -1724,8 +1705,8 @@ func TestProviderTaskRunner_RepairTask_WithArchitectureConstraints(t *testing.T)
 // TestProviderTaskRunner_RepairTask_WithoutArchitectureConstraints verifies that the
 // repair prompt does NOT include an Architecture Conventions section when constraints are empty or nil.
 func TestProviderTaskRunner_RepairTask_WithoutArchitectureConstraints(t *testing.T) {
-	inv := &mockInvoker{
-		result: &provider.Result{
+	inv := &speclooptest.MockInvoker{
+		Result: &provider.Result{
 			Success:  true,
 			Model:    "sonnet",
 			Duration: 1 * time.Second,
@@ -1745,13 +1726,13 @@ func TestProviderTaskRunner_RepairTask_WithoutArchitectureConstraints(t *testing
 		t.Fatalf("unexpected error with nil constraints: %v", err)
 	}
 
-	if strings.Contains(inv.capturedPrompt, "### Architecture Conventions") {
+	if strings.Contains(inv.CapturedPrompt, "### Architecture Conventions") {
 		t.Error("repair prompt should not contain '### Architecture Conventions' when constraints are nil")
 	}
 
 	// Test with empty ArchitectureConstraints
-	inv2 := &mockInvoker{
-		result: &provider.Result{
+	inv2 := &speclooptest.MockInvoker{
+		Result: &provider.Result{
 			Success:  true,
 			Model:    "sonnet",
 			Duration: 1 * time.Second,
@@ -1774,7 +1755,7 @@ func TestProviderTaskRunner_RepairTask_WithoutArchitectureConstraints(t *testing
 		t.Fatalf("unexpected error with empty constraints: %v", err)
 	}
 
-	if strings.Contains(inv2.capturedPrompt, "### Architecture Conventions") {
+	if strings.Contains(inv2.CapturedPrompt, "### Architecture Conventions") {
 		t.Error("repair prompt should not contain '### Architecture Conventions' when constraints are empty")
 	}
 }

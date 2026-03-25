@@ -12,6 +12,7 @@ import (
 	"github.com/danabrams/gromit/internal/next/planner"
 	"github.com/danabrams/gromit/internal/next/runstore"
 	"github.com/danabrams/gromit/internal/next/specloop"
+	"github.com/danabrams/gromit/internal/next/specloop/speclooptest"
 	"github.com/danabrams/gromit/internal/provider"
 )
 
@@ -187,7 +188,7 @@ func TestScenario_FixPlannerInheritsAndExtendsConventions(t *testing.T) {
 	}
 
 	// Set up a mock invoker to capture the rendered task prompts
-	taskInvoker := &mockInvoker{result: &provider.Result{Success: true, Model: "sonnet", Duration: time.Second}}
+	taskInvoker := &speclooptest.MockInvoker{Result: &provider.Result{Success: true, Model: "sonnet", Duration: time.Second}}
 	runner := specloop.NewProviderTaskRunner(taskInvoker, func() string { return "" })
 
 	// Set context provider with both constraints (existing from cycle 1, new from cycle 2)
@@ -203,13 +204,13 @@ func TestScenario_FixPlannerInheritsAndExtendsConventions(t *testing.T) {
 		t.Fatalf("RunTask: %v", err)
 	}
 
-	if !strings.Contains(taskInvoker.capturedPrompt, "Architecture Conventions") {
+	if !strings.Contains(taskInvoker.CapturedPrompt, "Architecture Conventions") {
 		t.Fatal("cycle 3 executor task prompt must include 'Architecture Conventions' section")
 	}
-	if !strings.Contains(taskInvoker.capturedPrompt, existingConstraint) {
+	if !strings.Contains(taskInvoker.CapturedPrompt, existingConstraint) {
 		t.Fatalf("cycle 3 executor task prompt must contain existing constraint %q", existingConstraint)
 	}
-	if !strings.Contains(taskInvoker.capturedPrompt, newConstraint) {
+	if !strings.Contains(taskInvoker.CapturedPrompt, newConstraint) {
 		t.Fatalf("cycle 3 executor task prompt must contain new constraint %q", newConstraint)
 	}
 }

@@ -47,14 +47,6 @@ func NewPlanner(agent Agent, plannerTier string) *Planner {
 
 // CreatePlan invokes the agent to produce a plan from the given request.
 // On parse/validation failure, it retries up to MaxPlanRetries additional times.
-//
-// RunState Lifecycle (caller responsibility):
-// After CreatePlan returns, callers must propagate architecture decisions to the RunState:
-//
-//	ArchitectureConstraints = plan.ArchitectureDecisions
-//
-// This ensures cross-cutting conventions captured during planning are available to all
-// executor tasks and carried forward through fix cycles.
 func (p *Planner) CreatePlan(ctx context.Context, req PlanRequest) (Plan, error) {
 	basePrompt := buildPlanPrompt(req)
 	attempts := p.MaxPlanRetries + 1

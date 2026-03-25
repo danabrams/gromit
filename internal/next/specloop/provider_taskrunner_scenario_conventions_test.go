@@ -7,22 +7,23 @@ import (
 	"time"
 
 	"github.com/danabrams/gromit/internal/next/runstore"
+	"github.com/danabrams/gromit/internal/next/specloop/speclooptest"
 	"github.com/danabrams/gromit/internal/provider"
 )
 
 // TestScenario_ExecutorTaskReceivesConventions verifies that when RunState.ArchitectureConstraints
-// is populated, those constraints are copied to task.ArchitectureConstraints during planning and
-// the executor renders them into the prompt under an "Architecture Conventions" section.
+// is populated, the executor renders them into the prompt under an "Architecture Conventions" section.
 //
-// The plan stage copies rs.ArchitectureConstraints → task.ArchitectureConstraints; this test
-// simulates that post-planning state and asserts the executor prompt contains the convention.
+// Constraints flow via TaskContext.ArchitectureConstraints into renderTaskBody, not via a field
+// on runstore.Task. This test simulates the post-planning state by setting TaskContext.ArchitectureConstraints
+// directly and asserts the executor prompt contains the convention.
 func TestScenario_ExecutorTaskReceivesConventions(t *testing.T) {
 	// Seed: RunState with one architecture constraint.
 	constraint := "Config.Tier always receives a tier label"
 
 	// Invoke: build the executor prompt via ProviderTaskRunner.RunTask.
-	inv := &mockInvoker{
-		result: &provider.Result{
+	inv := &speclooptest.MockInvoker{
+		Result: &provider.Result{
 			Success:  true,
 			Model:    "sonnet",
 			Duration: 1 * time.Second,
@@ -47,7 +48,7 @@ func TestScenario_ExecutorTaskReceivesConventions(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	prompt := inv.capturedPrompt
+	prompt := inv.CapturedPrompt
 
 	// Assert: prompt contains the Architecture Conventions section header.
 	if !strings.Contains(prompt, "### Architecture Conventions") {
@@ -69,8 +70,12 @@ func TestScenario_ExecutorTaskReceivesConventions(t *testing.T) {
 
 	// Assert: constraint is rendered as a list item with "- " prefix.
 	if !strings.Contains(prompt, "- "+constraint) {
+		end := headerIdx + len("### Architecture Conventions") + len(constraint) + 20
+		if end > len(prompt) {
+			end = len(prompt)
+		}
 		t.Errorf("constraint should be rendered as a list item with '- ' prefix, prompt excerpt: %q",
-			prompt[headerIdx:headerIdx+len("### Architecture Conventions")+len(constraint)+20])
+			prompt[headerIdx:end])
 	}
 }
 
@@ -98,8 +103,8 @@ func TestScenario_ExecutorTaskReceivesConventions_GlobalToRun(t *testing.T) {
 
 	for _, task := range tasks {
 		t.Run(task.TaskID, func(t *testing.T) {
-			inv := &mockInvoker{
-				result: &provider.Result{
+			inv := &speclooptest.MockInvoker{
+				Result: &provider.Result{
 					Success:  true,
 					Model:    "sonnet",
 					Duration: 1 * time.Second,
@@ -117,7 +122,7 @@ func TestScenario_ExecutorTaskReceivesConventions_GlobalToRun(t *testing.T) {
 				t.Fatalf("task %s: unexpected error: %v", task.TaskID, err)
 			}
 
-			prompt := inv.capturedPrompt
+			prompt := inv.CapturedPrompt
 
 			if !strings.Contains(prompt, "### Architecture Conventions") {
 				t.Errorf("task %s: prompt missing '### Architecture Conventions' header", task.TaskID)

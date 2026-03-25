@@ -7,7 +7,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -232,7 +231,7 @@ func (s *PlanStage) Run(ctx context.Context, rs *runstore.RunState) (specloop.Ne
 			DoctrineRules:           doctrineText,
 			ArchitectureConstraints: rs.ArchitectureConstraints,
 		}
-		// Try up to 2 times (initial + 1 retry)
+		// Try up to 2 times (initial + 1 retry on validation failure only; LLM errors bail immediately)
 		allFiltered := false
 		for attempt := 0; attempt < 2; attempt++ {
 			validationErr = nil
@@ -263,12 +262,19 @@ func (s *PlanStage) Run(ctx context.Context, rs *runstore.RunState) (specloop.Ne
 			}
 			fixReq.Failures = append(fixReq.Failures, validationErr.Error())
 		}
-		// AC6: Dedup-append fix plan architecture decisions into RunState
-		// Only accumulate decisions from valid plans (validationErr == nil)
-		if validationErr == nil {
+		// Accumulate architecture decisions from the fix plan into RunState, skipping exact-string duplicates.
+		// Accumulate when the LLM call succeeded (err == nil). When allFiltered=true due to task filtering
+		// (not LLM error), validationErr is nil because validation never ran — architecture decisions are
+		// still captured since the LLM's convention output is valid even if its task choices were rejected.
+		if err == nil && validationErr == nil {
+			existing := make(map[string]bool, len(rs.ArchitectureConstraints))
+			for _, c := range rs.ArchitectureConstraints {
+				existing[c] = true
+			}
 			for _, decision := range plan.ArchitectureDecisions {
-				if !slices.Contains(rs.ArchitectureConstraints, decision) {
+				if decision != "" && !existing[decision] {
 					rs.ArchitectureConstraints = append(rs.ArchitectureConstraints, decision)
+					existing[decision] = true
 				}
 			}
 		}
@@ -308,10 +314,9 @@ func (s *PlanStage) Run(ctx context.Context, rs *runstore.RunState) (specloop.Ne
 		// The PlanStage is responsible for transferring plan.ArchitectureDecisions
 		// into rs.ArchitectureConstraints to carry conventions through fix cycles
 		// and executor task prompts.
-		// PlanStage.Run owns the propagation of plan.ArchitectureDecisions into rs.ArchitectureConstraints; the planner itself has no responsibility for this transfer.
 		if validationErr == nil {
 			if plan.ArchitectureDecisions != nil {
-				rs.ArchitectureConstraints = plan.ArchitectureDecisions
+				rs.ArchitectureConstraints = append([]string(nil), plan.ArchitectureDecisions...)
 			} else {
 				rs.ArchitectureConstraints = []string{}
 			}

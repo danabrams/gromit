@@ -288,10 +288,10 @@ func TestBuildFixPlanPrompt_RequiresTestFileProofChecks(t *testing.T) {
 		Cycle:        2,
 	})
 	if !strings.Contains(prompt, "*_test.go") {
-		t.Fatal("BuildFixPlanPrompt must instruct LLM to require proof checks for *_test.go files")
+		t.Fatal("buildFixPlanPrompt must instruct LLM to require proof checks for *_test.go files")
 	}
 	if !strings.Contains(prompt, "Do NOT rely solely on `go test ./...`") {
-		t.Fatal("BuildFixPlanPrompt must warn that go test passes even without new test assertions")
+		t.Fatal("buildFixPlanPrompt must warn that go test passes even without new test assertions")
 	}
 }
 
@@ -332,10 +332,10 @@ func TestBuildFixPlanPrompt_InstructsAboutFixesField(t *testing.T) {
 		Cycle:        2,
 	})
 	if !strings.Contains(prompt, "fixes") {
-		t.Fatal("BuildFixPlanPrompt must mention the 'fixes' field")
+		t.Fatal("buildFixPlanPrompt must mention the 'fixes' field")
 	}
 	if !strings.Contains(prompt, "failed task") {
-		t.Fatal("BuildFixPlanPrompt must reference 'failed task' when describing the fixes field")
+		t.Fatal("buildFixPlanPrompt must reference 'failed task' when describing the fixes field")
 	}
 }
 
@@ -348,7 +348,7 @@ func TestBuildFixPlanPrompt_PersistentFailures_RendersAuditSection(t *testing.T)
 		Cycle: 2,
 	})
 	if !strings.Contains(prompt, "## Persistent Failures — Possible Bad Contracts") {
-		t.Fatal("BuildFixPlanPrompt must include persistent failures audit section when present")
+		t.Fatal("buildFixPlanPrompt must include persistent failures audit section when present")
 	}
 	if !strings.Contains(prompt, "persistent-failure: TestFoo has failed 2 consecutive cycles") {
 		t.Fatal("persistent failure hint must appear in the audit section")
@@ -545,10 +545,10 @@ func TestBuildFixPlanPrompt_TaskGranularityConstraint(t *testing.T) {
 		Cycle:        2,
 	})
 	if !strings.Contains(prompt, "at most 3-4 files") {
-		t.Fatal("BuildFixPlanPrompt must include file count constraint per task")
+		t.Fatal("buildFixPlanPrompt must include file count constraint per task")
 	}
 	if !strings.Contains(prompt, "one task per scenario") {
-		t.Fatal("BuildFixPlanPrompt must instruct one task per scenario for scenario-driven work")
+		t.Fatal("buildFixPlanPrompt must instruct one task per scenario for scenario-driven work")
 	}
 }
 
@@ -607,10 +607,10 @@ func TestBuildFixPlanPrompt_ContainsRuntimeOverSourceGrepRule(t *testing.T) {
 		Failures: []string{"some failure"},
 	})
 	if !strings.Contains(prompt, "Runtime over source-grep") {
-		t.Fatal("BuildFixPlanPrompt must contain 'Runtime over source-grep' rule")
+		t.Fatal("buildFixPlanPrompt must contain 'Runtime over source-grep' rule")
 	}
 	if !strings.Contains(prompt, "--help") {
-		t.Fatal("BuildFixPlanPrompt must contain '--help' example in runtime-over-source-grep rule")
+		t.Fatal("buildFixPlanPrompt must contain '--help' example in runtime-over-source-grep rule")
 	}
 }
 
@@ -622,23 +622,23 @@ func TestBuildFixPlanPrompt_ProofCheckQualityGuidelines(t *testing.T) {
 	})
 	// Compilation mandatory
 	if !strings.Contains(prompt, "go build ./...") {
-		t.Fatal("BuildFixPlanPrompt must require go build ./... for tasks modifying .go files")
+		t.Fatal("buildFixPlanPrompt must require go build ./... for tasks modifying .go files")
 	}
 	// Behavioral over presence
 	if !strings.Contains(prompt, "go test -run TestX") {
-		t.Fatal("BuildFixPlanPrompt must show go test -run as preferred over grep")
+		t.Fatal("buildFixPlanPrompt must show go test -run as preferred over grep")
 	}
 	// Order verification with awk
 	if !strings.Contains(prompt, "awk") {
-		t.Fatal("BuildFixPlanPrompt must show awk example for order verification")
+		t.Fatal("buildFixPlanPrompt must show awk example for order verification")
 	}
 	// Config flow
 	if !strings.Contains(prompt, "config") || !strings.Contains(prompt, "READ") {
-		t.Fatal("BuildFixPlanPrompt must include config flow verification (verify config is READ)")
+		t.Fatal("buildFixPlanPrompt must include config flow verification (verify config is READ)")
 	}
 	// Integration wiring — verify function CALL not just import
 	if !strings.Contains(prompt, "function CALL") {
-		t.Fatal("BuildFixPlanPrompt must emphasize verifying function calls not just imports")
+		t.Fatal("buildFixPlanPrompt must emphasize verifying function calls not just imports")
 	}
 }
 
@@ -662,10 +662,10 @@ func TestBuildFixPlanPrompt_PlaybookHeuristics(t *testing.T) {
 		PlaybookHeuristics: "Prioritize quick wins first\nAvoid deep refactoring in fix cycles",
 	})
 	if !strings.Contains(prompt, "## Playbook Heuristics") {
-		t.Fatal("BuildFixPlanPrompt must include Playbook Heuristics section when field is non-empty")
+		t.Fatal("buildFixPlanPrompt must include Playbook Heuristics section when field is non-empty")
 	}
 	if !strings.Contains(prompt, "Prioritize quick wins first") {
-		t.Fatal("BuildFixPlanPrompt must include PlaybookHeuristics content")
+		t.Fatal("buildFixPlanPrompt must include PlaybookHeuristics content")
 	}
 
 	// When PlaybookHeuristics is empty, section should be omitted
@@ -675,7 +675,7 @@ func TestBuildFixPlanPrompt_PlaybookHeuristics(t *testing.T) {
 		Cycle:        2,
 	})
 	if strings.Contains(prompt, "## Playbook Heuristics") {
-		t.Fatal("BuildFixPlanPrompt must omit Playbook Heuristics section when field is empty")
+		t.Fatal("buildFixPlanPrompt must omit Playbook Heuristics section when field is empty")
 	}
 }
 
@@ -735,6 +735,11 @@ func TestBuildPlanPrompt_ContainsArchitectureDecisions(t *testing.T) {
 	if !strings.Contains(prompt, "Architecture Decisions") {
 		t.Fatal("buildPlanPrompt must contain 'Architecture Decisions' section with think-step instructions")
 	}
+	archIdx := strings.Index(prompt, "## Architecture Decisions")
+	outputIdx := strings.Index(prompt, "## Output Format")
+	if archIdx == -1 || outputIdx == -1 || archIdx > outputIdx {
+		t.Fatal("buildPlanPrompt: Architecture Decisions section must appear before Output Format section")
+	}
 }
 
 func TestBuildPlanPrompt_ContainsArchitectureDecisionsInOutputFormat(t *testing.T) {
@@ -772,18 +777,23 @@ func TestBuildFixPlanPrompt_ContainsArchitectureConventions_WhenConstraintsNonEm
 		ArchitectureConstraints: constraints,
 	})
 	if !strings.Contains(prompt, "Architecture Conventions") {
-		t.Fatal("BuildFixPlanPrompt must contain 'Architecture Conventions' section when ArchitectureConstraints is non-empty")
+		t.Fatal("buildFixPlanPrompt must contain 'Architecture Conventions' section when ArchitectureConstraints is non-empty")
 	}
 	if !strings.Contains(prompt, "established in prior cycles") {
-		t.Fatal("BuildFixPlanPrompt must contain 'established in prior cycles' text")
+		t.Fatal("buildFixPlanPrompt must contain 'established in prior cycles' text")
 	}
 	if !strings.Contains(prompt, "architecture_drift finding") {
-		t.Fatal("BuildFixPlanPrompt must contain 'architecture_drift finding' text")
+		t.Fatal("buildFixPlanPrompt must contain 'architecture_drift finding' text")
 	}
 	for _, constraint := range constraints {
 		if !strings.Contains(prompt, constraint) {
-			t.Fatalf("BuildFixPlanPrompt must include constraint '%s' in output", constraint)
+			t.Fatalf("buildFixPlanPrompt must include constraint '%s' in output", constraint)
 		}
+	}
+	archIdx := strings.Index(prompt, "## Architecture Conventions")
+	heuristicsIdx := strings.Index(prompt, "## Playbook Heuristics")
+	if heuristicsIdx != -1 && archIdx != -1 && archIdx > heuristicsIdx {
+		t.Fatal("buildFixPlanPrompt: Architecture Conventions section must appear before Playbook Heuristics section")
 	}
 }
 
@@ -795,7 +805,7 @@ func TestBuildFixPlanPrompt_NoArchitectureConventions_WhenConstraintsEmpty(t *te
 		Cycle:        2,
 	})
 	if strings.Contains(prompt, "Architecture Conventions") {
-		t.Fatal("BuildFixPlanPrompt must NOT contain 'Architecture Conventions' when ArchitectureConstraints is nil")
+		t.Fatal("buildFixPlanPrompt must NOT contain 'Architecture Conventions' when ArchitectureConstraints is nil")
 	}
 
 	// Test with empty ArchitectureConstraints slice
@@ -806,7 +816,7 @@ func TestBuildFixPlanPrompt_NoArchitectureConventions_WhenConstraintsEmpty(t *te
 		ArchitectureConstraints: []string{},
 	})
 	if strings.Contains(prompt, "Architecture Conventions") {
-		t.Fatal("BuildFixPlanPrompt must NOT contain 'Architecture Conventions' when ArchitectureConstraints is empty")
+		t.Fatal("buildFixPlanPrompt must NOT contain 'Architecture Conventions' when ArchitectureConstraints is empty")
 	}
 }
 
@@ -817,12 +827,12 @@ func TestBuildFixPlanPrompt_ContainsArchitectureDecisionsInOutputFormat(t *testi
 		Cycle:        2,
 	})
 	if !strings.Contains(prompt, "architecture_decisions") {
-		t.Fatal("BuildFixPlanPrompt output format must include 'architecture_decisions' field")
+		t.Fatal("buildFixPlanPrompt output format must include 'architecture_decisions' field")
 	}
 	if !strings.Contains(prompt, "new cross-cutting conventions resolved in this cycle") {
-		t.Fatal("BuildFixPlanPrompt output format must describe architecture_decisions as 'new cross-cutting conventions resolved in this cycle'")
+		t.Fatal("buildFixPlanPrompt output format must describe architecture_decisions as 'new cross-cutting conventions resolved in this cycle'")
 	}
 	if !strings.Contains(prompt, "architecture_drift finding") {
-		t.Fatal("BuildFixPlanPrompt output format must reference 'architecture_drift finding' for architecture_decisions")
+		t.Fatal("buildFixPlanPrompt output format must reference 'architecture_drift finding' for architecture_decisions")
 	}
 }
