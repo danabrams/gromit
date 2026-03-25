@@ -1,0 +1,19 @@
+{
+  "auto_fix": [
+    {"name": "gofmt", "command": "gofmt -w .", "type": "format"}
+  ],
+  "budgets": {
+    "max_run_duration_seconds": 21600,
+    "max_spec_cycles": 30
+  },
+  "review": {
+    "replan_threshold": "warning"
+  },
+  "routing": {
+    "preferences": {"plan": "claude", "execute": "any", "review": "any", "accept": "any"},
+    "ratio": {"codex": 100, "claude": 0}
+  },
+  "models": {
+    "planner": "medium"
+  }
+}
