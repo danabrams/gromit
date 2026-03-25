@@ -79,6 +79,8 @@ cmd/gromit/.gromit/benchmarks/results/
 !.gromit-next/projects/*/doctrine/*.json
 !.gromit-next/projects/*/playbook/
 !.gromit-next/projects/*/playbook/*.json
+!.gromit-next/projects/*/policy/
+!.gromit-next/projects/*/policy/*.json
 
 # Fixture repos (nested git repos for testing)
 test/fixture-repos/
