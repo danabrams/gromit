@@ -54,6 +54,9 @@ const (
 // Compile-time check to verify CodexProvider implements Provider interface
 var _ Provider = (*CodexProvider)(nil)
 
+// Compile-time check to verify CodexProvider implements DirStreamRunner
+var _ DirStreamRunner = (*CodexProvider)(nil)
+
 // ResolveCodexHomePath returns the effective CODEX_HOME path for the provided
 // CODEX_HOME value. Empty values or values under the system temp directory are
 // rewritten to a safe fallback path.
@@ -217,18 +220,35 @@ func (cp *CodexProvider) StreamRun(ctx context.Context, prompt string, tier stri
 	}
 
 	return cp.runWithRetry(ctx, func() (*Result, error) {
-		return cp.streamRunOnce(ctx, prompt, tier, output, handler, onToolCall)
+		return cp.streamRunOnce(ctx, prompt, tier, "", output, handler, onToolCall)
 	})
 }
 
-// streamRunOnce executes a single streaming invocation attempt.
-func (cp *CodexProvider) streamRunOnce(ctx context.Context, prompt string, tier string, output io.Writer,
+// StreamRunInDir executes a streaming LLM invocation in the specified working directory.
+// Implements provider.DirStreamRunner so InvokeInDir routes Codex to the worktree.
+func (cp *CodexProvider) StreamRunInDir(ctx context.Context, prompt string, tier string, dir string, output io.Writer,
+	handler EventHandler, onToolCall ToolCallHandler) (*Result, error) {
+	if cp == nil {
+		return nil, fmt.Errorf("codex provider is nil")
+	}
+
+	return cp.runWithRetry(ctx, func() (*Result, error) {
+		return cp.streamRunOnce(ctx, prompt, tier, dir, output, handler, onToolCall)
+	})
+}
+
+// streamRunOnce executes a single streaming invocation attempt. If dir is non-empty,
+// the codex subprocess is started with that working directory.
+func (cp *CodexProvider) streamRunOnce(ctx context.Context, prompt string, tier string, dir string, output io.Writer,
 	handler EventHandler, onToolCall ToolCallHandler) (*Result, error) {
 	model := cp.ModelForTier(tier)
 	args := cp.buildStreamCommandArgsForTier(model, tier, handler != nil)
 	reasoningEffort := reasoningEffortFromArgs(args)
 	cmd := execCommandContext(ctx, cp.binaryPath, args...)
 	cmd.WaitDelay = codexCommandWaitDelay
+	if dir != "" {
+		cmd.Dir = dir
+	}
 	if output != nil {
 		fmt.Fprintf(output, "  cmd: %s %s\n", cp.binaryPath, strings.Join(args, " "))
 		fmt.Fprintf(output, "  prompt length: %d bytes\n", len(prompt))

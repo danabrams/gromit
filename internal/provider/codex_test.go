@@ -1838,7 +1838,7 @@ exit 0
 
 	ctx := context.Background()
 	var output bytes.Buffer
-	result, err := cp.streamRunOnce(ctx, "test prompt", TierLow, &output, nil, nil)
+	result, err := cp.streamRunOnce(ctx, "test prompt", TierLow, "", &output, nil, nil)
 	if err != nil {
 		t.Fatalf("streamRunOnce() error = %v", err)
 	}
