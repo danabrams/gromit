@@ -54,6 +54,28 @@ type PlanValidationResultEvent struct {
 	Checks []ValidationCheckResult `json:"checks,omitempty"`
 }
 
+type BaselineCapturedEvent struct {
+	BaseEvent
+	FailureCount int      `json:"failure_count"`
+	CheckNames   []string `json:"check_names,omitempty"`
+}
+
+type BaselineCaptureErrorEvent struct {
+	BaseEvent
+	Error string `json:"error"`
+}
+
+type BaselineFailureExcludedEvent struct {
+	BaseEvent
+	RunID         string `json:"run_id"`
+	SpecID        string `json:"spec_id,omitempty"`
+	ProjectID     string `json:"project_id,omitempty"`
+	Cycle         int    `json:"cycle,omitempty"`
+	CheckName     string `json:"check_name"`
+	Output        string `json:"output,omitempty"`         // persisted baseline output
+	CurrentOutput string `json:"current_output,omitempty"` // actual current check output
+}
+
 type TaskCreatedEvent struct {
 	BaseEvent
 	TaskID    string `json:"task_id"`
@@ -321,6 +343,12 @@ func unmarshalEvent(data []byte) (TypedEvent, error) {
 	case "plan_validation_result":
 		var e PlanValidationResultEvent
 		ev = &e
+	case "baseline_captured":
+		var e BaselineCapturedEvent
+		ev = &e
+	case "baseline_capture_error":
+		var e BaselineCaptureErrorEvent
+		ev = &e
 	case "task_created":
 		var e TaskCreatedEvent
 		ev = &e
@@ -362,6 +390,9 @@ func unmarshalEvent(data []byte) (TypedEvent, error) {
 		ev = &e
 	case "blocked_worktree_cleaned":
 		var e BlockedWorktreeCleanedEvent
+		ev = &e
+	case "baseline_failure_excluded":
+		var e BaselineFailureExcludedEvent
 		ev = &e
 	case "worktree_recovery":
 		var e WorktreeRecoveryEvent

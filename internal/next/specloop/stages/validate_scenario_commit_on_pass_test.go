@@ -33,7 +33,7 @@ func TestScenario_CommitOnValidationPass(t *testing.T) {
 	v := &fakeValidator{result: validator.FinalResult{Pass: true}}
 
 	stage := NewValidateStage(v, ValidateStageConfig{
-		WorkDir: "/tmp/work",
+		WorkDir: dir,
 		RepoDir: dir,
 	}, nil, nil, fakeGit)
 
@@ -96,7 +96,7 @@ func TestScenario_NoCommitOnValidationFail(t *testing.T) {
 	}}
 
 	stage := NewValidateStage(v, ValidateStageConfig{
-		WorkDir: "/tmp/work",
+		WorkDir: dir,
 		RepoDir: dir,
 	}, nil, nil, fakeGit)
 
@@ -122,11 +122,14 @@ func TestScenario_NoCommitOnValidationFail(t *testing.T) {
 // TestScenario_CommitNotCalledWithoutWorktree verifies that when validation
 // passes but no WorktreePath is set, CommitAll is NOT called.
 func TestScenario_CommitNotCalledWithoutWorktree(t *testing.T) {
+	dir := t.TempDir()
+
 	fakeGit := &validateScenarioFakeGitOps{}
 	v := &fakeValidator{result: validator.FinalResult{Pass: true}}
 
 	stage := NewValidateStage(v, ValidateStageConfig{
-		WorkDir: "/tmp/work",
+		WorkDir: dir,
+		RepoDir: dir,
 	}, nil, nil, fakeGit)
 
 	rs := runstore.NewRunState("spec-042", "proj-001")

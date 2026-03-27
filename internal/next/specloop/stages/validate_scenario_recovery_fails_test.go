@@ -10,6 +10,7 @@ import (
 
 	"github.com/danabrams/gromit/internal/next/runstore"
 	"github.com/danabrams/gromit/internal/next/specloop"
+	"github.com/danabrams/gromit/internal/next/testutil"
 	"github.com/danabrams/gromit/internal/next/validator"
 )
 
@@ -75,6 +76,10 @@ func TestScenario_RecoveryFails(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			dir := t.TempDir()
 
+			// Seed: project fixtures in temp directory
+			workDir := filepath.Join(dir, "work")
+			testutil.WriteMinimalProjectFixtures(t, workDir)
+
 			// Seed: broken worktree per sub-case
 			brokenWorktree := tc.setupWorktree(t, dir)
 
@@ -101,7 +106,7 @@ func TestScenario_RecoveryFails(t *testing.T) {
 			}
 
 			stage := NewValidateStage(v, ValidateStageConfig{
-				WorkDir: "/tmp/work",
+				WorkDir: workDir,
 				RepoDir: dir,
 			}, eventLog, nil, fakeGit)
 

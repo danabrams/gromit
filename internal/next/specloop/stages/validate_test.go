@@ -10,6 +10,7 @@ import (
 	"github.com/danabrams/gromit/internal/next/contract"
 	"github.com/danabrams/gromit/internal/next/runstore"
 	"github.com/danabrams/gromit/internal/next/specloop"
+	"github.com/danabrams/gromit/internal/next/testutil"
 	"github.com/danabrams/gromit/internal/next/validator"
 )
 
@@ -30,6 +31,13 @@ func (f *fakeContractEvaluator) Evaluate(_ context.Context, _ *contract.Scenario
 	return f.failures, nil
 }
 
+func newValidateWorkDir(t testing.TB) string {
+	t.Helper()
+	workDir := t.TempDir()
+	testutil.WriteMinimalProjectFixtures(t, workDir)
+	return workDir
+}
+
 // Verify ValidateStage satisfies the Stage interface.
 var _ specloop.Stage = (*ValidateStage)(nil)
 
@@ -46,7 +54,8 @@ func TestValidateStage_AllPass_Continue(t *testing.T) {
 		},
 	}
 
-	stage := NewValidateStage(v, ValidateStageConfig{WorkDir: "/tmp/work"}, nil, nil, nil)
+	workDir := newValidateWorkDir(t)
+	stage := NewValidateStage(v, ValidateStageConfig{WorkDir: workDir}, nil, nil, nil)
 
 	if stage.Name() != "validate" {
 		t.Fatalf("expected name 'validate', got %q", stage.Name())
@@ -61,11 +70,11 @@ func TestValidateStage_AllPass_Continue(t *testing.T) {
 		t.Fatalf("expected Continue, got %v", action.Kind)
 	}
 	if !rs.FinalValidationPassed {
-		t.Fatal("expected FinalValidationPassed to be true")
+		t.Fatal("expected FinalValidationPassed to be true when the validator reported success")
 	}
 }
 
-func TestValidateStage_Failure_ReplanFrom(t *testing.T) {
+func TestValidate_RegressionStillTriggersReplan(t *testing.T) {
 	v := &fakeValidator{
 		result: validator.FinalResult{
 			Pass: false,
@@ -78,7 +87,8 @@ func TestValidateStage_Failure_ReplanFrom(t *testing.T) {
 		},
 	}
 
-	stage := NewValidateStage(v, ValidateStageConfig{WorkDir: "/tmp/work"}, nil, nil, nil)
+	workDir := newValidateWorkDir(t)
+	stage := NewValidateStage(v, ValidateStageConfig{WorkDir: workDir}, nil, nil, nil)
 
 	rs := runstore.NewRunState("spec-001", "proj-001")
 	rs.Cycle = 1
@@ -100,6 +110,284 @@ func TestValidateStage_Failure_ReplanFrom(t *testing.T) {
 	}
 }
 
+func TestValidateStage_ResultPassFalseWithoutCheckFailures_Replans(t *testing.T) {
+	workDir := newValidateWorkDir(t)
+
+	v := &fakeValidator{
+		result: validator.FinalResult{
+			Pass:          false,
+			AlwaysRun:     validator.CheckResults{},
+			ProjectChecks: validator.CheckResults{},
+		},
+	}
+
+	stage := NewValidateStage(v, ValidateStageConfig{WorkDir: workDir}, nil, nil, nil)
+
+	rs := runstore.NewRunState("spec-001", "proj-001")
+	action, err := stage.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if action.Kind != specloop.ReplanFrom {
+		t.Fatalf("expected ReplanFrom, got %v", action.Kind)
+	}
+	if rs.FinalValidationPassed {
+		t.Fatal("expected FinalValidationPassed to be false")
+	}
+	if rs.LastFinalValidation == nil || rs.LastFinalValidation.Pass {
+		t.Fatalf("expected LastFinalValidation.Pass false, got %+v", rs.LastFinalValidation)
+	}
+	if action.Context == nil {
+		t.Fatal("expected FailureContext to be non-nil")
+	}
+	if len(action.Context.Failures) == 0 {
+		t.Fatal("expected failures to be non-empty")
+	}
+	if action.Context.Failures[0] != "validation failed" {
+		t.Fatalf("unexpected failure message: %v", action.Context.Failures[0])
+	}
+}
+
+func TestValidate_ContinueWhenAllBlockingFailuresBaselineExcluded(t *testing.T) {
+	tmp := t.TempDir()
+	testutil.WriteMinimalProjectFixtures(t, tmp)
+	eventLog := runstore.NewEventLog(filepath.Join(tmp, "events.jsonl"))
+
+	v := &fakeValidator{
+		result: validator.FinalResult{
+			Pass: false,
+			AlwaysRun: validator.CheckResults{
+				Results: []validator.CheckResult{
+					{Name: "unit-tests", Pass: false, Output: "baseline fail"},
+				},
+			},
+			ProjectChecks: validator.CheckResults{},
+		},
+	}
+
+	stage := NewValidateStage(v, ValidateStageConfig{WorkDir: tmp}, eventLog, nil, nil)
+
+	rs := runstore.NewRunState("spec-001", "proj-001")
+	rs.BaselineFailures = map[string]string{"unit-tests": "baseline fail"}
+
+	action, err := stage.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if action.Kind != specloop.Continue {
+		t.Fatalf("expected Continue, got %v", action.Kind)
+	}
+	if !rs.FinalValidationPassed {
+		t.Fatal("expected FinalValidationPassed to be true when all failures are baseline-excluded")
+	}
+	if rs.LastFinalValidation == nil || rs.LastFinalValidation.Pass {
+		t.Fatalf("expected LastFinalValidation.Pass false, got %+v", rs.LastFinalValidation)
+	}
+
+	events, err := eventLog.ReadAll()
+	if err != nil {
+		t.Fatalf("ReadAll events: %v", err)
+	}
+	found := false
+	for _, ev := range events {
+		if bfe, ok := ev.(*runstore.BaselineFailureExcludedEvent); ok {
+			found = true
+			if bfe.CheckName != "unit-tests" {
+				t.Fatalf("baseline event check_name = %q, want unit-tests", bfe.CheckName)
+			}
+			if bfe.Output != "baseline fail" {
+				t.Fatalf("baseline event output = %q, want baseline fail", bfe.Output)
+			}
+		}
+	}
+	if !found {
+		t.Fatal("baseline_failure_excluded event not emitted")
+	}
+}
+
+func TestValidate_MultipleBaselineExclusionsEmitMultipleEvents(t *testing.T) {
+	tmp := t.TempDir()
+	testutil.WriteMinimalProjectFixtures(t, tmp)
+	eventLog := runstore.NewEventLog(filepath.Join(tmp, "events.jsonl"))
+
+	v := &fakeValidator{
+		result: validator.FinalResult{
+			Pass: false,
+			AlwaysRun: validator.CheckResults{
+				Results: []validator.CheckResult{
+					{Name: "unit-tests", Pass: false, Output: "baseline output 1"},
+					{Name: "lint", Pass: false, Output: "baseline output 2"},
+				},
+			},
+			ProjectChecks: validator.CheckResults{},
+		},
+	}
+
+	stage := NewValidateStage(v, ValidateStageConfig{WorkDir: tmp}, eventLog, nil, nil)
+
+	rs := runstore.NewRunState("spec-001", "proj-001")
+	rs.BaselineFailures = map[string]string{
+		"unit-tests": "baseline output 1",
+		"lint":       "baseline output 2",
+	}
+
+	action, err := stage.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if action.Kind != specloop.Continue {
+		t.Fatalf("expected Continue, got %v", action.Kind)
+	}
+
+	events, err := eventLog.ReadAll()
+	if err != nil {
+		t.Fatalf("ReadAll events: %v", err)
+	}
+	var exclusionEvents []*runstore.BaselineFailureExcludedEvent
+	for _, ev := range events {
+		if bfe, ok := ev.(*runstore.BaselineFailureExcludedEvent); ok {
+			exclusionEvents = append(exclusionEvents, bfe)
+		}
+	}
+	if len(exclusionEvents) != 2 {
+		t.Fatalf("expected exactly 2 baseline_failure_excluded events, got %d", len(exclusionEvents))
+	}
+	checkNames := map[string]bool{}
+	for _, ev := range exclusionEvents {
+		checkNames[ev.CheckName] = true
+	}
+	if !checkNames["unit-tests"] {
+		t.Error("expected baseline_failure_excluded event for unit-tests")
+	}
+	if !checkNames["lint"] {
+		t.Error("expected baseline_failure_excluded event for lint")
+	}
+}
+
+func TestValidate_ExcludesBaselineFailuresFromReplan(t *testing.T) {
+	tmp := t.TempDir()
+	testutil.WriteMinimalProjectFixtures(t, tmp)
+	eventLog := runstore.NewEventLog(filepath.Join(tmp, "events.jsonl"))
+
+	v := &fakeValidator{
+		result: validator.FinalResult{
+			Pass: false,
+			AlwaysRun: validator.CheckResults{
+				Results: []validator.CheckResult{
+					{Name: "unit-tests", Pass: false, Output: "baseline fail"},
+					{Name: "integration-tests", Pass: false, Output: "new regression"},
+				},
+			},
+			ProjectChecks: validator.CheckResults{},
+		},
+	}
+
+	stage := NewValidateStage(v, ValidateStageConfig{WorkDir: tmp}, eventLog, nil, nil)
+
+	rs := runstore.NewRunState("spec-001", "proj-001")
+	rs.Cycle = 1
+	rs.BaselineFailures = map[string]string{"unit-tests": "baseline fail"}
+
+	action, err := stage.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if action.Kind != specloop.ReplanFrom {
+		t.Fatalf("expected ReplanFrom, got %v", action.Kind)
+	}
+	if action.Context == nil {
+		t.Fatal("expected FailureContext to be non-nil")
+	}
+	if len(action.Context.Failures) != 1 {
+		t.Fatalf("expected 1 failure after excluding baseline, got %d: %v", len(action.Context.Failures), action.Context.Failures)
+	}
+	if strings.Contains(action.Context.Failures[0], "unit-tests") {
+		t.Fatalf("baseline failure should be excluded, but found in context: %q", action.Context.Failures[0])
+	}
+	if !strings.Contains(action.Context.Failures[0], "integration-tests") {
+		t.Fatalf("expected integration-tests failure to remain, got %q", action.Context.Failures[0])
+	}
+
+	events, err := eventLog.ReadAll()
+	if err != nil {
+		t.Fatalf("ReadAll events: %v", err)
+	}
+	found := false
+	for _, ev := range events {
+		if bfe, ok := ev.(*runstore.BaselineFailureExcludedEvent); ok {
+			found = true
+			if bfe.CheckName != "unit-tests" {
+				t.Fatalf("baseline event check_name = %q, want unit-tests", bfe.CheckName)
+			}
+			if bfe.Output != "baseline fail" {
+				t.Fatalf("baseline event output = %q, want baseline fail", bfe.Output)
+			}
+		}
+	}
+	if !found {
+		t.Fatal("baseline_failure_excluded event not emitted")
+	}
+}
+
+func TestValidateStage_UsesRunStateBaselineFailuresOnResume(t *testing.T) {
+	tmp := t.TempDir()
+	testutil.WriteMinimalProjectFixtures(t, tmp)
+	eventLog := runstore.NewEventLog(filepath.Join(tmp, "events.jsonl"))
+
+	v := &fakeValidator{
+		result: validator.FinalResult{
+			Pass: false,
+			AlwaysRun: validator.CheckResults{
+				Results: []validator.CheckResult{
+					{Name: "unit-tests", Pass: false, Output: "baseline fail"},
+				},
+			},
+			ProjectChecks: validator.CheckResults{},
+		},
+	}
+
+	stage := NewValidateStage(v, ValidateStageConfig{WorkDir: tmp}, eventLog, nil, nil)
+
+	rs := runstore.NewRunState("spec-001", "proj-001")
+	rs.Cycle = 2
+	rs.Resumed = true
+	rs.BaselineFailures = map[string]string{"unit-tests": "baseline fail"}
+
+	action, err := stage.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if action.Kind != specloop.Continue {
+		t.Fatalf("expected Continue, got %v", action.Kind)
+	}
+	if !rs.FinalValidationPassed {
+		t.Fatal("expected FinalValidationPassed to be true when all failures are baseline-excluded")
+	}
+	if got := rs.BaselineFailures["unit-tests"]; got != "baseline fail" {
+		t.Fatalf("baseline failure output mutated: got %q, want baseline fail", got)
+	}
+
+	events, err := eventLog.ReadAll()
+	if err != nil {
+		t.Fatalf("ReadAll events: %v", err)
+	}
+	found := false
+	for _, ev := range events {
+		if bfe, ok := ev.(*runstore.BaselineFailureExcludedEvent); ok {
+			found = true
+			if bfe.CheckName != "unit-tests" {
+				t.Fatalf("baseline event check_name = %q, want unit-tests", bfe.CheckName)
+			}
+			if bfe.Output != "baseline fail" {
+				t.Fatalf("baseline event output = %q, want baseline fail", bfe.Output)
+			}
+		}
+	}
+	if !found {
+		t.Fatal("baseline_failure_excluded event not emitted")
+	}
+}
+
 // TestValidateStage_MissingContractFile verifies that when EvidenceDir is set but
 // scenario-contracts.yaml does not exist, the stage proceeds silently without error.
 func TestValidateStage_MissingContractFile(t *testing.T) {
@@ -114,9 +402,10 @@ func TestValidateStage_MissingContractFile(t *testing.T) {
 	}
 	evaluator := &fakeContractEvaluator{}
 
+	workDir := newValidateWorkDir(t)
 	stage := NewValidateStage(v, ValidateStageConfig{
-		WorkDir:     "/tmp/work",
-		EvidenceDir: dir, // dir exists but contains no scenario-contracts.yaml
+		WorkDir:     workDir,
+		EvidenceDir: dir,
 	}, nil, evaluator, nil)
 
 	rs := runstore.NewRunState("spec-001", "proj-001")
@@ -164,8 +453,9 @@ func TestValidateStage_ContractFailures(t *testing.T) {
 		},
 	}
 
+	workDir := newValidateWorkDir(t)
 	stage := NewValidateStage(v, ValidateStageConfig{
-		WorkDir:     "/tmp/work",
+		WorkDir:     workDir,
 		EvidenceDir: dir,
 	}, nil, evaluator, nil)
 
@@ -225,8 +515,9 @@ func TestValidateStage_ContractAndShellFailures(t *testing.T) {
 		},
 	}
 
+	workDir := newValidateWorkDir(t)
 	stage := NewValidateStage(v, ValidateStageConfig{
-		WorkDir:     "/tmp/work",
+		WorkDir:     workDir,
 		EvidenceDir: dir,
 	}, nil, evaluator, nil)
 
@@ -808,8 +1099,9 @@ func TestValidateStage_AllContractsDeferredNoPriorFailures(t *testing.T) {
 		},
 	}
 
+	workDir := newValidateWorkDir(t)
 	stage := NewValidateStage(v, ValidateStageConfig{
-		WorkDir:     "/tmp/work",
+		WorkDir:     workDir,
 		EvidenceDir: dir,
 	}, nil, evaluator, nil)
 
@@ -887,8 +1179,9 @@ func TestValidateStage_SomeContractsDeferredSomeNotTriggersReplan(t *testing.T) 
 		},
 	}
 
+	workDir := newValidateWorkDir(t)
 	stage := NewValidateStage(v, ValidateStageConfig{
-		WorkDir:     "/tmp/work",
+		WorkDir:     workDir,
 		EvidenceDir: dir,
 	}, nil, evaluator, nil)
 
@@ -975,8 +1268,9 @@ func TestValidateStage_DeferredFailuresExcludedFromLastContractFailures(t *testi
 		},
 	}
 
+	workDir := newValidateWorkDir(t)
 	stage := NewValidateStage(v, ValidateStageConfig{
-		WorkDir:     "/tmp/work",
+		WorkDir:     workDir,
 		EvidenceDir: dir,
 	}, nil, evaluator, nil)
 
@@ -1060,8 +1354,9 @@ func TestValidateStage_ContractDeferredEventEmitted(t *testing.T) {
 	}
 
 	eventLog := runstore.NewEventLog(eventLogPath)
+	workDir := newValidateWorkDir(t)
 	stage := NewValidateStage(v, ValidateStageConfig{
-		WorkDir:     "/tmp/work",
+		WorkDir:     workDir,
 		EvidenceDir: dir,
 	}, eventLog, evaluator, nil)
 
@@ -1182,8 +1477,9 @@ func TestValidateStage_ContractDeferralChainOrder(t *testing.T) {
 		},
 	}
 
+	workDir := newValidateWorkDir(t)
 	stage := NewValidateStage(v, ValidateStageConfig{
-		WorkDir:          "/tmp/work",
+		WorkDir:          workDir,
 		EvidenceDir:      dir,
 		SearchExtensions: []string{".go"},
 	}, nil, evaluator, nil)
@@ -1220,6 +1516,7 @@ func TestValidateStage_ContractDeferralChainOrder(t *testing.T) {
 
 func TestValidateStage_AutoFixRunsBeforeValidation(t *testing.T) {
 	dir := t.TempDir()
+	testutil.WriteMinimalProjectFixtures(t, dir)
 	// Create a file that auto-fix will modify
 	targetFile := filepath.Join(dir, "fixme.txt")
 	if err := os.WriteFile(targetFile, []byte("unfixed"), 0o644); err != nil {
@@ -1271,8 +1568,10 @@ func TestValidateStage_AutoFixErrorDoesNotBlockValidation(t *testing.T) {
 	}
 
 	// Auto-fix command that fails (nonexistent command)
+	workDir := t.TempDir()
+	testutil.WriteMinimalProjectFixtures(t, workDir)
 	stage := NewValidateStage(v, ValidateStageConfig{
-		WorkDir: t.TempDir(),
+		WorkDir: workDir,
 		AutoFix: []validator.Check{
 			{Name: "broken", Command: "false", Type: "format"},
 		},
@@ -1298,8 +1597,10 @@ func TestValidateStage_EmptyAutoFixSkipped(t *testing.T) {
 		},
 	}
 
+	workDir := t.TempDir()
+	testutil.WriteMinimalProjectFixtures(t, workDir)
 	stage := NewValidateStage(v, ValidateStageConfig{
-		WorkDir: t.TempDir(),
+		WorkDir: workDir,
 		AutoFix: []validator.Check{}, // empty — nothing to run
 	}, nil, nil, nil)
 
@@ -1373,7 +1674,7 @@ func TestValidateStage_PipelineOrdering(t *testing.T) {
 	}
 
 	stage := NewValidateStage(v, ValidateStageConfig{
-		WorkDir:          "/tmp/work",
+		WorkDir:          newValidateWorkDir(t),
 		EvidenceDir:      dir,
 		SearchExtensions: []string{".go"},
 	}, nil, evaluator, nil)

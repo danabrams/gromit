@@ -35,6 +35,12 @@ func TestScenario_RemoveWorktreeFailsDuringRecovery(t *testing.T) {
 	eventLogPath := filepath.Join(dir, "events.jsonl")
 	eventLog := runstore.NewEventLog(eventLogPath)
 
+	// Seed: work directory
+	workDir := filepath.Join(dir, "work")
+	if err := os.MkdirAll(workDir, 0o755); err != nil {
+		t.Fatalf("create work dir: %v", err)
+	}
+
 	// Seed: fakeGitOps where RemoveWorktree returns an error
 	fakeGit := &validateScenarioFakeGitOps{
 		removeErr: errors.New("permission denied on worktree directory"),
@@ -54,7 +60,7 @@ func TestScenario_RemoveWorktreeFailsDuringRecovery(t *testing.T) {
 	}
 
 	stage := NewValidateStage(v, ValidateStageConfig{
-		WorkDir: "/tmp/work",
+		WorkDir: workDir,
 		RepoDir: dir,
 	}, eventLog, nil, fakeGit)
 

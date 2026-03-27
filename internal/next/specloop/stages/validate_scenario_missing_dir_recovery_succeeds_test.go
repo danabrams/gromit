@@ -51,7 +51,7 @@ func TestScenario_WorktreeDirMissingRecoverySucceeds(t *testing.T) {
 	}
 
 	stage := NewValidateStage(v, ValidateStageConfig{
-		WorkDir: "/tmp/work",
+		WorkDir: base,
 		RepoDir: base,
 	}, nil, nil, fakeGitOps)
 

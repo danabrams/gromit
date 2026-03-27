@@ -47,6 +47,15 @@ func TestEvents_AllEventTypes(t *testing.T) {
 		SpecPacketCompiledEvent{BaseEvent: BaseEvent{Type: "spec_packet_compiled", Timestamp: now}},
 		PlanCreatedEvent{BaseEvent: BaseEvent{Type: "plan_created", Timestamp: now}, TaskCount: 3},
 		PlanValidationResultEvent{BaseEvent: BaseEvent{Type: "plan_validation_result", Timestamp: now}, Passed: true},
+		BaselineCapturedEvent{
+			BaseEvent:    BaseEvent{Type: "baseline_captured", Timestamp: now},
+			FailureCount: 1,
+			CheckNames:   []string{"unit-tests"},
+		},
+		BaselineCaptureErrorEvent{
+			BaseEvent: BaseEvent{Type: "baseline_capture_error", Timestamp: now},
+			Error:     "runner failure",
+		},
 		TaskCreatedEvent{BaseEvent: BaseEvent{Type: "task_created", Timestamp: now}, TaskID: "t1"},
 		TaskStartedEvent{BaseEvent: BaseEvent{Type: "task_started", Timestamp: now}, TaskID: "t1", Cycle: 1},
 		TaskValidationResultEvent{BaseEvent: BaseEvent{Type: "task_validation_result", Timestamp: now}, TaskID: "t1", Passed: true},
@@ -58,6 +67,11 @@ func TestEvents_AllEventTypes(t *testing.T) {
 		ReplanTriggeredEvent{BaseEvent: BaseEvent{Type: "replan_triggered", Timestamp: now}},
 		BudgetExceededEvent{BaseEvent: BaseEvent{Type: "budget_exceeded", Timestamp: now}, AccumulatedCost: 5.50},
 		BlockedWorktreeCleanedEvent{BaseEvent: BaseEvent{Type: "blocked_worktree_cleaned", Timestamp: now}, PriorRunID: "run-old", WorktreePath: "/old"},
+		BaselineFailureExcludedEvent{
+			BaseEvent: BaseEvent{Type: "baseline_failure_excluded", Timestamp: now},
+			CheckName: "unit-tests",
+			Output:    "baseline output",
+		},
 		TerminalStateEvent{BaseEvent: BaseEvent{Type: "terminal_state", Timestamp: now}, Status: "ready_for_review"},
 		DiffUnavailableEvent{BaseEvent: BaseEvent{Type: "diff_unavailable", Timestamp: time.Now()}, Reason: "test error", Message: "test message"},
 		&ContractDeferredEvent{BaseEvent: BaseEvent{Type: "contract_deferred", Timestamp: now}, ScenarioName: "auth-flow", FilePath: "internal/auth/contract.go", Pattern: "login_success", TaskID: "t-042"},
@@ -74,8 +88,8 @@ func TestEvents_AllEventTypes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(events) != 19 {
-		t.Fatalf("want 19 events, got %d", len(events))
+	if len(events) != len(allEvents) {
+		t.Fatalf("want %d events, got %d", len(allEvents), len(events))
 	}
 	for i, ev := range events {
 		if ev.EventType() != allEvents[i].EventType() {
@@ -315,6 +329,69 @@ func TestUnmarshalEvent_ContractsBlocked(t *testing.T) {
 	}
 	if cb.Reason != "no scenarios" {
 		t.Errorf("Reason = %q, want 'no scenarios'", cb.Reason)
+	}
+}
+
+func TestUnmarshalEvent_BaselineCaptured(t *testing.T) {
+	jsonStr := `{"type":"baseline_captured","timestamp":"2026-03-16T00:00:00Z","failure_count":2,"check_names":["unit-tests","lint"]}`
+	evt, err := unmarshalEvent([]byte(jsonStr))
+	if err != nil {
+		t.Fatalf("unmarshalEvent: %v", err)
+	}
+	bc, ok := evt.(*BaselineCapturedEvent)
+	if !ok {
+		t.Fatalf("expected *BaselineCapturedEvent, got %T", evt)
+	}
+	if bc.FailureCount != 2 {
+		t.Errorf("FailureCount = %d, want 2", bc.FailureCount)
+	}
+	if len(bc.CheckNames) != 2 || bc.CheckNames[0] != "unit-tests" {
+		t.Errorf("CheckNames = %v, want [unit-tests lint]", bc.CheckNames)
+	}
+}
+
+func TestUnmarshalEvent_BaselineFailureExcluded(t *testing.T) {
+	jsonStr := `{"type":"baseline_failure_excluded","timestamp":"2026-03-16T00:00:00Z","run_id":"run-123","spec_id":"spec-001","project_id":"proj-001","cycle":2,"check_name":"unit-tests","output":"fail output"}`
+	evt, err := unmarshalEvent([]byte(jsonStr))
+	if err != nil {
+		t.Fatalf("unmarshalEvent: %v", err)
+	}
+	bfe, ok := evt.(*BaselineFailureExcludedEvent)
+	if !ok {
+		t.Fatalf("expected *BaselineFailureExcludedEvent, got %T", evt)
+	}
+	if bfe.CheckName != "unit-tests" {
+		t.Errorf("CheckName = %q, want unit-tests", bfe.CheckName)
+	}
+	if bfe.Output != "fail output" {
+		t.Errorf("Output = %q, want fail output", bfe.Output)
+	}
+	if bfe.RunID != "run-123" {
+		t.Errorf("RunID = %q, want run-123", bfe.RunID)
+	}
+	if bfe.SpecID != "spec-001" {
+		t.Errorf("SpecID = %q, want spec-001", bfe.SpecID)
+	}
+	if bfe.ProjectID != "proj-001" {
+		t.Errorf("ProjectID = %q, want proj-001", bfe.ProjectID)
+	}
+	if bfe.Cycle != 2 {
+		t.Errorf("Cycle = %d, want 2", bfe.Cycle)
+	}
+}
+
+func TestUnmarshalEvent_BaselineCaptureError(t *testing.T) {
+	jsonStr := `{"type":"baseline_capture_error","timestamp":"2026-03-16T00:00:00Z","error":"boom"}`
+	evt, err := unmarshalEvent([]byte(jsonStr))
+	if err != nil {
+		t.Fatalf("unmarshalEvent: %v", err)
+	}
+	bce, ok := evt.(*BaselineCaptureErrorEvent)
+	if !ok {
+		t.Fatalf("expected *BaselineCaptureErrorEvent, got %T", evt)
+	}
+	if bce.Error != "boom" {
+		t.Errorf("Error = %q, want boom", bce.Error)
 	}
 }
 

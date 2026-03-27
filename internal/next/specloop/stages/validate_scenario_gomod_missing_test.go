@@ -16,10 +16,11 @@ import (
 // go.mod (e.g. corrupted checkout), the health check detects it, recovery
 // (remove + recreate) succeeds, and validation proceeds against the recovered worktree.
 func TestScenario_GomodMissing(t *testing.T) {
-	dir := t.TempDir()
+	repoDir := t.TempDir()
+	workDir := t.TempDir()
 
 	// Seed: a worktree directory with .git present but go.mod missing
-	brokenWorktree := filepath.Join(dir, ".gromit-next", "worktrees", "wt-abc123")
+	brokenWorktree := filepath.Join(repoDir, ".gromit-next", "worktrees", "wt-abc123")
 	if err := os.MkdirAll(brokenWorktree, 0o755); err != nil {
 		t.Fatalf("create worktree dir: %v", err)
 	}
@@ -29,7 +30,7 @@ func TestScenario_GomodMissing(t *testing.T) {
 	// Deliberately no go.mod — simulates the corrupted checkout from the incident
 
 	// Seed: a healthy recovered worktree with both .git and go.mod
-	recoveredWorktree := filepath.Join(dir, ".gromit-next", "worktrees", "wt-recovered")
+	recoveredWorktree := filepath.Join(repoDir, ".gromit-next", "worktrees", "wt-recovered")
 	if err := os.MkdirAll(recoveredWorktree, 0o755); err != nil {
 		t.Fatalf("create recovered worktree: %v", err)
 	}
@@ -40,8 +41,13 @@ func TestScenario_GomodMissing(t *testing.T) {
 		t.Fatalf("create go.mod in recovered: %v", err)
 	}
 
+	// Seed: minimal project fixture in repoDir
+	if err := os.WriteFile(filepath.Join(repoDir, "go.mod"), []byte("module test\n"), 0o644); err != nil {
+		t.Fatalf("create go.mod in repoDir: %v", err)
+	}
+
 	// Seed: event log to capture worktree_recovery event
-	eventLogPath := filepath.Join(dir, "events.jsonl")
+	eventLogPath := filepath.Join(repoDir, "events.jsonl")
 	eventLog := runstore.NewEventLog(eventLogPath)
 
 	fakeGitOps := &validateScenarioFakeGitOps{
@@ -61,8 +67,8 @@ func TestScenario_GomodMissing(t *testing.T) {
 	}
 
 	stage := NewValidateStage(v, ValidateStageConfig{
-		WorkDir: "/tmp/work",
-		RepoDir: dir,
+		WorkDir: workDir,
+		RepoDir: repoDir,
 	}, eventLog, nil, fakeGitOps)
 
 	rs := runstore.NewRunState("spec-001", "proj-001")

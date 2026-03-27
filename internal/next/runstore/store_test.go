@@ -24,6 +24,26 @@ func TestStore_CreateAndGet(t *testing.T) {
 	}
 }
 
+func TestStoreSaveGet_PreservesBaselineFailures(t *testing.T) {
+	dir := t.TempDir()
+	s := NewStore(dir)
+	rs := NewRunState("spec-1", "proj-1")
+	rs.BaselineFailures["unit-tests"] = "baseline failure"
+	if err := s.Save(rs); err != nil {
+		t.Fatalf("save run state: %v", err)
+	}
+	loaded, err := s.Get(rs.RunID)
+	if err != nil {
+		t.Fatalf("get run state: %v", err)
+	}
+	if len(loaded.BaselineFailures) != 1 {
+		t.Fatalf("expected 1 baseline failure, got %d", len(loaded.BaselineFailures))
+	}
+	if got := loaded.BaselineFailures["unit-tests"]; got != "baseline failure" {
+		t.Fatalf("baseline failure mismatch: got %q", got)
+	}
+}
+
 func TestStore_Get_NotFound(t *testing.T) {
 	s := NewStore(t.TempDir())
 	_, err := s.Get("nonexistent")

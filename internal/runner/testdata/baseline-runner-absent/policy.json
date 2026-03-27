@@ -1,0 +1,11 @@
+{
+  "budgets": {
+    "max_spec_cycles": 3
+  },
+  "always_run": [
+    {
+      "name": "unit-tests",
+      "command": "go test ./..."
+    }
+  ]
+}
