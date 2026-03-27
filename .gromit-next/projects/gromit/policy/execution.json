@@ -11,7 +11,7 @@
   },
   "routing": {
     "preferences": {"plan": "claude", "execute": "any", "review": "any", "accept": "any"},
-    "ratio": {"codex": 100, "claude": 0}
+    "ratio": {"codex": 75, "claude": 25}
   },
   "models": {
     "planner": "medium"
