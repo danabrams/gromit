@@ -40,6 +40,8 @@ FAIL`,
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			workDir := t.TempDir()
+
 			v := &fakeValidator{
 				result: validator.FinalResult{
 					Pass: false,
@@ -55,7 +57,7 @@ FAIL`,
 			}
 
 			stage := NewValidateStage(v, ValidateStageConfig{
-				WorkDir: "/tmp/work",
+				WorkDir: workDir,
 			}, nil, nil, nil)
 
 			rs := runstore.NewRunState("spec-io", "proj-001")
@@ -91,6 +93,8 @@ FAIL`,
 // TestScenario_IOLeakNotPresent_Replans verifies that normal test failures
 // (without I/O leak signatures) are still classified as ReplanFrom.
 func TestScenario_IOLeakNotPresent_Replans(t *testing.T) {
+	workDir := t.TempDir()
+
 	v := &fakeValidator{
 		result: validator.FinalResult{
 			Pass: false,
@@ -112,7 +116,7 @@ FAIL	github.com/example/pkg1	0.5s`,
 	}
 
 	stage := NewValidateStage(v, ValidateStageConfig{
-		WorkDir: "/tmp/work",
+		WorkDir: workDir,
 	}, nil, nil, nil)
 
 	rs := runstore.NewRunState("spec-normal", "proj-001")
@@ -136,6 +140,8 @@ FAIL	github.com/example/pkg1	0.5s`,
 // TestScenario_IOLeakInProjectCheck_Blocked verifies that I/O leak detection
 // also works for project checks (not just always-run checks).
 func TestScenario_IOLeakInProjectCheck_Blocked(t *testing.T) {
+	workDir := t.TempDir()
+
 	v := &fakeValidator{
 		result: validator.FinalResult{
 			Pass: false,
@@ -159,7 +165,7 @@ exec: WaitDelay expired before I/O complete`,
 	}
 
 	stage := NewValidateStage(v, ValidateStageConfig{
-		WorkDir: "/tmp/work",
+		WorkDir: workDir,
 	}, nil, nil, nil)
 
 	rs := runstore.NewRunState("spec-proj", "proj-001")

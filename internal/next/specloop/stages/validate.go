@@ -202,7 +202,18 @@ func (s *ValidateStage) Run(ctx context.Context, rs *runstore.RunState) (specloo
 	}
 
 	// Collect shell check failures.
+	baselineFailures := rs.BaselineFailures
+	if baselineFailures == nil {
+		baselineFailures = map[string]string{}
+		rs.BaselineFailures = baselineFailures
+	}
+	baselineExcluded := false
 	for _, cr := range result.AlwaysRun.FailedChecks() {
+		if output, ok := baselineFailures[cr.Name]; ok {
+			baselineExcluded = true
+			s.emitBaselineFailureExcludedEvent(rs, cr.Name, output, cr.Output)
+			continue
+		}
 		failures = append(failures, fmt.Sprintf("always-run check %q failed: %s", cr.Name, filterPassingTestLines(cr.Output)))
 	}
 	for _, cr := range result.ProjectChecks.FailedChecks() {
@@ -218,8 +229,10 @@ func (s *ValidateStage) Run(ctx context.Context, rs *runstore.RunState) (specloo
 		return specloop.NextAction{Kind: specloop.Blocked}, nil
 	}
 
+	nonBaselineFailures := len(failures)
+
 	// Determine final validation status after collecting ALL failures (contract + shell).
-	finalPassed := len(failures) == 0 && result.Pass
+	finalPassed := result.Pass && nonBaselineFailures == 0
 
 	// Patch the result to reflect the actual final status (contract failures may
 	// have turned a shell-passing run into an overall failure).
@@ -238,8 +251,9 @@ func (s *ValidateStage) Run(ctx context.Context, rs *runstore.RunState) (specloo
 		})
 	}
 
+	rs.FinalValidationPassed = finalPassed
+
 	if finalPassed {
-		rs.FinalValidationPassed = true
 		// Commit worktree changes to branch so they survive recovery
 		// and are visible to the review stage's Claude process.
 		if s.gitOps != nil && rs.WorktreePath != "" {
@@ -248,6 +262,11 @@ func (s *ValidateStage) Run(ctx context.Context, rs *runstore.RunState) (specloo
 				fmt.Fprintf(os.Stderr, "gromit: CommitAll warning: %v\n", err)
 			}
 		}
+		return specloop.NextAction{Kind: specloop.Continue}, nil
+	}
+
+	if nonBaselineFailures == 0 && baselineExcluded {
+		rs.FinalValidationPassed = true
 		return specloop.NextAction{Kind: specloop.Continue}, nil
 	}
 
@@ -262,6 +281,22 @@ func (s *ValidateStage) Run(ctx context.Context, rs *runstore.RunState) (specloo
 			Cycle:    rs.Cycle,
 		},
 	}, nil
+}
+
+func (s *ValidateStage) emitBaselineFailureExcludedEvent(rs *runstore.RunState, checkName, baselineOutput, currentOutput string) {
+	if s.eventLog == nil {
+		return
+	}
+	s.eventLog.Append(runstore.BaselineFailureExcludedEvent{
+		BaseEvent:     runstore.BaseEvent{Type: "baseline_failure_excluded", Timestamp: time.Now()},
+		RunID:         rs.RunID,
+		SpecID:        rs.SpecID,
+		ProjectID:     rs.ProjectID,
+		Cycle:         rs.Cycle,
+		CheckName:     checkName,
+		Output:        baselineOutput,
+		CurrentOutput: currentOutput,
+	})
 }
 
 // correctionResult tracks a single corrected assertion for event emission.

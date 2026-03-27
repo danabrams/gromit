@@ -50,6 +50,20 @@ func TestRunState_NormalizeNilFields(t *testing.T) {
 	}
 }
 
+func TestRunStateNormalizeNilFields_InitializesBaselineFailures(t *testing.T) {
+	rs := &RunState{}
+	if rs.BaselineFailures != nil {
+		t.Fatal("precondition: BaselineFailures should be nil")
+	}
+	rs.NormalizeNilFields()
+	if rs.BaselineFailures == nil {
+		t.Fatal("BaselineFailures must not be nil after normalize")
+	}
+	if len(rs.BaselineFailures) != 0 {
+		t.Fatalf("BaselineFailures should be empty after normalize, got %d entries", len(rs.BaselineFailures))
+	}
+}
+
 func TestTask_NormalizeNilFields(t *testing.T) {
 	tk := &Task{}
 	tk.NormalizeNilFields()
@@ -111,6 +125,30 @@ func TestRunState_NormalizeNilFields_IncludesNewFields(t *testing.T) {
 	}
 	if rs.AcceptanceResults == nil {
 		t.Error("AcceptanceResults should not be nil after NormalizeNilFields")
+	}
+	if rs.BaselineFailures == nil {
+		t.Error("BaselineFailures should not be nil after NormalizeNilFields")
+	}
+}
+
+func TestRunState_BaselineFailuresRoundTrip(t *testing.T) {
+	rs := NewRunState("spec-001", "proj-1")
+	rs.BaselineFailures = map[string]string{"unit-tests": "baseline fail"}
+
+	data, err := json.Marshal(rs)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+
+	var got RunState
+	if err := json.Unmarshal(data, &got); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if len(got.BaselineFailures) != 1 {
+		t.Fatalf("expected 1 baseline failure, got %d", len(got.BaselineFailures))
+	}
+	if got.BaselineFailures["unit-tests"] != "baseline fail" {
+		t.Fatalf("baseline failure output mismatch: got %q", got.BaselineFailures["unit-tests"])
 	}
 }
 

@@ -1047,3 +1047,51 @@ func TestContextProviderClosure_DynamicPointerCapture(t *testing.T) {
 		t.Errorf("expected second constraint %q, got %q", constraint2, ctx3.ArchitectureConstraints[1])
 	}
 }
+
+func TestRealStageProvider_WiresBaselineRunnerFromAlwaysRunPolicy(t *testing.T) {
+	policy := execpolicy.DefaultPolicy()
+	// Ensure the policy has at least one always_run check.
+	if len(policy.AlwaysRun) == 0 {
+		t.Fatal("precondition: default policy must have at least one always_run check")
+	}
+
+	rs := runstore.NewRunState("test-spec", "test-project")
+
+	provider := NewRealStageProvider(RealStageProviderConfig{
+		WorkDir:  t.TempDir(),
+		StoreDir: t.TempDir(),
+		SpecPath: "test-spec.md",
+	})
+
+	stages, err := provider.BuildStages(policy, rs, specloop.NewBudget(policy.Budgets), nil)
+	if err != nil {
+		t.Fatalf("BuildStages returned error: %v", err)
+	}
+	if len(stages) == 0 {
+		t.Fatal("expected at least one stage, got 0")
+	}
+
+	// Find the init stage and verify it is present.
+	var initStage specloop.Stage
+	for _, s := range stages {
+		if s.Name() == "init" {
+			initStage = s
+			break
+		}
+	}
+	if initStage == nil {
+		t.Fatal("expected init stage in pipeline, not found")
+	}
+
+	// Verify the init stage is a *stages.InitStage with BaselineRunner wired.
+	concreteInit, ok := initStage.(*executestages.InitStage)
+	if !ok {
+		t.Fatalf("expected init stage to be *stages.InitStage, got %T", initStage)
+	}
+	if concreteInit.Cfg().BaselineRunner == nil {
+		t.Error("expected InitStage.BaselineRunner to be non-nil when AlwaysRun checks are configured")
+	}
+	if len(concreteInit.Cfg().AlwaysRun) == 0 {
+		t.Error("expected InitStage.AlwaysRun to be non-empty when policy has AlwaysRun checks")
+	}
+}

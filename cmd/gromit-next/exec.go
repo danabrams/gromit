@@ -174,6 +174,10 @@ func (e *execSpecRun) run(ctx context.Context) error {
 		rs.FinalAcceptancePassed = false
 		rs.ReviewFindings = nil
 		rs.AcceptanceResults = nil
+		// Baseline failures are scoped to the run and must survive resume cycles.
+		if rs.BaselineFailures == nil {
+			rs.BaselineFailures = map[string]string{}
+		}
 		// Increment cycle for the resumed run
 		rs.Cycle++
 	} else {

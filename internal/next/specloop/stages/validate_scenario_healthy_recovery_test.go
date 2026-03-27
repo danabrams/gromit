@@ -57,8 +57,8 @@ func TestScenario_HealthyRecovery(t *testing.T) {
 	}
 
 	stage := NewValidateStage(v, ValidateStageConfig{
-		WorkDir: "/tmp/work",
-		RepoDir: "/repo",
+		WorkDir: dir,
+		RepoDir: dir,
 	}, nil, nil, fakeGitOps)
 
 	rs := runstore.NewRunState("spec-001", "proj-001")

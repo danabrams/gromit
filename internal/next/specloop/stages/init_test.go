@@ -2,17 +2,24 @@ package stages
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/next/runstore"
 	"github.com/danabrams/gromit/internal/next/specloop"
+	"github.com/danabrams/gromit/internal/next/testutil"
+	"github.com/danabrams/gromit/internal/next/validator"
 )
 
 func TestInitStage_CleansBlockedWorktrees(t *testing.T) {
 	storeDir := t.TempDir()
 	store := runstore.NewStore(storeDir)
+
+	fixtures := testutil.WriteMinimalProjectFixtures(t, storeDir)
+	specFile := writeSpec(t, fixtures.Config.SpecsDir, "# Test Spec")
+	policyFile := fixtures.PolicyPath
 
 	// Create a prior run with the SAME spec+project so store.List finds it
 	priorRS := runstore.NewRunState("test-spec", "test-project")
@@ -22,11 +29,6 @@ func TestInitStage_CleansBlockedWorktrees(t *testing.T) {
 	store.Save(priorRS)
 
 	eventLog := runstore.NewEventLog(filepath.Join(storeDir, "events.jsonl"))
-
-	specFile := filepath.Join(storeDir, "spec.md")
-	os.WriteFile(specFile, []byte("# Test Spec"), 0o644)
-	policyFile := filepath.Join(storeDir, "policy.json")
-	os.WriteFile(policyFile, []byte(`{"budgets":{}}`), 0o644)
 
 	gitOps := &fakeGitOps{worktreePath: filepath.Join(t.TempDir(), "new-worktree")}
 	os.MkdirAll(gitOps.worktreePath, 0o755)
@@ -91,10 +93,9 @@ func TestInitStage_SkipsNonBlockedWorktrees(t *testing.T) {
 	os.MkdirAll(priorRS.WorktreePath, 0o755)
 	store.Save(priorRS)
 
-	specFile := filepath.Join(storeDir, "spec.md")
-	os.WriteFile(specFile, []byte("# Test Spec"), 0o644)
-	policyFile := filepath.Join(storeDir, "policy.json")
-	os.WriteFile(policyFile, []byte(`{"budgets":{}}`), 0o644)
+	fixtures := testutil.WriteMinimalProjectFixtures(t, storeDir)
+	specFile := writeSpec(t, fixtures.Config.SpecsDir, "# Test Spec")
+	policyFile := fixtures.PolicyPath
 
 	gitOps := &fakeGitOps{worktreePath: filepath.Join(t.TempDir(), "new-worktree")}
 	os.MkdirAll(gitOps.worktreePath, 0o755)
@@ -129,10 +130,9 @@ func TestInitStage_SkipsDifferentSpecBlockedWorktrees(t *testing.T) {
 	os.MkdirAll(priorRS.WorktreePath, 0o755)
 	store.Save(priorRS)
 
-	specFile := filepath.Join(storeDir, "spec.md")
-	os.WriteFile(specFile, []byte("# Test Spec"), 0o644)
-	policyFile := filepath.Join(storeDir, "policy.json")
-	os.WriteFile(policyFile, []byte(`{"budgets":{}}`), 0o644)
+	fixtures := testutil.WriteMinimalProjectFixtures(t, storeDir)
+	specFile := writeSpec(t, fixtures.Config.SpecsDir, "# Test Spec")
+	policyFile := fixtures.PolicyPath
 
 	gitOps := &fakeGitOps{worktreePath: filepath.Join(t.TempDir(), "new-worktree")}
 	os.MkdirAll(gitOps.worktreePath, 0o755)
@@ -193,6 +193,19 @@ func (f *fakeGitOps) CommitAll(workDir, message string) error {
 	return nil
 }
 
+type fakeBaselineRunner struct {
+	results     validator.CheckResults
+	err         error
+	runCount    int
+	lastWorkDir string
+}
+
+func (f *fakeBaselineRunner) RunAlwaysRun(ctx context.Context, checks []validator.Check, workDir string) (validator.CheckResults, error) {
+	f.runCount++
+	f.lastWorkDir = workDir
+	return f.results, f.err
+}
+
 // TestInitStage_CleansBlockedWorktrees_EventWrittenToRunDir verifies that
 // blocked_worktree_cleaned is emitted even when the eventLog path is inside
 // the new run's directory — which does not exist yet when cleanBlockedWorktrees
@@ -207,10 +220,9 @@ func TestInitStage_CleansBlockedWorktrees_EventWrittenToRunDir(t *testing.T) {
 	os.MkdirAll(priorRS.WorktreePath, 0o755)
 	store.Save(priorRS)
 
-	specFile := filepath.Join(storeDir, "spec.md")
-	os.WriteFile(specFile, []byte("# Test Spec"), 0o644)
-	policyFile := filepath.Join(storeDir, "policy.json")
-	os.WriteFile(policyFile, []byte(`{"budgets":{}}`), 0o644)
+	fixtures := testutil.WriteMinimalProjectFixtures(t, storeDir)
+	specFile := writeSpec(t, fixtures.Config.SpecsDir, "# Test Spec")
+	policyFile := fixtures.PolicyPath
 
 	gitOps := &fakeGitOps{worktreePath: filepath.Join(t.TempDir(), "new-worktree")}
 	os.MkdirAll(gitOps.worktreePath, 0o755)
@@ -256,10 +268,9 @@ var _ specloop.Stage = (*InitStage)(nil)
 func TestInitStage_CreatesRunDir(t *testing.T) {
 	tmp := t.TempDir()
 	store := runstore.NewStore(tmp)
-	specFile := filepath.Join(tmp, "spec.md")
-	os.WriteFile(specFile, []byte("# Test Spec"), 0o644)
-	policyFile := filepath.Join(tmp, "policy.json")
-	os.WriteFile(policyFile, []byte(`{"budgets":{}}`), 0o644)
+	fixtures := testutil.WriteMinimalProjectFixtures(t, tmp)
+	specFile := writeSpec(t, fixtures.Config.SpecsDir, "# Test Spec")
+	policyFile := fixtures.PolicyPath
 
 	gitOps := &fakeGitOps{worktreePath: filepath.Join(tmp, "worktree")}
 	os.MkdirAll(gitOps.worktreePath, 0o755)
@@ -289,10 +300,9 @@ func TestInitStage_CreatesRunDir(t *testing.T) {
 func TestInitStage_CreatesWorktreeWithCorrectBranch(t *testing.T) {
 	tmp := t.TempDir()
 	store := runstore.NewStore(tmp)
-	specFile := filepath.Join(tmp, "spec.md")
-	os.WriteFile(specFile, []byte("# Test Spec"), 0o644)
-	policyFile := filepath.Join(tmp, "policy.json")
-	os.WriteFile(policyFile, []byte(`{"budgets":{}}`), 0o644)
+	fixtures := testutil.WriteMinimalProjectFixtures(t, tmp)
+	specFile := writeSpec(t, fixtures.Config.SpecsDir, "# Test Spec")
+	policyFile := fixtures.PolicyPath
 
 	gitOps := &fakeGitOps{worktreePath: filepath.Join(tmp, "worktree")}
 	os.MkdirAll(gitOps.worktreePath, 0o755)
@@ -320,10 +330,9 @@ func TestInitStage_CopiesSpecIntoRunDir(t *testing.T) {
 	tmp := t.TempDir()
 	store := runstore.NewStore(tmp)
 	specContent := "# My Spec\nSome content"
-	specFile := filepath.Join(tmp, "spec.md")
-	os.WriteFile(specFile, []byte(specContent), 0o644)
-	policyFile := filepath.Join(tmp, "policy.json")
-	os.WriteFile(policyFile, []byte(`{"budgets":{}}`), 0o644)
+	fixtures := testutil.WriteMinimalProjectFixtures(t, tmp)
+	specFile := writeSpec(t, fixtures.Config.SpecsDir, specContent)
+	policyFile := fixtures.PolicyPath
 
 	gitOps := &fakeGitOps{worktreePath: filepath.Join(tmp, "worktree")}
 	os.MkdirAll(gitOps.worktreePath, 0o755)
@@ -354,11 +363,13 @@ func TestInitStage_CopiesSpecIntoRunDir(t *testing.T) {
 func TestInitStage_SnapshotsPolicyIntoRunDir(t *testing.T) {
 	tmp := t.TempDir()
 	store := runstore.NewStore(tmp)
-	specFile := filepath.Join(tmp, "spec.md")
-	os.WriteFile(specFile, []byte("# Test Spec"), 0o644)
+	fixtures := testutil.WriteMinimalProjectFixtures(t, tmp)
+	specFile := writeSpec(t, fixtures.Config.SpecsDir, "# Test Spec")
 	policyContent := `{"always_run":[],"budgets":{"max_spec_cycles":3},"models":{"planner":"high"}}`
-	policyFile := filepath.Join(tmp, "policy.json")
-	os.WriteFile(policyFile, []byte(policyContent), 0o644)
+	policyFile := fixtures.PolicyPath
+	if err := os.WriteFile(policyFile, []byte(policyContent), 0o644); err != nil {
+		t.Fatalf("write policy override: %v", err)
+	}
 
 	gitOps := &fakeGitOps{worktreePath: filepath.Join(tmp, "worktree")}
 	os.MkdirAll(gitOps.worktreePath, 0o755)
@@ -397,10 +408,9 @@ func TestInitStage_CleansBlockedWorktrees_UsesGitOps(t *testing.T) {
 	os.MkdirAll(priorRS.WorktreePath, 0o755)
 	store.Save(priorRS)
 
-	specFile := filepath.Join(storeDir, "spec.md")
-	os.WriteFile(specFile, []byte("# Test Spec"), 0o644)
-	policyFile := filepath.Join(storeDir, "policy.json")
-	os.WriteFile(policyFile, []byte(`{"budgets":{}}`), 0o644)
+	fixtures := testutil.WriteMinimalProjectFixtures(t, storeDir)
+	specFile := writeSpec(t, fixtures.Config.SpecsDir, "# Test Spec")
+	policyFile := fixtures.PolicyPath
 
 	gitOps := &fakeGitOps{worktreePath: filepath.Join(t.TempDir(), "new-worktree")}
 	os.MkdirAll(gitOps.worktreePath, 0o755)
@@ -430,4 +440,330 @@ func TestInitStage_CleansBlockedWorktrees_UsesGitOps(t *testing.T) {
 		t.Errorf("GitOps.RemoveWorktree should have been called with %q, got calls: %v",
 			priorRS.WorktreePath, gitOps.removedPaths)
 	}
+}
+
+func TestInit_CapturesBaselineFailures(t *testing.T) {
+	storeDir := t.TempDir()
+	store := runstore.NewStore(storeDir)
+
+	fixtures := testutil.WriteMinimalProjectFixtures(t, storeDir)
+	specFile := writeSpec(t, fixtures.Config.SpecsDir, "# Test Spec")
+	policyFile := fixtures.PolicyPath
+
+	gitOps := &fakeGitOps{worktreePath: filepath.Join(t.TempDir(), "new-worktree")}
+	os.MkdirAll(gitOps.worktreePath, 0o755)
+
+	rs := runstore.NewRunState("baseline-spec", "baseline-project")
+	rs.BaselineFailures = map[string]string{"unit-tests": "stale baseline fail"}
+	eventLogPath := filepath.Join(store.RunDir(rs.RunID), "events.jsonl")
+	eventLog := runstore.NewEventLog(eventLogPath)
+
+	baselineRunner := &fakeBaselineRunner{
+		results: validator.CheckResults{
+			Results: []validator.CheckResult{
+				{Name: "unit-tests", Pass: false, Output: "already failing"},
+			},
+		},
+	}
+
+	stage := NewInitStage(InitStageConfig{
+		SpecPath:       specFile,
+		PolicyPath:     policyFile,
+		RepoDir:        storeDir,
+		GitOps:         gitOps,
+		BaselineRunner: baselineRunner,
+		AlwaysRun: []validator.Check{
+			{Name: "unit-tests", Command: "go test ./..."},
+		},
+	}, store, eventLog)
+
+	action, err := stage.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if action.Kind != specloop.Continue {
+		t.Fatalf("expected Continue, got %v", action.Kind)
+	}
+	if baselineRunner.runCount != 1 {
+		t.Fatalf("baseline runner run count = %d, want 1", baselineRunner.runCount)
+	}
+	if baselineRunner.lastWorkDir != gitOps.worktreePath {
+		t.Fatalf("baseline runner workdir = %q, want %q", baselineRunner.lastWorkDir, gitOps.worktreePath)
+	}
+	if len(rs.BaselineFailures) != 1 {
+		t.Fatalf("BaselineFailures len = %d, want 1", len(rs.BaselineFailures))
+	}
+	if got := rs.BaselineFailures["unit-tests"]; got != "already failing" {
+		t.Fatalf("baseline failure output = %q, want %q", got, "already failing")
+	}
+
+	events, err := eventLog.ReadAll()
+	if err != nil {
+		t.Fatalf("ReadAll events: %v", err)
+	}
+	var baselineEvent *runstore.BaselineCapturedEvent
+	for _, ev := range events {
+		if be, ok := ev.(*runstore.BaselineCapturedEvent); ok {
+			baselineEvent = be
+			break
+		}
+	}
+	if baselineEvent == nil {
+		t.Fatalf("baseline_captured event not emitted")
+	}
+	if baselineEvent.FailureCount != 1 {
+		t.Fatalf("baseline event failure_count = %d, want 1", baselineEvent.FailureCount)
+	}
+	if len(baselineEvent.CheckNames) != 1 || baselineEvent.CheckNames[0] != "unit-tests" {
+		t.Fatalf("baseline event check_names = %v, want [unit-tests]", baselineEvent.CheckNames)
+	}
+}
+
+func TestInit_BaselineRunnerAbsentNonFatal(t *testing.T) {
+	storeDir := t.TempDir()
+	store := runstore.NewStore(storeDir)
+
+	fixtures := testutil.WriteMinimalProjectFixtures(t, storeDir)
+	specFile := writeSpec(t, fixtures.Config.SpecsDir, "# Test Spec")
+	policyFile := fixtures.PolicyPath
+
+	gitOps := &fakeGitOps{worktreePath: filepath.Join(t.TempDir(), "new-worktree")}
+	os.MkdirAll(gitOps.worktreePath, 0o755)
+
+	rs := runstore.NewRunState("baseline-spec", "baseline-project")
+	rs.BaselineFailures = map[string]string{"unit-tests": "stale baseline fail"}
+	eventLogPath := filepath.Join(store.RunDir(rs.RunID), "events.jsonl")
+	eventLog := runstore.NewEventLog(eventLogPath)
+
+	stage := NewInitStage(InitStageConfig{
+		SpecPath:   specFile,
+		PolicyPath: policyFile,
+		RepoDir:    storeDir,
+		GitOps:     gitOps,
+		AlwaysRun: []validator.Check{
+			{Name: "unit-tests", Command: "go test ./..."},
+		},
+	}, store, eventLog)
+
+	action, err := stage.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if action.Kind != specloop.Continue {
+		t.Fatalf("expected Continue, got %v", action.Kind)
+	}
+	if len(rs.BaselineFailures) != 0 {
+		t.Fatalf("BaselineFailures len = %d, want 0", len(rs.BaselineFailures))
+	}
+
+	events, err := eventLog.ReadAll()
+	if err != nil {
+		t.Fatalf("ReadAll events: %v", err)
+	}
+	for _, ev := range events {
+		if _, ok := ev.(*runstore.BaselineCapturedEvent); ok {
+			t.Fatal("baseline_captured event should not be emitted when runner is absent")
+		}
+	}
+}
+
+func TestInit_BaselineRunnerErrorNonFatal(t *testing.T) {
+	storeDir := t.TempDir()
+	store := runstore.NewStore(storeDir)
+
+	fixtures := testutil.WriteMinimalProjectFixtures(t, storeDir)
+	specFile := writeSpec(t, fixtures.Config.SpecsDir, "# Test Spec")
+	policyFile := fixtures.PolicyPath
+
+	gitOps := &fakeGitOps{worktreePath: filepath.Join(t.TempDir(), "new-worktree")}
+	os.MkdirAll(gitOps.worktreePath, 0o755)
+
+	rs := runstore.NewRunState("baseline-spec", "baseline-project")
+	rs.BaselineFailures = map[string]string{"unit-tests": "stale baseline fail"}
+	eventLogPath := filepath.Join(store.RunDir(rs.RunID), "events.jsonl")
+	eventLog := runstore.NewEventLog(eventLogPath)
+
+	baselineRunner := &fakeBaselineRunner{
+		err: errors.New("boom"),
+	}
+
+	stage := NewInitStage(InitStageConfig{
+		SpecPath:       specFile,
+		PolicyPath:     policyFile,
+		RepoDir:        storeDir,
+		GitOps:         gitOps,
+		BaselineRunner: baselineRunner,
+		AlwaysRun: []validator.Check{
+			{Name: "unit-tests", Command: "go test ./..."},
+		},
+	}, store, eventLog)
+
+	action, err := stage.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if action.Kind != specloop.Continue {
+		t.Fatalf("expected Continue, got %v", action.Kind)
+	}
+	if len(rs.BaselineFailures) != 0 {
+		t.Fatalf("BaselineFailures len = %d, want 0", len(rs.BaselineFailures))
+	}
+
+	events, err := eventLog.ReadAll()
+	if err != nil {
+		t.Fatalf("ReadAll events: %v", err)
+	}
+	var captureErrEvent *runstore.BaselineCaptureErrorEvent
+	for _, ev := range events {
+		switch e := ev.(type) {
+		case *runstore.BaselineCaptureErrorEvent:
+			captureErrEvent = e
+		case *runstore.BaselineCapturedEvent:
+			t.Fatalf("baseline_captured event should not be emitted when baseline runner errors")
+		}
+	}
+	if captureErrEvent == nil {
+		t.Fatalf("baseline_capture_error event not emitted")
+	}
+	if captureErrEvent.Error != "boom" {
+		t.Fatalf("baseline capture error = %q, want boom", captureErrEvent.Error)
+	}
+}
+
+func TestInit_BaselineRunnerSucceeds_NoFailures(t *testing.T) {
+	storeDir := t.TempDir()
+	store := runstore.NewStore(storeDir)
+
+	fixtures := testutil.WriteMinimalProjectFixtures(t, storeDir)
+	specFile := writeSpec(t, fixtures.Config.SpecsDir, "# Test Spec")
+	policyFile := fixtures.PolicyPath
+
+	gitOps := &fakeGitOps{worktreePath: t.TempDir()}
+
+	rs := runstore.NewRunState("baseline-spec", "baseline-project")
+	eventLogPath := filepath.Join(store.RunDir(rs.RunID), "events.jsonl")
+	eventLog := runstore.NewEventLog(eventLogPath)
+
+	baselineRunner := &fakeBaselineRunner{
+		results: validator.CheckResults{
+			Results: []validator.CheckResult{
+				{Name: "unit-tests", Pass: true, Output: "ok"},
+			},
+		},
+	}
+
+	stage := NewInitStage(InitStageConfig{
+		SpecPath:       specFile,
+		PolicyPath:     policyFile,
+		RepoDir:        storeDir,
+		GitOps:         gitOps,
+		BaselineRunner: baselineRunner,
+		AlwaysRun: []validator.Check{
+			{Name: "unit-tests", Command: "go test ./..."},
+		},
+	}, store, eventLog)
+
+	action, err := stage.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if action.Kind != specloop.Continue {
+		t.Fatalf("expected Continue, got %v", action.Kind)
+	}
+	if len(rs.BaselineFailures) != 0 {
+		t.Fatalf("BaselineFailures len = %d, want 0 (empty map)", len(rs.BaselineFailures))
+	}
+
+	events, err := eventLog.ReadAll()
+	if err != nil {
+		t.Fatalf("ReadAll events: %v", err)
+	}
+	var baselineEvent *runstore.BaselineCapturedEvent
+	for _, ev := range events {
+		if be, ok := ev.(*runstore.BaselineCapturedEvent); ok {
+			baselineEvent = be
+			break
+		}
+	}
+	if baselineEvent == nil {
+		t.Fatalf("baseline_captured event not emitted")
+	}
+	if baselineEvent.FailureCount != 0 {
+		t.Fatalf("baseline event failure_count = %d, want 0", baselineEvent.FailureCount)
+	}
+	if len(baselineEvent.CheckNames) != 0 {
+		t.Fatalf("baseline event check_names = %v, want empty", baselineEvent.CheckNames)
+	}
+}
+
+func TestInit_BaselineFailuresPersisted(t *testing.T) {
+	storeDir := t.TempDir()
+	store := runstore.NewStore(storeDir)
+
+	fixtures := testutil.WriteMinimalProjectFixtures(t, storeDir)
+	specFile := writeSpec(t, fixtures.Config.SpecsDir, "# Test Spec")
+	policyFile := fixtures.PolicyPath
+
+	gitOps := &fakeGitOps{worktreePath: t.TempDir()}
+
+	rs := runstore.NewRunState("baseline-spec", "baseline-project")
+	eventLogPath := filepath.Join(store.RunDir(rs.RunID), "events.jsonl")
+	eventLog := runstore.NewEventLog(eventLogPath)
+
+	baselineRunner := &fakeBaselineRunner{
+		results: validator.CheckResults{
+			Results: []validator.CheckResult{
+				{Name: "unit-tests", Pass: false, Output: "pre-existing failure"},
+			},
+		},
+	}
+
+	stage := NewInitStage(InitStageConfig{
+		SpecPath:       specFile,
+		PolicyPath:     policyFile,
+		RepoDir:        storeDir,
+		GitOps:         gitOps,
+		BaselineRunner: baselineRunner,
+		AlwaysRun: []validator.Check{
+			{Name: "unit-tests", Command: "go test ./..."},
+		},
+	}, store, eventLog)
+
+	_, err := stage.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	if err := store.Save(rs); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	loaded, err := store.Get(rs.RunID)
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+
+	if len(loaded.BaselineFailures) != len(rs.BaselineFailures) {
+		t.Fatalf("loaded BaselineFailures len = %d, want %d", len(loaded.BaselineFailures), len(rs.BaselineFailures))
+	}
+	for k, v := range rs.BaselineFailures {
+		if loaded.BaselineFailures[k] != v {
+			t.Fatalf("loaded BaselineFailures[%q] = %q, want %q", k, loaded.BaselineFailures[k], v)
+		}
+	}
+}
+
+func writeSpec(t testing.TB, specsDir, content string) string {
+	t.Helper()
+	if specsDir == "" {
+		t.Fatal("specsDir must be set")
+	}
+	if content == "" {
+		content = "# Test Spec"
+	}
+	specPath := filepath.Join(specsDir, "spec.md")
+	if err := os.WriteFile(specPath, []byte(content), 0o644); err != nil {
+		t.Fatalf("write spec %q: %v", specPath, err)
+	}
+	return specPath
 }

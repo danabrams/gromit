@@ -88,13 +88,6 @@ func (p *RealStageProvider) BuildStages(policy execpolicy.Policy, rs *runstore.R
 
 	gitOps := &realGitOps{}
 
-	initStage := stages.NewInitStage(stages.InitStageConfig{
-		SpecPath:   p.cfg.SpecPath,
-		PolicyPath: p.cfg.PolicyPath,
-		RepoDir:    p.cfg.WorkDir,
-		GitOps:     gitOps,
-	}, store, eventLog)
-
 	// Convert execpolicy.Check to validator.Check.
 	alwaysRun := make([]validator.Check, len(policy.AlwaysRun))
 	for i, c := range policy.AlwaysRun {
@@ -104,6 +97,15 @@ func (p *RealStageProvider) BuildStages(policy execpolicy.Policy, rs *runstore.R
 	for i, c := range policy.AutoFix {
 		autoFix[i] = validator.Check{Name: c.Name, Command: c.Command, Type: c.Type}
 	}
+
+	initStage := stages.NewInitStage(stages.InitStageConfig{
+		SpecPath:       p.cfg.SpecPath,
+		PolicyPath:     p.cfg.PolicyPath,
+		RepoDir:        p.cfg.WorkDir,
+		GitOps:         gitOps,
+		BaselineRunner: validator.NewRunner(),
+		AlwaysRun:      alwaysRun,
+	}, store, eventLog)
 
 	var (
 		compiler           stages.SpecCompiler

@@ -5,10 +5,12 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"time"
 
 	"github.com/danabrams/gromit/internal/next/runstore"
 	"github.com/danabrams/gromit/internal/next/specloop"
+	"github.com/danabrams/gromit/internal/next/validator"
 )
 
 // GitOps abstracts git worktree operations for stage implementations.
@@ -21,10 +23,16 @@ type GitOps interface {
 
 // InitStageConfig configures the InitStage.
 type InitStageConfig struct {
-	SpecPath   string
-	PolicyPath string
-	RepoDir    string
-	GitOps     GitOps
+	SpecPath       string
+	PolicyPath     string
+	RepoDir        string
+	GitOps         GitOps
+	BaselineRunner BaselineRunner
+	AlwaysRun      []validator.Check
+}
+
+type BaselineRunner interface {
+	RunAlwaysRun(ctx context.Context, checks []validator.Check, workDir string) (validator.CheckResults, error)
 }
 
 // InitStage initializes a run: creates run dir, git worktree, copies spec and policy.
@@ -42,6 +50,9 @@ func NewInitStage(cfg InitStageConfig, store *runstore.Store, eventLog *runstore
 // Name returns the stage name.
 func (s *InitStage) Name() string { return "init" }
 
+// Cfg returns the InitStageConfig for inspection (used in tests).
+func (s *InitStage) Cfg() InitStageConfig { return s.cfg }
+
 // Run executes the init stage.
 func (s *InitStage) Run(ctx context.Context, rs *runstore.RunState) (specloop.NextAction, error) {
 	// Create run directory first so that the event log (which lives inside it)
@@ -49,6 +60,10 @@ func (s *InitStage) Run(ctx context.Context, rs *runstore.RunState) (specloop.Ne
 	runDir := s.store.RunDir(rs.RunID)
 	if err := os.MkdirAll(runDir, 0o755); err != nil {
 		return specloop.NextAction{}, fmt.Errorf("create run dir: %w", err)
+	}
+
+	if rs.BaselineFailures == nil {
+		rs.BaselineFailures = map[string]string{}
 	}
 
 	// Clean up prior blocked worktrees for the same spec
@@ -69,6 +84,8 @@ func (s *InitStage) Run(ctx context.Context, rs *runstore.RunState) (specloop.Ne
 		s.cfg.GitOps.RemoveWorktree(worktreePath)
 		rs.WorktreePath = ""
 	}
+
+	s.captureBaseline(ctx, worktreePath, rs)
 
 	// Copy spec file into run dir
 	specData, err := os.ReadFile(s.cfg.SpecPath)
@@ -149,4 +166,58 @@ func (s *InitStage) cleanBlockedWorktrees(rs *runstore.RunState) error {
 		}
 	}
 	return nil
+}
+
+func (s *InitStage) captureBaseline(ctx context.Context, worktreePath string, rs *runstore.RunState) {
+	if s.cfg.BaselineRunner == nil || len(s.cfg.AlwaysRun) == 0 {
+		s.resetBaselineFailures(rs)
+		return
+	}
+
+	result, err := s.cfg.BaselineRunner.RunAlwaysRun(ctx, s.cfg.AlwaysRun, worktreePath)
+	if err != nil {
+		s.resetBaselineFailures(rs)
+		s.emitBaselineCaptureErrorEvent(err)
+		return
+	}
+
+	failures := make(map[string]string, len(result.FailedChecks()))
+	for _, cr := range result.FailedChecks() {
+		failures[cr.Name] = cr.Output
+	}
+	rs.BaselineFailures = failures
+	s.emitBaselineCapturedEvent(rs)
+}
+
+func (s *InitStage) emitBaselineCapturedEvent(rs *runstore.RunState) {
+	if s.eventLog == nil {
+		return
+	}
+	event := runstore.BaselineCapturedEvent{
+		BaseEvent:    runstore.BaseEvent{Type: "baseline_captured", Timestamp: time.Now()},
+		FailureCount: len(rs.BaselineFailures),
+	}
+	if len(rs.BaselineFailures) > 0 {
+		names := make([]string, 0, len(rs.BaselineFailures))
+		for name := range rs.BaselineFailures {
+			names = append(names, name)
+		}
+		sort.Strings(names)
+		event.CheckNames = names
+	}
+	s.eventLog.Append(event)
+}
+
+func (s *InitStage) emitBaselineCaptureErrorEvent(err error) {
+	if s.eventLog == nil {
+		return
+	}
+	s.eventLog.Append(runstore.BaselineCaptureErrorEvent{
+		BaseEvent: runstore.BaseEvent{Type: "baseline_capture_error", Timestamp: time.Now()},
+		Error:     err.Error(),
+	})
+}
+
+func (s *InitStage) resetBaselineFailures(rs *runstore.RunState) {
+	rs.BaselineFailures = map[string]string{}
 }

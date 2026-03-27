@@ -8,6 +8,7 @@ import (
 
 	"github.com/danabrams/gromit/internal/next/runstore"
 	"github.com/danabrams/gromit/internal/next/specloop"
+	"github.com/danabrams/gromit/internal/next/testutil"
 	"github.com/danabrams/gromit/internal/next/validator"
 )
 
@@ -17,10 +18,18 @@ import (
 // stage runs on cycle 2 (after a replan triggered by code failures), the health
 // check runs again, passes, and validation proceeds normally.
 func TestScenario_HealthCheckPassesOnSecondCycle(t *testing.T) {
-	dir := t.TempDir()
+	// Seed: create a minimal valid project directory with fixtures
+	projectDir := t.TempDir()
+	testutil.WriteMinimalProjectFixtures(t, projectDir)
+
+	// Seed: create a go.mod to make it a valid Go project
+	if err := os.WriteFile(filepath.Join(projectDir, "go.mod"), []byte("module test-project\n"), 0o644); err != nil {
+		t.Fatalf("create go.mod: %v", err)
+	}
 
 	// Seed: a healthy worktree with both .git and go.mod present
-	healthyWorktree := filepath.Join(dir, ".gromit-next", "worktrees", "wt-abc123")
+	repoDir := t.TempDir()
+	healthyWorktree := filepath.Join(repoDir, ".gromit-next", "worktrees", "wt-abc123")
 	if err := os.MkdirAll(healthyWorktree, 0o755); err != nil {
 		t.Fatalf("create worktree dir: %v", err)
 	}
@@ -32,7 +41,7 @@ func TestScenario_HealthCheckPassesOnSecondCycle(t *testing.T) {
 	}
 
 	// Seed: event log to verify health check does not emit recovery events
-	eventLogPath := filepath.Join(dir, "events.jsonl")
+	eventLogPath := filepath.Join(projectDir, "events.jsonl")
 	eventLog := runstore.NewEventLog(eventLogPath)
 
 	// GitOps is provided but should NOT be called for recovery since worktree is healthy
@@ -51,8 +60,8 @@ func TestScenario_HealthCheckPassesOnSecondCycle(t *testing.T) {
 	}
 
 	stage := NewValidateStage(v, ValidateStageConfig{
-		WorkDir: "/tmp/work",
-		RepoDir: dir,
+		WorkDir: projectDir,
+		RepoDir: repoDir,
 	}, eventLog, nil, fakeGit)
 
 	// Seed: RunState simulating cycle 2 after a prior successful cycle 1

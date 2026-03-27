@@ -355,6 +355,68 @@ func TestResumeContract_GateFlagsResetOnResume(t *testing.T) {
 	}
 }
 
+// TestResumeContract_PreservesBaselineFailuresAcrossResume tests via execSpecRun.run directly.
+// See also TestExecSpec_ResumePreservesBaselineFailures in resume_test.go
+// which covers the same behavior via the Cobra command path.
+func TestResumeContract_PreservesBaselineFailuresAcrossResume(t *testing.T) {
+	tmp := t.TempDir()
+
+	store := runstore.NewStore(tmp)
+	prior := runstore.NewRunState("my-spec", "my-proj")
+	prior.Status = runstore.StatusNeedsHuman
+	prior.EndedAt = time.Now()
+	prior.WorktreePath = "/tmp/baseline-worktree"
+	prior.BaselineFailures = map[string]string{"unit-tests": "baseline fail"}
+	if err := store.Save(prior); err != nil {
+		t.Fatalf("save prior run: %v", err)
+	}
+
+	var captured map[string]string
+	provider := &testStageProvider{
+		stages: []specloop.Stage{
+			&stageRecorderFunc{
+				name: "execute",
+				fn: func(rs *runstore.RunState) {
+					captured = rs.BaselineFailures
+				},
+			},
+		},
+	}
+
+	r := &execSpecRun{
+		specPath:      "my-spec.md",
+		projectID:     "my-proj",
+		resumeRunID:   prior.RunID,
+		storeDir:      tmp,
+		stageProvider: provider,
+		policy:        ptrPolicy(execpolicy.DefaultPolicy()),
+		store:         store,
+		out:           io.Discard,
+	}
+
+	if err := r.run(context.Background()); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if captured == nil {
+		t.Fatal("expected baseline failures to be present when resuming")
+	}
+	if got := captured["unit-tests"]; got != "baseline fail" {
+		t.Errorf("baseline failure output mismatch: got %q", got)
+	}
+
+	loaded, err := store.Get(prior.RunID)
+	if err != nil {
+		t.Fatalf("load resumed run: %v", err)
+	}
+	if got := loaded.BaselineFailures["unit-tests"]; got != "baseline fail" {
+		t.Errorf("expected persisted baseline failure, got %q", got)
+	}
+	if loaded.FinalValidationPassed {
+		t.Error("FinalValidationPassed should be false after resume")
+	}
+}
+
 // --- Scenario Tests ---
 
 func TestResumeScenario_HumanSaysKeepGoing(t *testing.T) {

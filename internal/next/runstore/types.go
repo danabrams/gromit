@@ -68,6 +68,7 @@ type RunState struct {
 	FailureHistory          map[string]int              `json:"failure_history,omitempty"`
 	TaskLineage             map[string]TaskLineageEntry `json:"task_lineage,omitempty"`
 	ArchitectureConstraints []string                    `json:"architecture_constraints,omitempty"`
+	BaselineFailures        map[string]string           `json:"baseline_failures,omitempty"`
 }
 
 // See CLAUDE.md nil-field normalization visibility convention:
@@ -97,6 +98,9 @@ func (rs *RunState) NormalizeNilFields() {
 	}
 	if rs.TaskLineage == nil {
 		rs.TaskLineage = make(map[string]TaskLineageEntry)
+	}
+	if rs.BaselineFailures == nil {
+		rs.BaselineFailures = map[string]string{}
 	}
 	for i, entry := range rs.TaskLineage {
 		entry.NormalizeNilFields()
@@ -172,12 +176,13 @@ type InvocationRecord struct {
 // NewRunState creates a new RunState with a generated ID and running status.
 func NewRunState(specID, projectID string) *RunState {
 	return &RunState{
-		RunID:     generateID("run"),
-		SpecID:    specID,
-		ProjectID: projectID,
-		Status:    StatusRunning,
-		StartedAt: time.Now(),
-		Tasks:     []Task{},
+		RunID:            generateID("run"),
+		SpecID:           specID,
+		ProjectID:        projectID,
+		Status:           StatusRunning,
+		StartedAt:        time.Now(),
+		Tasks:            []Task{},
+		BaselineFailures: map[string]string{},
 	}
 }
 

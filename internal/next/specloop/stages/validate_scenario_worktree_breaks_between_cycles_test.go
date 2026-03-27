@@ -9,6 +9,7 @@ import (
 
 	"github.com/danabrams/gromit/internal/next/runstore"
 	"github.com/danabrams/gromit/internal/next/specloop"
+	"github.com/danabrams/gromit/internal/next/testutil"
 	"github.com/danabrams/gromit/internal/next/validator"
 )
 
@@ -20,6 +21,9 @@ import (
 // with RecoverySucceeded: true.
 func TestScenario_WorktreeBreaksBetweenCycles(t *testing.T) {
 	dir := t.TempDir()
+
+	// Scaffold: minimal project fixtures (config and policy)
+	projectFixtures := testutil.WriteMinimalProjectFixtures(t, dir)
 
 	// Seed: a worktree directory that was healthy on cycle 1, but .git was
 	// deleted between cycles (simulating filesystem corruption / manual deletion).
@@ -66,7 +70,7 @@ func TestScenario_WorktreeBreaksBetweenCycles(t *testing.T) {
 	}
 
 	stage := NewValidateStage(v, ValidateStageConfig{
-		WorkDir: "/tmp/work",
+		WorkDir: projectFixtures.ProjectDir,
 		RepoDir: dir,
 	}, eventLog, nil, fakeGit)
 
