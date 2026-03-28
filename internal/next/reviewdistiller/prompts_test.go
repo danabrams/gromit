@@ -2,9 +2,14 @@ package reviewdistiller
 
 import (
 	"encoding/json"
+	"regexp"
 	"strings"
 	"testing"
 )
+
+const outputFormatHeading = "## Output Format"
+const evidenceReferencesConstraint = "evidence_references must be a JSON array"
+const evidenceReferencesArrayHint = `"evidence_references": [`
 
 func TestBuildPrompt_IncludesPreamble(t *testing.T) {
 	inputs := &DistillerInputs{
@@ -54,6 +59,7 @@ func TestBuildPrompt_AcceptedOutcome(t *testing.T) {
 	if !strings.Contains(prompt, "doctrine_rule") {
 		t.Errorf("prompt should reference doctrine_rule for accepted outcome")
 	}
+	assertPromptIncludesOutputFormat(t, prompt, "accepted")
 }
 
 func TestBuildPrompt_ReworkImplementationGapOutcome(t *testing.T) {
@@ -69,6 +75,7 @@ func TestBuildPrompt_ReworkImplementationGapOutcome(t *testing.T) {
 	if !strings.Contains(prompt, "rework_implementation_gap") {
 		t.Errorf("prompt should include rework_implementation_gap outcome instructions")
 	}
+	assertPromptIncludesOutputFormat(t, prompt, "rework_implementation_gap")
 }
 
 func TestBuildPrompt_ReworkVisionChangeOutcome(t *testing.T) {
@@ -88,6 +95,7 @@ func TestBuildPrompt_ReworkVisionChangeOutcome(t *testing.T) {
 	if !strings.Contains(prompt, "refinement_guidance") {
 		t.Errorf("prompt should reference refinement_guidance for rework_vision_change outcome")
 	}
+	assertPromptIncludesOutputFormat(t, prompt, "rework_vision_change")
 }
 
 func TestBuildPrompt_AllArtifacts(t *testing.T) {
@@ -162,5 +170,25 @@ func TestBuildPrompt_ProducesNonEmptyForEachOutcomeType(t *testing.T) {
 				t.Errorf("BuildPrompt should include preamble for outcome %s", outcome)
 			}
 		})
+	}
+}
+
+func assertPromptIncludesOutputFormat(t *testing.T, prompt, outcome string) {
+	t.Helper()
+
+	if !strings.Contains(prompt, outputFormatHeading) {
+		t.Errorf("%s prompt should include %s section", outcome, outputFormatHeading)
+	}
+	if !strings.Contains(prompt, evidenceReferencesConstraint) {
+		t.Errorf("%s prompt should describe the evidence_references constraint", outcome)
+	}
+	if !strings.Contains(prompt, evidenceReferencesArrayHint) {
+		t.Errorf("%s prompt should show evidence_references as an array", outcome)
+	}
+	// Assert that "evidence_references" is immediately followed by "[" on the same line
+	// or on the very next line, confirming structural locality (not just independent presence).
+	re := regexp.MustCompile(`"evidence_references"\s*:\s*\[`)
+	if !re.MatchString(prompt) {
+		t.Errorf(`%s prompt should have "evidence_references" immediately followed by "[", got no match`, outcome)
 	}
 }

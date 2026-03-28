@@ -158,10 +158,19 @@ func parseProposalsFromJSON(jsonStr string) ([]Proposal, error) {
 	}
 
 	if err := json.Unmarshal([]byte(jsonStr), &proposalObj); err != nil {
-		return nil, fmt.Errorf("failed to parse proposals from JSON: %w", err)
+		return nil, fmt.Errorf("failed to parse proposals from JSON: %w; extracted: %s", err, truncateForError(jsonStr, 200))
 	}
 
 	return proposalObj.Proposals, nil
+}
+
+// truncateForError truncates s to at most n bytes, appending "..." if truncated.
+// Used to bound error message size when embedding extracted content.
+func truncateForError(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	return s[:n] + "..."
 }
 
 // GenerateProposalID generates a stable ID for a proposal based on its content.
