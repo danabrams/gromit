@@ -85,10 +85,9 @@ func TestScenario_BuildAlsoFails_NoAnnotation(t *testing.T) {
 	}
 
 	// Invoke 2: run ExecuteStage to assert FailureContext.Failures has no annotation.
-	runner2 := &fakeTaskRunner{
-		results: []specloop.TaskResult{{Status: "done"}},
-	}
-	stage := NewExecuteStage(runner2, ExecuteStageConfig{
+	// runner is reused here; its results slice is exhausted but the fallback path
+	// returns {Status: "done"} which is identical to the original runner2 behavior.
+	stage := NewExecuteStage(runner, ExecuteStageConfig{
 		MaxRetries: 1,
 		Inspector:  inspector,
 	})
