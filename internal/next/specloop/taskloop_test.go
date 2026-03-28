@@ -1114,6 +1114,54 @@ func TestIsBuildCheck_AllowsAdditionalArgs(t *testing.T) {
 	}
 }
 
+func TestIsBuildCheck_MvnMakeCases(t *testing.T) {
+	cases := []struct {
+		cmd  string
+		want bool
+	}{
+		{"mvn compile", true},
+		{"mvn compile -q", true},
+		{"make build", true},
+		{"make build VERBOSE=1", true},
+	}
+	for _, tc := range cases {
+		if isBuildCheck(tc.cmd) != tc.want {
+			t.Errorf("isBuildCheck(%q) = %v, want %v", tc.cmd, isBuildCheck(tc.cmd), tc.want)
+		}
+	}
+}
+
+func TestIsBuildCheck_NpmRunBuild(t *testing.T) {
+	cases := []struct {
+		cmd  string
+		want bool
+	}{
+		{"npm run build", true},
+		{"npm run build -- --mode=prod", true},
+	}
+	for _, tc := range cases {
+		if isBuildCheck(tc.cmd) != tc.want {
+			t.Errorf("isBuildCheck(%q) = %v, want %v", tc.cmd, isBuildCheck(tc.cmd), tc.want)
+		}
+	}
+}
+
+func TestIsBuildCheck_NpmNonBuildIsNotBuildCheck(t *testing.T) {
+	cases := []struct {
+		cmd  string
+		want bool
+	}{
+		{"npm run test", false},
+		{"npm run lint", false},
+		{"npm build", false},
+	}
+	for _, tc := range cases {
+		if isBuildCheck(tc.cmd) != tc.want {
+			t.Errorf("isBuildCheck(%q) = %v, want %v", tc.cmd, isBuildCheck(tc.cmd), tc.want)
+		}
+	}
+}
+
 // TestRunTaskLoop_RedecompositionIDsContinueFromMax verifies that when a task
 // is decomposed into sub-tasks, the sub-task IDs are renumbered to continue
 // from the current maximum task ID in the queue — preventing ID collisions.
