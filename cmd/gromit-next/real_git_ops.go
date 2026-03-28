@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 )
 
 // realGitOps implements stages.GitOps using real git worktree commands.
@@ -16,6 +17,13 @@ type realGitOps struct{}
 // (git worktree add requires the target not to exist), then runs
 // git worktree add -B <branch> <path>.
 func (r *realGitOps) CreateWorktree(repoDir, branch string) (string, error) {
+	// Inception guard: refuse to create a worktree inside an existing worktree.
+	// This prevents recursive gromit-next invocations from nesting worktrees
+	// indefinitely and filling the disk.
+	abs, err := filepath.Abs(repoDir)
+	if err == nil && isInsideWorktree(abs) {
+		return "", fmt.Errorf("inception guard: repoDir %q is inside a .gromit-next/worktrees path; refusing to create nested worktree", repoDir)
+	}
 	// Use a stable directory under the repo instead of OS temp dir,
 	// which macOS can partially clean (deleting .git but leaving subdirs).
 	wtBase := filepath.Join(repoDir, ".gromit-next", "worktrees")
@@ -159,4 +167,22 @@ func (r *realGitOps) RemoveWorktree(path string) error {
 		return forceRemoveAll(path)
 	}
 	return nil
+}
+
+// isInsideWorktree returns true if path contains a ".gromit-next/worktrees/"
+// component, indicating it is already inside a gromit-next managed worktree.
+func isInsideWorktree(path string) bool {
+	return filepath.IsAbs(path) && containsPathComponent(path, ".gromit-next", "worktrees")
+}
+
+// containsPathComponent returns true if path contains the sequence parent/child
+// as consecutive path components anywhere in the path.
+func containsPathComponent(path, parent, child string) bool {
+	parts := strings.Split(filepath.ToSlash(path), "/")
+	for i := 0; i+1 < len(parts); i++ {
+		if parts[i] == parent && parts[i+1] == child {
+			return true
+		}
+	}
+	return false
 }

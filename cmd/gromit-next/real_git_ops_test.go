@@ -101,6 +101,20 @@ func TestRealGitOps_CreateWorktree(t *testing.T) {
 	}
 }
 
+func TestRealGitOps_CreateWorktree_InceptionGuard(t *testing.T) {
+	ops := &realGitOps{}
+	// A repoDir that contains .gromit-next/worktrees/ in its path simulates
+	// a nested invocation inside an existing gromit-next worktree.
+	nestedRepoDir := "/some/project/.gromit-next/worktrees/wt-12345/cmd/gromit-next"
+	_, err := ops.CreateWorktree(nestedRepoDir, "test-branch")
+	if err == nil {
+		t.Fatal("expected inception guard error, got nil")
+	}
+	if !strings.Contains(err.Error(), "inception guard") {
+		t.Errorf("expected 'inception guard' in error, got: %v", err)
+	}
+}
+
 func TestRealGitOps_RemoveWorktree(t *testing.T) {
 	repoDir := initBareRepo(t)
 	ops := &realGitOps{}
