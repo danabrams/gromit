@@ -186,7 +186,9 @@ func (e *execSpecRun) run(ctx context.Context) error {
 	}
 
 	if e.resumeRunID != "" {
-		e.handleResumeEvidence(rs)
+		if err := e.handleResumeEvidence(rs); err != nil {
+			return fmt.Errorf("handle resume evidence: %w", err)
+		}
 	}
 
 	// 3. Create a single shared Budget instance. This same instance is passed
@@ -242,10 +244,10 @@ func (e *execSpecRun) run(ctx context.Context) error {
 	return nil
 }
 
-func (e *execSpecRun) handleResumeEvidence(rs *runstore.RunState) {
+func (e *execSpecRun) handleResumeEvidence(rs *runstore.RunState) error {
 	evidenceDir := e.store.RunEvidenceDir(rs.RunID)
 	e.loadPriorReviewFindings(rs, evidenceDir)
-	e.cleanupEvidenceDir(evidenceDir)
+	return e.cleanupEvidenceDir(evidenceDir)
 }
 
 func (e *execSpecRun) loadPriorReviewFindings(rs *runstore.RunState, evidenceDir string) {
@@ -255,18 +257,23 @@ func (e *execSpecRun) loadPriorReviewFindings(rs *runstore.RunState, evidenceDir
 		if os.IsNotExist(err) {
 			return
 		}
+		out := e.out
+		if out == nil {
+			out = io.Discard
+		}
+		fmt.Fprintf(out, "warning: could not read prior review findings: %v\n", err)
 		return
 	}
 	rs.PriorReviewFindings = json.RawMessage(data)
 }
 
-func (e *execSpecRun) cleanupEvidenceDir(evidenceDir string) {
+func (e *execSpecRun) cleanupEvidenceDir(evidenceDir string) error {
 	entries, err := os.ReadDir(evidenceDir)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return
+			return nil
 		}
-		return
+		return fmt.Errorf("read evidence directory: %w", err)
 	}
 	for _, entry := range entries {
 		name := entry.Name()
@@ -274,10 +281,14 @@ func (e *execSpecRun) cleanupEvidenceDir(evidenceDir string) {
 			continue
 		}
 		path := filepath.Join(evidenceDir, name)
-		if err := os.RemoveAll(path); err != nil && !os.IsNotExist(err) {
-			continue
+		if err := os.RemoveAll(path); err != nil {
+			if os.IsNotExist(err) {
+				continue
+			}
+			return fmt.Errorf("delete stale evidence file %s: %w", name, err)
 		}
 	}
+	return nil
 }
 
 // newExecSpecCmd creates the `exec spec` command. Exported for testing.

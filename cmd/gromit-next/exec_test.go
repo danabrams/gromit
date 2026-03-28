@@ -2189,3 +2189,118 @@ func (c *countingStageProvider) BuildStages(_ execpolicy.Policy, _ *runstore.Run
 	}
 	return nil, nil
 }
+
+// TestHandleResumeEvidence_PreservesOutcomeAndIgnoresIsNotExist verifies that:
+// - review-outcome.json is preserved when cleaning up evidence
+// - other stale files are deleted
+// - os.IsNotExist errors are gracefully ignored
+func TestHandleResumeEvidence_PreservesOutcomeAndIgnoresIsNotExist(t *testing.T) {
+	tmp := t.TempDir()
+	store := runstore.NewStore(tmp)
+
+	// Create a run and its evidence directory
+	rs := runstore.NewRunState("test-preserve-outcome", "proj-test")
+	rs.Status = runstore.StatusReadyForReview
+	if err := store.Save(rs); err != nil {
+		t.Fatalf("save run: %v", err)
+	}
+
+	evidenceDir := store.RunEvidenceDir(rs.RunID)
+	if err := os.MkdirAll(evidenceDir, 0o755); err != nil {
+		t.Fatalf("mkdir evidence: %v", err)
+	}
+
+	// Create stale files and review-outcome.json
+	staleFiles := []string{"review.json", "other_artifact.json", "temp_file.txt"}
+	for _, name := range staleFiles {
+		if err := os.WriteFile(filepath.Join(evidenceDir, name), []byte("stale"), 0o644); err != nil {
+			t.Fatalf("write %s: %v", name, err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(evidenceDir, "review-outcome.json"), []byte("outcome"), 0o644); err != nil {
+		t.Fatalf("write review-outcome.json: %v", err)
+	}
+
+	// Execute handleResumeEvidence
+	run := &execSpecRun{
+		storeDir:    tmp,
+		store:       store,
+		resumeRunID: rs.RunID,
+	}
+
+	// Should not error even though we're cleaning up
+	if err := run.handleResumeEvidence(rs); err != nil {
+		t.Fatalf("handleResumeEvidence: %v", err)
+	}
+
+	// Verify review-outcome.json is preserved
+	outcomeData, err := os.ReadFile(filepath.Join(evidenceDir, "review-outcome.json"))
+	if err != nil {
+		t.Fatalf("review-outcome.json should exist: %v", err)
+	}
+	if string(outcomeData) != "outcome" {
+		t.Fatalf("review-outcome.json corrupted, expected 'outcome', got %q", outcomeData)
+	}
+
+	// Verify stale files are deleted
+	for _, name := range staleFiles {
+		_, err := os.Stat(filepath.Join(evidenceDir, name))
+		if err == nil {
+			t.Errorf("file %s should have been deleted", name)
+		}
+		if !os.IsNotExist(err) {
+			t.Errorf("unexpected error checking %s: %v", name, err)
+		}
+	}
+}
+
+// TestHandleResumeEvidence_ReturnsErrorOnDeleteFailure verifies that:
+// - delete errors other than os.IsNotExist are returned
+// - the error includes path and context information
+func TestHandleResumeEvidence_ReturnsErrorOnDeleteFailure(t *testing.T) {
+	tmp := t.TempDir()
+	store := runstore.NewStore(tmp)
+
+	// Create a run and its evidence directory
+	rs := runstore.NewRunState("test-delete-error", "proj-test")
+	if err := store.Save(rs); err != nil {
+		t.Fatalf("save run: %v", err)
+	}
+
+	evidenceDir := store.RunEvidenceDir(rs.RunID)
+	if err := os.MkdirAll(evidenceDir, 0o755); err != nil {
+		t.Fatalf("mkdir evidence: %v", err)
+	}
+
+	// Create a file we'll try to delete
+	testFile := filepath.Join(evidenceDir, "test.json")
+	if err := os.WriteFile(testFile, []byte("test"), 0o644); err != nil {
+		t.Fatalf("write test.json: %v", err)
+	}
+
+	// Make the evidence directory read-only to cause delete failure
+	if err := os.Chmod(evidenceDir, 0o444); err != nil {
+		t.Fatalf("chmod evidence dir: %v", err)
+	}
+	t.Cleanup(func() {
+		// Restore permissions so t.TempDir can clean up
+		os.Chmod(evidenceDir, 0o755)
+	})
+
+	// Execute handleResumeEvidence - should fail due to read-only directory
+	run := &execSpecRun{
+		storeDir: tmp,
+		store:    store,
+	}
+
+	err := run.handleResumeEvidence(rs)
+	if err == nil {
+		t.Fatal("expected error when deleting from read-only directory, got nil")
+	}
+
+	// Verify error message includes context (path or filename)
+	errStr := err.Error()
+	if !strings.Contains(errStr, "test.json") && !strings.Contains(errStr, "delete stale evidence") {
+		t.Errorf("error should include path or context, got: %v", err)
+	}
+}
