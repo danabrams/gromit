@@ -1,8 +1,13 @@
 Launch an interactive agent session for investigating bugs.
 
 The session receives full project context (CLAUDE.md, RULES.md, LEARNINGS.md)
-and guides free-form investigation to identify root cause, triage severity, and
-produce appropriate outcomes:
+and the debug workflow runs three jobs:
+  - Diagnose: Summarize failure evidence, scope the problem, and explain the root cause.
+  - Fix: Apply or plan a correction, choosing between trivial fixes, clear fixes, or further investigation.
+  - Learn: Capture lessons, distill rule updates, and create backlog items so the same issues stay visible.
+
+The session also guides free-form investigation to identify root cause, triage severity,
+and produce appropriate outcomes:
   - Trivial fix: Apply directly and validate
   - Clear fix: Create investigation report + plan
   - Needs investigation: Create report + backlog item
