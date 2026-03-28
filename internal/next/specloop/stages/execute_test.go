@@ -651,23 +651,23 @@ func TestExecuteStageAllFailedFailureCollection(t *testing.T) {
 	runner := &fakeTaskRunner{
 		results: []specloop.TaskResult{
 			{
-				TaskID:   "t-001",
-				Status:   "failed",
+				TaskID: "t-001",
+				Status: "failed",
 				Failures: []string{
 					"[suspect-proof-check] All build checks pass but pattern-matching checks failed. The implementation may be correct; proof checks may be testing source structure rather than behavior. grep -q '--title' cmd/foo.go: exit status 1",
 				},
 			},
 			{
-				TaskID:   "t-002",
-				Status:   "failed",
+				TaskID: "t-002",
+				Status: "failed",
 				Failures: []string{
 					"[suspect-proof-check] All build checks pass but pattern-matching checks failed. The implementation may be correct; proof checks may be testing source structure rather than behavior. awk '/flagB/' pkg/bar.go: exit status 1",
 					"[suspect-proof-check] All build checks pass but pattern-matching checks failed. The implementation may be correct; proof checks may be testing source structure rather than behavior. grep -q 'SubcommandB' cmd/bar.go: exit status 1",
 				},
 			},
 			{
-				TaskID:   "t-003",
-				Status:   "failed",
+				TaskID: "t-003",
+				Status: "failed",
 				Failures: []string{
 					"go build ./...: exit status 1: undefined: UnfinishedFeature",
 				},
