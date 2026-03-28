@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"strings"
@@ -44,5 +45,23 @@ func TestRootHelpGoldenIncludesPRS(t *testing.T) {
 	content := loadGolden(t, "cmd/gromit/testdata/golden/root.help.txt")
 	if !strings.Contains(content, "  prs           ") {
 		t.Fatalf("root help golden output missing prs entry:\n%s", content)
+	}
+}
+
+func TestRootHelpMentionsDebugJobs(t *testing.T) {
+	buf := new(bytes.Buffer)
+	oldOut := rootCmd.OutOrStdout()
+	rootCmd.SetOut(buf)
+	defer rootCmd.SetOut(oldOut)
+
+	if err := rootCmd.Help(); err != nil {
+		t.Fatalf("failed to render root help: %v", err)
+	}
+
+	text := strings.ToLower(buf.String())
+	for _, job := range []string{"diagnose", "fix", "learn"} {
+		if !strings.Contains(text, job) {
+			t.Fatalf("root help missing mention of %s job: %s", job, text)
+		}
 	}
 }
