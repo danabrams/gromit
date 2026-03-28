@@ -12,6 +12,15 @@ func TestMainRegistersRun2Command(t *testing.T) {
 	}
 }
 
+func TestRegisterRootCommandsRegistersDebug(t *testing.T) {
+	t.Parallel()
+	root := &cobra.Command{}
+	registerRootCommands(root)
+	if !hasSubcommand(root, debugCmd.Name()) {
+		t.Fatalf("registerRootCommands is missing the debug subcommand")
+	}
+}
+
 func hasSubcommand(parent *cobra.Command, name string) bool {
 	for _, cmd := range parent.Commands() {
 		if cmd.Name() == name {
