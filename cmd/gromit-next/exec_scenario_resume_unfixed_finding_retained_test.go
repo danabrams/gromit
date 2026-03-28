@@ -117,12 +117,32 @@ func TestScenario_ResumeAfterRework_UnfixedFindingIsRetainedAsPreExisting(t *tes
 	if err != nil {
 		t.Fatalf("read review.json: %v", err)
 	}
-	content := string(data)
-	if !strings.Contains(content, "os.IsNotExist") {
-		t.Fatalf("expected review.json to retain os.IsNotExist finding, got %s", content)
+	var facets map[string][]review.Finding
+	if err := json.Unmarshal(data, &facets); err != nil {
+		t.Fatalf("unmarshal review.json: %v", err)
 	}
-	if !strings.Contains(content, `"disposition": "pre-existing"`) {
-		t.Fatalf("expected review.json to mark finding as pre-existing, got %s", content)
+	if len(facets) != 1 {
+		t.Fatalf("expected exactly 1 facet key, got %d: %v", len(facets), facets)
+	}
+	findings, ok := facets["spec_alignment"]
+	if !ok {
+		t.Fatalf("expected facet key %q, got keys: %v", "spec_alignment", facets)
+	}
+	if len(findings) != 1 {
+		t.Fatalf("expected exactly 1 finding, got %d: %v", len(findings), findings)
+	}
+	f := findings[0]
+	if f.File != "rejection_history.go" {
+		t.Fatalf("expected File %q, got %q", "rejection_history.go", f.File)
+	}
+	if f.Line != 55 {
+		t.Fatalf("expected Line 55, got %d", f.Line)
+	}
+	if f.Description != "os.IsNotExist guard missing" {
+		t.Fatalf("expected Description %q, got %q", "os.IsNotExist guard missing", f.Description)
+	}
+	if f.Disposition != review.DispositionPreExisting {
+		t.Fatalf("expected Disposition %q, got %q", review.DispositionPreExisting, f.Disposition)
 	}
 }
 

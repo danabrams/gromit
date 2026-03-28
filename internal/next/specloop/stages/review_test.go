@@ -284,11 +284,18 @@ func TestReviewStage_UsesRunStatePriorFindings(t *testing.T) {
 	}
 }
 
-func TestReviewStage_ClearsStalePriorFindingsWhenRunStateEmpty(t *testing.T) {
+func TestReviewStage_PreservesAccumulatedFindingsInNonResumeCycle(t *testing.T) {
+	// Verify that when rs.PriorReviewFindings is empty (fresh/non-resume cycle),
+	// the runner receives zero-value prior findings (AC5 compliance), even though
+	// stage-local s.priorFindings may accumulate for internal deduplication.
 	var capturedInput review.RunInput
 	runner := &capturingReviewRunner{
 		resultFn: func() *review.RunResult {
-			return &review.RunResult{}
+			return &review.RunResult{
+				AllFindings:         []review.Finding{},
+				BlockingFindings:    []review.Finding{},
+				HasBlockingFindings: false,
+			}
 		},
 		capture: func(input review.RunInput) {
 			capturedInput = input
@@ -296,22 +303,24 @@ func TestReviewStage_ClearsStalePriorFindingsWhenRunStateEmpty(t *testing.T) {
 	}
 
 	stage := NewReviewStage(runner, ReviewStageConfig{}, nil)
-	stage.priorFindings = []review.Finding{
-		{Facet: "stale", Severity: review.SeverityWarning, File: "legacy.go", Description: "old issue"},
+	accumulatedFinding := review.Finding{
+		Facet: "spec_alignment", Severity: review.SeverityWarning, File: "handler.go", Description: "unresolved issue",
 	}
+	stage.priorFindings = []review.Finding{accumulatedFinding}
 
 	rs := runstore.NewRunState("test-spec", "test-project")
-	rs.Cycle = 1
+	rs.Cycle = 2
+	// rs.PriorReviewFindings is empty (fresh/non-resume case)
 
 	if _, err := stage.Run(context.Background(), rs); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
 
+	// AC5 behavior: when payload is empty, runner receives zero-value prior findings
+	// even if stage has accumulated findings internally (for deduplication)
 	if len(capturedInput.PriorFindings) != 0 {
-		t.Fatalf("expected prior findings to be cleared, got %v", capturedInput.PriorFindings)
-	}
-	if len(stage.priorFindings) != 0 {
-		t.Fatalf("expected stage.priorFindings to be empty after clearing, got %v", stage.priorFindings)
+		t.Fatalf("expected 0 prior findings passed to runner (AC5 behavior), got %d: %v",
+			len(capturedInput.PriorFindings), capturedInput.PriorFindings)
 	}
 }
 
@@ -1143,5 +1152,295 @@ func TestReviewStage_PostVerificationBlockingCount(t *testing.T) {
 
 	if resultEvent.BlockingFindings != 1 {
 		t.Errorf("expected BlockingFindings=1 (post-verification count), got %d", resultEvent.BlockingFindings)
+	}
+}
+
+// TestReviewStageRun_HydratesPriorFindingsFromRunState verifies that when
+// rs.PriorReviewFindings is populated, the stage hydrates them and passes them
+// to the runner.
+func TestReviewStageRun_HydratesPriorFindingsFromRunState(t *testing.T) {
+	priorFinding := review.Finding{
+		Facet:       "spec_alignment",
+		Severity:    review.SeverityWarning,
+		File:        "handler.go",
+		Line:        42,
+		Description: "missing nil check",
+	}
+
+	var capturedInput review.RunInput
+	runner := &capturingReviewRunner{
+		capture: func(input review.RunInput) {
+			capturedInput = input
+		},
+		resultFn: func() *review.RunResult {
+			return &review.RunResult{
+				AllFindings:         []review.Finding{},
+				BlockingFindings:    []review.Finding{},
+				HasBlockingFindings: false,
+			}
+		},
+	}
+
+	stage := NewReviewStage(runner, ReviewStageConfig{
+		DiffProvider: &fakeDiffProvider{diff: "some diff"},
+	}, nil)
+
+	rs := runstore.NewRunState("test-spec", "test-project")
+	rs.Cycle = 1
+	rs.PriorReviewFindings = mustMarshalPriorFindings(t, "spec_alignment", []review.Finding{priorFinding})
+
+	action, err := stage.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	if action.Kind != specloop.Continue {
+		t.Errorf("expected Continue, got %v", action.Kind)
+	}
+
+	// Verify the runner received the hydrated prior finding
+	if len(capturedInput.PriorFindings) != 1 {
+		t.Errorf("expected 1 prior finding, got %d", len(capturedInput.PriorFindings))
+		return
+	}
+
+	if capturedInput.PriorFindings[0].File != "handler.go" {
+		t.Errorf("expected prior finding file=handler.go, got %s", capturedInput.PriorFindings[0].File)
+	}
+	if capturedInput.PriorFindings[0].Description != "missing nil check" {
+		t.Errorf("expected prior finding description='missing nil check', got %s", capturedInput.PriorFindings[0].Description)
+	}
+}
+
+// TestReviewStageRun_PreservesExistingPriorFindingsWhenRunStatePayloadEmpty verifies:
+// when rs.PriorReviewFindings is empty (normal non-resume execution), the runner receives
+// accumulated s.priorFindings from prior cycles, enabling in-process multi-cycle carry-forward.
+func TestReviewStageRun_PreservesExistingPriorFindingsWhenRunStatePayloadEmpty(t *testing.T) {
+	cycle1Finding := review.Finding{
+		Facet:       "code_quality",
+		Severity:    review.SeverityInfo,
+		File:        "util.go",
+		Line:        10,
+		Description: "consider extracting helper",
+	}
+
+	var capturedInputs []review.RunInput
+	runner := &capturingReviewRunner{
+		capture: func(input review.RunInput) {
+			capturedInputs = append(capturedInputs, input)
+		},
+		resultFn: func() *review.RunResult {
+			return &review.RunResult{
+				AllFindings:         []review.Finding{cycle1Finding},
+				BlockingFindings:    []review.Finding{},
+				HasBlockingFindings: false,
+				FindingsByFacet: map[string][]review.Finding{
+					"code_quality": {cycle1Finding},
+				},
+			}
+		},
+	}
+
+	stage := NewReviewStage(runner, ReviewStageConfig{
+		DiffProvider: &fakeDiffProvider{diff: "some diff"},
+	}, nil)
+
+	rs := runstore.NewRunState("test-spec", "test-project")
+
+	// Cycle 1: rs.PriorReviewFindings is empty (fresh start), runner gets no prior findings
+	rs.Cycle = 1
+	action, err := stage.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("Cycle 1 Run: %v", err)
+	}
+	if action.Kind != specloop.Continue {
+		t.Errorf("Cycle 1: expected Continue, got %v", action.Kind)
+	}
+
+	// Verify Cycle 1 had no prior findings (fresh start, s.priorFindings initially empty)
+	if len(capturedInputs[0].PriorFindings) != 0 {
+		t.Errorf("Cycle 1: expected 0 prior findings, got %d", len(capturedInputs[0].PriorFindings))
+	}
+	// After Cycle 1, stage.priorFindings now contains the cycle1Finding
+	if len(stage.priorFindings) != 1 {
+		t.Fatalf("Cycle 1: expected stage to accumulate 1 finding, got %d", len(stage.priorFindings))
+	}
+
+	// Cycle 2: rs.PriorReviewFindings is still empty (not a resume).
+	// With AC5 compliance, runner receives zero-value findings when payload is empty,
+	// even if stage has accumulated findings internally (for deduplication).
+	rs.Cycle = 2
+	rs.PriorReviewFindings = nil // Explicitly empty, as it would be in normal execution
+	action, err = stage.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("Cycle 2 Run: %v", err)
+	}
+	if action.Kind != specloop.Continue {
+		t.Errorf("Cycle 2: expected Continue, got %v", action.Kind)
+	}
+
+	// Cycle 2 runner receives zero-value findings (AC5 behavior: pass nil when payload is empty)
+	if len(capturedInputs[1].PriorFindings) != 0 {
+		t.Errorf("Cycle 2: expected 0 prior findings (AC5 behavior), got %d: %v",
+			len(capturedInputs[1].PriorFindings), capturedInputs[1].PriorFindings)
+		return
+	}
+
+	// stage.priorFindings should still contain the accumulated finding for deduplication
+	if len(stage.priorFindings) != 1 {
+		t.Errorf("Cycle 2: expected stage.priorFindings to contain 1 accumulated finding, got %d", len(stage.priorFindings))
+	}
+	if stage.priorFindings[0].File != "util.go" {
+		t.Errorf("Cycle 2: expected stage.priorFindings[0].File='util.go', got %s", stage.priorFindings[0].File)
+	}
+}
+
+// TestReviewStage_ClearsStalePriorFindingsWhenRunStateEmpty verifies that when a stage instance
+// is reused but rs.PriorReviewFindings is empty, stale findings from a prior resume don't leak
+// into the runner input. This tests "clear when empty" behavior to prevent stale findings
+// across resumed/non-resumed transitions.
+func TestReviewStage_ClearsStalePriorFindingsWhenRunStateEmpty(t *testing.T) {
+	staleFinding := review.Finding{
+		Facet:       "spec_alignment",
+		Severity:    review.SeverityWarning,
+		File:        "old_file.go",
+		Line:        99,
+		Description: "stale finding from prior resume",
+	}
+
+	var capturedInputs []review.RunInput
+	runner := &capturingReviewRunner{
+		capture: func(input review.RunInput) {
+			capturedInputs = append(capturedInputs, input)
+		},
+		resultFn: func() *review.RunResult {
+			return &review.RunResult{
+				AllFindings:         []review.Finding{},
+				BlockingFindings:    []review.Finding{},
+				HasBlockingFindings: false,
+			}
+		},
+	}
+
+	stage := NewReviewStage(runner, ReviewStageConfig{
+		DiffProvider: &fakeDiffProvider{diff: "some diff"},
+	}, nil)
+
+	// First run: resume with prior findings
+	rs1 := runstore.NewRunState("test-spec", "project1")
+	rs1.Cycle = 1
+	rs1.PriorReviewFindings = mustMarshalPriorFindings(t, "spec_alignment", []review.Finding{staleFinding})
+
+	action1, err := stage.Run(context.Background(), rs1)
+	if err != nil {
+		t.Fatalf("Run 1 (resume): %v", err)
+	}
+	if action1.Kind != specloop.Continue {
+		t.Errorf("Run 1: expected Continue, got %v", action1.Kind)
+	}
+
+	// After Run 1, stage.priorFindings should be hydrated with the stale finding
+	if len(stage.priorFindings) != 1 {
+		t.Fatalf("Run 1: expected stage.priorFindings to contain 1 finding, got %d", len(stage.priorFindings))
+	}
+	if stage.priorFindings[0].File != "old_file.go" {
+		t.Errorf("Run 1: expected stage.priorFindings[0].File='old_file.go', got %s", stage.priorFindings[0].File)
+	}
+
+	// Second run: fresh cycle without resume (empty PriorReviewFindings)
+	// This simulates a new run or a continuation that's not a resume.
+	rs2 := runstore.NewRunState("test-spec", "project2")
+	rs2.Cycle = 1
+	rs2.PriorReviewFindings = nil // Empty, not a resume
+
+	action2, err := stage.Run(context.Background(), rs2)
+	if err != nil {
+		t.Fatalf("Run 2 (no resume): %v", err)
+	}
+	if action2.Kind != specloop.Continue {
+		t.Errorf("Run 2: expected Continue, got %v", action2.Kind)
+	}
+
+	// The runner should receive zero-value prior findings, not the stale ones from Run 1
+	if len(capturedInputs) < 2 {
+		t.Fatalf("expected 2 captured inputs, got %d", len(capturedInputs))
+	}
+
+	// Run 2 runner input should have empty/zero-value prior findings (cleared)
+	// NOT the stale finding from Run 1
+	if len(capturedInputs[1].PriorFindings) != 0 {
+		t.Errorf("Run 2: expected 0 prior findings (cleared), got %d: %v",
+			len(capturedInputs[1].PriorFindings), capturedInputs[1].PriorFindings)
+	}
+}
+
+func TestReviewStage_MalformedPriorFindingsJSON_FallsBackToNil(t *testing.T) {
+	var capturedInput review.RunInput
+	runner := &capturingReviewRunner{
+		resultFn: func() *review.RunResult {
+			return &review.RunResult{
+				AllFindings:         []review.Finding{},
+				BlockingFindings:    []review.Finding{},
+				HasBlockingFindings: false,
+			}
+		},
+		capture: func(input review.RunInput) {
+			capturedInput = input
+		},
+	}
+
+	stage := NewReviewStage(runner, ReviewStageConfig{}, nil)
+	rs := runstore.NewRunState("test-spec", "test-project")
+	rs.Cycle = 1
+	rs.PriorReviewFindings = json.RawMessage("not-json")
+
+	action, err := stage.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("Run() returned unexpected error: %v", err)
+	}
+	if action.Kind != specloop.Continue {
+		t.Errorf("expected Continue, got %v", action.Kind)
+	}
+	if capturedInput.PriorFindings != nil {
+		t.Errorf("expected nil prior findings passed to runner, got %v", capturedInput.PriorFindings)
+	}
+	if stage.priorFindings != nil {
+		t.Errorf("expected stage.priorFindings to remain nil after parse error, got %v", stage.priorFindings)
+	}
+}
+
+func TestReviewStage_NonArrayFacetPayload_FallsBackToNil(t *testing.T) {
+	var capturedInput review.RunInput
+	runner := &capturingReviewRunner{
+		resultFn: func() *review.RunResult {
+			return &review.RunResult{
+				AllFindings:         []review.Finding{},
+				BlockingFindings:    []review.Finding{},
+				HasBlockingFindings: false,
+			}
+		},
+		capture: func(input review.RunInput) {
+			capturedInput = input
+		},
+	}
+
+	stage := NewReviewStage(runner, ReviewStageConfig{}, nil)
+	rs := runstore.NewRunState("test-spec", "test-project")
+	rs.Cycle = 1
+	// Valid outer JSON, but facet value is a string instead of an array
+	rs.PriorReviewFindings = json.RawMessage(`{"spec_alignment": "not-an-array"}`)
+
+	action, err := stage.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("Run() returned unexpected error: %v", err)
+	}
+	if action.Kind != specloop.Continue {
+		t.Errorf("expected Continue, got %v", action.Kind)
+	}
+	if capturedInput.PriorFindings != nil {
+		t.Errorf("expected nil prior findings passed to runner, got %v", capturedInput.PriorFindings)
+	}
+	if stage.priorFindings != nil {
+		t.Errorf("expected stage.priorFindings to remain nil after parse error, got %v", stage.priorFindings)
 	}
 }

@@ -1,6 +1,7 @@
 package stages
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -35,11 +36,13 @@ type ReviewStageConfig struct {
 
 // ReviewStage runs faceted code review and decides whether findings block progress.
 type ReviewStage struct {
-	runner        ReviewRunner
-	cfg           ReviewStageConfig
-	eventLog      *runstore.EventLog
-	bundler       *evidence.Bundler
-	priorFindings []review.Finding
+	runner              ReviewRunner
+	cfg                 ReviewStageConfig
+	eventLog            *runstore.EventLog
+	bundler             *evidence.Bundler
+	priorFindings       []review.Finding
+	lastRunID           string // Track the last RunID to clear stale findings when run changes
+	lastHydratedPayload []byte // Track last-seen payload to detect resume changes (for re-hydration)
 }
 
 // NewReviewStage creates a new ReviewStage.
@@ -82,21 +85,40 @@ func (s *ReviewStage) Run(ctx context.Context, rs *runstore.RunState) (specloop.
 		}
 	}
 
-	if len(rs.PriorReviewFindings) > 0 {
+	// Detect run transitions: if RunID changed, clear stale findings from prior run
+	if rs.RunID != "" && s.lastRunID != "" && rs.RunID != s.lastRunID {
+		s.priorFindings = nil
+		s.lastHydratedPayload = nil // Also reset hydration tracker for new run
+	}
+	s.lastRunID = rs.RunID
+
+	// Hydrate s.priorFindings from new/changed resume payload (one-time per payload).
+	// If the payload differs from what we previously hydrated, rehydrate (handles resume changes).
+	if len(rs.PriorReviewFindings) > 0 && !bytes.Equal(rs.PriorReviewFindings, s.lastHydratedPayload) {
 		if prior, err := parsePriorReviewFindings(rs.PriorReviewFindings); err == nil {
 			s.priorFindings = prior
+			s.lastHydratedPayload = rs.PriorReviewFindings
 		} else {
-			s.priorFindings = nil
+			fmt.Fprintf(os.Stderr, "warning: failed to parse prior review findings: %v\n", err)
 		}
+	}
+
+	// Compute runner input from RunState payload semantics (AC5):
+	// - If payload is non-empty (resumed run): hydrated s.priorFindings
+	// - If payload is empty (fresh run): zero-value (nil) to prevent stale carryover
+	// Stage-local s.priorFindings accumulates for deduplication, but only payload drives runner input.
+	var runnerPriorFindings []review.Finding
+	if len(rs.PriorReviewFindings) > 0 {
+		runnerPriorFindings = s.priorFindings
 	} else {
-		s.priorFindings = nil
+		runnerPriorFindings = nil
 	}
 
 	result, err := s.runner.Run(ctx, review.RunInput{
 		DiffSummary:   diffSummary,
 		SpecContent:   s.cfg.SpecContent,
 		Cycle:         rs.Cycle,
-		PriorFindings: s.priorFindings,
+		PriorFindings: runnerPriorFindings,
 	})
 	if err != nil {
 		return specloop.NextAction{}, fmt.Errorf("review run: %w", err)
