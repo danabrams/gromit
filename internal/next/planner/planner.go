@@ -266,7 +266,8 @@ func buildFixPlanPrompt(req FixPlanRequest) string {
 
 	b.WriteString("## Task Granularity\n")
 	b.WriteString("Each task should touch at most 3-4 files in expected_touched_area. If a fix requires more files, split it into multiple tasks.\n")
-	b.WriteString("Scenario-driven work (e.g. updating multiple test files or fixing multiple independent scenarios) MUST be decomposed as one task per scenario or test file, not bundled into a single aggregate task.\n\n")
+	b.WriteString("Scenario-driven work (e.g. updating multiple test files or fixing multiple independent scenarios) MUST be decomposed as one task per scenario or test file, not bundled into a single aggregate task.\n")
+	b.WriteString("Scenario test files follow the naming convention `cmd/gromit-next/exec_scenario_<kebab-scenario-name>_test.go`. Each scenario task's expected_touched_area must name its specific test file — never leave expected_touched_area empty for a scenario task.\n\n")
 	b.WriteString("## Output Format\n")
 	b.WriteString("Respond with a JSON object:\n")
 	b.WriteString("- kind: must be \"fix\"\n")
@@ -282,6 +283,7 @@ func buildFixPlanPrompt(req FixPlanRequest) string {
 	b.WriteString("  - expected_touched_area: array of strings (file paths or directories)\n")
 	b.WriteString("  - proof_checks: array of EXECUTABLE SHELL COMMANDS to verify the fix. Must be runnable via `sh -c`. No prose descriptions.\n")
 	b.WriteString("    **CRITICAL: All file paths in proof_checks and expected_touched_area must be relative to the project root (e.g. `internal/pkg/foo.go`). NEVER use `.gromit-next/worktrees/...` prefixes.**\n")
+	b.WriteString("    **CRITICAL: Never infer filenames from type or package names. A type named `FooBar` does NOT imply a file named `foo_bar.go`. Go files are named by domain concept, not by the types they contain. If the spec does not state the exact filename, use only the package directory in expected_touched_area (e.g. `internal/next/runstore/`) rather than guessing a specific filename.**\n")
 	b.WriteString("    **Proof check quality rules** (same as original plan):\n")
 	b.WriteString("    - Every task modifying `.go` files MUST include `go build ./...`.\n")
 	b.WriteString("    - Prefer `go test -run TestX -v ./path/to/pkg/` over `grep -q 'func X'` — verify behavior, not presence.\n")
@@ -351,7 +353,8 @@ func buildPlanPrompt(req PlanRequest) string {
 
 	b.WriteString("## Task Granularity\n")
 	b.WriteString("Each task should touch at most 3-4 files in expected_touched_area. If a logical unit requires more files, split it into multiple tasks.\n")
-	b.WriteString("Scenario-driven work (e.g. updating multiple test files or implementing multiple independent scenarios) MUST be decomposed as one task per scenario or test file, not bundled into a single aggregate task. Bundling defers failures to later fix cycles.\n\n")
+	b.WriteString("Scenario-driven work (e.g. updating multiple test files or implementing multiple independent scenarios) MUST be decomposed as one task per scenario or test file, not bundled into a single aggregate task. Bundling defers failures to later fix cycles.\n")
+	b.WriteString("Scenario test files follow the naming convention `cmd/gromit-next/exec_scenario_<kebab-scenario-name>_test.go`. Each scenario task's expected_touched_area must name its specific test file — never leave expected_touched_area empty for a scenario task.\n\n")
 	b.WriteString("## Architecture Decisions (think before decomposing)\n")
 	b.WriteString("Before decomposing tasks, document cross-cutting conventions and constraints:\n")
 	b.WriteString("- Type semantics: What do core types represent? (e.g., Path is always relative to project root)\n")
@@ -368,7 +371,8 @@ func buildPlanPrompt(req PlanRequest) string {
 	b.WriteString("expected_touched_area must be an array of strings (e.g. [\"calc/calc.go\"]).\n")
 	b.WriteString("Each task needs: task_id, objective, expected_touched_area, proof_checks.\n")
 	b.WriteString("proof_checks must be EXECUTABLE SHELL COMMANDS only (run via `sh -c`). No prose descriptions — only runnable commands.\n")
-	b.WriteString("**CRITICAL: All file paths in proof_checks and expected_touched_area must be relative to the project root (e.g. `internal/pkg/foo.go`). NEVER use `.gromit-next/worktrees/...` prefixes.**\n\n")
+	b.WriteString("**CRITICAL: All file paths in proof_checks and expected_touched_area must be relative to the project root (e.g. `internal/pkg/foo.go`). NEVER use `.gromit-next/worktrees/...` prefixes.**\n")
+	b.WriteString("**CRITICAL: Never infer filenames from type or package names. A type named `FooBar` does NOT imply a file named `foo_bar.go`. Go files are named by domain concept, not by the types they contain. If the spec does not state the exact filename, use only the package directory in expected_touched_area (e.g. `internal/next/runstore/`) rather than guessing a specific filename.**\n\n")
 
 	b.WriteString("## Proof Check Quality Guidelines\n")
 	b.WriteString("Proof checks must verify BEHAVIOR, not just PRESENCE of code. Follow these rules in priority order:\n\n")

@@ -76,6 +76,8 @@ The review prompt gains an instruction when `PriorFindings` is non-empty:
 
 ### Scenario: Resume after rework — fixed finding is dropped
 
+**Test file:** `cmd/gromit-next/exec_scenario_resume_fixed_finding_dropped_test.go`
+
 **Given:** a run in `ready_for_review` with `review.json` containing one finding: `SourceRunID dead type` at `promote.go:14` with `disposition: "new"`
 **And:** the rework has removed `type SourceRunID string` from `promote.go`
 **When:** the run is resumed and the review stage executes
@@ -86,12 +88,16 @@ The review prompt gains an instruction when `PriorFindings` is non-empty:
 
 ### Scenario: Resume after rework — unfixed finding is retained
 
+**Test file:** `cmd/gromit-next/exec_scenario_resume_unfixed_finding_retained_test.go`
+
 **Given:** a run in `ready_for_review` with `review.json` containing a finding: `os.IsNotExist` at `rejection_history.go:55` with `disposition: "new"`
 **And:** the rework did not fix the `os.IsNotExist` issue
 **When:** the run is resumed and the review stage executes
 **Then:** the new `review.json` contains the `os.IsNotExist` finding with `disposition: "pre-existing"`
 
 ### Scenario: Resume with no prior review.json
+
+**Test file:** `cmd/gromit-next/exec_scenario_resume_no_prior_review_prompt_test.go`
 
 **Given:** a run that is resumed but `review.json` does not exist in the evidence directory (e.g. first resume, stages haven't completed yet)
 **When:** the resume path executes
@@ -100,6 +106,8 @@ The review prompt gains an instruction when `PriorFindings` is non-empty:
 **And:** the review prompt contains no prior-finding triage instruction
 
 ### Scenario: review-outcome.json is preserved
+
+**Test file:** `cmd/gromit-next/exec_scenario_resume_outcome_preserved_test.go`
 
 **Given:** a run with both `review.json` and `review-outcome.json` in the evidence directory
 **When:** the run is resumed

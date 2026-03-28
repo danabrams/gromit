@@ -1,3 +1,4 @@
+DONE 2026-03-27
 # Spec 0004j — Baseline Failure Exclusion and Test Fixture Standard
 
 ## spec_id
