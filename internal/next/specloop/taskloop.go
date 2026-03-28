@@ -3,6 +3,8 @@ package specloop
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -234,8 +236,11 @@ func RunTaskLoop(ctx context.Context, tasks []runstore.Task, runner TaskRunner, 
 			// previously captured proof-check data.
 			result.Failures = nil
 			// Drain the stateful detector so the next task starts with a fresh baseline.
+			// Capture the result so the planner can see what was written before the error.
 			if cfg.DetectFilesChanged != nil && cfg.WorkDir != "" {
-				cfg.DetectFilesChanged(cfg.WorkDir) //nolint:errcheck
+				if changed, dErr := cfg.DetectFilesChanged(cfg.WorkDir); dErr == nil {
+					result.FilesChanged = changed
+				}
 			}
 			result.TaskID = entry.task.TaskID
 			result.Status = "failed"
@@ -245,6 +250,7 @@ func RunTaskLoop(ctx context.Context, tasks []runstore.Task, runner TaskRunner, 
 				TaskID:    entry.task.TaskID,
 				Reason:    err.Error(),
 			})
+			emitPhantomTaskFailureIfNeeded(cfg.EventLog, cfg.WorkDir, entry.task, result.FilesChanged)
 			results = append(results, result)
 			continue
 		}
@@ -427,12 +433,37 @@ func RunTaskLoop(ctx context.Context, tasks []runstore.Task, runner TaskRunner, 
 				TaskID:    entry.task.TaskID,
 				Reason:    "task execution failed",
 			})
+			emitPhantomTaskFailureIfNeeded(cfg.EventLog, cfg.WorkDir, entry.task, result.FilesChanged)
 		}
 
 		results = append(results, result)
 	}
 
 	return results, nil
+}
+
+// emitPhantomTaskFailureIfNeeded emits a phantom_task_failure event when a task
+// failed without writing any files and at least one expected deliverable is missing
+// from disk. This helps the planner distinguish "code that needs fixing" from
+// "file that was never written".
+func emitPhantomTaskFailureIfNeeded(el *runstore.EventLog, workDir string, task runstore.Task, filesChanged []string) {
+	if len(filesChanged) > 0 || workDir == "" {
+		return
+	}
+	var missing []string
+	for _, path := range task.ExpectedTouchedArea {
+		fullPath := filepath.Join(workDir, path)
+		if _, statErr := os.Stat(fullPath); os.IsNotExist(statErr) {
+			missing = append(missing, path)
+		}
+	}
+	if len(missing) > 0 {
+		emitTaskEvent(el, runstore.PhantomTaskFailureEvent{
+			BaseEvent:    runstore.BaseEvent{Type: "phantom_task_failure", Timestamp: time.Now()},
+			TaskID:       task.TaskID,
+			MissingFiles: missing,
+		})
+	}
 }
 
 // emitTaskEvent appends an event to the log if the log is non-nil.

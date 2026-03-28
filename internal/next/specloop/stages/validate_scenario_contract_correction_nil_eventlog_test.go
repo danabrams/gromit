@@ -100,7 +100,7 @@ Test feature.
 	contractPath := filepath.Join(dir, "scenario-contracts.yaml")
 
 	// Act: call attemptContractCorrection with nil eventLog
-	corrected, remaining := stage.attemptContractCorrection(sc, failures, worktreePath, contractPath)
+	corrected, remaining := stage.attemptContractCorrection(sc, failures, worktreePath, contractPath, nil)
 
 	// Assert: no correction should occur (AC mentions original.go)
 	if len(corrected) != 0 {
@@ -214,7 +214,7 @@ Test feature.
 	)
 
 	// Act: call attemptContractCorrection — guard should NOT fire, correction accepted
-	corrected, remaining := stage.attemptContractCorrection(sc, failures, worktreePath, contractPath)
+	corrected, remaining := stage.attemptContractCorrection(sc, failures, worktreePath, contractPath, nil)
 
 	// Assert: correction was accepted (corrected count > 0)
 	if len(corrected) == 0 {

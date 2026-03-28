@@ -3,6 +3,7 @@ package specloop
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -1230,5 +1231,192 @@ func TestRunTaskLoop_RedecompositionIDsContinueFromMax(t *testing.T) {
 			ids = append(ids, r.TaskID+"="+r.Status)
 		}
 		t.Fatalf("expected 3 renumbered sub-tasks (t-007..t-009) in results, got %d; results: %v", foundRenumbered, ids)
+	}
+}
+
+// TestTaskLoop_CapturesFilesChangedOnRunnerError verifies that when the runner
+// returns an error, DetectFilesChanged is still called and its result is captured
+// in FilesChanged (Fix A1).
+func TestTaskLoop_CapturesFilesChangedOnRunnerError(t *testing.T) {
+	runner := &fakeTaskRunner{fn: func(_ context.Context, task runstore.Task) (TaskResult, error) {
+		return TaskResult{}, fmt.Errorf("runner LLM error")
+	}}
+	tasks := []runstore.Task{{TaskID: "t-001", Status: "pending"}}
+
+	callCount := 0
+	detector := func(workDir string) ([]string, error) {
+		callCount++
+		if callCount == 1 {
+			return []string{}, nil // baseline
+		}
+		return []string{"foo.go"}, nil // files written before runner errored
+	}
+
+	results, err := RunTaskLoop(context.Background(), tasks, runner, TaskLoopConfig{
+		MaxRetries:         0,
+		WorkDir:            "/tmp/test",
+		DetectFilesChanged: detector,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if results[0].Status != "failed" {
+		t.Fatalf("expected failed status, got %q", results[0].Status)
+	}
+	if len(results[0].FilesChanged) != 1 || results[0].FilesChanged[0] != "foo.go" {
+		t.Fatalf("expected FilesChanged=[foo.go] on runner error, got %v", results[0].FilesChanged)
+	}
+}
+
+// TestTaskLoop_EmitsPhantomTaskFailureWhenExpectedFilesMissing verifies that when
+// a task fails with empty files_changed and an expected file does not exist on disk,
+// a phantom_task_failure event is emitted (Fix A2).
+func TestTaskLoop_EmitsPhantomTaskFailureWhenExpectedFilesMissing(t *testing.T) {
+	workDir := t.TempDir()
+	// "new_feature.go" is not created on disk — it's the phantom file.
+	runner := &fakeTaskRunner{fn: func(_ context.Context, task runstore.Task) (TaskResult, error) {
+		return TaskResult{}, fmt.Errorf("runner LLM error")
+	}}
+	tasks := []runstore.Task{{
+		TaskID:              "t-001",
+		Status:              "pending",
+		ExpectedTouchedArea: []string{"new_feature.go"},
+	}}
+
+	el, _ := newTestEventLog(t)
+	detector := func(_ string) ([]string, error) {
+		return []string{}, nil // no files written
+	}
+
+	results, err := RunTaskLoop(context.Background(), tasks, runner, TaskLoopConfig{
+		MaxRetries:         0,
+		WorkDir:            workDir,
+		DetectFilesChanged: detector,
+		EventLog:           el,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if results[0].Status != "failed" {
+		t.Fatalf("expected failed, got %q", results[0].Status)
+	}
+
+	events, readErr := el.ReadAll()
+	if readErr != nil {
+		t.Fatalf("read events: %v", readErr)
+	}
+	var found bool
+	for _, ev := range events {
+		if ev.EventType() == "phantom_task_failure" {
+			pev := ev.(*runstore.PhantomTaskFailureEvent)
+			if pev.TaskID != "t-001" {
+				t.Errorf("phantom event TaskID: want t-001, got %q", pev.TaskID)
+			}
+			if len(pev.MissingFiles) != 1 || pev.MissingFiles[0] != "new_feature.go" {
+				t.Errorf("phantom event MissingFiles: want [new_feature.go], got %v", pev.MissingFiles)
+			}
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("expected phantom_task_failure event to be emitted, none found")
+	}
+}
+
+// TestTaskLoop_NoPhantomEventWhenFilesWereChanged verifies that no phantom event
+// is emitted when files_changed is non-empty, even if the task failed.
+func TestTaskLoop_NoPhantomEventWhenFilesWereChanged(t *testing.T) {
+	workDir := t.TempDir()
+	runner := &fakeTaskRunner{fn: func(_ context.Context, task runstore.Task) (TaskResult, error) {
+		return TaskResult{Status: "done"}, nil
+	}}
+	// Inspector always fails — task ends up failed with files_changed set by detector.
+	inspector := &fakeInspector{pass: false}
+	tasks := []runstore.Task{{
+		TaskID:              "t-001",
+		Status:              "pending",
+		ExpectedTouchedArea: []string{"new_feature.go"},
+	}}
+
+	el, _ := newTestEventLog(t)
+	callCount := 0
+	detector := func(_ string) ([]string, error) {
+		callCount++
+		if callCount == 1 {
+			return []string{}, nil
+		}
+		return []string{"some_file.go"}, nil // files were changed
+	}
+
+	results, err := RunTaskLoop(context.Background(), tasks, runner, TaskLoopConfig{
+		MaxRetries:         0,
+		Inspector:          inspector,
+		WorkDir:            workDir,
+		DetectFilesChanged: detector,
+		EventLog:           el,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if results[0].Status != "failed" {
+		t.Fatalf("expected failed, got %q", results[0].Status)
+	}
+
+	events, readErr := el.ReadAll()
+	if readErr != nil {
+		t.Fatalf("read events: %v", readErr)
+	}
+	for _, ev := range events {
+		if ev.EventType() == "phantom_task_failure" {
+			t.Fatal("unexpected phantom_task_failure event emitted when files_changed is non-empty")
+		}
+	}
+}
+
+// TestTaskLoop_NoPhantomEventWhenExpectedFilesExist verifies that no phantom event
+// is emitted when files_changed is empty but the expected file already exists on disk.
+func TestTaskLoop_NoPhantomEventWhenExpectedFilesExist(t *testing.T) {
+	workDir := t.TempDir()
+	// Create the expected file on disk so it's not "missing".
+	existingFile := workDir + "/existing_feature.go"
+	if err := os.WriteFile(existingFile, []byte("package main\n"), 0o644); err != nil {
+		t.Fatalf("setup: write file: %v", err)
+	}
+
+	runner := &fakeTaskRunner{fn: func(_ context.Context, task runstore.Task) (TaskResult, error) {
+		return TaskResult{}, fmt.Errorf("runner LLM error")
+	}}
+	tasks := []runstore.Task{{
+		TaskID:              "t-001",
+		Status:              "pending",
+		ExpectedTouchedArea: []string{"existing_feature.go"},
+	}}
+
+	el, _ := newTestEventLog(t)
+	detector := func(_ string) ([]string, error) {
+		return []string{}, nil // no files changed
+	}
+
+	results, err := RunTaskLoop(context.Background(), tasks, runner, TaskLoopConfig{
+		MaxRetries:         0,
+		WorkDir:            workDir,
+		DetectFilesChanged: detector,
+		EventLog:           el,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if results[0].Status != "failed" {
+		t.Fatalf("expected failed, got %q", results[0].Status)
+	}
+
+	events, readErr := el.ReadAll()
+	if readErr != nil {
+		t.Fatalf("read events: %v", readErr)
+	}
+	for _, ev := range events {
+		if ev.EventType() == "phantom_task_failure" {
+			t.Fatal("unexpected phantom_task_failure event: expected file exists on disk, no phantom should fire")
+		}
 	}
 }

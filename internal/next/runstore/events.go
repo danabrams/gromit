@@ -252,6 +252,14 @@ type TerminalStateEvent struct {
 	Reason string `json:"reason,omitempty"`
 }
 
+// PhantomTaskFailureEvent is emitted when a task fails without writing any files,
+// and at least one of its expected deliverables does not exist on disk.
+type PhantomTaskFailureEvent struct {
+	BaseEvent
+	TaskID       string   `json:"task_id"`
+	MissingFiles []string `json:"missing_files"`
+}
+
 // --- EventLog ---
 
 // EventLog manages append-only event logging to a JSONL file.
@@ -432,6 +440,9 @@ func unmarshalEvent(data []byte) (TypedEvent, error) {
 		ev = &e
 	case "scenario_tests_blocked":
 		var e ScenarioTestsBlockedEvent
+		ev = &e
+	case "phantom_task_failure":
+		var e PhantomTaskFailureEvent
 		ev = &e
 	default:
 		return nil, fmt.Errorf("unknown event type: %s", peek.Type)

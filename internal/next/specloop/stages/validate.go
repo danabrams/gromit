@@ -121,7 +121,7 @@ func (s *ValidateStage) Run(ctx context.Context, rs *runstore.RunState) (specloo
 			emitDeferralEvents(s.eventLog, deferResult.deferred, deferResult.taskIDByFile)
 
 			// (2) Self-correction pass on raw failures
-			corrected, _ := s.attemptContractCorrection(&sc, contractFailures, workDir, contractPath)
+			corrected, _ := s.attemptContractCorrection(&sc, contractFailures, workDir, contractPath, rs.Tasks)
 
 			// If corrections were made, emit events and re-evaluate
 			if len(corrected) > 0 {
@@ -313,6 +313,7 @@ func (s *ValidateStage) attemptContractCorrection(
 	sc *contract.ScenarioContract,
 	failures []contract.ContractFailure,
 	workDir, contractPath string,
+	tasks []runstore.Task,
 ) ([]correctionResult, []contract.ContractFailure) {
 	var corrected []correctionResult
 	var remaining []contract.ContractFailure
@@ -356,6 +357,22 @@ func (s *ValidateStage) attemptContractCorrection(
 							OldPath:       oldPath,
 							CandidatePath: filepath.Base(found),
 							Reason:        fmt.Sprintf("oldPath %q mentioned in spec acceptance criteria", oldPath),
+						})
+					}
+					continue
+				}
+				// Guard clause: if the old path is a planned deliverable in any task's
+				// ExpectedTouchedArea, reject the correction. A missing-file failure for
+				// a planned deliverable must surface loudly, not be silently redirected.
+				if pathIsPlannedDeliverable(oldPath, tasks) {
+					remaining = append(remaining, failure)
+					if s.eventLog != nil {
+						s.eventLog.Append(runstore.ContractCorrectionRejectedEvent{
+							BaseEvent:     runstore.BaseEvent{Type: "contract_correction_rejected", Timestamp: time.Now()},
+							ScenarioName:  scenario.Name,
+							OldPath:       oldPath,
+							CandidatePath: filepath.Base(found),
+							Reason:        fmt.Sprintf("oldPath %q is a planned deliverable in task ExpectedTouchedArea", oldPath),
 						})
 					}
 					continue
@@ -417,6 +434,21 @@ func specACMentionsPath(spec string, filePath string) bool {
 	// Check if the file's basename is mentioned in the AC section
 	baseName := filepath.Base(filePath)
 	return strings.Contains(acSection, baseName)
+}
+
+// pathIsPlannedDeliverable returns true if path appears in any task's ExpectedTouchedArea,
+// regardless of task status (pending, failed, done, etc.). When a path was a planned
+// deliverable, a missing-file contract failure must surface loudly rather than be
+// silently redirected to a sibling file.
+func pathIsPlannedDeliverable(path string, tasks []runstore.Task) bool {
+	for _, task := range tasks {
+		for _, area := range task.ExpectedTouchedArea {
+			if area == path {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // extractFileAndPattern extracts the file path and pattern from a ContractFailure's
