@@ -41,7 +41,13 @@ func isBuildCheck(cmd string) bool {
 // checks are pattern-matching (grep, awk, etc.). This signals to the fix planner
 // that the implementation may be correct and proof checks may need to be rewritten
 // to be more behavioral rather than re-implementing already-correct code.
-func annotateSuspectProofChecks(proofChecks []string, failures []string) []string {
+//
+// When checkResults is non-nil and non-empty, exact command identity is used to
+// determine build-check pass/fail status, eliminating false positives from
+// failure messages that incidentally contain build command text. When checkResults
+// is nil, the function falls back to the legacy strings.Contains heuristic for
+// backward compatibility with callers that do not populate the field.
+func annotateSuspectProofChecks(proofChecks []string, failures []string, checkResults []ProofCheckResult) []string {
 	if len(proofChecks) == 0 || len(failures) == 0 {
 		return failures
 	}
@@ -55,10 +61,20 @@ func annotateSuspectProofChecks(proofChecks []string, failures []string) []strin
 		return failures
 	}
 	// If any build check command failed, this is not a suspect-proof-check scenario.
-	for _, failureMsg := range failures {
-		for _, proofCheckCmd := range buildChecks {
-			if strings.Contains(failureMsg, proofCheckCmd) {
+	if checkResults != nil {
+		// Structural path: use exact command identity from ProofCheckResults.
+		for _, cr := range checkResults {
+			if !cr.Pass && isBuildCheck(cr.Command) {
 				return failures
+			}
+		}
+	} else {
+		// Legacy fallback: substring match against failure messages.
+		for _, failureMsg := range failures {
+			for _, proofCheckCmd := range buildChecks {
+				if strings.Contains(failureMsg, proofCheckCmd) {
+					return failures
+				}
 			}
 		}
 	}
@@ -93,10 +109,17 @@ type GitOps interface {
 	CheckoutFiles(workDir string, files []string) error
 }
 
+// ProofCheckResult records the pass/fail result of a single proof check command.
+type ProofCheckResult struct {
+	Command string
+	Pass    bool
+}
+
 // InspectResult is the outcome of task inspection.
 type InspectResult struct {
-	Pass     bool
-	Failures []string
+	Pass              bool
+	Failures          []string
+	ProofCheckResults []ProofCheckResult // per-check structural results; may be nil for legacy callers
 }
 
 // CheckSummary tracks pass/fail counts for a set of checks.
@@ -380,7 +403,7 @@ func RunTaskLoop(ctx context.Context, tasks []runstore.Task, runner TaskRunner, 
 				// Annotate failures with [suspect-proof-check] if only pattern-matching
 				// checks are failing while build checks all pass.
 				if !ir.Pass {
-					ir.Failures = annotateSuspectProofChecks(entry.task.ProofChecks, ir.Failures)
+					ir.Failures = annotateSuspectProofChecks(entry.task.ProofChecks, ir.Failures, ir.ProofCheckResults)
 					result.Failures = ir.Failures
 					result.Status = "failed"
 				}
