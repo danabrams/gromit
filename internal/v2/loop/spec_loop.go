@@ -439,7 +439,7 @@ func (s *SpecLoop) Run(ctx context.Context, specID string, stopCh <-chan struct{
 		return err
 	}
 
-	s.emit(&events.SpecCompletedEvent{SpecID: specID, Worktree: worktree, Success: true})
+    s.emit(&events.SpecCompletedEvent{SpecID: specID, Worktree: worktree, Success: true})
 
 	succeeded = true
 	return nil
@@ -703,12 +703,12 @@ func (s *SpecLoop) handleFailure(ctx context.Context, specID string, base presen
 		return err
 	}
 
-	s.emit(&events.SpecCompletedEvent{
-		SpecID:        specID,
-		Worktree:      base.Worktree,
-		Success:       false,
-		FailureReason: reason,
-	})
+    s.emit(&events.SpecCompletedEvent{
+        SpecID:        specID,
+        Worktree:      base.Worktree,
+        Success:       false,
+        FailureReason: reason,
+    })
 
 	return fmt.Errorf("accept failure: %w", failure)
 }
@@ -770,6 +770,7 @@ func (s *SpecLoop) presentSummary(ctx context.Context, specID string, summary pr
 	if res != nil && res.Decision == stagepkg.DecisionFail {
 		return fmt.Errorf("present stage failed")
 	}
+	s.emitTypedSpecCompleted(specID, summary.Worktree, true, "")
 	if err := s.commitStage(ctx, summary.Worktree, "present", 0, "proceed"); err != nil {
 		return fmt.Errorf("commit after present: %w", err)
 	}
@@ -832,6 +833,23 @@ func (s *SpecLoop) emit(evt events.Event) {
 		return
 	}
 	s.emitter.Emit(evt)
+}
+
+func (s *SpecLoop) emitTypedSpecCompleted(specID, worktree string, success bool, failureReason string) {
+	if s.typedEmitter == nil {
+		return
+	}
+	s.typedEmitter.Emit(event.SpecCompletedEvent{
+		Event: event.Event{
+			SchemaVersion: event.SchemaVersion,
+			Timestamp:     time.Now(),
+			Type:          event.EventTypeSpecCompleted,
+		},
+		SpecID:        specID,
+		Worktree:      worktree,
+		Success:       success,
+		FailureReason: failureReason,
+	})
 }
 
 func stringsToDependencies(ids []string) []bead.Dependency {
