@@ -322,6 +322,98 @@ func TestIntegrationSpecLoopRetryPreservesCommits(t *testing.T) {
     }
 }
 
+func TestIntegrationSpecLoopPerBeadSquash(t *testing.T) {
+    requireGit(t)
+    t.Parallel()
+
+    specID := "integration-per-bead-squash"
+    repoRoot := initIntegrationRepo(t)
+    worktreesDir := t.TempDir()
+    gp := gitadapter.NewExecGitAdapter(repoRoot, worktreesDir)
+    sc := &pipeline.StageCommitter{Git: gp}
+
+    typedEmitter := event.NewEmitter()
+    t.Cleanup(typedEmitter.Close)
+
+    planStage := newFakePlanStage(specID)
+    decomposeStage := newFakeDecomposeStage(specID)
+    decomposeStage.producedBeads = []*bead.Bead{
+        {ID: fmt.Sprintf("%s-bead-1", specID), Title: "bead one"},
+        {ID: fmt.Sprintf("%s-bead-2", specID), Title: "bead two"},
+    }
+    worktreePath := filepath.Join(worktreesDir, specID)
+    decomposeStage.onRun = func() {
+        writeTestFile(t, worktreePath, "decompose.txt", "decompose output")
+    }
+
+    beadLoop, err := NewBeadLoop(BeadLoopConfig{
+        Gate:          newFileWritingStage("gate"),
+        Build:         newFileWritingStage("build"),
+        Validate:      newFileWritingStage("validate"),
+        Review:        newFileWritingStage("review"),
+        Epilogue:      newNoopStage("epilogue"),
+        Git:           gp,
+        StageCommitter: sc,
+        Emitter:       typedEmitter,
+    })
+    if err != nil {
+        t.Fatalf("create bead loop: %v", err)
+    }
+
+    presenter := &fileWritingPresenter{}
+    summaryCtx := &present.SummaryContext{}
+    presentStage, err := present.New(&config.Config{}, presenter, summaryCtx)
+    if err != nil {
+        t.Fatalf("create present stage: %v", err)
+    }
+
+    adapters := adapter.AdapterSet{
+        Git:         gp,
+        LLM:         newIntegrationLLMAdapter(),
+        TaskTracker: newIntegrationTaskTrackerAdapter(),
+        Presenter:   presenter,
+    }
+
+    emitter := events.NewEmitter()
+
+    loopInstance, err := NewSpecLoop(adapters, &config.Config{}, noopDependencyGate{},
+        WithEmitter(emitter),
+        WithTypedEmitter(typedEmitter),
+        WithPlanStage(planStage),
+        WithDecomposeStage(decomposeStage),
+        WithBeadLoop(beadLoop),
+        WithPresentStage(presentStage, summaryCtx),
+        WithStageCommitter(sc),
+        WithBeadSquasher(func(ctx context.Context, worktree string, beads []presentation.BeadSummary) error {
+            return pipeline.SquashPerBead(ctx, gp, worktree, beads)
+        }),
+    )
+    if err != nil {
+        t.Fatalf("create spec loop: %v", err)
+    }
+
+    if err := loopInstance.Run(context.Background(), specID, nil); err != nil {
+        t.Fatalf("run spec loop: %v", err)
+    }
+
+    branch := fmt.Sprintf("gromit/spec/%s", specID)
+    entries := gitLogEntries(t, repoRoot, branch, 4)
+    if len(entries) < 2 {
+        t.Fatalf("expected at least 2 commits on branch, got %d", len(entries))
+    }
+
+    squashed := entries[1].Message
+    if !strings.HasPrefix(squashed, "squash 2 beads") {
+        t.Fatalf("squash commit message = %q, want prefix %q", squashed, "squash 2 beads")
+    }
+    if !strings.Contains(squashed, fmt.Sprintf("bead %s-bead-1: bead one", specID)) {
+        t.Fatalf("squash commit missing first bead info: %q", squashed)
+    }
+    if !strings.Contains(squashed, fmt.Sprintf("bead %s-bead-2: bead two", specID)) {
+        t.Fatalf("squash commit missing second bead info: %q", squashed)
+    }
+}
+
 func writeTestFile(t *testing.T, worktree, name, content string) {
     t.Helper()
     if err := writeFile(worktree, name, content); err != nil {
