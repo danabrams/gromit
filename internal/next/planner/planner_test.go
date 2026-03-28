@@ -672,6 +672,39 @@ func TestBuildFixPlanPrompt_ContainsSuspectProofCheckInstruction(t *testing.T) {
 	}
 }
 
+func TestBuildFixPlanPrompt_SuspectProofCheckInInstructionsSection(t *testing.T) {
+	prompt := buildFixPlanPrompt(FixPlanRequest{
+		OriginalPlan: Plan{SpecID: "s1", Cycle: 1},
+		Failures:     []string{"some failure"},
+		Cycle:        2,
+	})
+	// Extract the Instructions section
+	instructionsIdx := strings.Index(prompt, "## Instructions\n")
+	if instructionsIdx < 0 {
+		t.Fatal("buildFixPlanPrompt must contain '## Instructions' section")
+	}
+	// Find the end of Instructions section (start of next section)
+	restOfPrompt := prompt[instructionsIdx:]
+	nextSectionIdx := strings.Index(restOfPrompt[len("## Instructions\n"):], "## ")
+	var instructionsSection string
+	if nextSectionIdx < 0 {
+		// Instructions section goes to end of prompt
+		instructionsSection = restOfPrompt
+	} else {
+		instructionsSection = restOfPrompt[:nextSectionIdx+len("## Instructions\n")]
+	}
+	// Verify suspect-proof-check guidance is in Instructions section
+	if !strings.Contains(instructionsSection, "[suspect-proof-check]") {
+		t.Fatal("buildFixPlanPrompt Instructions section must contain '[suspect-proof-check]'")
+	}
+	if !strings.Contains(instructionsSection, "do NOT create a code implementation task") {
+		t.Fatal("buildFixPlanPrompt Instructions section must contain 'do NOT create a code implementation task'")
+	}
+	if !strings.Contains(instructionsSection, "proof-check rewrite") {
+		t.Fatal("buildFixPlanPrompt Instructions section must contain 'proof-check rewrite'")
+	}
+}
+
 func TestBuildFixPlanPrompt_PlaybookHeuristics(t *testing.T) {
 	// When PlaybookHeuristics is non-empty, section should be included
 	prompt := buildFixPlanPrompt(FixPlanRequest{

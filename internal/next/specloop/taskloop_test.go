@@ -1100,6 +1100,9 @@ func TestTaskLoop_FailuresClearedAfterSuccessfulRetry(t *testing.T) {
 }
 
 func TestIsBuildCheck_AllowsAdditionalArgs(t *testing.T) {
+	if !isBuildCheck("go build ./...") {
+		t.Fatal("expected go build with ./... to be recognized as build check")
+	}
 	if !isBuildCheck("cargo build --release") {
 		t.Fatal("expected cargo build with args to be recognized as build check")
 	}
