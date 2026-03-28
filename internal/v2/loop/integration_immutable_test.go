@@ -5,6 +5,7 @@ package loop
 
 import (
     "context"
+    "encoding/json"
     "fmt"
     "os"
     "os/exec"
@@ -13,6 +14,7 @@ import (
     "strings"
     "testing"
 
+    "github.com/danabrams/gromit/internal/bead"
     "github.com/danabrams/gromit/internal/config"
     "github.com/danabrams/gromit/internal/events"
     "github.com/danabrams/gromit/internal/v2/adapter"
@@ -113,6 +115,213 @@ func TestIntegrationSpecLoopStageCommitMessages(t *testing.T) {
     }
 }
 
+func TestIntegrationEventLogCumulative(t *testing.T) {
+    requireGit(t)
+    t.Parallel()
+
+    specID := "integration-event-log"
+    repoRoot := initIntegrationRepo(t)
+    worktreesDir := t.TempDir()
+    gp := gitadapter.NewExecGitAdapter(repoRoot, worktreesDir)
+    sc := &pipeline.StageCommitter{Git: gp}
+
+    typedEmitter := event.NewEmitter()
+    t.Cleanup(typedEmitter.Close)
+
+    planStage := newFakePlanStage(specID)
+    decomposeStage := newFakeDecomposeStage(specID)
+    worktreePath := filepath.Join(worktreesDir, specID)
+    decomposeStage.onRun = func() {
+        writeTestFile(t, worktreePath, "decompose.txt", "decompose output")
+    }
+
+    beadLoop, err := NewBeadLoop(BeadLoopConfig{
+        Gate:          newFileWritingStage("gate"),
+        Build:         newFileWritingStage("build"),
+        Validate:      newFileWritingStage("validate"),
+        Review:        newFileWritingStage("review"),
+        Epilogue:      newNoopStage("epilogue"),
+        Git:           gp,
+        StageCommitter: sc,
+        Emitter:       typedEmitter,
+    })
+    if err != nil {
+        t.Fatalf("create bead loop: %v", err)
+    }
+
+    acceptStage := newScriptedAcceptStage(stagepkg.Result{Decision: stagepkg.DecisionProceed})
+    presenter := &fileWritingPresenter{}
+    summaryCtx := &present.SummaryContext{}
+    presentStage, err := present.New(&config.Config{}, presenter, summaryCtx)
+    if err != nil {
+        t.Fatalf("create present stage: %v", err)
+    }
+
+    adapters := adapter.AdapterSet{
+        Git:         gp,
+        LLM:         newIntegrationLLMAdapter(),
+        TaskTracker: newIntegrationTaskTrackerAdapter(),
+        Presenter:   presenter,
+    }
+
+    emitter := events.NewEmitter()
+
+    loopInstance, err := NewSpecLoop(adapters, &config.Config{}, noopDependencyGate{},
+        WithEmitter(emitter),
+        WithTypedEmitter(typedEmitter),
+        WithPlanStage(planStage),
+        WithDecomposeStage(decomposeStage),
+        WithBeadLoop(beadLoop),
+        WithAcceptStage(acceptStage),
+        WithPresentStage(presentStage, summaryCtx),
+        WithStageCommitter(sc),
+    )
+    if err != nil {
+        t.Fatalf("create spec loop: %v", err)
+    }
+
+    if err := loopInstance.Run(context.Background(), specID, nil); err != nil {
+        t.Fatalf("run spec loop: %v", err)
+    }
+
+    branch := fmt.Sprintf("gromit/spec/%s", specID)
+    data := gitShowFile(t, repoRoot, branch, ".gromit/v2/events.jsonl")
+
+    lines := strings.Split(strings.TrimSpace(string(data)), "\n")
+    if len(lines) < 3 {
+        t.Fatalf("expected at least 3 events, got %d", len(lines))
+    }
+
+    seenStage := false
+    seenSpecStarted := false
+    seenSpecCompleted := false
+    for _, line := range lines {
+        var payload map[string]any
+        if err := json.Unmarshal([]byte(line), &payload); err != nil {
+            t.Fatalf("unmarshal event line: %v", err)
+        }
+        typ, _ := payload["type"].(string)
+        if strings.HasPrefix(typ, "stage.") {
+            seenStage = true
+        }
+        if typ == "spec.started" {
+            seenSpecStarted = true
+        }
+        if typ == "spec.completed" {
+            seenSpecCompleted = true
+        }
+    }
+    if !seenStage || !seenSpecStarted || !seenSpecCompleted {
+        t.Fatalf("expected stage, spec.started, and spec.completed events in %s; stage=%t spec.started=%t spec.completed=%t",
+        ".gromit/v2/events.jsonl", seenStage, seenSpecStarted, seenSpecCompleted)
+    }
+}
+
+func TestIntegrationSpecLoopRetryPreservesCommits(t *testing.T) {
+    requireGit(t)
+    t.Parallel()
+
+    specID := "integration-retry-commit"
+    repoRoot := initIntegrationRepo(t)
+    worktreesDir := t.TempDir()
+    gp := gitadapter.NewExecGitAdapter(repoRoot, worktreesDir)
+    sc := &pipeline.StageCommitter{Git: gp}
+
+    typedEmitter := event.NewEmitter()
+    t.Cleanup(typedEmitter.Close)
+
+    planStage := newFakePlanStage(specID)
+    decomposeStage := newFakeDecomposeStage(specID)
+    retryBeadID := fmt.Sprintf("%s-bead", specID)
+    decomposeStage.producedBeads = []*bead.Bead{{ID: retryBeadID}}
+    worktreePath := filepath.Join(worktreesDir, specID)
+    decomposeStage.onRun = func() {
+        writeTestFile(t, worktreePath, "decompose.txt", "decompose output")
+    }
+
+    beadLoop, err := NewBeadLoop(BeadLoopConfig{
+        Gate:          newFileWritingStage("gate"),
+        Build:         newFailingBuildStage("build"),
+        Validate:      newFileWritingStage("validate"),
+        Review:        newFileWritingStage("review"),
+        Epilogue:      newNoopStage("epilogue"),
+        Git:           gp,
+        StageCommitter: sc,
+        Emitter:       typedEmitter,
+    })
+    if err != nil {
+        t.Fatalf("create bead loop: %v", err)
+    }
+
+    presenter := &fileWritingPresenter{}
+    summaryCtx := &present.SummaryContext{}
+    presentStage, err := present.New(&config.Config{}, presenter, summaryCtx)
+    if err != nil {
+        t.Fatalf("create present stage: %v", err)
+    }
+
+    adapters := adapter.AdapterSet{
+        Git:         gp,
+        LLM:         newIntegrationLLMAdapter(),
+        TaskTracker: newIntegrationTaskTrackerAdapter(),
+        Presenter:   presenter,
+    }
+
+    emitter := events.NewEmitter()
+
+    loopInstance, err := NewSpecLoop(adapters, &config.Config{}, noopDependencyGate{},
+        WithEmitter(emitter),
+        WithTypedEmitter(typedEmitter),
+        WithPlanStage(planStage),
+        WithDecomposeStage(decomposeStage),
+        WithBeadLoop(beadLoop),
+        WithPresentStage(presentStage, summaryCtx),
+        WithStageCommitter(sc),
+    )
+    if err != nil {
+        t.Fatalf("create spec loop: %v", err)
+    }
+
+    if err := loopInstance.Run(context.Background(), specID, nil); err != nil {
+        t.Fatalf("run spec loop: %v", err)
+    }
+
+    branch := fmt.Sprintf("gromit/spec/%s", specID)
+    entries := gitLogEntries(t, repoRoot, branch, 20)
+
+    buildFailIdx := -1
+    buildProceedIdx := -1
+    for idx, entry := range entries {
+        info, ok := pipeline.ParseCommitMessage(entry.Message)
+        if !ok || info.StageName != "build" || info.BeadID != retryBeadID {
+            continue
+        }
+        switch info.Decision {
+        case "Fail":
+            if buildFailIdx == -1 {
+                buildFailIdx = idx
+            }
+        case "Proceed":
+            if buildProceedIdx == -1 {
+                buildProceedIdx = idx
+            }
+        }
+        if buildFailIdx != -1 && buildProceedIdx != -1 {
+            break
+        }
+    }
+
+    if buildFailIdx == -1 {
+        t.Fatalf("expected build failure commit for bead %s", retryBeadID)
+    }
+    if buildProceedIdx == -1 {
+        t.Fatalf("expected build proceed commit for bead %s", retryBeadID)
+    }
+    if buildProceedIdx >= buildFailIdx {
+        t.Fatalf("expected build success commit (idx %d) before failure commit (idx %d)", buildProceedIdx, buildFailIdx)
+    }
+}
+
 func writeTestFile(t *testing.T, worktree, name, content string) {
     t.Helper()
     if err := writeFile(worktree, name, content); err != nil {
@@ -138,6 +347,34 @@ func (s *fileWritingStage) Run(ctx context.Context, req *stagepkg.Request) (*sta
         return nil, err
     }
     return &stagepkg.Result{Decision: stagepkg.DecisionProceed}, nil
+}
+
+type failingBuildStage struct {
+    name     string
+    attempts int
+}
+
+func newFailingBuildStage(name string) *failingBuildStage {
+    return &failingBuildStage{name: name}
+}
+
+func (s *failingBuildStage) Name() string { return s.name }
+
+func (s *failingBuildStage) Run(_ context.Context, req *stagepkg.Request) (*stagepkg.Result, error) {
+    s.attempts++
+    fileName := fmt.Sprintf("%s-attempt-%d.txt", s.name, s.attempts)
+    content := fmt.Sprintf("%s attempt %d", s.name, s.attempts)
+    if err := writeFile(req.Worktree, fileName, content); err != nil {
+        return nil, fmt.Errorf("write %s: %w", fileName, err)
+    }
+    if s.attempts == 1 {
+        return &stagepkg.Result{Decision: stagepkg.DecisionFail}, nil
+    }
+    return &stagepkg.Result{Decision: stagepkg.DecisionProceed}, nil
+}
+
+func (s *failingBuildStage) RetryConfig() stagepkg.RetryConfig {
+    return stagepkg.RetryConfig{MaxRetries: 1}
 }
 
 func writeFile(worktree, name, content string) error {
@@ -203,6 +440,17 @@ func gitLogEntries(t *testing.T, repoRoot, ref string, n int) []adapter.LogEntry
         entries = append(entries, adapter.LogEntry{Hash: parts[0], Message: parts[1]})
     }
     return entries
+}
+
+func gitShowFile(t *testing.T, repoRoot, ref, path string) []byte {
+    t.Helper()
+    cmd := exec.Command("git", "show", ref+":"+path)
+    cmd.Dir = repoRoot
+    out, err := cmd.CombinedOutput()
+    if err != nil {
+        t.Fatalf("git show %s:%s: %v\n%s", ref, path, err, out)
+    }
+    return out
 }
 
 func requireGit(t *testing.T) {
