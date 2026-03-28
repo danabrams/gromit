@@ -72,7 +72,6 @@ func init() {
 	debugCmd.Flags().String(debugAgentFlag, "", "Override the default agent for this debug session")
 	debugCmd.Flags().Bool(debugChooseAgentFlag, false, "Show interactive picker to choose agent")
 	debugCmd.Flags().Bool(debugRestoreFlag, false, "Restore selected runbook failure commit in a temporary worktree")
-	rootCmd.AddCommand(debugCmd)
 }
 
 func runDebug(cmd *cobra.Command, args []string) error {

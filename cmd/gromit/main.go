@@ -171,6 +171,7 @@ func init() {
 func registerRootCommands(root *cobra.Command) {
 	root.AddCommand(runCmd)
 	root.AddCommand(run2Cmd)
+	root.AddCommand(debugCmd)
 	root.AddCommand(statusCmd)
 	root.AddCommand(readyCmd)
 	root.AddCommand(retroCmd)
