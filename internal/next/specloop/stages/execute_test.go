@@ -105,47 +105,6 @@ func TestExecuteStage_AllTasksFailed_ReplanFrom(t *testing.T) {
 	}
 }
 
-// TestExecuteStage_AllFailed_PropagatesPerTaskFailures verifies that when all
-// tasks fail, the FailureContext contains per-task failure strings from
-// TaskResult.Failures rather than just the generic "all tasks failed" message.
-func TestExecuteStage_AllFailed_PropagatesPerTaskFailures(t *testing.T) {
-	runner := &fakeTaskRunner{
-		results: []specloop.TaskResult{
-			{
-				Status:   "failed",
-				Failures: []string{"[suspect-proof-check] grep failed"},
-			},
-			{
-				Status:   "failed",
-				Failures: []string{"[suspect-proof-check] awk failed"},
-			},
-		},
-	}
-	stage := NewExecuteStage(runner, ExecuteStageConfig{MaxRetries: 0})
-	rs := runstore.NewRunState("spec-001", "proj-001")
-	rs.Tasks = []runstore.Task{
-		{TaskID: "t-001", Status: "pending", Objective: "first"},
-		{TaskID: "t-002", Status: "pending", Objective: "second"},
-	}
-	action, err := stage.Run(context.Background(), rs)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if action.Kind != specloop.ReplanFrom {
-		t.Fatalf("expected ReplanFrom, got %v", action.Kind)
-	}
-	if action.Context == nil {
-		t.Fatal("expected non-nil Context")
-	}
-	expected := []string{
-		"[suspect-proof-check] grep failed",
-		"[suspect-proof-check] awk failed",
-	}
-	if !reflect.DeepEqual(action.Context.Failures, expected) {
-		t.Fatalf("expected failure list %v, got %v", expected, action.Context.Failures)
-	}
-}
-
 func TestExecute_AllFailed_FailureContextReflectsTaskFailures(t *testing.T) {
 	runner := &fakeTaskRunner{
 		results: []specloop.TaskResult{
