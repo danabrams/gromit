@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -31,6 +32,19 @@ func (f *fakeTaskRunner) RunTask(ctx context.Context, task runstore.Task) (specl
 func (f *fakeTaskRunner) RepairTask(ctx context.Context, task runstore.Task, failures []string) (specloop.TaskResult, error) {
 	return specloop.TaskResult{Status: "done"}, nil
 }
+
+type failingInspector struct {
+	failures map[string][]string
+}
+
+func (f *failingInspector) Inspect(ctx context.Context, task runstore.Task) specloop.InspectResult {
+	return specloop.InspectResult{
+		Pass:     false,
+		Failures: append([]string(nil), f.failures[task.TaskID]...),
+	}
+}
+
+func (f *failingInspector) SetKnownGaps(gaps string) {}
 
 // Verify ExecuteStage satisfies the Stage interface.
 var _ specloop.Stage = (*ExecuteStage)(nil)
@@ -123,19 +137,56 @@ func TestExecuteStage_AllFailed_PropagatesPerTaskFailures(t *testing.T) {
 	if action.Context == nil {
 		t.Fatal("expected non-nil Context")
 	}
-	found := false
-	for _, f := range action.Context.Failures {
-		if strings.Contains(f, "suspect-proof-check") {
-			found = true
-			break
-		}
+	expected := []string{
+		"[suspect-proof-check] grep failed",
+		"[suspect-proof-check] awk failed",
 	}
-	if !found {
-		t.Errorf("expected [suspect-proof-check] in failures, got: %v", action.Context.Failures)
+	if !reflect.DeepEqual(action.Context.Failures, expected) {
+		t.Fatalf("expected failure list %v, got %v", expected, action.Context.Failures)
 	}
 }
 
-func TestExecuteStage_AllFailed_FallsBackToGenericMessage_WhenNoPerTaskFailures(t *testing.T) {
+func TestExecute_AllFailed_FailureContextReflectsTaskFailures(t *testing.T) {
+	runner := &fakeTaskRunner{
+		results: []specloop.TaskResult{
+			{Status: "done"},
+			{Status: "done"},
+		},
+	}
+	inspector := &failingInspector{
+		failures: map[string][]string{
+			"t-001": {"first task failure"},
+			"t-002": {"second task failure", "second task extra failure"},
+		},
+	}
+	stage := NewExecuteStage(runner, ExecuteStageConfig{MaxRetries: 0, Inspector: inspector})
+	rs := runstore.NewRunState("spec-001", "proj-001")
+	rs.Tasks = []runstore.Task{
+		{TaskID: "t-001", Status: "pending", Objective: "first"},
+		{TaskID: "t-002", Status: "pending", Objective: "second"},
+	}
+	action, err := stage.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if action.Kind != specloop.ReplanFrom {
+		t.Fatalf("expected ReplanFrom, got %v", action.Kind)
+	}
+	if action.Context == nil {
+		t.Fatal("expected non-nil Context")
+	}
+	expected := []string{"first task failure", "second task failure", "second task extra failure"}
+	if len(action.Context.Failures) != len(expected) {
+		t.Fatalf("expected %d failures, got %d: %v", len(expected), len(action.Context.Failures), action.Context.Failures)
+	}
+	for i, failure := range action.Context.Failures {
+		if failure != expected[i] {
+			t.Fatalf("expected failure %d to be %q, got %q", i, expected[i], failure)
+		}
+	}
+}
+
+func TestExecute_AllFailed_FailureContextFallsBackWithoutTaskFailures(t *testing.T) {
 	// When tasks fail but have no per-task failures, fall back to generic message.
 	runner := &fakeTaskRunner{
 		results: []specloop.TaskResult{
@@ -156,7 +207,7 @@ func TestExecuteStage_AllFailed_FallsBackToGenericMessage_WhenNoPerTaskFailures(
 	if action.Kind != specloop.ReplanFrom {
 		t.Fatalf("expected ReplanFrom, got %v", action.Kind)
 	}
-	if len(action.Context.Failures) != 1 || action.Context.Failures[0] != "all tasks failed" {
+	if !reflect.DeepEqual(action.Context.Failures, []string{"all tasks failed"}) {
 		t.Errorf("expected [\"all tasks failed\"], got: %v", action.Context.Failures)
 	}
 }

@@ -949,6 +949,168 @@ func TestRunTaskLoop_PopulatesFailuresOnInspectionFailure(t *testing.T) {
 	}
 }
 
+func TestRunTaskLoop_BuildFailurePreventsSuspectAnnotation(t *testing.T) {
+	runner := &fakeTaskRunner{fn: func(_ context.Context, task runstore.Task) (TaskResult, error) {
+		return TaskResult{Status: "done"}, nil
+	}}
+	inspector := &fakeInspector{
+		resultFn: func() InspectResult {
+			return InspectResult{
+				Pass: false,
+				Failures: []string{
+					"go build ./...: exit status 1: undefined: Bar",
+					"grep -q 'func Foo' foo.go: exit status 1",
+				},
+			}
+		},
+	}
+	tasks := []runstore.Task{{
+		TaskID:      "t-002",
+		Status:      "pending",
+		ProofChecks: []string{"go build ./...", "grep -q 'func Foo' foo.go"},
+	}}
+
+	results, err := RunTaskLoop(context.Background(), tasks, runner, TaskLoopConfig{
+		MaxRetries: 1,
+		Inspector:  inspector,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := results[0]
+	if len(r.Failures) == 0 {
+		t.Fatal("expected failures even when build check fails")
+	}
+	for _, f := range r.Failures {
+		if strings.HasPrefix(f, "[suspect-proof-check]") {
+			t.Fatalf("should not annotate build failures: %q", f)
+		}
+	}
+}
+
+func TestRunTaskLoop_NoBuildCheckPreventsSuspectAnnotation(t *testing.T) {
+	runner := &fakeTaskRunner{fn: func(_ context.Context, task runstore.Task) (TaskResult, error) {
+		return TaskResult{Status: "done"}, nil
+	}}
+	inspector := &fakeInspector{
+		resultFn: func() InspectResult {
+			return InspectResult{
+				Pass: false,
+				Failures: []string{
+					"grep -q 'func Foo' foo.go: exit status 1",
+				},
+			}
+		},
+	}
+	tasks := []runstore.Task{{
+		TaskID:      "t-003",
+		Status:      "pending",
+		ProofChecks: []string{"grep -q 'func Foo' foo.go"},
+	}}
+
+	results, err := RunTaskLoop(context.Background(), tasks, runner, TaskLoopConfig{
+		MaxRetries: 0,
+		Inspector:  inspector,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := results[0]
+	if len(r.Failures) == 0 {
+		t.Fatal("expected failures even without build checks")
+	}
+	for _, f := range r.Failures {
+		if strings.HasPrefix(f, "[suspect-proof-check]") {
+			t.Fatalf("should not annotate when no build check exists: %q", f)
+		}
+	}
+}
+
+func TestTaskLoop_FailuresClearedOnRunnerError(t *testing.T) {
+	runner := &fakeTaskRunner{fn: func(_ context.Context, task runstore.Task) (TaskResult, error) {
+		return TaskResult{
+			Status:   "failed",
+			Failures: []string{"runner: oh no"},
+		}, fmt.Errorf("boom")
+	}}
+	inspector := &fakeInspector{pass: true}
+	tasks := []runstore.Task{{TaskID: "t-004", Status: "pending"}}
+
+	results, err := RunTaskLoop(context.Background(), tasks, runner, TaskLoopConfig{
+		MaxRetries: 0,
+		Inspector:  inspector,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(results))
+	}
+	if results[0].Status != "failed" {
+		t.Fatalf("expected failed status, got %q", results[0].Status)
+	}
+	if len(results[0].Failures) != 0 {
+		t.Fatalf("expected Failures empty for runner-level failure, got %v", results[0].Failures)
+	}
+}
+
+func TestTaskLoop_FailuresClearedAfterSuccessfulRetry(t *testing.T) {
+	runner := &fakeTaskRunner{
+		fn: func(_ context.Context, task runstore.Task) (TaskResult, error) {
+			return TaskResult{Status: "done"}, nil
+		},
+		repairFn: func(_ context.Context, task runstore.Task, failures []string) (TaskResult, error) {
+			return TaskResult{
+				Status:   "done",
+				Failures: []string{"repair run returned metadata"},
+			}, nil
+		},
+	}
+	callCount := 0
+	inspector := &fakeInspector{
+		resultFn: func() InspectResult {
+			callCount++
+			if callCount == 1 {
+				return InspectResult{
+					Pass:     false,
+					Failures: []string{"grep -q 'Func' util.go: exit status 1"},
+				}
+			}
+			return InspectResult{Pass: true}
+		},
+	}
+	tasks := []runstore.Task{{TaskID: "t-005", Status: "pending"}}
+
+	results, err := RunTaskLoop(context.Background(), tasks, runner, TaskLoopConfig{
+		MaxRetries: 1,
+		Inspector:  inspector,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(results))
+	}
+	if results[0].Status != "done" {
+		t.Fatalf("expected done status, got %q", results[0].Status)
+	}
+	if len(results[0].Failures) != 0 {
+		t.Fatalf("expected Failures empty for success after retry, got %v", results[0].Failures)
+	}
+}
+
+func TestIsBuildCheck_AllowsAdditionalArgs(t *testing.T) {
+	if !isBuildCheck("cargo build --release") {
+		t.Fatal("expected cargo build with args to be recognized as build check")
+	}
+	if isBuildCheck("go test ./...") {
+		t.Fatal("go test should not be classified as a build check")
+	}
+	if isBuildCheck("grep -q 'func Foo' foo.go") {
+		t.Fatal("grep should not be classified as a build check")
+	}
+}
+
 // TestRunTaskLoop_RedecompositionIDsContinueFromMax verifies that when a task
 // is decomposed into sub-tasks, the sub-task IDs are renumbered to continue
 // from the current maximum task ID in the queue — preventing ID collisions.

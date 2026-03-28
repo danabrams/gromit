@@ -596,8 +596,24 @@ func TestBuildPlanPrompt_ContainsRuntimeOverSourceGrepRule(t *testing.T) {
 	if !strings.Contains(prompt, "Runtime over source-grep") {
 		t.Fatal("buildPlanPrompt must include rule 7 about runtime over source-grep for behavioral properties")
 	}
+	if !strings.Contains(prompt, "Rule 7") {
+		t.Fatal("buildPlanPrompt must explicitly mention Rule 7 in the runtime guidance")
+	}
 	if !strings.Contains(prompt, "--help") {
 		t.Fatal("buildPlanPrompt rule 7 must include --help example for runtime verification")
+	}
+}
+
+func TestBuildPlanPrompt_ContainsSuspectProofCheckInstruction(t *testing.T) {
+	prompt := buildPlanPrompt(PlanRequest{
+		SpecPacket: "build a thing",
+		Cycle:      1,
+	})
+	if !strings.Contains(prompt, "[suspect-proof-check]") {
+		t.Fatal("buildPlanPrompt must include suspect-proof-check guidance")
+	}
+	if !strings.Contains(prompt, "proof-check rewrite") {
+		t.Fatal("buildPlanPrompt must explain proof-check rewrite tasks for suspect proof-check failures")
 	}
 }
 
@@ -608,6 +624,9 @@ func TestBuildFixPlanPrompt_ContainsRuntimeOverSourceGrepRule(t *testing.T) {
 	})
 	if !strings.Contains(prompt, "Runtime over source-grep") {
 		t.Fatal("buildFixPlanPrompt must contain 'Runtime over source-grep' rule")
+	}
+	if !strings.Contains(prompt, "Rule 7") {
+		t.Fatal("buildFixPlanPrompt must explicitly mention Rule 7 in the runtime guidance")
 	}
 	if !strings.Contains(prompt, "--help") {
 		t.Fatal("buildFixPlanPrompt must contain '--help' example in runtime-over-source-grep rule")

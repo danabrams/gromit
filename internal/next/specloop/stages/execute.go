@@ -169,21 +169,32 @@ func (s *ExecuteStage) Run(ctx context.Context, rs *runstore.RunState) (specloop
 	}
 
 	if allFailed && len(results) > 0 {
-		var failures []string
-		for _, r := range results {
-			failures = append(failures, r.Failures...)
-		}
-		if len(failures) == 0 {
-			failures = []string{"all tasks failed"}
+		perTaskFailures := collectFailureMessages(results)
+		if len(perTaskFailures) > 0 {
+			return specloop.NextAction{
+				Kind: specloop.ReplanFrom,
+				Context: &specloop.FailureContext{
+					Failures: perTaskFailures,
+					Cycle:    rs.Cycle,
+				},
+			}, nil
 		}
 		return specloop.NextAction{
 			Kind: specloop.ReplanFrom,
 			Context: &specloop.FailureContext{
-				Failures: failures,
+				Failures: []string{"all tasks failed"},
 				Cycle:    rs.Cycle,
 			},
 		}, nil
 	}
 
 	return specloop.NextAction{Kind: specloop.Continue}, nil
+}
+
+func collectFailureMessages(results []specloop.TaskResult) []string {
+	failures := make([]string, 0, len(results))
+	for _, r := range results {
+		failures = append(failures, r.Failures...)
+	}
+	return failures
 }

@@ -45,24 +45,22 @@ func annotateSuspectProofChecks(proofChecks []string, failures []string) []strin
 	if len(proofChecks) == 0 || len(failures) == 0 {
 		return failures
 	}
-	// Check if any build check appears in any failure message
-	for _, f := range failures {
-		for _, pc := range proofChecks {
-			if isBuildCheck(pc) && strings.Contains(f, pc) {
+	buildChecks := make([]string, 0, len(proofChecks))
+	for _, pc := range proofChecks {
+		if isBuildCheck(pc) {
+			buildChecks = append(buildChecks, pc)
+		}
+	}
+	if len(buildChecks) == 0 {
+		return failures
+	}
+	// If any build check command failed, this is not a suspect-proof-check scenario.
+	for _, failureMsg := range failures {
+		for _, proofCheckCmd := range buildChecks {
+			if strings.Contains(failureMsg, proofCheckCmd) {
 				return failures
 			}
 		}
-	}
-	// Check that at least one build check exists in the task's proof checks
-	hasBuildCheck := false
-	for _, pc := range proofChecks {
-		if isBuildCheck(pc) {
-			hasBuildCheck = true
-			break
-		}
-	}
-	if !hasBuildCheck {
-		return failures
 	}
 	// Build checks all pass, only pattern-matching checks are failing
 	const prefix = "[suspect-proof-check] All build checks pass but pattern-matching checks failed. The implementation may be correct; proof checks may be testing source structure rather than behavior. "
@@ -208,6 +206,10 @@ func RunTaskLoop(ctx context.Context, tasks []runstore.Task, runner TaskRunner, 
 			cfg.Budget.AddCost(result.Cost)
 		}
 		if err != nil {
+			// Remove any failure metadata when the runner itself errored; it will be
+			// surfaced through the generic failure handling instead of reusing
+			// previously captured proof-check data.
+			result.Failures = nil
 			// Drain the stateful detector so the next task starts with a fresh baseline.
 			if cfg.DetectFilesChanged != nil && cfg.WorkDir != "" {
 				cfg.DetectFilesChanged(cfg.WorkDir) //nolint:errcheck
@@ -327,6 +329,7 @@ func RunTaskLoop(ctx context.Context, tasks []runstore.Task, runner TaskRunner, 
 						repairCtx, repairCancel = context.WithTimeout(ctx, time.Duration(cfg.MaxTaskDurationSeconds)*time.Second)
 					}
 					repairResult, rErr := runner.RepairTask(repairCtx, entry.task, ir.Failures)
+					repairResult.Failures = nil
 					if repairCancel != nil {
 						repairCancel()
 					}
