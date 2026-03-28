@@ -2,6 +2,7 @@ package reviewdistiller
 
 import (
 	"encoding/json"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -183,5 +184,11 @@ func assertPromptIncludesOutputFormat(t *testing.T, prompt, outcome string) {
 	}
 	if !strings.Contains(prompt, evidenceReferencesArrayHint) {
 		t.Errorf("%s prompt should show evidence_references as an array", outcome)
+	}
+	// Assert that "evidence_references" is immediately followed by "[" on the same line
+	// or on the very next line, confirming structural locality (not just independent presence).
+	re := regexp.MustCompile(`"evidence_references"\s*:\s*\[`)
+	if !re.MatchString(prompt) {
+		t.Errorf(`%s prompt should have "evidence_references" immediately followed by "[", got no match`, outcome)
 	}
 }

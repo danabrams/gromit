@@ -887,10 +887,13 @@ func TestDistill_ProposalIDsContentBased(t *testing.T) {
 	}
 }
 
-// TestDistill_parseJSONFailureIncludesExtractedInput ensures parse errors report the extracted JSON payload.
-func TestDistill_parseJSONFailureIncludesExtractedInput(t *testing.T) {
+// TestDistillParseJSONFailureIncludesExtractedInput ensures parse errors report the extracted JSON payload.
+// Uses the Distill entry-point with syntactically invalid JSON to exercise the error path.
+func TestDistillParseJSONFailureIncludesExtractedInput(t *testing.T) {
+	// Use a fixed input string and assert against a literal expected extracted payload.
 	llmResponse := "```json\n{\"incomplete\": \"json\"\n"
-	extracted := extractJSON(llmResponse)
+	// extractJSON strips the fence and returns everything from '{' onward (no closing bracket found).
+	expectedExtracted := `{"incomplete": "json"`
 
 	inputs := &DistillerInputs{
 		RunID:         "run-parse-error",
@@ -909,8 +912,36 @@ func TestDistill_parseJSONFailureIncludesExtractedInput(t *testing.T) {
 		t.Fatalf("Expected nil result on parse failure, got %v", result)
 	}
 
-	if !strings.Contains(err.Error(), extracted) {
-		t.Errorf("error message should include extracted JSON, got: %q", err.Error())
+	if !strings.Contains(err.Error(), expectedExtracted) {
+		t.Errorf("error message should include extracted JSON %q, got: %q", expectedExtracted, err.Error())
+	}
+}
+
+// TestParseProposalsFromJSON_DirectInvalidSyntax calls parseProposalsFromJSON directly
+// with syntactically invalid JSON and asserts the error contains the extracted payload.
+func TestParseProposalsFromJSON_DirectInvalidSyntax(t *testing.T) {
+	input := `{"incomplete": "json"`
+	_, err := parseProposalsFromJSON(input)
+	if err == nil {
+		t.Fatal("parseProposalsFromJSON should return error for invalid JSON")
+	}
+	if !strings.Contains(err.Error(), `{"incomplete": "json"`) {
+		t.Errorf("error should contain extracted input, got: %q", err.Error())
+	}
+}
+
+// TestParseProposalsFromJSON_ValidJSONSchemaTypeMismatch calls parseProposalsFromJSON directly
+// with valid JSON that fails schema unmarshalling (evidence_references as string, not array).
+// This exercises the valid-JSON type-mismatch failure path.
+func TestParseProposalsFromJSON_ValidJSONSchemaTypeMismatch(t *testing.T) {
+	input := `[{"type":"doctrine_rule","title":"t","what_happened":"x","what_was_missing":"y","proposed_change":"z","rationale":"r","confidence":"high","confidence_rationale":"c","evidence_references":"not-an-array"}]`
+	_, err := parseProposalsFromJSON(input)
+	if err == nil {
+		t.Fatal("parseProposalsFromJSON should return error for schema type mismatch")
+	}
+	// The error must include the extracted payload so callers can diagnose.
+	if !strings.Contains(err.Error(), "not-an-array") {
+		t.Errorf("error should contain the extracted payload, got: %q", err.Error())
 	}
 }
 
