@@ -86,7 +86,12 @@ var rootCmd = &cobra.Command{
 	Long: `Gromit executes AI coding tasks with fresh context on each iteration.
 
 It integrates with bd (beads) for task management and uses model escalation
-for handling failures efficiently.`,
+for handling failures efficiently.
+
+The debug workflow runs three jobs:
+  - Diagnose: Summarize failure evidence, scope the problem, and explain the root cause.
+  - Fix: Apply or plan a correction, choosing between trivial fixes, clear fixes, or further investigation.
+  - Learn: Capture lessons, distill rule updates, and create backlog items so the same issues stay visible.`,
 }
 
 var runCmd = &cobra.Command{
