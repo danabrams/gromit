@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -31,6 +32,19 @@ func (f *fakeTaskRunner) RunTask(ctx context.Context, task runstore.Task) (specl
 func (f *fakeTaskRunner) RepairTask(ctx context.Context, task runstore.Task, failures []string) (specloop.TaskResult, error) {
 	return specloop.TaskResult{Status: "done"}, nil
 }
+
+type failingInspector struct {
+	failures map[string][]string
+}
+
+func (f *failingInspector) Inspect(ctx context.Context, task runstore.Task) specloop.InspectResult {
+	return specloop.InspectResult{
+		Pass:     false,
+		Failures: append([]string(nil), f.failures[task.TaskID]...),
+	}
+}
+
+func (f *failingInspector) SetKnownGaps(gaps string) {}
 
 // Verify ExecuteStage satisfies the Stage interface.
 var _ specloop.Stage = (*ExecuteStage)(nil)
@@ -91,23 +105,20 @@ func TestExecuteStage_AllTasksFailed_ReplanFrom(t *testing.T) {
 	}
 }
 
-// TestExecuteStage_AllFailed_PropagatesPerTaskFailures verifies that when all
-// tasks fail, the FailureContext contains per-task failure strings from
-// TaskResult.Failures rather than just the generic "all tasks failed" message.
-func TestExecuteStage_AllFailed_PropagatesPerTaskFailures(t *testing.T) {
+func TestExecute_AllFailed_FailureContextReflectsTaskFailures(t *testing.T) {
 	runner := &fakeTaskRunner{
 		results: []specloop.TaskResult{
-			{
-				Status:   "failed",
-				Failures: []string{"[suspect-proof-check] grep failed"},
-			},
-			{
-				Status:   "failed",
-				Failures: []string{"[suspect-proof-check] awk failed"},
-			},
+			{Status: "done"},
+			{Status: "done"},
 		},
 	}
-	stage := NewExecuteStage(runner, ExecuteStageConfig{MaxRetries: 0})
+	inspector := &failingInspector{
+		failures: map[string][]string{
+			"t-001": {"first task failure"},
+			"t-002": {"second task failure", "second task extra failure"},
+		},
+	}
+	stage := NewExecuteStage(runner, ExecuteStageConfig{MaxRetries: 0, Inspector: inspector})
 	rs := runstore.NewRunState("spec-001", "proj-001")
 	rs.Tasks = []runstore.Task{
 		{TaskID: "t-001", Status: "pending", Objective: "first"},
@@ -123,19 +134,18 @@ func TestExecuteStage_AllFailed_PropagatesPerTaskFailures(t *testing.T) {
 	if action.Context == nil {
 		t.Fatal("expected non-nil Context")
 	}
-	found := false
-	for _, f := range action.Context.Failures {
-		if strings.Contains(f, "suspect-proof-check") {
-			found = true
-			break
-		}
+	expected := []string{"first task failure", "second task failure", "second task extra failure"}
+	if len(action.Context.Failures) != len(expected) {
+		t.Fatalf("expected %d failures, got %d: %v", len(expected), len(action.Context.Failures), action.Context.Failures)
 	}
-	if !found {
-		t.Errorf("expected [suspect-proof-check] in failures, got: %v", action.Context.Failures)
+	for i, failure := range action.Context.Failures {
+		if failure != expected[i] {
+			t.Fatalf("expected failure %d to be %q, got %q", i, expected[i], failure)
+		}
 	}
 }
 
-func TestExecuteStage_AllFailed_FallsBackToGenericMessage_WhenNoPerTaskFailures(t *testing.T) {
+func TestExecute_AllFailed_FailureContextFallsBackWithoutTaskFailures(t *testing.T) {
 	// When tasks fail but have no per-task failures, fall back to generic message.
 	runner := &fakeTaskRunner{
 		results: []specloop.TaskResult{
@@ -156,7 +166,7 @@ func TestExecuteStage_AllFailed_FallsBackToGenericMessage_WhenNoPerTaskFailures(
 	if action.Kind != specloop.ReplanFrom {
 		t.Fatalf("expected ReplanFrom, got %v", action.Kind)
 	}
-	if len(action.Context.Failures) != 1 || action.Context.Failures[0] != "all tasks failed" {
+	if !reflect.DeepEqual(action.Context.Failures, []string{"all tasks failed"}) {
 		t.Errorf("expected [\"all tasks failed\"], got: %v", action.Context.Failures)
 	}
 }
@@ -590,5 +600,102 @@ func TestExecuteStage_NoInspector_NoError(t *testing.T) {
 	_, err := stage.Run(context.Background(), rs)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+// TestExecuteStageAllFailedFailureCollection verifies that when all tasks fail,
+// failure messages are collected from TaskResult.Failures and propagated to
+// FailureContext, including [suspect-proof-check] annotated messages.
+func TestExecuteStageAllFailedFailureCollection(t *testing.T) {
+	runner := &fakeTaskRunner{
+		results: []specloop.TaskResult{
+			{
+				TaskID: "t-001",
+				Status: "failed",
+				Failures: []string{
+					"[suspect-proof-check] All build checks pass but pattern-matching checks failed. The implementation may be correct; proof checks may be testing source structure rather than behavior. grep -q '--title' cmd/foo.go: exit status 1",
+				},
+			},
+			{
+				TaskID: "t-002",
+				Status: "failed",
+				Failures: []string{
+					"[suspect-proof-check] All build checks pass but pattern-matching checks failed. The implementation may be correct; proof checks may be testing source structure rather than behavior. awk '/flagB/' pkg/bar.go: exit status 1",
+					"[suspect-proof-check] All build checks pass but pattern-matching checks failed. The implementation may be correct; proof checks may be testing source structure rather than behavior. grep -q 'SubcommandB' cmd/bar.go: exit status 1",
+				},
+			},
+			{
+				TaskID: "t-003",
+				Status: "failed",
+				Failures: []string{
+					"go build ./...: exit status 1: undefined: UnfinishedFeature",
+				},
+			},
+		},
+	}
+
+	stage := NewExecuteStage(runner, ExecuteStageConfig{MaxRetries: 0})
+
+	rs := runstore.NewRunState("spec-001", "proj-001")
+	rs.Tasks = []runstore.Task{
+		{TaskID: "t-001", Status: "pending", Objective: "first"},
+		{TaskID: "t-002", Status: "pending", Objective: "second"},
+		{TaskID: "t-003", Status: "pending", Objective: "third"},
+	}
+
+	action, err := stage.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if action.Kind != specloop.ReplanFrom {
+		t.Fatalf("expected ReplanFrom, got %v", action.Kind)
+	}
+
+	if action.Context == nil {
+		t.Fatal("expected non-nil FailureContext")
+	}
+
+	// Verify that all failure messages are collected
+	failures := action.Context.Failures
+	if len(failures) != 4 {
+		t.Fatalf("expected 4 failures total, got %d: %v", len(failures), failures)
+	}
+
+	// Count failures by type
+	suspectCount := 0
+	buildCount := 0
+	for _, f := range failures {
+		if strings.HasPrefix(f, "[suspect-proof-check]") {
+			suspectCount++
+		} else if strings.Contains(f, "go build") {
+			buildCount++
+		}
+	}
+
+	if suspectCount != 3 {
+		t.Fatalf("expected 3 suspect-proof-check failures, got %d", suspectCount)
+	}
+	if buildCount != 1 {
+		t.Fatalf("expected 1 build failure, got %d", buildCount)
+	}
+
+	// Verify specific failure messages are present
+	failuresJoined := strings.Join(failures, "\n")
+	expectedPatterns := []string{
+		"grep -q '--title'",
+		"awk '/flagB/'",
+		"SubcommandB",
+		"undefined: UnfinishedFeature",
+	}
+	for _, pattern := range expectedPatterns {
+		if !strings.Contains(failuresJoined, pattern) {
+			t.Fatalf("expected failure to contain %q, got: %v", pattern, failures)
+		}
+	}
+
+	// Verify generic fallback is NOT used
+	if strings.Contains(failuresJoined, "all tasks failed") {
+		t.Fatalf("did not expect generic fallback failure, got: %v", failures)
 	}
 }

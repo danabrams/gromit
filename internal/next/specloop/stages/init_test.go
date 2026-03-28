@@ -753,6 +753,76 @@ func TestInit_BaselineFailuresPersisted(t *testing.T) {
 	}
 }
 
+func TestInitStage_RunStartedBeforeCaptureBaseline(t *testing.T) {
+	storeDir := t.TempDir()
+	store := runstore.NewStore(storeDir)
+
+	fixtures := testutil.WriteMinimalProjectFixtures(t, storeDir)
+	specFile := writeSpec(t, fixtures.Config.SpecsDir, "# Test Spec")
+	policyFile := fixtures.PolicyPath
+
+	gitOps := &fakeGitOps{worktreePath: filepath.Join(t.TempDir(), "worktree")}
+	os.MkdirAll(gitOps.worktreePath, 0o755)
+
+	rs := runstore.NewRunState("spec-001", "proj-001")
+	eventLogPath := filepath.Join(store.RunDir(rs.RunID), "events.jsonl")
+	eventLog := runstore.NewEventLog(eventLogPath)
+
+	// Configure baseline runner so that baseline_captured event will be emitted
+	baselineRunner := &fakeBaselineRunner{
+		results: validator.CheckResults{
+			Results: []validator.CheckResult{
+				{Name: "test-check", Pass: true, Output: "ok"},
+			},
+		},
+	}
+
+	stage := NewInitStage(InitStageConfig{
+		SpecPath:       specFile,
+		PolicyPath:     policyFile,
+		RepoDir:        storeDir,
+		GitOps:         gitOps,
+		BaselineRunner: baselineRunner,
+		AlwaysRun: []validator.Check{
+			{Name: "test-check", Command: "go test ./..."},
+		},
+	}, store, eventLog)
+
+	action, err := stage.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if action.Kind != specloop.Continue {
+		t.Fatalf("expected Continue, got %v", action.Kind)
+	}
+
+	// Verify run_started event was emitted before baseline_captured event
+	events, err := eventLog.ReadAll()
+	if err != nil {
+		t.Fatalf("ReadAll events: %v", err)
+	}
+
+	var runStartedIdx, baselineCapturedIdx int = -1, -1
+	for i, ev := range events {
+		if _, ok := ev.(*runstore.RunStartedEvent); ok && runStartedIdx == -1 {
+			runStartedIdx = i
+		}
+		if _, ok := ev.(*runstore.BaselineCapturedEvent); ok && baselineCapturedIdx == -1 {
+			baselineCapturedIdx = i
+		}
+	}
+
+	// run_started must exist
+	if runStartedIdx == -1 {
+		t.Fatal("run_started event not emitted")
+	}
+
+	// If baseline_captured exists, run_started must come before it
+	if baselineCapturedIdx != -1 && runStartedIdx >= baselineCapturedIdx {
+		t.Fatalf("run_started at index %d must come before baseline_captured at index %d", runStartedIdx, baselineCapturedIdx)
+	}
+}
+
 func writeSpec(t testing.TB, specsDir, content string) string {
 	t.Helper()
 	if specsDir == "" {

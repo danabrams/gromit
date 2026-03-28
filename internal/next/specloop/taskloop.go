@@ -41,28 +41,42 @@ func isBuildCheck(cmd string) bool {
 // checks are pattern-matching (grep, awk, etc.). This signals to the fix planner
 // that the implementation may be correct and proof checks may need to be rewritten
 // to be more behavioral rather than re-implementing already-correct code.
-func annotateSuspectProofChecks(proofChecks []string, failures []string) []string {
+//
+// When checkResults is non-nil and non-empty, exact command identity is used to
+// determine build-check pass/fail status, eliminating false positives from
+// failure messages that incidentally contain build command text. When checkResults
+// is nil, the function falls back to the legacy strings.Contains heuristic for
+// backward compatibility with callers that do not populate the field.
+func annotateSuspectProofChecks(proofChecks []string, failures []string, checkResults []ProofCheckResult) []string {
 	if len(proofChecks) == 0 || len(failures) == 0 {
 		return failures
 	}
-	// Check if any build check appears in any failure message
-	for _, f := range failures {
-		for _, pc := range proofChecks {
-			if isBuildCheck(pc) && strings.Contains(f, pc) {
+	buildChecks := make([]string, 0, len(proofChecks))
+	for _, pc := range proofChecks {
+		if isBuildCheck(pc) {
+			buildChecks = append(buildChecks, pc)
+		}
+	}
+	if len(buildChecks) == 0 {
+		return failures
+	}
+	// If any build check command failed, this is not a suspect-proof-check scenario.
+	if checkResults != nil {
+		// Structural path: use exact command identity from ProofCheckResults.
+		for _, cr := range checkResults {
+			if !cr.Pass && isBuildCheck(cr.Command) {
 				return failures
 			}
 		}
-	}
-	// Check that at least one build check exists in the task's proof checks
-	hasBuildCheck := false
-	for _, pc := range proofChecks {
-		if isBuildCheck(pc) {
-			hasBuildCheck = true
-			break
+	} else {
+		// Legacy fallback: substring match against failure messages.
+		for _, failureMsg := range failures {
+			for _, proofCheckCmd := range buildChecks {
+				if strings.Contains(failureMsg, proofCheckCmd) {
+					return failures
+				}
+			}
 		}
-	}
-	if !hasBuildCheck {
-		return failures
 	}
 	// Build checks all pass, only pattern-matching checks are failing
 	const prefix = "[suspect-proof-check] All build checks pass but pattern-matching checks failed. The implementation may be correct; proof checks may be testing source structure rather than behavior. "
@@ -95,10 +109,17 @@ type GitOps interface {
 	CheckoutFiles(workDir string, files []string) error
 }
 
+// ProofCheckResult records the pass/fail result of a single proof check command.
+type ProofCheckResult struct {
+	Command string
+	Pass    bool
+}
+
 // InspectResult is the outcome of task inspection.
 type InspectResult struct {
-	Pass     bool
-	Failures []string
+	Pass              bool
+	Failures          []string
+	ProofCheckResults []ProofCheckResult // per-check structural results; may be nil for legacy callers
 }
 
 // CheckSummary tracks pass/fail counts for a set of checks.
@@ -208,6 +229,10 @@ func RunTaskLoop(ctx context.Context, tasks []runstore.Task, runner TaskRunner, 
 			cfg.Budget.AddCost(result.Cost)
 		}
 		if err != nil {
+			// Remove any failure metadata when the runner itself errored; it will be
+			// surfaced through the generic failure handling instead of reusing
+			// previously captured proof-check data.
+			result.Failures = nil
 			// Drain the stateful detector so the next task starts with a fresh baseline.
 			if cfg.DetectFilesChanged != nil && cfg.WorkDir != "" {
 				cfg.DetectFilesChanged(cfg.WorkDir) //nolint:errcheck
@@ -327,6 +352,7 @@ func RunTaskLoop(ctx context.Context, tasks []runstore.Task, runner TaskRunner, 
 						repairCtx, repairCancel = context.WithTimeout(ctx, time.Duration(cfg.MaxTaskDurationSeconds)*time.Second)
 					}
 					repairResult, rErr := runner.RepairTask(repairCtx, entry.task, ir.Failures)
+					repairResult.Failures = nil
 					if repairCancel != nil {
 						repairCancel()
 					}
@@ -377,7 +403,7 @@ func RunTaskLoop(ctx context.Context, tasks []runstore.Task, runner TaskRunner, 
 				// Annotate failures with [suspect-proof-check] if only pattern-matching
 				// checks are failing while build checks all pass.
 				if !ir.Pass {
-					ir.Failures = annotateSuspectProofChecks(entry.task.ProofChecks, ir.Failures)
+					ir.Failures = annotateSuspectProofChecks(entry.task.ProofChecks, ir.Failures, ir.ProofCheckResults)
 					result.Failures = ir.Failures
 					result.Status = "failed"
 				}
