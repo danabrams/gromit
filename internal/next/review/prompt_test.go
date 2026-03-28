@@ -47,4 +47,31 @@ func TestRenderReviewPrompt_IncludesPriorFindings(t *testing.T) {
 	if !strings.Contains(prompt, "duplicate logic") {
 		t.Error("prompt should include prior finding descriptions for disposition labeling")
 	}
+	if !strings.Contains(prompt, `disposition: "pre-existing"`) {
+		t.Errorf("prompt should remind reviewers to tag pre-existing findings")
+	}
+	if !strings.Contains(prompt, `disposition: "new"`) {
+		t.Errorf("prompt should remind reviewers to tag new findings")
+	}
+}
+
+func TestRenderReviewPrompt_SkipsPriorTriageWhenNoPriorFindings(t *testing.T) {
+	reg := NewRegistry()
+	facet, _ := reg.Get("spec_alignment")
+
+	input := ReviewPromptInput{
+		FacetDef:    facet,
+		DiffSummary: "Added refund handler in internal/handler/refund.go",
+	}
+
+	prompt, err := RenderReviewPrompt(input)
+	if err != nil {
+		t.Fatalf("RenderReviewPrompt: %v", err)
+	}
+	if strings.Contains(prompt, "## Prior Findings") {
+		t.Error("prompt should not include prior findings block when there are no prior findings")
+	}
+	if strings.Contains(prompt, `disposition: "pre-existing"`) {
+		t.Error("prompt should not mention disposition instructions when no prior findings exist")
+	}
 }

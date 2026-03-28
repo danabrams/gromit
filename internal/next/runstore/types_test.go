@@ -1,6 +1,7 @@
 package runstore
 
 import (
+	"bytes"
 	"encoding/json"
 	"strings"
 	"testing"
@@ -318,5 +319,102 @@ func TestRunState_NormalizeNilFields_ArchitectureConstraints(t *testing.T) {
 	}
 	if len(rs.ArchitectureConstraints) != 0 {
 		t.Errorf("ArchitectureConstraints should be empty, got %d", len(rs.ArchitectureConstraints))
+	}
+}
+
+func TestRunStateJSON_EncodesPriorReviewFindingsWhenPresent(t *testing.T) {
+	rs := NewRunState("spec-001", "proj-1")
+	rs.PriorReviewFindings = json.RawMessage(`{"spec_alignment":[{"severity":"error","file":"handler.go","line":42,"description":"missing validation","suggested_fix":"add check"}]}`)
+
+	data, err := json.Marshal(rs)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if !strings.Contains(string(data), `"prior_review_findings"`) {
+		t.Fatalf("expected JSON to contain prior_review_findings, got %s", string(data))
+	}
+
+	var got RunState
+	if err := json.Unmarshal(data, &got); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if len(got.PriorReviewFindings) == 0 {
+		t.Fatalf("expected PriorReviewFindings to survive unmarshalling, got empty")
+	}
+}
+
+func TestRunStateJSON_OmitsPriorReviewFindingsWhenEmpty(t *testing.T) {
+	rs := NewRunState("spec-002", "proj-2")
+
+	data, err := json.Marshal(rs)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if strings.Contains(string(data), `"prior_review_findings"`) {
+		t.Fatalf("expected JSON to omit prior_review_findings when empty, got %s", string(data))
+	}
+
+	var got RunState
+	if err := json.Unmarshal(data, &got); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if len(got.PriorReviewFindings) != 0 {
+		t.Fatalf("expected PriorReviewFindings to be empty after unmarshalling, got %q", got.PriorReviewFindings)
+	}
+}
+
+func TestRunStateJSON_BackwardCompatibility_LegacyPayloadWithoutPriorReviewFindings(t *testing.T) {
+	legacyJSON := []byte(`{
+		"run_id": "legacy-run",
+		"spec_id": "spec-legacy",
+		"project_id": "proj-legacy",
+		"status": "running",
+		"cycle": 1,
+		"started_at": "2026-03-24T12:00:00Z",
+		"tasks": [],
+		"accumulated_cost": 42.5,
+		"final_validation_passed": false,
+		"final_review_passed": false,
+		"final_acceptance_passed": false,
+		"contracts_written": true,
+		"scenario_tests_written": false,
+		"total_replans": 3
+	}`)
+
+	var got RunState
+	if err := json.Unmarshal(legacyJSON, &got); err != nil {
+		t.Fatalf("unmarshal legacy payload: %v", err)
+	}
+	if got.RunID != "legacy-run" {
+		t.Fatalf("expected run ID to round-trip, got %q", got.RunID)
+	}
+	if len(got.PriorReviewFindings) != 0 {
+		t.Fatalf("expected PriorReviewFindings to be empty for legacy payload, got %q", got.PriorReviewFindings)
+	}
+}
+
+func TestRunStateJSON_PreservesArbitraryPriorReviewFindingsJSON(t *testing.T) {
+	const priorPayload = `{"notes": "legacy formatting should survive", "items": [
+	    {"id": "task-1", "severity": "warning"},
+	    {"id": "task-2", "severity": "info", "details": {"line": 12}}
+	]}`
+	rs := NewRunState("spec-003", "proj-3")
+	rs.PriorReviewFindings = json.RawMessage(priorPayload)
+
+	data, err := json.Marshal(rs)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+
+	var got RunState
+	if err := json.Unmarshal(data, &got); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	var compacted bytes.Buffer
+	if err := json.Compact(&compacted, []byte(priorPayload)); err != nil {
+		t.Fatalf("compact prior payload: %v", err)
+	}
+	if !bytes.Equal(compacted.Bytes(), got.PriorReviewFindings) {
+		t.Fatalf("expected prior review payload to round-trip, got %q (compact source %q)", got.PriorReviewFindings, compacted.String())
 	}
 }

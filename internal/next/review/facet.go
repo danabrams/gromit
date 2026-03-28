@@ -31,6 +31,7 @@ The following issues were flagged in prior review cycles. Many have since been a
 IMPORTANT: Do NOT re-raise a prior finding unless you can confirm it STILL EXISTS in the current diff or current code.
 If a prior issue appears fixed (file deleted, code changed, symbol removed), do NOT generate a new finding for it — even if a related file has a similar name.
 Only include a finding as "pre-existing" if you are re-raising it because the problem genuinely still exists.
+For each prior finding: if the issue is still present in the current diff, include it with disposition: "pre-existing". If it has been resolved, omit it. New issues not in prior findings use disposition: "new".
 {{range .PriorFindings}}- [{{.Severity}}] {{.File}}: {{.Description}}
 {{end}}
 {{end}}

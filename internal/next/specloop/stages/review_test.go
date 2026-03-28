@@ -32,6 +32,19 @@ func (f *fakeDiffProvider) Diff(baseBranch string) (string, error) {
 	return f.diff, f.err
 }
 
+func mustMarshalPriorFindings(t *testing.T, facet string, findings []review.Finding) json.RawMessage {
+	t.Helper()
+	serialized := map[string]any{
+		"diff_unavailable": false,
+		facet:              findings,
+	}
+	raw, err := json.Marshal(serialized)
+	if err != nil {
+		t.Fatalf("marshal prior findings: %v", err)
+	}
+	return json.RawMessage(raw)
+}
+
 func TestReviewStage_Name(t *testing.T) {
 	s := NewReviewStage(nil, ReviewStageConfig{}, nil)
 	if s.Name() != "review" {
@@ -210,6 +223,7 @@ func TestReviewStage_FixCycle_PassesPriorFindings(t *testing.T) {
 	// Cycle 2: stage should pass prior findings from its internal state
 	rs2 := runstore.NewRunState("test-spec", "test-project")
 	rs2.Cycle = 2
+	rs2.PriorReviewFindings = mustMarshalPriorFindings(t, "spec_alignment", cycle1Findings)
 	_, err := stage.Run(context.Background(), rs2)
 	if err != nil {
 		t.Fatalf("Run: %v", err)
@@ -220,6 +234,84 @@ func TestReviewStage_FixCycle_PassesPriorFindings(t *testing.T) {
 	}
 	if capturedInput.PriorFindings[0].Facet != "spec_alignment" {
 		t.Errorf("expected spec_alignment facet, got %s", capturedInput.PriorFindings[0].Facet)
+	}
+}
+
+func TestReviewStage_UsesRunStatePriorFindings(t *testing.T) {
+	priorFindings := []review.Finding{
+		{Facet: "spec_alignment", Severity: review.SeverityWarning, File: "handler.go", Description: "missing check"},
+	}
+	var capturedInput review.RunInput
+	runner := &capturingReviewRunner{
+		resultFn: func() *review.RunResult {
+			return &review.RunResult{
+				AllFindings:         []review.Finding{},
+				BlockingFindings:    []review.Finding{},
+				HasBlockingFindings: false,
+			}
+		},
+		capture: func(input review.RunInput) {
+			capturedInput = input
+		},
+	}
+
+	serialized := map[string]any{
+		"diff_unavailable": false,
+		"spec_alignment":   priorFindings,
+	}
+	raw, err := json.Marshal(serialized)
+	if err != nil {
+		t.Fatalf("marshal prior findings: %v", err)
+	}
+
+	stage := NewReviewStage(runner, ReviewStageConfig{}, nil)
+	stage.priorFindings = []review.Finding{
+		{Facet: "stale", Severity: review.SeverityInfo, File: "stale.go", Description: "old finding"},
+	}
+	rs := runstore.NewRunState("test-spec", "test-project")
+	rs.Cycle = 1
+	rs.PriorReviewFindings = json.RawMessage(raw)
+
+	if _, err := stage.Run(context.Background(), rs); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	if len(capturedInput.PriorFindings) != len(priorFindings) {
+		t.Fatalf("expected prior findings to be passed through, got %v", capturedInput.PriorFindings)
+	}
+	if capturedInput.PriorFindings[0].Description != priorFindings[0].Description {
+		t.Errorf("prior finding mismatch: %v", capturedInput.PriorFindings[0])
+	}
+}
+
+func TestReviewStage_ClearsStalePriorFindingsWhenRunStateEmpty(t *testing.T) {
+	var capturedInput review.RunInput
+	runner := &capturingReviewRunner{
+		resultFn: func() *review.RunResult {
+			return &review.RunResult{}
+		},
+		capture: func(input review.RunInput) {
+			capturedInput = input
+		},
+	}
+
+	stage := NewReviewStage(runner, ReviewStageConfig{}, nil)
+	stage.priorFindings = []review.Finding{
+		{Facet: "stale", Severity: review.SeverityWarning, File: "legacy.go", Description: "old issue"},
+	}
+
+	rs := runstore.NewRunState("test-spec", "test-project")
+	rs.Cycle = 1
+
+	if _, err := stage.Run(context.Background(), rs); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	if len(capturedInput.PriorFindings) != 0 {
+		t.Fatalf("expected prior findings to be cleared, got %v", capturedInput.PriorFindings)
+	}
+	if len(stage.priorFindings) != 0 {
+		t.Fatalf("expected stage.priorFindings to be empty after clearing, got %v", stage.priorFindings)
 	}
 }
 
@@ -540,6 +632,7 @@ func TestReviewStage_DeduplicatesPriorFindings(t *testing.T) {
 	// Cycle 3: check priorFindings passed to runner
 	rs3 := runstore.NewRunState("test-spec", "test-project")
 	rs3.Cycle = 3
+	rs3.PriorReviewFindings = mustMarshalPriorFindings(t, "code_quality", []review.Finding{duplicateFinding})
 	stage.Run(context.Background(), rs3)
 
 	// priorFindings should have exactly 1 entry, not 2

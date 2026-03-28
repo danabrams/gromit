@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -184,6 +185,10 @@ func (e *execSpecRun) run(ctx context.Context) error {
 		rs = runstore.NewRunState(specIDFromPath(e.specPath), e.projectID)
 	}
 
+	if e.resumeRunID != "" {
+		e.handleResumeEvidence(rs)
+	}
+
 	// 3. Create a single shared Budget instance. This same instance is passed
 	// to both the SpecLoop (for cycle counting and hard budget checks between
 	// stages) and to ExecuteStage (for per-task cost accumulation). Using one
@@ -235,6 +240,44 @@ func (e *execSpecRun) run(ctx context.Context) error {
 		fmt.Fprintf(e.out, "Branch:   %s\n", branchResolverFunc(rs.WorktreePath))
 	}
 	return nil
+}
+
+func (e *execSpecRun) handleResumeEvidence(rs *runstore.RunState) {
+	evidenceDir := e.store.RunEvidenceDir(rs.RunID)
+	e.loadPriorReviewFindings(rs, evidenceDir)
+	e.cleanupEvidenceDir(evidenceDir)
+}
+
+func (e *execSpecRun) loadPriorReviewFindings(rs *runstore.RunState, evidenceDir string) {
+	reviewPath := filepath.Join(evidenceDir, "review.json")
+	data, err := os.ReadFile(reviewPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return
+		}
+		return
+	}
+	rs.PriorReviewFindings = json.RawMessage(data)
+}
+
+func (e *execSpecRun) cleanupEvidenceDir(evidenceDir string) {
+	entries, err := os.ReadDir(evidenceDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return
+		}
+		return
+	}
+	for _, entry := range entries {
+		name := entry.Name()
+		if name == "review-outcome.json" {
+			continue
+		}
+		path := filepath.Join(evidenceDir, name)
+		if err := os.RemoveAll(path); err != nil && !os.IsNotExist(err) {
+			continue
+		}
+	}
 }
 
 // newExecSpecCmd creates the `exec spec` command. Exported for testing.

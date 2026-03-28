@@ -1,6 +1,8 @@
 package runstore
 
 import (
+	"bytes"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -133,6 +135,65 @@ func TestStore_ReadTaskArtifact_NotFound(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for missing artifact")
 	}
+}
+
+func TestRunStore_SaveLoad_PriorReviewFindingsRoundTrip(t *testing.T) {
+	dir := t.TempDir()
+	s := NewStore(dir)
+
+	const payload = `{"focus":"review","details":[{"id":"task-1","severity":"warning"}]}`
+	rs := NewRunState("spec-prior", "proj-prior")
+	rs.PriorReviewFindings = json.RawMessage(payload)
+
+	if err := s.Save(rs); err != nil {
+		t.Fatalf("save run: %v", err)
+	}
+
+	loaded, err := s.Get(rs.RunID)
+	if err != nil {
+		t.Fatalf("get run: %v", err)
+	}
+
+	want := compactJSON(t, []byte(payload))
+	got := compactJSON(t, loaded.PriorReviewFindings)
+	if !bytes.Equal(want, got) {
+		t.Fatalf("prior review findings mismatch: got %q want %q", got, want)
+	}
+}
+
+func TestRunStore_SaveLoad_EmptyPriorReviewFindingsOmitted(t *testing.T) {
+	dir := t.TempDir()
+	s := NewStore(dir)
+	rs := NewRunState("spec-empty", "proj-empty")
+
+	if err := s.Save(rs); err != nil {
+		t.Fatalf("save run: %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(s.RunDir(rs.RunID), "run.json"))
+	if err != nil {
+		t.Fatalf("read run file: %v", err)
+	}
+	if strings.Contains(string(data), `"prior_review_findings"`) {
+		t.Fatalf("run.json should omit prior_review_findings when empty, got %s", string(data))
+	}
+
+	loaded, err := s.Get(rs.RunID)
+	if err != nil {
+		t.Fatalf("get run: %v", err)
+	}
+	if loaded.PriorReviewFindings != nil {
+		t.Fatalf("expected PriorReviewFindings to remain nil, got %q", loaded.PriorReviewFindings)
+	}
+}
+
+func compactJSON(t *testing.T, payload []byte) []byte {
+	t.Helper()
+	var buf bytes.Buffer
+	if err := json.Compact(&buf, payload); err != nil {
+		t.Fatalf("compact payload: %v", err)
+	}
+	return buf.Bytes()
 }
 
 func TestResetForNewCycle(t *testing.T) {

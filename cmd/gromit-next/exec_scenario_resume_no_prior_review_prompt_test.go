@@ -49,6 +49,9 @@ func TestScenario_ResumeWithoutPriorReviewJSON_LeavesPriorFindingsEmptyAndOmitsT
 			name: "review",
 			fn: func(rs *runstore.RunState) {
 				captured = rs
+				if _, err := os.Stat(filepath.Join(evidenceDir, "review.json")); !os.IsNotExist(err) {
+					t.Fatalf("precondition: review.json should not exist, got: %v", err)
+				}
 				runner := review.NewRunner(agent, review.RunnerConfig{
 					Facets:    []string{"spec_alignment"},
 					Threshold: review.SeverityError,

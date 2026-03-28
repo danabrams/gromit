@@ -82,6 +82,16 @@ func (s *ReviewStage) Run(ctx context.Context, rs *runstore.RunState) (specloop.
 		}
 	}
 
+	if len(rs.PriorReviewFindings) > 0 {
+		if prior, err := parsePriorReviewFindings(rs.PriorReviewFindings); err == nil {
+			s.priorFindings = prior
+		} else {
+			s.priorFindings = nil
+		}
+	} else {
+		s.priorFindings = nil
+	}
+
 	result, err := s.runner.Run(ctx, review.RunInput{
 		DiffSummary:   diffSummary,
 		SpecContent:   s.cfg.SpecContent,
@@ -294,4 +304,23 @@ func findingExists(findings []review.Finding, f review.Finding) bool {
 		}
 	}
 	return false
+}
+
+func parsePriorReviewFindings(data json.RawMessage) ([]review.Finding, error) {
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return nil, err
+	}
+	var findings []review.Finding
+	for key, payload := range raw {
+		if key == "diff_unavailable" {
+			continue
+		}
+		var facetFindings []review.Finding
+		if err := json.Unmarshal(payload, &facetFindings); err != nil {
+			return nil, fmt.Errorf("unmarshal prior findings for %s: %w", key, err)
+		}
+		findings = append(findings, facetFindings...)
+	}
+	return findings, nil
 }
