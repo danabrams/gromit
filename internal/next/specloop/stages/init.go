@@ -85,6 +85,17 @@ func (s *InitStage) Run(ctx context.Context, rs *runstore.RunState) (specloop.Ne
 		rs.WorktreePath = ""
 	}
 
+	// Emit run_started before captureBaseline so events.jsonl exists immediately.
+	// captureBaseline may run slow always-run checks (e.g. go test ./...) and
+	// must not delay creation of the event log file.
+	if s.eventLog != nil {
+		s.eventLog.Append(runstore.RunStartedEvent{
+			BaseEvent: runstore.BaseEvent{Type: "run_started", Timestamp: time.Now()},
+			SpecID:    rs.SpecID,
+			ProjectID: rs.ProjectID,
+		})
+	}
+
 	s.captureBaseline(ctx, worktreePath, rs)
 
 	// Copy spec file into run dir
@@ -112,15 +123,6 @@ func (s *InitStage) Run(ctx context.Context, rs *runstore.RunState) (specloop.Ne
 	// Save initial run state
 	if err := s.store.Save(rs); err != nil {
 		return specloop.NextAction{}, fmt.Errorf("save run state: %w", err)
-	}
-
-	// Emit run_started event
-	if s.eventLog != nil {
-		s.eventLog.Append(runstore.RunStartedEvent{
-			BaseEvent: runstore.BaseEvent{Type: "run_started", Timestamp: time.Now()},
-			SpecID:    rs.SpecID,
-			ProjectID: rs.ProjectID,
-		})
 	}
 
 	return specloop.NextAction{Kind: specloop.Continue}, nil
