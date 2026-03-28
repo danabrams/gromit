@@ -340,7 +340,8 @@ func parsePriorReviewFindings(data json.RawMessage) ([]review.Finding, error) {
 		}
 		var facetFindings []review.Finding
 		if err := json.Unmarshal(payload, &facetFindings); err != nil {
-			return nil, fmt.Errorf("unmarshal prior findings for %s: %w", key, err)
+			fmt.Fprintf(os.Stderr, "warning: skipping malformed prior findings for facet %q: %v\n", key, err)
+			continue
 		}
 		findings = append(findings, facetFindings...)
 	}

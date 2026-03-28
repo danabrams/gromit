@@ -1444,3 +1444,40 @@ func TestReviewStage_NonArrayFacetPayload_FallsBackToNil(t *testing.T) {
 		t.Errorf("expected stage.priorFindings to remain nil after parse error, got %v", stage.priorFindings)
 	}
 }
+
+func TestParsePriorReviewFindings_MixedValidInvalid(t *testing.T) {
+	// One valid facet and one invalid facet (string instead of array).
+	// The valid finding should be returned; the invalid facet should be skipped.
+	payload := json.RawMessage(`{
+		"spec_alignment": [{"file":"foo.go","line":10,"description":"missing validation","severity":"error","facet":"spec_alignment"}],
+		"bad_facet": "not-an-array"
+	}`)
+
+	findings, err := parsePriorReviewFindings(payload)
+	if err != nil {
+		t.Fatalf("expected no error with mixed valid/invalid facets, got: %v", err)
+	}
+	if len(findings) != 1 {
+		t.Fatalf("expected 1 finding from valid facet, got %d", len(findings))
+	}
+	if findings[0].File != "foo.go" {
+		t.Errorf("expected finding file %q, got %q", "foo.go", findings[0].File)
+	}
+}
+
+func TestParsePriorReviewFindings_AllInvalid(t *testing.T) {
+	// All facets are malformed (non-array values).
+	// Should return empty findings with no error, since each bad facet is skipped.
+	payload := json.RawMessage(`{
+		"facet_a": "not-an-array",
+		"facet_b": 42
+	}`)
+
+	findings, err := parsePriorReviewFindings(payload)
+	if err != nil {
+		t.Fatalf("expected no error even when all facets malformed, got: %v", err)
+	}
+	if len(findings) != 0 {
+		t.Errorf("expected 0 findings when all facets malformed, got %d", len(findings))
+	}
+}
