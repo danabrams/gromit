@@ -392,9 +392,15 @@ func (b *BeadLoop) runGate(ctx context.Context, beadItem *bead.Bead, iteration i
 	if err != nil {
 		b.emitStageCompleted(name, beadItem.ID, iteration, false, duration)
 		b.emitStageFailed(name, beadItem.ID, iteration, err.Error())
+		if commitErr := b.commitAfterStage(ctx, beadItem, name, iteration, stage.DecisionFail.String()); commitErr != nil {
+			return fmt.Errorf("stage commit after %s: %w", name, commitErr)
+		}
 		return err
 	}
 	decision := stageDecision(res)
+	if commitErr := b.commitAfterStage(ctx, beadItem, name, iteration, decision.String()); commitErr != nil {
+		return fmt.Errorf("stage commit after %s: %w", name, commitErr)
+	}
 	switch decision {
 	case stage.DecisionSkip:
 		b.emitStageCompleted(name, beadItem.ID, iteration, true, duration)

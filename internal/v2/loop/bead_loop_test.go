@@ -1834,18 +1834,27 @@ func TestBeadLoopCallsStageCommitterAfterSuccessfulStage(t *testing.T) {
 		t.Fatalf("Run failed: %v", err)
 	}
 
-	// Should have been called after build, validate, review (3 pipeline stages)
-	if len(sc.calls) != 3 {
-		t.Fatalf("CommitStage called %d times, want 3", len(sc.calls))
+	// Should have been called after gate, build, validate, review (4 pipeline stages)
+	if len(sc.calls) != 4 {
+		t.Fatalf("CommitStage called %d times, want 4", len(sc.calls))
 	}
-	if sc.calls[0].stageName != "build" {
-		t.Fatalf("first call stage = %q, want %q", sc.calls[0].stageName, "build")
+	if sc.calls[0].stageName != "gate" {
+		t.Fatalf("first call stage = %q, want %q", sc.calls[0].stageName, "gate")
+	}
+	if sc.calls[1].stageName != "build" {
+		t.Fatalf("second call stage = %q, want %q", sc.calls[1].stageName, "build")
 	}
 	if sc.calls[0].beadID != "bead-1" {
 		t.Fatalf("first call bead ID = %q, want %q", sc.calls[0].beadID, "bead-1")
 	}
 	if sc.calls[0].iteration != 1 {
 		t.Fatalf("first call iteration = %d, want 1", sc.calls[0].iteration)
+	}
+	if sc.calls[2].stageName != "validate" {
+		t.Fatalf("third call stage = %q, want %q", sc.calls[2].stageName, "validate")
+	}
+	if sc.calls[3].stageName != "review" {
+		t.Fatalf("fourth call stage = %q, want %q", sc.calls[3].stageName, "review")
 	}
 }
 
