@@ -887,6 +887,33 @@ func TestDistill_ProposalIDsContentBased(t *testing.T) {
 	}
 }
 
+// TestDistill_parseJSONFailureIncludesExtractedInput ensures parse errors report the extracted JSON payload.
+func TestDistill_parseJSONFailureIncludesExtractedInput(t *testing.T) {
+	llmResponse := "```json\n{\"incomplete\": \"json\"\n"
+	extracted := extractJSON(llmResponse)
+
+	inputs := &DistillerInputs{
+		RunID:         "run-parse-error",
+		SpecID:        "spec-parse-error",
+		SpecContent:   "test spec",
+		ReviewOutcome: json.RawMessage(`{"outcome": "accepted"}`),
+	}
+
+	stub := &stubLLMCompleter{response: llmResponse}
+
+	result, err := Distill(inputs, stub, TierHigh)
+	if err == nil {
+		t.Fatal("Distill() should return an error when parsing invalid JSON")
+	}
+	if result != nil {
+		t.Fatalf("Expected nil result on parse failure, got %v", result)
+	}
+
+	if !strings.Contains(err.Error(), extracted) {
+		t.Errorf("error message should include extracted JSON, got: %q", err.Error())
+	}
+}
+
 // TestDistill_NilInputs verifies that Distill returns an error when inputs is nil.
 func TestDistill_NilInputs(t *testing.T) {
 	stub := &stubLLMCompleter{response: "{}"}

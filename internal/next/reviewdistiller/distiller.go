@@ -158,7 +158,7 @@ func parseProposalsFromJSON(jsonStr string) ([]Proposal, error) {
 	}
 
 	if err := json.Unmarshal([]byte(jsonStr), &proposalObj); err != nil {
-		return nil, fmt.Errorf("failed to parse proposals from JSON: %w", err)
+		return nil, fmt.Errorf("failed to parse proposals from JSON: %w; extracted: %s", err, jsonStr)
 	}
 
 	return proposalObj.Proposals, nil

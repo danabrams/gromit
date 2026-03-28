@@ -7,6 +7,29 @@ import (
 	"text/template"
 )
 
+const outputFormatSection = `
+
+## Output Format
+Return ONLY a JSON array. No prose, no markdown fences, no text before or after.
+Each element must use exactly these fields:
+
+[
+  {
+    "type": "...",
+    "title": "...",
+    "what_happened": "...",
+    "what_was_missing": "...",
+    "proposed_change": "...",
+    "rationale": "...",
+    "confidence": "high | medium | low",
+    "confidence_rationale": "...",
+    "evidence_references": ["...", "..."]
+  }
+]
+
+evidence_references must be a JSON array (even if it contains only one item, not a string).
+`
+
 // BuildPrompt constructs a complete prompt for the distiller by combining
 // a shared preamble with outcome-specific instructions.
 func BuildPrompt(inputs *DistillerInputs, outcome string) string {
@@ -103,7 +126,7 @@ to doctrine, heuristics, or process that should inform future implementations.
 Extract at least one proposal of these types from the review feedback.
 
 ## Important Constraint
-Do not re-propose guidance that matches previously rejected proposals unless circumstances have materially changed. If proposing something similar, explain what is different.`
+Do not re-propose guidance that matches previously rejected proposals unless circumstances have materially changed. If proposing something similar, explain what is different.` + outputFormatSection
 }
 
 // buildReworkImplementationGapInstructions returns instructions for the rework_implementation_gap outcome.
@@ -122,7 +145,7 @@ The spec or vision was clear, but execution fell short.
 Extract at least one proposal of these types from the review feedback.
 
 ## Important Constraint
-Do not re-propose guidance that matches previously rejected proposals unless circumstances have materially changed. If proposing something similar, explain what is different.`
+Do not re-propose guidance that matches previously rejected proposals unless circumstances have materially changed. If proposing something similar, explain what is different.` + outputFormatSection
 }
 
 // buildReworkVisionChangeInstructions returns instructions for the rework_vision_change outcome.
@@ -139,7 +162,7 @@ The original approach was sound, but the target has shifted.
 Extract at least one proposal of this type from the review feedback.
 
 ## Important Constraint
-Do not re-propose guidance that matches previously rejected proposals unless circumstances have materially changed. If proposing something similar, explain what is different.`
+Do not re-propose guidance that matches previously rejected proposals unless circumstances have materially changed. If proposing something similar, explain what is different.` + outputFormatSection
 }
 
 // formatJSON formats a JSON RawMessage for inclusion in prompts.
