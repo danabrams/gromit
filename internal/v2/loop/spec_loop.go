@@ -804,7 +804,7 @@ func (s *SpecLoop) commitStage(ctx context.Context, worktree, stageName string, 
 	if s.stageCommitter == nil {
 		return nil
 	}
-	return s.stageCommitter.CommitStage(ctx, worktree, "", stageName, iteration, decision)
+	return s.stageCommitter.CommitStage(ctx, worktree, "", stageName, iteration, capitalizedDecision(decision))
 }
 
 func (s *SpecLoop) recordStage(name string) {

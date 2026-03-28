@@ -418,7 +418,7 @@ func (b *BeadLoop) commitAfterStage(ctx context.Context, beadItem *bead.Bead, sN
 	if b.stageCommitter == nil {
 		return nil
 	}
-	return b.stageCommitter.CommitStage(ctx, b.worktree, beadItem.ID, sName, iteration, decision)
+	return b.stageCommitter.CommitStage(ctx, b.worktree, beadItem.ID, sName, iteration, capitalizedDecision(decision))
 }
 
 func (b *BeadLoop) runStageEntry(ctx context.Context, beadItem *bead.Bead, iteration int, entries []stageEntry, nameIndex map[string]int, idx int, highestGen *int, generationLimit int, stopCh <-chan struct{}) error {
