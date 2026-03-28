@@ -512,6 +512,14 @@ func (b *BeadLoop) runStageEntry(ctx context.Context, beadItem *bead.Bead, itera
 		b.emitStageCompleted(stageName, beadItem.ID, iteration, !failed, duration)
 		if failed {
 			b.emitStageFailed(stageName, beadItem.ID, iteration, reason)
+			decision := stage.DecisionFail.String()
+			if res != nil {
+				decision = stageDecision(res).String()
+			}
+			if err := b.commitAfterStage(ctx, beadItem, stageName, iteration, decision); err != nil {
+				return fmt.Errorf("stage commit after %s: %w", stageName, err)
+			}
+			priorFailures = append(priorFailures, reason)
 		} else {
 			// Capture build artifacts for bead-level reporting.
 			if entry.stage == b.build && res != nil && res.Artifacts != nil {
@@ -532,8 +540,6 @@ func (b *BeadLoop) runStageEntry(ctx context.Context, beadItem *bead.Bead, itera
 			}
 			return nil
 		}
-
-		priorFailures = append(priorFailures, reason)
 
 		if retriesRemaining <= 0 {
 			// When the build stage fails, retries are exhausted, and triage
