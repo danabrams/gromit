@@ -1632,6 +1632,36 @@ func (s *scriptedGateStage) Run(_ context.Context, req *stage.Request) (*stage.R
 	return &stage.Result{Decision: stage.DecisionProceed}, nil
 }
 
+type recordingGateStage struct {
+	name       string
+	order      *[]string
+	decisions  map[string]stage.Decision
+	callCounts map[string]int
+}
+
+func newRecordingGateStage(name string, order *[]string, decisions map[string]stage.Decision) *recordingGateStage {
+	return &recordingGateStage{
+		name:       name,
+		order:      order,
+		decisions:  decisions,
+		callCounts: make(map[string]int),
+	}
+}
+
+func (s *recordingGateStage) Name() string { return s.name }
+
+func (s *recordingGateStage) Run(_ context.Context, req *stage.Request) (*stage.Result, error) {
+	id := req.Bead.ID
+	s.callCounts[id]++
+	if s.order != nil {
+		*s.order = append(*s.order, fmt.Sprintf("%s:%d", id, s.callCounts[id]))
+	}
+	if d, ok := s.decisions[id]; ok {
+		return &stage.Result{Decision: d}, nil
+	}
+	return &stage.Result{Decision: stage.DecisionProceed}, nil
+}
+
 // --- Bug M4: Triage retry capped ---
 
 func TestBeadLoopTriageRetryCapped(t *testing.T) {
