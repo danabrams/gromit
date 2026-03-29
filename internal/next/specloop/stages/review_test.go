@@ -1722,7 +1722,7 @@ func TestReviewThrashConsecutiveErrorCountTwoEscalates(t *testing.T) {
 	// orchestrator level).
 }
 
-func TestReviewThrashCountResetsAfterAbsentCycle(t *testing.T) {
+func TestReviewThrashResetsAfterAbsence(t *testing.T) {
 	// Acceptance Criterion 6: When a finding that previously had a thrash count blocks
 	// again after being absent for at least one cycle, its count resets to 1 (no
 	// escalation carried over from the prior streak).
