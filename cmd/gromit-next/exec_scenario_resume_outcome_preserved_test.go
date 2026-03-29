@@ -132,13 +132,11 @@ func TestExecScenarioResumeThrashStatePreserved(t *testing.T) {
 		Description: "thrash failure",
 	}
 	fp := thrashFingerprintForTest(thrashFinding)
-	failureString := review.ReviewFailuresToStrings([]review.Finding{thrashFinding})[0]
 
 	prior := runstore.NewRunState("spec-resume-thrash", "proj-resume-thrash")
 	prior.Status = runstore.StatusNeedsHuman
 	prior.EndedAt = time.Now()
 	prior.ReviewThrashCounts = map[string]int{fp: 2}
-	prior.ReviewEscalatedFailures = []string{failureString}
 	if err := store.Save(prior); err != nil {
 		t.Fatalf("save prior run: %v", err)
 	}
@@ -176,9 +174,6 @@ func TestExecScenarioResumeThrashStatePreserved(t *testing.T) {
 	if count := seen.ReviewThrashCounts[fp]; count != 2 {
 		t.Fatalf("expected thrash count 2 in resumed state, got %d", count)
 	}
-	if len(seen.ReviewEscalatedFailures) != 1 || seen.ReviewEscalatedFailures[0] != failureString {
-		t.Fatalf("expected escalated failure preserved in run state, got %v", seen.ReviewEscalatedFailures)
-	}
 
 	loaded, err := store.Get(prior.RunID)
 	if err != nil {
@@ -186,8 +181,5 @@ func TestExecScenarioResumeThrashStatePreserved(t *testing.T) {
 	}
 	if count := loaded.ReviewThrashCounts[fp]; count != 2 {
 		t.Fatalf("expected persisted thrash count 2, got %d", count)
-	}
-	if len(loaded.ReviewEscalatedFailures) != 1 || loaded.ReviewEscalatedFailures[0] != failureString {
-		t.Fatalf("expected persisted escalated failure, got %v", loaded.ReviewEscalatedFailures)
 	}
 }

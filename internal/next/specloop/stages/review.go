@@ -308,7 +308,7 @@ func (s *ReviewStage) Run(ctx context.Context, rs *runstore.RunState) (specloop.
 		prevCounts := rs.ReviewThrashCounts
 		newCounts := make(map[string]int, len(blockingFiltered))
 		var escalated []reviewThrashRecord
-		blocked := false
+		var blockedFindings []reviewThrashRecord
 		for i, f := range blockingFiltered {
 			if f.Severity != review.SeverityError {
 				continue
@@ -317,7 +317,12 @@ func (s *ReviewStage) Run(ctx context.Context, rs *runstore.RunState) (specloop.
 			count := prevCounts[fp] + 1
 			newCounts[fp] = count
 			if count >= 3 {
-				blocked = true
+				blockedFindings = append(blockedFindings, reviewThrashRecord{
+					failure:     failures[i],
+					file:        f.File,
+					description: f.Description,
+					count:       count,
+				})
 			} else if count == 2 {
 				escalated = append(escalated, reviewThrashRecord{
 					failure:     failures[i],
@@ -329,11 +334,15 @@ func (s *ReviewStage) Run(ctx context.Context, rs *runstore.RunState) (specloop.
 		}
 		rs.ReviewThrashCounts = newCounts
 
-		if blocked {
+		if len(blockedFindings) > 0 {
+			blockedFailures := make([]string, 0, len(blockedFindings))
+			for _, rec := range blockedFindings {
+				blockedFailures = append(blockedFailures, rec.failure)
+			}
 			return specloop.NextAction{
 				Kind: specloop.Blocked,
 				Context: &specloop.FailureContext{
-					Failures: failures,
+					Failures: blockedFailures,
 					Cycle:    rs.Cycle,
 				},
 			}, nil

@@ -194,8 +194,6 @@ func TestStore_RunStateThrashFieldsRoundTrip(t *testing.T) {
 	rs := NewRunState("spec-thrash", "proj-thrash")
 	fingerprint := "planner.go\x00buildFixPlanPrompt lacks X"
 	rs.ReviewThrashCounts = map[string]int{fingerprint: 2}
-	escalated := "review:spec_alignment:error:planner.go:buildFixPlanPrompt lacks X"
-	rs.ReviewEscalatedFailures = []string{escalated}
 
 	if err := s.Save(rs); err != nil {
 		t.Fatalf("save run state: %v", err)
@@ -208,9 +206,6 @@ func TestStore_RunStateThrashFieldsRoundTrip(t *testing.T) {
 
 	if got := loaded.ReviewThrashCounts[fingerprint]; got != 2 {
 		t.Fatalf("expected thrash count=2, got %d", got)
-	}
-	if len(loaded.ReviewEscalatedFailures) != 1 || loaded.ReviewEscalatedFailures[0] != escalated {
-		t.Fatalf("unexpected escalated failures: %v", loaded.ReviewEscalatedFailures)
 	}
 }
 
@@ -254,12 +249,6 @@ func TestStore_ResumeWithoutThrashFields(t *testing.T) {
 	}
 	if len(loaded.ReviewThrashCounts) != 0 {
 		t.Fatalf("expected empty ReviewThrashCounts, got %v", loaded.ReviewThrashCounts)
-	}
-	if loaded.ReviewEscalatedFailures == nil {
-		t.Fatal("ReviewEscalatedFailures should be non-nil after resume")
-	}
-	if len(loaded.ReviewEscalatedFailures) != 0 {
-		t.Fatalf("expected empty ReviewEscalatedFailures, got %v", loaded.ReviewEscalatedFailures)
 	}
 }
 

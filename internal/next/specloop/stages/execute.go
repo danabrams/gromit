@@ -85,17 +85,6 @@ func (s *ExecuteStage) Run(ctx context.Context, rs *runstore.RunState) (specloop
 		}
 	}
 
-	// Apply targeted escalation for thrashing failures
-	escalatedFailures := append([]string(nil), rs.ReviewEscalatedFailures...)
-	if len(escalatedFailures) > 0 {
-		for i := range tasksToRun {
-			if taskIntersectsEscalated(&tasksToRun[i], escalatedFailures) {
-				tasksToRun[i].ModelTier = "high"
-			}
-		}
-	}
-	rs.ReviewEscalatedFailures = nil
-
 	for i := range tasksToRun {
 		syncTaskModelTier(rs, tasksToRun[i])
 	}

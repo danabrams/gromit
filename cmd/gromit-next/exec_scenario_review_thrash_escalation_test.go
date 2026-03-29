@@ -104,8 +104,11 @@ func TestExecScenarioReviewThrashEscalation(t *testing.T) {
 	if thrashRuns[1].ModelTier != "medium" {
 		t.Errorf("cycle 2 thrash task tier: %q", thrashRuns[1].ModelTier)
 	}
-	if thrashRuns[2].ModelTier != "high" {
-		t.Errorf("cycle 3 thrash task tier: %q", thrashRuns[2].ModelTier)
+	// Note: targeted escalation based on persisted ReviewEscalatedFailures has been removed.
+	// The review_thrash_escalated event is still emitted, but task escalation will be
+	// re-implemented using transient FailureContext in a future refactoring.
+	if thrashRuns[2].ModelTier != "medium" {
+		t.Errorf("cycle 3 thrash task tier: %q (expected medium, escalation via persisted field removed)", thrashRuns[2].ModelTier)
 	}
 }
 

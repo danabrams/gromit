@@ -187,9 +187,6 @@ func (sl *SpecLoop) Run(ctx context.Context, rs *runstore.RunState) error {
 			// Format: "prior-attempt-error: <task-id>: <error-message>"
 			// Must happen AFTER rs.ReplanContext assignment to avoid overwriting.
 			AppendPriorAttemptErrors(&rs.ReplanContext, rs.TaskLineage, sl.config.Escalation.ErrorContextThreshold)
-			rs.ReviewEscalatedFailures = append([]string(nil), replanContext.EscalatedFailures...)
-		} else {
-			rs.ReviewEscalatedFailures = nil
 		}
 
 		// Emit replan_triggered event

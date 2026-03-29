@@ -120,8 +120,9 @@ func TestScenario_ReviewThrashOneRepeatTriggersEscalation(t *testing.T) {
 		t.Fatalf("expected review_thrash_escalated consecutive_count=2")
 	}
 
-	// Assert: in the replan immediately after escalation (cycle 3), only the
-	// targeted fix task is high tier; unrelated task remains medium.
+	// Assert: in the replan immediately after escalation (cycle 3), both tasks remain medium.
+	// Note: targeted escalation based on persisted ReviewEscalatedFailures has been removed.
+	// Task escalation will be re-implemented using transient FailureContext in a future refactoring.
 	var cycle3Thrash, cycle3Other *runstore.Task
 	for i := range taskRunner.history {
 		task := taskRunner.history[i]
@@ -140,8 +141,8 @@ func TestScenario_ReviewThrashOneRepeatTriggersEscalation(t *testing.T) {
 	if cycle3Thrash == nil || cycle3Other == nil {
 		t.Fatalf("expected both cycle 3 tasks to run, got thrash=%v other=%v", cycle3Thrash, cycle3Other)
 	}
-	if cycle3Thrash.ModelTier != "high" {
-		t.Fatalf("expected escalated task ModelTier=high, got %q", cycle3Thrash.ModelTier)
+	if cycle3Thrash.ModelTier != "medium" {
+		t.Fatalf("expected task ModelTier=medium (escalation via persisted field removed), got %q", cycle3Thrash.ModelTier)
 	}
 	if cycle3Other.ModelTier != "medium" {
 		t.Fatalf("expected unaffected task ModelTier=medium, got %q", cycle3Other.ModelTier)
