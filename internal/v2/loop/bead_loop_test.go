@@ -15,6 +15,8 @@ import (
 	"github.com/danabrams/gromit/internal/v2/adapter/tasktracker"
 	"github.com/danabrams/gromit/internal/v2/event"
 	"github.com/danabrams/gromit/internal/v2/generation"
+	"github.com/danabrams/gromit/internal/v2/llmtypes"
+	"github.com/danabrams/gromit/internal/v2/routing"
 	"github.com/danabrams/gromit/internal/v2/stage"
 	epiloguestage "github.com/danabrams/gromit/internal/v2/stage/epilogue"
 	stagedesc "github.com/danabrams/gromit/internal/v2/stage/names"
@@ -321,6 +323,203 @@ func TestBeadLoopStageRequestIncludesWorktree(t *testing.T) {
 	if need := worktree; validate.requests[0].Worktree != need {
 		t.Fatalf("validate worktree = %q, want %q", validate.requests[0].Worktree, need)
 	}
+}
+
+func TestBeadLoopRoutingSetsProviderAndModelPerPhase(t *testing.T) {
+	t.Parallel()
+
+	buildStage := newCapturingStage("build")
+	validateStage := newCapturingStage("validate")
+	reviewStage := newCapturingStage("review")
+
+	buildProvider := &stubRoutingProvider{name: "build-provider"}
+	validateProvider := &stubRoutingProvider{name: "validate-provider"}
+	reviewProvider := &stubRoutingProvider{name: "review-provider"}
+
+	router := routing.NewRouter(routing.RouterConfig{
+		Providers: map[string]llmtypes.LLMProvider{
+			"build-provider":    buildProvider,
+			"validate-provider": validateProvider,
+			"review-provider":   reviewProvider,
+		},
+		PhasePreferences: map[string]string{
+			"build":    "build-provider",
+			"validate": "validate-provider",
+			"review":   "review-provider",
+		},
+		Models: map[string]map[string]string{
+			"build-provider": {
+				routing.TierLow: "build-low-model",
+			},
+			"validate-provider": {
+				routing.TierMedium: "validate-medium-model",
+			},
+			"review-provider": {
+				routing.TierHigh: "review-high-model",
+			},
+		},
+	})
+
+	config := BeadLoopConfig{
+		Gate:     newNoopStage("gate"),
+		Build:    buildStage,
+		Validate: validateStage,
+		Review:   reviewStage,
+		Epilogue: newNoopStage("epilogue"),
+		Router:   router,
+		PhaseModels: map[string]string{
+			"build":    routing.TierLow,
+			"validate": routing.TierMedium,
+			"review":   routing.TierHigh,
+		},
+	}
+
+	loop, err := NewBeadLoop(config)
+	if err != nil {
+		t.Fatalf("NewBeadLoop: %v", err)
+	}
+
+	beads := []*bead.Bead{{ID: "phased"}}
+	if _, err := loop.Run(context.Background(), beads, nil); err != nil {
+		t.Fatalf("Run failed: %v", err)
+	}
+
+	tests := []struct {
+		name         string
+		stage        *capturingStage
+		wantProvider llmtypes.LLMProvider
+		wantModel    string
+		wantTier     string
+	}{
+		{
+			name:         "build",
+			stage:        buildStage,
+			wantProvider: buildProvider,
+			wantModel:    "build-low-model",
+			wantTier:     routing.TierLow,
+		},
+		{
+			name:         "validate",
+			stage:        validateStage,
+			wantProvider: validateProvider,
+			wantModel:    "validate-medium-model",
+			wantTier:     routing.TierMedium,
+		},
+		{
+			name:         "review",
+			stage:        reviewStage,
+			wantProvider: reviewProvider,
+			wantModel:    "review-high-model",
+			wantTier:     routing.TierHigh,
+		},
+	}
+
+	for _, tc := range tests {
+		if len(tc.stage.requests) != 1 {
+			t.Fatalf("%s executed %d times, want 1", tc.name, len(tc.stage.requests))
+		}
+		req := tc.stage.requests[0]
+		if req.Provider != tc.wantProvider {
+			t.Fatalf("%s provider = %v, want %v", tc.name, req.Provider, tc.wantProvider)
+		}
+		if req.Model != tc.wantModel {
+			t.Fatalf("%s model = %q, want %q", tc.name, req.Model, tc.wantModel)
+		}
+		if req.Tier != tc.wantTier {
+			t.Fatalf("%s tier = %q, want %q", tc.name, req.Tier, tc.wantTier)
+		}
+		if req.RetryContext != nil {
+			t.Fatalf("%s unexpected retry context: %#v", tc.name, req.RetryContext)
+		}
+	}
+}
+
+func TestBeadLoopRoutingEscalatesTierOnRetry(t *testing.T) {
+	t.Parallel()
+
+	buildProvider := &stubRoutingProvider{name: "build-provider"}
+	router := routing.NewRouter(routing.RouterConfig{
+		Providers: map[string]llmtypes.LLMProvider{"build-provider": buildProvider},
+		PhasePreferences: map[string]string{
+			"build": "build-provider",
+		},
+		Models: map[string]map[string]string{
+			"build-provider": {
+				routing.TierLow:    "retry-low-model",
+				routing.TierMedium: "retry-medium-model",
+			},
+		},
+	})
+
+	buildStage := newRetryStage("build", 1, nil)
+	buildStage.retryConfig = stage.RetryConfig{MaxRetries: 1}
+
+	config := BeadLoopConfig{
+		Gate:        newNoopStage("gate"),
+		Build:       buildStage,
+		Validate:    newNoopStage("validate"),
+		Review:      newNoopStage("review"),
+		Epilogue:    newNoopStage("epilogue"),
+		Router:      router,
+		PhaseModels: map[string]string{"build": routing.TierLow},
+	}
+
+	loop, err := NewBeadLoop(config)
+	if err != nil {
+		t.Fatalf("NewBeadLoop: %v", err)
+	}
+
+	beads := []*bead.Bead{{ID: "retry"}}
+	if _, err := loop.Run(context.Background(), beads, nil); err != nil {
+		t.Fatalf("Run failed: %v", err)
+	}
+
+	if len(buildStage.requests) != 2 {
+		t.Fatalf("build executed %d times, want 2", len(buildStage.requests))
+	}
+
+	first := buildStage.requests[0]
+	if first.RetryContext != nil {
+		t.Fatalf("first attempt had unexpected retry context: %#v", first.RetryContext)
+	}
+	if first.Tier != routing.TierLow {
+		t.Fatalf("first tier = %q, want %q", first.Tier, routing.TierLow)
+	}
+	if first.Model != "retry-low-model" {
+		t.Fatalf("first model = %q, want retry-low-model", first.Model)
+	}
+
+	second := buildStage.requests[1]
+	if second.RetryContext == nil {
+		t.Fatal("second attempt missing retry context")
+	}
+	if second.RetryContext.Attempt != 2 {
+		t.Fatalf("second attempt = %d, want 2", second.RetryContext.Attempt)
+	}
+	if second.RetryContext.EscalationLevel != 1 {
+		t.Fatalf("escalation level = %d, want 1", second.RetryContext.EscalationLevel)
+	}
+	if second.Tier != routing.TierMedium {
+		t.Fatalf("second tier = %q, want %q", second.Tier, routing.TierMedium)
+	}
+	if second.Model != "retry-medium-model" {
+		t.Fatalf("second model = %q, want retry-medium-model", second.Model)
+	}
+	if second.Provider != buildProvider {
+		t.Fatalf("second provider = %v, want %v", second.Provider, buildProvider)
+	}
+}
+
+type stubRoutingProvider struct {
+	name string
+}
+
+func (s *stubRoutingProvider) Invoke(_ context.Context, _ llmtypes.LLMInvokeRequest) (*llmtypes.LLMInvokeResponse, error) {
+	return &llmtypes.LLMInvokeResponse{}, nil
+}
+
+func (s *stubRoutingProvider) StreamInvoke(_ context.Context, _ llmtypes.LLMStreamInvokeRequest) (*llmtypes.LLMInvokeResponse, error) {
+	return &llmtypes.LLMInvokeResponse{}, nil
 }
 
 func TestBeadLoopStageErrorPropagation(t *testing.T) {
