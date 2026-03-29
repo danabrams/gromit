@@ -220,6 +220,79 @@ func TestSpecLoopHappyPathExecutesPipeline(t *testing.T) {
 	}
 }
 
+func TestSpecLoopLegacySubscriberWarmupEngages(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	specID := "legacy-warmup"
+	cfg := &config.Config{}
+
+	typedEmitter := event.NewEmitter()
+	t.Cleanup(typedEmitter.Close)
+
+	legacyEmitter := events.NewEmitter()
+
+	git := newFakeGitAdapter(t)
+	presenter := newFakePresenterAdapter(t)
+	presentStage, summaryCtx := newPresentStageForTest(t, cfg, presenter)
+	beadRunner := newFakeBeadRunner()
+	planStage := newFakePlanStage(specID)
+	acceptStage := newFakeAcceptStage()
+	warmupCalls := 0
+	var (
+		warmupSpecID   string
+		warmupWorktree string
+		warmupTyped    *event.Emitter
+		warmupLegacy   *events.Emitter
+	)
+
+	loopInstance, err := NewSpecLoop(adapter.AdapterSet{
+		Git:         git,
+		LLM:         newFakeLLMAdapter(),
+		TaskTracker: newFakeTaskTrackerAdapter(),
+		Presenter:   presenter,
+	}, cfg, noopDependencyGate{},
+		WithEmitter(legacyEmitter),
+		WithTypedEmitter(typedEmitter),
+		WithPlanStage(planStage),
+		WithPresentStage(presentStage, summaryCtx),
+		WithDecomposeStage(newFakeDecomposeStage(specID)),
+		WithBeadLoop(beadRunner),
+		WithAcceptStage(acceptStage),
+		WithLegacySubscriberWarmup(func(ctx context.Context, id, worktree string, typed *event.Emitter, legacy *events.Emitter) error {
+			warmupCalls++
+			warmupSpecID = id
+			warmupWorktree = worktree
+			warmupTyped = typed
+			warmupLegacy = legacy
+			return nil
+		}),
+	)
+	if err != nil {
+		t.Fatalf("create spec loop: %v", err)
+	}
+
+	if err := loopInstance.Run(ctx, specID, nil); err != nil {
+		t.Fatalf("run spec loop: %v", err)
+	}
+
+	if warmupCalls != 1 {
+		t.Fatalf("warmup calls = %d, want 1", warmupCalls)
+	}
+	if warmupSpecID != specID {
+		t.Fatalf("warmup spec ID = %q, want %q", warmupSpecID, specID)
+	}
+	if warmupWorktree != git.lastWorktree {
+		t.Fatalf("warmup worktree = %q, want %q", warmupWorktree, git.lastWorktree)
+	}
+	if warmupTyped != typedEmitter {
+		t.Fatal("warmup received unexpected typed emitter")
+	}
+	if warmupLegacy != legacyEmitter {
+		t.Fatal("warmup received unexpected legacy emitter")
+	}
+}
+
 func TestBuildSuccessSummaryIncludesOutOfScopeFindings(t *testing.T) {
 	t.Parallel()
 
