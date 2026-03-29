@@ -98,7 +98,7 @@ func parsePhaseAnnotation(heading string) []string {
 	for _, p := range parts {
 		trimmed := strings.TrimSpace(p)
 		if trimmed != "" {
-			phases = append(phases, trimmed)
+			phases = append(phases, strings.ToLower(trimmed))
 		}
 	}
 	return phases
@@ -113,6 +113,8 @@ func (p *PromptAssembler) loadBaseInstructions(phase string) string {
 	if phase == "" {
 		return p.base
 	}
+
+	normalizedPhase := strings.ToLower(phase)
 
 	lines := strings.Split(p.base, "\n")
 	type section struct {
@@ -131,7 +133,7 @@ func (p *PromptAssembler) loadBaseInstructions(phase string) string {
 		matchPhase := false
 		if hasAnnot {
 			for _, ph := range phases {
-				if ph == phase {
+				if ph == normalizedPhase {
 					matchPhase = true
 					break
 				}
@@ -185,9 +187,9 @@ func (p *PromptAssembler) loadBaseInstructions(phase string) string {
 		if preamble == "" {
 			return ""
 		}
-		return p.applyPhaseCap(phase, preamble)
+		return p.applyPhaseCap(normalizedPhase, preamble)
 	}
-	return p.applyPhaseCapForPhaseSections(phase, preamble, body)
+	return p.applyPhaseCapForPhaseSections(normalizedPhase, preamble, body)
 }
 
 // loadBaseInstructionsLegacy uses exact heading matching for phase filtering.
@@ -227,7 +229,8 @@ func (p *PromptAssembler) loadBaseInstructionsLegacy(phase string) string {
 
 // applyPhaseCap truncates the section to the per-phase character cap if defined.
 func (p *PromptAssembler) applyPhaseCap(phase, section string) string {
-	if cap, ok := phaseMaxChars[phase]; ok && len(section) > cap {
+	phaseKey := strings.ToLower(phase)
+	if cap, ok := phaseMaxChars[phaseKey]; ok && len(section) > cap {
 		section = section[:cap]
 		// Back up to valid UTF-8 boundary.
 		for len(section) > 0 && !utf8.Valid([]byte(section)) {
@@ -238,7 +241,8 @@ func (p *PromptAssembler) applyPhaseCap(phase, section string) string {
 }
 
 func (p *PromptAssembler) applyPhaseCapForPhaseSections(phase, preamble, sections string) string {
-	capVal, ok := phaseMaxChars[phase]
+	phaseKey := strings.ToLower(phase)
+	capVal, ok := phaseMaxChars[phaseKey]
 	if !ok || capVal <= 0 {
 		return joinPreambleAndBody(preamble, sections)
 	}
