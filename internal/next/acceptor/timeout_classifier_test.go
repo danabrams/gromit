@@ -1,6 +1,7 @@
 package acceptor
 
 import (
+	"fmt"
 	"testing"
 	"time"
 )
@@ -23,7 +24,7 @@ func TestClassifyKeywordComplexity_Outcomes(t *testing.T) {
 	}
 
 	for idx, example := range simpleExamples {
-		t.Run("simple example #"+string(rune(idx+'1')), func(t *testing.T) {
+		t.Run(fmt.Sprintf("simple example #%d", idx+1), func(t *testing.T) {
 			if got := ClassifyCriterionComplexity(example); got != complexitySimple {
 				t.Fatalf("simple example %q classified as %q", example, got)
 			}

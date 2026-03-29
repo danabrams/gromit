@@ -55,9 +55,13 @@ func (e *Evaluator) Evaluate(ctx context.Context, input EvaluateInput) (Acceptan
 		criterionCtx, cancel := context.WithTimeout(ctx, deadline)
 		cr, err := e.agent.EvaluateCriterion(criterionCtx, prompt)
 		cancel()
-		if err != nil {
-			if errors.Is(err, context.DeadlineExceeded) {
-				return AcceptanceResult{}, fmt.Errorf("evaluating criterion %q: deadline exceeded (timeout) (%w)", criterion, err)
+		if err != nil || criterionCtx.Err() == context.DeadlineExceeded {
+			if errors.Is(err, context.DeadlineExceeded) || criterionCtx.Err() == context.DeadlineExceeded {
+				timeoutErr := err
+				if timeoutErr == nil {
+					timeoutErr = context.DeadlineExceeded
+				}
+				return AcceptanceResult{}, fmt.Errorf("evaluating criterion %q: deadline exceeded (timeout) (%w)", criterion, timeoutErr)
 			}
 			return AcceptanceResult{}, fmt.Errorf("evaluating criterion %q: %w", criterion, err)
 		}

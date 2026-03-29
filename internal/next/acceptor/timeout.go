@@ -36,7 +36,6 @@ var complexityKeywords = []string{
 	"scenario",
 	"workflow",
 	"sequence",
-	"across",
 	"survive",
 	"resume",
 }
@@ -73,12 +72,12 @@ func ComputeCriterionTimeout(cfg TimeoutConfig, diffSizeBytes int, criterion str
 		totalSeconds += float64(cfg.ComplexityBonusSecs)
 	}
 
-	if cfg.HardMaximumSecs > 0 && totalSeconds > float64(cfg.HardMaximumSecs) {
-		totalSeconds = float64(cfg.HardMaximumSecs)
-	}
-
 	if totalSeconds < float64(baseSecs) {
 		totalSeconds = float64(baseSecs)
+	}
+
+	if cfg.HardMaximumSecs > 0 && totalSeconds > float64(cfg.HardMaximumSecs) {
+		totalSeconds = float64(cfg.HardMaximumSecs)
 	}
 
 	return time.Duration(totalSeconds * float64(time.Second))

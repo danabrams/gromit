@@ -1,8 +1,11 @@
 package acceptor
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"log"
+	"os"
 	"sync"
 	"testing"
 	"time"
@@ -184,6 +187,43 @@ func TestEvaluator_ReturnsTimeoutErrorOnDeadlineExceeded(t *testing.T) {
 	}
 	if !containsSubstring(err.Error(), "timeout-heavy") {
 		t.Fatalf("error should mention the criterion: %v", err)
+	}
+}
+
+func TestEvaluator_LogsCriterionTimeoutComputed(t *testing.T) {
+	cfg := TimeoutConfig{
+		BaseSeconds:         5,
+		RateConstant:        1_000_000,
+		ComplexityBonusSecs: 0,
+		HardMaximumSecs:     60,
+	}
+	criterion := "logs the computed timeout"
+	diffSummary := "small diff"
+	input := EvaluateInput{
+		Criteria:    []string{criterion},
+		DiffSummary: diffSummary,
+	}
+
+	var buf bytes.Buffer
+	log.SetOutput(&buf)
+	defer log.SetOutput(os.Stderr)
+
+	agent := &deadlineRecordingAgent{}
+	eval := NewEvaluator(agent, cfg)
+	if _, err := eval.Evaluate(context.Background(), input); err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+
+	logOutput := buf.String()
+	if !containsSubstring(logOutput, "criterion_timeout_computed") {
+		t.Errorf("log output should contain criterion_timeout_computed; got: %s", logOutput)
+	}
+	if !containsSubstring(logOutput, criterion) {
+		t.Errorf("log output should contain criterion text %q; got: %s", criterion, logOutput)
+	}
+	expectedTimeout := ComputeCriterionTimeout(cfg, len(diffSummary), criterion)
+	if !containsSubstring(logOutput, expectedTimeout.String()) {
+		t.Errorf("log output should contain timeout value %s; got: %s", expectedTimeout, logOutput)
 	}
 }
 

@@ -5,8 +5,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/danabrams/gromit/internal/next/runstore"
 )
 
 type timeoutCapturingAgent struct {
@@ -26,26 +24,6 @@ func (a *timeoutCapturingAgent) EvaluateCriterion(ctx context.Context, prompt st
 }
 
 func TestScenario_SimpleCriterionWithModerateDiffFinishesWithinScaledTimeout(t *testing.T) {
-	// Seed
-	tmp := t.TempDir()
-	store := runstore.NewStore(tmp)
-
-	rs := &runstore.RunState{
-		RunID:              "run-timeout-simple-001",
-		SpecID:             "spec-timeout-scaling",
-		ProjectID:          "proj-timeout-scaling",
-		Status:             runstore.StatusRunning,
-		StartedAt:          time.Now().UTC(),
-		ReviewThrashCounts: map[string]int{"finding-1": 1},
-		Tasks:              []runstore.Task{{TaskID: "task-1", Status: "done"}},
-	}
-	mustSaveRunState(t, store, rs)
-
-	loaded, err := store.Get(rs.RunID)
-	if err != nil {
-		t.Fatalf("store.Get: %v", err)
-	}
-
 	criterion := "RunState.ReviewThrashCounts field exists"
 	diffSummary := strings.Repeat("a", 500_000)
 
@@ -59,7 +37,7 @@ func TestScenario_SimpleCriterionWithModerateDiffFinishesWithinScaledTimeout(t *
 		DiffSummary:       diffSummary,
 		TaskResults:       "seeded run has one completed task",
 		ValidationResults: "all checks passed",
-		ReviewFindings:    strings.Join(loaded.ReviewFindings, "\n"),
+		ReviewFindings:    "",
 	})
 	elapsed := time.Since(start)
 
@@ -88,12 +66,5 @@ func TestScenario_SimpleCriterionWithModerateDiffFinishesWithinScaledTimeout(t *
 	}
 	if !strings.Contains(agent.seenPrompt, criterion) {
 		t.Fatalf("expected prompt to contain criterion %q", criterion)
-	}
-}
-
-func mustSaveRunState(t *testing.T, store *runstore.Store, rs *runstore.RunState) {
-	t.Helper()
-	if err := store.Save(rs); err != nil {
-		t.Fatalf("store.Save(%s): %v", rs.RunID, err)
 	}
 }
