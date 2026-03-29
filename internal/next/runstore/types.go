@@ -137,6 +137,46 @@ func (rs *RunState) NormalizeNilFields() {
 	}
 }
 
+// UnmarshalJSON provides backward-compatible unmarshaling for RunState.
+// It handles both legacy array-shaped replan_context (legacy format: ["failure1", "failure2"])
+// and new object-shaped replan_context (current format: {"failures": [...], "escalated_failures": [...]}).
+func (rs *RunState) UnmarshalJSON(data []byte) error {
+	// Temporary struct that captures replan_context as raw JSON for custom parsing.
+	type Alias RunState
+	aux := &struct {
+		ReplanContextRaw json.RawMessage `json:"replan_context"`
+		*Alias
+	}{
+		Alias: (*Alias)(rs),
+	}
+
+	if err := json.Unmarshal(data, aux); err != nil {
+		return err
+	}
+
+	// Handle replan_context: support both legacy array format and new object format.
+	if len(aux.ReplanContextRaw) > 0 {
+		// Try to detect format by attempting to unmarshal as array first.
+		var legacyArray []string
+		if err := json.Unmarshal(aux.ReplanContextRaw, &legacyArray); err == nil && aux.ReplanContextRaw[0] == '[' {
+			// It's an array (legacy format).
+			rs.ReplanContext = &ReplanContext{
+				Failures:          legacyArray,
+				EscalatedFailures: []string{},
+			}
+		} else {
+			// Try new object format.
+			var rc ReplanContext
+			if err := json.Unmarshal(aux.ReplanContextRaw, &rc); err != nil {
+				return fmt.Errorf("unmarshal replan_context: %w", err)
+			}
+			rs.ReplanContext = &rc
+		}
+	}
+
+	return nil
+}
+
 // IsTerminal returns true if the run is in a terminal state.
 func (rs *RunState) IsTerminal() bool {
 	switch rs.Status {
