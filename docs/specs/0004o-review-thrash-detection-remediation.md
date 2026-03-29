@@ -1,3 +1,4 @@
+DONE 2026-03-29
 ## spec_id
 
 0004o-review-thrash-detection-remediation

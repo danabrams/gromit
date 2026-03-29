@@ -1,3 +1,4 @@
+DONE 2026-03-29
 # Spec 0004b — Review Outcome Recording and CLI
 
 ## spec_id
