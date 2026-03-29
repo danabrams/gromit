@@ -534,3 +534,22 @@ func TestProjectContextScopesArchitectureToBeadPaths(t *testing.T) {
 		t.Fatalf("unexpected architecture bullet for other package:\n%s", scoped)
 	}
 }
+
+func TestProjectContextScopesArchitectureForNestedPackage(t *testing.T) {
+	project := "# Project\n\n## Architecture\n" +
+		"- `prompt/` — prompt template rendering\n" +
+		"- `runner/` — core loop orchestration"
+
+	assembler := NewPromptAssembler("base", project, "", "")
+	scoped := assembler.loadProjectContext(BeadInfo{
+		Title: "internal/prompt/assembler",
+		Files: []string{"internal/prompt/assembler/main.go"},
+	})
+
+	if !strings.Contains(scoped, "`prompt/`") {
+		t.Fatalf("expected prompt bullet to remain in scoped context:\n%s", scoped)
+	}
+	if strings.Contains(scoped, "`runner/`") {
+		t.Fatalf("unexpected runner bullet for prompt package:\n%s", scoped)
+	}
+}
