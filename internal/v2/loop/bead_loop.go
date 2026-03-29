@@ -251,8 +251,8 @@ runLoop:
 			}
 			if passProgress == 0 {
 				// Full pass with zero progress: all remaining beads are blocked.
-				blockedIDs := strings.Join(blockedThisPass, ", ")
-				return BeadLoopResult{}, fmt.Errorf("bead loop: all remaining beads blocked with no progress: %s", blockedIDs)
+			blockedIDs := strings.Join(blockedThisPass, ", ")
+			return BeadLoopResult{}, fmt.Errorf("bead loop: all remaining beads blocked with no progress (blocked beads: %s)", blockedIDs)
 			}
 			// Progress was made this pass — retry the blocked beads.
 			blockedThisPass = nil
