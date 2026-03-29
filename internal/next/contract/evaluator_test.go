@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 // initGitRepo creates a git repo in dir, commits a file, and returns the dir.
@@ -28,6 +29,18 @@ func initGitRepo(t *testing.T) string {
 	// Create an initial commit so HEAD exists.
 	run("git", "commit", "--allow-empty", "-m", "init")
 	return dir
+}
+
+func writeGoTestModule(t *testing.T, dir, testContent string) {
+	t.Helper()
+	const mod = "module example.com/contractevaltest\n\n" +
+		"go 1.26\n"
+	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte(mod), 0o644); err != nil {
+		t.Fatalf("write go.mod: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "contract_test.go"), []byte(testContent), 0o644); err != nil {
+		t.Fatalf("write contract_test.go: %v", err)
+	}
 }
 
 func TestEvaluator_NilContract(t *testing.T) {
@@ -1042,4 +1055,305 @@ func TestEvaluate_PopulatesAssertion_FileContains(t *testing.T) {
 	if failure.Assertion.FileContains.Pattern != "missing_function" {
 		t.Errorf("expected Assertion.FileContains.Pattern to be 'missing_function', got %q", failure.Assertion.FileContains.Pattern)
 	}
+}
+
+func TestEvaluator_GoTestPass_Pass(t *testing.T) {
+	dir := t.TempDir()
+	writeGoTestModule(t, dir, `package contractevaltest
+
+import "testing"
+
+func TestFooBehavior(t *testing.T) {}
+`)
+
+	ev := &DefaultContractEvaluator{}
+	contract := ScenarioContract{
+		Scenarios: []ScenarioAssertions{{
+			Name: "scenario-with-test",
+			Assertions: []ContractAssertion{
+				{GoTestPass: &GoTestPassAssertion{
+					Pkg:      "./...",
+					TestName: "TestFooBehavior",
+				}},
+			},
+		}},
+	}
+
+	failures, err := ev.Evaluate(context.Background(), &contract, dir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(failures) != 0 {
+		t.Fatalf("expected no failures, got %d: %v", len(failures), failures)
+	}
+}
+
+func TestEvaluator_GoTestPass_Fail(t *testing.T) {
+	dir := t.TempDir()
+	writeGoTestModule(t, dir, `package contractevaltest
+
+import "testing"
+
+func TestBarFailure(t *testing.T) {
+	t.Fatalf("expected the planner instructions to include reviewer guidance")
+}
+`)
+
+	ev := &DefaultContractEvaluator{}
+	contract := ScenarioContract{
+		Scenarios: []ScenarioAssertions{{
+			Name: "scenario-with-failing-test",
+			Assertions: []ContractAssertion{
+				{GoTestPass: &GoTestPassAssertion{
+					Pkg:      "./...",
+					TestName: "TestBarFailure",
+				}},
+			},
+		}},
+	}
+
+	failures, err := ev.Evaluate(context.Background(), &contract, dir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(failures) != 1 {
+		t.Fatalf("expected 1 failure, got %d: %v", len(failures), failures)
+	}
+
+	actual := failures[0]
+	if actual.AssertionType != "go_test_pass" {
+		t.Errorf("expected assertion type go_test_pass, got %q", actual.AssertionType)
+	}
+	if !strings.Contains(actual.Details, "expected the planner instructions to include reviewer guidance") {
+		t.Errorf("failure details missing test output: %q", actual.Details)
+	}
+	if !strings.Contains(actual.Details, "go test ./... -run ^TestBarFailure$ failed") {
+		t.Errorf("failure details missing command reference: %q", actual.Details)
+	}
+}
+
+func TestEvaluator_GoTestPass_OutputTruncation(t *testing.T) {
+	dir := t.TempDir()
+	writeGoTestModule(t, dir, `package contractevaltest
+
+import (
+	"strings"
+	"testing"
+)
+
+func TestOverflowOutput(t *testing.T) {
+	// Emit a message longer than the 2000-char diagnostic limit.
+	t.Fatalf("long output: %s", strings.Repeat("X", 2250))
+}
+`)
+
+	ev := &DefaultContractEvaluator{}
+	contract := ScenarioContract{
+		Scenarios: []ScenarioAssertions{{
+			Name: "scenario-with-long-output",
+			Assertions: []ContractAssertion{{
+				GoTestPass: &GoTestPassAssertion{
+					Pkg:      "./...",
+					TestName: "TestOverflowOutput",
+				},
+			}},
+		}},
+	}
+
+	failures, err := ev.Evaluate(context.Background(), &contract, dir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(failures) != 1 {
+		t.Fatalf("expected 1 failure, got %d: %v", len(failures), failures)
+	}
+
+	actual := failures[0]
+	if actual.AssertionType != "go_test_pass" {
+		t.Errorf("expected assertion type go_test_pass, got %q", actual.AssertionType)
+	}
+	if !strings.Contains(actual.Details, "[output truncated]") {
+		t.Errorf("expected truncated output marker, got %q", actual.Details)
+	}
+	parts := strings.SplitN(actual.Details, "\n", 2)
+	if len(parts) != 2 {
+		t.Fatalf("unexpected details format: %q", actual.Details)
+	}
+	truncatedBlock := parts[1]
+	const suffix = "\n[output truncated]"
+	if !strings.HasSuffix(truncatedBlock, suffix) {
+		t.Fatalf("truncated block missing suffix: %q", truncatedBlock)
+	}
+	content := strings.TrimSuffix(truncatedBlock, suffix)
+	if len([]rune(content)) != goTestOutputLimit {
+		t.Fatalf("expected truncated output to be %d runes, got %d", goTestOutputLimit, len([]rune(content)))
+	}
+}
+
+func TestEvaluator_GoTestPass_ContextCancellation(t *testing.T) {
+	dir := t.TempDir()
+	writeGoTestModule(t, dir, `package contractevaltest
+
+import (
+	"testing"
+	"time"
+)
+
+func TestLongRunningTest(t *testing.T) {
+	// Sleep longer than typical test execution, to ensure context cancellation
+	// terminates the process before natural completion.
+	time.Sleep(30 * time.Second)
+}
+`)
+
+	ev := &DefaultContractEvaluator{}
+	contract := ScenarioContract{
+		Scenarios: []ScenarioAssertions{{
+			Name: "scenario-with-cancellable-test",
+			Assertions: []ContractAssertion{{
+				GoTestPass: &GoTestPassAssertion{
+					Pkg:      "./...",
+					TestName: "TestLongRunningTest",
+				},
+			}},
+		}},
+	}
+
+	// Create a context that cancels after a short duration
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+
+	failures, err := ev.Evaluate(ctx, &contract, dir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(failures) != 1 {
+		t.Fatalf("expected 1 failure due to context cancellation, got %d: %v", len(failures), failures)
+	}
+
+	actual := failures[0]
+	if actual.AssertionType != "go_test_pass" {
+		t.Errorf("expected assertion type go_test_pass, got %q", actual.AssertionType)
+	}
+	// Context cancellation results in a command exit error or context deadline exceeded
+	if !strings.Contains(actual.Details, "failed:") {
+		t.Errorf("expected failure details to indicate test failure, got %q", actual.Details)
+	}
+}
+
+func TestEvaluator_GoTestPass_InvalidAssertion(t *testing.T) {
+	dir := t.TempDir()
+	ev := &DefaultContractEvaluator{}
+
+	// Test case 1: Empty pkg field
+	t.Run("empty pkg", func(t *testing.T) {
+		contract := ScenarioContract{
+			Scenarios: []ScenarioAssertions{{
+				Name: "scenario-empty-pkg",
+				Assertions: []ContractAssertion{
+					{GoTestPass: &GoTestPassAssertion{
+						Pkg:      "",
+						TestName: "TestFoo",
+					}},
+				},
+			}},
+		}
+		failures, err := ev.Evaluate(context.Background(), &contract, dir)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(failures) != 1 {
+			t.Fatalf("expected 1 failure, got %d", len(failures))
+		}
+		if failures[0].AssertionType != "invalid_assertion" {
+			t.Errorf("expected assertion type invalid_assertion, got %q", failures[0].AssertionType)
+		}
+		if !strings.Contains(failures[0].Details, "empty pkg field") {
+			t.Errorf("expected error about empty pkg field, got %q", failures[0].Details)
+		}
+	})
+
+	// Test case 2: Empty test_name field
+	t.Run("empty test_name", func(t *testing.T) {
+		contract := ScenarioContract{
+			Scenarios: []ScenarioAssertions{{
+				Name: "scenario-empty-test-name",
+				Assertions: []ContractAssertion{
+					{GoTestPass: &GoTestPassAssertion{
+						Pkg:      "./pkg/...",
+						TestName: "",
+					}},
+				},
+			}},
+		}
+		failures, err := ev.Evaluate(context.Background(), &contract, dir)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(failures) != 1 {
+			t.Fatalf("expected 1 failure, got %d", len(failures))
+		}
+		if failures[0].AssertionType != "invalid_assertion" {
+			t.Errorf("expected assertion type invalid_assertion, got %q", failures[0].AssertionType)
+		}
+		if !strings.Contains(failures[0].Details, "empty test_name field") {
+			t.Errorf("expected error about empty test_name field, got %q", failures[0].Details)
+		}
+	})
+
+	// Test case 3: Invalid test_name format (doesn't start with "Test")
+	t.Run("invalid test_name format - no Test prefix", func(t *testing.T) {
+		contract := ScenarioContract{
+			Scenarios: []ScenarioAssertions{{
+				Name: "scenario-invalid-format",
+				Assertions: []ContractAssertion{
+					{GoTestPass: &GoTestPassAssertion{
+						Pkg:      "./pkg/...",
+						TestName: "BadTestName",
+					}},
+				},
+			}},
+		}
+		failures, err := ev.Evaluate(context.Background(), &contract, dir)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(failures) != 1 {
+			t.Fatalf("expected 1 failure, got %d", len(failures))
+		}
+		if failures[0].AssertionType != "invalid_assertion" {
+			t.Errorf("expected assertion type invalid_assertion, got %q", failures[0].AssertionType)
+		}
+		if !strings.Contains(failures[0].Details, "invalid test_name format") {
+			t.Errorf("expected error about invalid test_name format, got %q", failures[0].Details)
+		}
+	})
+
+	// Test case 4: Invalid test_name format (contains invalid characters)
+	t.Run("invalid test_name format - invalid chars", func(t *testing.T) {
+		contract := ScenarioContract{
+			Scenarios: []ScenarioAssertions{{
+				Name: "scenario-invalid-chars",
+				Assertions: []ContractAssertion{
+					{GoTestPass: &GoTestPassAssertion{
+						Pkg:      "./pkg/...",
+						TestName: "Test-Invalid-Name",
+					}},
+				},
+			}},
+		}
+		failures, err := ev.Evaluate(context.Background(), &contract, dir)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(failures) != 1 {
+			t.Fatalf("expected 1 failure, got %d", len(failures))
+		}
+		if failures[0].AssertionType != "invalid_assertion" {
+			t.Errorf("expected assertion type invalid_assertion, got %q", failures[0].AssertionType)
+		}
+		if !strings.Contains(failures[0].Details, "invalid test_name format") {
+			t.Errorf("expected error about invalid test_name format, got %q", failures[0].Details)
+		}
+	})
 }

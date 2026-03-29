@@ -217,4 +217,3 @@ func collectFailureMessages(results []specloop.TaskResult) []string {
 	}
 	return failures
 }
-
