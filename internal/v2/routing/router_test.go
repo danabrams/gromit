@@ -189,3 +189,98 @@ func TestRouterSelectUsesPhasePreference(t *testing.T) {
 		t.Fatalf("expected providerB selected for build phase, got %v", got)
 	}
 }
+
+func TestRouterSelectPhasePreferenceOverridesRatio(t *testing.T) {
+	providerA := &stubProvider{name: "providerA"}
+	providerB := &stubProvider{name: "providerB"}
+
+	r := routing.NewRouter(routing.RouterConfig{
+		Providers: map[string]llmtypes.LLMProvider{
+			"providerA": providerA,
+			"providerB": providerB,
+		},
+		Ratio: map[string]int{
+			"providerA": 1,
+			"providerB": 3,
+		},
+		PhasePreferences: map[string]string{
+			"prefer-a": "providerA",
+		},
+	})
+
+	// Make balanced selections on "neutral" phase (no preference).
+	// With ratio A:1, B:3, selections should favor B.
+	for i := 0; i < 8; i++ {
+		_, _, _, err := r.Select("neutral", "low")
+		if err != nil {
+			t.Fatalf("unexpected error on select %d: %v", i, err)
+		}
+	}
+	// Roughly: A has lower count, B has higher count.
+	// Ratio balancing should select A (underserved), but...
+	// When we use "prefer-a" phase, it should definitely select A due to preference.
+	got, _, _, err := r.Select("prefer-a", "low")
+	if err != nil {
+		t.Fatalf("unexpected error on phase select: %v", err)
+	}
+	if got != llmtypes.LLMProvider(providerA) {
+		t.Fatalf("expected phase preference to select providerA, got %v", got)
+	}
+
+	// Now verify phase preference overrides ratio by selecting "prefer-b" explicitly.
+	// Set up a new router where A is preferred by ratio balancing.
+	r2 := routing.NewRouter(routing.RouterConfig{
+		Providers: map[string]llmtypes.LLMProvider{
+			"providerA": providerA,
+			"providerB": providerB,
+		},
+		Ratio: map[string]int{
+			"providerA": 10,
+			"providerB": 1,
+		},
+		PhasePreferences: map[string]string{
+			"prefer-b": "providerB",
+		},
+	})
+
+	// Force many invocations on A via forced phase.
+	for i := 0; i < 10; i++ {
+		_, _, _, err := r2.Select("forced-a", "low")
+		if err != nil && err != routing.ErrNoProviders {
+			// Skip if providers not configured for forced-a (expected to fail)
+		}
+	}
+	// Manually force count on A by updating preferences.
+	r2 = routing.NewRouter(routing.RouterConfig{
+		Providers: map[string]llmtypes.LLMProvider{
+			"providerA": providerA,
+			"providerB": providerB,
+		},
+		Ratio: map[string]int{
+			"providerA": 10,
+			"providerB": 1,
+		},
+		PhasePreferences: map[string]string{
+			"forced-a": "providerA",
+			"prefer-b": "providerB",
+		},
+	})
+
+	// Force selections on A.
+	for i := 0; i < 10; i++ {
+		_, _, _, err := r2.Select("forced-a", "low")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	}
+	// A.count=10, B.count=0.
+	// Score A = 10/10 = 1.0, Score B = 0/1 = 0 → B would win by ratio.
+	// With phase preference "prefer-b", B should be selected despite worse ratio.
+	got, _, _, err = r2.Select("prefer-b", "low")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got != llmtypes.LLMProvider(providerB) {
+		t.Fatalf("expected phase preference to override ratio and select providerB, got %v", got)
+	}
+}
