@@ -61,3 +61,20 @@ func TestFlagChangedBeads_FlagsOverlappingBeads(t *testing.T) {
 		t.Fatalf("missing flagged beads: %v", want)
 	}
 }
+
+func TestFlagChangedBeads_NoOverlapReturnsEmpty(t *testing.T) {
+	t.Parallel()
+
+	beads := []*bead.Bead{
+		{ID: "bead-x"},
+	}
+	changedFiles := []string{"internal/other/other.go"}
+	beadFiles := map[string][]string{
+		"bead-x": {"internal/alpha/alpha.go"},
+	}
+
+	flagged := FlagChangedBeads(beads, changedFiles, beadFiles)
+	if len(flagged) != 0 {
+		t.Fatalf("got %d flagged beads, want 0", len(flagged))
+	}
+}
