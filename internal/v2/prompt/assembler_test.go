@@ -171,6 +171,65 @@ func TestMaxCharsConfigurable(t *testing.T) {
 	}
 }
 
+func TestPromptAssemblerBuildPromptShapesAndReports(t *testing.T) {
+	buildLines := strings.Repeat("build line\n", 30)
+	validateLines := strings.Repeat("validate line\n", 30)
+	base := "## build\n" + buildLines + "\n## validate\n" + validateLines
+	project := "project context line"
+	instance := "instance details"
+	fragment := strings.Repeat("fragment detail\n", 200)
+	assembler := NewPromptAssembler(base, project, instance, fragment)
+	assembler.MaxChars = 1200
+	bead := BeadInfo{
+		Title:     "cmd/main.go",
+		Files:     []string{"cmd/main.go"},
+		FileCount: 2,
+	}
+	output, report := assembler.AssembleWithReport("build", bead)
+	if report == nil {
+		t.Fatal("expected LastReport after Assemble")
+	}
+	if !strings.Contains(output, "=== BASE ===") {
+		t.Fatal("prompt should include base layer marker")
+	}
+	if !strings.Contains(output, "=== PROJECT ===") {
+		t.Fatal("prompt should include project layer marker")
+	}
+	if !strings.Contains(output, "=== INSTANCE ===") {
+		t.Fatal("prompt should include instance layer marker")
+	}
+	if !strings.Contains(output, "=== FRAGMENT ===") {
+		t.Fatal("prompt should include fragment layer marker")
+	}
+	if !strings.Contains(output, "build line") {
+		t.Fatal("build section should be present for build phase")
+	}
+	if strings.Contains(output, "validate line") {
+		t.Fatal("validate section should be omitted when phase=build")
+	}
+	if report.FileCount != 2 {
+		t.Fatalf("report.FileCount = %d, want 2", report.FileCount)
+	}
+	if report.AdjustedBudget != 600 {
+		t.Fatalf("AdjustedBudget = %d, want 600", report.AdjustedBudget)
+	}
+	if !report.Trimmed {
+		t.Fatal("expected report to indicate trimming occurred")
+	}
+	if report.TrimmedBytes <= 0 {
+		t.Fatalf("TrimmedBytes = %d, want > 0", report.TrimmedBytes)
+	}
+	if report.ShapedSize != len(output) {
+		t.Fatalf("ShapedSize = %d, want %d", report.ShapedSize, len(output))
+	}
+	if report.OriginalSize <= report.AdjustedBudget {
+		t.Fatalf("OriginalSize = %d should be larger than AdjustedBudget %d", report.OriginalSize, report.AdjustedBudget)
+	}
+	if report.ShapedSize > report.AdjustedBudget {
+		t.Fatalf("ShapedSize = %d should not exceed AdjustedBudget %d", report.ShapedSize, report.AdjustedBudget)
+	}
+}
+
 func TestMaxCharsDefaultWhenZero(t *testing.T) {
 	assembler := NewPromptAssembler("base", "", "", "")
 	assembler.Assemble("", BeadInfo{FileCount: 10})
