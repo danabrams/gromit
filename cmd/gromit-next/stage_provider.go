@@ -204,7 +204,7 @@ func (p *RealStageProvider) BuildStages(policy execpolicy.Policy, rs *runstore.R
 			policy.Models.Evaluator,
 		)
 		acceptAgent := acceptor.NewProviderAcceptAgent(acceptAdapter)
-		acceptEval = acceptor.NewEvaluator(acceptAgent)
+		acceptEval = acceptor.NewEvaluator(acceptAgent, acceptor.DefaultTimeoutConfig())
 
 		// Contract writer with FallbackAdapter (Sonnet/Planner tier).
 		contractAdapter := llmadapter.NewFallbackAdapter(

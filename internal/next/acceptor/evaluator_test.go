@@ -3,7 +3,9 @@ package acceptor
 import (
 	"context"
 	"encoding/json"
+	"sync"
 	"testing"
+	"time"
 )
 
 type mockAcceptAgent struct {
@@ -20,6 +22,44 @@ func (m *mockAcceptAgent) EvaluateCriterion(ctx context.Context, prompt string) 
 	return CriterionResult{Status: StatusPass, Rationale: "default pass"}, nil
 }
 
+type deadlineRecordingAgent struct {
+	mu       sync.Mutex
+	deadline time.Time
+}
+
+func (d *deadlineRecordingAgent) EvaluateCriterion(ctx context.Context, prompt string) (CriterionResult, error) {
+	if dl, ok := ctx.Deadline(); ok {
+		d.mu.Lock()
+		if d.deadline.IsZero() {
+			d.deadline = dl
+		}
+		d.mu.Unlock()
+	}
+	return CriterionResult{Status: StatusPass, Rationale: "deadline recorded"}, nil
+}
+
+func (d *deadlineRecordingAgent) RecordedDeadline() (time.Time, bool) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if d.deadline.IsZero() {
+		return time.Time{}, false
+	}
+	return d.deadline, true
+}
+
+type blockingAcceptAgent struct {
+	delay time.Duration
+}
+
+func (b *blockingAcceptAgent) EvaluateCriterion(ctx context.Context, prompt string) (CriterionResult, error) {
+	select {
+	case <-ctx.Done():
+		return CriterionResult{}, ctx.Err()
+	case <-time.After(b.delay):
+		return CriterionResult{Status: StatusPass, Rationale: "slow but done"}, nil
+	}
+}
+
 func TestEvaluator_AllPass(t *testing.T) {
 	agent := &mockAcceptAgent{
 		results: map[string]CriterionResult{
@@ -28,7 +68,7 @@ func TestEvaluator_AllPass(t *testing.T) {
 		},
 	}
 
-	eval := NewEvaluator(agent)
+	eval := NewEvaluator(agent, DefaultTimeoutConfig())
 	result, err := eval.Evaluate(context.Background(), EvaluateInput{
 		Criteria:    []string{"returns 200", "handles errors"},
 		DiffSummary: "Added handler",
@@ -55,7 +95,7 @@ func TestEvaluator_FailTriggersReplan(t *testing.T) {
 		},
 	}
 
-	eval := NewEvaluator(agent)
+	eval := NewEvaluator(agent, DefaultTimeoutConfig())
 	result, err := eval.Evaluate(context.Background(), EvaluateInput{
 		Criteria:    []string{"multi-currency"},
 		DiffSummary: "Added handler",
@@ -78,7 +118,7 @@ func TestEvaluator_UnclearTriggersReplan(t *testing.T) {
 		},
 	}
 
-	eval := NewEvaluator(agent)
+	eval := NewEvaluator(agent, DefaultTimeoutConfig())
 	result, err := eval.Evaluate(context.Background(), EvaluateInput{
 		Criteria:    []string{"audit log"},
 		DiffSummary: "Added handler",
@@ -88,6 +128,62 @@ func TestEvaluator_UnclearTriggersReplan(t *testing.T) {
 	}
 	if !result.HasFailOrUnclear {
 		t.Error("unclear should set HasFailOrUnclear=true")
+	}
+}
+
+func TestEvaluator_SetsPerCriterionDeadline(t *testing.T) {
+	cfg := TimeoutConfig{
+		BaseSeconds:         1,
+		RateConstant:        1_000_000,
+		ComplexityBonusSecs: 0,
+		HardMaximumSecs:     60,
+	}
+	input := EvaluateInput{
+		Criteria:    []string{"deadline check"},
+		DiffSummary: "d",
+	}
+
+	agent := &deadlineRecordingAgent{}
+	eval := NewEvaluator(agent, cfg)
+	start := time.Now()
+	if _, err := eval.Evaluate(context.Background(), input); err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+
+	deadline, ok := agent.RecordedDeadline()
+	if !ok {
+		t.Fatal("expected recorded deadline from agent context")
+	}
+
+	expected := ComputeCriterionTimeout(cfg, len(input.DiffSummary), input.Criteria[0])
+	elapsed := deadline.Sub(start)
+	tolerance := 200 * time.Millisecond
+	if elapsed < expected-tolerance || elapsed > expected+tolerance {
+		t.Fatalf("expected deadline roughly %v after start, got %v", expected, elapsed)
+	}
+}
+
+func TestEvaluator_ReturnsTimeoutErrorOnDeadlineExceeded(t *testing.T) {
+	cfg := TimeoutConfig{
+		BaseSeconds:         1,
+		RateConstant:        1_000_000,
+		ComplexityBonusSecs: 0,
+		HardMaximumSecs:     1,
+	}
+	agent := &blockingAcceptAgent{delay: 2 * time.Second}
+	eval := NewEvaluator(agent, cfg)
+	_, err := eval.Evaluate(context.Background(), EvaluateInput{
+		Criteria:    []string{"timeout-heavy"},
+		DiffSummary: "",
+	})
+	if err == nil {
+		t.Fatal("expected error when evaluation exceeded deadline")
+	}
+	if !containsSubstring(err.Error(), "deadline exceeded") && !containsSubstring(err.Error(), "timeout") {
+		t.Fatalf("error should mention deadline/timeout: %v", err)
+	}
+	if !containsSubstring(err.Error(), "timeout-heavy") {
+		t.Fatalf("error should mention the criterion: %v", err)
 	}
 }
 
@@ -230,7 +326,7 @@ func TestEvaluator_InvalidStatus_ReturnsError(t *testing.T) {
 		},
 	}
 
-	eval := NewEvaluator(agent)
+	eval := NewEvaluator(agent, DefaultTimeoutConfig())
 	_, err := eval.Evaluate(context.Background(), EvaluateInput{
 		Criteria:    []string{"some criterion"},
 		DiffSummary: "diff",
@@ -250,7 +346,7 @@ func TestEvaluator_MissingRationaleOnFail_ReturnsError(t *testing.T) {
 		},
 	}
 
-	eval := NewEvaluator(agent)
+	eval := NewEvaluator(agent, DefaultTimeoutConfig())
 	_, err := eval.Evaluate(context.Background(), EvaluateInput{
 		Criteria:    []string{"needs rationale"},
 		DiffSummary: "diff",
@@ -270,7 +366,7 @@ func TestEvaluator_MissingRationaleOnUnclear_ReturnsError(t *testing.T) {
 		},
 	}
 
-	eval := NewEvaluator(agent)
+	eval := NewEvaluator(agent, DefaultTimeoutConfig())
 	_, err := eval.Evaluate(context.Background(), EvaluateInput{
 		Criteria:    []string{"unclear thing"},
 		DiffSummary: "diff",
@@ -290,7 +386,7 @@ func TestEvaluator_EmptyRationaleOnPass_OK(t *testing.T) {
 		},
 	}
 
-	eval := NewEvaluator(agent)
+	eval := NewEvaluator(agent, DefaultTimeoutConfig())
 	result, err := eval.Evaluate(context.Background(), EvaluateInput{
 		Criteria:    []string{"passing"},
 		DiffSummary: "diff",
@@ -334,7 +430,7 @@ func TestEvaluator_RetryOnInvalidOutput(t *testing.T) {
 		},
 	}
 
-	eval := NewEvaluator(agent)
+	eval := NewEvaluator(agent, DefaultTimeoutConfig())
 	input := EvaluateInput{
 		Criteria:    []string{"endpoint works"},
 		DiffSummary: "added endpoint",
@@ -372,7 +468,7 @@ func TestEvaluator_AggregatesResults(t *testing.T) {
 		},
 	}
 
-	eval := NewEvaluator(agent)
+	eval := NewEvaluator(agent, DefaultTimeoutConfig())
 	result, err := eval.Evaluate(context.Background(), EvaluateInput{
 		Criteria:    []string{"returns 200", "handles auth", "logs events"},
 		DiffSummary: "added handler with partial auth",
