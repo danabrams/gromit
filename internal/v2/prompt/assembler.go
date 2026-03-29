@@ -590,16 +590,14 @@ func (p *PromptAssembler) assemblePromptInternal(phase string, bead BeadInfo) (s
 // When the prompt exceeds the adjusted budget, context (tail) is truncated
 // to fit while preserving instructions (head).
 func ShapeBudget(total string, fileCount int, maxChars int) (string, ShapeReport) {
-	adjustedBudget := maxChars
-	switch {
-	case fileCount >= 1 && fileCount <= 2:
-		adjustedBudget = maxChars / 2
-	case fileCount >= 3 && fileCount <= 4:
-		adjustedBudget = maxChars * 3 / 4
-	}
+	adjustedBudget := scopeAdjustedBudget(maxChars, fileCount)
 
 	if adjustedBudget < 1 {
 		adjustedBudget = 1
+	}
+
+	if adjustedBudget > maxChars {
+		adjustedBudget = maxChars
 	}
 
 	report := ShapeReport{
@@ -626,6 +624,17 @@ func ShapeBudget(total string, fileCount int, maxChars int) (string, ShapeReport
 	report.Trimmed = true
 	report.TrimmedBytes = len(total) - len(shaped)
 	return shaped, report
+}
+
+func scopeAdjustedBudget(maxChars, fileCount int) int {
+	switch {
+	case fileCount >= 1 && fileCount <= 2:
+		return maxChars / 2
+	case fileCount >= 3 && fileCount <= 4:
+		return maxChars * 3 / 4
+	default:
+		return maxChars
+	}
 }
 
 // containsFilePathToken returns true if the line contains a token that looks
