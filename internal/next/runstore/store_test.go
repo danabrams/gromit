@@ -418,3 +418,31 @@ func TestResetForNewCycle(t *testing.T) {
 		t.Fatal("FailureHistory values should remain unchanged")
 	}
 }
+
+func TestRunState_UnmarshalJSON_LegacyArrayWithLeadingWhitespace(t *testing.T) {
+	// Test that legacy array-form replan_context with leading whitespace is correctly detected
+	jsonData := []byte(`{
+		"run_id": "run-test",
+		"spec_id": "spec-1",
+		"project_id": "proj-1",
+		"status": "running",
+		"cycle": 1,
+		"started_at": "2025-01-01T00:00:00Z",
+		"replan_context":  ["failure1", "failure2"]
+	}`)
+
+	var rs RunState
+	if err := json.Unmarshal(jsonData, &rs); err != nil {
+		t.Fatalf("unmarshal with leading whitespace failed: %v", err)
+	}
+
+	if rs.ReplanContext == nil {
+		t.Fatal("ReplanContext should not be nil")
+	}
+	if len(rs.ReplanContext.Failures) != 2 {
+		t.Fatalf("expected 2 failures, got %d", len(rs.ReplanContext.Failures))
+	}
+	if rs.ReplanContext.Failures[0] != "failure1" || rs.ReplanContext.Failures[1] != "failure2" {
+		t.Fatalf("failures mismatch: got %v", rs.ReplanContext.Failures)
+	}
+}

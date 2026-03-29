@@ -1,6 +1,7 @@
 package runstore
 
 import (
+	"bytes"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
@@ -158,7 +159,8 @@ func (rs *RunState) UnmarshalJSON(data []byte) error {
 	if len(aux.ReplanContextRaw) > 0 {
 		// Try to detect format by attempting to unmarshal as array first.
 		var legacyArray []string
-		if err := json.Unmarshal(aux.ReplanContextRaw, &legacyArray); err == nil && aux.ReplanContextRaw[0] == '[' {
+		trimmed := bytes.TrimSpace(aux.ReplanContextRaw)
+		if err := json.Unmarshal(aux.ReplanContextRaw, &legacyArray); err == nil && len(trimmed) > 0 && trimmed[0] == '[' {
 			// It's an array (legacy format).
 			rs.ReplanContext = &ReplanContext{
 				Failures:          legacyArray,
