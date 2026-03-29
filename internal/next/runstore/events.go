@@ -267,6 +267,14 @@ type PhantomTaskFailureEvent struct {
 	MissingFiles []string `json:"missing_files"`
 }
 
+// DecompositionRejectedEvent is emitted when decomposition output is rejected
+// because one or more returned sub-tasks have invalid objectives.
+type DecompositionRejectedEvent struct {
+	BaseEvent
+	ParentTaskID    string `json:"parent_task_id"`
+	RejectionReason string `json:"rejection_reason"`
+}
+
 // --- EventLog ---
 
 // EventLog manages append-only event logging to a JSONL file.
@@ -453,6 +461,9 @@ func unmarshalEvent(data []byte) (TypedEvent, error) {
 		ev = &e
 	case "phantom_task_failure":
 		var e PhantomTaskFailureEvent
+		ev = &e
+	case "decomposition_rejected":
+		var e DecompositionRejectedEvent
 		ev = &e
 	default:
 		return nil, fmt.Errorf("unknown event type: %s", peek.Type)

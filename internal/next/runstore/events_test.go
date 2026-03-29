@@ -63,6 +63,7 @@ func TestEvents_AllEventTypes(t *testing.T) {
 		TaskFailedEvent{BaseEvent: BaseEvent{Type: "task_failed", Timestamp: now}, TaskID: "t1", Reason: "timeout"},
 		TaskNeedsSplitEvent{BaseEvent: BaseEvent{Type: "task_needs_split", Timestamp: now}, TaskID: "t1"},
 		RedecompositionTriggeredEvent{BaseEvent: BaseEvent{Type: "redecomposition_triggered", Timestamp: now}},
+		DecompositionRejectedEvent{BaseEvent: BaseEvent{Type: "decomposition_rejected", Timestamp: now}, ParentTaskID: "t-001", RejectionReason: "invalid subtasks"},
 		FinalValidationResultEvent{BaseEvent: BaseEvent{Type: "final_validation_result", Timestamp: now}, Passed: false},
 		ReplanTriggeredEvent{BaseEvent: BaseEvent{Type: "replan_triggered", Timestamp: now}},
 		BudgetExceededEvent{BaseEvent: BaseEvent{Type: "budget_exceeded", Timestamp: now}, AccumulatedCost: 5.50},
@@ -473,5 +474,37 @@ func TestContractDeferredEvent_RoundTrip(t *testing.T) {
 	}
 	if cde.Type != "contract_deferred" {
 		t.Errorf("Type = %q, want %q", cde.Type, "contract_deferred")
+	}
+}
+
+func TestDecompositionRejectedEvent_RoundTrip(t *testing.T) {
+	evt := DecompositionRejectedEvent{
+		BaseEvent:       BaseEvent{Type: "decomposition_rejected", Timestamp: time.Now()},
+		ParentTaskID:    "t-001",
+		RejectionReason: "sub-tasks with empty objectives: t-005, t-006",
+	}
+
+	data, err := json.Marshal(evt)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+
+	roundTripped, err := unmarshalEvent(data)
+	if err != nil {
+		t.Fatalf("unmarshalEvent: %v", err)
+	}
+
+	dre, ok := roundTripped.(*DecompositionRejectedEvent)
+	if !ok {
+		t.Fatalf("expected *DecompositionRejectedEvent, got %T", roundTripped)
+	}
+	if dre.ParentTaskID != "t-001" {
+		t.Errorf("ParentTaskID = %q, want %q", dre.ParentTaskID, "t-001")
+	}
+	if dre.RejectionReason != "sub-tasks with empty objectives: t-005, t-006" {
+		t.Errorf("RejectionReason = %q, want %q", dre.RejectionReason, "sub-tasks with empty objectives: t-005, t-006")
+	}
+	if dre.Type != "decomposition_rejected" {
+		t.Errorf("Type = %q, want %q", dre.Type, "decomposition_rejected")
 	}
 }
