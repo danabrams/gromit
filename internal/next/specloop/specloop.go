@@ -117,7 +117,13 @@ func (sl *SpecLoop) Run(ctx context.Context, rs *runstore.RunState) error {
 			case Blocked:
 				rs.Status = runstore.StatusBlocked
 				if action.Context != nil && len(action.Context.Failures) > 0 {
-					rs.BlockerSummary = action.Context.Failures[0]
+					failure := action.Context.Failures[0]
+					rs.BlockerSummary = failure
+					if stage.Name() == "review" {
+						rs.TerminalReason = "stuck_finding: " + failure
+					} else {
+						rs.TerminalReason = failure
+					}
 				}
 				rs.EndedAt = time.Now()
 				sl.emitTerminal(rs)
@@ -141,6 +147,7 @@ func (sl *SpecLoop) Run(ctx context.Context, rs *runstore.RunState) error {
 
 		// Update task lineage based on failed tasks and prior attempt errors
 		if replanContext != nil {
+			replanContext.NormalizeNilFields()
 			// Initialize TaskLineage if nil
 			if rs.TaskLineage == nil {
 				rs.TaskLineage = make(map[string]runstore.TaskLineageEntry)
@@ -180,6 +187,9 @@ func (sl *SpecLoop) Run(ctx context.Context, rs *runstore.RunState) error {
 			// Format: "prior-attempt-error: <task-id>: <error-message>"
 			// Must happen AFTER rs.ReplanContext assignment to avoid overwriting.
 			AppendPriorAttemptErrors(&rs.ReplanContext, rs.TaskLineage, sl.config.Escalation.ErrorContextThreshold)
+			rs.ReviewEscalatedFailures = append([]string(nil), replanContext.EscalatedFailures...)
+		} else {
+			rs.ReviewEscalatedFailures = nil
 		}
 
 		// Emit replan_triggered event

@@ -61,6 +61,15 @@ func pendingTasks(tasks []runstore.Task) []runstore.Task {
 	return pending
 }
 
+func syncTaskModelTier(rs *runstore.RunState, task runstore.Task) {
+	for i := range rs.Tasks {
+		if rs.Tasks[i].TaskID == task.TaskID {
+			rs.Tasks[i].ModelTier = task.ModelTier
+			return
+		}
+	}
+}
+
 // Run executes all pending tasks via the task loop.
 func (s *ExecuteStage) Run(ctx context.Context, rs *runstore.RunState) (specloop.NextAction, error) {
 	workDir := s.cfg.WorkDir
@@ -73,14 +82,22 @@ func (s *ExecuteStage) Run(ctx context.Context, rs *runstore.RunState) (specloop
 	for i := range tasksToRun {
 		if specloop.ShouldEscalateModel(&tasksToRun[i], rs.TaskLineage, s.cfg.Escalation.ModelEscalationThreshold) {
 			tasksToRun[i].ModelTier = "high"
-			// Also update the original task in rs.Tasks
-			for j := range rs.Tasks {
-				if rs.Tasks[j].TaskID == tasksToRun[i].TaskID {
-					rs.Tasks[j].ModelTier = "high"
-					break
-				}
+		}
+	}
+
+	// Apply targeted escalation for thrashing failures
+	escalatedFailures := append([]string(nil), rs.ReviewEscalatedFailures...)
+	if len(escalatedFailures) > 0 {
+		for i := range tasksToRun {
+			if taskIntersectsEscalated(&tasksToRun[i], escalatedFailures) {
+				tasksToRun[i].ModelTier = "high"
 			}
 		}
+	}
+	rs.ReviewEscalatedFailures = nil
+
+	for i := range tasksToRun {
+		syncTaskModelTier(rs, tasksToRun[i])
 	}
 
 	// Load active validation_gap entries from playbook store and set on validator.
@@ -197,4 +214,19 @@ func collectFailureMessages(results []specloop.TaskResult) []string {
 		failures = append(failures, r.Failures...)
 	}
 	return failures
+}
+
+// taskIntersectsEscalated returns true if the task is responsible for any of the escalated failures.
+func taskIntersectsEscalated(task *runstore.Task, escalatedFailures []string) bool {
+	if task == nil || len(escalatedFailures) == 0 || len(task.FailuresAddressed) == 0 {
+		return false
+	}
+	for _, failure := range escalatedFailures {
+		for _, target := range task.FailuresAddressed {
+			if failure == target {
+				return true
+			}
+		}
+	}
+	return false
 }

@@ -295,6 +295,7 @@ func (s *ReviewStage) Run(ctx context.Context, rs *runstore.RunState) (specloop.
 		// If all blocking findings were contradicted by contracts, pass the review.
 		if len(blockingFiltered) == 0 && suppressed > 0 {
 			rs.FinalReviewPassed = true
+			rs.ReviewThrashCounts = map[string]int{}
 			return specloop.NextAction{Kind: specloop.Continue}, nil
 		}
 
@@ -303,6 +304,65 @@ func (s *ReviewStage) Run(ctx context.Context, rs *runstore.RunState) (specloop.
 		// On the ReplanFrom path, restrict ReviewFindings to blocking findings only.
 		// These feed the planner's FailureContext; info/pre-existing findings are noise.
 		rs.ReviewFindings = failures
+
+		prevCounts := rs.ReviewThrashCounts
+		newCounts := make(map[string]int, len(blockingFiltered))
+		var escalated []reviewThrashRecord
+		blocked := false
+		for i, f := range blockingFiltered {
+			if f.Severity != review.SeverityError {
+				continue
+			}
+			fp := thrashFingerprint(f)
+			count := prevCounts[fp] + 1
+			newCounts[fp] = count
+			if count >= 3 {
+				blocked = true
+			} else if count == 2 {
+				escalated = append(escalated, reviewThrashRecord{
+					failure:     failures[i],
+					file:        f.File,
+					description: f.Description,
+					count:       count,
+				})
+			}
+		}
+		rs.ReviewThrashCounts = newCounts
+
+		if blocked {
+			return specloop.NextAction{
+				Kind: specloop.Blocked,
+				Context: &specloop.FailureContext{
+					Failures: failures,
+					Cycle:    rs.Cycle,
+				},
+			}, nil
+		}
+
+		if len(escalated) > 0 {
+			if s.eventLog != nil {
+				for _, rec := range escalated {
+					s.eventLog.Append(runstore.ReviewThrashEscalatedEvent{
+						BaseEvent:          runstore.BaseEvent{Type: "review_thrash_escalated", Timestamp: time.Now()},
+						FindingFile:        rec.file,
+						FindingDescription: rec.description,
+						ConsecutiveCount:   rec.count,
+					})
+				}
+			}
+			escalatedFailures := make([]string, 0, len(escalated))
+			for _, rec := range escalated {
+				escalatedFailures = append(escalatedFailures, rec.failure)
+			}
+			return specloop.NextAction{
+				Kind: specloop.ReplanFrom,
+				Context: &specloop.FailureContext{
+					Failures:          failures,
+					Cycle:             rs.Cycle,
+					EscalatedFailures: escalatedFailures,
+				},
+			}, nil
+		}
 
 		return specloop.NextAction{
 			Kind: specloop.ReplanFrom,
@@ -314,6 +374,7 @@ func (s *ReviewStage) Run(ctx context.Context, rs *runstore.RunState) (specloop.
 	}
 
 	rs.FinalReviewPassed = true
+	rs.ReviewThrashCounts = map[string]int{}
 	return specloop.NextAction{Kind: specloop.Continue}, nil
 }
 
@@ -326,6 +387,17 @@ func findingExists(findings []review.Finding, f review.Finding) bool {
 		}
 	}
 	return false
+}
+
+type reviewThrashRecord struct {
+	failure     string
+	file        string
+	description string
+	count       int
+}
+
+func thrashFingerprint(f review.Finding) string {
+	return f.File + "\x00" + f.Description
 }
 
 func parsePriorReviewFindings(data json.RawMessage) ([]review.Finding, error) {

@@ -60,6 +60,8 @@ type RunState struct {
 	LastFinalValidation     *validator.FinalResult      `json:"last_final_validation,omitempty"`
 	LastContractFailures    []string                    `json:"last_contract_failures,omitempty"`
 	ReviewFindings          []string                    `json:"review_findings,omitempty"`
+	ReviewThrashCounts      map[string]int              `json:"review_thrash_counts,omitempty"`
+	ReviewEscalatedFailures []string                    `json:"review_escalated_failures,omitempty"`
 	AcceptanceResults       []string                    `json:"acceptance_results,omitempty"`
 	PriorReviewFindings     json.RawMessage             `json:"prior_review_findings,omitempty"`
 	TotalReplans            int                         `json:"total_replans"`
@@ -85,6 +87,12 @@ func (rs *RunState) NormalizeNilFields() {
 	}
 	if rs.ReviewFindings == nil {
 		rs.ReviewFindings = []string{}
+	}
+	if rs.ReviewThrashCounts == nil {
+		rs.ReviewThrashCounts = map[string]int{}
+	}
+	if rs.ReviewEscalatedFailures == nil {
+		rs.ReviewEscalatedFailures = []string{}
 	}
 	if rs.AcceptanceResults == nil {
 		rs.AcceptanceResults = []string{}

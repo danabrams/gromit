@@ -18,9 +18,11 @@ import (
 type fakeTaskRunner struct {
 	results []specloop.TaskResult
 	idx     int
+	history []runstore.Task
 }
 
 func (f *fakeTaskRunner) RunTask(ctx context.Context, task runstore.Task) (specloop.TaskResult, error) {
+	f.history = append(f.history, task)
 	if f.idx >= len(f.results) {
 		return specloop.TaskResult{Status: "done"}, nil
 	}
@@ -77,6 +79,53 @@ func TestExecuteStage_RunsTaskLoop(t *testing.T) {
 		if task.Status != "done" {
 			t.Fatalf("expected task %s status 'done', got %q", task.TaskID, task.Status)
 		}
+	}
+}
+
+func TestExecuteStage_TargetedEscalationFromReviewThrash(t *testing.T) {
+	runner := &fakeTaskRunner{
+		results: []specloop.TaskResult{
+			{Status: "done"},
+			{Status: "done"},
+		},
+	}
+	stage := NewExecuteStage(runner, ExecuteStageConfig{MaxRetries: 0})
+
+	rs := runstore.NewRunState("spec-001", "proj-001")
+	rs.Tasks = []runstore.Task{
+		{
+			TaskID:            "t-thrash",
+			Status:            "pending",
+			FailuresAddressed: []string{"thrash failure"},
+			ModelTier:         "medium",
+		},
+		{
+			TaskID:            "t-other",
+			Status:            "pending",
+			FailuresAddressed: []string{"other failure"},
+			ModelTier:         "medium",
+		},
+	}
+	rs.ReviewEscalatedFailures = []string{"thrash failure"}
+
+	action, err := stage.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if action.Kind != specloop.Continue {
+		t.Fatalf("expected Continue, got %v", action.Kind)
+	}
+	if len(runner.history) != 2 {
+		t.Fatalf("expected 2 tasks run, got %d", len(runner.history))
+	}
+	if runner.history[0].ModelTier != "high" {
+		t.Fatalf("task history 0 should run at high tier, got %q", runner.history[0].ModelTier)
+	}
+	if runner.history[1].ModelTier != "medium" {
+		t.Fatalf("task history 1 should keep medium tier, got %q", runner.history[1].ModelTier)
+	}
+	if len(rs.ReviewEscalatedFailures) != 0 {
+		t.Fatalf("expected ReviewEscalatedFailures cleared after execute stage, got %v", rs.ReviewEscalatedFailures)
 	}
 }
 
@@ -697,5 +746,64 @@ func TestExecuteStageAllFailedFailureCollection(t *testing.T) {
 	// Verify generic fallback is NOT used
 	if strings.Contains(failuresJoined, "all tasks failed") {
 		t.Fatalf("did not expect generic fallback failure, got: %v", failures)
+	}
+}
+
+func TestTaskIntersectsEscalated(t *testing.T) {
+	tests := []struct {
+		name              string
+		task              *runstore.Task
+		escalatedFailures []string
+		want              bool
+	}{
+		{
+			name:              "nil task",
+			task:              nil,
+			escalatedFailures: []string{"thrash failure"},
+			want:              false,
+		},
+		{
+			name:              "nil escalated slice",
+			task:              &runstore.Task{FailuresAddressed: []string{"thrash failure"}},
+			escalatedFailures: nil,
+			want:              false,
+		},
+		{
+			name:              "empty escalated slice",
+			task:              &runstore.Task{FailuresAddressed: []string{"thrash failure"}},
+			escalatedFailures: []string{},
+			want:              false,
+		},
+		{
+			name:              "no failures addressed",
+			task:              &runstore.Task{},
+			escalatedFailures: []string{"thrash failure"},
+			want:              false,
+		},
+		{
+			name:              "exact match",
+			task:              &runstore.Task{FailuresAddressed: []string{"thrash failure", "another"}},
+			escalatedFailures: []string{"thrash failure"},
+			want:              true,
+		},
+		{
+			name:              "second escalated entry matches",
+			task:              &runstore.Task{FailuresAddressed: []string{"other failure", "thrash failure"}},
+			escalatedFailures: []string{"first failure", "thrash failure"},
+			want:              true,
+		},
+		{
+			name:              "partial mismatch does not escalate",
+			task:              &runstore.Task{FailuresAddressed: []string{"thrash failure"}},
+			escalatedFailures: []string{"thrash"},
+			want:              false,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := taskIntersectsEscalated(tc.task, tc.escalatedFailures); got != tc.want {
+				t.Fatalf("expected %v, got %v", tc.want, got)
+			}
+		})
 	}
 }

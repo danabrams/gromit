@@ -494,6 +494,123 @@ func TestReviewStage_DiffProviderError(t *testing.T) {
 	}
 }
 
+func TestReviewStage_ThrashEscalatesOnSecondCycle(t *testing.T) {
+	runner := &mockReviewRunner{
+		result: &review.RunResult{
+			AllFindings: []review.Finding{
+				{Severity: review.SeverityError, File: "thrash.go", Description: "missing context"},
+			},
+			BlockingFindings: []review.Finding{
+				{Severity: review.SeverityError, File: "thrash.go", Description: "missing context"},
+			},
+			HasBlockingFindings: true,
+		},
+	}
+
+	eventLogPath := filepath.Join(t.TempDir(), "events.jsonl")
+	eventLog := runstore.NewEventLog(eventLogPath)
+	stage := NewReviewStage(runner, ReviewStageConfig{}, eventLog)
+	rs := runstore.NewRunState("test-spec", "test-project")
+	rs.Cycle = 1
+
+	action, err := stage.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("cycle 1 Run: %v", err)
+	}
+	if action.Kind != specloop.ReplanFrom {
+		t.Fatalf("cycle 1: want ReplanFrom, got %v", action.Kind)
+	}
+
+	key := "thrash.go\x00missing context"
+	if rs.ReviewThrashCounts[key] != 1 {
+		t.Fatalf("cycle 1: expected thrash count=1, got %d", rs.ReviewThrashCounts[key])
+	}
+
+	rs.Cycle = 2
+	action, err = stage.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("cycle 2 Run: %v", err)
+	}
+	if action.Kind != specloop.ReplanFrom {
+		t.Fatalf("cycle 2: want ReplanFrom, got %v", action.Kind)
+	}
+	if action.Context == nil {
+		t.Fatal("cycle 2: expected FailureContext")
+	}
+	if len(action.Context.EscalatedFailures) != 1 {
+		t.Fatalf("cycle 2: expected escalated failure, got %v", action.Context.EscalatedFailures)
+	}
+	if action.Context.EscalatedFailures[0] != rs.ReviewFindings[0] {
+		t.Fatalf("escalated failure mismatch: got %q, want %q", action.Context.EscalatedFailures[0], rs.ReviewFindings[0])
+	}
+	if rs.ReviewThrashCounts[key] != 2 {
+		t.Fatalf("cycle 2: expected thrash count=2, got %d", rs.ReviewThrashCounts[key])
+	}
+
+	events, err := eventLog.ReadAll()
+	if err != nil {
+		t.Fatalf("ReadAll events: %v", err)
+	}
+	var thrashEvent *runstore.ReviewThrashEscalatedEvent
+	for _, ev := range events {
+		if ev.EventType() == "review_thrash_escalated" {
+			if e, ok := ev.(*runstore.ReviewThrashEscalatedEvent); ok {
+				thrashEvent = e
+				break
+			}
+		}
+	}
+	if thrashEvent == nil {
+		t.Fatal("expected review_thrash_escalated event")
+	}
+	if thrashEvent.ConsecutiveCount != 2 {
+		t.Fatalf("event consecutive count = %d, want 2", thrashEvent.ConsecutiveCount)
+	}
+	if thrashEvent.FindingFile != "thrash.go" {
+		t.Fatalf("event file = %q, want thrash.go", thrashEvent.FindingFile)
+	}
+	if thrashEvent.FindingDescription != "missing context" {
+		t.Fatalf("event description = %q, want \"missing context\"", thrashEvent.FindingDescription)
+	}
+}
+
+func TestReviewStage_ThrashBlocksAfterThirdCycle(t *testing.T) {
+	runner := &mockReviewRunner{
+		result: &review.RunResult{
+			AllFindings: []review.Finding{
+				{Severity: review.SeverityError, File: "thrash.go", Description: "missing context"},
+			},
+			BlockingFindings: []review.Finding{
+				{Severity: review.SeverityError, File: "thrash.go", Description: "missing context"},
+			},
+			HasBlockingFindings: true,
+		},
+	}
+
+	stage := NewReviewStage(runner, ReviewStageConfig{}, nil)
+	rs := runstore.NewRunState("test-spec", "test-project")
+	key := "thrash.go\x00missing context"
+	for cycle := 1; cycle <= 3; cycle++ {
+		rs.Cycle = cycle
+		action, err := stage.Run(context.Background(), rs)
+		if err != nil {
+			t.Fatalf("cycle %d Run: %v", cycle, err)
+		}
+		if cycle < 3 {
+			if action.Kind != specloop.ReplanFrom {
+				t.Fatalf("cycle %d: want ReplanFrom, got %v", cycle, action.Kind)
+			}
+		} else {
+			if action.Kind != specloop.Blocked {
+				t.Fatalf("cycle 3: want Blocked, got %v", action.Kind)
+			}
+		}
+	}
+	if rs.ReviewThrashCounts[key] != 3 {
+		t.Fatalf("after cycle 3: expected thrash count=3, got %d", rs.ReviewThrashCounts[key])
+	}
+}
+
 func TestReviewStage_DiffProviderError_GracefulDegradation(t *testing.T) {
 	var capturedInput review.RunInput
 	runner := &capturingReviewRunner{

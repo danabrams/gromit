@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/danabrams/gromit/internal/next/execpolicy"
+	"github.com/danabrams/gromit/internal/next/review"
 	"github.com/danabrams/gromit/internal/next/runstore"
 	"github.com/danabrams/gromit/internal/next/specloop"
 )
@@ -414,6 +415,78 @@ func TestResumeContract_PreservesBaselineFailuresAcrossResume(t *testing.T) {
 	}
 	if loaded.FinalValidationPassed {
 		t.Error("FinalValidationPassed should be false after resume")
+	}
+}
+
+func TestResumeContractThrashStatePreserved(t *testing.T) {
+	tmp := t.TempDir()
+
+	store := runstore.NewStore(tmp)
+	thrashFinding := review.Finding{
+		Facet:       "spec_alignment",
+		Severity:    review.SeverityError,
+		File:        "thrash.go",
+		Line:        42,
+		Description: "thrash failure",
+	}
+	fp := thrashFingerprintForTest(thrashFinding)
+	failureString := review.ReviewFailuresToStrings([]review.Finding{thrashFinding})[0]
+
+	prior := runstore.NewRunState("my-spec", "my-proj")
+	prior.Status = runstore.StatusNeedsHuman
+	prior.EndedAt = time.Now()
+	prior.ReviewThrashCounts = map[string]int{fp: 2}
+	prior.ReviewEscalatedFailures = []string{failureString}
+	if err := store.Save(prior); err != nil {
+		t.Fatalf("save prior run: %v", err)
+	}
+
+	var seen *runstore.RunState
+	provider := &testStageProvider{
+		stages: []specloop.Stage{
+			&stageRecorderFunc{
+				name: "plan",
+				fn: func(rs *runstore.RunState) {
+					seen = rs
+				},
+			},
+		},
+	}
+
+	r := &execSpecRun{
+		specPath:      "my-spec.md",
+		projectID:     "my-proj",
+		resumeRunID:   prior.RunID,
+		storeDir:      tmp,
+		stageProvider: provider,
+		policy:        ptrPolicy(execpolicy.DefaultPolicy()),
+		store:         store,
+		out:           io.Discard,
+	}
+
+	if err := r.run(context.Background()); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if seen == nil {
+		t.Fatal("stage did not capture RunState")
+	}
+	if count := seen.ReviewThrashCounts[fp]; count != 2 {
+		t.Fatalf("expected thrash count 2 in resumed state, got %d", count)
+	}
+	if len(seen.ReviewEscalatedFailures) != 1 || seen.ReviewEscalatedFailures[0] != failureString {
+		t.Fatalf("expected escalated failure preserved in run state, got %v", seen.ReviewEscalatedFailures)
+	}
+
+	loaded, err := store.Get(prior.RunID)
+	if err != nil {
+		t.Fatalf("load resumed run: %v", err)
+	}
+	if count := loaded.ReviewThrashCounts[fp]; count != 2 {
+		t.Fatalf("expected persisted thrash count 2, got %d", count)
+	}
+	if len(loaded.ReviewEscalatedFailures) != 1 || loaded.ReviewEscalatedFailures[0] != failureString {
+		t.Fatalf("expected persisted escalated failure, got %v", loaded.ReviewEscalatedFailures)
 	}
 }
 

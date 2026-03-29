@@ -3,6 +3,7 @@ package runstore
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -184,6 +185,81 @@ func TestRunStore_SaveLoad_EmptyPriorReviewFindingsOmitted(t *testing.T) {
 	}
 	if loaded.PriorReviewFindings != nil {
 		t.Fatalf("expected PriorReviewFindings to remain nil, got %q", loaded.PriorReviewFindings)
+	}
+}
+
+func TestStore_RunStateThrashFieldsRoundTrip(t *testing.T) {
+	dir := t.TempDir()
+	s := NewStore(dir)
+	rs := NewRunState("spec-thrash", "proj-thrash")
+	fingerprint := "planner.go\x00buildFixPlanPrompt lacks X"
+	rs.ReviewThrashCounts = map[string]int{fingerprint: 2}
+	escalated := "review:spec_alignment:error:planner.go:buildFixPlanPrompt lacks X"
+	rs.ReviewEscalatedFailures = []string{escalated}
+
+	if err := s.Save(rs); err != nil {
+		t.Fatalf("save run state: %v", err)
+	}
+
+	loaded, err := s.Get(rs.RunID)
+	if err != nil {
+		t.Fatalf("get run state: %v", err)
+	}
+
+	if got := loaded.ReviewThrashCounts[fingerprint]; got != 2 {
+		t.Fatalf("expected thrash count=2, got %d", got)
+	}
+	if len(loaded.ReviewEscalatedFailures) != 1 || loaded.ReviewEscalatedFailures[0] != escalated {
+		t.Fatalf("unexpected escalated failures: %v", loaded.ReviewEscalatedFailures)
+	}
+}
+
+func TestStore_ResumeWithoutThrashFields(t *testing.T) {
+	const tmpl = `{
+		"run_id": "%s",
+		"spec_id": "spec-resume",
+		"project_id": "proj-resume",
+		"status": "running",
+		"cycle": 2,
+		"started_at": "2026-03-24T00:00:00Z",
+		"tasks": [],
+		"accumulated_cost": 0,
+		"final_validation_passed": false,
+		"final_review_passed": false,
+		"final_acceptance_passed": false,
+		"contracts_written": false,
+		"scenario_tests_written": false
+	}`
+
+	dir := t.TempDir()
+	s := NewStore(dir)
+	runID := "resume-run"
+	runDir := s.RunDir(runID)
+	if err := os.MkdirAll(runDir, 0o755); err != nil {
+		t.Fatalf("create run dir: %v", err)
+	}
+
+	payload := fmt.Sprintf(tmpl, runID)
+	if err := os.WriteFile(filepath.Join(runDir, "run.json"), []byte(payload), 0o644); err != nil {
+		t.Fatalf("write legacy run: %v", err)
+	}
+
+	loaded, err := s.Get(runID)
+	if err != nil {
+		t.Fatalf("get legacy run: %v", err)
+	}
+
+	if loaded.ReviewThrashCounts == nil {
+		t.Fatal("ReviewThrashCounts should be non-nil after resume")
+	}
+	if len(loaded.ReviewThrashCounts) != 0 {
+		t.Fatalf("expected empty ReviewThrashCounts, got %v", loaded.ReviewThrashCounts)
+	}
+	if loaded.ReviewEscalatedFailures == nil {
+		t.Fatal("ReviewEscalatedFailures should be non-nil after resume")
+	}
+	if len(loaded.ReviewEscalatedFailures) != 0 {
+		t.Fatalf("expected empty ReviewEscalatedFailures, got %v", loaded.ReviewEscalatedFailures)
 	}
 }
 
