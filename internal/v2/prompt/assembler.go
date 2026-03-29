@@ -479,20 +479,46 @@ func scopeArchitectureSection(project string, beadPaths []string) string {
 // bulletMatchesAnyPath returns true if the bullet line references any of the given paths.
 func bulletMatchesAnyPath(line string, paths []string) bool {
 	for _, p := range paths {
-		if strings.Contains(line, p) {
-			return true
-		}
-		// Also check if the bullet's backtick-quoted path is a prefix or suffix match.
-		// e.g., path "internal/runner" should match bullet "- `runner/` — ..."
-		lastSegment := p
-		if idx := strings.LastIndex(p, "/"); idx != -1 {
-			lastSegment = p[idx+1:]
-		}
-		if lastSegment != "" && strings.Contains(line, "`"+lastSegment+"/`") {
-			return true
+		for _, candidate := range pathCandidates(p) {
+			if candidateMatchesLine(line, candidate) {
+				return true
+			}
 		}
 	}
 	return false
+}
+
+func candidateMatchesLine(line, candidate string) bool {
+	if candidate == "" {
+		return false
+	}
+	if strings.Contains(line, candidate) {
+		return true
+	}
+	lastSegment := candidate
+	if idx := strings.LastIndex(candidate, "/"); idx != -1 {
+		lastSegment = candidate[idx+1:]
+	}
+	if lastSegment != "" && strings.Contains(line, "`"+lastSegment+"/`") {
+		return true
+	}
+	return false
+}
+
+func pathCandidates(path string) []string {
+	var candidates []string
+	current := path
+	for current != "" {
+		if strings.Contains(current, "/") {
+			candidates = append(candidates, current)
+		}
+		idx := strings.LastIndex(current, "/")
+		if idx == -1 {
+			break
+		}
+		current = current[:idx]
+	}
+	return candidates
 }
 
 // Assemble concatenates the configured layers, applies shaping, and records the last report.
