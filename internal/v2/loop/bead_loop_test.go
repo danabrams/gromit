@@ -1473,6 +1473,45 @@ func TestBeadLoopGateBlockDefersBeadAndContinues(t *testing.T) {
 	}
 }
 
+func TestBeadLoopBlockedBeadDeferredToEndOfPass(t *testing.T) {
+	t.Parallel()
+
+	order := []string{}
+	gate := newRecordingGateStage("gate", &order, map[string]stage.Decision{"block-me": stage.DecisionBlock})
+
+	cfg := BeadLoopConfig{
+		Gate:     gate,
+		Build:    newNoopStage("build"),
+		Validate: newNoopStage("validate"),
+		Review:   newNoopStage("review"),
+		Epilogue: newNoopStage("epilogue"),
+	}
+
+	loop, err := NewBeadLoop(cfg)
+	if err != nil {
+		t.Fatalf("NewBeadLoop: %v", err)
+	}
+
+	beads := []*bead.Bead{
+		{ID: "block-me"},
+		{ID: "run-me"},
+	}
+
+	_, err = loop.Run(context.Background(), beads, nil)
+	if err == nil {
+		t.Fatal("expected blocked bead to eventually fail after requeueing, got nil")
+	}
+
+	if !strings.Contains(err.Error(), "blocked") {
+		t.Fatalf("error should mention blocked status, got: %v", err)
+	}
+
+	wantOrder := []string{"block-me:1", "run-me:1", "block-me:2"}
+	if !reflect.DeepEqual(order, wantOrder) {
+		t.Fatalf("gate run order = %v, want %v", order, wantOrder)
+	}
+}
+
 // TestBeadLoopAllBeadsBlockedReturnsError verifies that when all beads are
 // blocked by the gate in a full pass with no progress, the loop stops with
 // a descriptive error instead of completing silently.
