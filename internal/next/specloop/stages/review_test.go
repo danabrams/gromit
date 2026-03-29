@@ -1877,3 +1877,98 @@ func TestReviewThrashCountResetsAfterAbsentCycle(t *testing.T) {
 		t.Errorf("Cycle 4: expected ReplanFrom, got %v", action4.Kind)
 	}
 }
+
+func TestReviewThrashConsecutiveErrorCountReachesTwo(t *testing.T) {
+	// Acceptance Criterion 1 (from spec 0004o):
+	// When a review finding with severity `error` blocks in cycle N and the
+	// same finding (same file + description) blocks again in cycle N+1,
+	// rs.ReviewThrashCounts for that finding's fingerprint is 2 after cycle N+1's review.
+	//
+	// This focused test proves consecutive error findings increment thrash count to 2
+	// on the second blocking cycle.
+
+	errorFinding := review.Finding{
+		Severity:    review.SeverityError,
+		File:        "planner.go",
+		Line:        42,
+		Description: "buildFixPlanPrompt lacks X",
+		Facet:       "code_review",
+	}
+
+	// Cycle 1: First occurrence of the error finding
+	runner1 := &mockReviewRunner{
+		result: &review.RunResult{
+			AllFindings:         []review.Finding{errorFinding},
+			BlockingFindings:    []review.Finding{errorFinding},
+			HasBlockingFindings: true,
+		},
+	}
+
+	stage1 := NewReviewStage(runner1, ReviewStageConfig{
+		DiffProvider: &fakeDiffProvider{diff: "some diff"},
+	}, nil)
+
+	rs1 := runstore.NewRunState("test-spec", "test-project")
+	rs1.Cycle = 1
+
+	_, err := stage1.Run(context.Background(), rs1)
+	if err != nil {
+		t.Fatalf("Cycle 1 Run: %v", err)
+	}
+
+	// After cycle 1, thrash count should be 1
+	if rs1.ReviewThrashCounts == nil {
+		t.Fatal("Cycle 1: ReviewThrashCounts should not be nil")
+	}
+
+	fp := errorFinding.File + "\x00" + errorFinding.Description
+	if rs1.ReviewThrashCounts[fp] != 1 {
+		t.Errorf("Cycle 1: expected thrash count 1 for fingerprint %q, got %d", fp, rs1.ReviewThrashCounts[fp])
+	}
+
+	// Cycle 2: Same error finding appears again (consecutive, same fingerprint)
+	runner2 := &mockReviewRunner{
+		result: &review.RunResult{
+			AllFindings:         []review.Finding{errorFinding},
+			BlockingFindings:    []review.Finding{errorFinding},
+			HasBlockingFindings: true,
+		},
+	}
+
+	stage2 := NewReviewStage(runner2, ReviewStageConfig{
+		DiffProvider: &fakeDiffProvider{diff: "some diff"},
+	}, nil)
+
+	rs2 := runstore.NewRunState("test-spec", "test-project")
+	rs2.Cycle = 2
+	// Carry over the thrash count from cycle 1
+	rs2.ReviewThrashCounts = rs1.ReviewThrashCounts
+
+	action2, err := stage2.Run(context.Background(), rs2)
+	if err != nil {
+		t.Fatalf("Cycle 2 Run: %v", err)
+	}
+
+	// Verify cycle 2: thrash count reaches 2 for the same fingerprinted finding
+	if rs2.ReviewThrashCounts == nil {
+		t.Fatal("Cycle 2: ReviewThrashCounts should not be nil")
+	}
+
+	if rs2.ReviewThrashCounts[fp] != 2 {
+		t.Errorf("Cycle 2: expected thrash count 2 for fingerprint %q (consecutive error), got %d", fp, rs2.ReviewThrashCounts[fp])
+	}
+
+	// Verify that the action is ReplanFrom (not Blocked, since 2 < 3 threshold)
+	if action2.Kind != specloop.ReplanFrom {
+		t.Errorf("Cycle 2: expected ReplanFrom (count==2), got %v", action2.Kind)
+	}
+
+	// Verify that EscalatedFailures is set (escalation fires at count==2)
+	if action2.Context == nil {
+		t.Fatal("Cycle 2: expected FailureContext when thrash count == 2")
+	}
+
+	if len(action2.Context.EscalatedFailures) == 0 {
+		t.Error("Cycle 2: expected non-empty EscalatedFailures when thrash count reaches 2")
+	}
+}

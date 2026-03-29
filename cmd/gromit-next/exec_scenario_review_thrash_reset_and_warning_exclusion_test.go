@@ -12,12 +12,14 @@ import (
 	"github.com/danabrams/gromit/internal/next/runstore"
 )
 
-// TestExecScenarioReviewThrashResetAndWarningExclusion exercises the thrahs logic
+// TestExecScenarioReviewThrashCountResetsAfterAbsence exercises the thrash logic
 // spanning multiple cycles: an error escalates, the finding disappears in the
 // next cycle (replaced by a warning), and the error reappears again without
-// escalating because the streak reset. It also verifies warning-severity
-// findings do not contribute to thrash counts.
-func TestExecScenarioReviewThrashResetAndWarningExclusion(t *testing.T) {
+// escalating because the streak reset. It proves that when a finding with a
+// thrash count is absent for at least one cycle, the count resets to 1 on
+// reappearance (AC #6). It also verifies warning-severity findings do not
+// contribute to thrash counts.
+func TestExecScenarioReviewThrashCountResetsAfterAbsence(t *testing.T) {
 	tmp := t.TempDir()
 
 	specPath := filepath.Join(tmp, "spec.md")
