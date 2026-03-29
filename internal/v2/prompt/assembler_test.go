@@ -84,6 +84,24 @@ func TestShapeBudgetSmallBeadGets50Percent(t *testing.T) {
 	}
 }
 
+func TestShapeBudgetMinBudgetAfterScopeAdjustment(t *testing.T) {
+	content := strings.Repeat("x", 10)
+	shaped, report := ShapeBudget(content, 1, 1)
+
+	if report.AdjustedBudget != 1 {
+		t.Fatalf("AdjustedBudget = %d, want 1", report.AdjustedBudget)
+	}
+	if len(shaped) != 1 {
+		t.Fatalf("shaped len = %d, want 1", len(shaped))
+	}
+	if !report.Trimmed {
+		t.Fatal("expected Trimmed = true when the content exceeds the adjusted budget")
+	}
+	if report.TrimmedBytes != len(content)-len(shaped) {
+		t.Fatalf("TrimmedBytes = %d, want %d", report.TrimmedBytes, len(content)-len(shaped))
+	}
+}
+
 func TestShapeBudgetMediumBeadGets75Percent(t *testing.T) {
 	content := strings.Repeat("x", 10000)
 	shaped, report := ShapeBudget(content, 3, 10000)
