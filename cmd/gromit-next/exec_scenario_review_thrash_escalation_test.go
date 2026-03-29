@@ -95,14 +95,14 @@ func TestExecScenarioReviewThrashEscalation(t *testing.T) {
 			thrashRuns = append(thrashRuns, seen)
 		}
 	}
-	if len(thrashRuns) < 3 {
-		t.Fatalf("expected thrash task to run three times, got %d", len(thrashRuns))
+	if len(thrashRuns) != 3 {
+		t.Fatalf("expected thrash task to run exactly three times, got %d", len(thrashRuns))
 	}
 	if thrashRuns[0].ModelTier != "medium" {
-		t.Errorf("cycle 1 thrash task tier: %q", thrashRuns[0].ModelTier)
+		t.Errorf("cycle 1 thrash task tier: %q (expected medium)", thrashRuns[0].ModelTier)
 	}
 	if thrashRuns[1].ModelTier != "medium" {
-		t.Errorf("cycle 2 thrash task tier: %q", thrashRuns[1].ModelTier)
+		t.Errorf("cycle 2 thrash task tier: %q (expected medium)", thrashRuns[1].ModelTier)
 	}
 	// On cycle 3, the thrash task should be escalated to "high" because review stage
 	// detected the finding blocking for two consecutive cycles and emitted escalation.

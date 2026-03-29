@@ -133,7 +133,7 @@ func (p *blockedRunStageProvider) BuildStages(policy execpolicy.Policy, rs *runs
 		WorkDir:     p.storeDir,
 	}, eventLog)
 
-	capturedReview := &blockedRunCaptureReviewStage{provider: p, inner: reviewStage, stuckFailure: p.stuckFailure}
+	capturedReview := &blockedRunCaptureReviewStage{provider: p, inner: reviewStage}
 	return []specloop.Stage{plan, execute, capturedReview}, nil
 }
 
@@ -161,9 +161,8 @@ func (s *blockedRunPlanStage) Run(_ context.Context, rs *runstore.RunState) (spe
 }
 
 type blockedRunCaptureReviewStage struct {
-	provider     *blockedRunStageProvider
-	inner        specloop.Stage
-	stuckFailure string
+	provider *blockedRunStageProvider
+	inner    specloop.Stage
 }
 
 func (s *blockedRunCaptureReviewStage) Name() string { return s.inner.Name() }
@@ -172,11 +171,6 @@ func (s *blockedRunCaptureReviewStage) Run(ctx context.Context, rs *runstore.Run
 	action, err := s.inner.Run(ctx, rs)
 	if err != nil {
 		return action, err
-	}
-
-	if rs.Cycle >= 3 && action.Kind == specloop.ReplanFrom {
-		rs.TerminalReason = "stuck_finding: " + s.stuckFailure
-		action = specloop.NextAction{Kind: specloop.Blocked, Context: action.Context}
 	}
 	s.provider.reviewActions[rs.Cycle] = action
 	return action, nil

@@ -1630,9 +1630,10 @@ func TestReviewThrashConsecutiveErrorCountTwoEscalates(t *testing.T) {
 		},
 	}
 
+	eventLogPath1 := filepath.Join(t.TempDir(), "events1.jsonl")
 	stage := NewReviewStage(runner1, ReviewStageConfig{
 		DiffProvider: &fakeDiffProvider{diff: "some diff"},
-	}, runstore.NewEventLog(""))
+	}, runstore.NewEventLog(eventLogPath1))
 
 	rs1 := runstore.NewRunState("test-spec", "test-project")
 	rs1.Cycle = 1
@@ -1667,9 +1668,11 @@ func TestReviewThrashConsecutiveErrorCountTwoEscalates(t *testing.T) {
 		},
 	}
 
+	eventLogPath2 := filepath.Join(t.TempDir(), "events2.jsonl")
+	eventLog2 := runstore.NewEventLog(eventLogPath2)
 	stage2 := NewReviewStage(runner2, ReviewStageConfig{
 		DiffProvider: &fakeDiffProvider{diff: "some diff"},
-	}, runstore.NewEventLog(""))
+	}, eventLog2)
 
 	rs2 := runstore.NewRunState("test-spec", "test-project")
 	rs2.Cycle = 2
@@ -1714,12 +1717,32 @@ func TestReviewThrashConsecutiveErrorCountTwoEscalates(t *testing.T) {
 		t.Errorf("Cycle 2: escalated failures should contain finding description %q, got %v", expectedFailureSubstring, action2.Context.EscalatedFailures)
 	}
 
-	// Verify events were logged (Acceptance Criterion 5)
-	// We would need access to the event log to verify the review_thrash_escalated event,
-	// but that requires modifying the stage instance. The stage has an internal eventLog
-	// that we can't easily inspect, so we'll at least verify that the EscalatedFailures
-	// field is present in the action context (which drives event emission in the
-	// orchestrator level).
+	// Verify review_thrash_escalated event was emitted (Acceptance Criterion 5)
+	events2, err := eventLog2.ReadAll()
+	if err != nil {
+		t.Fatalf("Cycle 2: ReadAll events: %v", err)
+	}
+	var escalatedEvent *runstore.ReviewThrashEscalatedEvent
+	for _, ev := range events2 {
+		if ev.EventType() == "review_thrash_escalated" {
+			if rte, ok := ev.(*runstore.ReviewThrashEscalatedEvent); ok {
+				escalatedEvent = rte
+				break
+			}
+		}
+	}
+	if escalatedEvent == nil {
+		t.Fatal("Cycle 2 (AC5): expected review_thrash_escalated event to be emitted")
+	}
+	if escalatedEvent.FindingFile != errorFinding.File {
+		t.Errorf("Cycle 2 (AC5): event finding_file = %q, want %q", escalatedEvent.FindingFile, errorFinding.File)
+	}
+	if escalatedEvent.FindingDescription != errorFinding.Description {
+		t.Errorf("Cycle 2 (AC5): event finding_description = %q, want %q", escalatedEvent.FindingDescription, errorFinding.Description)
+	}
+	if escalatedEvent.ConsecutiveCount != 2 {
+		t.Errorf("Cycle 2 (AC5): event consecutive_count = %d, want 2", escalatedEvent.ConsecutiveCount)
+	}
 }
 
 func TestReviewThrashResetsAfterAbsence(t *testing.T) {
@@ -1878,188 +1901,141 @@ func TestReviewThrashResetsAfterAbsence(t *testing.T) {
 	}
 }
 
-func TestReviewThrashConsecutiveErrorCountReachesTwo(t *testing.T) {
-	// Acceptance Criterion 1 (from spec 0004o):
-	// When a review finding with severity `error` blocks in cycle N and the
-	// same finding (same file + description) blocks again in cycle N+1,
-	// rs.ReviewThrashCounts for that finding's fingerprint is 2 after cycle N+1's review.
+func TestReviewThrashMixedThresholds_BlockedWinsOverEscalated(t *testing.T) {
+	// Two findings appear simultaneously across three cycles.
+	// Finding A: blocks in cycles 1, 2, 3 → count reaches 3 → should produce Blocked.
+	// Finding B: blocks in cycles 1 and 2 → count reaches 2 → should produce escalation.
 	//
-	// This focused test proves consecutive error findings increment thrash count to 2
-	// on the second blocking cycle.
+	// When both thresholds fire in the same cycle:
+	// - The run should return Blocked (not ReplanFrom), because count==3 takes precedence.
+	// - A review_thrash_escalated event must still be emitted for Finding B (count==2).
 
-	errorFinding := review.Finding{
+	findingA := review.Finding{
+		Severity:    review.SeverityError,
+		File:        "executor.go",
+		Line:        10,
+		Description: "missing nil check",
+		Facet:       "code_review",
+	}
+	findingB := review.Finding{
 		Severity:    review.SeverityError,
 		File:        "planner.go",
-		Line:        42,
-		Description: "buildFixPlanPrompt lacks X",
+		Line:        55,
+		Description: "buildFixPlanPrompt lacks context",
 		Facet:       "code_review",
 	}
 
-	// Cycle 1: First occurrence of the error finding
-	runner1 := &mockReviewRunner{
+	fpA := findingA.File + "\x00" + findingA.Description
+	fpB := findingB.File + "\x00" + findingB.Description
+
+	runCycle := func(t *testing.T, findings []review.Finding, prevCounts map[string]int, cycle int, eventLogPath string) (specloop.NextAction, map[string]int) {
+		t.Helper()
+		runner := &mockReviewRunner{
+			result: &review.RunResult{
+				AllFindings:         findings,
+				BlockingFindings:    findings,
+				HasBlockingFindings: len(findings) > 0,
+			},
+		}
+		el := runstore.NewEventLog(eventLogPath)
+		stage := NewReviewStage(runner, ReviewStageConfig{
+			DiffProvider: &fakeDiffProvider{diff: "some diff"},
+		}, el)
+		rs := runstore.NewRunState("test-spec", "test-project")
+		rs.Cycle = cycle
+		rs.ReviewThrashCounts = prevCounts
+		action, err := stage.Run(context.Background(), rs)
+		if err != nil {
+			t.Fatalf("Cycle %d Run: %v", cycle, err)
+		}
+		return action, rs.ReviewThrashCounts
+	}
+
+	// Cycle 1: only findingA blocks (A→1, B not yet present)
+	_, counts1 := runCycle(t, []review.Finding{findingA}, nil, 1, filepath.Join(t.TempDir(), "e1.jsonl"))
+	if counts1[fpA] != 1 {
+		t.Errorf("Cycle 1: expected count 1 for findingA, got %d", counts1[fpA])
+	}
+	if counts1[fpB] != 0 {
+		t.Errorf("Cycle 1: expected count 0 for findingB (not yet seen), got %d", counts1[fpB])
+	}
+
+	// Cycle 2: both findings block (A→2 escalation, B→1 first occurrence)
+	_, counts2 := runCycle(t, []review.Finding{findingA, findingB}, counts1, 2, filepath.Join(t.TempDir(), "e2.jsonl"))
+	if counts2[fpA] != 2 {
+		t.Errorf("Cycle 2: expected count 2 for findingA, got %d", counts2[fpA])
+	}
+	if counts2[fpB] != 1 {
+		t.Errorf("Cycle 2: expected count 1 for findingB, got %d", counts2[fpB])
+	}
+
+	// Cycle 3: both findings block again; A→3 (Blocked threshold), B→2 (escalation threshold)
+	// Both thresholds fire simultaneously in the same cycle.
+	eventLogPath3 := filepath.Join(t.TempDir(), "e3.jsonl")
+	eventLog3 := runstore.NewEventLog(eventLogPath3)
+	runner3 := &mockReviewRunner{
 		result: &review.RunResult{
-			AllFindings:         []review.Finding{errorFinding},
-			BlockingFindings:    []review.Finding{errorFinding},
+			AllFindings:         []review.Finding{findingA, findingB},
+			BlockingFindings:    []review.Finding{findingA, findingB},
 			HasBlockingFindings: true,
 		},
 	}
-
-	stage1 := NewReviewStage(runner1, ReviewStageConfig{
+	stage3 := NewReviewStage(runner3, ReviewStageConfig{
 		DiffProvider: &fakeDiffProvider{diff: "some diff"},
-	}, nil)
+	}, eventLog3)
+	rs3 := runstore.NewRunState("test-spec", "test-project")
+	rs3.Cycle = 3
+	rs3.ReviewThrashCounts = counts2
 
-	rs1 := runstore.NewRunState("test-spec", "test-project")
-	rs1.Cycle = 1
-
-	_, err := stage1.Run(context.Background(), rs1)
+	action3, err := stage3.Run(context.Background(), rs3)
 	if err != nil {
-		t.Fatalf("Cycle 1 Run: %v", err)
+		t.Fatalf("Cycle 3 Run: %v", err)
 	}
 
-	// After cycle 1, thrash count should be 1
-	if rs1.ReviewThrashCounts == nil {
-		t.Fatal("Cycle 1: ReviewThrashCounts should not be nil")
+	// Blocked must win over escalated
+	if action3.Kind != specloop.Blocked {
+		t.Errorf("Cycle 3: expected Blocked (findingA count==3), got %v", action3.Kind)
 	}
 
-	fp := errorFinding.File + "\x00" + errorFinding.Description
-	if rs1.ReviewThrashCounts[fp] != 1 {
-		t.Errorf("Cycle 1: expected thrash count 1 for fingerprint %q, got %d", fp, rs1.ReviewThrashCounts[fp])
+	// Blocked action must carry the findingA failure
+	if action3.Context == nil {
+		t.Fatal("Cycle 3: expected FailureContext on Blocked action")
+	}
+	foundA := false
+	for _, f := range action3.Context.Failures {
+		if strings.Contains(f, findingA.Description) {
+			foundA = true
+			break
+		}
+	}
+	if !foundA {
+		t.Errorf("Cycle 3: Blocked context.Failures should contain findingA description %q, got %v", findingA.Description, action3.Context.Failures)
 	}
 
-	// Cycle 2: Same error finding appears again (consecutive, same fingerprint)
-	runner2 := &mockReviewRunner{
-		result: &review.RunResult{
-			AllFindings:         []review.Finding{errorFinding},
-			BlockingFindings:    []review.Finding{errorFinding},
-			HasBlockingFindings: true,
-		},
-	}
-
-	stage2 := NewReviewStage(runner2, ReviewStageConfig{
-		DiffProvider: &fakeDiffProvider{diff: "some diff"},
-	}, nil)
-
-	rs2 := runstore.NewRunState("test-spec", "test-project")
-	rs2.Cycle = 2
-	// Carry over the thrash count from cycle 1
-	rs2.ReviewThrashCounts = rs1.ReviewThrashCounts
-
-	action2, err := stage2.Run(context.Background(), rs2)
+	// review_thrash_escalated event must be emitted for findingB (count==2)
+	events3, err := eventLog3.ReadAll()
 	if err != nil {
-		t.Fatalf("Cycle 2 Run: %v", err)
+		t.Fatalf("Cycle 3: ReadAll events: %v", err)
 	}
-
-	// Verify cycle 2: thrash count reaches 2 for the same fingerprinted finding
-	if rs2.ReviewThrashCounts == nil {
-		t.Fatal("Cycle 2: ReviewThrashCounts should not be nil")
+	var escalatedEvent *runstore.ReviewThrashEscalatedEvent
+	for _, ev := range events3 {
+		if ev.EventType() == "review_thrash_escalated" {
+			if rte, ok := ev.(*runstore.ReviewThrashEscalatedEvent); ok {
+				escalatedEvent = rte
+				break
+			}
+		}
 	}
-
-	if rs2.ReviewThrashCounts[fp] != 2 {
-		t.Errorf("Cycle 2: expected thrash count 2 for fingerprint %q (consecutive error), got %d", fp, rs2.ReviewThrashCounts[fp])
+	if escalatedEvent == nil {
+		t.Fatal("Cycle 3: expected review_thrash_escalated event for findingB (count==2)")
 	}
-
-	// Verify that the action is ReplanFrom (not Blocked, since 2 < 3 threshold)
-	if action2.Kind != specloop.ReplanFrom {
-		t.Errorf("Cycle 2: expected ReplanFrom (count==2), got %v", action2.Kind)
+	if escalatedEvent.FindingFile != findingB.File {
+		t.Errorf("Cycle 3: escalated event finding_file = %q, want %q", escalatedEvent.FindingFile, findingB.File)
 	}
-
-	// Verify that EscalatedFailures is set (escalation fires at count==2)
-	if action2.Context == nil {
-		t.Fatal("Cycle 2: expected FailureContext when thrash count == 2")
+	if escalatedEvent.FindingDescription != findingB.Description {
+		t.Errorf("Cycle 3: escalated event finding_description = %q, want %q", escalatedEvent.FindingDescription, findingB.Description)
 	}
-
-	if len(action2.Context.EscalatedFailures) == 0 {
-		t.Error("Cycle 2: expected non-empty EscalatedFailures when thrash count reaches 2")
-	}
-}
-
-func TestReview_ThrashCount_RepeatedErrorFindingInConsecutiveCycles_ReachesTwo(t *testing.T) {
-	// Acceptance Criterion 1 (Spec 0004o):
-	// When a review finding with severity `error` blocks in cycle N and the
-	// same finding (same file + description) blocks again in cycle N+1,
-	// rs.ReviewThrashCounts for that finding's fingerprint is 2 after cycle N+1's review.
-	//
-	// This test directly proves end-to-end: consecutive blocking cycles with the same
-	// error finding (file + description fingerprint) increment thrash count to 2.
-
-	const (
-		findingFile        = "handler.go"
-		findingDescription = "missing validation check"
-		expectedCount2     = 2
-	)
-
-	errorFinding := review.Finding{
-		Severity:    review.SeverityError,
-		File:        findingFile,
-		Line:        15,
-		Description: findingDescription,
-		Facet:       "spec_alignment",
-	}
-
-	fingerprint := findingFile + "\x00" + findingDescription
-
-	// === CYCLE N: First blocking occurrence ===
-	runner1 := &mockReviewRunner{
-		result: &review.RunResult{
-			AllFindings:         []review.Finding{errorFinding},
-			BlockingFindings:    []review.Finding{errorFinding},
-			HasBlockingFindings: true,
-		},
-	}
-
-	stage1 := NewReviewStage(runner1, ReviewStageConfig{
-		DiffProvider: &fakeDiffProvider{diff: "some diff"},
-	}, nil)
-
-	rs1 := runstore.NewRunState("test-spec", "test-project")
-	rs1.Cycle = 1
-
-	_, errCycle1 := stage1.Run(context.Background(), rs1)
-	if errCycle1 != nil {
-		t.Fatalf("Cycle 1 Run failed: %v", errCycle1)
-	}
-
-	// After cycle 1, thrash count is 1
-	if rs1.ReviewThrashCounts == nil {
-		t.Fatal("Cycle 1: ReviewThrashCounts must be initialized (not nil)")
-	}
-	if rs1.ReviewThrashCounts[fingerprint] != 1 {
-		t.Errorf("Cycle 1: expected thrash count 1 for fingerprint %q, got %d",
-			fingerprint, rs1.ReviewThrashCounts[fingerprint])
-	}
-
-	// === CYCLE N+1: Same error finding blocks again ===
-	runner2 := &mockReviewRunner{
-		result: &review.RunResult{
-			AllFindings:         []review.Finding{errorFinding},
-			BlockingFindings:    []review.Finding{errorFinding},
-			HasBlockingFindings: true,
-		},
-	}
-
-	stage2 := NewReviewStage(runner2, ReviewStageConfig{
-		DiffProvider: &fakeDiffProvider{diff: "some diff"},
-	}, nil)
-
-	rs2 := runstore.NewRunState("test-spec", "test-project")
-	rs2.Cycle = 2
-	// Carry forward thrash state from cycle 1
-	rs2.ReviewThrashCounts = rs1.ReviewThrashCounts
-
-	_, errCycle2 := stage2.Run(context.Background(), rs2)
-	if errCycle2 != nil {
-		t.Fatalf("Cycle 2 Run failed: %v", errCycle2)
-	}
-
-	// === VERIFY: Acceptance Criterion 1 ===
-	// After cycle N+1 review, thrash count for the same finding is 2
-	if rs2.ReviewThrashCounts == nil {
-		t.Fatal("Cycle 2: ReviewThrashCounts must be initialized")
-	}
-
-	actualCount := rs2.ReviewThrashCounts[fingerprint]
-	if actualCount != expectedCount2 {
-		t.Errorf("ACCEPTANCE CRITERION 1 FAILED: thrash count for %q is %d, want %d",
-			fingerprint, actualCount, expectedCount2)
+	if escalatedEvent.ConsecutiveCount != 2 {
+		t.Errorf("Cycle 3: escalated event consecutive_count = %d, want 2", escalatedEvent.ConsecutiveCount)
 	}
 }

@@ -218,17 +218,3 @@ func collectFailureMessages(results []specloop.TaskResult) []string {
 	return failures
 }
 
-// taskIntersectsEscalated returns true if the task is responsible for any of the escalated failures.
-func taskIntersectsEscalated(task *runstore.Task, escalatedFailures []string) bool {
-	if task == nil || len(escalatedFailures) == 0 || len(task.FailuresAddressed) == 0 {
-		return false
-	}
-	for _, failure := range escalatedFailures {
-		for _, target := range task.FailuresAddressed {
-			if failure == target {
-				return true
-			}
-		}
-	}
-	return false
-}

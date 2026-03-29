@@ -334,6 +334,20 @@ func (s *ReviewStage) Run(ctx context.Context, rs *runstore.RunState) (specloop.
 		}
 		rs.ReviewThrashCounts = newCounts
 
+		// Emit review_thrash_escalated events for all count==2 findings regardless of
+		// whether a count>=3 finding also fires; events are observability signals and
+		// must not be suppressed by the Blocked early-return path.
+		if len(escalated) > 0 && s.eventLog != nil {
+			for _, rec := range escalated {
+				s.eventLog.Append(runstore.ReviewThrashEscalatedEvent{
+					BaseEvent:          runstore.BaseEvent{Type: "review_thrash_escalated", Timestamp: time.Now()},
+					FindingFile:        rec.file,
+					FindingDescription: rec.description,
+					ConsecutiveCount:   rec.count,
+				})
+			}
+		}
+
 		if len(blockedFindings) > 0 {
 			blockedFailures := make([]string, 0, len(blockedFindings))
 			for _, rec := range blockedFindings {
@@ -349,16 +363,6 @@ func (s *ReviewStage) Run(ctx context.Context, rs *runstore.RunState) (specloop.
 		}
 
 		if len(escalated) > 0 {
-			if s.eventLog != nil {
-				for _, rec := range escalated {
-					s.eventLog.Append(runstore.ReviewThrashEscalatedEvent{
-						BaseEvent:          runstore.BaseEvent{Type: "review_thrash_escalated", Timestamp: time.Now()},
-						FindingFile:        rec.file,
-						FindingDescription: rec.description,
-						ConsecutiveCount:   rec.count,
-					})
-				}
-			}
 			escalatedFailures := make([]string, 0, len(escalated))
 			for _, rec := range escalated {
 				escalatedFailures = append(escalatedFailures, rec.failure)
