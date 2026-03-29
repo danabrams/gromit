@@ -48,8 +48,9 @@ func (r *realGitOps) CreateWorktree(repoDir, branch string) (string, error) {
 	// Verify worktree is not in detached HEAD state.
 	headCmd := exec.Command("git", "-C", tmp, "symbolic-ref", "--short", "HEAD")
 	if _, err := headCmd.Output(); err != nil {
-		// Detached HEAD — create the branch from current HEAD.
-		fixCmd := exec.Command("git", "-C", tmp, "checkout", "-b", branch)
+		// Detached HEAD — force-reset the branch to current HEAD and check it out.
+		// Use -B (not -b) because the branch may already exist (e.g. after -B reset above).
+		fixCmd := exec.Command("git", "-C", tmp, "checkout", "-B", branch)
 		if fixOut, fixErr := fixCmd.CombinedOutput(); fixErr != nil {
 			return "", fmt.Errorf("fix detached HEAD: %w\n%s", fixErr, fixOut)
 		}
