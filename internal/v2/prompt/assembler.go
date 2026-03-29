@@ -299,6 +299,7 @@ func trimUTF8Suffix(s string, limit int) string {
 // loadProjectContext returns project context scoped to the bead's files.
 // When the bead has no files, the full project text is returned unmodified.
 func (p *PromptAssembler) loadProjectContext(bead BeadInfo) string {
+	beadPaths := extractPackagePaths(bead.Title, bead.Files)
 	if len(bead.Files) == 0 && bead.Title == "" {
 		return p.project
 	}
@@ -320,6 +321,9 @@ func (p *PromptAssembler) loadProjectContext(bead BeadInfo) string {
 						break
 					}
 				}
+				if !relevant && len(beadPaths) > 0 && bulletMatchesAnyPath(line, beadPaths) {
+					relevant = true
+				}
 			}
 			if relevant {
 				filtered = append(filtered, line)
@@ -328,8 +332,6 @@ func (p *PromptAssembler) loadProjectContext(bead BeadInfo) string {
 		result = strings.Join(filtered, "\n")
 	}
 
-	// Scope architecture section to bead-relevant packages.
-	beadPaths := extractPackagePaths(bead.Title, bead.Files)
 	if len(beadPaths) > 0 {
 		result = scopeArchitectureSection(result, beadPaths)
 	}
