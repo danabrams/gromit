@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // Scope denotes whether a fix is learnable or systemic.
@@ -38,6 +39,10 @@ type FixResult struct {
 func ApplyPlan(repoRoot string, plan FixPlan) (*FixResult, error) {
 	if len(plan.Edits) == 0 {
 		return nil, fmt.Errorf("no edits to apply")
+	}
+
+	if plan.Scope == ScopeSystemic && strings.TrimSpace(plan.Recommendation) == "" {
+		return nil, fmt.Errorf("systemic fixes require a recommendation for human review")
 	}
 
 	applied := make([]string, 0, len(plan.Edits))
