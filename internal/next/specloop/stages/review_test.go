@@ -1972,3 +1972,94 @@ func TestReviewThrashConsecutiveErrorCountReachesTwo(t *testing.T) {
 		t.Error("Cycle 2: expected non-empty EscalatedFailures when thrash count reaches 2")
 	}
 }
+
+func TestReview_ThrashCount_RepeatedErrorFindingInConsecutiveCycles_ReachesTwo(t *testing.T) {
+	// Acceptance Criterion 1 (Spec 0004o):
+	// When a review finding with severity `error` blocks in cycle N and the
+	// same finding (same file + description) blocks again in cycle N+1,
+	// rs.ReviewThrashCounts for that finding's fingerprint is 2 after cycle N+1's review.
+	//
+	// This test directly proves end-to-end: consecutive blocking cycles with the same
+	// error finding (file + description fingerprint) increment thrash count to 2.
+
+	const (
+		findingFile        = "handler.go"
+		findingDescription = "missing validation check"
+		expectedCount2     = 2
+	)
+
+	errorFinding := review.Finding{
+		Severity:    review.SeverityError,
+		File:        findingFile,
+		Line:        15,
+		Description: findingDescription,
+		Facet:       "spec_alignment",
+	}
+
+	fingerprint := findingFile + "\x00" + findingDescription
+
+	// === CYCLE N: First blocking occurrence ===
+	runner1 := &mockReviewRunner{
+		result: &review.RunResult{
+			AllFindings:         []review.Finding{errorFinding},
+			BlockingFindings:    []review.Finding{errorFinding},
+			HasBlockingFindings: true,
+		},
+	}
+
+	stage1 := NewReviewStage(runner1, ReviewStageConfig{
+		DiffProvider: &fakeDiffProvider{diff: "some diff"},
+	}, nil)
+
+	rs1 := runstore.NewRunState("test-spec", "test-project")
+	rs1.Cycle = 1
+
+	_, errCycle1 := stage1.Run(context.Background(), rs1)
+	if errCycle1 != nil {
+		t.Fatalf("Cycle 1 Run failed: %v", errCycle1)
+	}
+
+	// After cycle 1, thrash count is 1
+	if rs1.ReviewThrashCounts == nil {
+		t.Fatal("Cycle 1: ReviewThrashCounts must be initialized (not nil)")
+	}
+	if rs1.ReviewThrashCounts[fingerprint] != 1 {
+		t.Errorf("Cycle 1: expected thrash count 1 for fingerprint %q, got %d",
+			fingerprint, rs1.ReviewThrashCounts[fingerprint])
+	}
+
+	// === CYCLE N+1: Same error finding blocks again ===
+	runner2 := &mockReviewRunner{
+		result: &review.RunResult{
+			AllFindings:         []review.Finding{errorFinding},
+			BlockingFindings:    []review.Finding{errorFinding},
+			HasBlockingFindings: true,
+		},
+	}
+
+	stage2 := NewReviewStage(runner2, ReviewStageConfig{
+		DiffProvider: &fakeDiffProvider{diff: "some diff"},
+	}, nil)
+
+	rs2 := runstore.NewRunState("test-spec", "test-project")
+	rs2.Cycle = 2
+	// Carry forward thrash state from cycle 1
+	rs2.ReviewThrashCounts = rs1.ReviewThrashCounts
+
+	_, errCycle2 := stage2.Run(context.Background(), rs2)
+	if errCycle2 != nil {
+		t.Fatalf("Cycle 2 Run failed: %v", errCycle2)
+	}
+
+	// === VERIFY: Acceptance Criterion 1 ===
+	// After cycle N+1 review, thrash count for the same finding is 2
+	if rs2.ReviewThrashCounts == nil {
+		t.Fatal("Cycle 2: ReviewThrashCounts must be initialized")
+	}
+
+	actualCount := rs2.ReviewThrashCounts[fingerprint]
+	if actualCount != expectedCount2 {
+		t.Errorf("ACCEPTANCE CRITERION 1 FAILED: thrash count for %q is %d, want %d",
+			fingerprint, actualCount, expectedCount2)
+	}
+}
