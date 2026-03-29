@@ -150,6 +150,28 @@ func TestShapeBudgetReportsTrimmingDetails(t *testing.T) {
 	}
 }
 
+func TestShapeBudgetRespectsTotalCapWithScopeAdjustments(t *testing.T) {
+	content := strings.Repeat("x", 1200)
+	maxChars := 800
+	shaped, report := ShapeBudget(content, 2, maxChars)
+
+	if report.MaxBudget != maxChars {
+		t.Fatalf("MaxBudget = %d, want %d", report.MaxBudget, maxChars)
+	}
+	if report.AdjustedBudget != maxChars/2 {
+		t.Fatalf("AdjustedBudget = %d, want %d", report.AdjustedBudget, maxChars/2)
+	}
+	if len(shaped) > report.MaxBudget {
+		t.Fatalf("shaped len = %d should not exceed MaxBudget %d", len(shaped), report.MaxBudget)
+	}
+	if len(shaped) != report.AdjustedBudget {
+		t.Fatalf("shaped len = %d, want %d (adjusted budget)", len(shaped), report.AdjustedBudget)
+	}
+	if !report.Trimmed {
+		t.Fatal("expected Trimmed = true when content exceeds adjusted budget")
+	}
+}
+
 func TestAssembleWithPhaseFiltersBase(t *testing.T) {
 	base := "## build\nbuild instructions\n\n## validate\nvalidate instructions"
 	assembler := NewPromptAssembler(base, "project context", "", "")
