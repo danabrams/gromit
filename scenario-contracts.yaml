@@ -12,5 +12,11 @@ scenarios:
         - file_contains:
             path: internal/next/specloop/stages/plan.go
             pattern: |
-              	default:
-              		return ""
+               	default:
+               		return ""
+
+    - name: Per-criterion timeout scenario references complexity keyword
+      assertions:
+        - file_contains:
+            path: internal/next/acceptor/acceptor_scenario_per_criterion_timeout_test.go
+            pattern: end-to-end

@@ -2,7 +2,9 @@ package acceptor
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"log"
 )
 
 // AcceptAgent is the interface for LLM-based criterion evaluation.
@@ -21,12 +23,13 @@ type EvaluateInput struct {
 
 // Evaluator orchestrates per-criterion acceptance evaluation via an AcceptAgent.
 type Evaluator struct {
-	agent AcceptAgent
+	agent      AcceptAgent
+	timeoutCfg TimeoutConfig
 }
 
 // NewEvaluator creates a new Evaluator wrapping the given agent.
-func NewEvaluator(agent AcceptAgent) *Evaluator {
-	return &Evaluator{agent: agent}
+func NewEvaluator(agent AcceptAgent, timeoutCfg TimeoutConfig) *Evaluator {
+	return &Evaluator{agent: agent, timeoutCfg: timeoutCfg}
 }
 
 // Evaluate runs each criterion through the agent and assembles the result.
@@ -34,6 +37,7 @@ func (e *Evaluator) Evaluate(ctx context.Context, input EvaluateInput) (Acceptan
 	results := make([]CriterionResult, 0, len(input.Criteria))
 	allPass := true
 	hasFailOrUnclear := false
+	diffSize := len(input.DiffSummary)
 
 	for _, criterion := range input.Criteria {
 		prompt, renderErr := RenderAcceptancePrompt(AcceptancePromptInput{
@@ -46,8 +50,15 @@ func (e *Evaluator) Evaluate(ctx context.Context, input EvaluateInput) (Acceptan
 		if renderErr != nil {
 			return AcceptanceResult{}, fmt.Errorf("rendering prompt for %q: %w", criterion, renderErr)
 		}
-		cr, err := e.agent.EvaluateCriterion(ctx, prompt)
+		deadline := ComputeCriterionTimeout(e.timeoutCfg, diffSize, criterion)
+		log.Printf("criterion_timeout_computed criterion=%q diff_bytes=%d timeout=%s", criterion, diffSize, deadline)
+		criterionCtx, cancel := context.WithTimeout(ctx, deadline)
+		cr, err := e.agent.EvaluateCriterion(criterionCtx, prompt)
+		cancel()
 		if err != nil {
+			if errors.Is(err, context.DeadlineExceeded) {
+				return AcceptanceResult{}, fmt.Errorf("evaluating criterion %q: deadline exceeded (timeout) (%w)", criterion, err)
+			}
 			return AcceptanceResult{}, fmt.Errorf("evaluating criterion %q: %w", criterion, err)
 		}
 		cr.Criterion = criterion
