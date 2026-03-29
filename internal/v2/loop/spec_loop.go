@@ -452,7 +452,7 @@ func (s *SpecLoop) Run(ctx context.Context, specID string, stopCh <-chan struct{
 		return err
 	}
 
-	if err := s.cleanupWorktree(ctx, specID, worktree, true); err != nil {
+	if err := s.cleanupWorktree(ctx, cleanupOptions{specID: specID, worktree: worktree, success: true}); err != nil {
 		return err
 	}
 
@@ -729,7 +729,7 @@ func (s *SpecLoop) handleFailure(ctx context.Context, specID string, base presen
 		return fmt.Errorf("present failure summary: %w", err)
 	}
 
-	if err := s.cleanupWorktree(ctx, specID, base.Worktree, false); err != nil {
+	if err := s.cleanupWorktree(ctx, cleanupOptions{specID: specID, worktree: base.Worktree, success: false}); err != nil {
 		return err
 	}
 
@@ -743,8 +743,15 @@ func (s *SpecLoop) handleFailure(ctx context.Context, specID string, base presen
 	return fmt.Errorf("accept failure: %w", failure)
 }
 
-func (s *SpecLoop) cleanupWorktree(_ context.Context, specID, worktree string, success bool) error {
-	trimmed := strings.TrimSpace(worktree)
+type cleanupOptions struct {
+	specID   string
+	worktree string
+	success  bool
+}
+
+func (s *SpecLoop) cleanupWorktree(_ context.Context, opts cleanupOptions) error {
+	trimmed := strings.TrimSpace(opts.worktree)
+	specID := opts.specID
 	if trimmed == "" {
 		return nil
 	}
@@ -756,7 +763,7 @@ func (s *SpecLoop) cleanupWorktree(_ context.Context, specID, worktree string, s
 	// has been cancelled (exec.CommandContext fails immediately otherwise).
 	cleanupCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	if !success {
+	if !opts.success {
 		status, err := git.Status(cleanupCtx, trimmed)
 		if err != nil {
 			log.Printf("git status during cleanup of spec %s: %v", specID, err)

@@ -203,7 +203,8 @@ func TestCleanupWorktreePreservesWorktreeWhenPreserveOnFailureIsDefault(t *testi
 		t.Fatalf("create spec loop: %v", err)
 	}
 
-	if err := loopInstance.cleanupWorktree(context.Background(), "test-spec", "/tmp/fake-worktree", false); err != nil {
+	opts := cleanupOptions{specID: "test-spec", worktree: "/tmp/fake-worktree", success: false}
+	if err := loopInstance.cleanupWorktree(context.Background(), opts); err != nil {
 		t.Fatalf("cleanupWorktree should not error when preserving on failure, got: %v", err)
 	}
 	if gitAdapter.removeCalled {
@@ -232,7 +233,7 @@ func TestCleanupWorktreeReturnsErrorWhenRemoveWorktreeFails(t *testing.T) {
 		t.Fatalf("create spec loop: %v", err)
 	}
 
-	err = loopInstance.cleanupWorktree(context.Background(), "test-spec", "/tmp/fake-worktree", true)
+	err = loopInstance.cleanupWorktree(context.Background(), cleanupOptions{specID: "test-spec", worktree: "/tmp/fake-worktree", success: true})
 	if err == nil {
 		t.Fatal("expected error when RemoveWorktree fails")
 	}
@@ -369,7 +370,8 @@ func TestCleanupWorktreeUsesNonCancelledContext(t *testing.T) {
 	cancel()
 
 	// cleanupWorktree should succeed because it creates a fresh context internally.
-	if err := loopInstance.cleanupWorktree(ctx, "test-spec", "/tmp/fake-worktree", false); err != nil {
+	opts := cleanupOptions{specID: "test-spec", worktree: "/tmp/fake-worktree", success: false}
+	if err := loopInstance.cleanupWorktree(ctx, opts); err != nil {
 		t.Fatalf("cleanupWorktree should succeed with cancelled context, got: %v", err)
 	}
 
