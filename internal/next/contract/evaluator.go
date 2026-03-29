@@ -15,6 +15,8 @@ const goTestOutputLimit = 2000
 
 var wsRun = regexp.MustCompile(`\s+`)
 
+var goTestNameRE = regexp.MustCompile(`^Test[0-9A-Za-z_]*$`)
+
 // containsNormalized collapses all runs of whitespace in both content and
 // pattern to a single space, then checks strings.Contains.
 func containsNormalized(content, pattern string) bool {
@@ -53,6 +55,9 @@ type DefaultContractEvaluator struct{}
 // All assertions are checked — no short-circuit on first failure.
 // A nil contract returns empty failures.
 func (e *DefaultContractEvaluator) Evaluate(ctx context.Context, contract *ScenarioContract, workDir string) ([]ContractFailure, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	if contract == nil {
 		return nil, nil
 	}
@@ -144,7 +149,7 @@ func (e *DefaultContractEvaluator) check(ctx context.Context, scenarioName strin
 			return fail("invalid_assertion", "go_test_pass assertion has empty test_name field")
 		}
 		// Validate test name format: must start with "Test" and contain only alphanumeric and underscores.
-		if !regexp.MustCompile(`^Test[0-9A-Za-z_]*$`).MatchString(a.GoTestPass.TestName) {
+		if !goTestNameRE.MatchString(a.GoTestPass.TestName) {
 			return fail("invalid_assertion", fmt.Sprintf("go_test_pass assertion has invalid test_name format: %q (must start with 'Test' and contain only alphanumeric chars and underscores)", a.GoTestPass.TestName))
 		}
 

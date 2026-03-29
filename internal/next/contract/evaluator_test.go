@@ -1357,3 +1357,35 @@ func TestEvaluator_GoTestPass_InvalidAssertion(t *testing.T) {
 		}
 	})
 }
+
+func TestTruncateGoTestOutput_UnicodeBoundary(t *testing.T) {
+	// 1001 × 'é' = 2002 bytes but only 1001 runes — below the rune limit, no truncation.
+	belowRuneLimit := strings.Repeat("é", 1001)
+	if len(belowRuneLimit) <= goTestOutputLimit {
+		t.Fatalf("precondition: expected byte length > %d, got %d", goTestOutputLimit, len(belowRuneLimit))
+	}
+	if len([]rune(belowRuneLimit)) > goTestOutputLimit {
+		t.Fatalf("precondition: expected rune length <= %d, got %d", goTestOutputLimit, len([]rune(belowRuneLimit)))
+	}
+	got := truncateGoTestOutput(belowRuneLimit)
+	if got != belowRuneLimit {
+		t.Errorf("expected full string returned (no truncation), but got truncated output")
+	}
+
+	// 2001 × 'é' = 4002 bytes and 2001 runes — above the rune limit, must truncate.
+	aboveRuneLimit := strings.Repeat("é", 2001)
+	got = truncateGoTestOutput(aboveRuneLimit)
+	if !strings.Contains(got, "[output truncated]") {
+		t.Errorf("expected '[output truncated]' suffix, got: %q", got[:minInt(len(got), 100)])
+	}
+	if got == aboveRuneLimit {
+		t.Errorf("expected output to be truncated, but got the full string back")
+	}
+}
+
+func minInt(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}

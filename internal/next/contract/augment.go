@@ -58,7 +58,7 @@ func AugmentWithTestAssertions(sc *ScenarioContract, workDir string) error {
 	for _, file := range files {
 		funcs, err := extractScenarioTestFunctions(file)
 		if err != nil {
-			return fmt.Errorf("parse scenario test %q: %w", file, err)
+			continue
 		}
 		if len(funcs) == 0 {
 			continue
@@ -158,7 +158,7 @@ func packagePath(workDir string, filePath string) (string, error) {
 	if strings.HasPrefix(rel, "..") {
 		return "", fmt.Errorf("%q outside workdir %q", dir, workDir)
 	}
-	return "./" + rel + "/...", nil
+	return "./" + rel, nil
 }
 
 func normalizeMatchingKey(s string) string {
@@ -212,6 +212,10 @@ func bestScenarioIndices(testKey string, scenarios []scenarioInfo) []int {
 	if bestScore == 0 {
 		return nil
 	}
+	// Require the match to cover at least half of the test key
+	if bestScore*2 < len(testKey) {
+		return nil
+	}
 	// Require a unique best match; skip assignment if there are ties
 	if len(matches) != 1 {
 		return nil
@@ -233,10 +237,14 @@ func longestCommonSubstringLen(a, b string) int {
 	if a == "" || b == "" {
 		return 0
 	}
-	prev := make([]int, len(b)+1)
+	n := len(b) + 1
+	prev := make([]int, n)
+	curr := make([]int, n)
 	best := 0
 	for i := 1; i <= len(a); i++ {
-		curr := make([]int, len(b)+1)
+		for j := range curr {
+			curr[j] = 0
+		}
 		for j := 1; j <= len(b); j++ {
 			if a[i-1] == b[j-1] {
 				curr[j] = prev[j-1] + 1
@@ -245,7 +253,7 @@ func longestCommonSubstringLen(a, b string) int {
 				}
 			}
 		}
-		prev = curr
+		prev, curr = curr, prev
 	}
 	return best
 }

@@ -62,7 +62,7 @@ func TestScenario_ReworkVisionChange(t *testing.T) {}
 	if assertions[1].FileContains != nil {
 		t.Fatalf("expected file_contains to be removed when go_test_pass exists")
 	}
-	if assertions[1].GoTestPass.Pkg != "./internal/next/planner/..." {
+	if assertions[1].GoTestPass.Pkg != "./internal/next/planner" {
 		t.Fatalf("unexpected go_test_pass pkg: %q", assertions[1].GoTestPass.Pkg)
 	}
 	if assertions[1].GoTestPass.TestName != "TestScenario_ReworkVisionChange" {

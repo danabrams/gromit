@@ -594,7 +594,7 @@ func TestValidateStage_AugmentWithTestAssertions_ReplacesFileContainsWithGoTestP
 	if assertions[1].GoTestPass == nil {
 		t.Fatal("expected go_test_pass to replace file_contains")
 	}
-	if assertions[1].GoTestPass.Pkg != "./pkg/planner/..." {
+	if assertions[1].GoTestPass.Pkg != "./pkg/planner" {
 		t.Fatalf("unexpected go_test_pass pkg: %q", assertions[1].GoTestPass.Pkg)
 	}
 	if assertions[1].GoTestPass.TestName != testFuncName {
@@ -1892,5 +1892,77 @@ func TestValidateStage_PipelineOrdering(t *testing.T) {
 		if !strings.Contains(failure, " failed: ") {
 			t.Fatalf("expected failure to contain ' failed: ' text, got: %q", failure)
 		}
+	}
+}
+
+// TestValidateStage_AugmentWithTestAssertions_PkgIsConcreteNotRecursive verifies that
+// when a *_scenario_*_test.go file lives in a subdir, the injected go_test_pass assertion
+// carries the concrete package path (e.g. "./internal/mypkg") rather than a recursive
+// wildcard (e.g. "./internal/mypkg/...").
+func TestValidateStage_AugmentWithTestAssertions_PkgIsConcreteNotRecursive(t *testing.T) {
+	dir := t.TempDir()
+
+	contractYAML := `scenarios:
+  - name: foo
+    assertions:
+      - file_contains:
+          path: internal/mypkg/mypkg.go
+          pattern: func Foo
+`
+	if err := os.WriteFile(filepath.Join(dir, "scenario-contracts.yaml"), []byte(contractYAML), 0o644); err != nil {
+		t.Fatalf("write contract file: %v", err)
+	}
+
+	workDir := newValidateWorkDir(t)
+
+	// Create a scenario test file in internal/mypkg subdir.
+	testFileDir := filepath.Join(workDir, "internal", "mypkg")
+	if err := os.MkdirAll(testFileDir, 0o755); err != nil {
+		t.Fatalf("mkdir test dir: %v", err)
+	}
+	testFile := filepath.Join(testFileDir, "myfeature_scenario_foo_test.go")
+	testSrc := "package mypkg\n\nimport \"testing\"\n\nfunc TestScenarioFoo(t *testing.T) {}\n"
+	if err := os.WriteFile(testFile, []byte(testSrc), 0o644); err != nil {
+		t.Fatalf("write scenario test: %v", err)
+	}
+
+	v := &fakeValidator{result: validator.FinalResult{Pass: true}}
+	evaluator := &recordingContractEvaluator{}
+	stage := NewValidateStage(v, ValidateStageConfig{
+		WorkDir:     workDir,
+		EvidenceDir: dir,
+	}, nil, evaluator, nil)
+
+	rs := runstore.NewRunState("spec-001", "proj-001")
+	action, err := stage.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if action.Kind != specloop.Continue {
+		t.Fatalf("expected Continue, got %v", action.Kind)
+	}
+	if len(evaluator.Received) != 1 {
+		t.Fatalf("expected evaluator to see 1 contract, got %d", len(evaluator.Received))
+	}
+	if len(evaluator.Received[0].Scenarios) != 1 {
+		t.Fatalf("expected 1 scenario, got %d", len(evaluator.Received[0].Scenarios))
+	}
+	assertions := evaluator.Received[0].Scenarios[0].Assertions
+	if len(assertions) != 1 {
+		t.Fatalf("expected 1 assertion (go_test_pass replacing file_contains), got %d", len(assertions))
+	}
+	if assertions[0].GoTestPass == nil {
+		t.Fatal("expected go_test_pass assertion to be present")
+	}
+	pkg := assertions[0].GoTestPass.Pkg
+	// The pkg must be the concrete package path — not a recursive wildcard.
+	if strings.HasSuffix(pkg, "/...") {
+		t.Fatalf("expected concrete package path, got recursive wildcard: %q", pkg)
+	}
+	if pkg != "./internal/mypkg" {
+		t.Fatalf("expected pkg %q, got %q", "./internal/mypkg", pkg)
+	}
+	if assertions[0].GoTestPass.TestName != "TestScenarioFoo" {
+		t.Fatalf("expected test name %q, got %q", "TestScenarioFoo", assertions[0].GoTestPass.TestName)
 	}
 }

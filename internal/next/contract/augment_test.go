@@ -312,9 +312,9 @@ func TestScenario_Foo(t *testing.T) {}
 		t.Fatalf("expected 2 go_test_pass assertions, got %d", len(assertions))
 	}
 
-	// Verify package patterns include .../ suffix for recursive matching
-	if !strings.Contains(assertions[0].GoTestPass.Pkg, "/...") {
-		t.Fatalf("expected package pattern to include /..., got %s", assertions[0].GoTestPass.Pkg)
+	// Verify package patterns are concrete (no /... suffix)
+	if strings.Contains(assertions[0].GoTestPass.Pkg, "/...") {
+		t.Fatalf("expected concrete package path (no /...), got %s", assertions[0].GoTestPass.Pkg)
 	}
 
 	// pkg1 should come before pkg2 lexicographically
@@ -426,16 +426,140 @@ func TestScenario_Multi_Integration(t *testing.T) {}
 		t.Fatalf("augment failed: %v", err)
 	}
 
-	// Both tests should be included and sorted by test name
-	if len(sc.Scenarios[0].Assertions) != 2 {
-		t.Fatalf("expected 2 go_test_pass assertions, got %d", len(sc.Scenarios[0].Assertions))
+	// TestScenario_Multi ("multi", len=5) fully covers the scenario name: matched.
+	// TestScenario_Multi_Integration normalizes to "multiintegration" (len=16);
+	// the scenario score is 5 ("multi"), 5*2=10 < 16 so it falls below threshold: not matched.
+	if len(sc.Scenarios[0].Assertions) != 1 {
+		t.Fatalf("expected 1 go_test_pass assertion (threshold filters _Integration suffix), got %d", len(sc.Scenarios[0].Assertions))
 	}
 
-	if sc.Scenarios[0].Assertions[0].GoTestPass.TestName != "TestScenario_Multi" {
-		t.Fatalf("expected first test to be TestScenario_Multi")
+	if sc.Scenarios[0].Assertions[0].GoTestPass == nil {
+		t.Fatalf("expected GoTestPass assertion")
 	}
-	if sc.Scenarios[0].Assertions[1].GoTestPass.TestName != "TestScenario_Multi_Integration" {
-		t.Fatalf("expected second test to be TestScenario_Multi_Integration")
+	if sc.Scenarios[0].Assertions[0].GoTestPass.TestName != "TestScenario_Multi" {
+		t.Fatalf("expected TestScenario_Multi to match, got %s", sc.Scenarios[0].Assertions[0].GoTestPass.TestName)
+	}
+}
+
+func TestAugmentWithTestAssertions_ParseErrorIsNonFatal(t *testing.T) {
+	workDir := t.TempDir()
+
+	// Write an invalid Go file that matches the _scenario_ pattern
+	invalidCode := `package test INVALID SYNTAX }{`
+	if err := os.WriteFile(filepath.Join(workDir, "bad_scenario_parse_test.go"), []byte(invalidCode), 0o644); err != nil {
+		t.Fatalf("write invalid file: %v", err)
+	}
+
+	// Write a valid scenario test file alongside it
+	validCode := `package test
+import "testing"
+func TestScenario_Valid(t *testing.T) {}
+`
+	if err := os.WriteFile(filepath.Join(workDir, "good_scenario_valid_test.go"), []byte(validCode), 0o644); err != nil {
+		t.Fatalf("write valid file: %v", err)
+	}
+
+	sc := &ScenarioContract{
+		Scenarios: []ScenarioAssertions{
+			{Name: "valid"},
+		},
+	}
+
+	// Parse failures must not propagate as errors
+	err := AugmentWithTestAssertions(sc, workDir)
+	if err != nil {
+		t.Fatalf("expected nil error despite unparseable scenario file, got %v", err)
+	}
+
+	// The valid file should still have been processed
+	if len(sc.Scenarios[0].Assertions) != 1 || sc.Scenarios[0].Assertions[0].GoTestPass == nil {
+		t.Fatalf("expected valid scenario file to be processed despite parse error in sibling file")
+	}
+}
+
+func TestAugmentWithTestAssertions_MatchingThresholdRejectsWeakOverlap(t *testing.T) {
+	workDir := t.TempDir()
+
+	// TestScenarioXyz normalizes to "xyz"; scenario "authentication" normalizes to "authentication"
+	// LCS("xyz", "authentication") = 0 (no common substring). Use a case where there IS a tiny
+	// overlap to test the threshold: scenario "behavioral" (len=10), test key "ab" (len=2),
+	// LCS score could be 1 ("a" or "b") but 1*2 < 2 is false... need len > 2*score.
+	// scenario "authentication" (len=14), test key "aut" (len=3), score=3, 3*2=6 < 3 is false.
+	// scenario "authentication" (len=14), test key "thenx" (len=5), LCS("authentication","thenx")=4 ("then"),
+	// 4*2=8 >= 5 so that WOULD match.
+	// Best case: scenario "foo" (len=3), test key "foobarbazboo" (len=12),
+	// strings.Contains("foo","foobarbazboo")=false, strings.Contains("foobarbazboo","foo")=true -> score=3,
+	// 3*2=6 < 12 -> no match (threshold blocks it).
+	testCode := `package test
+import "testing"
+func TestScenario_Foobarbazboo(t *testing.T) {}
+`
+	if err := os.WriteFile(filepath.Join(workDir, "threshold_scenario_test.go"), []byte(testCode), 0o644); err != nil {
+		t.Fatalf("write test: %v", err)
+	}
+
+	// Scenario "foo" is contained within the test key "foobarbazboo" (score=3),
+	// but 3*2=6 < 12=len("foobarbazboo"), so threshold should reject it
+	sc := &ScenarioContract{
+		Scenarios: []ScenarioAssertions{
+			{
+				Name: "foo",
+				Assertions: []ContractAssertion{
+					{FileContains: &FileContainsAssertion{Path: "file.txt", Pattern: "pattern"}},
+				},
+			},
+		},
+	}
+
+	err := AugmentWithTestAssertions(sc, workDir)
+	if err != nil {
+		t.Fatalf("augment failed: %v", err)
+	}
+
+	// Threshold should block the weak match; original assertion preserved
+	if len(sc.Scenarios[0].Assertions) != 1 || sc.Scenarios[0].Assertions[0].FileContains == nil {
+		t.Fatalf("expected threshold to block weak overlap match; got assertions: %+v", sc.Scenarios[0].Assertions)
+	}
+}
+
+func TestAugmentWithTestAssertions_PkgIsConcretePath(t *testing.T) {
+	workDir := t.TempDir()
+
+	subDir := filepath.Join(workDir, "internal", "mypkg")
+	if err := os.MkdirAll(subDir, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+
+	testCode := `package mypkg
+import "testing"
+func TestScenario_Feature(t *testing.T) {}
+`
+	if err := os.WriteFile(filepath.Join(subDir, "feature_scenario_test.go"), []byte(testCode), 0o644); err != nil {
+		t.Fatalf("write test: %v", err)
+	}
+
+	sc := &ScenarioContract{
+		Scenarios: []ScenarioAssertions{
+			{Name: "feature"},
+		},
+	}
+
+	err := AugmentWithTestAssertions(sc, workDir)
+	if err != nil {
+		t.Fatalf("augment failed: %v", err)
+	}
+
+	if len(sc.Scenarios[0].Assertions) != 1 || sc.Scenarios[0].Assertions[0].GoTestPass == nil {
+		t.Fatalf("expected go_test_pass assertion")
+	}
+
+	pkg := sc.Scenarios[0].Assertions[0].GoTestPass.Pkg
+	if strings.Contains(pkg, "...") {
+		t.Fatalf("expected concrete package path (no ...), got %s", pkg)
+	}
+	expected := "./internal/mypkg"
+	if pkg != expected {
+		t.Fatalf("expected Pkg=%q, got %q", expected, pkg)
 	}
 }
 

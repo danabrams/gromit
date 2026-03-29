@@ -114,7 +114,7 @@ func TestScenario_AddFeatureAndValidate(t *testing.T) {}
 	}
 
 	// Verify go_test_pass details
-	if secondCycleAssertions[1].GoTestPass.Pkg != "./pkg/feature/..." {
+	if secondCycleAssertions[1].GoTestPass.Pkg != "./pkg/feature" {
 		t.Fatalf("second cycle: unexpected pkg pattern: %q", secondCycleAssertions[1].GoTestPass.Pkg)
 	}
 	if secondCycleAssertions[1].GoTestPass.TestName != "TestScenario_AddFeatureAndValidate" {
