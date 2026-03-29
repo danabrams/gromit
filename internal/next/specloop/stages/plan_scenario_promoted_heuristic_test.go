@@ -17,6 +17,7 @@ func TestScenario_PromotedHeuristicAppearsInPlannerPrompt(t *testing.T) {
 	tmp := t.TempDir()
 	store := runstore.NewStore(tmp)
 	rs := runstore.NewRunState("spec-001", "proj-001")
+	rs.ReplanContext = &runstore.ReplanContext{Failures: []string{}}
 	runDir := store.RunDir(rs.RunID)
 	if err := os.MkdirAll(runDir, 0o755); err != nil {
 		t.Fatalf("mkdir runDir: %v", err)

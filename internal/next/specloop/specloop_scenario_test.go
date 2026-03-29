@@ -280,22 +280,28 @@ func TestIntegration_PersistentFailureHintAfterTwoCycles(t *testing.T) {
 	// The hint should be appended to the annotated failures.
 
 	foundPersistentFailureHint := false
-	for _, failure := range rs.ReplanContext {
-		if contains(failure, "persistent-failure:") {
-			foundPersistentFailureHint = true
-			// Verify the hint mentions the failure key and has "failed" and "consecutive cycles"
-			if !contains(failure, "contract:UserCreation") {
-				t.Errorf("persistent-failure hint should mention contract:UserCreation, got: %s", failure)
+	if rs.ReplanContext != nil {
+		for _, failure := range rs.ReplanContext.Failures {
+			if contains(failure, "persistent-failure:") {
+				foundPersistentFailureHint = true
+				// Verify the hint mentions the failure key and has "failed" and "consecutive cycles"
+				if !contains(failure, "contract:UserCreation") {
+					t.Errorf("persistent-failure hint should mention contract:UserCreation, got: %s", failure)
+				}
+				if !contains(failure, "consecutive cycles") {
+					t.Errorf("persistent-failure hint should mention 'consecutive cycles', got: %s", failure)
+				}
+				break
 			}
-			if !contains(failure, "consecutive cycles") {
-				t.Errorf("persistent-failure hint should mention 'consecutive cycles', got: %s", failure)
-			}
-			break
 		}
 	}
 
 	if !foundPersistentFailureHint {
-		t.Errorf("ReplanContext should contain persistent-failure hint after 2 consecutive cycles. Got: %v", rs.ReplanContext)
+		replanContextFailures := []string{}
+		if rs.ReplanContext != nil {
+			replanContextFailures = rs.ReplanContext.Failures
+		}
+		t.Errorf("ReplanContext should contain persistent-failure hint after 2 consecutive cycles. Got: %v", replanContextFailures)
 	}
 
 	// FailureHistory should be tracking the contract key

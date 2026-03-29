@@ -52,7 +52,7 @@ func TestScenario_SecondFailureTriggersErrorContextInclusion(t *testing.T) {
 				})
 			case 3:
 				// Cycle 3: capture the replan context the planner would see
-				cycle3ReplanContext = append([]string{}, rs.ReplanContext...)
+				cycle3ReplanContext = append([]string{}, rs.ReplanContext.Failures...)
 			}
 			return NextAction{Kind: Continue}, nil
 		}},

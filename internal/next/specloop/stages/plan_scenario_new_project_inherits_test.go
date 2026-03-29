@@ -18,6 +18,7 @@ func TestScenario_NewProjectInheritsGlobalEntries(t *testing.T) {
 	tmp := t.TempDir()
 	store := runstore.NewStore(tmp)
 	rs := runstore.NewRunState("spec-001", "proj-new")
+	rs.ReplanContext = &runstore.ReplanContext{Failures: []string{}}
 	runDir := store.RunDir(rs.RunID)
 	os.MkdirAll(runDir, 0o755)
 	os.WriteFile(filepath.Join(runDir, "spec-packet.md"), []byte("spec content"), 0o644)

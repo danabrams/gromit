@@ -40,6 +40,7 @@ func TestScenario_PlannerCapturesConventionOnInitialPlan(t *testing.T) {
 
 	rs := runstore.NewRunState("spec-0042", "proj-review")
 	rs.Cycle = 1
+	rs.ReplanContext = &runstore.ReplanContext{Failures: []string{}}
 	runDir := store.RunDir(rs.RunID)
 	if err := os.MkdirAll(runDir, 0o755); err != nil {
 		t.Fatalf("mkdir runDir: %v", err)

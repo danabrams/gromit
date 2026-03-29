@@ -39,7 +39,7 @@ func TestScenario_FixPlannerInheritsAndExtendsConventions(t *testing.T) {
 
 	rs := runstore.NewRunState("spec-001", "proj-001")
 	rs.Cycle = 2
-	rs.ReplanContext = []string{driftFinding}
+	rs.ReplanContext = &runstore.ReplanContext{Failures: []string{driftFinding}}
 	rs.Tasks = []runstore.Task{
 		{TaskID: "t-001", Status: "done", Cycle: 1, Kind: "original"},
 	}
@@ -141,7 +141,7 @@ func TestScenario_FixPlannerInheritsAndExtendsConventions(t *testing.T) {
 		}
 	}
 	rs.Cycle = 3
-	rs.ReplanContext = []string{"unit-tests: TestFoo failed"}
+	rs.ReplanContext = &runstore.ReplanContext{Failures: []string{"unit-tests: TestFoo failed"}}
 
 	cycle3FixPlan := planner.Plan{
 		SpecID: "spec-001",

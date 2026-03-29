@@ -20,6 +20,25 @@ const (
 	StatusCompleted = "completed"
 )
 
+// ReplanContext holds context for replan operations, including escalated failures
+// for targeted task escalation in the execute stage.
+type ReplanContext struct {
+	Failures          []string `json:"failures"`
+	EscalatedFailures []string `json:"escalated_failures,omitempty"`
+}
+
+// See CLAUDE.md nil-field normalization visibility convention:
+// exported — cross-package boundary type
+// NormalizeNilFields maps nil slices to empty values for JSON consistency.
+func (rc *ReplanContext) NormalizeNilFields() {
+	if rc.Failures == nil {
+		rc.Failures = []string{}
+	}
+	if rc.EscalatedFailures == nil {
+		rc.EscalatedFailures = []string{}
+	}
+}
+
 // TaskLineageEntry tracks the chain of task IDs for a particular lineage path.
 type TaskLineageEntry struct {
 	ChainIDs          []string `json:"chain_ids,omitempty"`
@@ -55,7 +74,7 @@ type RunState struct {
 	FinalValidationPassed   bool                        `json:"final_validation_passed"`
 	FinalReviewPassed       bool                        `json:"final_review_passed"`
 	FinalAcceptancePassed   bool                        `json:"final_acceptance_passed"`
-	ReplanContext           []string                    `json:"replan_context,omitempty"`
+	ReplanContext           *ReplanContext              `json:"replan_context,omitempty"`
 	LastValidationResult    *string                     `json:"last_validation_result,omitempty"`
 	LastFinalValidation     *validator.FinalResult      `json:"last_final_validation,omitempty"`
 	LastContractFailures    []string                    `json:"last_contract_failures,omitempty"`
@@ -82,8 +101,9 @@ func (rs *RunState) NormalizeNilFields() {
 		rs.Tasks = []Task{}
 	}
 	if rs.ReplanContext == nil {
-		rs.ReplanContext = []string{}
+		rs.ReplanContext = &ReplanContext{}
 	}
+	rs.ReplanContext.NormalizeNilFields()
 	if rs.ReviewFindings == nil {
 		rs.ReviewFindings = []string{}
 	}

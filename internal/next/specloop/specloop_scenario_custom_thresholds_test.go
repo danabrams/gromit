@@ -123,10 +123,14 @@ func TestScenario_CustomThresholds_FullLoopIntegration(t *testing.T) {
 	stages := []Stage{
 		&mockStage{name: "plan", runFn: func(_ context.Context, rs *runstore.RunState) (NextAction, error) {
 			if rs.Cycle == 2 {
-				cycle1ReplanContext = append([]string{}, rs.ReplanContext...)
+				if rs.ReplanContext != nil {
+					cycle1ReplanContext = append([]string{}, rs.ReplanContext.Failures...)
+				}
 			}
 			if rs.Cycle == 3 {
-				cycle2ReplanContext = append([]string{}, rs.ReplanContext...)
+				if rs.ReplanContext != nil {
+					cycle2ReplanContext = append([]string{}, rs.ReplanContext.Failures...)
+				}
 			}
 			return NextAction{Kind: Continue}, nil
 		}},

@@ -96,6 +96,7 @@ func TestPlanStage_CreatesPlanAndTasks(t *testing.T) {
 	tmp := t.TempDir()
 	store := runstore.NewStore(tmp)
 	rs := runstore.NewRunState("spec-001", "proj-001")
+	rs.ReplanContext = &runstore.ReplanContext{Failures: []string{}}
 	runDir := store.RunDir(rs.RunID)
 	os.MkdirAll(runDir, 0o755)
 	os.WriteFile(filepath.Join(runDir, "spec-packet.md"), []byte("spec content"), 0o644)
@@ -135,6 +136,7 @@ func TestPlanStage_RetryOnPlanValidationFailure(t *testing.T) {
 	tmp := t.TempDir()
 	store := runstore.NewStore(tmp)
 	rs := runstore.NewRunState("spec-001", "proj-001")
+	rs.ReplanContext = &runstore.ReplanContext{Failures: []string{}}
 	runDir := store.RunDir(rs.RunID)
 	os.MkdirAll(runDir, 0o755)
 	os.WriteFile(filepath.Join(runDir, "spec-packet.md"), []byte("spec content"), 0o644)
@@ -162,6 +164,7 @@ func TestPlanStage_BothRetriesFail_Blocked(t *testing.T) {
 	tmp := t.TempDir()
 	store := runstore.NewStore(tmp)
 	rs := runstore.NewRunState("spec-001", "proj-001")
+	rs.ReplanContext = &runstore.ReplanContext{Failures: []string{}}
 	runDir := store.RunDir(rs.RunID)
 	os.MkdirAll(runDir, 0o755)
 	os.WriteFile(filepath.Join(runDir, "spec-packet.md"), []byte("spec content"), 0o644)
@@ -183,6 +186,7 @@ func TestPlanStage_Cycle1_TasksAreSet(t *testing.T) {
 	tmp := t.TempDir()
 	store := runstore.NewStore(tmp)
 	rs := runstore.NewRunState("spec-001", "proj-001")
+	rs.ReplanContext = &runstore.ReplanContext{Failures: []string{}}
 	rs.Cycle = 1
 	// Pre-populate tasks to verify they get replaced
 	rs.Tasks = []runstore.Task{
@@ -215,8 +219,9 @@ func TestPlanStage_FixCycle_TasksAreAppended(t *testing.T) {
 	tmp := t.TempDir()
 	store := runstore.NewStore(tmp)
 	rs := runstore.NewRunState("spec-001", "proj-001")
+	rs.ReplanContext = &runstore.ReplanContext{Failures: []string{}}
 	rs.Cycle = 2
-	rs.ReplanContext = []string{"test failure in pkg/foo"}
+	rs.ReplanContext = &runstore.ReplanContext{Failures: []string{"test failure in pkg/foo"}}
 	// Pre-populate with cycle 1 tasks
 	rs.Tasks = []runstore.Task{
 		{TaskID: "t-001", Status: "done", Cycle: 1, Kind: "original"},
@@ -286,8 +291,9 @@ func TestPlanStage_FixCycle_FixesCopiedToTasks(t *testing.T) {
 	tmp := t.TempDir()
 	store := runstore.NewStore(tmp)
 	rs := runstore.NewRunState("spec-001", "proj-001")
+	rs.ReplanContext = &runstore.ReplanContext{Failures: []string{}}
 	rs.Cycle = 2
-	rs.ReplanContext = []string{"test failure in pkg/foo"}
+	rs.ReplanContext = &runstore.ReplanContext{Failures: []string{"test failure in pkg/foo"}}
 	// Pre-populate with cycle 1 tasks
 	rs.Tasks = []runstore.Task{
 		{TaskID: "t-001", Status: "done", Cycle: 1, Kind: "original"},
@@ -358,6 +364,7 @@ func TestPlanStage_SpecConstraintsCopiedToTasks(t *testing.T) {
 	tmp := t.TempDir()
 	store := runstore.NewStore(tmp)
 	rs := runstore.NewRunState("spec-001", "proj-001")
+	rs.ReplanContext = &runstore.ReplanContext{Failures: []string{}}
 	rs.SpecConstraints = "## Out-of-Scope\n- Do NOT modify existing tests"
 	runDir := store.RunDir(rs.RunID)
 	os.MkdirAll(runDir, 0o755)
@@ -388,6 +395,7 @@ func TestPlanStage_FixesCopiedToTasks(t *testing.T) {
 	tmp := t.TempDir()
 	store := runstore.NewStore(tmp)
 	rs := runstore.NewRunState("spec-001", "proj-001")
+	rs.ReplanContext = &runstore.ReplanContext{Failures: []string{}}
 	runDir := store.RunDir(rs.RunID)
 	os.MkdirAll(runDir, 0o755)
 	os.WriteFile(filepath.Join(runDir, "spec-packet.md"), []byte("spec content"), 0o644)
@@ -448,8 +456,9 @@ func TestPlanStage_FixCycle_PopulatesCurrentDiffAndCompletedTasks(t *testing.T) 
 	tmp := t.TempDir()
 	store := runstore.NewStore(tmp)
 	rs := runstore.NewRunState("spec-001", "proj-001")
+	rs.ReplanContext = &runstore.ReplanContext{Failures: []string{}}
 	rs.Cycle = 2
-	rs.ReplanContext = []string{"test failure in pkg/foo"}
+	rs.ReplanContext = &runstore.ReplanContext{Failures: []string{"test failure in pkg/foo"}}
 
 	// Set up a git repo as the worktree so git diff HEAD works
 	worktree := t.TempDir()
@@ -550,8 +559,9 @@ func TestPlanStage_FixCycle_UsesCreatePlanWhenNoFixPlanner(t *testing.T) {
 	tmp := t.TempDir()
 	store := runstore.NewStore(tmp)
 	rs := runstore.NewRunState("spec-001", "proj-001")
+	rs.ReplanContext = &runstore.ReplanContext{Failures: []string{}}
 	rs.Cycle = 2
-	rs.ReplanContext = []string{"test failure"}
+	rs.ReplanContext = &runstore.ReplanContext{Failures: []string{"test failure"}}
 	rs.Tasks = []runstore.Task{
 		{TaskID: "t-001", Status: "done", Cycle: 1, Kind: "original"},
 	}
@@ -622,7 +632,7 @@ func TestFilterForbiddenFixTasks_NoConstraint_PassesThrough(t *testing.T) {
 func TestPlanStage_FixCycle_CreateFixPlanErrorReturnsContinue(t *testing.T) {
 	dir := t.TempDir()
 	store := runstore.NewStore(dir)
-	rs := &runstore.RunState{RunID: "run-x", Cycle: 2, ReplanContext: []string{"unit-tests: TestAdd failed"}}
+	rs := &runstore.RunState{RunID: "run-x", Cycle: 2, ReplanContext: &runstore.ReplanContext{Failures: []string{"unit-tests: TestAdd failed"}}}
 	rs.SpecConstraints = "## Out-of-Scope\n- Do NOT modify any existing test files\n"
 	rs.Tasks = []runstore.Task{{TaskID: "t-001", Status: "done"}}
 	_ = os.MkdirAll(store.RunDir(rs.RunID), 0o755)
@@ -649,7 +659,7 @@ func TestPlanStage_FixCycle_CreateFixPlanErrorReturnsContinue(t *testing.T) {
 func TestPlanStage_FixCycle_InvalidPlanAfterRetriesReturnsContinue(t *testing.T) {
 	dir := t.TempDir()
 	store := runstore.NewStore(dir)
-	rs := &runstore.RunState{RunID: "run-x", Cycle: 2, ReplanContext: []string{"unit-tests: TestAdd failed"}}
+	rs := &runstore.RunState{RunID: "run-x", Cycle: 2, ReplanContext: &runstore.ReplanContext{Failures: []string{"unit-tests: TestAdd failed"}}}
 	rs.SpecConstraints = "## Out-of-Scope\n- Do NOT modify any existing test files\n"
 	rs.Tasks = []runstore.Task{{TaskID: "t-001", Status: "done"}}
 	_ = os.MkdirAll(store.RunDir(rs.RunID), 0o755)
@@ -682,7 +692,7 @@ func TestPlanStage_FixCycle_InvalidPlanAfterRetriesReturnsContinue(t *testing.T)
 func TestPlanStage_FixCycle_AllTasksFilteredReturnsContinue(t *testing.T) {
 	dir := t.TempDir()
 	store := runstore.NewStore(dir)
-	rs := &runstore.RunState{RunID: "run-x", Cycle: 2, ReplanContext: []string{"unit-tests: format %d"}}
+	rs := &runstore.RunState{RunID: "run-x", Cycle: 2, ReplanContext: &runstore.ReplanContext{Failures: []string{"unit-tests: format %d"}}}
 	rs.SpecConstraints = "## Out-of-Scope\n- Do NOT modify any existing test files\n"
 	rs.Tasks = []runstore.Task{{TaskID: "t-001", Status: "done"}}
 	_ = os.MkdirAll(store.RunDir(rs.RunID), 0o755)
@@ -724,6 +734,7 @@ func TestPlanStage_PlaybookHeuristics_PopulatedWhenEntryExists(t *testing.T) {
 	tmp := t.TempDir()
 	store := runstore.NewStore(tmp)
 	rs := runstore.NewRunState("spec-001", "proj-001")
+	rs.ReplanContext = &runstore.ReplanContext{Failures: []string{}}
 	runDir := store.RunDir(rs.RunID)
 	os.MkdirAll(runDir, 0o755)
 	os.WriteFile(filepath.Join(runDir, "spec-packet.md"), []byte("spec content"), 0o644)
@@ -801,6 +812,7 @@ func TestPlanStage_PlaybookHeuristics_EmptyWhenNoEntries(t *testing.T) {
 	tmp := t.TempDir()
 	store := runstore.NewStore(tmp)
 	rs := runstore.NewRunState("spec-001", "proj-001")
+	rs.ReplanContext = &runstore.ReplanContext{Failures: []string{}}
 	runDir := store.RunDir(rs.RunID)
 	os.MkdirAll(runDir, 0o755)
 	os.WriteFile(filepath.Join(runDir, "spec-packet.md"), []byte("spec content"), 0o644)
@@ -842,6 +854,7 @@ func TestPlanStage_MergedPlaybook_LocalWinsForOverlappingIDAndIncludesAllNonOver
 	tmp := t.TempDir()
 	store := runstore.NewStore(tmp)
 	rs := runstore.NewRunState("spec-001", "proj-001")
+	rs.ReplanContext = &runstore.ReplanContext{Failures: []string{}}
 	runDir := store.RunDir(rs.RunID)
 	os.MkdirAll(runDir, 0o755)
 	os.WriteFile(filepath.Join(runDir, "spec-packet.md"), []byte("spec content"), 0o644)
@@ -952,6 +965,7 @@ func TestPlanStage_InitialPlan_RetryPopulatesArchitectureConstraints(t *testing.
 	tmp := t.TempDir()
 	store := runstore.NewStore(tmp)
 	rs := runstore.NewRunState("spec-001", "proj-001")
+	rs.ReplanContext = &runstore.ReplanContext{Failures: []string{}}
 	runDir := store.RunDir(rs.RunID)
 	os.MkdirAll(runDir, 0o755)
 	os.WriteFile(filepath.Join(runDir, "spec-packet.md"), []byte("spec content"), 0o644)
@@ -992,6 +1006,7 @@ func TestPlanStage_InitialPlan_NilDecisions_SetsEmptyConstraints(t *testing.T) {
 	tmp := t.TempDir()
 	store := runstore.NewStore(tmp)
 	rs := runstore.NewRunState("spec-001", "proj-001")
+	rs.ReplanContext = &runstore.ReplanContext{Failures: []string{}}
 	runDir := store.RunDir(rs.RunID)
 	os.MkdirAll(runDir, 0o755)
 	os.WriteFile(filepath.Join(runDir, "spec-packet.md"), []byte("spec content"), 0o644)
@@ -1020,8 +1035,9 @@ func TestPlanStage_FixCycle_DedupArchitectureDecisions(t *testing.T) {
 	tmp := t.TempDir()
 	store := runstore.NewStore(tmp)
 	rs := runstore.NewRunState("spec-001", "proj-001")
+	rs.ReplanContext = &runstore.ReplanContext{Failures: []string{}}
 	rs.Cycle = 2
-	rs.ReplanContext = []string{"test failure in pkg/foo"}
+	rs.ReplanContext = &runstore.ReplanContext{Failures: []string{"test failure in pkg/foo"}}
 	// Pre-populate with cycle 1 tasks
 	rs.Tasks = []runstore.Task{
 		{TaskID: "t-001", Status: "done", Cycle: 1, Kind: "original"},
@@ -1098,8 +1114,9 @@ func TestPlanStage_FixCycle_AllFiltered_ArchitectureDecisions(t *testing.T) {
 	tmp := t.TempDir()
 	store := runstore.NewStore(tmp)
 	rs := runstore.NewRunState("spec-001", "proj-001")
+	rs.ReplanContext = &runstore.ReplanContext{Failures: []string{}}
 	rs.Cycle = 2
-	rs.ReplanContext = []string{"test failure in pkg/foo"}
+	rs.ReplanContext = &runstore.ReplanContext{Failures: []string{"test failure in pkg/foo"}}
 	rs.SpecConstraints = "## Out-of-Scope\n- Do NOT modify any existing test files\n"
 	// Pre-populate with cycle 1 tasks
 	rs.Tasks = []runstore.Task{
@@ -1159,8 +1176,9 @@ func TestPlanStage_FixCycle_LLMError_NoArchConstraintsAccumulated(t *testing.T) 
 	tmp := t.TempDir()
 	store := runstore.NewStore(tmp)
 	rs := runstore.NewRunState("spec-001", "proj-001")
+	rs.ReplanContext = &runstore.ReplanContext{Failures: []string{}}
 	rs.Cycle = 2
-	rs.ReplanContext = []string{"test failure in pkg/foo"}
+	rs.ReplanContext = &runstore.ReplanContext{Failures: []string{"test failure in pkg/foo"}}
 	// Pre-populate with cycle 1 tasks
 	rs.Tasks = []runstore.Task{
 		{TaskID: "t-001", Status: "done", Cycle: 1, Kind: "original"},
@@ -1190,6 +1208,7 @@ func TestPlanStage_InitialPlan_ValidationFailure_ConstraintsNotSet(t *testing.T)
 	tmp := t.TempDir()
 	store := runstore.NewStore(tmp)
 	rs := runstore.NewRunState("spec-001", "proj-001")
+	rs.ReplanContext = &runstore.ReplanContext{Failures: []string{}}
 	rs.Cycle = 1
 	runDir := store.RunDir(rs.RunID)
 	os.MkdirAll(runDir, 0o755)
@@ -1217,8 +1236,9 @@ func TestPlanStage_FixCycle_ValidationFailure_ArchitectureDecisionsNotAccumulate
 	tmp := t.TempDir()
 	store := runstore.NewStore(tmp)
 	rs := runstore.NewRunState("spec-001", "proj-001")
+	rs.ReplanContext = &runstore.ReplanContext{Failures: []string{}}
 	rs.Cycle = 2
-	rs.ReplanContext = []string{"test failure in pkg/foo"}
+	rs.ReplanContext = &runstore.ReplanContext{Failures: []string{"test failure in pkg/foo"}}
 	// Pre-populate with cycle 1 tasks
 	rs.Tasks = []runstore.Task{
 		{TaskID: "t-001", Status: "done", Cycle: 1, Kind: "original"},

@@ -77,10 +77,17 @@ func (s *ExecuteStage) Run(ctx context.Context, rs *runstore.RunState) (specloop
 		workDir = rs.WorktreePath
 	}
 
-	// Apply model escalation to pending tasks based on their lineage
+	// Apply model escalation to pending tasks based on targeted thrash escalation OR lineage
 	tasksToRun := pendingTasks(rs.Tasks)
+	escalatedFailures := []string{}
+	if rs.ReplanContext != nil {
+		escalatedFailures = rs.ReplanContext.EscalatedFailures
+	}
 	for i := range tasksToRun {
-		if specloop.ShouldEscalateModel(&tasksToRun[i], rs.TaskLineage, s.cfg.Escalation.ModelEscalationThreshold) {
+		// First check if task intersects with escalated failures from replan-context
+		if specloop.TaskIntersectsEscalated(&tasksToRun[i], escalatedFailures) {
+			tasksToRun[i].ModelTier = "high"
+		} else if specloop.ShouldEscalateModel(&tasksToRun[i], rs.TaskLineage, s.cfg.Escalation.ModelEscalationThreshold) {
 			tasksToRun[i].ModelTier = "high"
 		}
 	}
@@ -173,6 +180,12 @@ func (s *ExecuteStage) Run(ctx context.Context, rs *runstore.RunState) (specloop
 	for _, r := range results {
 		rs.AccumulatedCost += r.Cost
 	}
+
+	// Clear transient escalation context for next cycle
+	if rs.ReplanContext != nil {
+		rs.ReplanContext.EscalatedFailures = []string{}
+	}
+	rs.NormalizeNilFields()
 
 	if allFailed && len(results) > 0 {
 		perTaskFailures := collectFailureMessages(results)

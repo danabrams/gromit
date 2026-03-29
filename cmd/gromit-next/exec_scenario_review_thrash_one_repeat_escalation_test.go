@@ -103,8 +103,10 @@ func TestScenario_ReviewThrashOneRepeatTriggersEscalation(t *testing.T) {
 	if reviewCycle2.Context == nil {
 		t.Fatalf("expected non-nil failure context on cycle 2 review action")
 	}
-	if !containsString(reviewCycle2.Context.Failures, failureString) {
-		t.Fatalf("expected FailureContext.Failures to include %q, got %v", failureString, reviewCycle2.Context.Failures)
+	// The review stage must populate EscalatedFailures to drive targeted task escalation.
+	// This is the contract that the execute stage uses to escalate only matching tasks.
+	if !containsString(reviewCycle2.Context.EscalatedFailures, failureString) {
+		t.Fatalf("expected FailureContext.EscalatedFailures to include %q, got %v", failureString, reviewCycle2.Context.EscalatedFailures)
 	}
 
 	// Assert: review_thrash_escalated event emitted with consecutive_count=2.
@@ -120,9 +122,10 @@ func TestScenario_ReviewThrashOneRepeatTriggersEscalation(t *testing.T) {
 		t.Fatalf("expected review_thrash_escalated consecutive_count=2")
 	}
 
-	// Assert: in the replan immediately after escalation (cycle 3), both tasks remain medium.
-	// Note: targeted escalation based on persisted ReviewEscalatedFailures has been removed.
-	// Task escalation will be re-implemented using transient FailureContext in a future refactoring.
+	// Assert: in the replan immediately after escalation (cycle 3), the thrash task is escalated.
+	// The thrash task addresses a failure that the review stage identified as escalated,
+	// so the execute stage escalates it to "high" tier via targeted thrash escalation.
+	// The other task does NOT intersect with escalated failures, so it remains at medium tier.
 	var cycle3Thrash, cycle3Other *runstore.Task
 	for i := range taskRunner.history {
 		task := taskRunner.history[i]
@@ -141,11 +144,40 @@ func TestScenario_ReviewThrashOneRepeatTriggersEscalation(t *testing.T) {
 	if cycle3Thrash == nil || cycle3Other == nil {
 		t.Fatalf("expected both cycle 3 tasks to run, got thrash=%v other=%v", cycle3Thrash, cycle3Other)
 	}
-	if cycle3Thrash.ModelTier != "medium" {
-		t.Fatalf("expected task ModelTier=medium (escalation via persisted field removed), got %q", cycle3Thrash.ModelTier)
+
+	// Targeted thrash escalation: task-thrash has FailuresAddressed matching an
+	// escalated failure, so TaskIntersectsEscalated returns true, triggering escalation.
+	if cycle3Thrash.ModelTier != "high" {
+		t.Fatalf("expected task-thrash ModelTier=high (targeted thrash escalation), got %q", cycle3Thrash.ModelTier)
 	}
+
+	// No intersection: task-other has FailuresAddressed NOT matching any escalated failure,
+	// so it remains at its prior tier (medium). This proves escalation is targeted,
+	// not blanket (which would have escalated both tasks).
 	if cycle3Other.ModelTier != "medium" {
-		t.Fatalf("expected unaffected task ModelTier=medium, got %q", cycle3Other.ModelTier)
+		t.Fatalf("expected task-other ModelTier=medium (no escalation on non-intersecting task), got %q", cycle3Other.ModelTier)
+	}
+
+	// Assert: ReplanContext.EscalatedFailures propagated correctly from review action to execute stage.
+	// This verifies the contract: ExecuteStage uses rs.ReplanContext.EscalatedFailures
+	// to drive TaskIntersectsEscalated checks.
+	if provider.executeCycle3Context == nil {
+		t.Fatalf("expected ReplanContext to be captured on cycle 3 execute stage")
+	}
+	if !containsString(provider.executeCycle3Context.EscalatedFailures, failureString) {
+		t.Fatalf("expected cycle 3 ReplanContext.EscalatedFailures to include %q, got %v",
+			failureString, provider.executeCycle3Context.EscalatedFailures)
+	}
+
+	// Final contract assertion: escalation was based on failure intersection, not just lineage.
+	// task-thrash intersects with EscalatedFailures (via its FailuresAddressed field),
+	// so it was escalated. task-other does not intersect, so it was not escalated.
+	// This is the exact contract described in the architecture conventions.
+	if !containsString(cycle3Thrash.FailuresAddressed, failureString) {
+		t.Fatalf("expected task-thrash.FailuresAddressed to include escalated failure %q", failureString)
+	}
+	if containsString(cycle3Other.FailuresAddressed, failureString) {
+		t.Fatalf("expected task-other.FailuresAddressed to NOT intersect with escalated failure %q", failureString)
 	}
 }
 
@@ -159,6 +191,7 @@ type oneRepeatStageProvider struct {
 	reviewActions         map[int]specloop.NextAction
 	reviewEscalatedSet    map[int][]string
 	persistedThrashCounts map[string]int
+	executeCycle3Context  *runstore.ReplanContext // Captured on cycle 3 execute run
 }
 
 func (p *oneRepeatStageProvider) BuildStages(policy execpolicy.Policy, rs *runstore.RunState, budget *specloop.Budget, eventLog *runstore.EventLog) ([]specloop.Stage, error) {
@@ -179,6 +212,12 @@ func (p *oneRepeatStageProvider) BuildStages(policy execpolicy.Policy, rs *runst
 		Budget:                 budget,
 		EventLog:               eventLog,
 	})
+	// Wrap execute stage to capture ReplanContext on cycle 3
+	capturedExecute := &oneRepeatCaptureExecuteStage{
+		inner:    execute,
+		provider: p,
+		cycle3Fn: func(ctx *runstore.ReplanContext) { p.executeCycle3Context = ctx },
+	}
 	evidenceDir := filepath.Join(p.storeDir, "runs", rs.RunID, "evidence")
 	if err := os.MkdirAll(evidenceDir, 0o755); err != nil {
 		return nil, err
@@ -193,7 +232,7 @@ func (p *oneRepeatStageProvider) BuildStages(policy execpolicy.Policy, rs *runst
 	}, eventLog)
 	capturedReview := &oneRepeatCaptureStage{inner: reviewStage, actionsByCycle: p.reviewActions}
 
-	return []specloop.Stage{plan, execute, capturedReview}, nil
+	return []specloop.Stage{plan, capturedExecute, capturedReview}, nil
 }
 
 type oneRepeatPlanStage struct {
@@ -262,6 +301,27 @@ func (s *oneRepeatCaptureStage) Run(ctx context.Context, rs *runstore.RunState) 
 		s.actionsByCycle[rs.Cycle] = action
 	}
 	return action, err
+}
+
+type oneRepeatCaptureExecuteStage struct {
+	inner    specloop.Stage
+	provider *oneRepeatStageProvider
+	cycle3Fn func(*runstore.ReplanContext)
+}
+
+func (s *oneRepeatCaptureExecuteStage) Name() string { return s.inner.Name() }
+
+func (s *oneRepeatCaptureExecuteStage) Run(ctx context.Context, rs *runstore.RunState) (specloop.NextAction, error) {
+	// Capture ReplanContext on cycle 3 for contract verification
+	if rs.Cycle == 3 && rs.ReplanContext != nil && s.cycle3Fn != nil {
+		// Clone the context to capture its state before the execute stage modifies run state
+		ctxCopy := &runstore.ReplanContext{
+			Failures:          append([]string{}, rs.ReplanContext.Failures...),
+			EscalatedFailures: append([]string{}, rs.ReplanContext.EscalatedFailures...),
+		}
+		s.cycle3Fn(ctxCopy)
+	}
+	return s.inner.Run(ctx, rs)
 }
 
 type oneRepeatTaskRunner struct {

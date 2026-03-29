@@ -166,6 +166,7 @@ func (sl *SpecLoop) Run(ctx context.Context, rs *runstore.RunState) error {
 			// Model escalation will be applied in the execute stage using
 			// ModelEscalationThreshold from the escalation config.
 			UpdateTaskLineage(rs.TaskLineage, rs.Tasks, failedTaskIDs)
+
 		}
 
 		// Thread failure context into RunState for PlanStage to read on replan
@@ -181,12 +182,18 @@ func (sl *SpecLoop) Run(ctx context.Context, rs *runstore.RunState) error {
 			// Annotate failures with persistent-failure hints for consecutive cycles
 			// that may indicate a bad test specification rather than an implementation bug
 			annotated := AnnotateWithPersistentHints(replanContext.Failures, rs.FailureHistory, 2)
-			rs.ReplanContext = DeduplicateFailures(annotated)
+
+			// Populate ReplanContext with deduplicated failures and escalated failures
+			if rs.ReplanContext == nil {
+				rs.ReplanContext = &runstore.ReplanContext{}
+			}
+			rs.ReplanContext.Failures = DeduplicateFailures(annotated)
+			rs.ReplanContext.EscalatedFailures = replanContext.EscalatedFailures
 
 			// Append prior-attempt-error strings to replan context for planner to see.
 			// Format: "prior-attempt-error: <task-id>: <error-message>"
 			// Must happen AFTER rs.ReplanContext assignment to avoid overwriting.
-			AppendPriorAttemptErrors(&rs.ReplanContext, rs.TaskLineage, sl.config.Escalation.ErrorContextThreshold)
+			AppendPriorAttemptErrors(&rs.ReplanContext.Failures, rs.TaskLineage, sl.config.Escalation.ErrorContextThreshold)
 		}
 
 		// Emit replan_triggered event
@@ -211,8 +218,8 @@ func (sl *SpecLoop) Run(ctx context.Context, rs *runstore.RunState) error {
 	if sl.config.Budget != nil && sl.config.Budget.CyclesExhausted() && !rs.IsTerminal() {
 		rs.Status = runstore.StatusNeedsHuman
 		rs.TerminalReason = "cycles_exhausted"
-		if len(rs.ReplanContext) > 0 {
-			rs.BlockerSummary = rs.ReplanContext[len(rs.ReplanContext)-1]
+		if rs.ReplanContext != nil && len(rs.ReplanContext.Failures) > 0 {
+			rs.BlockerSummary = rs.ReplanContext.Failures[len(rs.ReplanContext.Failures)-1]
 		}
 		rs.EndedAt = time.Now()
 		sl.runAccept(ctx, rs)
