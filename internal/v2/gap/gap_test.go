@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/danabrams/gromit/internal/bead"
 )
 
 func TestReadChangedFilesFromDiff(t *testing.T) {
@@ -30,5 +32,32 @@ func TestReadChangedFilesFromDiff(t *testing.T) {
 	}
 	if changed[1] != "internal/bar/bar.go" {
 		t.Fatalf("unexpected second file %q", changed[1])
+	}
+}
+
+func TestFlagChangedBeads_FlagsOverlappingBeads(t *testing.T) {
+	t.Parallel()
+
+	beads := []*bead.Bead{
+		{ID: "bead-a"},
+		{ID: "bead-b"},
+		{ID: "bead-c"},
+	}
+	changedFiles := []string{"internal/foo/foo.go", "internal/bar/bar.go"}
+	beadFiles := map[string][]string{
+		"bead-a": {"internal/foo/foo.go"},
+		"bead-b": {"internal/qux/qux.go"},
+		"bead-c": {"internal/bar/bar.go"},
+	}
+
+	flagged := FlagChangedBeads(beads, changedFiles, beadFiles)
+	want := map[string]bool{"bead-a": true, "bead-c": true}
+	for _, b := range flagged {
+		if _, ok := want[b.ID]; ok {
+			delete(want, b.ID)
+		}
+	}
+	if len(want) != 0 {
+		t.Fatalf("missing flagged beads: %v", want)
 	}
 }
