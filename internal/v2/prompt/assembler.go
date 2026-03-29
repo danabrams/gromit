@@ -568,6 +568,10 @@ func ShapeBudget(total string, fileCount int, maxChars int) (string, ShapeReport
 		adjustedBudget = maxChars * 3 / 4
 	}
 
+	if adjustedBudget < 1 {
+		adjustedBudget = 1
+	}
+
 	report := ShapeReport{
 		OriginalSize:   len(total),
 		MaxBudget:      maxChars,
