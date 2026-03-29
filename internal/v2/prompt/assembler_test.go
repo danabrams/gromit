@@ -313,6 +313,30 @@ func TestPhaseCapKeepsPhaseSectionWhenPreambleLarge(t *testing.T) {
 	}
 }
 
+func TestPhaseFilterCaseInsensitiveAnnotationRespectsCap(t *testing.T) {
+	cap := phaseMaxChars["build"]
+	if cap == 0 {
+		t.Fatal("build phase cap missing")
+	}
+
+	buildContent := strings.Repeat("B", cap+100)
+	base := "Prelude context\n\n## Build Signals <!-- phases: Build -->\n" +
+		buildContent + "\n\n## Plan <!-- phases: plan -->\nplan details"
+
+	assembler := NewPromptAssembler(base, "", "", "")
+	filtered := assembler.loadBaseInstructions("build")
+
+	if !strings.Contains(filtered, "Build Signals") {
+		t.Fatalf("expected build section to survive filtering:\n%s", filtered)
+	}
+	if strings.Contains(filtered, "plan details") {
+		t.Fatalf("unexpected plan section in build filtered base:\n%s", filtered)
+	}
+	if len(filtered) > cap {
+		t.Fatalf("filtered output length %d exceeds build cap %d", len(filtered), cap)
+	}
+}
+
 func TestShapeBudgetUTF8Safety(t *testing.T) {
 	// 3-byte UTF-8 character: 世 (U+4E16)
 	content := strings.Repeat("世", 1000) // 3000 bytes
