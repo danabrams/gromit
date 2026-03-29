@@ -121,6 +121,13 @@ func (r *Router) MarkUnavailable(name string) {
 	r.unavailable[name] = until
 }
 
+// IsUnavailable reports whether the named provider is currently in cooldown.
+func (r *Router) IsUnavailable(name string) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.isUnavailable(name, r.nowFunc())
+}
+
 // isUnavailable reports whether the named provider is currently in cooldown.
 // Caller must hold r.mu.
 func (r *Router) isUnavailable(name string, now time.Time) bool {

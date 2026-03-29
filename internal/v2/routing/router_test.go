@@ -370,6 +370,7 @@ func TestRouterFallbackHonorsMarkUnavailable(t *testing.T) {
 		PhasePreferences: map[string]string{
 			"critical": "primary",
 		},
+		Cooldown: time.Minute,
 	})
 
 	r.MarkUnavailable("primary")
