@@ -199,6 +199,9 @@ func loadRunAndEnsurePacket(runID, storeDir string) (*runstore.RunState, *runsto
 // reviewRecord records a review outcome and writes review-outcome.json to the run's evidence directory.
 // All unwalked checklist items default to skipped.
 func reviewRecord(runID string, storeDir string, outcome string, summary string, overrideReason string) error {
+	if storeDir == "" {
+		storeDir = ".gromit-next"
+	}
 	// Load run and ensure packet exists
 	_, _, evidenceDir, err := loadRunAndEnsurePacket(runID, storeDir)
 	if err != nil {
