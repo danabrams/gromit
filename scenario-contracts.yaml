@@ -1,0 +1,16 @@
+scenarios:
+    - name: Vision-change resume injects reviewer guidance
+      assertions:
+        - file_contains:
+            path: internal/next/specloop/stages/plan.go
+            pattern: case reviewsession.OutcomeReworkImplementationGap, reviewsession.OutcomeReworkVisionChange
+        - file_contains:
+            path: internal/next/specloop/stages/plan.go
+            pattern: return strings.TrimSpace(outcome.Summary)
+    - name: Accepted outcome produces no reviewer guidance
+      assertions:
+        - file_contains:
+            path: internal/next/specloop/stages/plan.go
+            pattern: |
+              	default:
+              		return ""

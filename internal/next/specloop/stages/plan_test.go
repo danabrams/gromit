@@ -2,6 +2,7 @@ package stages
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"os/exec"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/danabrams/gromit/internal/next/planner"
 	"github.com/danabrams/gromit/internal/next/playbook"
+	"github.com/danabrams/gromit/internal/next/reviewsession"
 	"github.com/danabrams/gromit/internal/next/runstore"
 	"github.com/danabrams/gromit/internal/next/specloop"
 )
@@ -552,6 +554,144 @@ func TestPlanStage_FixCycle_PopulatesCurrentDiffAndCompletedTasks(t *testing.T) 
 	}
 	if !strings.Contains(req.CurrentDiff, "new.go") {
 		t.Fatalf("expected CurrentDiff to mention new.go, got: %s", req.CurrentDiff)
+	}
+}
+
+func TestPlanStage_FixCycle_LoadsReviewerGuidanceFromEvidenceOnResume(t *testing.T) {
+	tests := []struct {
+		name         string
+		outcome      string
+		summaryInput string
+		wantGuidance string
+	}{
+		{
+			name:         "ImplementationGap",
+			outcome:      reviewsession.OutcomeReworkImplementationGap,
+			summaryInput: "\n  Fix the bypass test.\n",
+			wantGuidance: "Fix the bypass test.",
+		},
+		{
+			name:         "VisionChange",
+			outcome:      reviewsession.OutcomeReworkVisionChange,
+			summaryInput: "Shift implementation to the new product vision and tighten acceptance checks.",
+			wantGuidance: "Shift implementation to the new product vision and tighten acceptance checks.",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			store := runstore.NewStore(dir)
+			rs := &runstore.RunState{
+				RunID:   "run-review-guidance",
+				Cycle:   2,
+				Resumed: true,
+				ReplanContext: &runstore.ReplanContext{
+					Failures: []string{"fail"},
+				},
+			}
+			rs.Tasks = []runstore.Task{{TaskID: "t-001", Status: "done"}}
+			_ = os.MkdirAll(store.RunDir(rs.RunID), 0o755)
+			_ = os.WriteFile(filepath.Join(store.RunDir(rs.RunID), "spec-packet.md"), []byte("spec"), 0o644)
+			evidenceDir := store.RunEvidenceDir(rs.RunID)
+			_ = os.MkdirAll(evidenceDir, 0o755)
+			outcomeJSON, err := json.Marshal(struct {
+				Outcome string `json:"outcome"`
+				Summary string `json:"summary"`
+			}{
+				Outcome: tc.outcome,
+				Summary: tc.summaryInput,
+			})
+			if err != nil {
+				t.Fatalf("marshal review outcome: %v", err)
+			}
+			_ = os.WriteFile(filepath.Join(evidenceDir, "review-outcome.json"), outcomeJSON, 0o644)
+
+			fixPlan := planner.Plan{
+				Kind:  "fix",
+				Cycle: 2,
+				Tasks: []planner.TaskDef{
+					{
+						TaskID:              "t-002",
+						Objective:           "Apply fix",
+						ExpectedTouchedArea: []string{"pkg/foo"},
+						ProofChecks:         []string{"go test ./pkg/foo/..."},
+						ParentCycle:         1,
+						FailuresAddressed:   []string{"fail"},
+					},
+				},
+			}
+
+			ffp := &fakeFixPlanner{plans: []planner.Plan{fixPlan}}
+			stage := NewPlanStage(nil, store, nil)
+			stage.SetFixPlanner(ffp)
+
+			action, err := stage.Run(context.Background(), rs)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if action.Kind != specloop.Continue {
+				t.Fatalf("expected Continue, got %v", action.Kind)
+			}
+			if len(ffp.reqs) != 1 {
+				t.Fatalf("expected 1 fix planner call, got %d", len(ffp.reqs))
+			}
+			if ffp.reqs[0].ReviewerGuidance != tc.wantGuidance {
+				t.Fatalf("expected ReviewerGuidance %q, got %q", tc.wantGuidance, ffp.reqs[0].ReviewerGuidance)
+			}
+		})
+	}
+}
+
+func TestPlanStage_FixCycle_IgnoresAcceptedReviewerOutcome(t *testing.T) {
+	dir := t.TempDir()
+	store := runstore.NewStore(dir)
+	rs := &runstore.RunState{
+		RunID:   "run-review-accepted",
+		Cycle:   2,
+		Resumed: true,
+		ReplanContext: &runstore.ReplanContext{
+			Failures: []string{"fail"},
+		},
+	}
+	rs.Tasks = []runstore.Task{{TaskID: "t-001", Status: "done"}}
+	_ = os.MkdirAll(store.RunDir(rs.RunID), 0o755)
+	_ = os.WriteFile(filepath.Join(store.RunDir(rs.RunID), "spec-packet.md"), []byte("spec"), 0o644)
+	evidenceDir := store.RunEvidenceDir(rs.RunID)
+	_ = os.MkdirAll(evidenceDir, 0o755)
+	_ = os.WriteFile(filepath.Join(evidenceDir, "review-outcome.json"), []byte(`{"outcome":"accepted","summary":"Looks good"}`), 0o644)
+
+	fixPlan := planner.Plan{
+		Kind:  "fix",
+		Cycle: 2,
+		Tasks: []planner.TaskDef{
+			{
+				TaskID:              "t-002",
+				Objective:           "Apply fix",
+				ExpectedTouchedArea: []string{"pkg/foo"},
+				ProofChecks:         []string{"go test ./pkg/foo/..."},
+				ParentCycle:         1,
+				FailuresAddressed:   []string{"fail"},
+			},
+		},
+	}
+
+	ffp := &fakeFixPlanner{plans: []planner.Plan{fixPlan}}
+	stage := NewPlanStage(nil, store, nil)
+	stage.SetFixPlanner(ffp)
+
+	action, err := stage.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if action.Kind != specloop.Continue {
+		t.Fatalf("expected Continue, got %v", action.Kind)
+	}
+	if len(ffp.reqs) != 1 {
+		t.Fatalf("expected 1 fix planner call, got %d", len(ffp.reqs))
+	}
+	if ffp.reqs[0].ReviewerGuidance != "" {
+		t.Fatalf("expected ReviewerGuidance to be empty for accepted outcome, got %q", ffp.reqs[0].ReviewerGuidance)
 	}
 }
 

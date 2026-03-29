@@ -22,6 +22,30 @@ type TaskDef struct {
 	Fixes               string   `json:"fixes,omitempty"`
 }
 
+// CompletedTask summarizes a task execution from a prior cycle.
+type CompletedTask struct {
+	TaskID            string   `json:"task_id"`
+	Attempts          int      `json:"attempts"`
+	FilesChanged      []string `json:"files_changed"`
+	ValidationOutcome string   `json:"validation_outcome"`
+}
+
+// FixPlanRequest contains everything needed to generate a fix plan.
+type FixPlanRequest struct {
+	OriginalPlan            Plan            `json:"original_plan"`
+	CompletedTasks          []CompletedTask `json:"completed_tasks"`
+	Failures                []string        `json:"failures"`
+	CurrentDiff             string          `json:"current_diff"`
+	Cycle                   int             `json:"cycle"`
+	PriorMaxTaskID          string          `json:"prior_max_task_id,omitempty"`
+	SpecConstraints         string          `json:"spec_constraints,omitempty"`
+	ArchitectureConstraints []string        `json:"architecture_constraints,omitempty"`
+	SpecPacket              string          `json:"spec_packet,omitempty"`
+	PlaybookHeuristics      string          `json:"playbook_heuristics,omitempty"`
+	DoctrineRules           string          `json:"doctrine_rules,omitempty"`
+	ReviewerGuidance        string          `json:"reviewer_guidance,omitempty"` // Human reviewer instructions from review-outcome.json; empty if none
+}
+
 // TaskByID returns the task with the given ID and true, or a zero TaskDef and false.
 func (p Plan) TaskByID(id string) (TaskDef, bool) {
 	for _, t := range p.Tasks {

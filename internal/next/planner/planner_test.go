@@ -339,6 +339,45 @@ func TestBuildFixPlanPrompt_InstructsAboutFixesField(t *testing.T) {
 	}
 }
 
+func TestBuildFixPlanPrompt_IncludesReviewerInstructionsBeforeFindings(t *testing.T) {
+	prompt := buildFixPlanPrompt(FixPlanRequest{
+		OriginalPlan:     Plan{SpecID: "s1", Cycle: 1},
+		ReviewerGuidance: "Human reviewer said focus on the bypass test.",
+		Failures: []string{
+			"review: bypass test failure",
+		},
+		Cycle: 2,
+	})
+	if !strings.Contains(prompt, "## Reviewer Instructions") {
+		t.Fatal("buildFixPlanPrompt must include Reviewer Instructions section when guidance is provided")
+	}
+	if !strings.Contains(prompt, "Human reviewer said focus on the bypass test.") {
+		t.Fatal("buildFixPlanPrompt must render the reviewer guidance text")
+	}
+	reviewerIdx := strings.Index(prompt, "## Reviewer Instructions")
+	findingIdx := strings.Index(prompt, "## Review Findings to Fix")
+	if reviewerIdx < 0 {
+		t.Fatal("Reviewer Instructions section missing")
+	}
+	if findingIdx < 0 {
+		t.Fatal("Review Findings section missing")
+	}
+	if reviewerIdx > findingIdx {
+		t.Fatal("Reviewer Instructions section must appear before Review Findings")
+	}
+}
+
+func TestBuildFixPlanPrompt_OmitsReviewerInstructionsWhenEmpty(t *testing.T) {
+	prompt := buildFixPlanPrompt(FixPlanRequest{
+		OriginalPlan: Plan{SpecID: "s1", Cycle: 1},
+		Failures:     []string{"review: bypass test failure"},
+		Cycle:        2,
+	})
+	if strings.Contains(prompt, "## Reviewer Instructions") {
+		t.Fatal("buildFixPlanPrompt must not include Reviewer Instructions section when guidance is empty")
+	}
+}
+
 func TestBuildFixPlanPrompt_PersistentFailures_RendersAuditSection(t *testing.T) {
 	prompt := buildFixPlanPrompt(FixPlanRequest{
 		OriginalPlan: Plan{SpecID: "s1", Cycle: 1},

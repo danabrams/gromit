@@ -15,6 +15,7 @@ import (
 	"github.com/danabrams/gromit/internal/next/planner"
 	"github.com/danabrams/gromit/internal/next/playbook"
 	"github.com/danabrams/gromit/internal/next/promptrender"
+	"github.com/danabrams/gromit/internal/next/reviewsession"
 	"github.com/danabrams/gromit/internal/next/runstore"
 	"github.com/danabrams/gromit/internal/next/specloop"
 )
@@ -219,6 +220,12 @@ func (s *PlanStage) Run(ctx context.Context, rs *runstore.RunState) (specloop.Ne
 	heuristics, guidance, doctrineText := s.loadPlaybookAndDoctrine(rs)
 
 	if isFixCycle && s.fixPlanner != nil {
+		var reviewerGuidance string
+		if rs.Resumed && s.store != nil {
+			if evidenceDir := s.store.RunEvidenceDir(rs.RunID); evidenceDir != "" {
+				reviewerGuidance = loadReviewerGuidance(evidenceDir)
+			}
+		}
 		fixReq := planner.FixPlanRequest{
 			Failures:                rs.ReplanContext.Failures,
 			Cycle:                   rs.Cycle,
@@ -230,6 +237,7 @@ func (s *PlanStage) Run(ctx context.Context, rs *runstore.RunState) (specloop.Ne
 			PlaybookHeuristics:      heuristics,
 			DoctrineRules:           doctrineText,
 			ArchitectureConstraints: rs.ArchitectureConstraints,
+			ReviewerGuidance:        reviewerGuidance,
 		}
 		// Try up to 2 times (initial + 1 retry on validation failure only; LLM errors bail immediately)
 		allFiltered := false
@@ -480,4 +488,24 @@ func filterForbiddenFixTasks(tasks []planner.TaskDef, specConstraints string) []
 		}
 	}
 	return filtered
+}
+
+func loadReviewerGuidance(evidenceDir string) string {
+	if evidenceDir == "" {
+		return ""
+	}
+	data, err := os.ReadFile(filepath.Join(evidenceDir, "review-outcome.json"))
+	if err != nil {
+		return ""
+	}
+	var outcome reviewsession.ReviewOutcome
+	if err := json.Unmarshal(data, &outcome); err != nil {
+		return ""
+	}
+	switch outcome.Outcome {
+	case reviewsession.OutcomeReworkImplementationGap, reviewsession.OutcomeReworkVisionChange:
+		return strings.TrimSpace(outcome.Summary)
+	default:
+		return ""
+	}
 }

@@ -71,29 +71,6 @@ func (p *Planner) CreatePlan(ctx context.Context, req PlanRequest) (Plan, error)
 	return Plan{}, fmt.Errorf("plan generation failed after %d attempts: %w", attempts, lastErr)
 }
 
-// CompletedTask summarizes a task that was executed in a prior cycle.
-type CompletedTask struct {
-	TaskID            string   `json:"task_id"`
-	Attempts          int      `json:"attempts"`
-	FilesChanged      []string `json:"files_changed"`
-	ValidationOutcome string   `json:"validation_outcome"`
-}
-
-// FixPlanRequest contains everything needed to generate a fix plan.
-type FixPlanRequest struct {
-	OriginalPlan            Plan            `json:"original_plan"`
-	CompletedTasks          []CompletedTask `json:"completed_tasks"`
-	Failures                []string        `json:"failures"`
-	CurrentDiff             string          `json:"current_diff"`
-	Cycle                   int             `json:"cycle"`
-	PriorMaxTaskID          string          `json:"prior_max_task_id,omitempty"`        // e.g. "t-004"; if set, fix plan task IDs must be greater
-	SpecConstraints         string          `json:"spec_constraints,omitempty"`         // Out-of-Scope + Architectural Constraints from spec.md
-	ArchitectureConstraints []string        `json:"architecture_constraints,omitempty"` // cross-cutting conventions and constraints to enforce in fix tasks
-	SpecPacket              string          `json:"spec_packet,omitempty"`              // full spec packet for context (requirements, scope, acceptance criteria)
-	PlaybookHeuristics      string          `json:"playbook_heuristics,omitempty"`      // pre-rendered active playbook.Entry heuristics to guide fix plan strategy (only active entries; superseded excluded)
-	DoctrineRules           string          `json:"doctrine_rules,omitempty"`           // pre-rendered active doctrine rules to guide fix plan strategy
-}
-
 // CreateFixPlan invokes the agent to produce a fix plan addressing failures.
 // On parse/validation failure, it retries up to MaxPlanRetries additional times.
 // If PriorMaxTaskID is set, validates that all fix plan task IDs are greater.
@@ -225,6 +202,15 @@ func buildFixPlanPrompt(req FixPlanRequest) string {
 			b.WriteString("\n")
 		}
 		b.WriteString("\n")
+	}
+
+	guidance := strings.TrimSpace(req.ReviewerGuidance)
+	if guidance != "" {
+		b.WriteString("## Reviewer Instructions\n")
+		b.WriteString("The human reviewer has provided the following specific instructions.\n")
+		b.WriteString("Address these directly when generating tasks — they take priority over the automated findings below:\n\n")
+		b.WriteString(guidance)
+		b.WriteString("\n\n")
 	}
 
 	if len(reviewFindings) > 0 {
