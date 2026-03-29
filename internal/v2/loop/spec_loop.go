@@ -98,6 +98,18 @@ func WithTypedEmitter(em *event.Emitter) SpecLoopOption {
 	}
 }
 
+// LegacySubscriberWarmup is run when the spec loop checks out a worktree and
+// before any typed events are emitted, allowing callers to set up event
+// bridging or other legacy subscribers.
+type LegacySubscriberWarmup func(ctx context.Context, specID, worktree string, typed *event.Emitter, legacy *events.Emitter) error
+
+// WithLegacySubscriberWarmup installs the provided warmup hook.
+func WithLegacySubscriberWarmup(warmup LegacySubscriberWarmup) SpecLoopOption {
+	return func(s *SpecLoop) {
+		s.legacySubscriberWarmup = warmup
+	}
+}
+
 // WithStageCommitter installs a StageCommitter that creates a git commit after each spec-level stage.
 func WithStageCommitter(sc StageCommitter) SpecLoopOption {
 	return func(s *SpecLoop) {
@@ -202,27 +214,28 @@ type DependencyGate interface {
 
 // SpecLoop orchestrates the adapters that drive a single spec iteration.
 type SpecLoop struct {
-	adapters              adapter.AdapterSet
-	cfg                   *config.Config
-	gate                  DependencyGate
-	recorder              StageRecorder
-	acceptStage           stagepkg.Stage
-	emitter               *events.Emitter
-	typedEmitter          *event.Emitter
-	stageCommitter        StageCommitter
-	remediationRunner     remediationRunner
-	gapAnalysisFilename   string
-	decomposeStage        stagepkg.Stage
-	beadRunner            BeadRunner
-	planStage             stagepkg.Stage
-	presentStage          stagepkg.Stage
-	presentSummaryContext *present.SummaryContext
-	beadSquasher          func(context.Context, string, []presentation.BeadSummary) error
-	preserveOnFailure     bool // restore t.Cleanup if overriding in tests
-	selectiveRevalidator  SelectiveRevalidator
-	gapAnalyzer           GapAnalyzer
-	router                *routing.Router
-	phaseModels           map[string]string
+	adapters               adapter.AdapterSet
+	cfg                    *config.Config
+	gate                   DependencyGate
+	recorder               StageRecorder
+	acceptStage            stagepkg.Stage
+	emitter                *events.Emitter
+	typedEmitter           *event.Emitter
+	legacySubscriberWarmup LegacySubscriberWarmup
+	stageCommitter         StageCommitter
+	remediationRunner      remediationRunner
+	gapAnalysisFilename    string
+	decomposeStage         stagepkg.Stage
+	beadRunner             BeadRunner
+	planStage              stagepkg.Stage
+	presentStage           stagepkg.Stage
+	presentSummaryContext  *present.SummaryContext
+	beadSquasher           func(context.Context, string, []presentation.BeadSummary) error
+	preserveOnFailure      bool // restore t.Cleanup if overriding in tests
+	selectiveRevalidator   SelectiveRevalidator
+	gapAnalyzer            GapAnalyzer
+	router                 *routing.Router
+	phaseModels            map[string]string
 }
 
 type worktreeSetter interface {
@@ -269,6 +282,10 @@ func (s *SpecLoop) Run(ctx context.Context, specID string, stopCh <-chan struct{
 	worktree, err := s.adapters.Git.Checkout(ctx, specID)
 	if err != nil {
 		return fmt.Errorf("checkout: %w", err)
+	}
+
+	if err := s.runLegacySubscriberWarmup(ctx, specID, worktree); err != nil {
+		return err
 	}
 
 	if s.typedEmitter != nil {
@@ -667,6 +684,19 @@ func cloneOutOfScopeFindings(findings []v2review.Finding) []v2review.Finding {
 		clones[i].AffectedFiles = append([]string(nil), finding.AffectedFiles...)
 	}
 	return clones
+}
+
+func (s *SpecLoop) runLegacySubscriberWarmup(ctx context.Context, specID, worktree string) error {
+	if s.legacySubscriberWarmup == nil {
+		return nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := s.legacySubscriberWarmup(ctx, specID, worktree, s.typedEmitter, s.emitter); err != nil {
+		return fmt.Errorf("legacy subscriber warmup: %w", err)
+	}
+	return nil
 }
 
 func (s *SpecLoop) specStageRequest(specID, worktree string) stagepkg.Request {
