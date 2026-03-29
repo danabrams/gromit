@@ -424,9 +424,21 @@ func bulletMatchesAnyPath(line string, paths []string) bool {
 	return false
 }
 
-// Assemble concatenates the configured layers in the prescribed order,
-// applying phase filtering, bead scoping, and budget shaping.
+// Assemble concatenates the configured layers, applies shaping, and records the last report.
 func (p *PromptAssembler) Assemble(phase string, bead BeadInfo) string {
+	shaped, report := p.assemblePromptInternal(phase, bead)
+	p.lastReport = &report
+	return shaped
+}
+
+// AssembleWithReport is like Assemble but also returns the shaping report.
+func (p *PromptAssembler) AssembleWithReport(phase string, bead BeadInfo) (string, *ShapeReport) {
+	shaped, report := p.assemblePromptInternal(phase, bead)
+	p.lastReport = &report
+	return shaped, &report
+}
+
+func (p *PromptAssembler) assemblePromptInternal(phase string, bead BeadInfo) (string, ShapeReport) {
 	base := p.loadBaseInstructions(phase)
 	project := p.loadProjectContext(bead)
 
@@ -466,9 +478,8 @@ func (p *PromptAssembler) Assemble(phase string, bead BeadInfo) string {
 		budget = p.MaxChars
 	}
 	shaped, report := ShapeBudget(raw, fileCount, budget)
-	p.lastReport = &report
 
-	return shaped
+	return shaped, report
 }
 
 // ShapeBudget applies scope-adjusted truncation to a prompt string.
