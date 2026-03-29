@@ -172,16 +172,22 @@ func (p *PromptAssembler) loadBaseInstructions(phase string) string {
 		builder.WriteString(chunk)
 	}
 
+	var preamble string
 	if len(sections) > 0 && sections[0].start > 0 {
-		preamble := strings.Join(lines[:sections[0].start], "\n")
-		if strings.TrimSpace(preamble) != "" {
-			result := preamble + "\n" + builder.String()
-			return p.applyPhaseCap(phase, result)
+		candidate := strings.Join(lines[:sections[0].start], "\n")
+		if strings.TrimSpace(candidate) != "" {
+			preamble = candidate
 		}
 	}
 
-	result := builder.String()
-	return p.applyPhaseCap(phase, result)
+	body := builder.String()
+	if body == "" {
+		if preamble == "" {
+			return ""
+		}
+		return p.applyPhaseCap(phase, preamble)
+	}
+	return p.applyPhaseCapForPhaseSections(phase, preamble, body)
 }
 
 // loadBaseInstructionsLegacy uses exact heading matching for phase filtering.
@@ -229,6 +235,65 @@ func (p *PromptAssembler) applyPhaseCap(phase, section string) string {
 		}
 	}
 	return section
+}
+
+func (p *PromptAssembler) applyPhaseCapForPhaseSections(phase, preamble, sections string) string {
+	capVal, ok := phaseMaxChars[phase]
+	if !ok || capVal <= 0 {
+		return joinPreambleAndBody(preamble, sections)
+	}
+	if len(sections) >= capVal {
+		return trimUTF8Prefix(sections, capVal)
+	}
+	remaining := capVal - len(sections)
+	maxPreamble := remaining
+	if preamble != "" && maxPreamble > 0 {
+		maxPreamble--
+	}
+	if maxPreamble < 0 {
+		maxPreamble = 0
+	}
+	preambleTail := trimUTF8Suffix(preamble, maxPreamble)
+	if preambleTail == "" {
+		return sections
+	}
+	return preambleTail + "\n" + sections
+}
+
+func joinPreambleAndBody(preamble, body string) string {
+	if preamble == "" {
+		return body
+	}
+	if body == "" {
+		return preamble
+	}
+	return preamble + "\n" + body
+}
+
+func trimUTF8Prefix(s string, limit int) string {
+	if limit >= len(s) {
+		return s
+	}
+	trimmed := s[:limit]
+	for len(trimmed) > 0 && !utf8.Valid([]byte(trimmed)) {
+		trimmed = trimmed[:len(trimmed)-1]
+	}
+	return trimmed
+}
+
+func trimUTF8Suffix(s string, limit int) string {
+	if limit >= len(s) {
+		return s
+	}
+	start := len(s) - limit
+	if start < 0 {
+		start = 0
+	}
+	trimmed := s[start:]
+	for len(trimmed) > 0 && !utf8.Valid([]byte(trimmed)) {
+		trimmed = trimmed[1:]
+	}
+	return trimmed
 }
 
 // loadProjectContext returns project context scoped to the bead's files.
