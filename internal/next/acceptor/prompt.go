@@ -53,7 +53,8 @@ Evaluate the criterion above against the provided evidence. Respond with one of 
 - **fail**: The criterion is clearly NOT satisfied — implementation is missing or incorrect.
 - **unclear**: There is insufficient evidence to determine whether the criterion is met. This typically means tests or other proof are missing, not that the implementation is wrong.
 
-Respond with a JSON object:
+Return ONLY the JSON object. No markdown, no prose, no text before or after the JSON.
+
 {
   "criterion": "<the criterion text>",
   "status": "pass|fail|unclear",

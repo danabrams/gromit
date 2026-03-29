@@ -34,3 +34,16 @@ func TestRenderAcceptancePrompt_UnclearGuidance(t *testing.T) {
 		t.Error("prompt should explain the unclear status")
 	}
 }
+
+func TestRenderAcceptancePrompt_JSONOnlyInstruction(t *testing.T) {
+	prompt, err := RenderAcceptancePrompt(AcceptancePromptInput{
+		Criterion:   "logs written",
+		DiffSummary: "Added logging",
+	})
+	if err != nil {
+		t.Fatalf("RenderAcceptancePrompt: %v", err)
+	}
+	if !containsSubstring(prompt, "Return ONLY the JSON object. No markdown, no prose, no text before or after the JSON.") {
+		t.Error("prompt should instruct the LLM to respond with only JSON")
+	}
+}
