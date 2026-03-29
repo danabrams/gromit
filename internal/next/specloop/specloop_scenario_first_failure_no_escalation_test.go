@@ -30,9 +30,11 @@ func TestScenario_FirstFailure_NoEscalation(t *testing.T) {
 			planCalls++
 			if planCalls == 2 {
 				// Cycle 2: verify replan context does NOT contain prior-attempt-error
-				for _, ctx := range rs.ReplanContext {
-					if strings.HasPrefix(ctx, "prior-attempt-error:") {
-						t.Errorf("replan context should NOT contain prior-attempt-error on first failure, got: %s", ctx)
+				if rs.ReplanContext != nil {
+					for _, ctx := range rs.ReplanContext.Failures {
+						if strings.HasPrefix(ctx, "prior-attempt-error:") {
+							t.Errorf("replan context should NOT contain prior-attempt-error on first failure, got: %s", ctx)
+						}
 					}
 				}
 			}

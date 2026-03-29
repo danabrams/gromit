@@ -33,9 +33,10 @@ func (k ActionKind) String() string {
 
 // FailureContext carries details about why a stage returned a non-Continue action.
 type FailureContext struct {
-	Failures []string `json:"failures"`
-	Cycle    int      `json:"cycle"`
-	Diff     string   `json:"diff,omitempty"`
+	Failures          []string `json:"failures"`
+	Cycle             int      `json:"cycle"`
+	Diff              string   `json:"diff,omitempty"`
+	EscalatedFailures []string `json:"escalated_failures,omitempty"`
 }
 
 // See CLAUDE.md nil-field normalization visibility convention:
@@ -44,6 +45,9 @@ type FailureContext struct {
 func (fc *FailureContext) NormalizeNilFields() {
 	if fc.Failures == nil {
 		fc.Failures = []string{}
+	}
+	if fc.EscalatedFailures == nil {
+		fc.EscalatedFailures = []string{}
 	}
 }
 

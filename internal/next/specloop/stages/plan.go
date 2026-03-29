@@ -198,8 +198,8 @@ func (s *PlanStage) Run(ctx context.Context, rs *runstore.RunState) (specloop.Ne
 		}
 	}
 
-	isFixCycle := (rs.Cycle > 1 && len(rs.ReplanContext) > 0) ||
-		(rs.Resumed && len(rs.ReplanContext) > 0 && !hasPendingTasks)
+	isFixCycle := (rs.Cycle > 1 && rs.ReplanContext != nil && len(rs.ReplanContext.Failures) > 0) ||
+		(rs.Resumed && rs.ReplanContext != nil && len(rs.ReplanContext.Failures) > 0 && !hasPendingTasks)
 	if rs.Resumed && len(rs.Tasks) > 0 && !isFixCycle && hasPendingTasks {
 		// Resumed run with existing pending tasks: skip planning so execution
 		// continues from where it left off without overwriting tasks.
@@ -220,7 +220,7 @@ func (s *PlanStage) Run(ctx context.Context, rs *runstore.RunState) (specloop.Ne
 
 	if isFixCycle && s.fixPlanner != nil {
 		fixReq := planner.FixPlanRequest{
-			Failures:                rs.ReplanContext,
+			Failures:                rs.ReplanContext.Failures,
 			Cycle:                   rs.Cycle,
 			PriorMaxTaskID:          maxTaskID(rs.Tasks),
 			SpecConstraints:         rs.SpecConstraints,
@@ -288,10 +288,14 @@ func (s *PlanStage) Run(ctx context.Context, rs *runstore.RunState) (specloop.Ne
 			return specloop.NextAction{Kind: specloop.Continue}, nil
 		}
 	} else {
+		failures := []string{}
+		if rs.ReplanContext != nil {
+			failures = rs.ReplanContext.Failures
+		}
 		req := planner.PlanRequest{
 			SpecPacket:         string(specPacket),
 			Cycle:              rs.Cycle,
-			Failures:           rs.ReplanContext,
+			Failures:           failures,
 			PlaybookHeuristics: heuristics,
 			RefinementGuidance: guidance,
 			DoctrineRules:      doctrineText,

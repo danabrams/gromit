@@ -3,6 +3,7 @@ package runstore
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -187,6 +188,189 @@ func TestRunStore_SaveLoad_EmptyPriorReviewFindingsOmitted(t *testing.T) {
 	}
 }
 
+func TestStore_RunStateThrashFieldsRoundTrip(t *testing.T) {
+	dir := t.TempDir()
+	s := NewStore(dir)
+	rs := NewRunState("spec-thrash", "proj-thrash")
+	fingerprint := "planner.go\x00buildFixPlanPrompt lacks X"
+	rs.ReviewThrashCounts = map[string]int{fingerprint: 2}
+
+	if err := s.Save(rs); err != nil {
+		t.Fatalf("save run state: %v", err)
+	}
+
+	loaded, err := s.Get(rs.RunID)
+	if err != nil {
+		t.Fatalf("get run state: %v", err)
+	}
+
+	if got := loaded.ReviewThrashCounts[fingerprint]; got != 2 {
+		t.Fatalf("expected thrash count=2, got %d", got)
+	}
+}
+
+func TestStore_ResumeWithoutThrashFields(t *testing.T) {
+	const tmpl = `{
+		"run_id": "%s",
+		"spec_id": "spec-resume",
+		"project_id": "proj-resume",
+		"status": "running",
+		"cycle": 2,
+		"started_at": "2026-03-24T00:00:00Z",
+		"tasks": [],
+		"accumulated_cost": 0,
+		"final_validation_passed": false,
+		"final_review_passed": false,
+		"final_acceptance_passed": false,
+		"contracts_written": false,
+		"scenario_tests_written": false
+	}`
+
+	dir := t.TempDir()
+	s := NewStore(dir)
+	runID := "resume-run"
+	runDir := s.RunDir(runID)
+	if err := os.MkdirAll(runDir, 0o755); err != nil {
+		t.Fatalf("create run dir: %v", err)
+	}
+
+	payload := fmt.Sprintf(tmpl, runID)
+	if err := os.WriteFile(filepath.Join(runDir, "run.json"), []byte(payload), 0o644); err != nil {
+		t.Fatalf("write legacy run: %v", err)
+	}
+
+	loaded, err := s.Get(runID)
+	if err != nil {
+		t.Fatalf("get legacy run: %v", err)
+	}
+
+	if loaded.ReviewThrashCounts == nil {
+		t.Fatal("ReviewThrashCounts should be non-nil after resume")
+	}
+	if len(loaded.ReviewThrashCounts) != 0 {
+		t.Fatalf("expected empty ReviewThrashCounts, got %v", loaded.ReviewThrashCounts)
+	}
+}
+
+func TestStore_ResumeWithLegacyArrayReplanContext(t *testing.T) {
+	// Legacy format: replan_context as a JSON array
+	const tmpl = `{
+		"run_id": "%s",
+		"spec_id": "spec-legacy",
+		"project_id": "proj-legacy",
+		"status": "running",
+		"cycle": 2,
+		"started_at": "2026-03-24T00:00:00Z",
+		"tasks": [],
+		"accumulated_cost": 0,
+		"final_validation_passed": false,
+		"final_review_passed": false,
+		"final_acceptance_passed": false,
+		"contracts_written": false,
+		"scenario_tests_written": false,
+		"review_thrash_counts": {
+			"planner.go\u0000buildFixPlanPrompt lacks X": 2
+		},
+		"replan_context": ["failure1", "failure2"]
+	}`
+
+	dir := t.TempDir()
+	s := NewStore(dir)
+	runID := "legacy-replan-run"
+	runDir := s.RunDir(runID)
+	if err := os.MkdirAll(runDir, 0o755); err != nil {
+		t.Fatalf("create run dir: %v", err)
+	}
+
+	payload := fmt.Sprintf(tmpl, runID)
+	if err := os.WriteFile(filepath.Join(runDir, "run.json"), []byte(payload), 0o644); err != nil {
+		t.Fatalf("write legacy run: %v", err)
+	}
+
+	loaded, err := s.Get(runID)
+	if err != nil {
+		t.Fatalf("get legacy run: %v", err)
+	}
+
+	// Verify replan_context was converted to new object format
+	if loaded.ReplanContext == nil {
+		t.Fatal("ReplanContext should not be nil after resume")
+	}
+	if len(loaded.ReplanContext.Failures) != 2 {
+		t.Fatalf("expected 2 failures, got %d", len(loaded.ReplanContext.Failures))
+	}
+	if loaded.ReplanContext.Failures[0] != "failure1" || loaded.ReplanContext.Failures[1] != "failure2" {
+		t.Fatalf("failures mismatch: got %v", loaded.ReplanContext.Failures)
+	}
+	if len(loaded.ReplanContext.EscalatedFailures) != 0 {
+		t.Fatalf("expected empty EscalatedFailures, got %v", loaded.ReplanContext.EscalatedFailures)
+	}
+
+	// Verify thrash counts survived
+	fingerprint := "planner.go\x00buildFixPlanPrompt lacks X"
+	if got := loaded.ReviewThrashCounts[fingerprint]; got != 2 {
+		t.Fatalf("expected thrash count=2, got %d", got)
+	}
+}
+
+func TestStore_ResumeWithNewObjectReplanContext(t *testing.T) {
+	// New format: replan_context as an object with failures and escalated_failures
+	const tmpl = `{
+		"run_id": "%s",
+		"spec_id": "spec-new",
+		"project_id": "proj-new",
+		"status": "running",
+		"cycle": 2,
+		"started_at": "2026-03-24T00:00:00Z",
+		"tasks": [],
+		"accumulated_cost": 0,
+		"final_validation_passed": false,
+		"final_review_passed": false,
+		"final_acceptance_passed": false,
+		"contracts_written": false,
+		"scenario_tests_written": false,
+		"replan_context": {
+			"failures": ["failure1", "failure2"],
+			"escalated_failures": ["escalated1"]
+		}
+	}`
+
+	dir := t.TempDir()
+	s := NewStore(dir)
+	runID := "new-replan-run"
+	runDir := s.RunDir(runID)
+	if err := os.MkdirAll(runDir, 0o755); err != nil {
+		t.Fatalf("create run dir: %v", err)
+	}
+
+	payload := fmt.Sprintf(tmpl, runID)
+	if err := os.WriteFile(filepath.Join(runDir, "run.json"), []byte(payload), 0o644); err != nil {
+		t.Fatalf("write new format run: %v", err)
+	}
+
+	loaded, err := s.Get(runID)
+	if err != nil {
+		t.Fatalf("get new format run: %v", err)
+	}
+
+	// Verify replan_context was properly unmarshaled
+	if loaded.ReplanContext == nil {
+		t.Fatal("ReplanContext should not be nil after resume")
+	}
+	if len(loaded.ReplanContext.Failures) != 2 {
+		t.Fatalf("expected 2 failures, got %d", len(loaded.ReplanContext.Failures))
+	}
+	if loaded.ReplanContext.Failures[0] != "failure1" || loaded.ReplanContext.Failures[1] != "failure2" {
+		t.Fatalf("failures mismatch: got %v", loaded.ReplanContext.Failures)
+	}
+	if len(loaded.ReplanContext.EscalatedFailures) != 1 {
+		t.Fatalf("expected 1 escalated failure, got %d", len(loaded.ReplanContext.EscalatedFailures))
+	}
+	if loaded.ReplanContext.EscalatedFailures[0] != "escalated1" {
+		t.Fatalf("escalated failure mismatch: got %v", loaded.ReplanContext.EscalatedFailures)
+	}
+}
+
 func compactJSON(t *testing.T, payload []byte) []byte {
 	t.Helper()
 	var buf bytes.Buffer
@@ -232,5 +416,33 @@ func TestResetForNewCycle(t *testing.T) {
 	}
 	if rs.FailureHistory["error1"] != 1 || rs.FailureHistory["error2"] != 2 {
 		t.Fatal("FailureHistory values should remain unchanged")
+	}
+}
+
+func TestRunState_UnmarshalJSON_LegacyArrayWithLeadingWhitespace(t *testing.T) {
+	// Test that legacy array-form replan_context with leading whitespace is correctly detected
+	jsonData := []byte(`{
+		"run_id": "run-test",
+		"spec_id": "spec-1",
+		"project_id": "proj-1",
+		"status": "running",
+		"cycle": 1,
+		"started_at": "2025-01-01T00:00:00Z",
+		"replan_context":  ["failure1", "failure2"]
+	}`)
+
+	var rs RunState
+	if err := json.Unmarshal(jsonData, &rs); err != nil {
+		t.Fatalf("unmarshal with leading whitespace failed: %v", err)
+	}
+
+	if rs.ReplanContext == nil {
+		t.Fatal("ReplanContext should not be nil")
+	}
+	if len(rs.ReplanContext.Failures) != 2 {
+		t.Fatalf("expected 2 failures, got %d", len(rs.ReplanContext.Failures))
+	}
+	if rs.ReplanContext.Failures[0] != "failure1" || rs.ReplanContext.Failures[1] != "failure2" {
+		t.Fatalf("failures mismatch: got %v", rs.ReplanContext.Failures)
 	}
 }

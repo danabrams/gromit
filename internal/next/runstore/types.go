@@ -1,6 +1,7 @@
 package runstore
 
 import (
+	"bytes"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
@@ -19,6 +20,25 @@ const (
 	// This status will be actively used when Spec 0003 adds VISION review outcome labels.
 	StatusCompleted = "completed"
 )
+
+// ReplanContext holds context for replan operations, including escalated failures
+// for targeted task escalation in the execute stage.
+type ReplanContext struct {
+	Failures          []string `json:"failures"`
+	EscalatedFailures []string `json:"escalated_failures,omitempty"`
+}
+
+// See CLAUDE.md nil-field normalization visibility convention:
+// exported — cross-package boundary type
+// NormalizeNilFields maps nil slices to empty values for JSON consistency.
+func (rc *ReplanContext) NormalizeNilFields() {
+	if rc.Failures == nil {
+		rc.Failures = []string{}
+	}
+	if rc.EscalatedFailures == nil {
+		rc.EscalatedFailures = []string{}
+	}
+}
 
 // TaskLineageEntry tracks the chain of task IDs for a particular lineage path.
 type TaskLineageEntry struct {
@@ -55,11 +75,12 @@ type RunState struct {
 	FinalValidationPassed   bool                        `json:"final_validation_passed"`
 	FinalReviewPassed       bool                        `json:"final_review_passed"`
 	FinalAcceptancePassed   bool                        `json:"final_acceptance_passed"`
-	ReplanContext           []string                    `json:"replan_context,omitempty"`
+	ReplanContext           *ReplanContext              `json:"replan_context,omitempty"`
 	LastValidationResult    *string                     `json:"last_validation_result,omitempty"`
 	LastFinalValidation     *validator.FinalResult      `json:"last_final_validation,omitempty"`
 	LastContractFailures    []string                    `json:"last_contract_failures,omitempty"`
 	ReviewFindings          []string                    `json:"review_findings,omitempty"`
+	ReviewThrashCounts      map[string]int              `json:"review_thrash_counts,omitempty"`
 	AcceptanceResults       []string                    `json:"acceptance_results,omitempty"`
 	PriorReviewFindings     json.RawMessage             `json:"prior_review_findings,omitempty"`
 	TotalReplans            int                         `json:"total_replans"`
@@ -81,10 +102,14 @@ func (rs *RunState) NormalizeNilFields() {
 		rs.Tasks = []Task{}
 	}
 	if rs.ReplanContext == nil {
-		rs.ReplanContext = []string{}
+		rs.ReplanContext = &ReplanContext{}
 	}
+	rs.ReplanContext.NormalizeNilFields()
 	if rs.ReviewFindings == nil {
 		rs.ReviewFindings = []string{}
+	}
+	if rs.ReviewThrashCounts == nil {
+		rs.ReviewThrashCounts = map[string]int{}
 	}
 	if rs.AcceptanceResults == nil {
 		rs.AcceptanceResults = []string{}
@@ -111,6 +136,47 @@ func (rs *RunState) NormalizeNilFields() {
 	for i := range rs.Tasks {
 		rs.Tasks[i].NormalizeNilFields()
 	}
+}
+
+// UnmarshalJSON provides backward-compatible unmarshaling for RunState.
+// It handles both legacy array-shaped replan_context (legacy format: ["failure1", "failure2"])
+// and new object-shaped replan_context (current format: {"failures": [...], "escalated_failures": [...]}).
+func (rs *RunState) UnmarshalJSON(data []byte) error {
+	// Temporary struct that captures replan_context as raw JSON for custom parsing.
+	type Alias RunState
+	aux := &struct {
+		ReplanContextRaw json.RawMessage `json:"replan_context"`
+		*Alias
+	}{
+		Alias: (*Alias)(rs),
+	}
+
+	if err := json.Unmarshal(data, aux); err != nil {
+		return err
+	}
+
+	// Handle replan_context: support both legacy array format and new object format.
+	if len(aux.ReplanContextRaw) > 0 {
+		// Try to detect format by attempting to unmarshal as array first.
+		var legacyArray []string
+		trimmed := bytes.TrimSpace(aux.ReplanContextRaw)
+		if err := json.Unmarshal(aux.ReplanContextRaw, &legacyArray); err == nil && len(trimmed) > 0 && trimmed[0] == '[' {
+			// It's an array (legacy format).
+			rs.ReplanContext = &ReplanContext{
+				Failures:          legacyArray,
+				EscalatedFailures: []string{},
+			}
+		} else {
+			// Try new object format.
+			var rc ReplanContext
+			if err := json.Unmarshal(aux.ReplanContextRaw, &rc); err != nil {
+				return fmt.Errorf("unmarshal replan_context: %w", err)
+			}
+			rs.ReplanContext = &rc
+		}
+	}
+
+	return nil
 }
 
 // IsTerminal returns true if the run is in a terminal state.

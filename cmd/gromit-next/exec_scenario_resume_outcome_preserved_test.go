@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/danabrams/gromit/internal/next/execpolicy"
 	"github.com/danabrams/gromit/internal/next/review"
@@ -116,5 +117,69 @@ func TestScenario_ResumeOutcomePreservedDuringCleanup(t *testing.T) {
 	}
 	if len(entries) != 1 || entries[0].Name() != "review-outcome.json" {
 		t.Fatalf("expected only review-outcome.json to remain after run, got %+v", entries)
+	}
+}
+
+func TestExecScenarioResumeThrashStatePreserved(t *testing.T) {
+	tmp := t.TempDir()
+
+	store := runstore.NewStore(tmp)
+	thrashFinding := review.Finding{
+		Facet:       "spec_alignment",
+		Severity:    review.SeverityError,
+		File:        "thrash.go",
+		Line:        42,
+		Description: "thrash failure",
+	}
+	fp := thrashFingerprintForTest(thrashFinding)
+
+	prior := runstore.NewRunState("spec-resume-thrash", "proj-resume-thrash")
+	prior.Status = runstore.StatusNeedsHuman
+	prior.EndedAt = time.Now()
+	prior.ReviewThrashCounts = map[string]int{fp: 2}
+	if err := store.Save(prior); err != nil {
+		t.Fatalf("save prior run: %v", err)
+	}
+
+	var seen *runstore.RunState
+	provider := &testStageProvider{
+		stages: []specloop.Stage{
+			&stageRecorderFunc{
+				name: "plan",
+				fn: func(rs *runstore.RunState) {
+					seen = rs
+				},
+			},
+		},
+	}
+
+	run := &execSpecRun{
+		specPath:      "spec.md",
+		projectID:     "proj-resume-thrash",
+		resumeRunID:   prior.RunID,
+		storeDir:      tmp,
+		stageProvider: provider,
+		policy:        ptrPolicy(execpolicy.DefaultPolicy()),
+		store:         store,
+		out:           io.Discard,
+	}
+
+	if err := run.run(context.Background()); err != nil {
+		t.Fatalf("run resume command: %v", err)
+	}
+
+	if seen == nil {
+		t.Fatal("expected stage to observe resumed RunState")
+	}
+	if count := seen.ReviewThrashCounts[fp]; count != 2 {
+		t.Fatalf("expected thrash count 2 in resumed state, got %d", count)
+	}
+
+	loaded, err := store.Get(prior.RunID)
+	if err != nil {
+		t.Fatalf("load resumed run: %v", err)
+	}
+	if count := loaded.ReviewThrashCounts[fp]; count != 2 {
+		t.Fatalf("expected persisted thrash count 2, got %d", count)
 	}
 }

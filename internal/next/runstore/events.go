@@ -149,6 +149,13 @@ type ReviewResultEvent struct {
 	ErroredFacets      []string       `json:"errored_facets,omitempty"`
 }
 
+type ReviewThrashEscalatedEvent struct {
+	BaseEvent
+	FindingFile        string `json:"finding_file"`
+	FindingDescription string `json:"finding_description"`
+	ConsecutiveCount   int    `json:"consecutive_count"`
+}
+
 type ReviewFindingVerifiedEvent struct {
 	BaseEvent
 	File        string `json:"file"`
@@ -389,6 +396,9 @@ func unmarshalEvent(data []byte) (TypedEvent, error) {
 		ev = &e
 	case "review_result":
 		var e ReviewResultEvent
+		ev = &e
+	case "review_thrash_escalated":
+		var e ReviewThrashEscalatedEvent
 		ev = &e
 	case "review_finding_verified":
 		var e ReviewFindingVerifiedEvent

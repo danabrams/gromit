@@ -18,9 +18,11 @@ import (
 type fakeTaskRunner struct {
 	results []specloop.TaskResult
 	idx     int
+	history []runstore.Task
 }
 
 func (f *fakeTaskRunner) RunTask(ctx context.Context, task runstore.Task) (specloop.TaskResult, error) {
+	f.history = append(f.history, task)
 	if f.idx >= len(f.results) {
 		return specloop.TaskResult{Status: "done"}, nil
 	}
@@ -600,6 +602,138 @@ func TestExecuteStage_NoInspector_NoError(t *testing.T) {
 	_, err := stage.Run(context.Background(), rs)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+// TestExecuteStage_EscalatedFailures_AllFailed_ReplanFromWithEscalation verifies that:
+// - When rs.ReplanContext.EscalatedFailures is set, tasks addressing those failures get tier="high"
+// - When all tasks fail the action is ReplanFrom with correct failure aggregation
+// - EscalatedFailures is cleared on the RunState after execution (transient per-cycle context)
+func TestExecuteStage_EscalatedFailures_AllFailed_ReplanFromWithEscalation(t *testing.T) {
+	innerRunner := &fakeTaskRunner{
+		results: []specloop.TaskResult{
+			{TaskID: "t-001", Status: "failed", Failures: []string{"build failed: undefined X"}},
+			{TaskID: "t-002", Status: "failed", Failures: []string{"test failed: assertion error"}},
+		},
+	}
+	validatingRunner := &validatingTaskRunner{
+		inner:            innerRunner,
+		taskToValidateID: "t-001",
+	}
+
+	stage := NewExecuteStage(validatingRunner, ExecuteStageConfig{MaxRetries: 0})
+
+	rs := runstore.NewRunState("spec-001", "proj-001")
+	rs.ReplanContext = &runstore.ReplanContext{
+		Failures:          []string{"build failed: undefined X", "test failed: assertion error"},
+		EscalatedFailures: []string{"build failed: undefined X"},
+	}
+	rs.Tasks = []runstore.Task{
+		{
+			TaskID:            "t-001",
+			Status:            "pending",
+			Objective:         "fix build error",
+			ModelTier:         "medium",
+			FailuresAddressed: []string{"build failed: undefined X"},
+		},
+		{
+			TaskID:            "t-002",
+			Status:            "pending",
+			Objective:         "fix test error",
+			ModelTier:         "medium",
+			FailuresAddressed: []string{"test failed: assertion error"},
+		},
+	}
+
+	action, err := stage.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// All tasks failed → expect ReplanFrom
+	if action.Kind != specloop.ReplanFrom {
+		t.Fatalf("expected ReplanFrom, got %v", action.Kind)
+	}
+
+	// Failure context must contain both task failures
+	if action.Context == nil {
+		t.Fatal("expected non-nil FailureContext")
+	}
+	wantFailures := []string{"build failed: undefined X", "test failed: assertion error"}
+	if len(action.Context.Failures) != len(wantFailures) {
+		t.Fatalf("expected %d failures, got %d: %v", len(wantFailures), len(action.Context.Failures), action.Context.Failures)
+	}
+	for i, f := range wantFailures {
+		if action.Context.Failures[i] != f {
+			t.Errorf("failure[%d]: expected %q, got %q", i, f, action.Context.Failures[i])
+		}
+	}
+
+	// The task addressing the escalated failure must have received ModelTier="high"
+	if validatingRunner.receivedTier != "high" {
+		t.Fatalf("task addressing escalated failure expected ModelTier 'high', got %q", validatingRunner.receivedTier)
+	}
+
+	// EscalatedFailures must be cleared after execution (transient, per-cycle)
+	if rs.ReplanContext == nil {
+		t.Fatal("expected ReplanContext to still exist")
+	}
+	if len(rs.ReplanContext.EscalatedFailures) != 0 {
+		t.Fatalf("expected EscalatedFailures cleared after run, got %v", rs.ReplanContext.EscalatedFailures)
+	}
+}
+
+// TestExecuteStage_EscalatedFailures_MixedOutcome_Continue verifies that when
+// EscalatedFailures are set but not all tasks fail (mixed outcome), the action is
+// Continue (not ReplanFrom), while still escalating the addressed task.
+func TestExecuteStage_EscalatedFailures_MixedOutcome_Continue(t *testing.T) {
+	innerRunner := &fakeTaskRunner{
+		results: []specloop.TaskResult{
+			{TaskID: "t-001", Status: "done"},
+			{TaskID: "t-002", Status: "failed"},
+		},
+	}
+	validatingRunner := &validatingTaskRunner{
+		inner:            innerRunner,
+		taskToValidateID: "t-001",
+	}
+
+	stage := NewExecuteStage(validatingRunner, ExecuteStageConfig{MaxRetries: 0})
+
+	rs := runstore.NewRunState("spec-001", "proj-001")
+	rs.ReplanContext = &runstore.ReplanContext{
+		Failures:          []string{"build failed: undefined X"},
+		EscalatedFailures: []string{"build failed: undefined X"},
+	}
+	rs.Tasks = []runstore.Task{
+		{
+			TaskID:            "t-001",
+			Status:            "pending",
+			Objective:         "fix build error",
+			ModelTier:         "medium",
+			FailuresAddressed: []string{"build failed: undefined X"},
+		},
+		{
+			TaskID:    "t-002",
+			Status:    "pending",
+			Objective: "unrelated task",
+			ModelTier: "medium",
+		},
+	}
+
+	action, err := stage.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Mixed results (one done, one failed) → Continue, not ReplanFrom
+	if action.Kind != specloop.Continue {
+		t.Fatalf("expected Continue for mixed outcome, got %v", action.Kind)
+	}
+
+	// Task addressing escalated failure must have been executed at tier "high"
+	if validatingRunner.receivedTier != "high" {
+		t.Fatalf("task addressing escalated failure expected ModelTier 'high', got %q", validatingRunner.receivedTier)
 	}
 }
 

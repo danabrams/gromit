@@ -130,6 +130,9 @@ func TestRunState_NormalizeNilFields_IncludesNewFields(t *testing.T) {
 	if rs.BaselineFailures == nil {
 		t.Error("BaselineFailures should not be nil after NormalizeNilFields")
 	}
+	if rs.ReviewThrashCounts == nil {
+		t.Error("ReviewThrashCounts should not be nil after NormalizeNilFields")
+	}
 }
 
 func TestRunState_BaselineFailuresRoundTrip(t *testing.T) {

@@ -20,6 +20,16 @@ func writeJSON(t *testing.T, path string, v interface{}) {
 	}
 }
 
+// containsString reports whether want is present in values.
+func containsString(values []string, want string) bool {
+	for _, v := range values {
+		if v == want {
+			return true
+		}
+	}
+	return false
+}
+
 // loadConfigTier reads the distiller_tier field from project.json.
 func loadConfigTier(projectPath string) (reviewdistiller.Tier, error) {
 	projectData, err := os.ReadFile(projectPath)

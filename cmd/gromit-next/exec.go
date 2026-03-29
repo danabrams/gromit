@@ -162,6 +162,7 @@ func (e *execSpecRun) run(ctx context.Context) error {
 		if err != nil {
 			return fmt.Errorf("load run for resume: %w", err)
 		}
+		rs.NormalizeNilFields()
 		// Mark as resumed so stages can skip redundant work
 		rs.Resumed = true
 		// Reset terminal state so the pipeline can re-run
@@ -183,6 +184,7 @@ func (e *execSpecRun) run(ctx context.Context) error {
 		rs.Cycle++
 	} else {
 		rs = runstore.NewRunState(specIDFromPath(e.specPath), e.projectID)
+		rs.NormalizeNilFields()
 	}
 
 	if e.resumeRunID != "" {

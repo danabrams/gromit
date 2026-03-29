@@ -26,6 +26,7 @@ func TestScenario_NoConventions_NoPromptNoise(t *testing.T) {
 	store := runstore.NewStore(tmp)
 	rs := runstore.NewRunState("spec-single-file", "proj-001")
 	rs.Cycle = 1
+	rs.ReplanContext = &runstore.ReplanContext{Failures: []string{}}
 	runDir := store.RunDir(rs.RunID)
 	if err := os.MkdirAll(runDir, 0o755); err != nil {
 		t.Fatalf("mkdir runDir: %v", err)
@@ -90,7 +91,7 @@ func TestScenario_NoConventions_NoPromptNoise(t *testing.T) {
 	// Seed a fix cycle run when no ArchitectureConstraints are provided.
 	rsfix := runstore.NewRunState("spec-single-file", "proj-001")
 	rsfix.Cycle = 2
-	rsfix.ReplanContext = []string{"test failure in calc"}
+	rsfix.ReplanContext = &runstore.ReplanContext{Failures: []string{"test failure in calc"}}
 	rsfix.Tasks = []runstore.Task{
 		{TaskID: "t-001", Status: "done", Cycle: 1, Kind: "original"},
 	}

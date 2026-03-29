@@ -61,6 +61,15 @@ func pendingTasks(tasks []runstore.Task) []runstore.Task {
 	return pending
 }
 
+func syncTaskModelTier(rs *runstore.RunState, task runstore.Task) {
+	for i := range rs.Tasks {
+		if rs.Tasks[i].TaskID == task.TaskID {
+			rs.Tasks[i].ModelTier = task.ModelTier
+			return
+		}
+	}
+}
+
 // Run executes all pending tasks via the task loop.
 func (s *ExecuteStage) Run(ctx context.Context, rs *runstore.RunState) (specloop.NextAction, error) {
 	workDir := s.cfg.WorkDir
@@ -68,19 +77,23 @@ func (s *ExecuteStage) Run(ctx context.Context, rs *runstore.RunState) (specloop
 		workDir = rs.WorktreePath
 	}
 
-	// Apply model escalation to pending tasks based on their lineage
+	// Apply model escalation to pending tasks based on targeted thrash escalation OR lineage
 	tasksToRun := pendingTasks(rs.Tasks)
+	escalatedFailures := []string{}
+	if rs.ReplanContext != nil {
+		escalatedFailures = rs.ReplanContext.EscalatedFailures
+	}
 	for i := range tasksToRun {
-		if specloop.ShouldEscalateModel(&tasksToRun[i], rs.TaskLineage, s.cfg.Escalation.ModelEscalationThreshold) {
+		// First check if task intersects with escalated failures from replan-context
+		if specloop.TaskIntersectsEscalated(&tasksToRun[i], escalatedFailures) {
 			tasksToRun[i].ModelTier = "high"
-			// Also update the original task in rs.Tasks
-			for j := range rs.Tasks {
-				if rs.Tasks[j].TaskID == tasksToRun[i].TaskID {
-					rs.Tasks[j].ModelTier = "high"
-					break
-				}
-			}
+		} else if specloop.ShouldEscalateModel(&tasksToRun[i], rs.TaskLineage, s.cfg.Escalation.ModelEscalationThreshold) {
+			tasksToRun[i].ModelTier = "high"
 		}
+	}
+
+	for i := range tasksToRun {
+		syncTaskModelTier(rs, tasksToRun[i])
 	}
 
 	// Load active validation_gap entries from playbook store and set on validator.
@@ -168,6 +181,12 @@ func (s *ExecuteStage) Run(ctx context.Context, rs *runstore.RunState) (specloop
 		rs.AccumulatedCost += r.Cost
 	}
 
+	// Clear transient escalation context for next cycle
+	if rs.ReplanContext != nil {
+		rs.ReplanContext.EscalatedFailures = []string{}
+	}
+	rs.NormalizeNilFields()
+
 	if allFailed && len(results) > 0 {
 		perTaskFailures := collectFailureMessages(results)
 		if len(perTaskFailures) > 0 {
@@ -198,3 +217,4 @@ func collectFailureMessages(results []specloop.TaskResult) []string {
 	}
 	return failures
 }
+

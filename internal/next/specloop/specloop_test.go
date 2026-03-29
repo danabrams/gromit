@@ -625,7 +625,9 @@ func TestSpecLoop_CycleReset_PreservesReplanContext(t *testing.T) {
 				}, nil
 			}
 			// Cycle 2: capture the ReplanContext that should have survived
-			snapReplanContext = append([]string{}, rs.ReplanContext...)
+			if rs.ReplanContext != nil {
+				snapReplanContext = append([]string{}, rs.ReplanContext.Failures...)
+			}
 			return NextAction{Kind: Continue}, nil
 		},
 	}
@@ -943,9 +945,9 @@ func TestSpecLoop_AppendsPriorAttemptErrorsToReplanContext(t *testing.T) {
 	stages := []Stage{
 		&mockStage{name: "plan", runFn: func(_ context.Context, rs *runstore.RunState) (NextAction, error) {
 			// On cycle 2, check that prior-attempt-error was added to ReplanContext
-			if len(rs.ReplanContext) > 0 {
+			if rs.ReplanContext != nil && len(rs.ReplanContext.Failures) > 0 {
 				foundError := false
-				for _, ctx := range rs.ReplanContext {
+				for _, ctx := range rs.ReplanContext.Failures {
 					if fmt.Sprintf("%s", ctx) != "" && len(ctx) > 0 {
 						// We should have some context entries from the previous cycle
 						foundError = true
@@ -1014,9 +1016,9 @@ func TestSpecLoop_LineageTrackingWithResolveLineageRoot(t *testing.T) {
 	stages := []Stage{
 		&mockStage{name: "plan", runFn: func(_ context.Context, rs *runstore.RunState) (NextAction, error) {
 			// Cycle 2: Verify prior-attempt-error was appended to replan context
-			if rs.Cycle == 2 && len(rs.ReplanContext) > 0 {
+			if rs.Cycle == 2 && rs.ReplanContext != nil && len(rs.ReplanContext.Failures) > 0 {
 				hasPriorError := false
-				for _, ctx := range rs.ReplanContext {
+				for _, ctx := range rs.ReplanContext.Failures {
 					// Look for the prior-attempt-error prefix in replan context
 					if len(ctx) > len("prior-attempt-error") &&
 						ctx[:len("prior-attempt-error")] == "prior-attempt-error" {

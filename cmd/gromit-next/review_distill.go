@@ -203,11 +203,15 @@ func attemptDistillation(runID string, storeDir string, tier reviewdistiller.Tie
 	}
 
 	// Load run metadata (serialized subset of run state)
+	var replanContextFailures []string
+	if run.ReplanContext != nil {
+		replanContextFailures = run.ReplanContext.Failures
+	}
 	runMetadata := map[string]interface{}{
 		"status":          run.Status,
 		"cycle":           run.Cycle,
 		"blocker_summary": truncateString(run.BlockerSummary, 500),
-		"replan_context":  truncateStringSlice(run.ReplanContext, 3, 300),
+		"replan_context":  truncateStringSlice(replanContextFailures, 3, 300),
 		"failure_history": run.FailureHistory,
 		"task_lineage":    run.Tasks,
 	}
