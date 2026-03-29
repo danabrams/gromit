@@ -524,10 +524,14 @@ func renumberSubTasks(subTasks []runstore.Task, startAt int) []runstore.Task {
 	return result
 }
 
-// validateSubTasks returns an error if any sub-task has an empty or whitespace-only
-// Objective field. If valid, returns nil. If invalid, the error message includes
-// the task IDs of all offending sub-tasks.
+// validateSubTasks returns an error if decomposition produced no sub-tasks or if any
+// sub-task has an empty or whitespace-only Objective field. If valid, returns nil.
+// If invalid, the error message includes the task IDs of all offending sub-tasks
+// or describes the empty decomposition.
 func validateSubTasks(subTasks []runstore.Task) error {
+	if len(subTasks) == 0 {
+		return fmt.Errorf("decomposition returned no sub-tasks")
+	}
 	var invalid []string
 	for _, st := range subTasks {
 		if strings.TrimSpace(st.Objective) == "" {

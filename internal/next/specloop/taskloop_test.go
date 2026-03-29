@@ -197,6 +197,38 @@ func TestTaskLoop_SubTasksCannotFurtherDecompose(t *testing.T) {
 	}
 }
 
+func TestTaskLoop_RejectsEmptyDecomposition(t *testing.T) {
+	// Per spec 0004u fix task t-007: decomposition returning zero sub-tasks
+	// should be rejected and parent task should fail
+	runner := &fakeTaskRunner{fn: func(_ context.Context, task runstore.Task) (TaskResult, error) {
+		if task.TaskID == "t-001" {
+			return TaskResult{Status: "needs_split"}, nil
+		}
+		return TaskResult{Status: "done"}, nil
+	}}
+	decomposer := &fakeDecomposer{subTasks: []runstore.Task{}} // empty decomposition
+	inspector := &fakeInspector{pass: true}
+	tasks := []runstore.Task{{TaskID: "t-001", Status: "pending"}}
+
+	results, _ := RunTaskLoop(context.Background(), tasks, runner, TaskLoopConfig{
+		MaxRetries: 1, Inspector: inspector, Decomposer: decomposer, MaxRedecompositions: 1,
+	})
+
+	// Parent task should be marked failed, not decomposed or further processed
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result (parent failed), got %d", len(results))
+	}
+	if results[0].Status != "failed" {
+		t.Fatalf("expected parent task to fail on empty decomposition, got status: %s", results[0].Status)
+	}
+	if results[0].TaskID != "t-001" {
+		t.Fatalf("expected result for t-001, got %s", results[0].TaskID)
+	}
+	if len(results[0].Failures) == 0 {
+		t.Fatal("expected failure message for empty decomposition")
+	}
+}
+
 type countingDecomposer struct {
 	subTasks []runstore.Task
 	calls    *int

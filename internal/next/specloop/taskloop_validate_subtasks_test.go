@@ -107,12 +107,16 @@ func TestValidateSubTasks_MixedValidAndWhitespace(t *testing.T) {
 }
 
 func TestValidateSubTasks_Empty(t *testing.T) {
-	// Scenario: Empty slice (vacuous truth)
+	// Scenario: Empty decomposition output (zero sub-tasks)
+	// Per spec 0004u fix task t-007, decomposition returning zero sub-tasks is invalid
 	subTasks := []runstore.Task{}
 
 	err := validateSubTasks(subTasks)
-	if err != nil {
-		t.Fatalf("expected no error for empty slice, got: %v", err)
+	if err == nil {
+		t.Fatalf("expected error for empty decomposition output")
+	}
+	if !strings.Contains(err.Error(), "no sub-tasks") {
+		t.Fatalf("error should mention no sub-tasks, got: %v", err)
 	}
 }
 
