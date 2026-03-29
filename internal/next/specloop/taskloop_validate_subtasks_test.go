@@ -7,162 +7,134 @@ import (
 	"github.com/danabrams/gromit/internal/next/runstore"
 )
 
-func TestValidateSubTasks_AllValid(t *testing.T) {
-	// Scenario: All sub-tasks have non-empty objectives
-	subTasks := []runstore.Task{
-		{TaskID: "t-005", Objective: "refactor parser"},
-		{TaskID: "t-006", Objective: "add tests"},
+func TestValidateSubTasks(t *testing.T) {
+	tests := []struct {
+		name            string
+		subTasks        []runstore.Task
+		wantErr         bool
+		wantContains    []string
+		wantNotContains []string
+	}{
+		{
+			name: "all valid objectives",
+			subTasks: []runstore.Task{
+				{TaskID: "t-005", Objective: "refactor parser"},
+				{TaskID: "t-006", Objective: "add tests"},
+			},
+			wantErr: false,
+		},
+		{
+			name:     "empty slice is valid",
+			subTasks: []runstore.Task{},
+			wantErr:  false,
+		},
+		{
+			name: "single empty objective",
+			subTasks: []runstore.Task{
+				{TaskID: "t-005", Objective: ""},
+			},
+			wantErr:      true,
+			wantContains: []string{"t-005"},
+		},
+		{
+			name: "multiple empty objectives",
+			subTasks: []runstore.Task{
+				{TaskID: "t-005", Objective: ""},
+				{TaskID: "t-006", Objective: ""},
+			},
+			wantErr:      true,
+			wantContains: []string{"t-005", "t-006"},
+		},
+		{
+			name: "whitespace-only objective",
+			subTasks: []runstore.Task{
+				{TaskID: "t-005", Objective: "   "},
+			},
+			wantErr:      true,
+			wantContains: []string{"t-005"},
+		},
+		{
+			name: "mixed valid and empty",
+			subTasks: []runstore.Task{
+				{TaskID: "t-005", Objective: "refactor parser"},
+				{TaskID: "t-006", Objective: ""},
+			},
+			wantErr:         true,
+			wantContains:    []string{"t-006"},
+			wantNotContains: []string{"t-005"},
+		},
+		{
+			name: "mixed valid and whitespace",
+			subTasks: []runstore.Task{
+				{TaskID: "t-005", Objective: "refactor parser"},
+				{TaskID: "t-006", Objective: "  \t\n  "},
+			},
+			wantErr:      true,
+			wantContains: []string{"t-006"},
+		},
+		{
+			name: "all whitespace objectives",
+			subTasks: []runstore.Task{
+				{TaskID: "t-005", Objective: "  "},
+				{TaskID: "t-006", Objective: "\t"},
+				{TaskID: "t-007", Objective: "\n"},
+			},
+			wantErr:      true,
+			wantContains: []string{"t-005", "t-006", "t-007"},
+		},
+		{
+			name: "error message format includes offending IDs not valid",
+			subTasks: []runstore.Task{
+				{TaskID: "t-001", Objective: ""},
+				{TaskID: "t-002", Objective: "valid objective"},
+				{TaskID: "t-003", Objective: "   "},
+			},
+			wantErr:         true,
+			wantContains:    []string{"t-001", "t-003"},
+			wantNotContains: []string{"t-002"},
+		},
+		{
+			name: "empty TaskID uses positional fallback",
+			subTasks: []runstore.Task{
+				{TaskID: "", Objective: ""},
+			},
+			wantErr:      true,
+			wantContains: []string{"index=0"},
+		},
+		{
+			name: "empty TaskID positional fallback at non-zero index",
+			subTasks: []runstore.Task{
+				{TaskID: "t-001", Objective: "valid"},
+				{TaskID: "", Objective: ""},
+			},
+			wantErr:         true,
+			wantContains:    []string{"index=1"},
+			wantNotContains: []string{"t-001"},
+		},
 	}
 
-	err := validateSubTasks(subTasks)
-	if err != nil {
-		t.Fatalf("expected no error for valid objectives, got: %v", err)
-	}
-}
-
-func TestValidateSubTasks_SingleEmpty(t *testing.T) {
-	// Scenario: Single sub-task with empty objective
-	subTasks := []runstore.Task{
-		{TaskID: "t-005", Objective: ""},
-	}
-
-	err := validateSubTasks(subTasks)
-	if err == nil {
-		t.Fatalf("expected error for empty objective")
-	}
-	if !strings.Contains(err.Error(), "t-005") {
-		t.Fatalf("error should mention t-005, got: %v", err)
-	}
-}
-
-func TestValidateSubTasks_MultipleEmpty(t *testing.T) {
-	// Scenario: Multiple sub-tasks with empty objectives
-	subTasks := []runstore.Task{
-		{TaskID: "t-005", Objective: ""},
-		{TaskID: "t-006", Objective: ""},
-	}
-
-	err := validateSubTasks(subTasks)
-	if err == nil {
-		t.Fatalf("expected error for empty objectives")
-	}
-	if !strings.Contains(err.Error(), "t-005") {
-		t.Fatalf("error should mention t-005, got: %v", err)
-	}
-	if !strings.Contains(err.Error(), "t-006") {
-		t.Fatalf("error should mention t-006, got: %v", err)
-	}
-}
-
-func TestValidateSubTasks_WhitespaceOnly(t *testing.T) {
-	// Scenario: Sub-task with whitespace-only objective
-	subTasks := []runstore.Task{
-		{TaskID: "t-005", Objective: "   "},
-	}
-
-	err := validateSubTasks(subTasks)
-	if err == nil {
-		t.Fatalf("expected error for whitespace-only objective")
-	}
-	if !strings.Contains(err.Error(), "t-005") {
-		t.Fatalf("error should mention t-005, got: %v", err)
-	}
-}
-
-func TestValidateSubTasks_MixedValidAndEmpty(t *testing.T) {
-	// Scenario: Mix of valid and empty objectives
-	// Spec 0004u Scenario 2: all-or-nothing rejection
-	subTasks := []runstore.Task{
-		{TaskID: "t-005", Objective: "refactor parser"},
-		{TaskID: "t-006", Objective: ""},
-	}
-
-	err := validateSubTasks(subTasks)
-	if err == nil {
-		t.Fatalf("expected error for mixed valid and empty objectives")
-	}
-	if !strings.Contains(err.Error(), "t-006") {
-		t.Fatalf("error should mention t-006, got: %v", err)
-	}
-	// Should NOT mention t-005 since it's valid
-	if strings.Contains(err.Error(), "t-005") {
-		t.Fatalf("error should not mention valid t-005, got: %v", err)
-	}
-}
-
-func TestValidateSubTasks_MixedValidAndWhitespace(t *testing.T) {
-	// Scenario: Mix of valid and whitespace-only objectives
-	subTasks := []runstore.Task{
-		{TaskID: "t-005", Objective: "refactor parser"},
-		{TaskID: "t-006", Objective: "  \t\n  "},
-	}
-
-	err := validateSubTasks(subTasks)
-	if err == nil {
-		t.Fatalf("expected error for mixed valid and whitespace objectives")
-	}
-	if !strings.Contains(err.Error(), "t-006") {
-		t.Fatalf("error should mention t-006, got: %v", err)
-	}
-}
-
-func TestValidateSubTasks_Empty(t *testing.T) {
-	// Scenario: Empty decomposition output (zero sub-tasks)
-	// Per spec 0004u fix task t-007, decomposition returning zero sub-tasks is invalid
-	subTasks := []runstore.Task{}
-
-	err := validateSubTasks(subTasks)
-	if err == nil {
-		t.Fatalf("expected error for empty decomposition output")
-	}
-	if !strings.Contains(err.Error(), "no sub-tasks") {
-		t.Fatalf("error should mention no sub-tasks, got: %v", err)
-	}
-}
-
-func TestValidateSubTasks_AllWhitespace(t *testing.T) {
-	// Scenario: Multiple sub-tasks with whitespace-only objectives
-	subTasks := []runstore.Task{
-		{TaskID: "t-005", Objective: "  "},
-		{TaskID: "t-006", Objective: "\t"},
-		{TaskID: "t-007", Objective: "\n"},
-	}
-
-	err := validateSubTasks(subTasks)
-	if err == nil {
-		t.Fatalf("expected error for whitespace-only objectives")
-	}
-	if !strings.Contains(err.Error(), "t-005") {
-		t.Fatalf("error should mention t-005, got: %v", err)
-	}
-	if !strings.Contains(err.Error(), "t-006") {
-		t.Fatalf("error should mention t-006, got: %v", err)
-	}
-	if !strings.Contains(err.Error(), "t-007") {
-		t.Fatalf("error should mention t-007, got: %v", err)
-	}
-}
-
-func TestValidateSubTasks_ErrorMessageFormat(t *testing.T) {
-	// Scenario: Verify error message includes task IDs and is clear
-	subTasks := []runstore.Task{
-		{TaskID: "t-001", Objective: ""},
-		{TaskID: "t-002", Objective: "valid objective"},
-		{TaskID: "t-003", Objective: "   "},
-	}
-
-	err := validateSubTasks(subTasks)
-	if err == nil {
-		t.Fatalf("expected error for mixed objectives")
-	}
-	errMsg := err.Error()
-	if !strings.Contains(errMsg, "t-001") {
-		t.Fatalf("error should mention t-001, got: %v", err)
-	}
-	if !strings.Contains(errMsg, "t-003") {
-		t.Fatalf("error should mention t-003, got: %v", err)
-	}
-	if strings.Contains(errMsg, "t-002") {
-		t.Fatalf("error should not mention valid t-002, got: %v", err)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			err := validateSubTasks(tc.subTasks)
+			if tc.wantErr && err == nil {
+				t.Fatalf("expected error, got nil")
+			}
+			if !tc.wantErr && err != nil {
+				t.Fatalf("expected no error, got: %v", err)
+			}
+			if err != nil {
+				msg := err.Error()
+				for _, want := range tc.wantContains {
+					if !strings.Contains(msg, want) {
+						t.Errorf("error should contain %q, got: %v", want, msg)
+					}
+				}
+				for _, notWant := range tc.wantNotContains {
+					if strings.Contains(msg, notWant) {
+						t.Errorf("error should NOT contain %q, got: %v", notWant, msg)
+					}
+				}
+			}
+		})
 	}
 }

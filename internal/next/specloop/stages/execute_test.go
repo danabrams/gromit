@@ -888,3 +888,71 @@ func TestExecute_AllFailed_FailureContextIncludesDecompositionRejection(t *testi
 		t.Fatalf("expected decomposition rejection reason, not generic fallback, got: %v", action.Context.Failures)
 	}
 }
+
+// fakeDecomposer is a test double for specloop.TaskDecomposer.
+type fakeDecomposer struct {
+	subTasks []runstore.Task
+	err      error
+}
+
+func (f *fakeDecomposer) Decompose(ctx context.Context, task runstore.Task) ([]runstore.Task, error) {
+	return f.subTasks, f.err
+}
+
+// TestExecute_AllFailed_FailureContextIncludesDecompositionRejection_EndToEnd exercises
+// the real RunTaskLoop decomposition-rejection path. The fakeTaskRunner returns
+// needs_split, the fakeDecomposer returns a sub-task with an empty objective, and
+// validateSubTasks should reject it with a message referencing the offending task ID.
+func TestExecute_AllFailed_FailureContextIncludesDecompositionRejection_EndToEnd(t *testing.T) {
+	runner := &fakeTaskRunner{
+		results: []specloop.TaskResult{
+			{TaskID: "t-001", Status: "needs_split"},
+		},
+	}
+
+	decomposer := &fakeDecomposer{
+		subTasks: []runstore.Task{
+			{TaskID: "t-001a", Objective: ""},
+		},
+	}
+
+	stage := NewExecuteStage(runner, ExecuteStageConfig{
+		MaxRetries:          0,
+		Decomposer:          decomposer,
+		MaxRedecompositions: 1,
+	})
+
+	rs := runstore.NewRunState("spec-001", "proj-001")
+	rs.Tasks = []runstore.Task{
+		{TaskID: "t-001", Status: "pending", Objective: "needs splitting"},
+	}
+
+	action, err := stage.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if action.Kind != specloop.ReplanFrom {
+		t.Fatalf("expected ReplanFrom, got %v", action.Kind)
+	}
+
+	if action.Context == nil {
+		t.Fatal("expected non-nil FailureContext")
+	}
+
+	if len(action.Context.Failures) == 0 {
+		t.Fatal("expected non-empty Failures in FailureContext")
+	}
+
+	failuresJoined := strings.Join(action.Context.Failures, "\n")
+
+	// The real validateSubTasks should report the offending sub-task ID.
+	if !strings.Contains(failuresJoined, "t-001a") {
+		t.Fatalf("expected failure to contain sub-task ID %q, got: %v", "t-001a", action.Context.Failures)
+	}
+
+	// The generic fallback should NOT be used when a specific rejection reason is available.
+	if strings.Contains(failuresJoined, "all tasks failed") {
+		t.Fatalf("expected specific decomposition rejection reason, not generic fallback, got: %v", action.Context.Failures)
+	}
+}

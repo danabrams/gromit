@@ -284,44 +284,18 @@ func RunTaskLoop(ctx context.Context, tasks []runstore.Task, runner TaskRunner, 
 				if cfg.GitOps != nil && len(result.FilesChanged) > 0 {
 					cfg.GitOps.CheckoutFiles(cfg.WorkDir, result.FilesChanged)
 				}
-				subTasks, dErr := cfg.Decomposer.Decompose(ctx, entry.task)
-				if dErr == nil {
-					// Validate sub-tasks before enqueuing
-					if validationErr := validateSubTasks(subTasks); validationErr != nil {
-						emitTaskEvent(cfg.EventLog, runstore.DecompositionRejectedEvent{
-							BaseEvent:       runstore.BaseEvent{Type: "decomposition_rejected", Timestamp: time.Now()},
-							ParentTaskID:    entry.task.TaskID,
-							RejectionReason: validationErr.Error(),
-						})
-						// Decomposition rejected, treat as failed
-						result.Status = "failed"
-						result.Failures = []string{validationErr.Error()}
-					} else {
-						decompositionsUsed++
-						emitTaskEvent(cfg.EventLog, runstore.RedecompositionTriggeredEvent{
-							BaseEvent: runstore.BaseEvent{Type: "redecomposition_triggered", Timestamp: time.Now()},
-							Reason:    "task " + entry.task.TaskID + " needs split",
-						})
-						// Renumber sub-tasks to avoid ID collisions with tasks already in
-						// the queue. IDs continue from the current maximum task ID.
-						maxID := maxTaskIDInQueue(queue)
-						subTasks = renumberSubTasks(subTasks, maxID+1)
-						for i := range subTasks {
-							// Inherit SpecConstraints from parent if the decomposer didn't set it.
-							if subTasks[i].SpecConstraints == "" {
-								subTasks[i].SpecConstraints = entry.task.SpecConstraints
-							}
-							queue = append(queue, taskEntry{task: subTasks[i], canDecompose: false})
-						}
-						// Add the parent to results as "decomposed" so execute.go can update
-						// rs.Tasks and prevent it from being re-queued in the next cycle.
-						results = append(results, TaskResult{
-							TaskID:   entry.task.TaskID,
-							Status:   "decomposed",
-							Attempts: attempts,
-						})
-						continue
-					}
+				newEntries, rejected, reason := handleDecomposition(ctx, cfg, entry.task, queue)
+				if rejected {
+					result.Failures = []string{reason}
+				} else if newEntries != nil {
+					decompositionsUsed++
+					queue = append(queue, newEntries...)
+					results = append(results, TaskResult{
+						TaskID:   entry.task.TaskID,
+						Status:   "decomposed",
+						Attempts: attempts,
+					})
+					continue
 				}
 			}
 			// Decomposition not possible or failed — treat as failed
@@ -524,18 +498,56 @@ func renumberSubTasks(subTasks []runstore.Task, startAt int) []runstore.Task {
 	return result
 }
 
-// validateSubTasks returns an error if decomposition produced no sub-tasks or if any
-// sub-task has an empty or whitespace-only Objective field. If valid, returns nil.
-// If invalid, the error message includes the task IDs of all offending sub-tasks
-// or describes the empty decomposition.
-func validateSubTasks(subTasks []runstore.Task) error {
-	if len(subTasks) == 0 {
-		return fmt.Errorf("decomposition returned no sub-tasks")
+// handleDecomposition calls cfg.Decomposer.Decompose, validates the result, emits the
+// appropriate event, and builds the queue entries. It returns:
+//   - newEntries, false, "" on success (caller should enqueue and continue)
+//   - nil, true, reason on validation failure (caller should treat as failed)
+//   - nil, false, "" when Decompose itself returned an error (caller falls through to failed)
+func handleDecomposition(ctx context.Context, cfg TaskLoopConfig, task runstore.Task, queue []taskEntry) (newEntries []taskEntry, rejected bool, reason string) {
+	subTasks, dErr := cfg.Decomposer.Decompose(ctx, task)
+	if dErr != nil {
+		return nil, false, ""
 	}
+	if validationErr := validateSubTasks(subTasks); validationErr != nil {
+		emitTaskEvent(cfg.EventLog, runstore.DecompositionRejectedEvent{
+			BaseEvent:       runstore.BaseEvent{Type: "decomposition_rejected", Timestamp: time.Now()},
+			ParentTaskID:    task.TaskID,
+			RejectionReason: validationErr.Error(),
+		})
+		return nil, true, validationErr.Error()
+	}
+	emitTaskEvent(cfg.EventLog, runstore.RedecompositionTriggeredEvent{
+		BaseEvent: runstore.BaseEvent{Type: "redecomposition_triggered", Timestamp: time.Now()},
+		Reason:    "task " + task.TaskID + " needs split",
+	})
+	// Renumber sub-tasks to avoid ID collisions with tasks already in the queue.
+	// IDs continue from the current maximum task ID.
+	maxID := maxTaskIDInQueue(queue)
+	subTasks = renumberSubTasks(subTasks, maxID+1)
+	entries := make([]taskEntry, len(subTasks))
+	for i := range subTasks {
+		// Inherit SpecConstraints from parent if the decomposer didn't set it.
+		if subTasks[i].SpecConstraints == "" {
+			subTasks[i].SpecConstraints = task.SpecConstraints
+		}
+		entries[i] = taskEntry{task: subTasks[i], canDecompose: false}
+	}
+	return entries, false, ""
+}
+
+// validateSubTasks returns an error if any sub-task has an empty or whitespace-only
+// Objective field. If valid (including empty slice), returns nil.
+// If invalid, the error message includes the task IDs of all offending sub-tasks.
+// When a sub-task has an empty TaskID, a positional fallback "index=N" is used instead.
+func validateSubTasks(subTasks []runstore.Task) error {
 	var invalid []string
-	for _, st := range subTasks {
+	for i, st := range subTasks {
 		if strings.TrimSpace(st.Objective) == "" {
-			invalid = append(invalid, st.TaskID)
+			id := st.TaskID
+			if id == "" {
+				id = fmt.Sprintf("index=%d", i)
+			}
+			invalid = append(invalid, id)
 		}
 	}
 	if len(invalid) > 0 {
