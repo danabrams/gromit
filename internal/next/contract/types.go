@@ -32,12 +32,19 @@ type ContractAssertion struct {
 	FileNotModified string                 `yaml:"file_not_modified,omitempty"`
 	FileNotExists   string                 `yaml:"file_not_exists,omitempty"`
 	FileNotContains *FileContainsAssertion `yaml:"file_not_contains,omitempty"`
+	GoTestPass      *GoTestPassAssertion   `yaml:"go_test_pass,omitempty"`
 }
 
 // FileContainsAssertion holds path and pattern for file_contains / file_not_contains assertions.
 type FileContainsAssertion struct {
 	Path    string `yaml:"path"`
 	Pattern string `yaml:"pattern"` // Literal substring, matched via strings.Contains
+}
+
+// GoTestPassAssertion describes a go_test_pass assertion.
+type GoTestPassAssertion struct {
+	Pkg      string `yaml:"pkg"`
+	TestName string `yaml:"test_name"`
 }
 
 // ContractFailure represents a single failed contract assertion.

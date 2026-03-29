@@ -95,6 +95,14 @@ func TestContractAssertion(t *testing.T) {
 			}},
 			wantKey: "file_not_contains",
 		},
+		{
+			name: "go_test_pass",
+			assertion: ContractAssertion{GoTestPass: &GoTestPassAssertion{
+				Pkg:      "./...",
+				TestName: "TestFooBehavior",
+			}},
+			wantKey: "go_test_pass",
+		},
 	}
 
 	for _, tc := range tests {

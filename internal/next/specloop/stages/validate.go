@@ -110,6 +110,9 @@ func (s *ValidateStage) Run(ctx context.Context, rs *runstore.RunState) (specloo
 			if err != nil {
 				return specloop.NextAction{}, fmt.Errorf("parse scenario-contracts.yaml: %w", err)
 			}
+			if err := contract.AugmentWithTestAssertions(&sc, workDir); err != nil {
+				return specloop.NextAction{}, fmt.Errorf("augment scenario contracts with tests: %w", err)
+			}
 			contractFailures, err := s.contractEvaluator.Evaluate(ctx, &sc, workDir)
 			if err != nil {
 				return specloop.NextAction{}, fmt.Errorf("evaluate contracts: %w", err)

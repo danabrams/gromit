@@ -31,6 +31,15 @@ func (f *fakeContractEvaluator) Evaluate(_ context.Context, _ *contract.Scenario
 	return f.failures, nil
 }
 
+type recordingContractEvaluator struct {
+	Received []*contract.ScenarioContract
+}
+
+func (r *recordingContractEvaluator) Evaluate(_ context.Context, sc *contract.ScenarioContract, _ string) ([]contract.ContractFailure, error) {
+	r.Received = append(r.Received, sc)
+	return nil, nil
+}
+
 func newValidateWorkDir(t testing.TB) string {
 	t.Helper()
 	workDir := t.TempDir()
@@ -476,6 +485,123 @@ func TestValidateStage_ContractFailures(t *testing.T) {
 	want := `contract:subtract-works — file_exists failed: file "result.txt" does not exist`
 	if action.Context.Failures[0] != want {
 		t.Fatalf("expected failure %q, got %q", want, action.Context.Failures[0])
+	}
+}
+
+func TestValidateStage_AugmentWithTestAssertions_NoScenarioTestsPreservesFileContains(t *testing.T) {
+	dir := t.TempDir()
+
+	contractYAML := `scenarios:
+  - name: Vision change resume
+    assertions:
+      - file_contains:
+          path: pkg/planner/plan.go
+          pattern: vision change resume
+`
+	if err := os.WriteFile(filepath.Join(dir, "scenario-contracts.yaml"), []byte(contractYAML), 0o644); err != nil {
+		t.Fatalf("write contract file: %v", err)
+	}
+
+	workDir := newValidateWorkDir(t)
+	validator := &fakeValidator{result: validator.FinalResult{Pass: true}}
+	evaluator := &recordingContractEvaluator{}
+	stage := NewValidateStage(validator, ValidateStageConfig{
+		WorkDir:     workDir,
+		EvidenceDir: dir,
+	}, nil, evaluator, nil)
+
+	rs := runstore.NewRunState("spec-001", "proj-001")
+	action, err := stage.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if action.Kind != specloop.Continue {
+		t.Fatalf("expected Continue, got %v", action.Kind)
+	}
+	if len(evaluator.Received) != 1 {
+		t.Fatalf("expected evaluator to see 1 contract, got %d", len(evaluator.Received))
+	}
+	if len(evaluator.Received[0].Scenarios) != 1 {
+		t.Fatalf("expected 1 scenario, got %d", len(evaluator.Received[0].Scenarios))
+	}
+	assertions := evaluator.Received[0].Scenarios[0].Assertions
+	if len(assertions) != 1 {
+		t.Fatalf("expected 1 assertion, got %d", len(assertions))
+	}
+	if assertions[0].FileContains == nil {
+		t.Fatalf("expected file_contains to remain")
+	}
+	if assertions[0].FileContains.Path != "pkg/planner/plan.go" {
+		t.Fatalf("unexpected file path: %q", assertions[0].FileContains.Path)
+	}
+	if assertions[0].GoTestPass != nil {
+		t.Fatal("expected no go_test_pass assertions when no scenario tests exist")
+	}
+}
+
+func TestValidateStage_AugmentWithTestAssertions_ReplacesFileContainsWithGoTestPass(t *testing.T) {
+	dir := t.TempDir()
+
+	contractYAML := `scenarios:
+  - name: Vision change resume
+    assertions:
+      - file_exists: pkg/planner/plan.go
+      - file_contains:
+          path: pkg/planner/plan.go
+          pattern: vision change resume
+`
+	if err := os.WriteFile(filepath.Join(dir, "scenario-contracts.yaml"), []byte(contractYAML), 0o644); err != nil {
+		t.Fatalf("write contract file: %v", err)
+	}
+
+	workDir := newValidateWorkDir(t)
+	testFuncName := "TestScenario_VisionChangeResume"
+	testFileDir := filepath.Join(workDir, "pkg", "planner")
+	if err := os.MkdirAll(testFileDir, 0o755); err != nil {
+		t.Fatalf("mkdir test dir: %v", err)
+	}
+	testFile := filepath.Join(testFileDir, "planner_scenario_vision_change_resume_test.go")
+	testSrc := "package planner\n\nimport \"testing\"\n\nfunc " + testFuncName + "(t *testing.T) {}\n"
+	if err := os.WriteFile(testFile, []byte(testSrc), 0o644); err != nil {
+		t.Fatalf("write scenario test: %v", err)
+	}
+
+	validator := &fakeValidator{result: validator.FinalResult{Pass: true}}
+	evaluator := &recordingContractEvaluator{}
+	stage := NewValidateStage(validator, ValidateStageConfig{
+		WorkDir:     workDir,
+		EvidenceDir: dir,
+	}, nil, evaluator, nil)
+
+	rs := runstore.NewRunState("spec-001", "proj-001")
+	action, err := stage.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if action.Kind != specloop.Continue {
+		t.Fatalf("expected Continue, got %v", action.Kind)
+	}
+	if len(evaluator.Received) != 1 {
+		t.Fatalf("expected evaluator to see 1 contract, got %d", len(evaluator.Received))
+	}
+	assertions := evaluator.Received[0].Scenarios[0].Assertions
+	if len(assertions) != 2 {
+		t.Fatalf("expected 2 assertions, got %d", len(assertions))
+	}
+	if assertions[0].FileExists != "pkg/planner/plan.go" {
+		t.Fatalf("unexpected file_exists path: %q", assertions[0].FileExists)
+	}
+	if assertions[1].GoTestPass == nil {
+		t.Fatal("expected go_test_pass to replace file_contains")
+	}
+	if assertions[1].GoTestPass.Pkg != "./pkg/planner/..." {
+		t.Fatalf("unexpected go_test_pass pkg: %q", assertions[1].GoTestPass.Pkg)
+	}
+	if assertions[1].GoTestPass.TestName != testFuncName {
+		t.Fatalf("unexpected go_test_pass test name: %q", assertions[1].GoTestPass.TestName)
+	}
+	if assertions[1].FileContains != nil {
+		t.Fatal("file_contains should be removed when go_test_pass exists")
 	}
 }
 
