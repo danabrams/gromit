@@ -1553,6 +1553,52 @@ func TestBeadLoopAllBeadsBlockedReturnsError(t *testing.T) {
 	}
 }
 
+func TestBeadLoopAllBlockedPassErrorListsBlockedIDs(t *testing.T) {
+	t.Parallel()
+
+	gateStage := &scriptedGateStage{
+		name: "gate",
+		decisions: map[string]stage.Decision{
+			"bead-2": stage.DecisionBlock,
+			"bead-1": stage.DecisionBlock,
+		},
+	}
+
+	cfg := BeadLoopConfig{
+		Gate:     gateStage,
+		Build:    newNoopStage("build"),
+		Validate: newNoopStage("validate"),
+		Review:   newNoopStage("review"),
+		Epilogue: newNoopStage("epilogue"),
+	}
+
+	loop, err := NewBeadLoop(cfg)
+	if err != nil {
+		t.Fatalf("NewBeadLoop: %v", err)
+	}
+
+	beads := []*bead.Bead{
+		{ID: "bead-2"},
+		{ID: "bead-1"},
+	}
+
+	_, err = loop.Run(context.Background(), beads, nil)
+	if err == nil {
+		t.Fatal("expected error when all beads blocked, got nil")
+	}
+
+	msg := err.Error()
+	if !strings.Contains(msg, "all remaining beads blocked with no progress") {
+		t.Fatalf("error should explain the pass failure, got: %v", err)
+	}
+	if !strings.Contains(msg, "bead-1") || !strings.Contains(msg, "bead-2") {
+		t.Fatalf("error should list blocked bead IDs, got: %v", err)
+	}
+	if !strings.Contains(msg, "blocked beads:") {
+		t.Fatalf("error should describe which beads were blocked, got: %v", err)
+	}
+}
+
 // TestBeadLoopBlockedBeadRetriedAfterProgress verifies that a bead blocked by
 // the gate is retried in the next pass after another bead makes progress.
 // If the previously-blocked bead proceeds on retry, the loop completes without error.
