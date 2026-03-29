@@ -1,5 +1,11 @@
 package debug
 
+import (
+	"fmt"
+
+	"github.com/danabrams/gromit/internal/learnings"
+)
+
 // FailureContext captures information about a failed stage for pattern detection.
 type FailureContext struct {
 	Message string
@@ -28,4 +34,24 @@ func DetectLearnablePattern(ctx FailureContext, patterns []LearningPattern) *Lea
 		}
 	}
 	return nil
+}
+
+// ApplyLearning applies the fix plan and records the learning entry.
+func ApplyLearning(repoRoot string, pattern LearningPattern) (*FixResult, error) {
+	result, err := ApplyPlan(repoRoot, pattern.FixPlan)
+	if err != nil {
+		return nil, err
+	}
+
+	file, err := learnings.NewFile(repoRoot)
+	if err != nil {
+		return result, fmt.Errorf("create learnings file: %w", err)
+	}
+	if err := file.Load(); err != nil {
+		return result, fmt.Errorf("load learnings: %w", err)
+	}
+	if _, err := file.Add(pattern.BeadID, pattern.LearningContent, pattern.Category); err != nil {
+		return result, fmt.Errorf("add learning: %w", err)
+	}
+	return result, nil
 }
