@@ -1597,6 +1597,46 @@ func TestBeadLoopBlockedBeadRetriedAfterProgress(t *testing.T) {
 	}
 }
 
+func TestBeadLoopBlockedBeadProceedsAfterDependencyCompletes(t *testing.T) {
+	t.Parallel()
+
+	order := []string{}
+	gate := newRecordingGateStage("gate", &order, nil)
+	gate.decisionFn = func(id string, attempt int) stage.Decision {
+		if id == "blocked" && attempt == 1 {
+			return stage.DecisionBlock
+		}
+		return stage.DecisionProceed
+	}
+
+	cfg := BeadLoopConfig{
+		Gate:     gate,
+		Build:    newNoopStage("build"),
+		Validate: newNoopStage("validate"),
+		Review:   newNoopStage("review"),
+		Epilogue: newNoopStage("epilogue"),
+	}
+
+	loop, err := NewBeadLoop(cfg)
+	if err != nil {
+		t.Fatalf("NewBeadLoop: %v", err)
+	}
+
+	beads := []*bead.Bead{
+		{ID: "depends"},
+		{ID: "blocked", DependsOn: []bead.Dependency{{ID: "depends"}}},
+	}
+
+	if _, err := loop.Run(context.Background(), beads, nil); err != nil {
+		t.Fatalf("expected loop to succeed after dependency unblocks gate, got: %v", err)
+	}
+
+	wantOrder := []string{"depends:1", "blocked:1", "blocked:2"}
+	if !reflect.DeepEqual(order, wantOrder) {
+		t.Fatalf("gate run order = %v, want %v", order, wantOrder)
+	}
+}
+
 // callCountingGateStage is a gate that blocks a bead on its first invocation
 // and proceeds on all subsequent invocations.
 type callCountingGateStage struct {
