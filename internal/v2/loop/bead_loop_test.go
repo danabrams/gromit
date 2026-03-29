@@ -1677,6 +1677,7 @@ type recordingGateStage struct {
 	order      *[]string
 	decisions  map[string]stage.Decision
 	callCounts map[string]int
+	decisionFn func(id string, attempt int) stage.Decision
 }
 
 func newRecordingGateStage(name string, order *[]string, decisions map[string]stage.Decision) *recordingGateStage {
@@ -1695,6 +1696,9 @@ func (s *recordingGateStage) Run(_ context.Context, req *stage.Request) (*stage.
 	s.callCounts[id]++
 	if s.order != nil {
 		*s.order = append(*s.order, fmt.Sprintf("%s:%d", id, s.callCounts[id]))
+	}
+	if s.decisionFn != nil {
+		return &stage.Result{Decision: s.decisionFn(id, s.callCounts[id])}, nil
 	}
 	if d, ok := s.decisions[id]; ok {
 		return &stage.Result{Decision: d}, nil
