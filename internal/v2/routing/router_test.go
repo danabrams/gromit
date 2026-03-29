@@ -3,6 +3,7 @@ package routing_test
 import (
 	"context"
 	"errors"
+	"reflect"
 	"testing"
 	"time"
 
@@ -282,5 +283,147 @@ func TestRouterSelectPhasePreferenceOverridesRatio(t *testing.T) {
 	}
 	if got != llmtypes.LLMProvider(providerB) {
 		t.Fatalf("expected phase preference to override ratio and select providerB, got %v", got)
+	}
+}
+
+func TestRouterSelectRatioBalancesThreeProviders(t *testing.T) {
+	alpha := &stubProvider{name: "alpha"}
+	beta := &stubProvider{name: "beta"}
+	gamma := &stubProvider{name: "gamma"}
+
+	r := routing.NewRouter(routing.RouterConfig{
+		Providers: map[string]llmtypes.LLMProvider{
+			"alpha": alpha,
+			"beta":  beta,
+			"gamma": gamma,
+		},
+		Ratio: map[string]int{
+			"alpha": 3,
+			"beta":  2,
+			"gamma": 1,
+		},
+	})
+
+	want := map[string]int{
+		"alpha": 3,
+		"beta":  2,
+		"gamma": 1,
+	}
+	got := map[string]int{}
+
+	for i := 0; i < 6; i++ {
+		_, _, provider, err := r.Select("build", "low")
+		if err != nil {
+			t.Fatalf("iteration %d: unexpected error: %v", i, err)
+		}
+		got[provider]++
+	}
+
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("ratio balancing mismatch: got %v, want %v", got, want)
+	}
+}
+
+func TestRouterPhasePreferenceOverridesRatioEvenWhenGeneralPhaseFavorsOther(t *testing.T) {
+	preferred := &stubProvider{name: "preferred"}
+	other := &stubProvider{name: "other"}
+
+	r := routing.NewRouter(routing.RouterConfig{
+		Providers: map[string]llmtypes.LLMProvider{
+			"preferred": preferred,
+			"other":     other,
+		},
+		Ratio: map[string]int{
+			"preferred": 1,
+			"other":     10,
+		},
+		PhasePreferences: map[string]string{
+			"special": "preferred",
+		},
+	})
+
+	for i := 0; i < 8; i++ {
+		_, _, _, err := r.Select("build", "low")
+		if err != nil {
+			t.Fatalf("unexpected error selecting general phase: %v", err)
+		}
+	}
+
+	got, _, _, err := r.Select("special", "low")
+	if err != nil {
+		t.Fatalf("unexpected error selecting preferred phase: %v", err)
+	}
+	if got != llmtypes.LLMProvider(preferred) {
+		t.Fatalf("phase preference should override ratio, got %v", got)
+	}
+}
+
+func TestRouterFallbackHonorsMarkUnavailable(t *testing.T) {
+	primary := &stubProvider{name: "primary"}
+	secondary := &stubProvider{name: "secondary"}
+
+	r := routing.NewRouter(routing.RouterConfig{
+		Providers: map[string]llmtypes.LLMProvider{
+			"primary":   primary,
+			"secondary": secondary,
+		},
+		PhasePreferences: map[string]string{
+			"critical": "primary",
+		},
+	})
+
+	r.MarkUnavailable("primary")
+	if !r.IsUnavailable("primary") {
+		t.Fatalf("expected primary provider to be unavailable after mark")
+	}
+
+	got, _, name, err := r.Select("critical", "low")
+	if err != nil {
+		t.Fatalf("unexpected error after marking primary unavailable: %v", err)
+	}
+	if name != "secondary" {
+		t.Fatalf("expected secondary fallback, got %s", name)
+	}
+	if got != llmtypes.LLMProvider(secondary) {
+		t.Fatalf("expected fallback provider instance, got %v", got)
+	}
+}
+
+func TestRouterCooldownPreservesUnavailableState(t *testing.T) {
+	provider := &stubProvider{name: "solo"}
+
+	now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	clock := func() time.Time { return now }
+
+	r := routing.NewRouter(routing.RouterConfig{
+		Providers: map[string]llmtypes.LLMProvider{
+			"solo": provider,
+		},
+		Cooldown: 5 * time.Second,
+		NowFunc:  clock,
+	})
+
+	r.MarkUnavailable("solo")
+
+	for i := 0; i < 3; i++ {
+		if !r.IsUnavailable("solo") {
+			t.Fatalf("iteration %d: expected provider to be unavailable", i)
+		}
+		if _, _, _, err := r.Select("build", "low"); !errors.Is(err, routing.ErrAllUnavailable) {
+			t.Fatalf("iteration %d: expected ErrAllUnavailable, got %v", i, err)
+		}
+	}
+
+	now = now.Add(5*time.Second + time.Millisecond)
+	if r.IsUnavailable("solo") {
+		t.Fatalf("expected cooldown to expire after duration")
+	}
+
+	got, _, _, err := r.Select("build", "low")
+	if err != nil {
+		t.Fatalf("expected provider to be re-enabled, got %v", err)
+	}
+	if got != llmtypes.LLMProvider(provider) {
+		t.Fatalf("expected solo provider after cooldown, got %v", got)
 	}
 }
