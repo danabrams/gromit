@@ -25,12 +25,28 @@ func ReadChangedFiles(path string) ([]string, error) {
 	return changed, nil
 }
 
-// FlagChangedBeads returns beads that need revalidation when the diff file lists
-// changed files. The initial implementation returns all beads when any files
-// are reported as changed.
+// FlagChangedBeads returns beads whose files overlap the changed files recorded
+// in the diff file.
 func FlagChangedBeads(beads []*bead.Bead, changedFiles []string, beadFiles map[string][]string) []*bead.Bead {
-	if len(changedFiles) == 0 {
-		return nil
+	changed := make(map[string]struct{}, len(changedFiles))
+	for _, f := range changedFiles {
+		if f == "" {
+			continue
+		}
+		changed[f] = struct{}{}
 	}
-	return beads
+
+	var flagged []*bead.Bead
+	for _, b := range beads {
+		if b == nil {
+			continue
+		}
+		for _, f := range beadFiles[b.ID] {
+			if _, ok := changed[f]; ok {
+				flagged = append(flagged, b)
+				break
+			}
+		}
+	}
+	return flagged
 }
