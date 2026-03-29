@@ -180,16 +180,16 @@ func WithPreserveOnFailure(preserve bool) SpecLoopOption {
 
 // WithPresentStage injects the presentation stage and context used by the loop.
 func WithPresentStage(stage stagepkg.Stage, ctx *present.SummaryContext) SpecLoopOption {
-    return func(s *SpecLoop) {
-        s.presentStage = stage
-        s.presentSummaryContext = ctx
-    }
+	return func(s *SpecLoop) {
+		s.presentStage = stage
+		s.presentSummaryContext = ctx
+	}
 }
 
 func WithBeadSquasher(fn func(context.Context, string, []presentation.BeadSummary) error) SpecLoopOption {
-    return func(s *SpecLoop) {
-        s.beadSquasher = fn
-    }
+	return func(s *SpecLoop) {
+		s.beadSquasher = fn
+	}
 }
 
 // AdapterSet alias exposes the adapter basket consumed by the run loop.
@@ -215,12 +215,12 @@ type SpecLoop struct {
 	decomposeStage        stagepkg.Stage
 	beadRunner            BeadRunner
 	planStage             stagepkg.Stage
-    presentStage          stagepkg.Stage
-    presentSummaryContext *present.SummaryContext
-    beadSquasher         func(context.Context, string, []presentation.BeadSummary) error
-    preserveOnFailure     bool // restore t.Cleanup if overriding in tests
-    selectiveRevalidator  SelectiveRevalidator
-    gapAnalyzer           GapAnalyzer
+	presentStage          stagepkg.Stage
+	presentSummaryContext *present.SummaryContext
+	beadSquasher          func(context.Context, string, []presentation.BeadSummary) error
+	preserveOnFailure     bool // restore t.Cleanup if overriding in tests
+	selectiveRevalidator  SelectiveRevalidator
+	gapAnalyzer           GapAnalyzer
 	router                *routing.Router
 	phaseModels           map[string]string
 }
@@ -439,7 +439,7 @@ func (s *SpecLoop) Run(ctx context.Context, specID string, stopCh <-chan struct{
 		return err
 	}
 
-    s.emit(&events.SpecCompletedEvent{SpecID: specID, Worktree: worktree, Success: true})
+	s.emit(&events.SpecCompletedEvent{SpecID: specID, Worktree: worktree, Success: true})
 
 	succeeded = true
 	return nil
@@ -703,12 +703,12 @@ func (s *SpecLoop) handleFailure(ctx context.Context, specID string, base presen
 		return err
 	}
 
-    s.emit(&events.SpecCompletedEvent{
-        SpecID:        specID,
-        Worktree:      base.Worktree,
-        Success:       false,
-        FailureReason: reason,
-    })
+	s.emit(&events.SpecCompletedEvent{
+		SpecID:        specID,
+		Worktree:      base.Worktree,
+		Success:       false,
+		FailureReason: reason,
+	})
 
 	return fmt.Errorf("accept failure: %w", failure)
 }
@@ -747,20 +747,20 @@ func (s *SpecLoop) cleanupWorktree(_ context.Context, specID, worktree string, s
 }
 
 func (s *SpecLoop) presentSummary(ctx context.Context, specID string, summary presentation.PresentationSummary) error {
-    if err := s.ctxErr(ctx); err != nil {
-        return err
-    }
+	if err := s.ctxErr(ctx); err != nil {
+		return err
+	}
 
-    if s.beadSquasher != nil {
-        if err := s.beadSquasher(ctx, summary.Worktree, summary.BeadSummaries); err != nil {
-            return fmt.Errorf("squash: %w", err)
-        }
-    }
+	if s.beadSquasher != nil {
+		if err := s.beadSquasher(ctx, summary.Worktree, summary.BeadSummaries); err != nil {
+			return fmt.Errorf("squash: %w", err)
+		}
+	}
 
-    s.recordStage("present")
-    if s.presentStage == nil || s.presentSummaryContext == nil {
-        return fmt.Errorf("present stage required")
-    }
+	s.recordStage("present")
+	if s.presentStage == nil || s.presentSummaryContext == nil {
+		return fmt.Errorf("present stage required")
+	}
 	s.populatePresentationContext(summary)
 	req := s.specStageRequest(specID, summary.Worktree)
 	res, err := s.presentStage.Run(ctx, &req)
