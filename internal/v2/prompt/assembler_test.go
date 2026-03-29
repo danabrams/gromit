@@ -476,3 +476,19 @@ func TestProjectContextKeepsURLsAndSlashWords(t *testing.T) {
 		t.Fatal("internal/runner/loop.go should be filtered out (file path not in bead)")
 	}
 }
+
+func TestProjectContextScopesArchitectureToBeadPaths(t *testing.T) {
+	project := "# Project\n\n## Architecture\n- internal/target — keep this\n- internal/other — drop this"
+	assembler := NewPromptAssembler("base", project, "", "")
+	scoped := assembler.loadProjectContext(BeadInfo{
+		Title: "internal/target",
+		Files: []string{"cmd/main.go"},
+	})
+
+	if !strings.Contains(scoped, "internal/target") {
+		t.Fatalf("expected relevant architecture bullet to remain:\n%s", scoped)
+	}
+	if strings.Contains(scoped, "internal/other") {
+		t.Fatalf("unexpected architecture bullet for other package:\n%s", scoped)
+	}
+}
