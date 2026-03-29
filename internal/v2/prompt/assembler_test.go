@@ -273,6 +273,28 @@ func TestPhaseCapNotAppliedForUnknownPhase(t *testing.T) {
 	}
 }
 
+func TestPhaseCapKeepsPhaseSectionWhenPreambleLarge(t *testing.T) {
+	cap := phaseMaxChars["build"]
+	if cap == 0 {
+		t.Fatal("phase cap missing for build phase")
+	}
+
+	preamble := strings.Repeat("x", cap+500)
+	base := preamble + "\n\n## build <!-- phases: build -->\nbuild content\n\n## plan <!-- phases: plan -->\nplan content"
+	assembler := NewPromptAssembler(base, "", "", "")
+	filtered := assembler.loadBaseInstructions("build")
+
+	if !strings.Contains(filtered, "build content") {
+		t.Fatalf("build content missing from filtered base:\n%s", filtered)
+	}
+	if strings.Contains(filtered, "plan content") {
+		t.Fatalf("plan content should not appear for build phase")
+	}
+	if len(filtered) > cap {
+		t.Fatalf("filtered output length %d exceeds cap %d", len(filtered), cap)
+	}
+}
+
 func TestShapeBudgetUTF8Safety(t *testing.T) {
 	// 3-byte UTF-8 character: 世 (U+4E16)
 	content := strings.Repeat("世", 1000) // 3000 bytes
