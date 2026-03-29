@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -127,8 +128,8 @@ func TestTaskLoop_RedecomposesOnNeedsSplit(t *testing.T) {
 		return TaskResult{Status: "done"}, nil
 	}}
 	decomposer := &fakeDecomposer{subTasks: []runstore.Task{
-		{TaskID: "t-001a", Status: "pending"},
-		{TaskID: "t-001b", Status: "pending"},
+		{TaskID: "t-001a", Status: "pending", Objective: "subtask a"},
+		{TaskID: "t-001b", Status: "pending", Objective: "subtask b"},
 	}}
 	inspector := &fakeInspector{pass: true}
 	tasks := []runstore.Task{{TaskID: "t-001", Status: "pending"}}
@@ -156,7 +157,7 @@ func TestTaskLoop_RevertBeforeRedecompose(t *testing.T) {
 		}
 		return TaskResult{Status: "done"}, nil
 	}}
-	decomposer := &fakeDecomposer{subTasks: []runstore.Task{{TaskID: "t-001a", Status: "pending"}}}
+	decomposer := &fakeDecomposer{subTasks: []runstore.Task{{TaskID: "t-001a", Status: "pending", Objective: "subtask a"}}}
 	inspector := &fakeInspector{pass: true}
 	tasks := []runstore.Task{{TaskID: "t-001", Status: "pending"}}
 
@@ -216,7 +217,7 @@ func TestTaskLoop_MaxRedecompositions_GlobalBudget(t *testing.T) {
 		return TaskResult{Status: "done"}, nil
 	}}
 	decomposer := &fakeDecomposer{subTasks: []runstore.Task{
-		{TaskID: "sub-1", Status: "pending"},
+		{TaskID: "sub-1", Status: "pending", Objective: "subtask 1"},
 	}}
 	inspector := &fakeInspector{pass: true}
 	tasks := []runstore.Task{
@@ -599,8 +600,8 @@ func TestTaskLoop_NeedsSplit_DetectedFromFilesChanged(t *testing.T) {
 		return TaskResult{Status: "done"}, nil
 	}}
 	decomposer := &fakeDecomposer{subTasks: []runstore.Task{
-		{TaskID: "t-001a", Status: "pending"},
-		{TaskID: "t-001b", Status: "pending"},
+		{TaskID: "t-001a", Status: "pending", Objective: "subtask a"},
+		{TaskID: "t-001b", Status: "pending", Objective: "subtask b"},
 	}}
 	inspector := &fakeInspector{pass: true}
 	tasks := []runstore.Task{{TaskID: "t-001", Status: "pending"}}
@@ -874,8 +875,8 @@ func TestTaskLoop_DecomposedParentAppearsInResultsAsDecomposed(t *testing.T) {
 		return TaskResult{Status: "done"}, nil
 	}}
 	decomposer := &fakeDecomposer{subTasks: []runstore.Task{
-		{TaskID: "t-002", Status: "pending"},
-		{TaskID: "t-003", Status: "pending"},
+		{TaskID: "t-002", Status: "pending", Objective: "subtask 2"},
+		{TaskID: "t-003", Status: "pending", Objective: "subtask 3"},
 	}}
 	inspector := &fakeInspector{pass: true}
 	tasks := []runstore.Task{{TaskID: "t-001", Status: "pending"}}
@@ -1181,9 +1182,9 @@ func TestRunTaskLoop_RedecompositionIDsContinueFromMax(t *testing.T) {
 	}}
 	// Decomposer returns sub-tasks with IDs that collide with the existing queue.
 	decomposer := &fakeDecomposer{subTasks: []runstore.Task{
-		{TaskID: "t-001", Status: "pending"},
-		{TaskID: "t-002", Status: "pending"},
-		{TaskID: "t-003", Status: "pending"},
+		{TaskID: "t-001", Status: "pending", Objective: "subtask 1"},
+		{TaskID: "t-002", Status: "pending", Objective: "subtask 2"},
+		{TaskID: "t-003", Status: "pending", Objective: "subtask 3"},
 	}}
 	inspector := &fakeInspector{pass: true}
 	tasks := []runstore.Task{
@@ -1418,5 +1419,210 @@ func TestTaskLoop_NoPhantomEventWhenExpectedFilesExist(t *testing.T) {
 		if ev.EventType() == "phantom_task_failure" {
 			t.Fatal("unexpected phantom_task_failure event: expected file exists on disk, no phantom should fire")
 		}
+	}
+}
+
+// TestTaskLoop_RejectsDecompositionWithEmptyObjective verifies that decomposition
+// returning sub-tasks with empty or whitespace-only objectives is rejected.
+func TestTaskLoop_RejectsDecompositionWithEmptyObjective(t *testing.T) {
+	runner := &fakeTaskRunner{fn: func(_ context.Context, task runstore.Task) (TaskResult, error) {
+		if task.TaskID == "t-001" {
+			return TaskResult{Status: "needs_split"}, nil
+		}
+		return TaskResult{Status: "done"}, nil
+	}}
+	// Decomposer returns sub-tasks with invalid (empty) objectives
+	decomposer := &fakeDecomposer{subTasks: []runstore.Task{
+		{TaskID: "t-001a", Status: "pending", Objective: ""},
+		{TaskID: "t-001b", Status: "pending", Objective: "valid subtask"},
+	}}
+	inspector := &fakeInspector{pass: true}
+	tasks := []runstore.Task{{TaskID: "t-001", Status: "pending"}}
+
+	el, _ := newTestEventLog(t)
+	results, _ := RunTaskLoop(context.Background(), tasks, runner, TaskLoopConfig{
+		MaxRetries:          1,
+		Inspector:           inspector,
+		Decomposer:          decomposer,
+		MaxRedecompositions: 1,
+		EventLog:            el,
+	})
+
+	// Parent task should be marked as failed due to decomposition rejection
+	parentFound := false
+	for _, r := range results {
+		if r.TaskID == "t-001" {
+			parentFound = true
+			if r.Status != "failed" {
+				t.Fatalf("expected parent task t-001 to be failed after decomposition rejection, got %s", r.Status)
+			}
+		}
+	}
+	if !parentFound {
+		t.Fatal("expected parent task t-001 in results")
+	}
+
+	// Verify decomposition_rejected event was emitted
+	events, err := el.ReadAll()
+	if err != nil {
+		t.Fatalf("read events: %v", err)
+	}
+	rejectionFound := false
+	for _, ev := range events {
+		if ev.EventType() == "decomposition_rejected" {
+			rejectionFound = true
+			dre, ok := ev.(*runstore.DecompositionRejectedEvent)
+			if !ok {
+				t.Fatal("decomposition_rejected event has wrong type")
+			}
+			if dre.ParentTaskID != "t-001" {
+				t.Fatalf("expected decomposition_rejected for t-001, got %s", dre.ParentTaskID)
+			}
+			if !strings.Contains(dre.RejectionReason, "t-001a") {
+				t.Fatalf("expected rejection reason to mention t-001a, got: %s", dre.RejectionReason)
+			}
+		}
+	}
+	if !rejectionFound {
+		t.Fatal("expected decomposition_rejected event to be emitted")
+	}
+}
+
+// TestTaskLoop_DoesNotEnqueueRejectedSubTasks verifies that when decomposition
+// is rejected due to invalid sub-tasks, NONE of the sub-tasks are enqueued
+// (all-or-nothing semantics).
+func TestTaskLoop_DoesNotEnqueueRejectedSubTasks(t *testing.T) {
+	executed := []string{}
+	runner := &fakeTaskRunner{fn: func(_ context.Context, task runstore.Task) (TaskResult, error) {
+		executed = append(executed, task.TaskID)
+		if task.TaskID == "t-001" {
+			return TaskResult{Status: "needs_split"}, nil
+		}
+		return TaskResult{Status: "done"}, nil
+	}}
+	// Decomposer returns sub-tasks where one has an empty objective
+	decomposer := &fakeDecomposer{subTasks: []runstore.Task{
+		{TaskID: "t-001a", Status: "pending", Objective: "valid subtask"},
+		{TaskID: "t-001b", Status: "pending", Objective: "  "}, // whitespace-only, invalid
+	}}
+	inspector := &fakeInspector{pass: true}
+	tasks := []runstore.Task{{TaskID: "t-001", Status: "pending"}}
+
+	results, _ := RunTaskLoop(context.Background(), tasks, runner, TaskLoopConfig{
+		MaxRetries:          1,
+		Inspector:           inspector,
+		Decomposer:          decomposer,
+		MaxRedecompositions: 1,
+	})
+
+	// Only t-001 should be executed (the parent that returns needs_split).
+	// Neither t-001a nor t-001b should be executed because decomposition was rejected.
+	if len(executed) != 1 || executed[0] != "t-001" {
+		t.Fatalf("expected only t-001 to be executed, got %v", executed)
+	}
+
+	// Results should contain only the parent task (marked as failed)
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result (parent task marked failed), got %d", len(results))
+	}
+	if results[0].TaskID != "t-001" || results[0].Status != "failed" {
+		t.Fatalf("expected t-001 marked as failed, got TaskID=%s Status=%s", results[0].TaskID, results[0].Status)
+	}
+}
+
+// TestTaskLoop_DecompositionValidationFailurePopulatesFailures verifies that when
+// decomposition validation rejects sub-tasks, the result.Failures field is populated
+// with the rejection reason.
+func TestTaskLoop_DecompositionValidationFailurePopulatesFailures(t *testing.T) {
+	runner := &fakeTaskRunner{fn: func(_ context.Context, task runstore.Task) (TaskResult, error) {
+		if task.TaskID == "t-001" {
+			return TaskResult{Status: "needs_split"}, nil
+		}
+		return TaskResult{Status: "done"}, nil
+	}}
+	// Decomposer returns sub-tasks where one has an empty objective
+	decomposer := &fakeDecomposer{subTasks: []runstore.Task{
+		{TaskID: "t-002", Status: "pending", Objective: "valid subtask"},
+		{TaskID: "t-003", Status: "pending", Objective: ""}, // empty, invalid
+	}}
+	inspector := &fakeInspector{pass: true}
+	tasks := []runstore.Task{{TaskID: "t-001", Status: "pending"}}
+
+	results, _ := RunTaskLoop(context.Background(), tasks, runner, TaskLoopConfig{
+		MaxRetries:          1,
+		Inspector:           inspector,
+		Decomposer:          decomposer,
+		MaxRedecompositions: 1,
+	})
+
+	// Parent task should be marked as failed
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(results))
+	}
+	if results[0].Status != "failed" {
+		t.Fatalf("expected status failed, got %s", results[0].Status)
+	}
+
+	// Failures field should be populated with the rejection reason
+	if len(results[0].Failures) == 0 {
+		t.Fatal("expected Failures to be populated when decomposition is rejected")
+	}
+	if !strings.Contains(results[0].Failures[0], "t-003") {
+		t.Fatalf("expected failure message to mention invalid task t-003, got: %q", results[0].Failures[0])
+	}
+}
+
+// TestTaskLoop_DecompositionValidationFailureEmitsTaskFailedEvent verifies that when
+// decomposition validation rejects sub-tasks, a task_failed event is emitted.
+func TestTaskLoop_DecompositionValidationFailureEmitsTaskFailedEvent(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "events.jsonl")
+	el := runstore.NewEventLog(path)
+
+	runner := &fakeTaskRunner{fn: func(_ context.Context, task runstore.Task) (TaskResult, error) {
+		if task.TaskID == "t-001" {
+			return TaskResult{Status: "needs_split"}, nil
+		}
+		return TaskResult{Status: "done"}, nil
+	}}
+	// Decomposer returns sub-tasks with empty objectives
+	decomposer := &fakeDecomposer{subTasks: []runstore.Task{
+		{TaskID: "t-002", Status: "pending", Objective: ""}, // invalid
+	}}
+	inspector := &fakeInspector{pass: true}
+	tasks := []runstore.Task{{TaskID: "t-001", Status: "pending"}}
+
+	RunTaskLoop(context.Background(), tasks, runner, TaskLoopConfig{
+		MaxRetries:          1,
+		Inspector:           inspector,
+		Decomposer:          decomposer,
+		MaxRedecompositions: 1,
+		EventLog:            el,
+		Cycle:               1,
+	})
+
+	events, _ := el.ReadAll()
+	var eventTypes []string
+	for _, ev := range events {
+		eventTypes = append(eventTypes, ev.EventType())
+	}
+
+	// Should see: task_started, task_needs_split, decomposition_rejected, task_failed
+	foundDecompositionRejected := false
+	foundTaskFailed := false
+	for _, et := range eventTypes {
+		if et == "decomposition_rejected" {
+			foundDecompositionRejected = true
+		}
+		if et == "task_failed" {
+			foundTaskFailed = true
+		}
+	}
+
+	if !foundDecompositionRejected {
+		t.Fatalf("expected decomposition_rejected event, got: %v", eventTypes)
+	}
+	if !foundTaskFailed {
+		t.Fatalf("expected task_failed event, got: %v", eventTypes)
 	}
 }

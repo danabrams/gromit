@@ -833,3 +833,58 @@ func TestExecuteStageAllFailedFailureCollection(t *testing.T) {
 		t.Fatalf("did not expect generic fallback failure, got: %v", failures)
 	}
 }
+
+// TestExecute_AllFailed_FailureContextIncludesDecompositionRejection verifies that when
+// all tasks fail due to rejected decomposition, the replan context includes the
+// decomposition rejection reason (not the generic "all tasks failed" fallback).
+// This test simulates a scenario where a task was decomposed but the decomposition
+// was rejected because one or more sub-tasks had invalid objectives (empty after trimming).
+func TestExecute_AllFailed_FailureContextIncludesDecompositionRejection(t *testing.T) {
+	decompositionRejectionReason := "sub-task t-001a has empty objective after whitespace trimming"
+
+	runner := &fakeTaskRunner{
+		results: []specloop.TaskResult{
+			{
+				TaskID:   "t-001",
+				Status:   "failed",
+				Failures: []string{decompositionRejectionReason},
+			},
+		},
+	}
+
+	stage := NewExecuteStage(runner, ExecuteStageConfig{MaxRetries: 0})
+
+	rs := runstore.NewRunState("spec-001", "proj-001")
+	rs.Tasks = []runstore.Task{
+		{TaskID: "t-001", Status: "pending", Objective: "split into subtasks"},
+	}
+
+	action, err := stage.Run(context.Background(), rs)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if action.Kind != specloop.ReplanFrom {
+		t.Fatalf("expected ReplanFrom, got %v", action.Kind)
+	}
+
+	if action.Context == nil {
+		t.Fatal("expected non-nil FailureContext")
+	}
+
+	// Verify the failure context includes the decomposition rejection reason
+	// (not the generic "all tasks failed" fallback)
+	expected := []string{decompositionRejectionReason}
+	if len(action.Context.Failures) != len(expected) {
+		t.Fatalf("expected %d failures, got %d: %v", len(expected), len(action.Context.Failures), action.Context.Failures)
+	}
+
+	if action.Context.Failures[0] != expected[0] {
+		t.Fatalf("expected failure %q, got %q", expected[0], action.Context.Failures[0])
+	}
+
+	// Verify generic fallback is NOT used
+	if strings.Contains(action.Context.Failures[0], "all tasks failed") {
+		t.Fatalf("expected decomposition rejection reason, not generic fallback, got: %v", action.Context.Failures)
+	}
+}

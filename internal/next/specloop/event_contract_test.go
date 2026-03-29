@@ -563,8 +563,8 @@ func TestEventContract_BudgetExceeded(t *testing.T) {
 	}
 }
 
-func TestEventContract_All15EventTypesCoveredAcrossScenarios(t *testing.T) {
-	// Collect all event types from all scenarios and verify all 15 are covered.
+func TestEventContract_AllRequiredEventTypesCovered(t *testing.T) {
+	// Collect all event types from all scenarios and verify all required types are covered.
 	dir := t.TempDir()
 	allTypes := map[string]bool{}
 
@@ -670,7 +670,7 @@ func TestEventContract_All15EventTypesCoveredAcrossScenarios(t *testing.T) {
 			return TaskResult{Status: "done"}, nil
 		}}
 		decomposer := &fakeDecomposer{subTasks: []runstore.Task{
-			{TaskID: "t-001a", Status: "pending"},
+			{TaskID: "t-001a", Status: "pending", Objective: "subtask a"},
 		}}
 		inspector := &fakeInspector{pass: true}
 		tasks := []runstore.Task{{TaskID: "t-001", Status: "pending"}}
@@ -683,17 +683,41 @@ func TestEventContract_All15EventTypesCoveredAcrossScenarios(t *testing.T) {
 		}
 	}
 
-	// Check all 15 types are covered
-	all15 := []string{
+	// Scenario 6: decomposition_rejected (when decomposer returns invalid sub-tasks)
+	{
+		el := runstore.NewEventLog(filepath.Join(dir, "decomp_rejected.jsonl"))
+		runner := &fakeTaskRunner{fn: func(_ context.Context, task runstore.Task) (TaskResult, error) {
+			if task.TaskID == "t-001" {
+				return TaskResult{Status: "needs_split"}, nil
+			}
+			return TaskResult{Status: "done"}, nil
+		}}
+		// Decomposer returns sub-tasks with empty objectives (invalid)
+		decomposer := &fakeDecomposer{subTasks: []runstore.Task{
+			{TaskID: "t-001a", Status: "pending", Objective: ""},
+		}}
+		inspector := &fakeInspector{pass: true}
+		tasks := []runstore.Task{{TaskID: "t-001", Status: "pending"}}
+		RunTaskLoop(context.Background(), tasks, runner, TaskLoopConfig{
+			MaxRetries: 1, Inspector: inspector, Decomposer: decomposer,
+			MaxRedecompositions: 1, EventLog: el, Cycle: 1,
+		})
+		for _, et := range readEventTypes(t, el) {
+			allTypes[et] = true
+		}
+	}
+
+	// Check all 16 types are covered
+	all16 := []string{
 		"run_started", "spec_packet_compiled", "plan_created",
 		"plan_validation_result", "task_created", "task_started",
 		"task_validation_result", "task_completed", "task_failed",
-		"task_needs_split", "redecomposition_triggered",
+		"task_needs_split", "redecomposition_triggered", "decomposition_rejected",
 		"final_validation_result", "replan_triggered",
 		"budget_exceeded", "terminal_state",
 	}
 	var missing []string
-	for _, et := range all15 {
+	for _, et := range all16 {
 		if !allTypes[et] {
 			missing = append(missing, et)
 		}
