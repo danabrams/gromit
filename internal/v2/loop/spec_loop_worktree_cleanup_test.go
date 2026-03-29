@@ -84,6 +84,49 @@ func TestSpecLoopFailureCommitsPartialWorkAndRemovesWorktree(t *testing.T) {
 	}
 }
 
+func TestCleanupWorktreeSuccessOptionSkipsPartialCommit(t *testing.T) {
+	t.Parallel()
+
+	gitAdapter := &ctxCheckingGitAdapter{}
+	gitAdapter.t = t
+
+	adapters := adapter.AdapterSet{
+		Git:         gitAdapter,
+		LLM:         newFakeLLMAdapter(),
+		TaskTracker: newFakeTaskTrackerAdapter(),
+		Presenter:   newFakePresenterAdapter(t),
+	}
+
+	loopInstance, err := NewSpecLoop(adapters, &config.Config{}, noopDependencyGate{},
+		WithPreserveOnFailure(false),
+	)
+	if err != nil {
+		t.Fatalf("create spec loop: %v", err)
+	}
+
+	successOpts := cleanupOptions{specID: "test-spec", worktree: "/tmp/fake-worktree", success: true}
+	if err := loopInstance.cleanupWorktree(context.Background(), successOpts); err != nil {
+		t.Fatalf("cleanupWorktree success should not error: %v", err)
+	}
+	if len(gitAdapter.commitMessages) != 0 {
+		t.Fatalf("unexpected commits when success true: %d", len(gitAdapter.commitMessages))
+	}
+	if len(gitAdapter.removedWorktrees) != 1 {
+		t.Fatalf("expected removal on success, got %d", len(gitAdapter.removedWorktrees))
+	}
+
+	failOpts := cleanupOptions{specID: "test-spec", worktree: "/tmp/fake-worktree", success: false}
+	if err := loopInstance.cleanupWorktree(context.Background(), failOpts); err != nil {
+		t.Fatalf("cleanupWorktree failure should not error: %v", err)
+	}
+	if len(gitAdapter.commitMessages) != 1 {
+		t.Fatalf("expected 1 commit after failure, got %d", len(gitAdapter.commitMessages))
+	}
+	if len(gitAdapter.removedWorktrees) != 2 {
+		t.Fatalf("expected second removal after failure, got %d", len(gitAdapter.removedWorktrees))
+	}
+}
+
 func initGitRepo(t *testing.T, repoRoot string) {
 	t.Helper()
 	gitCommand(t, repoRoot, "init")
